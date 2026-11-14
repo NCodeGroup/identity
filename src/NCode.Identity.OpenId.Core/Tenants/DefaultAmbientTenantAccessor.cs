@@ -12,25 +12,48 @@ namespace NCode.Identity.OpenId.Tenants;
 /// </summary>
 internal sealed class DefaultAmbientTenantAccessor : IAmbientTenantAccessor
 {
-    private AsyncLocal<string?> AmbientTenantId { get; } = new();
+    private sealed record ScopeState(string? TenantId, bool IsUnscoped, string? Reason);
+
+    private AsyncLocal<ScopeState?> AmbientState { get; } = new();
 
     /// <inheritdoc />
-    public bool IsScoped => AmbientTenantId.Value is not null;
+    public bool IsScoped => AmbientState.Value?.TenantId is not null;
 
     /// <inheritdoc />
-    public string? TenantId => AmbientTenantId.Value;
+    public string? TenantId => AmbientState.Value?.TenantId;
+
+    /// <inheritdoc />
+    public bool IsUnscoped => AmbientState.Value?.IsUnscoped ?? false;
+
+    /// <inheritdoc />
+    public string? UnscopedReason =>
+        AmbientState.Value is { IsUnscoped: true } state ? state.Reason : null;
 
     /// <inheritdoc />
     public IDisposable BeginScope(string tenantId)
     {
         ArgumentNullException.ThrowIfNull(tenantId);
 
-        var previous = AmbientTenantId.Value;
-        AmbientTenantId.Value = tenantId;
+        return Begin(new ScopeState(tenantId, IsUnscoped: false, Reason: null));
+    }
+
+    /// <inheritdoc />
+    public IDisposable BeginUnscoped(string reason)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+
+        return Begin(new ScopeState(TenantId: null, IsUnscoped: true, reason));
+    }
+
+    private Scope Begin(ScopeState state)
+    {
+        var previous = AmbientState.Value;
+        AmbientState.Value = state;
         return new Scope(this, previous);
     }
 
-    private sealed class Scope(DefaultAmbientTenantAccessor owner, string? previous) : IDisposable
+    private sealed class Scope(DefaultAmbientTenantAccessor owner, ScopeState? previous)
+        : IDisposable
     {
         private bool Disposed { get; set; }
 
@@ -40,7 +63,7 @@ internal sealed class DefaultAmbientTenantAccessor : IAmbientTenantAccessor
                 return;
 
             Disposed = true;
-            owner.AmbientTenantId.Value = previous;
+            owner.AmbientState.Value = previous;
         }
     }
 }

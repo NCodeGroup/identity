@@ -405,8 +405,11 @@ NCode.Identity.OpenId.Persistence.Tenants.AmbientTenantAccessorExtensions.extens
 NCode.Identity.OpenId.Persistence.Tenants.AmbientTenantAccessorExtensions.extension(NCode.Identity.OpenId.Persistence.Tenants.IAmbientTenantAccessor!).GetRequiredTenantId() -> string!
 NCode.Identity.OpenId.Persistence.Tenants.IAmbientTenantAccessor
 NCode.Identity.OpenId.Persistence.Tenants.IAmbientTenantAccessor.BeginScope(string! tenantId) -> System.IDisposable!
+NCode.Identity.OpenId.Persistence.Tenants.IAmbientTenantAccessor.BeginUnscoped(string! reason) -> System.IDisposable!
 NCode.Identity.OpenId.Persistence.Tenants.IAmbientTenantAccessor.IsScoped.get -> bool
+NCode.Identity.OpenId.Persistence.Tenants.IAmbientTenantAccessor.IsUnscoped.get -> bool
 NCode.Identity.OpenId.Persistence.Tenants.IAmbientTenantAccessor.TenantId.get -> string?
+NCode.Identity.OpenId.Persistence.Tenants.IAmbientTenantAccessor.UnscopedReason.get -> string?
 override NCode.Identity.OpenId.Persistence.DataContracts.PersistedClient.ResourceType.get -> string!
 override NCode.Identity.OpenId.Persistence.DataContracts.PersistedClientSecret.ResourceType.get -> string!
 override NCode.Identity.OpenId.Persistence.DataContracts.PersistedClientSecrets.ResourceType.get -> string!
