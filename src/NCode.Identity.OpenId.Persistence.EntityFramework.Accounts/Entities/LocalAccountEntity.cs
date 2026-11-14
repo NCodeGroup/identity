@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 using NCode.Identity.OpenId.Accounts;
+using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Entities;
 using NCode.Identity.Persistence;
 
@@ -21,9 +23,8 @@ internal sealed class LocalAccountEntity : ISupportTenantEntity, ISupportConcurr
     [Key]
     public required long Id { get; init; }
 
-    [Unicode(false)]
-    [MaxLength(MaxLengths.ResourceId)]
-    public required string TenantId { get; init; }
+    [ForeignKey(nameof(Tenant))]
+    public required long TenantId { get; init; }
 
     [Unicode(false)]
     [MaxLength(MaxLengths.ResourceId)]
@@ -68,6 +69,8 @@ internal sealed class LocalAccountEntity : ISupportTenantEntity, ISupportConcurr
     [MaxLength(MaxLengths.ConcurrencyToken)]
     [ConcurrencyCheck]
     public required string ConcurrencyToken { get; set; }
+
+    public required TenantEntity Tenant { get; init; }
 
     public ICollection<LocalAccountClaimEntity> Claims { get; init; } = [];
 }

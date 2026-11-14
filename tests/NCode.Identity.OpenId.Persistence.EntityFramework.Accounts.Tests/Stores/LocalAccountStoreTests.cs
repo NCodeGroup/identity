@@ -33,8 +33,9 @@ public sealed class LocalAccountStoreTests : IDisposable
 
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
-        TenantScope = Provider.GetRequiredService<TestAmbientTenantAccessor>().BeginScope(TenantId);
         var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
+        DbContext.SeedTenant(idGenerator, TenantId);
+        TenantScope = Provider.GetRequiredService<TestAmbientTenantAccessor>().BeginScope(TenantId);
         Store = new LocalAccountStore(
             Mock.Of<IStoreProvider>(),
             idGenerator,

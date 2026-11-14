@@ -35,6 +35,8 @@ public sealed class LocalAccountStoreTenantScopingTests : IDisposable
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
         Accessor = Provider.GetRequiredService<TestAmbientTenantAccessor>();
         var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
+        DbContext.SeedTenant(idGenerator, TenantA);
+        DbContext.SeedTenant(idGenerator, TenantB);
         Store = new LocalAccountStore(
             Mock.Of<IStoreProvider>(),
             idGenerator,

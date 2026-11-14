@@ -1,18 +1,22 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Text.Json;
 using IdGen;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using NCode.Identity.OpenId.Persistence.EntityFramework.Core;
+using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 using NCode.Identity.OpenId.Persistence.Tenants;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Accounts;
 
 /// <summary>
 /// Shared test setup for the <see cref="OpenIdDbContext"/> over the local-account slice: registers the id generator,
-/// the reusable framework persistence services, the <see cref="LocalAccountModelContributor"/> (so the <c>DbSet</c>-less
-/// context's model contains the account entities), and a settable ambient tenant accessor.
+/// the core persistence slice (so the <c>DbSet</c>-less context's model contains the tenant and team entities), the
+/// <see cref="LocalAccountModelContributor"/> (so the model contains the account entities), and a settable ambient
+/// tenant accessor.
 /// </summary>
 internal static class TestOpenIdDbContextSetup
 {
@@ -22,7 +26,7 @@ internal static class TestOpenIdDbContextSetup
     )
     {
         serviceCollection.AddSingleton<IIdGenerator<long>>(new IdGenerator(0));
-        serviceCollection.AddEntityFrameworkPersistenceServices<OpenIdDbContext>();
+        serviceCollection.AddEntityFrameworkCorePersistence<OpenIdDbContext>();
         serviceCollection.TryAddEnumerable(
             ServiceDescriptor.Singleton<IOpenIdModelContributor, LocalAccountModelContributor>()
         );
@@ -32,6 +36,81 @@ internal static class TestOpenIdDbContextSetup
         );
         serviceCollection.AddDbContext<OpenIdDbContext>(configureOptions);
         return serviceCollection;
+    }
+
+    /// <summary>
+    /// Finds the team with the given identifier, or seeds a minimal one directly into the context and saves it.
+    /// Returns the team entity.
+    /// </summary>
+    public static TeamEntity SeedTeam(
+        this OpenIdDbContext dbContext,
+        IIdGenerator<long> idGenerator,
+        string teamId
+    )
+    {
+        var normalizedTeamId = teamId.ToLowerInvariant();
+        var existing =
+            dbContext
+                .Set<TeamEntity>()
+                .Local.FirstOrDefault(team => team.NormalizedTeamId == normalizedTeamId)
+            ?? dbContext
+                .Set<TeamEntity>()
+                .FirstOrDefault(team => team.NormalizedTeamId == normalizedTeamId);
+        if (existing is not null)
+            return existing;
+
+        var entity = new TeamEntity
+        {
+            Id = idGenerator.CreateId(),
+            TeamId = teamId,
+            NormalizedTeamId = normalizedTeamId,
+            Path = $"/{teamId}/",
+            ConcurrencyToken = string.Empty,
+            SettingsConcurrencyToken = string.Empty,
+            IsDisabled = false,
+            DisplayName = "Platform",
+            SettingsJson = JsonSerializer.SerializeToElement(new Dictionary<string, object>()),
+            Tenants = new List<TenantEntity>(),
+        };
+        dbContext.Set<TeamEntity>().Add(entity);
+        dbContext.SaveChanges();
+        return entity;
+    }
+
+    /// <summary>
+    /// Seeds a minimal persisted tenant directly into the context so tenant-scoped entities can reference it, and
+    /// saves it. Returns the seeded tenant entity.
+    /// </summary>
+    public static TenantEntity SeedTenant(
+        this OpenIdDbContext dbContext,
+        IIdGenerator<long> idGenerator,
+        string tenantId
+    )
+    {
+        var team = dbContext.SeedTeam(idGenerator, "platform");
+        var entity = new TenantEntity
+        {
+            Id = idGenerator.CreateId(),
+            TeamId = team.Id,
+            Team = team,
+            TenantId = tenantId,
+            NormalizedTenantId = tenantId.ToLowerInvariant(),
+            Issuer = null,
+            NormalizedIssuer = null,
+            NormalizedIssuerHost = null,
+            MtlsEndpointAliasAuthority = null,
+            NormalizedMtlsEndpointAliasHost = null,
+            ConcurrencyToken = string.Empty,
+            SettingsConcurrencyToken = string.Empty,
+            SecretsConcurrencyToken = string.Empty,
+            IsDisabled = false,
+            DisplayName = tenantId,
+            SettingsJson = JsonSerializer.SerializeToElement(new Dictionary<string, object>()),
+            Secrets = [],
+        };
+        dbContext.Set<TenantEntity>().Add(entity);
+        dbContext.SaveChanges();
+        return entity;
     }
 }
 

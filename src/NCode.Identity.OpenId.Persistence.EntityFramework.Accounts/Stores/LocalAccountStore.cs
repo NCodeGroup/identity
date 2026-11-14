@@ -8,6 +8,7 @@ using NCode.Identity.OpenId.Accounts.Credentials;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Accounts.Entities;
+using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Stores;
 using NCode.Identity.Persistence.Stores;
 
@@ -53,6 +54,7 @@ internal sealed class LocalAccountStore(
         CancellationToken cancellationToken
     ) =>
         await Accounts
+            .Include(entity => entity.Tenant)
             .Include(entity => entity.Claims)
             .FirstOrDefaultAsync(predicate, cancellationToken);
 
@@ -63,7 +65,10 @@ internal sealed class LocalAccountStore(
         CancellationToken cancellationToken
     )
     {
-        var query = Accounts.Include(entity => entity.Claims).AsQueryable();
+        var query = Accounts
+            .Include(entity => entity.Tenant)
+            .Include(entity => entity.Claims)
+            .AsQueryable();
 
         if (afterId is { } id)
         {
@@ -85,11 +90,14 @@ internal sealed class LocalAccountStore(
     {
         account.ConcurrencyToken = NextConcurrencyToken();
 
+        var tenantEntity = await GetTenantEntityAsync(account.TenantId, cancellationToken);
+
         var entity = new LocalAccountEntity
         {
             Id = NextId(),
-            TenantId = account.TenantId,
-            NormalizedTenantId = Normalize(account.TenantId),
+            TenantId = tenantEntity.Id,
+            NormalizedTenantId = tenantEntity.NormalizedTenantId,
+            Tenant = tenantEntity,
             LocalAccountId = account.LocalAccountId,
             NormalizedLocalAccountId = Normalize(account.LocalAccountId),
             UserName = account.UserName,
@@ -109,7 +117,9 @@ internal sealed class LocalAccountStore(
                 new LocalAccountClaimEntity
                 {
                     Id = NextId(),
-                    NormalizedTenantId = entity.NormalizedTenantId,
+                    TenantId = tenantEntity.Id,
+                    NormalizedTenantId = tenantEntity.NormalizedTenantId,
+                    Tenant = tenantEntity,
                     Type = claim.Type,
                     Value = claim.Value,
                 }
@@ -253,7 +263,9 @@ internal sealed class LocalAccountStore(
                 new LocalAccountClaimEntity
                 {
                     Id = NextId(),
+                    TenantId = entity.TenantId,
                     NormalizedTenantId = entity.NormalizedTenantId,
+                    Tenant = entity.Tenant,
                     Type = claim.Type,
                     Value = claim.Value,
                 }
@@ -265,6 +277,24 @@ internal sealed class LocalAccountStore(
     }
 
     private static string NextSecurityStamp() => Guid.NewGuid().ToString("N");
+
+    private async ValueTask<TenantEntity> GetTenantEntityAsync(
+        string tenantId,
+        CancellationToken cancellationToken
+    )
+    {
+        var normalizedTenantId = Normalize(tenantId);
+        var tenantEntity = await DbContext
+            .Set<TenantEntity>()
+            .SingleOrDefaultAsync(
+                tenant => tenant.NormalizedTenantId == normalizedTenantId,
+                cancellationToken
+            );
+        return tenantEntity
+            ?? throw new InvalidOperationException(
+                $"An OpenId Tenant with '{tenantId}' was not found."
+            );
+    }
 
     private ValueTask<LocalAccountEntity?> GetEntityByIdOrDefaultAsync(
         string localAccountId,
@@ -293,7 +323,7 @@ internal sealed class LocalAccountStore(
     private static PersistedLocalAccount MapFromEntity(LocalAccountEntity entity) =>
         new()
         {
-            TenantId = entity.TenantId,
+            TenantId = entity.Tenant.TenantId,
             LocalAccountId = entity.LocalAccountId,
             UserName = entity.UserName,
             Email = entity.Email,
