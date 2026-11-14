@@ -5,6 +5,7 @@ using JetBrains.Annotations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.Client;
 using NCode.Identity.Registration;
@@ -29,7 +30,8 @@ public static class DefaultRegistration
         /// <c>directory/v1</c> API with a client-credentials token for the audience <c>urn:ncode:directory</c>, which
         /// the OpenID client library requests as the cell's machine client from the issuer named by
         /// <c>Cell:ControlPlane:Issuer</c>, over the client library's bounded HTTP client. A call that cannot reach the
-        /// directory throws <see cref="DirectoryUnavailableException"/>.
+        /// directory throws <see cref="DirectoryUnavailableException"/>. The same registration adds a hosted service that
+        /// registers the cell with the directory when the host starts, retrying while the directory is unavailable.
         /// </summary>
         /// <param name="configuration">The <see cref="IConfiguration"/> holding the <c>Directory</c> section.</param>
         /// <returns>The same <see cref="IServiceBuilder{T}"/> so that calls can be chained.</returns>
@@ -75,6 +77,11 @@ public static class DefaultRegistration
             );
             serviceCollection.Replace(
                 ServiceDescriptor.Singleton<ICellDirectory, RemoteCellDirectory>()
+            );
+
+            // The cell announces itself to the directory when the host starts.
+            serviceCollection.TryAddEnumerable(
+                ServiceDescriptor.Singleton<IHostedService, CellRegistrationService>()
             );
 
             return builder;

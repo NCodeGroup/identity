@@ -1303,6 +1303,7 @@ MethodImplOptions.AggressiveOptimization)]`, manual unrolling of tiny fixed-coun
     | `28000`–`28999` | `NCode.Identity.AspNetCore`                         |
     | `29000`–`29999` | `NCode.Identity.OpenId.Setup`                       |
     | `30000`–`30999` | `NCode.Identity.OpenId.Host.Database`               |
+    | `31000`–`31999` | `NCode.Identity.OpenId.GlobalDirectory`             |
 
 ### Metrics
 
