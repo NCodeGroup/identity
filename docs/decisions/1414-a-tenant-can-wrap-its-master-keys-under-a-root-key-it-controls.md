@@ -142,8 +142,9 @@ and the docs say "tenant root key" or "team root key". A team's key is held per 
     or `404` with no root key. The console's tenant encryption keys tab offers set, validate and remove.
 21. **A team holds one root key per region.** The `Team` value is a secret owner type, and its root key is set per
     region on the control-plane cell through `PUT` and `DELETE /api/teams/{teamId}/encryption-keys/root-keys/{region}`
-    and `POST .../root-keys/{region}/validate`. The team document the directory publishes carries the per-region key
-    references
+    and `POST .../root-keys/{region}/validate`. `GET /api/teams/{teamId}/encryption-keys/root-keys` lists the team's
+    keys with the providers it may choose and its access binding. The team document the directory publishes carries the
+    per-region key references
     ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
     Each cell mirrors its own region's reference into an `OwnerRootKey` row of the team, so a cell never reaches a key
     of another region. A tenant with no root key of its own wraps its master keys under its team's key, through the

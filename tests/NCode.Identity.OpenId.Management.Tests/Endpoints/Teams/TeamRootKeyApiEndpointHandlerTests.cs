@@ -370,18 +370,30 @@ public sealed class TeamRootKeyApiEndpointHandlerTests : IDisposable
             )
         );
 
+        MockOwnerRootKeyManager
+            .SetupGet(x => x.AllowedKeyWrapperNames)
+            .Returns(["aws-kms", "gcp-kms"])
+            .Verifiable();
+        MockOwnerRootKeyManager
+            .Setup(x => x.GetAccessBinding(TeamOwner))
+            .Returns("binding-1")
+            .Verifiable();
+
         var result = await Handler.ListRootKeysAsync(
             CreateHttpContext(),
             TeamId,
             CancellationToken.None
         );
 
-        var ok = Assert.IsType<Ok<TeamRootKeyResource[]>>(result);
-        var keys = Assert.IsType<TeamRootKeyResource[]>(ok.Value);
+        var ok = Assert.IsType<Ok<TeamRootKeysResource>>(result);
+        var resource = Assert.IsType<TeamRootKeysResource>(ok.Value);
+        var keys = resource.RootKeys;
         Assert.Equal([OtherRegion, OwnRegion], keys.Select(key => key.Region));
         Assert.Equal(["other-key", "own-key"], keys.Select(key => key.KeyReference));
         Assert.Equal("role", keys[0].AccessIdentity);
         Assert.Equal("aws-kms", keys[0].Provider);
+        Assert.Equal(["aws-kms", "gcp-kms"], resource.RootKeyProviders);
+        Assert.Equal("binding-1", resource.RootKeyAccessBinding);
     }
 
     [Fact]

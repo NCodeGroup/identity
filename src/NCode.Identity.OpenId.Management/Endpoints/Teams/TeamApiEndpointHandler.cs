@@ -303,7 +303,7 @@ internal class TeamApiEndpointHandler(
 
         teams
             .MapGet("/{teamId}/encryption-keys/root-keys", ListRootKeysAsync)
-            .Produces<TeamRootKeyResource[]>()
+            .Produces<TeamRootKeysResource>()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound);
@@ -1601,12 +1601,13 @@ internal class TeamApiEndpointHandler(
     }
 
     /// <summary>
-    /// Lists the root keys that a team brings, one per region.
+    /// Lists the root keys that a team brings, one per region, with the key wrappers the team may choose and the
+    /// access binding it can require of the server.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
     /// <param name="teamId">The identifier of the team.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <response code="200">The team's root keys, ordered by region.</response>
+    /// <response code="200">The team's root keys, ordered by region, the key wrappers the team may choose and the access binding.</response>
     /// <response code="404">The team does not exist.</response>
     // See ADR-1414.
     [EndpointName("api/teams/encryption-keys/root-keys/list")]
@@ -1637,9 +1638,17 @@ internal class TeamApiEndpointHandler(
         }
 
         return TypedResults.Ok(
-            team.RootKeys.OrderBy(pair => pair.Key, StringComparer.Ordinal)
-                .Select(pair => ToTeamRootKeyResource(pair.Key, pair.Value))
-                .ToArray()
+            new TeamRootKeysResource
+            {
+                RootKeys =
+                [
+                    .. team
+                        .RootKeys.OrderBy(pair => pair.Key, StringComparer.Ordinal)
+                        .Select(pair => ToTeamRootKeyResource(pair.Key, pair.Value)),
+                ],
+                RootKeyProviders = [.. OwnerRootKeyManager.AllowedKeyWrapperNames],
+                RootKeyAccessBinding = OwnerRootKeyManager.GetAccessBinding(GetTeamOwner(team)),
+            }
         );
     }
 

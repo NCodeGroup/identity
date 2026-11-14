@@ -179,6 +179,14 @@ NCode.Identity.OpenId.Management.Contracts.Teams.TeamRootKeyResource.Provider.in
 NCode.Identity.OpenId.Management.Contracts.Teams.TeamRootKeyResource.Region.get -> string!
 NCode.Identity.OpenId.Management.Contracts.Teams.TeamRootKeyResource.Region.init -> void
 NCode.Identity.OpenId.Management.Contracts.Teams.TeamRootKeyResource.TeamRootKeyResource() -> void
+NCode.Identity.OpenId.Management.Contracts.Teams.TeamRootKeysResource
+NCode.Identity.OpenId.Management.Contracts.Teams.TeamRootKeysResource.RootKeyAccessBinding.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Teams.TeamRootKeysResource.RootKeyAccessBinding.init -> void
+NCode.Identity.OpenId.Management.Contracts.Teams.TeamRootKeysResource.RootKeyProviders.get -> System.Collections.Generic.List<string!>!
+NCode.Identity.OpenId.Management.Contracts.Teams.TeamRootKeysResource.RootKeyProviders.init -> void
+NCode.Identity.OpenId.Management.Contracts.Teams.TeamRootKeysResource.RootKeys.get -> System.Collections.Generic.List<NCode.Identity.OpenId.Management.Contracts.Teams.TeamRootKeyResource!>!
+NCode.Identity.OpenId.Management.Contracts.Teams.TeamRootKeysResource.RootKeys.init -> void
+NCode.Identity.OpenId.Management.Contracts.Teams.TeamRootKeysResource.TeamRootKeysResource() -> void
 NCode.Identity.OpenId.Management.Contracts.Tenants.PromoteTenantRequest
 NCode.Identity.OpenId.Management.Contracts.Tenants.PromoteTenantRequest.EnvironmentSettings.get -> System.Collections.Generic.List<NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionEnvironmentSettings!>!
 NCode.Identity.OpenId.Management.Contracts.Tenants.PromoteTenantRequest.EnvironmentSettings.init -> void
