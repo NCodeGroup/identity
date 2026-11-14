@@ -155,6 +155,7 @@ internal sealed class LocalTeamDirectory(
                 entity.TeamId,
                 entity.DisplayName,
                 entity.SettingsJson,
+                ParentTeamId = entity.ParentTeam == null ? null : entity.ParentTeam.TeamId,
             })
             .SingleOrDefaultAsync(cancellationToken);
         if (team is null)
@@ -166,6 +167,7 @@ internal sealed class LocalTeamDirectory(
         {
             TeamId = team.TeamId,
             DisplayName = team.DisplayName,
+            ParentTeamId = team.ParentTeamId,
             SettingsJson = team.SettingsJson.GetRawText(),
         };
     }

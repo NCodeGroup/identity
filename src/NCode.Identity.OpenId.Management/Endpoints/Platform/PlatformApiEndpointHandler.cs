@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,6 +15,7 @@ using NCode.Identity.Cryptography;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Authentication.Clients;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts;
@@ -63,11 +65,14 @@ internal class PlatformApiEndpointHandler(
     ITeamClientCoherenceChecker teamClientCoherenceChecker,
     IMasterKeyManager masterKeyManager,
     IManagementAuditRecorder managementAuditRecorder,
+    IPlatformDirectory platformDirectory,
     ILogger<PlatformApiEndpointHandler> logger
 ) : BaseApiEndpointHandler, IEndpointProvider
 {
     // The number of teams read per page when a settings write is checked against every team's tenants' clients.
     private const int TeamPageSize = 100;
+
+    private const int DirectoryRetrySeconds = 5;
 
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private ISettingSerializer SettingSerializer { get; } = settingSerializer;
@@ -82,6 +87,7 @@ internal class PlatformApiEndpointHandler(
         teamClientCoherenceChecker;
     private IMasterKeyManager MasterKeyManager { get; } = masterKeyManager;
     private IManagementAuditRecorder ManagementAuditRecorder { get; } = managementAuditRecorder;
+    private IPlatformDirectory PlatformDirectory { get; } = platformDirectory;
     private ILogger<PlatformApiEndpointHandler> Logger { get; } = logger;
 
     /// <inheritdoc />
@@ -511,6 +517,10 @@ internal class PlatformApiEndpointHandler(
 
         await storeManager.SaveChangesAsync(cancellationToken);
 
+        // A directory that cannot be reached leaves the saved change unpublished, which the response reports after the
+        // change is audited and announced.
+        var publishFailure = await TryPublishAsync(settingsValue, cancellationToken);
+
         await ManagementAuditRecorder.RecordPlatformChangedAsync(
             httpContext,
             ResourceChangeTypes.SettingsUpdated,
@@ -524,12 +534,60 @@ internal class PlatformApiEndpointHandler(
             cancellationToken
         );
 
+        if (publishFailure is not null)
+        {
+            return DirectoryUnavailableProblem(httpContext);
+        }
+
         httpContext.Response.Headers.ETag = ManagementEntityTags.Format(
             platformSettings.ConcurrencyToken
         );
 
         return TypedResults.NoContent();
     }
+
+    /// <summary>
+    /// Publishes the platform's settings document after the change is saved. A directory that cannot be reached leaves
+    /// the change unpublished, which the caller reports after the change is audited and announced.
+    /// </summary>
+    /// <param name="settings">The platform's settings document as saved.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="DirectoryUnavailableException"/> that the directory threw, or <c>null</c> when the document is published.</returns>
+    private async ValueTask<DirectoryUnavailableException?> TryPublishAsync(
+        JsonElement settings,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            await PlatformDirectory.PublishAsync(
+                new PlatformDocument { SettingsJson = settings.GetRawText() },
+                cancellationToken
+            );
+            return null;
+        }
+        catch (DirectoryUnavailableException exception)
+        {
+            return exception;
+        }
+    }
+
+    /// <summary>
+    /// Answers <c>503 Service Unavailable</c> with a <c>Retry-After</c> for a change that is saved but not published
+    /// because the directory cannot be reached.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <returns>The <see cref="ProblemHttpResult"/> that asks the caller to retry.</returns>
+    private static ProblemHttpResult DirectoryUnavailableProblem(HttpContext httpContext) =>
+        RetryAfterProblem.Create(
+            httpContext,
+            TimeSpan.FromSeconds(DirectoryRetrySeconds),
+            new ProblemDetails
+            {
+                Status = StatusCodes.Status503ServiceUnavailable,
+                Detail = "The global directory is unavailable. Retry the request.",
+            }
+        );
 
     /// <summary>
     /// Resolves the effective settings of the platform's committed settings document, which a settings write replaces.

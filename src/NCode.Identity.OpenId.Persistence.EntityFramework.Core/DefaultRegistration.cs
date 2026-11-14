@@ -79,6 +79,7 @@ public static class DefaultRegistration
             // adapter registered first win.
             serviceCollection.TryAddSingleton<ITenantDirectory, LocalTenantDirectory>();
             serviceCollection.TryAddSingleton<ITeamDirectory, LocalTeamDirectory>();
+            serviceCollection.TryAddSingleton<IPlatformDirectory, LocalPlatformDirectory>();
             serviceCollection.TryAddSingleton<ICellDirectory, LocalCellDirectory>();
 
             return newBuilder;

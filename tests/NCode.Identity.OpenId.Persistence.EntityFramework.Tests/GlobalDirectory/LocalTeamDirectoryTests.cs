@@ -263,6 +263,31 @@ public sealed class LocalTeamDirectoryTests : IDisposable
     }
 
     [Fact]
+    public async Task GetOrDefaultAsync_WhenTheTeamHasAParent_ReturnsTheParentTeamId()
+    {
+        SetupUnscoped();
+        var parent = DbContext.SeedTeam(IdGenerator, TeamId);
+        DbContext.SeedChildTeam(IdGenerator, parent, OtherTeamId);
+
+        var document = await Directory.GetOrDefaultAsync(OtherTeamId, CancellationToken.None);
+
+        Assert.NotNull(document);
+        Assert.Equal(TeamId, document.ParentTeamId);
+    }
+
+    [Fact]
+    public async Task GetOrDefaultAsync_WhenTheTeamIsTopLevel_ReturnsNoParentTeamId()
+    {
+        SetupUnscoped();
+        DbContext.SeedTeam(IdGenerator, TeamId);
+
+        var document = await Directory.GetOrDefaultAsync(TeamId, CancellationToken.None);
+
+        Assert.NotNull(document);
+        Assert.Null(document.ParentTeamId);
+    }
+
+    [Fact]
     public async Task GetOrDefaultAsync_WhenTheTeamIsUnknown_ReturnsNull()
     {
         SetupUnscoped();

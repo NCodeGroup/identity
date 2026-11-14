@@ -21,7 +21,8 @@ public static class DefaultRegistration
     extension(IServiceBuilder<OpenIdClientLibrary> builder)
     {
         /// <summary>
-        /// Registers the remote <see cref="ITenantDirectory"/>, <see cref="ITeamDirectory"/> and
+        /// Registers the remote <see cref="ITenantDirectory"/>, <see cref="ITeamDirectory"/>,
+        /// <see cref="IPlatformDirectory"/> and
         /// <see cref="ICellDirectory"/> when the <c>Directory:Url</c> setting is set, and registers nothing otherwise,
         /// so a cell that runs on its own keeps the local adapters. The <c>Directory</c> section binds
         /// <see cref="DirectoryClientOptions"/> strictly and is validated when the host starts. Each adapter calls the
@@ -68,6 +69,9 @@ public static class DefaultRegistration
             );
             serviceCollection.Replace(
                 ServiceDescriptor.Singleton<ITeamDirectory, RemoteTeamDirectory>()
+            );
+            serviceCollection.Replace(
+                ServiceDescriptor.Singleton<IPlatformDirectory, RemotePlatformDirectory>()
             );
             serviceCollection.Replace(
                 ServiceDescriptor.Singleton<ICellDirectory, RemoteCellDirectory>()

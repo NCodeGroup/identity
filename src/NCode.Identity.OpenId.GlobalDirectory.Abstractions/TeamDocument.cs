@@ -25,6 +25,11 @@ public sealed record TeamDocument
     public required string DisplayName { get; init; }
 
     /// <summary>
+    /// Gets the identifier of the parent team, or <c>null</c> for a top-level team.
+    /// </summary>
+    public string? ParentTeamId { get; init; }
+
+    /// <summary>
     /// Gets the team's settings as a JSON object.
     /// </summary>
     public string SettingsJson { get; init; } = "{}";

@@ -32,6 +32,95 @@ public class RemoteTeamDirectoryTests : RemoteDirectoryTestBase
             }
         );
 
+    #region PublishAsync Tests
+
+    [Fact]
+    public async Task PublishAsync_WhenTheDocumentHasAParent_SendsTheParentTeamIdInTheBody()
+    {
+        var handler = StubHttpMessageHandler.Respond(HttpStatusCode.NoContent);
+        var directory = new RemoteTeamDirectory(CreateClient(handler));
+        var document = new TeamDocument
+        {
+            TeamId = "team-2",
+            DisplayName = "Team 2",
+            ParentTeamId = "team-1",
+        };
+
+        await directory.PublishAsync(document, CancellationToken.None);
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Put, request.Method);
+        Assert.NotNull(request.Body);
+        var sent = JsonSerializer.Deserialize<TeamDocument>(request.Body, WireOptions);
+        Assert.NotNull(sent);
+        Assert.Equal("team-1", sent.ParentTeamId);
+    }
+
+    #endregion
+
+    #region GetOrDefaultAsync Tests
+
+    [Fact]
+    public async Task GetOrDefaultAsync_WhenTheDocumentHasAParent_ReadsTheParentTeamId()
+    {
+        var document = new TeamDocument
+        {
+            TeamId = "team-2",
+            DisplayName = "Team 2",
+            ParentTeamId = "team-1",
+        };
+        var handler = StubHttpMessageHandler.Respond(
+            HttpStatusCode.OK,
+            JsonSerializer.Serialize(document, WireOptions)
+        );
+        var directory = new RemoteTeamDirectory(CreateClient(handler));
+
+        var result = await directory.GetOrDefaultAsync("team-2", CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal("team-1", result.ParentTeamId);
+    }
+
+    #endregion
+
+    #region ListChangesAsync Tests
+
+    [Fact]
+    public async Task ListChangesAsync_WhenTheFeedHoldsAPlatformChange_ReadsThePlatformDocumentWithoutATeamId()
+    {
+        var changes = new List<DirectoryChange>
+        {
+            new()
+            {
+                Sequence = 1,
+                TeamId = "team-1",
+                Document = new TeamDocument { TeamId = "team-1", DisplayName = "Team 1" },
+            },
+            new()
+            {
+                Sequence = 2,
+                Platform = new PlatformDocument
+                {
+                    SettingsJson = """{"max_tenants":5}""",
+                    Sequence = 2,
+                },
+            },
+        };
+        var handler = CreatePagedHandler(changes);
+        var directory = new RemoteTeamDirectory(CreateClient(handler));
+
+        var result = await directory.ListChangesAsync(0, 10, CancellationToken.None);
+
+        Assert.Equal(2, result.Count);
+        Assert.Equal("team-1", result[0].TeamId);
+        Assert.Null(result[0].Platform);
+        Assert.Null(result[1].TeamId);
+        Assert.Null(result[1].Document);
+        Assert.Equal(changes[1].Platform, result[1].Platform);
+    }
+
+    #endregion
+
     #region ListChangesAsync Tests
 
     [Fact]

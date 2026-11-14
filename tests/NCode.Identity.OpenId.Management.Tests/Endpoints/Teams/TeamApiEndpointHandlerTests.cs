@@ -1210,6 +1210,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
         Assert.Equal(TeamId, published.TeamId);
         Assert.Equal("Team One", published.DisplayName);
         Assert.Equal("{}", published.SettingsJson);
+        Assert.Null(published.ParentTeamId);
         Assert.Empty(published.RootKeyReferences);
     }
 
@@ -1423,7 +1424,8 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
         SetupAncestorMaxTeams(TeamId, maxTeams: null, descendants: null);
         SetupSave();
         SetupReserve(ChildTeamId);
-        SetupPublish(ChildTeamId);
+        TeamDocument? published = null;
+        SetupPublishCapture(document => published = document, ChildTeamId);
         PersistedTeam? added = null;
         MockTeamStore
             .Setup(x => x.AddAsync(It.IsAny<PersistedTeam>(), It.IsAny<CancellationToken>()))
@@ -1484,6 +1486,9 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
         Assert.Equal(TeamId, created.Value?.ParentTeamId);
         Assert.Equal(ChildTeamId, added?.TeamId);
         Assert.Equal(TeamId, added?.ParentTeamId);
+        Assert.NotNull(published);
+        Assert.Equal(ChildTeamId, published.TeamId);
+        Assert.Equal(TeamId, published.ParentTeamId);
     }
 
     [Fact]

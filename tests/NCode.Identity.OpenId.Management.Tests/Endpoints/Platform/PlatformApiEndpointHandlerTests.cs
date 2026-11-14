@@ -14,6 +14,7 @@ using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Authentication.Clients;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Environments;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts;
@@ -52,6 +53,7 @@ public sealed class PlatformApiEndpointHandlerTests : IDisposable
     private Mock<IMediator> MockMediator { get; }
     private Mock<IMasterKeyManager> MockMasterKeyManager { get; }
     private Mock<IManagementAuditRecorder> MockManagementAuditRecorder { get; }
+    private Mock<IPlatformDirectory> MockPlatformDirectory { get; }
     private PlatformApiEndpointHandler Handler { get; }
 
     public PlatformApiEndpointHandlerTests()
@@ -73,6 +75,7 @@ public sealed class PlatformApiEndpointHandlerTests : IDisposable
 
         MockMasterKeyManager = MockRepository.Create<IMasterKeyManager>();
         MockManagementAuditRecorder = MockRepository.Create<IManagementAuditRecorder>();
+        MockPlatformDirectory = MockRepository.Create<IPlatformDirectory>();
 
         Handler = new PlatformApiEndpointHandler(
             MockStoreManagerFactory.Object,
@@ -85,12 +88,15 @@ public sealed class PlatformApiEndpointHandlerTests : IDisposable
             MockTeamClientCoherenceChecker.Object,
             MockMasterKeyManager.Object,
             MockManagementAuditRecorder.Object,
+            MockPlatformDirectory.Object,
             NullLogger<PlatformApiEndpointHandler>.Instance
         );
     }
 
-    // Only a request that changes the resource records it.
-    private void SetupPlatformChangedAudit() =>
+    // Only a request that changes the resource records it. A saved change is published to the directory unless the
+    // test sets up its own publish.
+    private void SetupPlatformChangedAudit(bool publishes = true)
+    {
         MockManagementAuditRecorder
             .Setup(x =>
                 x.RecordPlatformChangedAsync(
@@ -100,6 +106,25 @@ public sealed class PlatformApiEndpointHandlerTests : IDisposable
                 )
             )
             .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+        if (publishes)
+        {
+            SetupPlatformPublish(_ => { });
+        }
+    }
+
+    private void SetupPlatformPublish(Action<PlatformDocument> capture) =>
+        MockPlatformDirectory
+            .Setup(x => x.PublishAsync(It.IsAny<PlatformDocument>(), It.IsAny<CancellationToken>()))
+            .Callback((PlatformDocument document, CancellationToken _) => capture(document))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+    private void SetupPlatformPublishUnavailable() =>
+        MockPlatformDirectory
+            .Setup(x => x.PublishAsync(It.IsAny<PlatformDocument>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new DirectoryUnavailableException("The directory is down."))
             .Verifiable();
 
     public void Dispose()
@@ -1258,6 +1283,84 @@ public sealed class PlatformApiEndpointHandlerTests : IDisposable
                 ),
             Times.Once
         );
+    }
+
+    [Fact]
+    public async Task UpdateSettingsAsync_AfterTheWriteCommits_PublishesThePlatformDocument()
+    {
+        SetupValidSettings();
+        SetupStore();
+        var settings = CreateSettings("settings-ct", EmptyObject());
+        MockPlatformStore
+            .Setup(x => x.GetSettingsOrDefaultAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(settings)
+            .Verifiable();
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupClientCoherenceCheck();
+        MockPlatformStore
+            .Setup(x => x.UpdateSettingsAsync(settings, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+        SetupPlatformChangedAudit(publishes: false);
+        SetupPlatformSettingsChanged();
+        PlatformDocument? published = null;
+        SetupPlatformPublish(document => published = document);
+
+        var result = await Handler.UpdateSettingsAsync(
+            CreateHttpContext(authenticated: true),
+            CreateAddPatch("foo", "bar"),
+            ifMatch: null,
+            CancellationToken.None
+        );
+
+        Assert.IsType<NoContent>(result);
+        Assert.NotNull(published);
+        Assert.Equal("""{"foo":"bar"}""", published.SettingsJson);
+        Assert.Equal(0, published.Sequence);
+    }
+
+    [Fact]
+    public async Task UpdateSettingsAsync_WhenTheDirectoryIsUnavailable_Returns503WithRetryAfterAfterAuditingAndAnnouncing()
+    {
+        SetupValidSettings();
+        SetupStore();
+        var settings = CreateSettings("settings-ct", EmptyObject());
+        MockPlatformStore
+            .Setup(x => x.GetSettingsOrDefaultAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(settings)
+            .Verifiable();
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupClientCoherenceCheck();
+        MockPlatformStore
+            .Setup(x => x.UpdateSettingsAsync(settings, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+        SetupPlatformChangedAudit(publishes: false);
+        SetupPlatformSettingsChanged();
+        SetupPlatformPublishUnavailable();
+
+        var httpContext = CreateHttpContext(authenticated: true);
+
+        var result = await Handler.UpdateSettingsAsync(
+            httpContext,
+            CreateAddPatch("foo", "bar"),
+            ifMatch: null,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, problem.StatusCode);
+        Assert.Equal("5", httpContext.Response.Headers.RetryAfter.ToString());
     }
 
     [Fact]

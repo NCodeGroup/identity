@@ -595,6 +595,7 @@ internal class TeamApiEndpointHandler(
             TeamId = team.TeamId,
             DisplayName = team.DisplayName,
             SettingsJson = team.Settings.Value.GetRawText(),
+            ParentTeamId = team.ParentTeamId,
         };
 
     /// <summary>
