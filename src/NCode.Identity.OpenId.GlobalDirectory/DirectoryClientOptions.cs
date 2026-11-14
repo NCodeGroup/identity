@@ -35,4 +35,10 @@ public sealed class DirectoryClientOptions
     /// Gets or sets the name of the key ring whose private key signs the client assertion.
     /// </summary>
     public string? KeyRing { get; set; }
+
+    /// <summary>
+    /// Gets or sets how often a cell that is not the control plane polls the directory's change feed to mirror the
+    /// team and platform documents. It must be positive. The default is 30 seconds.
+    /// </summary>
+    public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(30);
 }

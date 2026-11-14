@@ -43,6 +43,13 @@ internal sealed class DirectoryClientOptionsValidator(IOptions<CellOptions> cell
             );
         }
 
+        if (options.PollInterval <= TimeSpan.Zero)
+        {
+            failures.Add(
+                $"{DirectoryClientOptions.SectionName}:{nameof(DirectoryClientOptions.PollInterval)} must be a positive time span."
+            );
+        }
+
         if (!IsAllowedEndpoint(CellOptions.ControlPlane.Issuer))
         {
             failures.Add(

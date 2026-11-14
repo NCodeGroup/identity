@@ -31,7 +31,10 @@ public static class DefaultRegistration
         /// the OpenID client library requests as the cell's machine client from the issuer named by
         /// <c>Cell:ControlPlane:Issuer</c>, over the client library's bounded HTTP client. A call that cannot reach the
         /// directory throws <see cref="DirectoryUnavailableException"/>. The same registration adds a hosted service that
-        /// registers the cell with the directory when the host starts, retrying while the directory is unavailable.
+        /// registers the cell with the directory when the host starts, retrying while the directory is unavailable, and a
+        /// hosted service that follows the directory's change feed: every <see cref="DirectoryClientOptions.PollInterval"/>
+        /// one replica of a cell that is not the control plane mirrors the published team and platform documents into the
+        /// cell.
         /// </summary>
         /// <param name="configuration">The <see cref="IConfiguration"/> holding the <c>Directory</c> section.</param>
         /// <returns>The same <see cref="IServiceBuilder{T}"/> so that calls can be chained.</returns>
@@ -79,9 +82,12 @@ public static class DefaultRegistration
                 ServiceDescriptor.Singleton<ICellDirectory, RemoteCellDirectory>()
             );
 
-            // The cell announces itself to the directory when the host starts.
+            // The cell announces itself to the directory when the host starts, then follows its change feed.
             serviceCollection.TryAddEnumerable(
                 ServiceDescriptor.Singleton<IHostedService, CellRegistrationService>()
+            );
+            serviceCollection.TryAddEnumerable(
+                ServiceDescriptor.Singleton<IHostedService, DirectoryChangeFeedService>()
             );
 
             return builder;

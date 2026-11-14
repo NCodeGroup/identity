@@ -12,6 +12,7 @@
         <ProjectReference Include="..\NCode.Identity.OpenId.Client.Abstractions\NCode.Identity.OpenId.Client.Abstractions.csproj" />
         <ProjectReference Include="..\NCode.Identity.OpenId.GlobalDirectory.Abstractions\NCode.Identity.OpenId.GlobalDirectory.Abstractions.csproj" />
         <ProjectReference Include="..\NCode.Identity.Registration\NCode.Identity.Registration.csproj" />
+        <ProjectReference Include="..\NCode.Identity.SharedState.Abstractions\NCode.Identity.SharedState.Abstractions.csproj" />
     </ItemGroup>
 
     <ItemGroup>

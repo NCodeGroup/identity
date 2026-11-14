@@ -9,6 +9,8 @@ NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.ClientId.set -> voi
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.DirectoryClientOptions() -> void
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.KeyRing.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.KeyRing.set -> void
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.PollInterval.get -> System.TimeSpan
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.PollInterval.set -> void
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.Url.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.Url.set -> void
 NCode.Identity.OpenId.GlobalDirectory.IDirectoryTokenSource
