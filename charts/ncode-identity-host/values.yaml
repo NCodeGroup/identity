@@ -46,6 +46,19 @@ cell:
   # management tokens from it.
   controlPlaneIssuer: ""
 
+# The cell's backup (ncode.io/backup-location). The chart starts no backup itself.
+backup:
+  # Where the cell's backups are kept, such as a bucket or a volume snapshot class. When set, the pods that own the
+  # database, the host and the migration Job, carry it as the ncode.io/backup-location annotation for the backup tool to
+  # read. Empty adds no annotation.
+  location: ""
+
+# The OpenTelemetry export of every pod the chart runs. Every pod carries OTEL_RESOURCE_ATTRIBUTES with cell.name and
+# cell.region, so a signal names its cell.
+telemetry:
+  # The OTLP collector's absolute URL (OTEL_EXPORTER_OTLP_ENDPOINT). Empty sets none.
+  otlpEndpoint: ""
+
 tenantResolution:
   # OpenId:TenantResolution:StrategyCode. Settings for another strategy go in extraEnv.
   strategyCode: StaticSingle

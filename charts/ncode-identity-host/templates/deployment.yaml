@@ -2,6 +2,7 @@
 {{- include "identity-host.backendTls.validate" . }}
 {{- $valkey := include "identity-host.valkeyEnabled" . }}
 {{- $googleCloudCredentials := include "identity-host.kmsCredentials.googleCloudCredentialConfiguration" (include "identity-host.kmsCredentials.server" . | fromYaml) }}
+{{- $backupAnnotations := include "identity-host.backupAnnotations" . | trim }}
 {{- $probeHost := include "identity-host.probeHost" . }}
 apiVersion: apps/v1
 kind: Deployment
@@ -35,10 +36,13 @@ spec:
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- if or .Values.podAnnotations $googleCloudCredentials }}
+      {{- if or .Values.podAnnotations $googleCloudCredentials $backupAnnotations }}
       annotations:
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with $backupAnnotations }}
+        {{- . | nindent 8 }}
         {{- end }}
         {{- if $googleCloudCredentials }}
         # A changed configuration restarts the pods, which read it only at start.

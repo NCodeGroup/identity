@@ -23,6 +23,10 @@ spec:
       labels:
         {{- include "identity-host.commonLabels" . | nindent 8 }}
         app.kubernetes.io/component: migrations
+      {{- with include "identity-host.backupAnnotations" . | trim }}
+      annotations:
+        {{- . | nindent 8 }}
+      {{- end }}
     spec:
       restartPolicy: Never
       {{- if not .Values.serviceAccount.create }}
@@ -53,6 +57,7 @@ spec:
             {{- include "identity-host.databaseEnv" (dict "scope" .Values.migrations.database "defaults" .Values.database) | trim | nindent 12 }}
             - name: HostDatabase__RuntimeRole
               value: {{ .Values.database.runtimeRole | quote }}
+            {{- include "identity-host.telemetryEnv" . | trim | nindent 12 }}
             # The host's extra settings and volumes apply to the worker too, such as the CA bundle and SSL mode a
             # TLS connection to Postgres needs.
             {{- with .Values.extraEnv }}

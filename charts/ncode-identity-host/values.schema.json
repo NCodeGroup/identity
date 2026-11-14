@@ -241,6 +241,32 @@
         }
       }
     },
+    "backup": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "location": {
+          "type": "string"
+        }
+      }
+    },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "otlpEndpoint": {
+          "type": "string",
+          "anyOf": [
+            {
+              "maxLength": 0
+            },
+            {
+              "format": "uri"
+            }
+          ]
+        }
+      }
+    },
     "tenantResolution": {
       "type": "object",
       "additionalProperties": false,

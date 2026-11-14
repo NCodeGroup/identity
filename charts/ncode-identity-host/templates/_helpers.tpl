@@ -557,6 +557,29 @@ values path of the identity values, such as secretProtection, as path.
 {{- end }}
 
 {{/*
+The OpenTelemetry environment of every container the chart runs: the collector's endpoint when one is set, and the
+cell's identity as resource attributes.
+*/}}
+{{- define "identity-host.telemetryEnv" -}}
+{{- with .Values.telemetry.otlpEndpoint }}
+- name: OTEL_EXPORTER_OTLP_ENDPOINT
+  value: {{ . | quote }}
+{{- end }}
+- name: OTEL_RESOURCE_ATTRIBUTES
+  value: {{ printf "cell.name=%s,cell.region=%s" .Values.cell.name .Values.cell.region | quote }}
+{{- end }}
+
+{{/*
+The pod annotation that names where the cell's backups are kept, for the pods that own the database. Renders nothing
+when backup.location is empty.
+*/}}
+{{- define "identity-host.backupAnnotations" -}}
+{{- with .Values.backup.location }}
+ncode.io/backup-location: {{ . | quote }}
+{{- end }}
+{{- end }}
+
+{{/*
 The environment of the host container, which the Deployment and the secret protection Job share, so a Job reads the
 same configuration the pods it rewraps keys for read.
 */}}
@@ -588,6 +611,7 @@ same configuration the pods it rewraps keys for read.
 - name: Cell__ControlPlane__Issuer
   value: {{ . | quote }}
 {{- end }}
+{{ include "identity-host.telemetryEnv" . | trim }}
 - name: OpenId__TenantResolution__StrategyCode
   value: {{ .Values.tenantResolution.strategyCode | quote }}
 {{- with .Values.tenantResolution.staticSingle.issuer }}
