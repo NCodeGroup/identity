@@ -187,6 +187,40 @@ public class ManagementConsoleBootstrapHandlerTests : BaseTests
         Assert.Null(document.Branding.Mode);
     }
 
+    [Fact]
+    public void Create_WithCells_ListsTheNamesSortedOrdinally()
+    {
+        var options = new ManagementConsoleOptions
+        {
+            Cells =
+            {
+                ["us-2"] = "https://us-2.example.com/api",
+                ["eu-1"] = "https://eu-1.example.com/api",
+                ["eu-10"] = "https://eu-10.example.com/api",
+            },
+        };
+
+        var document = ManagementConsoleBootstrapDocument.Create(
+            options,
+            CreateBffOptions(),
+            PathString.Empty
+        );
+
+        Assert.Equal(["eu-1", "eu-10", "us-2"], document.Cells);
+    }
+
+    [Fact]
+    public void Create_WithoutCells_ListsNoCells()
+    {
+        var document = ManagementConsoleBootstrapDocument.Create(
+            new ManagementConsoleOptions(),
+            CreateBffOptions(),
+            PathString.Empty
+        );
+
+        Assert.Empty(document.Cells);
+    }
+
     #endregion
 
     #region Handle Tests
@@ -218,7 +252,29 @@ public class ManagementConsoleBootstrapHandlerTests : BaseTests
         Assert.Equal("X-CSRF", header.GetProperty("name").GetString());
         Assert.Equal("1", header.GetProperty("value").GetString());
         Assert.Equal(JsonValueKind.Object, document.GetProperty("features").ValueKind);
+        Assert.Equal(0, document.GetProperty("cells").GetArrayLength());
         Assert.False(document.TryGetProperty("branding", out _));
+    }
+
+    [Fact]
+    public async Task Handle_WithCells_WritesTheSortedNames()
+    {
+        var options = new ManagementConsoleOptions
+        {
+            Cells =
+            {
+                ["us-2"] = "https://us-2.example.com/api",
+                ["eu-1"] = "https://eu-1.example.com/api",
+            },
+        };
+        var handler = CreateHandler(options, CreateBffOptions());
+
+        var (_, document) = await HandleAsync(handler, "", CancellationToken.None);
+
+        Assert.Equal(
+            ["eu-1", "us-2"],
+            document.GetProperty("cells").EnumerateArray().Select(static cell => cell.GetString())
+        );
     }
 
     [Fact]

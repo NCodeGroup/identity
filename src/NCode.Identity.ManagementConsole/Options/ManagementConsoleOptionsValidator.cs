@@ -52,6 +52,24 @@ internal sealed class ManagementConsoleOptionsValidator(LocalDevelopmentMode loc
             );
     }
 
+    private static bool IsDnsLabel(string name)
+    {
+        if (name.Length is < 1 or > 63 || name[0] == '-' || name[^1] == '-')
+        {
+            return false;
+        }
+
+        foreach (var c in name)
+        {
+            if (c is not ((>= 'a' and <= 'z') or (>= '0' and <= '9') or '-'))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     /// <inheritdoc />
     public ValidateOptionsResult Validate(string? name, ManagementConsoleOptions options)
     {
@@ -72,6 +90,40 @@ internal sealed class ManagementConsoleOptionsValidator(LocalDevelopmentMode loc
                     ? $"{Key}:ManagementApiUrl is '{Describe(options.ManagementApiUrl)}' and must use 'https' unless LocalDevelopment:Enabled is true."
                     : $"{Key}:ManagementApiUrl must be an absolute https URL without user info, query or fragment; it is '{Describe(options.ManagementApiUrl)}'."
             );
+        }
+
+        if (options.Cells is not null)
+        {
+            foreach (
+                var (cellName, cellUrl) in options.Cells.OrderBy(
+                    static pair => pair.Key,
+                    StringComparer.Ordinal
+                )
+            )
+            {
+                var cellKey = $"{Key}:Cells:{cellName}";
+
+                if (!IsDnsLabel(cellName))
+                {
+                    failures.Add(
+                        $"{cellKey} must be named with a DNS label of 1 to 63 lower-case letters, digits and hyphens, without a leading or trailing hyphen; the name is '{cellName}'."
+                    );
+                }
+
+                var isCellWellFormed = IsValidManagementApiUrl(cellUrl, true);
+                var isCellValid = isLocalDevelopment
+                    ? isCellWellFormed
+                    : IsValidManagementApiUrl(cellUrl, false);
+
+                if (!isCellValid)
+                {
+                    failures.Add(
+                        isCellWellFormed
+                            ? $"{cellKey} is '{Describe(cellUrl)}' and must use 'https' unless LocalDevelopment:Enabled is true."
+                            : $"{cellKey} must be an absolute https URL without user info, query or fragment; it is '{Describe(cellUrl)}'."
+                    );
+                }
+            }
         }
 
         if (string.IsNullOrWhiteSpace(options.BundleRootPath))

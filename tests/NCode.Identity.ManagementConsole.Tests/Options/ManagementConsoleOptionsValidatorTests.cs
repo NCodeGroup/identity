@@ -252,4 +252,100 @@ public class ManagementConsoleOptionsValidatorTests : BaseTests
     }
 
     #endregion
+
+    #region Cells Tests
+
+    [Fact]
+    public void Validate_WhenACellEntryIsValid_Succeeds()
+    {
+        var options = CreateValidOptions();
+        options.Cells["eu-1"] = "https://eu-1.example.com/api";
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Succeeded);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("Eu1")]
+    [InlineData("eu_1")]
+    [InlineData("-eu")]
+    [InlineData("eu-")]
+    [InlineData("eu.1")]
+    [InlineData("0123456789012345678901234567890123456789012345678901234567890123")]
+    public void Validate_WhenACellNameIsNotADnsLabel_FailsWithTheEntrysKey(string name)
+    {
+        var options = CreateValidOptions();
+        options.Cells[name] = "https://eu-1.example.com/api";
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(
+            $"ManagementConsole:Cells:{name} must be named with a DNS label",
+            result.Failures?.Single() ?? string.Empty
+        );
+    }
+
+    [Fact]
+    public void Validate_WhenACellNameHasSixtyThreeCharacters_Succeeds()
+    {
+        var options = CreateValidOptions();
+        options.Cells[new string('a', 63)] = "https://eu-1.example.com/api";
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Succeeded);
+    }
+
+    [Theory]
+    [InlineData("", "")]
+    [InlineData("eu-1.example.com/api", "eu-1.example.com/api")]
+    [InlineData("https://user:secret@eu-1.example.com/api", "https://eu-1.example.com/api")]
+    [InlineData("https://eu-1.example.com/api?x=1", "https://eu-1.example.com/api")]
+    public void Validate_WhenACellUrlIsInvalid_FailsWithTheEntrysKey(
+        string url,
+        string expectedValue
+    )
+    {
+        var options = CreateValidOptions();
+        options.Cells["eu-1"] = url;
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Equal(
+            $"ManagementConsole:Cells:eu-1 must be an absolute https URL without user info, query or fragment; it is '{expectedValue}'.",
+            result.Failures?.Single()
+        );
+    }
+
+    [Fact]
+    public void Validate_WhenACellUrlIsHttpAndTheSwitchIsOff_Fails()
+    {
+        var options = CreateValidOptions();
+        options.Cells["eu-1"] = "http://localhost:5001/api";
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Equal(
+            "ManagementConsole:Cells:eu-1 is 'http://localhost:5001/api' and must use 'https' unless LocalDevelopment:Enabled is true.",
+            result.Failures?.Single()
+        );
+    }
+
+    [Fact]
+    public void Validate_WhenACellUrlIsHttpAndTheSwitchIsOn_Succeeds()
+    {
+        var options = CreateValidOptions();
+        options.Cells["eu-1"] = "http://localhost:5001/api";
+
+        var result = CreateValidator(localDevelopment: true).Validate(null, options);
+
+        Assert.True(result.Succeeded);
+    }
+
+    #endregion
 }

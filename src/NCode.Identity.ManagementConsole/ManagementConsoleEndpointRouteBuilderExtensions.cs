@@ -25,15 +25,19 @@ public static class ManagementConsoleEndpointRouteBuilderExtensions
     {
         /// <summary>
         /// Maps the BFF endpoints and remote APIs of the configured frontends, the management API forwarder under
-        /// <see cref="ManagementConsoleDefaults.ApiPath"/>, the console's bootstrap document under
+        /// <see cref="ManagementConsoleDefaults.ApiPath"/>, one management API forwarder per configured cell under
+        /// <c>{<see cref="ManagementConsoleDefaults.CellsPath"/>}/{cell}/api</c>, the console's bootstrap document under
         /// <see cref="ManagementConsoleDefaults.BootstrapPath"/>, the bundle's static assets under
         /// <see cref="ManagementConsoleDefaults.AssetsPath"/> and, as the fallback of every other
         /// <c>GET</c> and <c>HEAD</c> path that is not a file, the console's page.
         /// </summary>
         /// <remarks>
-        /// The management API forwarder is limited to the <see cref="ManagementConsoleDefaults.FrontendName"/>
+        /// Each management API forwarder is limited to the <see cref="ManagementConsoleDefaults.FrontendName"/>
         /// frontend, requires the <see cref="BffTokenRequirementNames.User"/> token requirement and requests the
-        /// <see cref="ManagementConsoleDefaults.ManagementApiResource"/> resource.
+        /// <see cref="ManagementConsoleDefaults.ManagementApiResource"/> resource. The cell forwarders, mapped in
+        /// ordinal order of the cell names from <c>ManagementConsole:Cells</c>, are siblings of the
+        /// <see cref="ManagementConsoleDefaults.ApiPath"/> forwarder and never its children, because the BFF maps a
+        /// request path to one remote API.
         /// </remarks>
         /// <returns>The <see cref="RouteGroupBuilder"/> of the bootstrap, asset and page endpoints, which is excluded
         /// from the API description.</returns>
@@ -67,6 +71,26 @@ public static class ManagementConsoleEndpointRouteBuilderExtensions
                     }
                 )
                 .RequireBffFrontend(ManagementConsoleDefaults.FrontendName);
+
+            foreach (
+                var (cellName, cellUrl) in options.Cells.OrderBy(
+                    static pair => pair.Key,
+                    StringComparer.Ordinal
+                )
+            )
+            {
+                endpoints
+                    .MapBffRemoteApi(
+                        $"{ManagementConsoleDefaults.CellsPath}/{cellName}/api",
+                        cellUrl,
+                        api =>
+                        {
+                            api.TokenRequirement = BffTokenRequirementNames.User;
+                            api.Resource = ManagementConsoleDefaults.ManagementApiResource;
+                        }
+                    )
+                    .RequireBffFrontend(ManagementConsoleDefaults.FrontendName);
+            }
 
             var group = endpoints.MapGroup(string.Empty).AllowAnonymous();
 

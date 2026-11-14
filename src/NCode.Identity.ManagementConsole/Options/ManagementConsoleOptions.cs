@@ -19,6 +19,13 @@ public sealed class ManagementConsoleOptions
     public string? ManagementApiUrl { get; set; }
 
     /// <summary>
+    /// Gets or sets the management API URL of each cell, keyed by the cell's name, which is a DNS label. Each URL has
+    /// the same shape as <see cref="ManagementApiUrl"/>, <c>/api</c> on the cell's origin. The console forwards the
+    /// browser's calls for a cell to its URL. The configuration key is <c>ManagementConsole:Cells</c>.
+    /// </summary>
+    public Dictionary<string, string> Cells { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Gets or sets the directory of the built <c>apps/mgmt</c> bundle, relative to the content root or absolute. The
     /// configuration key is <c>ManagementConsole:BundleRootPath</c>.
     /// </summary>

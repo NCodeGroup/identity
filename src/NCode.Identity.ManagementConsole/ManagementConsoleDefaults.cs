@@ -33,6 +33,11 @@ public static class ManagementConsoleDefaults
     public const string ApiPath = "/management/api";
 
     /// <summary>
+    /// The path under which the console forwards requests to each configured cell.
+    /// </summary>
+    public const string CellsPath = ApiBasePath + "/cells";
+
+    /// <summary>
     /// The resource indicator of the management API.
     /// </summary>
     public const string ManagementApiResource = "urn:ncode:management";

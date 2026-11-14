@@ -13,7 +13,7 @@ namespace NCode.Identity.ManagementConsole;
 /// <summary>
 /// Answers the request for the console's runtime bootstrap document at
 /// <see cref="ManagementConsoleDefaults.BootstrapPath"/>, which the bundle fetches at boot to discover its API base,
-/// its BFF's coordinates, its feature flags and its branding.
+/// its BFF's coordinates, its feature flags, its branding and the names of its cells.
 /// </summary>
 internal sealed class ManagementConsoleBootstrapHandler(
     IOptions<ManagementConsoleOptions> optionsAccessor,

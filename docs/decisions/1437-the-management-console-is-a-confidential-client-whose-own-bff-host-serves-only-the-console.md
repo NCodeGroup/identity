@@ -81,9 +81,10 @@ management API at `/api` on the origin of its authority.**
    ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)),
    and one console manages them all.
    - `/management/api/*` is forwarded to the control-plane cell, which serves platform, team, caller and machine-client
-     management, and `/management/api/cells/{cell}/*` is forwarded to the management URL of the named cell, which
-     serves that cell's tenants. Both forwards carry the same `user` token requirement, frontend and antiforgery
-     check, and the cell validates the token against the control plane
+     management, and `/management/cells/{cell}/api/*` is forwarded to the management URL of the named cell, which
+     serves that cell's tenants. The cell forwarders are siblings of `/management/api`, never children of it, because
+     the BFF maps a path to one remote API. Both forwards carry the same `user` token requirement, frontend and
+     antiforgery check, and the cell validates the token against the control plane
      ([ADR-1191](1191-a-management-request-is-authenticated-by-the-control-plane-tenant-and-scoped-by-its-routes-tenant.md)).
    - `ManagementConsole:Cells` maps each cell name, a DNS label, to its management URL. Each URL passes the same check
      as `ManagementApiUrl`, and the console maps one forwarder per entry at start. The bootstrap document lists the

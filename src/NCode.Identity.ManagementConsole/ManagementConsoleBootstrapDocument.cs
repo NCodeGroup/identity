@@ -24,6 +24,9 @@ internal sealed record ManagementConsoleBootstrapDocument
     public IReadOnlyDictionary<string, bool> Features { get; init; } =
         new Dictionary<string, bool>(StringComparer.Ordinal);
 
+    [JsonPropertyName("cells")]
+    public IReadOnlyList<string> Cells { get; init; } = [];
+
     [JsonPropertyName("branding")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ManagementConsoleBrandingDocument? Branding { get; init; }
@@ -52,6 +55,7 @@ internal sealed record ManagementConsoleBootstrapDocument
                 },
             },
             Features = new Dictionary<string, bool>(options.Features, StringComparer.Ordinal),
+            Cells = [.. options.Cells.Keys.Order(StringComparer.Ordinal)],
             Branding = ManagementConsoleBrandingDocument.Create(options.Branding),
         };
 }

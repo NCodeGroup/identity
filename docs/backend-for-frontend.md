@@ -1312,9 +1312,10 @@ answers these paths:
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/` and every non-file `GET` or `HEAD` path | The bundle's page, with a fresh nonce under a nonce-based Content-Security-Policy. It is never cached. A missing bundle answers `503` and never stops the host from starting. |
 | `/assets/*`               | The bundle's files, immutable.                                                                                                                                                      |
-| `/config/bootstrap.json`  | The console's bootstrap document: the API base `/management`, the BFF's base path and anti-forgery header, the feature flags and the branding.                                       |
+| `/config/bootstrap.json`  | The console's bootstrap document: the API base `/management`, the BFF's base path and anti-forgery header, the feature flags, the branding and the configured cell names.            |
 | `/bff/*`                  | The endpoints of the `mgmt` frontend ([§5.7](#57-bff-endpoints)).                                                                                                                   |
 | `/management/api/*`       | The OP's management API (`ManagementConsole:ManagementApiUrl`), with the user's DPoP-bound `urn:ncode:management` token ([§5.5](#55-token-management)).                              |
+| `/management/cells/{cell}/api/*` | The management API of the named cell (`ManagementConsole:Cells:{cell}`, one entry per cell, each a DNS-label name mapped to the cell's management API URL), with the same token. |
 
 The page's policy allows scripts only with the nonce and `'strict-dynamic'`, styles only with the nonce, images from the
 console's own origin and the origins of the branding's logo and tab icon, `connect-src 'self'`, form submissions to the
