@@ -145,10 +145,15 @@ export function parseBffBootstrapDocument(raw: unknown): BffBootstrapDocument {
 
   const branding = parseBrandingConfig(doc.branding);
 
+  const cells = Array.isArray(doc.cells)
+    ? doc.cells.filter((cell): cell is string => typeof cell === 'string' && cell.trim() !== '')
+    : [];
+
   return {
     apiBaseUrl,
     bff: { basePath, antiforgeryHeader: { name, value } },
     features,
+    ...(cells.length > 0 ? { cells } : {}),
     ...(branding ? { branding } : {}),
   };
 }
@@ -206,6 +211,7 @@ export function toBffRuntimeConfig(document: BffBootstrapDocument): BffRuntimeCo
     kind: 'bff',
     apiBaseUrl: document.apiBaseUrl,
     bff: document.bff,
+    ...(document.cells && document.cells.length > 0 ? { cells: document.cells } : {}),
     features: document.features ?? {},
     ...(document.branding ? { branding: document.branding } : {}),
   };

@@ -103,6 +103,35 @@ describe('dynamicBaseQuery', () => {
     ]);
   });
 
+  it('sends a call with a cell to the cell forwarder under the base URL', async () => {
+    const { captured } = mockFetch();
+    const store = createAppStore({
+      config: { runtime: { ...runtime, apiBaseUrl: 'https://api.test/management' } },
+    });
+
+    await store.dispatch(
+      managementApi.endpoints.getTenantUsage.initiate({ tenantId: 'acme', cell: 'eu-1' }),
+    );
+
+    expect(captured.map((r) => r.url)).toEqual([
+      'https://api.test/management/cells/eu-1/api/tenants/acme/usage',
+    ]);
+    expect(captured[0]).toMatchObject({ antiforgery: '1', credentials: 'same-origin' });
+  });
+
+  it('sends a call without a cell to the control plane under the base URL', async () => {
+    const { captured } = mockFetch();
+    const store = createAppStore({
+      config: { runtime: { ...runtime, apiBaseUrl: 'https://api.test/management' } },
+    });
+
+    await store.dispatch(managementApi.endpoints.getTenantUsage.initiate({ tenantId: 'acme' }));
+
+    expect(captured.map((r) => r.url)).toEqual([
+      'https://api.test/management/api/tenants/acme/usage',
+    ]);
+  });
+
   it('sends the anti-forgery header with same-origin credentials and no authorization header', async () => {
     const { captured } = mockFetch();
     const store = createAppStore({ config: { runtime } });

@@ -267,6 +267,19 @@ describe('parseBffBootstrapDocument', () => {
     expect(result).not.toHaveProperty('branding');
   });
 
+  it('reads the cell names and keeps only the non-blank strings', () => {
+    const result = parseBffBootstrapDocument({
+      ...document,
+      cells: ['eu-1', 'us-1', '', '  ', 7, null],
+    });
+    expect(result.cells).toEqual(['eu-1', 'us-1']);
+  });
+
+  it.each([undefined, null, 'eu-1', {}, []])('defaults the cells to none (%s)', (cells) => {
+    const result = parseBffBootstrapDocument({ ...document, cells });
+    expect(result).not.toHaveProperty('cells');
+  });
+
   it.each([null, 'nope', 42])('rejects a non-object document (%s)', (raw) => {
     expect(() => parseBffBootstrapDocument(raw)).toThrow(
       'Bootstrap document must be a JSON object.',
@@ -338,6 +351,21 @@ describe('toBffRuntimeConfig', () => {
       bff,
       features: {},
     });
+  });
+
+  it('passes the cells through and omits an empty list', () => {
+    expect(toBffRuntimeConfig({ apiBaseUrl: '/management', bff, cells: ['eu-1', 'us-1'] })).toEqual(
+      {
+        kind: 'bff',
+        apiBaseUrl: '/management',
+        bff,
+        cells: ['eu-1', 'us-1'],
+        features: {},
+      },
+    );
+    expect(toBffRuntimeConfig({ apiBaseUrl: '/management', bff, cells: [] })).not.toHaveProperty(
+      'cells',
+    );
   });
 
   it('passes features and branding through', () => {

@@ -2243,6 +2243,182 @@ describe('managementApi cells', () => {
   });
 });
 
+describe('managementApi across cells', () => {
+  const tenant = (tenantId: string) => ({
+    tenantId,
+    teamId: 'acme',
+    concurrencyToken: 'c1',
+    issuer: null,
+    mtlsEndpointAliasAuthority: null,
+    isDisabled: false,
+    displayName: tenantId,
+  });
+  const cellRuntime: BffRuntimeConfig = { ...runtime, cells: ['eu-1', 'us-1'] };
+  const createCellStore = () => createAppStore({ config: { runtime: cellRuntime } });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('sends a tenant-scoped call with a cell to the cell forwarder', async () => {
+    const captured = mockFetch(jsonResponse({ items: [] }));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.listClients.initiate({ tenantId: 'acme-prod', cell: 'eu-1' }),
+    );
+
+    expect(captured[0]?.url).toBe('https://api.test/cells/eu-1/api/tenants/acme-prod/clients');
+  });
+
+  it('keeps the query string of a tenant-scoped call with a cell', async () => {
+    const captured = mockFetch(jsonResponse({ items: [] }));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.listClients.initiate({
+        tenantId: 'acme-prod',
+        resourceServerId: 'rs-1',
+        cell: 'eu-1',
+      }),
+    );
+
+    expect(captured[0]?.url).toBe(
+      'https://api.test/cells/eu-1/api/tenants/acme-prod/clients?resourceServerId=rs-1',
+    );
+  });
+
+  it('sends a tenant-scoped call without a cell to the control plane', async () => {
+    const captured = mockFetch(jsonResponse({ items: [] }));
+    const store = createStore();
+
+    await store.dispatch(managementApi.endpoints.listClients.initiate({ tenantId: 'acme-prod' }));
+
+    expect(captured[0]?.url).toBe('https://api.test/api/tenants/acme-prod/clients');
+  });
+
+  it('sends an owner-scoped call with a cell to the cell forwarder', async () => {
+    const captured = mockFetch(jsonResponse({ secrets: [] }));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.listSecrets.initiate({
+        kind: 'tenant',
+        tenantId: 'acme-prod',
+        cell: 'us-1',
+      }),
+    );
+
+    expect(captured[0]?.url).toBe('https://api.test/cells/us-1/api/tenants/acme-prod/secrets');
+  });
+
+  it('sends a mutation with a cell to the cell forwarder with its method and body', async () => {
+    const captured = mockFetch(new Response(null, { status: 204 }));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.revokeGrant.initiate({
+        tenantId: 'acme-prod',
+        grantId: 'g-1',
+        cell: 'eu-1',
+      }),
+    );
+
+    expect(captured[0]?.url).toBe('https://api.test/cells/eu-1/api/tenants/acme-prod/grants/g-1');
+    expect(captured[0]?.method).toBe('DELETE');
+  });
+
+  it('listTenants asks the control plane alone when no cell is named', async () => {
+    const fetches = routeFetch(() => jsonResponse({ items: [tenant('a')] }));
+    const store = createStore();
+
+    const result = await store.dispatch(
+      managementApi.endpoints.listTenants.initiate({ teamId: 'acme' }),
+    );
+
+    expect(fetches.calls).toEqual(['GET /api/teams/acme/tenants']);
+    expect(result.data).toEqual({ items: [tenant('a')], unavailableCells: [] });
+  });
+
+  it('listTenants merges the tenants of every cell, each tagged with its cell', async () => {
+    const fetches = routeFetch((_method, path) =>
+      path.startsWith('/cells/eu-1/')
+        ? jsonResponse({ items: [tenant('a'), tenant('b')] })
+        : jsonResponse({ items: [tenant('c')] }),
+    );
+    const store = createCellStore();
+
+    const result = await store.dispatch(
+      managementApi.endpoints.listTenants.initiate({ teamId: 'acme' }),
+    );
+
+    expect([...fetches.calls].sort()).toEqual([
+      'GET /cells/eu-1/api/teams/acme/tenants',
+      'GET /cells/us-1/api/teams/acme/tenants',
+    ]);
+    expect(result.data).toEqual({
+      items: [
+        { ...tenant('a'), cell: 'eu-1' },
+        { ...tenant('b'), cell: 'eu-1' },
+        { ...tenant('c'), cell: 'us-1' },
+      ],
+      unavailableCells: [],
+    });
+  });
+
+  it('listTenants marks a failing cell unavailable and keeps the other cells', async () => {
+    routeFetch((_method, path) =>
+      path.startsWith('/cells/eu-1/')
+        ? jsonResponse({ title: 'Unavailable' }, 503)
+        : jsonResponse({ items: [tenant('c')] }),
+    );
+    const store = createCellStore();
+
+    const result = await store.dispatch(
+      managementApi.endpoints.listTenants.initiate({ teamId: 'acme' }),
+    );
+
+    expect(result.error).toBeUndefined();
+    expect(result.data).toEqual({
+      items: [{ ...tenant('c'), cell: 'us-1' }],
+      unavailableCells: ['eu-1'],
+    });
+  });
+
+  it('listCallerTenants merges the caller tenants of every cell and reports a failing cell', async () => {
+    const fetches = routeFetch((_method, path) =>
+      path.startsWith('/cells/us-1/')
+        ? jsonResponse({ title: 'Bad gateway' }, 502)
+        : jsonResponse({ items: [tenant('a')] }),
+    );
+    const store = createCellStore();
+
+    const result = await store.dispatch(managementApi.endpoints.listCallerTenants.initiate());
+
+    expect([...fetches.calls].sort()).toEqual([
+      'GET /cells/eu-1/api/me/tenants',
+      'GET /cells/us-1/api/me/tenants',
+    ]);
+    expect(result.data).toEqual({
+      items: [{ ...tenant('a'), cell: 'eu-1' }],
+      unavailableCells: ['us-1'],
+    });
+  });
+
+  it('listTenants fails when the control plane fails and no cell is named', async () => {
+    routeFetch(() => jsonResponse({ title: 'Unavailable' }, 503));
+    const store = createStore();
+
+    const result = await store.dispatch(
+      managementApi.endpoints.listTenants.initiate({ teamId: 'acme' }),
+    );
+
+    expect(result.data).toBeUndefined();
+    expect(result.error).toMatchObject({ status: 503 });
+  });
+});
+
 describe('managementApi team root key requests', () => {
   const teamRootKey = {
     region: 'eu west',
