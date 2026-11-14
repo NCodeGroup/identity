@@ -1,4 +1,5 @@
 #nullable enable
+const NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.SectionName = "DirectoryServer" -> string!
 const NCode.Identity.OpenId.GlobalDirectory.Server.Entities.PlatformRecord.SingletonId = 1 -> long
 const NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.StatePublished = "published" -> string!
 const NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.StateReserved = "reserved" -> string!
@@ -6,6 +7,9 @@ const NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.StateReti
 const NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.StatePlaced = "placed" -> string!
 const NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.StateReserved = "reserved" -> string!
 const NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.StateRetired = "retired" -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.DefaultRegistration
+NCode.Identity.OpenId.GlobalDirectory.Server.DefaultRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!)
+NCode.Identity.OpenId.GlobalDirectory.Server.DefaultRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).AddOpenIdDirectoryServer(Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.Cells.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord!>!
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.Changes.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord!>!
@@ -14,6 +18,13 @@ NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.Platforms.get ->
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.RetiredIssuers.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.RetiredIssuerRecord!>!
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.Teams.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord!>!
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.Tenants.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord!>!
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryEndpoints
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryEndpoints.extension(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!)
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryEndpoints.extension(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!).MapDirectory() -> Microsoft.AspNetCore.Routing.RouteGroupBuilder!
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.DirectoryServerOptions() -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.Issuer.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.Issuer.set -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.CellRecord() -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.IsControlPlane.get -> bool
