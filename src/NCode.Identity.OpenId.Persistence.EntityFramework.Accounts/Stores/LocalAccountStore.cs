@@ -15,7 +15,8 @@ using NCode.Identity.Persistence.Stores;
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Accounts.Stores;
 
 /// <summary>
-/// Provides the generic Entity Framework Core implementation of <see cref="ILocalAccountStore"/> over the shared
+/// Provides the generic Entity Framework Core implementation of <see cref="ILocalAccountStore"/> and
+/// <see cref="ILocalAccountTransferStore"/> over the shared
 /// <see cref="OpenIdDbContext"/>, reusing the framework store base for id/concurrency generation and normalization.
 /// Credential handling is owned here: it hashes and verifies passwords through the pluggable <see cref="IPasswordHasher"/>
 /// and keeps the hash a store-internal detail that never leaves on the <see cref="PersistedLocalAccount"/> contract.
@@ -27,7 +28,10 @@ internal sealed class LocalAccountStore(
     IIdGenerator<long> idGenerator,
     IPasswordHasher passwordHasher,
     OpenIdDbContext openIdDbContext
-) : BaseStore<PersistedLocalAccount, LocalAccountEntity>, ILocalAccountStore
+)
+    : BaseStore<PersistedLocalAccount, LocalAccountEntity>,
+        ILocalAccountStore,
+        ILocalAccountTransferStore
 {
     /// <inheritdoc />
     protected override IStoreProvider StoreProvider { get; } = storeProvider;
@@ -276,6 +280,92 @@ internal sealed class LocalAccountStore(
         entity.ConcurrencyToken = NextConcurrencyToken();
     }
 
+    /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<LocalAccountTransferRecord>> ExportAsync(
+        CancellationToken cancellationToken
+    )
+    {
+        var entities = await Accounts
+            .Include(entity => entity.Claims)
+            .OrderBy(entity => entity.Id)
+            .ToListAsync(cancellationToken);
+
+        return entities.Select(MapToTransferRecord).ToList();
+    }
+
+    /// <inheritdoc />
+    public async ValueTask ImportAsync(
+        IReadOnlyList<LocalAccountTransferRecord> records,
+        CancellationToken cancellationToken
+    )
+    {
+        if (records.Count == 0)
+        {
+            return;
+        }
+
+        var tenantId =
+            DbContext.NormalizedAmbientTenantId
+            ?? throw new InvalidOperationException(
+                "Local accounts cannot be imported without a tenant scope. Open a tenant scope with IAmbientTenantAccessor.BeginScope."
+            );
+        var tenantEntity = await GetTenantEntityAsync(tenantId, cancellationToken);
+
+        foreach (var record in records)
+        {
+            var entity = new LocalAccountEntity
+            {
+                Id = NextId(),
+                TenantId = tenantEntity.Id,
+                NormalizedTenantId = tenantEntity.NormalizedTenantId,
+                Tenant = tenantEntity,
+                LocalAccountId = record.LocalAccountId,
+                NormalizedLocalAccountId = Normalize(record.LocalAccountId),
+                UserName = record.UserName,
+                NormalizedUserName = record.NormalizedUserName,
+                Email = record.Email,
+                NormalizedEmail = record.NormalizedEmail,
+                EmailVerified = record.EmailVerified,
+                PasswordHash = record.PasswordHash,
+                SecurityStamp = record.SecurityStamp,
+                IsEnabled = record.IsEnabled,
+                ConcurrencyToken = NextConcurrencyToken(),
+            };
+
+            foreach (var claim in record.Claims)
+            {
+                entity.Claims.Add(
+                    new LocalAccountClaimEntity
+                    {
+                        Id = NextId(),
+                        TenantId = tenantEntity.Id,
+                        NormalizedTenantId = tenantEntity.NormalizedTenantId,
+                        Tenant = tenantEntity,
+                        Type = claim.Type,
+                        Value = claim.Value,
+                    }
+                );
+            }
+
+            await Accounts.AddAsync(entity, cancellationToken);
+        }
+    }
+
+    /// <inheritdoc />
+    public async ValueTask RemoveAllAsync(CancellationToken cancellationToken)
+    {
+        var entities = await Accounts
+            .Include(entity => entity.Claims)
+            .ToListAsync(cancellationToken);
+
+        foreach (var entity in entities)
+        {
+            DbContext.Set<LocalAccountClaimEntity>().RemoveRange(entity.Claims);
+        }
+
+        Accounts.RemoveRange(entities);
+    }
+
     private static string NextSecurityStamp() => Guid.NewGuid().ToString("N");
 
     private async ValueTask<TenantEntity> GetTenantEntityAsync(
@@ -319,6 +409,31 @@ internal sealed class LocalAccountStore(
                 $"A local account with '{localAccountId}' was not found."
             );
     }
+
+    // The store keeps no lockout counter, so a disabled account is the account locked out for good.
+    private static LocalAccountTransferRecord MapToTransferRecord(LocalAccountEntity entity) =>
+        new()
+        {
+            LocalAccountId = entity.LocalAccountId,
+            UserName = entity.UserName,
+            NormalizedUserName = entity.NormalizedUserName,
+            Email = entity.Email,
+            NormalizedEmail = entity.NormalizedEmail,
+            EmailVerified = entity.EmailVerified,
+            PasswordHash = entity.PasswordHash,
+            SecurityStamp = entity.SecurityStamp,
+            IsEnabled = entity.IsEnabled,
+            LockoutEnabled = !entity.IsEnabled,
+            LockoutEnd = entity.IsEnabled ? null : DateTimeOffset.MaxValue,
+            AccessFailedCount = 0,
+            Claims = entity
+                .Claims.Select(claim => new PersistedLocalAccountClaim
+                {
+                    Type = claim.Type,
+                    Value = claim.Value,
+                })
+                .ToList(),
+        };
 
     private static PersistedLocalAccount MapFromEntity(LocalAccountEntity entity) =>
         new()

@@ -25,7 +25,8 @@ public static class DefaultRegistration
     extension(IServiceBuilder<StoreManagerLibrary> builder)
     {
         /// <summary>
-        /// Registers the generic Entity Framework <see cref="ILocalAccountStore"/> together with the
+        /// Registers the generic Entity Framework <see cref="ILocalAccountStore"/> and
+        /// <see cref="ILocalAccountTransferStore"/> together with the
         /// <see cref="LocalAccountLibrary"/> marker that the opt-in local-account capabilities require as a compile-time
         /// argument, and the model contributor that adds the account entities to the shared <c>OpenIdDbContext</c>. The
         /// store hashes and verifies passwords with the <see cref="IPasswordHasher"/> that the host registers, for
@@ -45,6 +46,17 @@ public static class DefaultRegistration
 
             serviceCollection.AddSingleton<
                 Func<IStoreProvider, OpenIdDbContext, ILocalAccountStore>
+            >(serviceProvider =>
+                (storeProvider, dbContext) =>
+                    ActivatorUtilities.CreateInstance<LocalAccountStore>(
+                        serviceProvider,
+                        storeProvider,
+                        dbContext
+                    )
+            );
+
+            serviceCollection.AddSingleton<
+                Func<IStoreProvider, OpenIdDbContext, ILocalAccountTransferStore>
             >(serviceProvider =>
                 (storeProvider, dbContext) =>
                     ActivatorUtilities.CreateInstance<LocalAccountStore>(

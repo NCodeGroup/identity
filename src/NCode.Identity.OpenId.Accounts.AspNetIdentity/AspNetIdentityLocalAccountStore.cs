@@ -38,7 +38,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
     IStoreProvider storeProvider,
     AspNetIdentityDummyPasswordHash<TUser> dummyPasswordHash,
     IAmbientTenantAccessor ambientTenantAccessor
-) : ILocalAccountStore
+) : ILocalAccountStore, ILocalAccountTransferStore
     where TUser : IdentityUser, ITenantBoundUser, new()
 {
     private IServiceScopeFactory ServiceScopeFactory { get; } = serviceScopeFactory;
@@ -274,23 +274,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
 
-        if (!userManager.SupportsQueryableUsers)
-        {
-            throw new NotSupportedException(
-                "The configured ASP.NET Core Identity store does not support querying users."
-            );
-        }
-
-        var query = userManager.Users;
-        var pageTenantId = GetCurrentTenantId();
-        if (pageTenantId is not null)
-        {
-            query = query.Where(user => user.TenantId == pageTenantId);
-        }
-        else if (!AmbientTenantAccessor.IsUnscoped)
-        {
-            query = query.Where(_ => false);
-        }
+        var query = GetTenantUsers(userManager);
 
         if (!string.IsNullOrEmpty(page.Cursor))
         {
@@ -363,6 +347,137 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
                 ),
                 "add the local-account claims"
             );
+        }
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<LocalAccountTransferRecord>> ExportAsync(
+        CancellationToken cancellationToken
+    )
+    {
+        await using var scope = ServiceScopeFactory.CreateAsyncScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
+        var passwordStore = GetPasswordStore(scope.ServiceProvider);
+
+        var users = GetTenantUsers(userManager).OrderBy(user => user.Id).ToList();
+
+        var records = new List<LocalAccountTransferRecord>(users.Count);
+        foreach (var user in users)
+        {
+            var passwordHash = await passwordStore.GetPasswordHashAsync(user, cancellationToken);
+            var claims = await userManager.GetClaimsAsync(user);
+            var isEnabled =
+                !userManager.SupportsUserLockout || !await userManager.IsLockedOutAsync(user);
+
+            records.Add(
+                new LocalAccountTransferRecord
+                {
+                    LocalAccountId = user.Id,
+                    UserName = user.UserName ?? string.Empty,
+                    NormalizedUserName = user.NormalizedUserName ?? string.Empty,
+                    Email = user.Email,
+                    NormalizedEmail = user.NormalizedEmail,
+                    EmailVerified = user.EmailConfirmed,
+                    PasswordHash = passwordHash,
+                    SecurityStamp = user.SecurityStamp ?? string.Empty,
+                    IsEnabled = isEnabled,
+                    LockoutEnabled = user.LockoutEnabled,
+                    LockoutEnd = user.LockoutEnd,
+                    AccessFailedCount = user.AccessFailedCount,
+                    Claims = claims
+                        .Select(claim => new PersistedLocalAccountClaim
+                        {
+                            Type = claim.Type,
+                            Value = claim.Value,
+                        })
+                        .ToList(),
+                }
+            );
+        }
+
+        return records;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask ImportAsync(
+        IReadOnlyList<LocalAccountTransferRecord> records,
+        CancellationToken cancellationToken
+    )
+    {
+        await using var scope = ServiceScopeFactory.CreateAsyncScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
+        var passwordStore = GetPasswordStore(scope.ServiceProvider);
+
+        var tenantId = GetRequiredTenantId();
+        foreach (var record in records)
+        {
+            if (!record.IsEnabled && !userManager.SupportsUserLockout)
+            {
+                throw new NotSupportedException(
+                    "The configured ASP.NET Core Identity store does not support lockout, which is required to disable a local account."
+                );
+            }
+
+            // The user manager derives the normalized names under the ambient tenant, so they are the names the
+            // exporting store held for the same tenant.
+            var user = new TUser
+            {
+                Id = record.LocalAccountId,
+                TenantId = tenantId,
+                UserName = record.UserName,
+                Email = record.Email,
+                EmailConfirmed = record.EmailVerified,
+            };
+
+            if (record.PasswordHash is not null)
+            {
+                await passwordStore.SetPasswordHashAsync(
+                    user,
+                    record.PasswordHash,
+                    cancellationToken
+                );
+            }
+
+            ThrowIfFailed(await userManager.CreateAsync(user), "import the local account");
+
+            // Creating a user issues a new security stamp, so the stamp and the lockout state of the record are
+            // applied after it.
+            user.SecurityStamp = record.SecurityStamp;
+            if (userManager.SupportsUserLockout)
+            {
+                user.LockoutEnabled = record.LockoutEnabled;
+                user.LockoutEnd = record.LockoutEnd;
+                user.AccessFailedCount = record.AccessFailedCount;
+            }
+
+            ThrowIfFailed(
+                await userManager.UpdateAsync(user),
+                "import the security stamp and lockout state of the local account"
+            );
+
+            if (record.Claims.Count > 0)
+            {
+                ThrowIfFailed(
+                    await userManager.AddClaimsAsync(
+                        user,
+                        record.Claims.Select(claim => new Claim(claim.Type, claim.Value))
+                    ),
+                    "import the local-account claims"
+                );
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public async ValueTask RemoveAllAsync(CancellationToken cancellationToken)
+    {
+        await using var scope = ServiceScopeFactory.CreateAsyncScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
+
+        var users = GetTenantUsers(userManager).ToList();
+        foreach (var user in users)
+        {
+            ThrowIfFailed(await userManager.DeleteAsync(user), "delete the local account");
         }
     }
 
@@ -471,6 +586,27 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         }
 
         return string.Equals(user.TenantId, tenantId, StringComparison.Ordinal) ? user : null;
+    }
+
+    // The users of the ambient tenant; an unscoped scope reads every tenant's users, and an unset scope reads none.
+    private IQueryable<TUser> GetTenantUsers(UserManager<TUser> userManager)
+    {
+        if (!userManager.SupportsQueryableUsers)
+        {
+            throw new NotSupportedException(
+                "The configured ASP.NET Core Identity store does not support querying users."
+            );
+        }
+
+        var tenantId = GetCurrentTenantId();
+        if (tenantId is not null)
+        {
+            return userManager.Users.Where(user => user.TenantId == tenantId);
+        }
+
+        return AmbientTenantAccessor.IsUnscoped
+            ? userManager.Users
+            : userManager.Users.Where(_ => false);
     }
 
     private async ValueTask<TUser?> FindByIdAsync(

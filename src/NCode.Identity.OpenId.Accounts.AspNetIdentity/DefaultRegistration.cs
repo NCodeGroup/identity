@@ -94,7 +94,7 @@ public static class DefaultRegistration
     extension(IServiceBuilder<StoreManagerLibrary> builder)
     {
         /// <summary>
-        /// Registers an <see cref="ILocalAccountStore"/> that adapts the ASP.NET Core Identity
+        /// Registers an <see cref="ILocalAccountStore"/> and an <see cref="ILocalAccountTransferStore"/> that adapt the ASP.NET Core Identity
         /// <c>UserManager&lt;TUser&gt;</c> for the specified user type, together with the <see cref="LocalAccountLibrary"/>
         /// marker that the opt-in local-account capabilities require as a compile-time argument. The host is responsible
         /// for registering ASP.NET Core Identity (<c>AddIdentityCore&lt;TUser&gt;</c> or <c>AddIdentity</c>) and its
@@ -129,6 +129,15 @@ public static class DefaultRegistration
             // The store is backing-store-agnostic, so it registers the DbContext-less factory the store manager falls
             // back to; the scoped UserManager is resolved per operation from a fresh scope.
             serviceCollection.AddSingleton<Func<IStoreProvider, ILocalAccountStore>>(
+                serviceProvider =>
+                    storeProvider =>
+                        ActivatorUtilities.CreateInstance<AspNetIdentityLocalAccountStore<TUser>>(
+                            serviceProvider,
+                            storeProvider
+                        )
+            );
+
+            serviceCollection.AddSingleton<Func<IStoreProvider, ILocalAccountTransferStore>>(
                 serviceProvider =>
                     storeProvider =>
                         ActivatorUtilities.CreateInstance<AspNetIdentityLocalAccountStore<TUser>>(
