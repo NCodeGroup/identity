@@ -49,28 +49,49 @@ so they cannot disagree on the tenant of a request.
 `DefaultAmbientTenantAccessor`, in `NCode.Identity.OpenId.Core`) holds the tenant scope of the current flow.
 `BeginScope(tenantId)` stores the identifier in an `AsyncLocal<T>`, so the scope flows across asynchronous calls and
 reaches the `OpenIdDbContext` that an `IDbContextFactory` creates from the root provider, outside the current
-dependency-injection scope. With no scope open, `TenantId` is `null`: the accessor is unscoped.
+dependency-injection scope.
+
+The scope has three states.
+
+- **Unset.** No scope is open. `TenantId` is `null` and `IsUnscoped` is `false`. This is the state of any code that
+  has not chosen a scope, and it sees no tenant-bound row.
+- **Tenant.** `BeginScope(tenantId)` opened a scope for one tenant. A tenant scope opened inside an unscoped one is a
+  tenant scope.
+- **Unscoped.** `BeginUnscoped(reason)` opened an explicit cross-tenant scope. `IsUnscoped` is `true` and
+  `UnscopedReason` holds the reason, which is required and names why the code reads across tenants.
 
 ### The query filter
 
-`OpenIdDbContext` applies, by interface, a global query filter to every `ISupportTenantEntity`. The filter reads
-"the ambient tenant is unset, or the row's denormalized, indexed `NormalizedTenantId` equals it". It is one
-indexed-column predicate, and because it is applied by interface, a newly added tenant-child entity is scoped
+`OpenIdDbContext` applies, by interface, a global query filter to every `ISupportTenantEntity`. The filter is
+
+```
+IsUnscoped || (ambient != null && e.NormalizedTenantId == ambient)
+```
+
+that is, "the scope is unscoped, or the row's denormalized, indexed `NormalizedTenantId` equals the ambient tenant". It
+is one indexed-column predicate, and because it is applied by interface, a newly added tenant-child entity is scoped
 automatically and the framework stays decoupled from the concrete tenant entity
 ([ADR-1052](1052-entity-framework-persistence-is-a-reusable-framework-that-domain-slices-plug-into.md)).
 
-With a scope open, no query returns a row of another tenant, so the row is never materialized. With no scope open, the
-filter is a no-op, which is how tenant resolution, tenant management, the control-plane routes and tooling read.
+With a tenant scope open, no query returns a row of another tenant, so the row is never materialized. With no scope
+open, the filter matches no tenant-bound row, so a query that forgot to choose a scope returns nothing instead of every
+tenant's rows. Only an unscoped scope reads across tenants.
 
 `TenantEntity`, `TeamEntity` and `PlatformEntity` are not `ISupportTenantEntity`, so they stay unscoped and resolvable
 by identifier. A tenant's child rows, its secrets included, are scoped like every other tenant child; tenant
-resolution and tenant management read them with no scope open. The platform has one settings row and no secrets
+resolution and tenant management read them inside an unscoped scope. The platform has one settings row and no secrets
 ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
+
+### The unscoped scope is the only cross-tenant path
+
+`BeginUnscoped(reason)` is the only way to read or write across tenants. Every caller that does so opens it with a
+reason: the background services, the tenant resolver, the tenant provisioner, migrations and design-time tooling. A
+code path that needs another tenant's rows therefore says so, and the reason is visible in review and at run time.
 
 ### Opening the scope on the protocol surface
 
 `OpenIdEnvironmentEndpointFilter`, on the protocol and interactive endpoint groups, resolves and materializes the
-request's tenant with no scope open, then opens the ambient scope for that tenant for the rest of the request. Every
+request's tenant inside an unscoped scope, then opens the ambient scope for that tenant for the rest of the request. Every
 read on the protocol surface is therefore confined to the request's resolved tenant.
 
 ### Opening the scope in the management API
@@ -78,8 +99,9 @@ read on the protocol surface is therefore confined to the request's resolved ten
 The management API's tenant-plane group (`/api/tenants/{tenantId}`) opens the scope from the route's `tenantId` value
 through the internal `TenantScopeEndpointFilter`, independent of the request's resolved tenant (route-driven scope,
 [ADR-1191](1191-a-management-request-is-authenticated-by-the-control-plane-tenant-and-scoped-by-its-routes-tenant.md)). The filter answers `404` when the segment is missing.
-It reads only the route value and makes no claim that the tenant exists. Control-plane routes carry no `{tenantId}` and
-run unscoped.
+It reads only the route value and makes no claim that the tenant exists. Control-plane routes (platform, team, caller,
+capabilities and machine clients) carry no `{tenantId}`. They run under the internal `ControlPlaneScopeEndpointFilter`,
+which opens `BeginUnscoped("management control plane")` for the request.
 
 ### Writes and reads of an existing resource
 
@@ -94,7 +116,51 @@ run unscoped.
 ### Failing closed
 
 `OpenIdDbContext` requires an `IAmbientTenantAccessor`, so a missing registration fails at startup instead of running
-unscoped. Direct construction in tests and tooling passes an explicit unscoped accessor.
+unscoped. A scope that is unset matches no tenant-bound row, so a missed scope returns nothing and leaks nothing.
+Direct construction in tests and tooling opens an explicit scope, a tenant scope or an unscoped one with a reason.
+
+### The analyzer
+
+The analyzer `NCID0004` (`CrossTenantQueryAnalyzer`, in `NCode.Identity.Analyzers`) reports an `IgnoreQueryFilters()`
+call unless a `// Cross-tenant: <why>` comment leads its statement. Bypassing the filter in a query is therefore
+explained at the call site. The analyzer skips assemblies whose names end in `.Tests` or `.TestSupport`.
+
+### Row-level security
+
+Postgres enforces the same rule below the application. Every table of an `ISupportTenantEntity` has
+`ENABLE ROW LEVEL SECURITY` and `FORCE ROW LEVEL SECURITY` and one policy, `tenant_isolation`, for both `USING` and
+`WITH CHECK`:
+
+```sql
+current_setting('app.unscoped', true) = 'on' OR "NormalizedTenantId" = current_setting('app.tenant_id', true)
+```
+
+- `RowLevelSecurity`, in the host database project, generates the statements from the EF model. The migration worker
+  applies them after migrating, idempotently (it drops the policy if it exists, then creates it), and grants
+  `SELECT, INSERT, UPDATE, DELETE` to the runtime role.
+- `TenantSessionInterceptor`, a connection interceptor and a command interceptor, calls `set_config` for `app.tenant_id`
+  and `app.unscoped` whenever the ambient state differs from the state last applied to the connection, and resets both
+  when the connection opens. A pooled connection never carries the previous request's tenant.
+- Migrations run as the schema owner and the host runs as a separate runtime role. The two have separate connection
+  strings: `ConnectionStrings:openid` for the runtime role and `ConnectionStrings:openid-migration` for the owner.
+  `HostDatabase:RuntimeRole` names the runtime role for the grants.
+- `RuntimeRolePosture.Evaluate` refuses a runtime role that is a superuser, has `BYPASSRLS` or owns the tables, because
+  such a role skips the policy. The host refuses to start on it under the deployment posture and warns under
+  `LocalDevelopment:Enabled`
+  ([ADR-1370](1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)).
+
+### Tenants of ASP.NET Core Identity and the BFF
+
+- **Local accounts.** `LocalAccountEntity` and `LocalAccountClaimEntity` carry a foreign key to `TenantEntity`, shaped
+  like `ClientEntity`: `TenantId`, the `Tenant` navigation and the denormalized `NormalizedTenantId`, with cascade
+  delete. Deleting a tenant deletes its accounts, and the accounts are scoped by the same filter and policy.
+- **Identity users.** An ASP.NET Core Identity user is bound to a tenant. `TUser` is `ITenantBoundUser` and exposes
+  `TenantId`. `TenantLookupNormalizer` prefixes normalized names and emails with `{normalizedTenantId}|` and throws when
+  no tenant scope is set. The store stamps `TenantId` on create and treats a user of another tenant as not found, so
+  one tenant's `alice` and another's are different users.
+- **BFF client members.** The members of the `bff:clients` index are protected with `IDataProtector` under the purpose
+  `NCode.Identity.Bff.ClientMembers`, through `IBffClientMemberProtector` (`DefaultBffClientMemberProtector`). An
+  unreadable member is skipped and pruned.
 
 ## Options considered
 
@@ -110,8 +176,13 @@ unscoped. Direct construction in tests and tooling passes an explicit unscoped a
   management API, against the one-capability package boundary of
   [ADR-1500](1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md).
 - **An ambient scope plus a global query filter by interface (chosen).** No query can return a cross-tenant row and no
-  call site can forget the scope, while tenant resolution, tenant management and the control-plane routes stay
-  unscoped.
+  call site can forget the scope, while tenant resolution, tenant management and the control-plane routes read through
+  an explicit unscoped scope.
+- **A filter that is a no-op when no scope is open.** Rejected: a call site that forgets to open a scope reads every
+  tenant's rows. The three-state scope makes an unset scope match nothing and makes cross-tenant code say why.
+- **Query filters alone, with no database enforcement.** Rejected: a raw query, a missed `IgnoreQueryFilters()` or a
+  bug in the filter is a cross-tenant read. Row-level security under a runtime role that cannot bypass it holds the
+  same rule where the filter cannot be skipped, and `NCID0004` explains each deliberate bypass.
 
 ## Consequences
 
@@ -121,8 +192,15 @@ unscoped. Direct construction in tests and tooling passes an explicit unscoped a
 - The runtime and the management API share one selection path and cannot resolve different tenants for a request.
 - A missing `IAmbientTenantAccessor` registration is a startup failure, never a silent loss of isolation.
 - The filter needs the denormalized `NormalizedTenantId` column and an index on every tenant-child table.
-- Code that reads tenant-bound rows without a scope sees every tenant's rows; the unscoped paths are the runtime's
-  resolution, tenant management and tooling, and each is explicit.
+- Code that reads tenant-bound rows without opening a scope sees nothing. The cross-tenant paths are the runtime's
+  resolution, tenant management, the control-plane routes, background services and tooling, and each opens
+  `BeginUnscoped` with a reason.
+- Every `IgnoreQueryFilters()` call carries a `// Cross-tenant:` explanation, or the build reports `NCID0004`.
+- The host needs two database credentials, the owner's for migrations and the runtime role's for serving, and it
+  refuses a runtime role that bypasses row-level security under the deployment posture.
+- Each pooled connection carries the ambient state of its current command, set by `TenantSessionInterceptor`.
+- A tenant's Identity users and local accounts are isolated like every other tenant child, and the `bff:clients`
+  members are unreadable without the data-protection keys.
 
 ## References
 
@@ -130,8 +208,12 @@ unscoped. Direct construction in tests and tooling passes an explicit unscoped a
 - `NCode.Identity.OpenId.Persistence.Abstractions`: `IAmbientTenantAccessor`
 - `NCode.Identity.OpenId.Core`: `DefaultAmbientTenantAccessor`
 - `NCode.Identity.OpenId.Persistence.EntityFramework`: `OpenIdDbContext`, `ISupportTenantEntity`
-- `NCode.Identity.OpenId.Management`: `TenantScopeEndpointFilter`
+- `NCode.Identity.OpenId.Management`: `TenantScopeEndpointFilter`, `ControlPlaneScopeEndpointFilter`
+- `NCode.Identity.Analyzers`: `CrossTenantQueryAnalyzer` (`NCID0004`)
+- `NCode.Identity.OpenId.Host.Database`: `RowLevelSecurity`, `TenantSessionInterceptor`, `RuntimeRolePosture`
 - [ADR-1036](1036-one-factory-materializes-every-openid-context-for-a-request-an-addressed-tenant-or-a-job.md), [ADR-1191](1191-a-management-request-is-authenticated-by-the-control-plane-tenant-and-scoped-by-its-routes-tenant.md),
+  [ADR-1370](1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md),
+  [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
   [ADR-1424](1424-a-management-route-authorizes-at-the-node-it-names-before-it-reads-through-replaceable-validators.md)
 - [project-template ADR-0129](project-template/0129-browser-facing-requests-are-safe-by-construction.md), decision 5:
   the owning tenant comes from the context, never the request
