@@ -14,11 +14,13 @@ using NCode.Identity.OpenId.Authentication.ClientCertificates;
 using NCode.Identity.OpenId.Authentication.Clients;
 using NCode.Identity.OpenId.Authentication.Persistence;
 using NCode.Identity.OpenId.Authentication.Tokens;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Platform;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Teams;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
+using NCode.Identity.Secrets.Persistence.Options;
 using NCode.Identity.Secrets.RemoteKeys;
 using NCode.Identity.Settings;
 using NCode.Identity.SharedState;
@@ -55,6 +57,7 @@ public sealed class DefaultRegistrationTests : BaseTests
 
         // These tests exercise configuration only; the persistence provider a host composes is never called.
         hostBuilder.Services.AddSingleton(CreateStrictMock<IStoreManagerFactory>().Object);
+        hostBuilder.Services.AddSingleton(CreateStrictMock<ITenantDirectory>().Object);
 
         configureServices(hostBuilder.Services);
 
@@ -1327,7 +1330,7 @@ public sealed class DefaultRegistrationTests : BaseTests
     }
 
     [Fact]
-    public async Task AddIdentityServer_WhenAProviderThatCreatesKeysHasNoDeployment_FailsToStart()
+    public void AddIdentityServer_WhenAProviderThatCreatesKeysHasNoDeployment_TagsKeysWithTheCellName()
     {
         RemoteKeyProviderDescriptor[] providers = [new() { Name = "test-kms" }];
         RemoteKeyAlgorithm[] algorithms = [];
@@ -1340,15 +1343,9 @@ public sealed class DefaultRegistrationTests : BaseTests
             serviceCollection => serviceCollection.AddSingleton(descriptorSource.Object)
         );
 
-        var exception = await Assert.ThrowsAsync<OptionsValidationException>(() =>
-            host.StartAsync()
-        );
+        var options = host.Services.GetRequiredService<IOptions<SecretProtectionOptions>>().Value;
 
-        Assert.Contains(
-            "SecretProtection:RemoteKeys:Deployment is required",
-            exception.Message,
-            StringComparison.Ordinal
-        );
+        Assert.Equal("local", options.RemoteKeys.Deployment);
     }
 
     [Fact]
