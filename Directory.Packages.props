@@ -186,6 +186,7 @@
     <!-- The end-to-end suites: real browsers through Playwright and the OpenID Provider in a container through Testcontainers (ADR-1430). -->
     <PackageVersion Include="Microsoft.Playwright" Version="1.64.1" />
     <PackageVersion Include="Testcontainers" Version="4.16.0" />
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.16.0" />
     <!-- The end-to-end suite's Blazor Web App (ADR-1441). -->
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.14" />
     <PackageVersion
