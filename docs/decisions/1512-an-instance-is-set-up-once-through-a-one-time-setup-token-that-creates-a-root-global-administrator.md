@@ -6,12 +6,18 @@
 
 ## Context
 
-A new instance starts with an empty database: it has no administrator, and no credential is safe to ship as a
+A new platform starts with an empty database: it has no administrator, and no credential is safe to ship as a
 default. Every management authority is a role assignment
 ([ADR-1417](1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md)),
 so the first administrator has to come from somewhere an operator controls (issues
 [#777](https://github.com/NCodeGroup/identity/issues/777) and
 [#776](https://github.com/NCodeGroup/identity/issues/776)).
+
+A platform is a global directory over independent cells
+([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)),
+and the platform's administrators, its teams and its control-plane tenant live in one cell, the control-plane cell. The
+other cells hold tenants and no platform authority of their own, so the first administrator is created once for the
+platform, in the control-plane cell.
 
 Three facts shape how that administrator is created:
 
@@ -19,15 +25,16 @@ Three facts shape how that administrator is created:
   administrator must be guarded by something other than a login, and it must stop working once it has been used.
 - **Logs are private to the operator.** Whoever can read a replica's log already has the same authority over the
   deployment as the operator, so a secret written there once reaches the operator and nobody else.
-- **Replicas share only the database.** There is no shared memory or file system between replicas, so any state that
-  decides whether setup is allowed lives in the database.
+- **Replicas share only the database.** There is no shared memory or file system between the replicas of a cell, so any
+  state that decides whether setup is allowed lives in the cell's database.
 
 ## Decision
 
-**An instance is set up once, through a setup wizard guarded by a one-time setup token, and setup creates a root global
-administrator.**
+**A platform is set up once, in its control-plane cell, through a setup wizard guarded by a one-time setup token, and
+setup creates a root global administrator.**
 
-1. **The OP serves a setup wizard at `/setup`.** The page is the `@ncode/app-setup` bundle. It reads the instance state
+1. **The control-plane cell's OP serves a setup wizard at `/setup`.** A cell that is not the control plane
+   (`Cell:IsControlPlane` is unset) maps no `/setup` route, so every `/setup` path answers 404 there. The page is the `@ncode/app-setup` bundle. It reads the instance state
    from `GET /setup/api/status`, checks the token with `POST /setup/api/token`, and creates the root administrator with
    `POST /setup/api/root`. After it creates the root, it lists the instance's addresses and the remaining configuration,
    and links to the first-use document.
@@ -130,6 +137,16 @@ administrator.**
       as a link with a copy button, beside the root user and the tenant.
     - The page names the setup token Secret to remove only when the token was configured (`tokenSource` is
       `configured`). A generated token is spent with the setup and names no Secret.
+12. **Setup belongs to the control-plane cell.**
+    - The setup gate answers false on a cell that is not the control plane, and that cell's hosted service issues no
+      token and stores no `InstanceSetup` mark.
+    - The `setup` command exits non-zero on such a cell and says that setup belongs to the control-plane cell.
+    - The root administrator's role assignment is a platform-node assignment in the control-plane cell. Other cells
+      learn of it through the control plane, never through setup of their own
+      ([ADR-1417](1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md),
+      [ADR-1191](1191-a-management-request-is-authenticated-by-the-control-plane-tenant-and-scoped-by-its-routes-tenant.md)).
+    - Each other cell is registered with the directory and given its machine client by the operator, through the
+      management API of the control-plane cell.
 
 The setup packages follow the package shape of
 [ADR-1500](1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md):
@@ -162,6 +179,8 @@ The setup packages follow the package shape of
 - A configured token has no lifetime, and it is useless once the instance is initialized. The operator removes it from
   the deployment after setup.
 - `/setup` is a claimed path segment like `/api`, so no tenant or client path uses it.
+- A cell other than the control plane has no setup surface and no setup token. The operator sets the platform up once,
+  then brings each further cell up against the directory and the control plane.
 - No chart value holds an administrator password for the interactive path, and the chart needs no bootstrap
   administrator values.
 - A deployment that names its console lets the operator submit the console step without typing: the client ID, the
@@ -181,7 +200,9 @@ The setup packages follow the package shape of
   [#829](https://github.com/NCodeGroup/identity/issues/829) and
   [#830](https://github.com/NCodeGroup/identity/issues/830)
 - [ADR-1044](1044-the-management-api-authenticates-its-own-access-tokens-and-a-configured-client-bootstraps-the-first-globaladmin.md),
+  [ADR-1191](1191-a-management-request-is-authenticated-by-the-control-plane-tenant-and-scoped-by-its-routes-tenant.md),
   [ADR-1382](1382-the-bffs-browser-security-headers-and-its-client-key-endpoint-are-each-opt-in-for-the-host.md),
+  [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
   [ADR-1417](1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md),
   [ADR-1437](1437-the-management-console-is-a-confidential-client-whose-own-bff-host-serves-only-the-console.md),
   [ADR-1256](1256-every-page-the-server-writes-has-a-strict-content-security-policy-and-is-framed-only-by-design.md),
