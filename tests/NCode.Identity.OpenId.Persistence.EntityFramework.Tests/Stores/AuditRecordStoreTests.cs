@@ -58,6 +58,7 @@ public sealed class AuditRecordStoreTests : IDisposable
             EventCategory = "management",
             Outcome = "success",
             Severity = "info",
+            Cell = "cell-1",
             TenantId = "tenant-1",
             SubjectId = "user-1",
             ClientId = "client-1",
@@ -154,6 +155,7 @@ public sealed class AuditRecordStoreTests : IDisposable
         Assert.Equal("tenant-1", entity.TenantId);
         Assert.Equal("admin-1", entity.ActorId);
         Assert.Equal("203.0.113.7", entity.SourceIp);
+        Assert.Equal("cell-1", entity.Cell);
         Assert.True(JsonElement.DeepEquals(record.Record, entity.Record));
         Assert.Equal(
             [("client", "client-1", 0), ("tenant", "tenant-1", 1)],
@@ -234,6 +236,7 @@ public sealed class AuditRecordStoreTests : IDisposable
             EventCategory = match.EventCategory,
             Outcome = match.Outcome,
             Severity = match.Severity,
+            Cell = match.Cell,
             TenantId = "tenant-2",
             ClientId = match.ClientId,
             ActorType = match.ActorType,

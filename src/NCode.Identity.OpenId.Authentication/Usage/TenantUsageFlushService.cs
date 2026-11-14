@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.Authentication.Logging;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
@@ -25,6 +26,7 @@ internal sealed class TenantUsageFlushService(
     IStoreManagerFactory storeManagerFactory,
     IAmbientTenantAccessor ambientTenantAccessor,
     IOptions<TenantUsageOptions> options,
+    IOptions<CellOptions> cellOptions,
     TimeProvider timeProvider,
     ILogger<TenantUsageFlushService> logger
 ) : BackgroundService
@@ -62,6 +64,8 @@ internal sealed class TenantUsageFlushService(
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
 
     private TenantUsageOptions Options { get; } = options.Value;
+
+    private CellOptions CellOptions { get; } = cellOptions.Value;
 
     private TimeProvider TimeProvider { get; } = timeProvider;
 
@@ -182,6 +186,7 @@ internal sealed class TenantUsageFlushService(
                         TeamPath = pair.Key.TeamPath,
                         Day = pair.Key.Day,
                         Meter = pair.Key.Meter,
+                        Cell = CellOptions.Name,
                         Count = pair.Value,
                     }),
                 ]

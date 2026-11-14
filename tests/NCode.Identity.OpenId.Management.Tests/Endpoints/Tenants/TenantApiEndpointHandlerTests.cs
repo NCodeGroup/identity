@@ -1126,6 +1126,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
                     TeamPath = "/platform/",
                     Day = from,
                     Meter = "requests",
+                    Cell = "cell-1",
                     Count = 42,
                 },
             ])

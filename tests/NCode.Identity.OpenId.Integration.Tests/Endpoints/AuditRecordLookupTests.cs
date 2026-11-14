@@ -32,6 +32,7 @@ public class AuditRecordLookupTests
             EventCategory = "management",
             Outcome = "success",
             Severity = "info",
+            Cell = "cell-1",
             TenantId = tenantId,
             ClientId = clientId,
             ActorType = "administrator",

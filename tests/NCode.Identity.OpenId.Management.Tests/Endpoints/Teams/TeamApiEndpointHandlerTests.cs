@@ -2888,6 +2888,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
                     TeamPath = $"/{TeamId}/",
                     Day = from,
                     Meter = "requests",
+                    Cell = "cell-1",
                     Count = 42,
                 },
                 new PersistedTenantUsage
@@ -2896,6 +2897,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
                     TeamPath = $"/{TeamId}/",
                     Day = to,
                     Meter = "tokens",
+                    Cell = "cell-1",
                     Count = 7,
                 },
             ])
@@ -2944,6 +2946,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
                     TeamPath = $"/{TeamId}/{ChildTeamId}/",
                     Day = day,
                     Meter = "requests",
+                    Cell = "cell-1",
                     Count = 5,
                 },
             ])
@@ -2998,6 +3001,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
                     TeamPath = $"/{TeamId}/{ChildTeamId}/",
                     Day = day,
                     Meter = "requests",
+                    Cell = "cell-1",
                     Count = 5,
                 },
                 new PersistedTenantUsage
@@ -3006,6 +3010,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
                     TeamPath = $"/{TeamId}/{ChildTeamId}/{ChildTeamId}-eu/",
                     Day = day,
                     Meter = "requests",
+                    Cell = "cell-1",
                     Count = 3,
                 },
             ])

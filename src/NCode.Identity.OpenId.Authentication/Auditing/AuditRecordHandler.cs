@@ -4,6 +4,7 @@
 using Microsoft.Extensions.Options;
 using NCode.Identity.Events;
 using NCode.Identity.Events.Audit;
+using NCode.Identity.OpenId.GlobalDirectory;
 
 namespace NCode.Identity.OpenId.Authentication.Auditing;
 
@@ -15,10 +16,13 @@ namespace NCode.Identity.OpenId.Authentication.Auditing;
 // See ADR-1303.
 internal sealed class AuditRecordHandler(
     IOptions<AuditRecordOptions> options,
+    IOptions<CellOptions> cellOptions,
     AuditRecordQueue queue
 ) : IEventHandler<IAuditEvent>
 {
     private AuditRecordOptions Options { get; } = options.Value;
+
+    private CellOptions CellOptions { get; } = cellOptions.Value;
 
     private AuditRecordQueue Queue { get; } = queue;
 
@@ -26,7 +30,7 @@ internal sealed class AuditRecordHandler(
     public ValueTask HandleAsync(IAuditEvent @event, CancellationToken cancellationToken)
     {
         if (Options.Enabled)
-            Queue.TryEnqueue(AuditRecordMapper.Map(@event));
+            Queue.TryEnqueue(AuditRecordMapper.Map(@event, CellOptions.Name));
 
         return ValueTask.CompletedTask;
     }

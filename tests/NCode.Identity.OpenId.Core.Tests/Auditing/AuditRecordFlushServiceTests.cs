@@ -84,6 +84,7 @@ public sealed class AuditRecordFlushServiceTests : IDisposable
                 EventCategory = "token",
                 Outcome = "success",
                 Severity = "info",
+                Cell = "cell-1",
                 ActorType = "client",
                 Resources = [],
                 Record = JsonElements.EmptyObject,

@@ -8,6 +8,7 @@ using Microsoft.Extensions.Time.Testing;
 using Moq;
 using NCode.Identity.OpenId.Authentication.Logging;
 using NCode.Identity.OpenId.Authentication.Usage;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
@@ -43,6 +44,7 @@ public sealed class TenantUsageFlushServiceTests : IDisposable
             MockStoreManagerFactory.Object,
             MockAmbientTenantAccessor.Object,
             Options.Create(new TenantUsageOptions { Retention = TimeSpan.FromDays(10) }),
+            Options.Create(new CellOptions { Name = "cell-1" }),
             TimeProvider,
             NullLogger<TenantUsageFlushService>.Instance
         );
@@ -118,6 +120,33 @@ public sealed class TenantUsageFlushServiceTests : IDisposable
         await Service.FlushAsync(cancellationToken);
 
         Assert.Empty(Recorder.Drain());
+    }
+
+    [Fact]
+    public async Task FlushAsync_StampsTheConfiguredCellOnTheStoredUsage()
+    {
+        var cancellationToken = CancellationToken.None;
+        SetupStores();
+        Recorder.Record("/platform/", "tenant-1", TenantUsageMeters.Requests);
+        MockTenantUsageStore
+            .Setup(x =>
+                x.AddAsync(
+                    Service.ReplicaId,
+                    1,
+                    It.Is<IReadOnlyCollection<PersistedTenantUsage>>(usage =>
+                        usage.Single().Cell == "cell-1"
+                    ),
+                    cancellationToken
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(cancellationToken))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+        await Service.FlushAsync(cancellationToken);
     }
 
     [Fact]
@@ -329,6 +358,7 @@ public sealed class TenantUsageFlushServiceTests : IDisposable
             MockStoreManagerFactory.Object,
             MockAmbientTenantAccessor.Object,
             Options.Create(new TenantUsageOptions()),
+            Options.Create(new CellOptions { Name = "cell-1" }),
             TimeProvider,
             mockLogger.Object
         );
@@ -424,6 +454,7 @@ public sealed class TenantUsageFlushServiceTests : IDisposable
             MockStoreManagerFactory.Object,
             MockAmbientTenantAccessor.Object,
             Options.Create(new TenantUsageOptions()),
+            Options.Create(new CellOptions { Name = "cell-1" }),
             TimeProvider,
             mockLogger.Object
         );

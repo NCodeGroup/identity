@@ -20,6 +20,7 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 [Index(nameof(EventId), IsUnique = true)]
 [Index(nameof(EventTime))]
 [Index(nameof(TenantId), nameof(EventTime), nameof(Id))]
+[Index(nameof(Cell), nameof(EventTime))]
 [Index(nameof(EventName), nameof(EventTime))]
 [Index(nameof(SubjectId), nameof(EventTime))]
 [Index(nameof(ClientId), nameof(EventTime))]
@@ -71,6 +72,14 @@ public sealed class AuditRecordEntity
     [Unicode(false)]
     [MaxLength(OpenIdMaxLengths.AuditName)]
     public required string Severity { get; init; }
+
+    /// <summary>
+    /// Gets the name of the cell that wrote the record.
+    /// </summary>
+    // See ADR-1303.
+    [Unicode(false)]
+    [MaxLength(OpenIdMaxLengths.CellName)]
+    public required string Cell { get; init; }
 
     /// <summary>
     /// Gets the identifier of the tenant the audited operation belongs to, or <see langword="null"/>.

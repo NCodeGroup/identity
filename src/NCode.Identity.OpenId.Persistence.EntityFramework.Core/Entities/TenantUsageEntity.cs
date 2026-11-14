@@ -55,6 +55,14 @@ public sealed class TenantUsageEntity : ISupportConcurrencyToken
     public required string Meter { get; init; }
 
     /// <summary>
+    /// Gets the name of the cell that wrote the usage.
+    /// </summary>
+    // See ADR-1199.
+    [Unicode(false)]
+    [MaxLength(OpenIdMaxLengths.CellName)]
+    public required string Cell { get; init; }
+
+    /// <summary>
     /// Gets or sets the count of the meter on the day.
     /// </summary>
     public long Count { get; set; }

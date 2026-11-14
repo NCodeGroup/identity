@@ -23,10 +23,12 @@ internal static class AuditRecordMapper
     /// Maps an audit event to the record the audit store keeps.
     /// </summary>
     /// <param name="auditEvent">The audit event.</param>
+    /// <param name="cell">The name of the cell that writes the record.</param>
     /// <returns>The record.</returns>
-    public static PersistedAuditRecord Map(IAuditEvent auditEvent)
+    public static PersistedAuditRecord Map(IAuditEvent auditEvent, string cell)
     {
         ArgumentNullException.ThrowIfNull(auditEvent);
+        ArgumentNullException.ThrowIfNull(cell);
 
         using var buffer = BufferFactory.CreatePooledBufferWriter(isSensitive: false);
         using (var writer = new Utf8JsonWriter(buffer))
@@ -45,6 +47,7 @@ internal static class AuditRecordMapper
             EventCategory = Truncate(auditEvent.EventCategory, OpenIdMaxLengths.AuditName),
             Outcome = Truncate(auditEvent.Outcome, OpenIdMaxLengths.AuditName),
             Severity = Truncate(auditEvent.Severity, OpenIdMaxLengths.AuditName),
+            Cell = cell,
             TenantId = Bounded(auditEvent.TenantId, MaxLengths.ResourceId),
             SubjectId = Bounded(auditEvent.SubjectId, OpenIdMaxLengths.SubjectId),
             ClientId = Bounded(auditEvent.ClientId, MaxLengths.ResourceId),

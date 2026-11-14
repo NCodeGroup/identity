@@ -49,7 +49,8 @@ public sealed class TenantUsageStoreTests : IDisposable
         DateOnly day,
         string meter,
         long count,
-        string teamPath = "/platform/"
+        string teamPath = "/platform/",
+        string cell = "cell-1"
     ) =>
         new()
         {
@@ -57,6 +58,7 @@ public sealed class TenantUsageStoreTests : IDisposable
             TeamPath = teamPath,
             Day = day,
             Meter = meter,
+            Cell = cell,
             Count = count,
         };
 
@@ -165,6 +167,41 @@ public sealed class TenantUsageStoreTests : IDisposable
         Assert.Equal(7, entry.Count);
         Assert.Equal(Requests, entry.Meter);
         Assert.Equal(TenantId, entry.TenantId);
+        Assert.Equal("cell-1", entry.Cell);
+    }
+
+    [Fact]
+    public async Task AddAsync_WhenTheDayHasAnEntry_KeepsTheCellOfTheEntry()
+    {
+        using (var scope = Provider.CreateScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
+            var store = CreateStore(context);
+            await store.AddAsync(
+                Guid.NewGuid(),
+                1,
+                [Usage(TenantId, Day, Requests, 3, cell: "cell-1")],
+                CancellationToken.None
+            );
+            await context.SaveChangesAsync();
+        }
+
+        using (var scope = Provider.CreateScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
+            var store = CreateStore(context);
+            await store.AddAsync(
+                Guid.NewGuid(),
+                1,
+                [Usage(TenantId, Day, Requests, 4, cell: "cell-2")],
+                CancellationToken.None
+            );
+            await context.SaveChangesAsync();
+        }
+
+        var entry = Assert.Single(await ListAsync(Day, Day, CancellationToken.None));
+        Assert.Equal(7, entry.Count);
+        Assert.Equal("cell-1", entry.Cell);
     }
 
     [Fact]

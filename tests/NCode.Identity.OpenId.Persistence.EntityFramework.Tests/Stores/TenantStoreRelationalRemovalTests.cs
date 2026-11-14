@@ -419,6 +419,7 @@ public sealed class TenantStoreRelationalRemovalTests : IDisposable
                     TeamPath = "/platform/",
                     Day = day,
                     Meter = "requests",
+                    Cell = "cell-1",
                     Count = 7,
                 },
             ],

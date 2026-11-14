@@ -125,4 +125,10 @@ public static class OpenIdMaxLengths
     /// </summary>
     // See ADR-1426.
     public const int TeamPath = 513;
+
+    /// <summary>
+    /// Gets the max length of a cell's name, which <c>Cell:Name</c> sets.
+    /// </summary>
+    // See ADR-1411.
+    public const int CellName = 32;
 }
