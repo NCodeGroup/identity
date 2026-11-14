@@ -106,7 +106,7 @@ binds a key a KMS already holds and creates none: `tenant_key_provider` cannot n
 | `SecretProtection:RemoteKeyProviders:AzureKeyVault:HardwareProtected`  | `false` creates software-protected keys (default `true`)                                                                                        |
 | `SecretProtection:RemoteKeyProviders:GoogleCloudKms:KeyRing`           | Resource name of the key ring in which keys are created; empty creates no keys, `projects/<project>/locations/<location>/keyRings/<ring>`       |
 | `SecretProtection:RemoteKeyProviders:GoogleCloudKms:HardwareProtected` | `false` creates software-protected keys (default `true`)                                                                                        |
-| `SecretProtection:RemoteKeys:Deployment`                               | Required with a provider that creates keys: lowercase letters, digits and hyphens, at most 40; unique to the database within a shared KMS scope |
+| `SecretProtection:RemoteKeys:Deployment`                               | Derived from `Cell:Name`, the tag of the keys the cell creates and sweeps; an explicit value must equal it                                      |
 | `SecretProtection:RemoteKeys:SweepEnabled`                             | `false` turns the orphaned-key sweep off (default `true`)                                                                                       |
 | `SecretProtection:RemoteKeys:SweepInterval`                            | Time between sweeps (default one day)                                                                                                           |
 | `SecretProtection:RemoteKeys:SweepGracePeriod`                         | Age a key reaches before the sweep may destroy it (default one day, between one hour and 365 days)                                              |
@@ -390,6 +390,8 @@ More than one replica needs Valkey to share single-use state: set `ConnectionStr
 `ValkeyConnection__Host`, `ValkeyConnection__Port`, `ValkeyConnection__Username`, `ValkeyConnection__Password` and
 `ValkeyConnection__Ssl`. Setting both forms, or the parts without `ValkeyConnection__Host`, stops the host at start
 ([ADR-1510](../../docs/decisions/1510-the-host-chart-passes-a-valkey-servers-address-and-password-as-parts-and-the-adapter-assembles-the-connection.md)).
+Every key and channel the host writes in Valkey starts with `ncode-identity:`, the value of `Cell:Name` and `:`, so cells
+can share one Valkey server without sharing state.
 
 The host does not migrate on boot. The image also carries the migration worker, which runs from `/app/migrations` with
 `dotnet NCode.Identity.OpenId.Host.MigrationService.dll`. It takes the same database settings with the schema owner's

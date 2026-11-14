@@ -15,6 +15,7 @@ using Microsoft.Extensions.Options;
 using NCode.Identity.Dispatch.Options;
 using NCode.Identity.OpenId.Integration.Tests.Infrastructure;
 using NCode.Identity.Secrets.RemoteKeys;
+using NCode.Identity.SharedState.Valkey.Options;
 using Xunit;
 
 namespace NCode.Identity.OpenId.Integration.Tests;
@@ -123,6 +124,25 @@ public class ProgramTests
 
     #endregion
 
+    #region Valkey Tests
+
+    [Fact]
+    public async Task Valkey_WhenConfigured_PrefixesEveryKeyWithTheCellName()
+    {
+        await using var host = new HostApplicationFactory();
+        await using var factory = host.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("ConnectionStrings:valkey", "localhost:6399");
+            builder.UseSetting("Cell:Name", "program-tests");
+        });
+
+        var options = factory.Services.GetRequiredService<IOptions<ValkeyOptions>>().Value;
+
+        Assert.Equal("ncode-identity:program-tests:", options.KeyPrefix);
+    }
+
+    #endregion
+
     #region RemoteKeyProviders Tests
 
     [Theory]
@@ -204,7 +224,7 @@ public class ProgramTests
             builder.UseSetting(key, value);
         }
 
-        builder.UseSetting("SecretProtection:RemoteKeys:Deployment", "program-tests");
+        builder.UseSetting("Cell:Name", "program-tests");
         builder.UseSetting("SecretProtection:RemoteKeys:SweepEnabled", "false");
     }
 

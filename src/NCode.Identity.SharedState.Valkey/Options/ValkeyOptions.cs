@@ -33,7 +33,8 @@ public sealed class ValkeyOptions
     /// <summary>
     /// Gets or sets the prefix prepended to every key this adapter writes, so that several deployments, or unrelated
     /// applications, can share one Valkey server without their keys colliding. Defaults to
-    /// <see cref="DefaultKeyPrefix"/>. A prefix holds no braces: a clustered server takes the hash tag of a key from
+    /// <see cref="DefaultKeyPrefix"/>. The host prefixes the keys of a cell with <c>ncode-identity:</c>, the cell's name
+    /// and <c>:</c>. A prefix holds no braces: a clustered server takes the hash tag of a key from
     /// its first <c>{</c> and the next <c>}</c>, so braces in the prefix would put every key on one node.
     /// </summary>
     public string KeyPrefix { get; set; } = DefaultKeyPrefix;

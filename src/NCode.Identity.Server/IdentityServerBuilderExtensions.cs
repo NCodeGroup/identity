@@ -251,6 +251,21 @@ public static class IdentityServerBuilderExtensions
                 ServiceDescriptor.Singleton<IValidateOptions<CellOptions>, CellOptionsValidator>()
             );
 
+            // The cell's name is the tag of the keys the server creates in a key management service, so the sweep of one
+            // cell never destroys the keys of another (ADR-1478).
+            serviceCollection.TryAddEnumerable(
+                ServiceDescriptor.Singleton<
+                    IPostConfigureOptions<SecretProtectionOptions>,
+                    CellRemoteKeyOptionsSetup
+                >()
+            );
+            serviceCollection.TryAddEnumerable(
+                ServiceDescriptor.Singleton<
+                    IValidateOptions<SecretProtectionOptions>,
+                    CellRemoteKeyOptionsSetup
+                >()
+            );
+
             // Setup lists the API reference among the instance's addresses when the host serves it.
             serviceCollection
                 .AddOptions<SetupInstanceLinksOptions>()
