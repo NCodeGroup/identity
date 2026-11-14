@@ -65,6 +65,14 @@ and tenant it serves with the store's and evicts only those whose token differs 
 9. **Master keys of tenants the replica does not cache are left to the `master-key-changed` handler.** That handler
    evicts every owner's master keys when it may have missed a message
    ([ADR-1205](1205-replicas-announce-changes-to-each-other-through-a-best-effort-broadcast-port.md)).
+10. **The team change feed evicts mirrored teams.** A cell other than the control-plane cell holds each team as a row
+    that `DirectoryChangeFeedService` mirrors from the team documents the directory publishes
+    ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
+    The service polls the directory's changes after the last sequence it applied, writes each document into its team
+    row, which regenerates the row's token, and broadcasts `team-changed` for each team it wrote, so every replica of
+    the cell evicts the team, the teams beneath it and their tenants exactly as an announcement does. A replica that
+    misses that announcement finds the mirrored row's token changed and evicts the team through item 5. The service
+    takes no part in a tenant's change, and serving a tenant never calls the directory.
 
 ## Options considered
 
@@ -80,6 +88,8 @@ and tenant it serves with the store's and evicts only those whose token differs 
 
 ## Consequences
 
+- A mirrored team that the directory changes costs a cell one write of its row and one announcement, and a replica
+  that misses the announcement evicts the team at its next reconciliation.
 - A restored connection costs one indexed query per 500 served rows, and evicts only the teams and tenants that
   changed.
 - A reconciliation record write changes a team's token, so that team is evicted too, which is conservative.
@@ -109,3 +119,5 @@ and tenant it serves with the store's and evicts only those whose token differs 
   concurrency race is answered 412
 - [project-template ADR-0140](project-template/0140-replicas-converge-through-reconciliation.md) — replicas converge
   through reconciliation
+- [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md) — a
+  cell mirrors the team documents the directory publishes

@@ -54,6 +54,22 @@ narrowing a setting edits its descriptor, and a stored document that does not fi
 `MigrationRunner` first compares each context's recorded migration ids with the assembly's. When the history names a
 migration the assembly lacks, it applies nothing and throws, naming the context and `build/dev-db-reset.ps1`.
 
+### The worker applies row-level security and grants after migrating
+
+After it applies both contexts' migrations, the worker applies row-level security to the OpenId context. The
+migrations do not hold it, because the statements come from the model
+([ADR-1018](1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)):
+
+- For every table of a tenant-bound entity, `RowLevelSecurity` generates `ENABLE` and `FORCE ROW LEVEL SECURITY` and
+  the `tenant_isolation` policy from the EF Core model, so a new tenant-bound entity is covered with no further step.
+- The worker applies them idempotently: it drops the policy when it exists, then creates it, so a run that repeats
+  changes nothing.
+- It then grants `SELECT, INSERT, UPDATE, DELETE` on the tables to the role named by `HostDatabase:RuntimeRole`.
+- The worker connects as the schema owner with `ConnectionStrings:openid-migration`, and the host serves as the runtime
+  role with `ConnectionStrings:openid`.
+
+The statements are not migrations, so `InitialCreateTests` and the expand-only rule stay about the schema.
+
 ### The expand-only rule
 
 `ExpandOnlyRule.Check(Migration)` judges every `[Migration]` of both contexts with no registration step;
@@ -99,9 +115,9 @@ A reviewer checks these by hand:
   PodDisruptionBudget selects it.
 - The Job uses the namespace's `default` service account unless `serviceAccount.create` is false, because the chart's own
   account does not exist when a first install runs the hook.
-- `migrations.database` may name a connection with schema rights, as a connection-string Secret (`existingSecret`) or a
-  parts Secret (`parts.existingSecret`); it defaults to the database Secret. A
-  deployment that separates the two runs the host without the right to change its own schema.
+- `database.migration` names the schema owner's connection as a Secret and feeds `ConnectionStrings:openid-migration`
+  to the Job; `database.runtime` names the runtime role's connection and feeds `ConnectionStrings:openid` to the host,
+  and `database.runtimeRole` names the role for the grants. The host runs without the right to change its own schema.
 - `migrations.enabled: false` removes the Job for a deployment whose DBA or pipeline applies a generated idempotent
   script.
 
@@ -139,6 +155,8 @@ rule for every migration author.
 - The image carries the worker's few assemblies that the host does not already ship.
 - A failed migration leaves the previous release serving, and the Job's logs stay for diagnosis.
 - A developer whose local database is ahead of the assembly runs `build/dev-db-reset.ps1`; the worker never guesses.
+- A table the model adds to a tenant-bound entity is covered by row-level security and the runtime role's grants on the
+  next run of the worker.
 - `InitialCreateTests`, `ExpandOnlyRuleTests` and `MigrationRunnerTests` fail a stray migration, a data change, an
   unearned marker and a history the assembly lacks.
 
@@ -155,5 +173,6 @@ rule for every migration author.
   [ADR-1139](1139-setting-names-are-a-closed-vocabulary-changed-outright-and-settings-the-server-cannot-honor-fail-loudly.md),
   [ADR-1248](1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md),
   [ADR-1458](1458-the-host-chart-deploys-the-server-and-an-opt-in-management-console-and-refuses-unsafe-releases.md),
-  [ADR-1245](1245-management-requests-list-incoherent-clients-name-unreadable-stored-settings-and-let-a-write-repair-them.md)
+  [ADR-1245](1245-management-requests-list-incoherent-clients-name-unreadable-stored-settings-and-let-a-write-repair-them.md),
+  [ADR-1018](1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)
 - [#535](https://github.com/NCodeGroup/identity/issues/535)

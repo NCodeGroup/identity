@@ -29,8 +29,9 @@ The standing posture is one cohesive story, not provider sprawl patched over tim
 
 ## Decision
 
-PostgreSQL through Npgsql is the host's only relational provider, and one database, `openiddb`, holds the schema and the
-key ring. A worker applies the migrations, the host never does, and the build fails on drift.
+PostgreSQL through Npgsql is the host's only relational provider, and a cell's one database, `openiddb`, holds the schema
+and the key ring. The global directory has its own database. A worker applies the migrations as the schema owner, the
+host never does and serves as a separate runtime role, and the build fails on drift.
 
 - **One provider.** `NCode.Identity.OpenId.Host` resolves its database connection, the `openiddb` connection string or
   the `OpenIdDatabase` parts (`HostDatabaseConnection`,
@@ -38,13 +39,24 @@ key ring. A worker applies the migrations, the host never does, and the build fa
   registers `OpenIdDbContext` with `UseOpenIdNpgsql`, and tags an `openiddb` `AddDbContextCheck<OpenIdDbContext>` with
   `HealthCheckTags.Readiness`. Without a database connection, as in hermetic test hosts that replace the context, the
   host uses an in-memory `OpenIdDbContext` and configures no Data Protection repository, which a deployment refuses.
+- **One database per cell, and the directory's own.** A cell is a host, its database, its Valkey and its KMS keys
+  ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)),
+  so every cell has its own `openiddb`, which holds every tenant of the cell. The global directory's host,
+  `hosts/NCode.Identity.OpenId.Directory.Host`, has its own Postgres database, `DirectoryDbContext`, with its own
+  migrations and image. It holds cells, placements, team documents and retired identifiers, and no personal data.
+- **A migration role and a runtime role.** The two roles have separate connection strings: `ConnectionStrings:openid`
+  is the runtime role's, and `ConnectionStrings:openid-migration` is the schema owner's, which only the worker uses.
+  `HostDatabase:RuntimeRole` names the runtime role for the grants the worker applies
+  ([ADR-1018](1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)). The
+  runtime role is not a superuser, has no `BYPASSRLS` and owns no table, so row-level security binds it.
 - **A host-owned database project.** The published `NCode.Identity.OpenId.Persistence.EntityFramework` ships the model
   only. The unpacked `NCode.Identity.OpenId.Host.Database` holds the Npgsql wiring (`HostDatabase`, which points
   `MigrationsAssembly` at itself), the design-time factories `OpenIdDbContextDesignTimeFactory` and
   `DeveloperDataProtectionDbContextDesignTimeFactory`, so `dotnet ef` never boots the host, and both contexts'
   migrations.
 - **The worker migrates, the host never does.** The host does not migrate on startup, in any environment.
-  `NCode.Identity.OpenId.Host.MigrationService` applies both contexts' migrations through `MigrationRunner` and exits.
+  `NCode.Identity.OpenId.Host.MigrationService` applies both contexts' migrations through `MigrationRunner` as the
+  schema owner, then applies row-level security and the runtime role's grants, and exits.
   The AppHost holds `api` with `WaitForCompletion(migrations)`, so a failed migration is a failed dashboard resource, and
   the chart's Job runs the same worker
   ([ADR-1180](1180-each-host-contexts-migrations-run-before-the-rollout-and-only-expand-the-schema.md)). Seeding stays in the
@@ -75,6 +87,8 @@ key ring. A worker applies the migrations, the host never does, and the build fa
   in sync. A table in the shared context imposes `DataProtectionKeys` on every consumer of the library. Rejected.
 - **A `HasPendingModelChanges` unit test.** The EF test project holds no model snapshot to compare. Rejected for the
   `dotnet ef` step in the Definition of Done.
+- **One role for migrations and serving.** The host would hold the right to change its own schema and to drop the
+  policy that binds it. Rejected.
 - **One Postgres database, a host-owned Database project, a migration worker, a key ring in a host-owned context and a
   drift step in the gate.** Chosen.
 
@@ -83,6 +97,9 @@ key ring. A worker applies the migrations, the host never does, and the build fa
 - One production-fidelity local database; data persists across restarts; a single script purges data, signing keys and
   key ring consistently; a migration failure is a visible, isolated resource; and the drift gate keeps the migrations
   authoritative.
+- A deployment holds two credentials for a cell's database, the owner's for the worker and the runtime role's for the
+  host, so a host that is compromised cannot change its schema or step around row-level security. The directory's
+  database has its own credentials.
 - The AppHost needs a container runtime (Docker or Podman). The host run standalone, without the orchestrator, uses an
   ephemeral in-memory database, so persistent local state requires the AppHost. A Postgres major-version upgrade can
   strand an old data volume; purge it with the reset script.
@@ -97,6 +114,9 @@ key ring. A worker applies the migrations, the host never does, and the build fa
   expand-and-contract rule and the initial migration.
 - [ADR-1071](1071-the-aspire-apphost-runs-the-local-stack-in-health-gated-order-after-checking-the-frontend-toolchain.md):
   the AppHost that runs the database and the worker.
+- [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)
+  and [ADR-1018](1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md): the
+  cell, and row-level security under the runtime role.
 - `hosts/NCode.Identity.OpenId.Host.Database`, `hosts/NCode.Identity.OpenId.Host.MigrationService`,
   `build/dev-db-reset.ps1`, `build/dod.ps1`.
 - The Npgsql EF Core provider, `Microsoft.AspNetCore.DataProtection.EntityFrameworkCore` `PersistKeysToDbContext`, and

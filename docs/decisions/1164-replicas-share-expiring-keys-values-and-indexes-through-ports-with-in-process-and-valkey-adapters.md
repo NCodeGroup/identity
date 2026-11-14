@@ -90,7 +90,10 @@ composition root chooses: in-process for one replica, Valkey for several.**
      ([ADR-1510](1510-the-host-chart-passes-a-valkey-servers-address-and-password-as-parts-and-the-adapter-assembles-the-connection.md)).
      The `Valkey` section binds `ValkeyOptions` strictly
      ([ADR-1137](1137-configuration-binds-strictly-and-every-option-timer-period-and-retention-is-validated-at-startup.md)):
-     `KeyPrefix`, default `ncode-identity:`, so several deployments can share one server; braces are not allowed in it.
+     `KeyPrefix`, default `ncode-identity:`; braces are not allowed in it. The adapter appends the cell's name
+     ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)),
+     so every key starts `ncode-identity:{cell}:`, where `{cell}` stands for `Cell:Name`, and the cells that share one
+     server keep to their own keys.
    - Without a connection, neither the connection string nor the `ValkeyConnection` parts, the call registers nothing
      and the in-process adapters stay. A `Valkey` section without a connection, both forms at once, a malformed
      connection string, one that names no server, parts without `Host`, a `Port` outside 1-65535 and an `Ssl` that is
