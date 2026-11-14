@@ -80,6 +80,23 @@ public sealed class LocalTenantDirectoryTests : IDisposable
         return team;
     }
 
+    private void SeedPlatformWithLimit(int maxTenants)
+    {
+        DbContext.Platforms.Add(
+            new PlatformEntity
+            {
+                Id = IdGenerator.CreateId(),
+                Key = OpenIdResourceIds.Platform,
+                ConcurrencyToken = string.Empty,
+                SettingsConcurrencyToken = string.Empty,
+                SettingsJson = JsonSerializer.SerializeToElement(
+                    new Dictionary<string, object> { ["max_tenants"] = maxTenants }
+                ),
+            }
+        );
+        DbContext.SaveChanges();
+    }
+
     private void SeedTenantWithIssuer(TeamEntity team, string tenantId, string? issuer)
     {
         DbContext
@@ -297,6 +314,73 @@ public sealed class LocalTenantDirectoryTests : IDisposable
     }
 
     [Fact]
+    public async Task ReserveAsync_WhenThePlatformLimitBoundsATeamWithoutItsOwn_ReturnsConflict()
+    {
+        SetupUnscoped();
+        SeedPlatformWithLimit(1);
+        var team = SeedTeamWithLimit(TeamId, maxTenants: null);
+        SeedTenantWithIssuer(team, OtherTenantId, OtherIssuer);
+
+        var result = await Directory.ReserveAsync(
+            CreateReservation(issuer: FreeIssuer, teamId: TeamId),
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsReserved);
+        Assert.Equal("The team 'platform' holds its maximum of 1 tenants.", result.ConflictDetail);
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenThePlatformLimitIsLowerThanTheTeamsOwn_ReturnsConflict()
+    {
+        SetupUnscoped();
+        SeedPlatformWithLimit(1);
+        var team = SeedTeamWithLimit(TeamId, maxTenants: 5);
+        SeedTenantWithIssuer(team, OtherTenantId, OtherIssuer);
+
+        var result = await Directory.ReserveAsync(
+            CreateReservation(issuer: FreeIssuer, teamId: TeamId),
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsReserved);
+        Assert.Equal("The team 'platform' holds its maximum of 1 tenants.", result.ConflictDetail);
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenTheTeamLimitIsLowerThanThePlatformLimit_ReturnsConflict()
+    {
+        SetupUnscoped();
+        SeedPlatformWithLimit(5);
+        var team = SeedTeamWithLimit(TeamId, maxTenants: 1);
+        SeedTenantWithIssuer(team, OtherTenantId, OtherIssuer);
+
+        var result = await Directory.ReserveAsync(
+            CreateReservation(issuer: FreeIssuer, teamId: TeamId),
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsReserved);
+        Assert.Equal("The team 'platform' holds its maximum of 1 tenants.", result.ConflictDetail);
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenTheTeamIsBelowThePlatformLimit_IsReserved()
+    {
+        SetupUnscoped();
+        SeedPlatformWithLimit(2);
+        var team = SeedTeamWithLimit(TeamId, maxTenants: null);
+        SeedTenantWithIssuer(team, OtherTenantId, OtherIssuer);
+
+        var result = await Directory.ReserveAsync(
+            CreateReservation(issuer: FreeIssuer, teamId: TeamId),
+            CancellationToken.None
+        );
+
+        Assert.True(result.IsReserved);
+    }
+
+    [Fact]
     public async Task ReserveAsync_WhenTheTeamIsUnknown_IsReserved()
     {
         SetupUnscoped();
@@ -349,30 +433,36 @@ public sealed class LocalTenantDirectoryTests : IDisposable
     private OpenIdDbContext CreateFreshContext() =>
         Provider.GetRequiredService<IDbContextFactory<OpenIdDbContext>>().CreateDbContext();
 
+    private static TenantRetirement CreateRetirement(
+        string tenantId = TenantId,
+        string? issuer = Issuer
+    ) => new() { TenantId = tenantId, Issuer = issuer };
+
     [Fact]
-    public async Task RetireAsync_WhenTheTenantHasAnIssuer_RetiresTheIdentifierAndTheIssuerWithoutACallersSave()
+    public async Task RetireAsync_WhenTheRetirementHasAnIssuer_RetiresTheIdentifierAndTheIssuerWithoutACallersSave()
     {
         SetupUnscoped();
-        SeedTenantWithIssuer(SeedTeamWithLimit(TeamId, maxTenants: null), TenantId, Issuer);
 
-        await Directory.RetireAsync(TenantId.ToUpperInvariant(), CancellationToken.None);
+        await Directory.RetireAsync(
+            CreateRetirement(TenantId.ToUpperInvariant()),
+            CancellationToken.None
+        );
 
         await using var fresh = CreateFreshContext();
         var retiredTenant = Assert.Single(await fresh.RetiredTenants.ToListAsync());
-        Assert.Equal(TenantId, retiredTenant.TenantId);
+        Assert.Equal(TenantId.ToUpperInvariant(), retiredTenant.TenantId);
         Assert.Equal(TenantId, retiredTenant.NormalizedTenantId);
         var retiredIssuer = Assert.Single(await fresh.RetiredIssuers.ToListAsync());
         Assert.Equal(Issuer, retiredIssuer.Issuer);
-        Assert.Equal(TenantId, retiredIssuer.TenantId);
+        Assert.Equal(TenantId.ToUpperInvariant(), retiredIssuer.TenantId);
     }
 
     [Fact]
-    public async Task RetireAsync_WhenTheTenantHasNoIssuer_RetiresOnlyTheIdentifier()
+    public async Task RetireAsync_WhenTheRetirementHasNoIssuer_RetiresOnlyTheIdentifier()
     {
         SetupUnscoped();
-        SeedTenantWithIssuer(SeedTeamWithLimit(TeamId, maxTenants: null), TenantId, issuer: null);
 
-        await Directory.RetireAsync(TenantId, CancellationToken.None);
+        await Directory.RetireAsync(CreateRetirement(issuer: null), CancellationToken.None);
 
         await using var fresh = CreateFreshContext();
         Assert.Single(await fresh.RetiredTenants.ToListAsync());
@@ -380,26 +470,39 @@ public sealed class LocalTenantDirectoryTests : IDisposable
     }
 
     [Fact]
-    public async Task RetireAsync_WhenTheTenantRowIsGone_RetiresOnlyTheIdentifier()
+    public async Task RetireAsync_WhenTheTenantRowIsGone_RetiresFromTheRecordAlone()
     {
         SetupUnscoped();
 
-        await Directory.RetireAsync(TenantId, CancellationToken.None);
+        await Directory.RetireAsync(CreateRetirement(), CancellationToken.None);
 
         await using var fresh = CreateFreshContext();
         var retiredTenant = Assert.Single(await fresh.RetiredTenants.ToListAsync());
         Assert.Equal(TenantId, retiredTenant.TenantId);
-        Assert.Empty(await fresh.RetiredIssuers.ToListAsync());
+        var retiredIssuer = Assert.Single(await fresh.RetiredIssuers.ToListAsync());
+        Assert.Equal(Issuer, retiredIssuer.Issuer);
+    }
+
+    [Fact]
+    public async Task RetireAsync_WhenATenantRowStillHoldsTheIdentifier_RetiresTheRecordsIssuerAndNotTheRowsIssuer()
+    {
+        SetupUnscoped();
+        SeedTenantWithIssuer(SeedTeamWithLimit(TeamId, maxTenants: null), TenantId, OtherIssuer);
+
+        await Directory.RetireAsync(CreateRetirement(issuer: Issuer), CancellationToken.None);
+
+        await using var fresh = CreateFreshContext();
+        var retiredIssuer = Assert.Single(await fresh.RetiredIssuers.ToListAsync());
+        Assert.Equal(Issuer, retiredIssuer.Issuer);
     }
 
     [Fact]
     public async Task RetireAsync_WhenCalledTwice_RetiresOnce()
     {
         SetupUnscoped();
-        SeedTenantWithIssuer(SeedTeamWithLimit(TeamId, maxTenants: null), TenantId, Issuer);
 
-        await Directory.RetireAsync(TenantId, CancellationToken.None);
-        await Directory.RetireAsync(TenantId, CancellationToken.None);
+        await Directory.RetireAsync(CreateRetirement(), CancellationToken.None);
+        await Directory.RetireAsync(CreateRetirement(), CancellationToken.None);
 
         await using var fresh = CreateFreshContext();
         Assert.Single(await fresh.RetiredTenants.ToListAsync());
@@ -414,11 +517,139 @@ public sealed class LocalTenantDirectoryTests : IDisposable
         await using var before = CreateFreshContext();
         var retiredId = Assert.Single(await before.RetiredTenants.ToListAsync()).Id;
 
-        await Directory.RetireAsync(TenantId, CancellationToken.None);
+        await Directory.RetireAsync(CreateRetirement(), CancellationToken.None);
 
         await using var fresh = CreateFreshContext();
         var retiredTenant = Assert.Single(await fresh.RetiredTenants.ToListAsync());
         Assert.Equal(retiredId, retiredTenant.Id);
+    }
+
+    #endregion
+
+    #region ChangeIssuerAsync Tests
+
+    private static TenantIssuerChange CreateChange(
+        string? previousIssuer = Issuer,
+        string? issuer = FreeIssuer,
+        string tenantId = TenantId
+    ) =>
+        new()
+        {
+            TenantId = tenantId,
+            PreviousIssuer = previousIssuer,
+            Issuer = issuer,
+        };
+
+    [Fact]
+    public async Task ChangeIssuerAsync_WhenTheIssuerIsFree_IsReservedAndRetiresThePreviousIssuer()
+    {
+        SetupUnscoped();
+        SeedTenantWithIssuer(SeedTeamWithLimit(TeamId, maxTenants: null), TenantId, Issuer);
+
+        var result = await Directory.ChangeIssuerAsync(CreateChange(), CancellationToken.None);
+
+        Assert.True(result.IsReserved);
+        await using var fresh = CreateFreshContext();
+        var retiredIssuer = Assert.Single(await fresh.RetiredIssuers.ToListAsync());
+        Assert.Equal(Issuer, retiredIssuer.Issuer);
+        Assert.Equal(TenantId, retiredIssuer.TenantId);
+        Assert.Empty(await fresh.RetiredTenants.ToListAsync());
+    }
+
+    [Fact]
+    public async Task ChangeIssuerAsync_WhenAnotherTenantHoldsTheIssuer_ReturnsConflictAndRetiresNothing()
+    {
+        SetupUnscoped();
+        var team = SeedTeamWithLimit(TeamId, maxTenants: null);
+        SeedTenantWithIssuer(team, TenantId, Issuer);
+        SeedTenantWithIssuer(team, OtherTenantId, OtherIssuer);
+
+        var result = await Directory.ChangeIssuerAsync(
+            CreateChange(issuer: OtherIssuer.ToUpperInvariant()),
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsReserved);
+        Assert.Contains("already has the issuer", result.ConflictDetail);
+        await using var fresh = CreateFreshContext();
+        Assert.Empty(await fresh.RetiredIssuers.ToListAsync());
+    }
+
+    [Fact]
+    public async Task ChangeIssuerAsync_WhenAnotherTenantRetiredTheIssuer_ReturnsConflict()
+    {
+        SetupUnscoped();
+        SeedRetiredIssuer(FreeIssuer, OtherTenantId);
+
+        var result = await Directory.ChangeIssuerAsync(CreateChange(), CancellationToken.None);
+
+        Assert.False(result.IsReserved);
+        Assert.Contains("belonged to another tenant", result.ConflictDetail);
+    }
+
+    [Fact]
+    public async Task ChangeIssuerAsync_WhenTheTenantTakesBackAnIssuerItRetired_IsReserved()
+    {
+        SetupUnscoped();
+        SeedTenantWithIssuer(SeedTeamWithLimit(TeamId, maxTenants: null), TenantId, OtherIssuer);
+        SeedRetiredIssuer(Issuer, TenantId.ToUpperInvariant());
+
+        var result = await Directory.ChangeIssuerAsync(
+            CreateChange(previousIssuer: OtherIssuer, issuer: Issuer),
+            CancellationToken.None
+        );
+
+        Assert.True(result.IsReserved);
+        await using var fresh = CreateFreshContext();
+        var retiredIssuers = (await fresh.RetiredIssuers.ToListAsync())
+            .Select(entity => entity.Issuer)
+            .Order()
+            .ToList();
+        Assert.Equal([Issuer, OtherIssuer], retiredIssuers);
+    }
+
+    [Fact]
+    public async Task ChangeIssuerAsync_WhenTheTenantTakesTheIssuerItHolds_IsReservedAndRetiresNothing()
+    {
+        SetupUnscoped();
+        SeedTenantWithIssuer(SeedTeamWithLimit(TeamId, maxTenants: null), TenantId, Issuer);
+
+        var result = await Directory.ChangeIssuerAsync(
+            CreateChange(previousIssuer: Issuer, issuer: Issuer.ToUpperInvariant()),
+            CancellationToken.None
+        );
+
+        Assert.True(result.IsReserved);
+        await using var fresh = CreateFreshContext();
+        Assert.Empty(await fresh.RetiredIssuers.ToListAsync());
+    }
+
+    [Fact]
+    public async Task ChangeIssuerAsync_WhenTheTenantTakesNoIssuer_RetiresThePreviousIssuer()
+    {
+        SetupUnscoped();
+
+        var result = await Directory.ChangeIssuerAsync(
+            CreateChange(issuer: null),
+            CancellationToken.None
+        );
+
+        Assert.True(result.IsReserved);
+        await using var fresh = CreateFreshContext();
+        Assert.Equal(Issuer, Assert.Single(await fresh.RetiredIssuers.ToListAsync()).Issuer);
+    }
+
+    [Fact]
+    public async Task ChangeIssuerAsync_WhenThePreviousIssuerIsAlreadyRetired_KeepsASingleRetiredRow()
+    {
+        SetupUnscoped();
+        SeedRetiredIssuer(Issuer, TenantId);
+
+        var result = await Directory.ChangeIssuerAsync(CreateChange(), CancellationToken.None);
+
+        Assert.True(result.IsReserved);
+        await using var fresh = CreateFreshContext();
+        Assert.Single(await fresh.RetiredIssuers.ToListAsync());
     }
 
     #endregion

@@ -136,24 +136,16 @@ internal sealed class LocalTenantDirectory(
     }
 
     /// <inheritdoc />
-    public async ValueTask RetireAsync(string tenantId, CancellationToken cancellationToken)
+    public async ValueTask RetireAsync(
+        TenantRetirement retirement,
+        CancellationToken cancellationToken
+    )
     {
         using var unscoped = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
 
+        var tenantId = retirement.TenantId;
         var normalizedTenantId = Normalize(tenantId);
-        var tenant = await dbContext
-            .Tenants.AsNoTracking()
-            .Where(entity => entity.NormalizedTenantId == normalizedTenantId)
-            .Select(entity => new
-            {
-                entity.TenantId,
-                entity.Issuer,
-                entity.NormalizedIssuer,
-            })
-            .SingleOrDefaultAsync(cancellationToken);
-
-        var heldTenantId = tenant?.TenantId ?? tenantId;
 
         if (
             !await dbContext.RetiredTenants.AnyAsync(
@@ -166,34 +158,115 @@ internal sealed class LocalTenantDirectory(
                 new RetiredTenantEntity
                 {
                     Id = IdGenerator.CreateId(),
-                    TenantId = heldTenantId,
+                    TenantId = tenantId,
                     NormalizedTenantId = normalizedTenantId,
                 }
             );
         }
 
-        if (tenant is { Issuer: { } issuer, NormalizedIssuer: { } normalizedIssuer })
+        if (retirement.Issuer is { } issuer)
         {
+            await AddRetiredIssuerAsync(dbContext, tenantId, issuer, cancellationToken);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<ReservationResult> ChangeIssuerAsync(
+        TenantIssuerChange change,
+        CancellationToken cancellationToken
+    )
+    {
+        using var unscoped = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var tenantId = change.TenantId;
+        var normalizedTenantId = Normalize(tenantId);
+
+        if (change.Issuer is { } issuer)
+        {
+            var normalizedIssuer = Normalize(issuer);
+
             if (
-                !await dbContext.RetiredIssuers.AnyAsync(
-                    entity => entity.NormalizedIssuer == normalizedIssuer,
+                await dbContext.Tenants.AnyAsync(
+                    entity =>
+                        entity.NormalizedIssuer == normalizedIssuer
+                        && entity.NormalizedTenantId != normalizedTenantId,
                     cancellationToken
                 )
             )
             {
-                dbContext.RetiredIssuers.Add(
-                    new RetiredIssuerEntity
-                    {
-                        Id = IdGenerator.CreateId(),
-                        Issuer = issuer,
-                        NormalizedIssuer = normalizedIssuer,
-                        TenantId = heldTenantId,
-                    }
+                return ReservationResult.Conflict(
+                    $"Another tenant already has the issuer '{issuer}'."
+                );
+            }
+
+            var formerHolder = await GetRetiredIssuerHolderCoreAsync(
+                dbContext,
+                normalizedIssuer,
+                cancellationToken
+            );
+            if (
+                formerHolder is not null
+                && !string.Equals(formerHolder, tenantId, StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                // Relying parties that trusted a retired issuer would accept another tenant's tokens under it, so only
+                // the tenant that gave it up can take it back.
+                return ReservationResult.Conflict(
+                    $"The issuer '{issuer}' belonged to another tenant and is never reissued."
                 );
             }
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        if (
+            change.PreviousIssuer is { } previousIssuer
+            && !string.Equals(previousIssuer, change.Issuer, StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            await AddRetiredIssuerAsync(dbContext, tenantId, previousIssuer, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        return ReservationResult.Reserved();
+    }
+
+    /// <summary>
+    /// Records that a tenant gave up an issuer, unless the issuer is already retired. Only the tenant that held an
+    /// issuer can take it back, so an issuer that is already retired was retired by the same tenant.
+    /// </summary>
+    /// <param name="dbContext">The <see cref="OpenIdDbContext"/> to write to.</param>
+    /// <param name="tenantId">The identifier of the tenant that gave up the issuer.</param>
+    /// <param name="issuer">The issuer that the tenant gave up.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    private async ValueTask AddRetiredIssuerAsync(
+        OpenIdDbContext dbContext,
+        string tenantId,
+        string issuer,
+        CancellationToken cancellationToken
+    )
+    {
+        var normalizedIssuer = Normalize(issuer);
+        if (
+            await dbContext.RetiredIssuers.AnyAsync(
+                entity => entity.NormalizedIssuer == normalizedIssuer,
+                cancellationToken
+            )
+        )
+        {
+            return;
+        }
+
+        dbContext.RetiredIssuers.Add(
+            new RetiredIssuerEntity
+            {
+                Id = IdGenerator.CreateId(),
+                Issuer = issuer,
+                NormalizedIssuer = normalizedIssuer,
+                TenantId = tenantId,
+            }
+        );
     }
 
     /// <inheritdoc />
@@ -270,8 +343,9 @@ internal sealed class LocalTenantDirectory(
     }
 
     /// <summary>
-    /// Finds a team, of the lineage of the specified team, that already holds the most tenants its own
-    /// <c>max_tenants</c> setting allows. A team's limit bounds the tenants of the team and of every team beneath it.
+    /// Finds a team, of the lineage of the specified team, that already holds the most tenants its limit allows. A
+    /// team's limit is the lesser of the platform's <c>max_tenants</c> setting and the team's own, and it bounds the
+    /// tenants of the team and of every team beneath it. The deepest team is checked first.
     /// </summary>
     /// <param name="dbContext">The <see cref="OpenIdDbContext"/> to read from.</param>
     /// <param name="teamId">The identifier of the team that would hold the new tenant.</param>
@@ -297,6 +371,16 @@ internal sealed class LocalTenantDirectory(
         }
 
         List<string> normalizedLineageIds = [.. TeamPaths.Parse(path).Select(Normalize)];
+
+        var platformSettings = await dbContext
+            .Platforms.AsNoTracking()
+            .Select(entity => new { entity.SettingsJson })
+            .SingleOrDefaultAsync(cancellationToken);
+        int? platformLimit =
+            platformSettings is not null
+            && TryGetMaxTenants(platformSettings.SettingsJson, out var platformMaxTenants)
+                ? platformMaxTenants
+                : null;
         var lineage = await dbContext
             .Teams.AsNoTracking()
             .Where(entity => normalizedLineageIds.Contains(entity.NormalizedTeamId))
@@ -308,13 +392,15 @@ internal sealed class LocalTenantDirectory(
             })
             .ToListAsync(cancellationToken);
 
-        foreach (var team in lineage)
+        foreach (var team in lineage.OrderByDescending(entity => entity.Path.Length))
         {
-            if (
-                team.SettingsJson.ValueKind != JsonValueKind.Object
-                || !team.SettingsJson.TryGetProperty(MaxTenantsSettingName, out var limitElement)
-                || !limitElement.TryGetInt32(out var maxTenants)
-            )
+            // A team's limit is the lesser of the platform's and its own; unset means unlimited.
+            var effectiveLimit = TryGetMaxTenants(team.SettingsJson, out var ownLimit)
+                ? platformLimit is { } platformMax
+                    ? Math.Min(platformMax, ownLimit)
+                    : ownLimit
+                : platformLimit;
+            if (effectiveLimit is not { } maxTenants)
             {
                 continue;
             }
@@ -330,5 +416,13 @@ internal sealed class LocalTenantDirectory(
         }
 
         return null;
+    }
+
+    private static bool TryGetMaxTenants(JsonElement settings, out int maxTenants)
+    {
+        maxTenants = 0;
+        return settings.ValueKind == JsonValueKind.Object
+            && settings.TryGetProperty(MaxTenantsSettingName, out var limitElement)
+            && limitElement.TryGetInt32(out maxTenants);
     }
 }

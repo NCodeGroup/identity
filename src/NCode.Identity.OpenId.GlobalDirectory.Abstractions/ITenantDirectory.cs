@@ -44,12 +44,25 @@ public interface ITenantDirectory
 
     /// <summary>
     /// Retires the identifier and issuer of a deleted tenant. A retired identifier is never reissued, and only the
-    /// tenant that held a retired issuer can take it back.
+    /// tenant that held a retired issuer can take it back. The call reads no tenant row, because the tenant is already
+    /// deleted, and retiring what is already retired succeeds.
     /// </summary>
-    /// <param name="tenantId">The identifier of the deleted tenant.</param>
+    /// <param name="retirement">The <see cref="TenantRetirement"/> describing the identifier and issuer to retire.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
-    ValueTask RetireAsync(string tenantId, CancellationToken cancellationToken);
+    ValueTask RetireAsync(TenantRetirement retirement, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Checks a change of a tenant's issuer and retires the issuer the tenant gives up. The change is refused when
+    /// another tenant holds the new issuer or retired it; a tenant can take back an issuer it retired itself.
+    /// </summary>
+    /// <param name="change">The <see cref="TenantIssuerChange"/> describing the previous and the new issuer.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>A <see cref="ReservationResult"/> that is reserved, or a conflict with its detail.</returns>
+    ValueTask<ReservationResult> ChangeIssuerAsync(
+        TenantIssuerChange change,
+        CancellationToken cancellationToken
+    );
 
     /// <summary>
     /// Gets the placement of a tenant.

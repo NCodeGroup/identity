@@ -552,9 +552,6 @@ internal class TenantStore(
             );
         }
 
-        var previousIssuer = tenantEntity.Issuer;
-        var previousNormalizedIssuer = tenantEntity.NormalizedIssuer;
-
         // Touch the row so the interceptor regenerates the ConcurrencyToken on save (ADR-1012).
         tenantEntity.IsDisabled = persistedTenant.IsDisabled;
         tenantEntity.DisplayName = persistedTenant.DisplayName;
@@ -568,24 +565,6 @@ internal class TenantStore(
         );
 
         DbContext.Tenants.Update(tenantEntity);
-
-        if (
-            previousIssuer is not null
-            && previousNormalizedIssuer is not null
-            && !string.Equals(
-                previousNormalizedIssuer,
-                tenantEntity.NormalizedIssuer,
-                StringComparison.Ordinal
-            )
-        )
-        {
-            await RetireIssuerAsync(
-                tenantEntity.TenantId,
-                previousIssuer,
-                previousNormalizedIssuer,
-                cancellationToken
-            );
-        }
     }
 
     /// <inheritdoc />
@@ -861,27 +840,6 @@ internal class TenantStore(
 
         DbContext.Tenants.Remove(tenantEntity);
 
-        // A deleted tenant's identifier and issuer are never reissued (ADR-1160).
-        await DbContext.RetiredTenants.AddAsync(
-            new RetiredTenantEntity
-            {
-                Id = NextId(),
-                TenantId = tenantEntity.TenantId,
-                NormalizedTenantId = tenantEntity.NormalizedTenantId,
-            },
-            cancellationToken
-        );
-
-        if (tenantEntity is { Issuer: { } issuer, NormalizedIssuer: { } normalizedIssuer })
-        {
-            await RetireIssuerAsync(
-                tenantEntity.TenantId,
-                issuer,
-                normalizedIssuer,
-                cancellationToken
-            );
-        }
-
         return true;
     }
 
@@ -956,40 +914,6 @@ internal class TenantStore(
             .ToListAsync(cancellationToken);
         DbContext.Set<TEntity>().RemoveRange(rows);
         return rows;
-    }
-
-    /// <summary>
-    /// Records that a tenant gave up an issuer, unless the issuer is already retired. Only the tenant that held an issuer
-    /// can take it back, so an issuer that is already retired was retired by the same tenant.
-    /// </summary>
-    private async ValueTask RetireIssuerAsync(
-        string tenantId,
-        string issuer,
-        string normalizedIssuer,
-        CancellationToken cancellationToken
-    )
-    {
-        var isRetired =
-            DbContext.RetiredIssuers.Local.Any(entity =>
-                entity.NormalizedIssuer == normalizedIssuer
-            )
-            || await DbContext.RetiredIssuers.AnyAsync(
-                entity => entity.NormalizedIssuer == normalizedIssuer,
-                cancellationToken
-            );
-        if (isRetired)
-            return;
-
-        await DbContext.RetiredIssuers.AddAsync(
-            new RetiredIssuerEntity
-            {
-                Id = NextId(),
-                Issuer = issuer,
-                NormalizedIssuer = normalizedIssuer,
-                TenantId = tenantId,
-            },
-            cancellationToken
-        );
     }
 
     /// <inheritdoc />

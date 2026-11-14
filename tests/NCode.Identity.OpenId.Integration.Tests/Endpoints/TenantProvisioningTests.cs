@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Integration.Tests.Infrastructure;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -402,6 +403,19 @@ public class TenantProvisioningTests
         }
         else
         {
+            var change = await serviceScope
+                .ServiceProvider.GetRequiredService<ITenantDirectory>()
+                .ChangeIssuerAsync(
+                    new TenantIssuerChange
+                    {
+                        TenantId = tenantId,
+                        PreviousIssuer = tenant.Issuer,
+                        Issuer = issuer,
+                    },
+                    cancellationToken
+                );
+            Assert.True(change.IsReserved, change.ConflictDetail);
+
             tenant.Issuer = issuer;
             await store.UpdateAsync(tenant, cancellationToken);
         }
