@@ -179,6 +179,35 @@ assertions of the cell's client, `cell-<cell.name>`, and is rendered as `KeyRing
 The key ring needs at least one key, and rendering fails when it has none, when a remote key's `keyId` does not fit its
 provider, or when two keys share an id, compared without case.
 
+The cell's `directory` values say the same as the platform's bootstrap runbook: the platform's operator registers the
+machine client `cell-<cell.name>` in the control-plane cell's root tenant with its key ring's public keys, and
+`directory.url`, `directory.clientId`, `directory.keyRing` and `directory.keys.*` give the cell the client and its
+private keys. [Run the cells of a platform](../../docs/platform-bootstrap.md#9-run-the-cells-of-a-platform) lists the
+steps.
+
+`directory.enabled` (default `false`) runs the directory host from the same release, which suits the release of the
+control-plane cell or a release of its own. It deploys the directory as one replica with a Service and a pre-install
+and pre-upgrade Job that applies its migrations, and requires:
+
+- `directory.issuer`, the issuer of the control-plane cell, whose bearer tokens the directory accepts
+  (`DirectoryServer__Issuer`);
+- `directory.allowedHosts`, the host names the directory answers to, such as the host of `directory.url`; `*` is
+  refused;
+- `directory.database.existingSecret`, a Secret holding the directory's own Npgsql connection string under
+  `directory.database.connectionStringKey` (default `connection-string`), which is a database of its own, never the
+  cell's (`ConnectionStrings__directory`);
+- `directory.tls.existingSecret`, a `kubernetes.io/tls` Secret whose certificate names the host of `directory.url`,
+  because the directory serves HTTPS only.
+
+`directory.image.*`, `directory.service`, `directory.migrations`, `directory.resources`, `directory.extraEnv`,
+`directory.extraEnvFrom`, `directory.extraVolumes` and `directory.extraVolumeMounts` tune the directory's Deployment and
+Job. The directory host answers audience `urn:ncode:directory` with scope `directory`.
+
+`backup.location` names where the cell's backups are kept, such as a bucket or a volume snapshot class. When set, the
+host and migration pods carry it as the `ncode.io/backup-location` annotation for the backup tool to read; the chart
+starts no backup itself. `telemetry.otlpEndpoint` sets `OTEL_EXPORTER_OTLP_ENDPOINT` on every pod, and every pod carries
+`OTEL_RESOURCE_ATTRIBUTES` with `cell.name` and `cell.region`, so a signal names its cell.
+
 ## What the chart refuses
 
 Rendering fails, before anything is applied, when:

@@ -519,6 +519,25 @@ whole record as JSON text, so in PostgreSQL `"Record"::jsonb` reads it, with the
 instead. Each replica removes the records older than `Retention` (90 days) every `PruneInterval` (one hour); both are
 keys of `OpenId:AuditRecords`.
 
+**The cell.** The store belongs to one cell, a host with its own database in one region
+([ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
+Each stored record carries the name of the cell that wrote it, `Cell:Name`, in the `Cell` column of `AuditRecords`, and
+the table is indexed on `(Cell, EventTime)`, so a query reads one cell's records in the order they occurred. `Cell` is a
+column of the store and not a member of the record's JSON, so `"Record"` has no `cell` member and a sink that receives
+the record does not see it. A cell's usage rows carry the same name. A record stays in the database of the cell that
+wrote it, and so in that cell's region; a tenant that moves to another cell leaves its earlier records in the cell where
+it was served until their retention ends
+([ADR-1514](decisions/1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md)).
+
+**Erasure.** Deleting a tenant crypto-shreds its master key, so the tenant's stored secrets and grant payloads are
+unreadable at once. Its audit records stay until their 90-day retention ends and are then removed. The usage ledger and
+the retired identifiers hold no personal data. Backups expire on their own schedule, and become unreadable earlier when
+the tenant held its own root key and revokes it
+([ADR-1303](decisions/1303-audit-records-are-kept-in-an-indexed-store-that-each-replica-writes-in-batches.md),
+[ADR-1212](decisions/1212-deleting-a-client-resource-server-principal-or-tenant-removes-what-it-owns.md),
+[ADR-1414](decisions/1414-a-tenant-can-wrap-its-master-keys-under-a-root-key-it-controls.md)). The erasure of a tenant reaches its own cell alone,
+because the directory holds no personal data.
+
 Every audit event of one session within a tenant, oldest first, found through the session's `AuditRecordResources` item:
 
 ```sql

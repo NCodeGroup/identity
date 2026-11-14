@@ -62,8 +62,8 @@ Neon / Aiven free tiers as the always-on database (wrong region, scale-to-zero, 
 Decided in [ADR-1495](decisions/1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md).
 
 - **Customer environments are tenants on production.** A customer's dev, test, and prod are separate tenants on the one
-  production platform (the Auth0 model): `acme-dev.auth.ncodeid.net`, `acme-test.auth.ncodeid.net`,
-  `acme.auth.ncodeid.net`. Their non-production runs on exactly the hardware, versions, and configuration their
+  production platform (the Auth0 model): `acme-dev.auth.{region}.ncodeid.net`,
+  `acme-test.auth.{region}.ncodeid.net`, `acme.auth.{region}.ncodeid.net`. Their non-production runs on exactly the hardware, versions, and configuration their
   production does, so no customer incident can be blamed on environment drift, and promotion is tenant configuration
   (management API), not infrastructure.
 - **The platform itself has two environments:** **production** — every customer tenant, plus internal `canary` and
@@ -207,8 +207,8 @@ and mail live on `ncodeid.com` ([ADR-1495](decisions/1495-the-hosted-platform-ru
 | Hostname                                        | Serves                                                                                                   | Certificate                    |
 | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------ |
 | `auth.ncodeid.net`                              | Root (control-plane) tenant issuer — where admins sign in and management-API tokens are issued ([ADR-1417](decisions/1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md)) | `auth.ncodeid.net`            |
-| `{tenant}.auth.ncodeid.net`                     | Workload tenant issuers, resolved by `DynamicByHost` (e.g. `acme.auth.ncodeid.net`)                     | `*.auth.ncodeid.net`          |
-| `mtls.ncodeid.net`, `{tenant}.mtls.ncodeid.net` | RFC 8705 mTLS endpoint aliases — the only hosts where Traefik requests a client certificate. `DynamicByHost` routes each tenant's alias host to it (ADR-1165) | `mtls.…` + `*.mtls.ncodeid.net` |
+| `{tenant}.auth.{region}.ncodeid.net`            | Workload tenant issuers of one region, resolved by `DynamicByHost` (e.g. `acme.auth.{region}.ncodeid.net`) | `*.auth.{region}.ncodeid.net` |
+| `mtls.ncodeid.net`, `{tenant}.mtls.{region}.ncodeid.net` | RFC 8705 mTLS endpoint aliases — the only hosts where Traefik requests a client certificate. `DynamicByHost` routes each tenant's alias host to it (ADR-1165) | `mtls.…` + `*.mtls.{region}.ncodeid.net` |
 | `manage.ncodeid.net`                            | The management console only; the management API is `/api` on `auth.ncodeid.net` ([ADR-1437](decisions/1437-the-management-console-is-a-confidential-client-whose-own-bff-host-serves-only-the-console.md)) | `manage.ncodeid.net`          |
 | `ncodeid.net`, `www.ncodeid.net`                  | Redirect (301) to `https://ncodeid.com`, with the HSTS header                                            | `ncodeid.net` + `www.ncodeid.net` (cert-manager) |
 | `ncodeid.com`, `www.ncodeid.com`, `status.ncodeid.com` | Project site, docs and status page — the brand domain ([ADR-1495](decisions/1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md)) | Hosting provider               |
@@ -217,11 +217,16 @@ Why this shape:
 
 - **`auth`, not `id` or `login`:** the hosts serve machine-to-machine token, discovery, and JWKS endpoints as well as
   the login UI, and `auth.<domain>` is the convention developers expect.
-- **Tenants nest under a function label rather than the apex** (`acme.auth.ncodeid.net`, not `acme.ncodeid.net`): no
-  tenant name can ever collide with a service host (`www`, `manage`, `mtls`, `status`, `docs`, `dev`, …), so there is no
-  reserved-name list to maintain, and each function gets one wildcard certificate. A tenant can still be moved to a
-  dedicated deployment ([ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)) by changing its DNS record, without
-  changing its issuer.
+- **Tenants nest under a function label and a region rather than the apex** (`acme.auth.{region}.ncodeid.net`, not
+  `acme.ncodeid.net`): no tenant name can ever collide with a service host (`www`, `manage`, `mtls`, `status`, `docs`,
+  `dev`, …), so there is no reserved-name list to maintain, and each function in each region gets one wildcard
+  certificate. `{region}` is the region of the cell that hosts the tenant, so the hostname names where the tenant's
+  data lives and resolves to a cell of that region. The root issuer and the control plane sit at `auth.ncodeid.net`, in
+  the control-plane cell, and carry no region label. A tenant of a dedicated cell, or a tenant that changes cell within
+  its region ([ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)),
+  keeps its issuer through an explicit DNS record for its hostname
+  ([#755](https://github.com/NCodeGroup/identity/issues/755)); custom domains are a separate decision
+  ([#756](https://github.com/NCodeGroup/identity/issues/756)).
 - **`mtls` is a sibling namespace, not `mtls.{tenant}.auth…`:** a wildcard covers one label only, so nesting would need a
   certificate per tenant.
 - **`manage` is separate from `auth`:** the management console is a confidential client with a BFF host and origin of
@@ -234,9 +239,10 @@ Why this shape:
 - **The server derives these hosts from configuration**
   ([ADR-1165](decisions/1165-a-tenants-stored-issuer-is-its-single-origin-and-its-mtls-alias-a-routed-second-host.md)):
   `OpenId:TenantResolution:StrategyCode = DynamicByHost`, `DynamicByHost:IssuerTemplate =
-  https://{tenantId}.auth.ncodeid.net`, and `Root:Issuer = https://auth.ncodeid.net`. A tenant created without an
-  issuer is given (and keeps) the one the template derives; a custom domain is set as an explicit issuer. The mTLS
-  aliases follow the same rule: `DynamicByHost:MtlsEndpointAliasTemplate = https://{tenantId}.mtls.ncodeid.net` and
+  https://{tenantId}.auth.{region}.ncodeid.net` with the cell's own region written in, and `Root:Issuer =
+  https://auth.ncodeid.net`. A tenant created without an issuer is given (and keeps) the one the template derives; a
+  custom domain is set as an explicit issuer. The mTLS aliases follow the same rule:
+  `DynamicByHost:MtlsEndpointAliasTemplate = https://{tenantId}.mtls.{region}.ncodeid.net` and
   `Root:MtlsEndpointAliasAuthority = https://mtls.ncodeid.net`
   ([ADR-1165](decisions/1165-a-tenants-stored-issuer-is-its-single-origin-and-its-mtls-alias-a-routed-second-host.md)). The root tenant
   is created when the first request reaches `auth.ncodeid.net`
@@ -249,7 +255,7 @@ Why this shape:
   that origin plus `/api` ([ADR-1437](decisions/1437-the-management-console-is-a-confidential-client-whose-own-bff-host-serves-only-the-console.md)); the API authenticates by the control-plane tenant whichever host or path addresses it
   ([ADR-1191](decisions/1191-a-management-request-is-authenticated-by-the-control-plane-tenant-and-scoped-by-its-routes-tenant.md)).
 
-**Environments.** Customer environments are just tenants on production (`acme-dev.auth.ncodeid.net`), so they need no
+**Environments.** Customer environments are just tenants on production (`acme-dev.auth.{region}.ncodeid.net`), so they need no
 extra hostnames. The platform's private **lab** inserts a `lab` label after the function: `auth.lab.ncodeid.net`,
 `{tenant}.auth.lab.ncodeid.net`, `{tenant}.mtls.lab.ncodeid.net`, `manage.lab.ncodeid.net`. Ephemeral Azure runs use
 one host each, `{run}.ci.ncodeid.net`. The lab shares the platform zone, so it must never hold a token that can edit
@@ -298,6 +304,41 @@ belongs to an unrelated party, so JavaScript packages publish under the org-owne
 GitHub organization and GitHub Packages' scope rule). The frontend's `@ncode/*` workspace packages are private and
 resolve only through `workspace:*`, so they are renamed only if and when one is published. The family publishes on NuGet
 under the reserved, verified `NCode.` prefix.
+
+### Cells and the global directory
+
+Decided in [ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md).
+A platform is a global directory over independent cells.
+
+- **A cell** is one identity host, its one Postgres database, its Valkey and its KMS keys, in one region. A cell's
+  tenants share that database and are separated by fail-closed scoping, and a tenant lives in exactly one cell, so its
+  data, keys and sessions stay in that cell's region. A cell is named by `Cell:Name` (at most 31 characters,
+  `^[a-z][a-z0-9-]{0,30}$`) and also has a `Cell:Region`, a `Cell:Kind` (`shared` or `dedicated`), the cloud regions its
+  keys may live in and a management URL. Capacity and blast radius are managed by how many tenants a cell hosts and how
+  many cells run; a dedicated cell gives compliance isolation. A platform of one cell needs nothing else.
+- **The control-plane cell** is the cell that sets `Cell:IsControlPlane`. It holds the platform and team authority, the
+  platform and team settings, setup and the team root keys, and it serves the platform and team management routes and
+  `auth.ncodeid.net`. Setup runs once per platform, in the control-plane cell only
+  ([first use of a deployed instance](first-deployed-instance.md)). Every other cell sets `Cell:ControlPlane:Issuer` to
+  the control-plane cell's issuer, validates management tokens against it and fails closed when it is unreachable.
+- **The directory host** (`NCode.Identity.OpenId.GlobalDirectory.Host`) reserves tenant and team identifiers
+  platform-wide, places each tenant in one cell, records the cells and publishes team documents. It holds no personal
+  data, has its own Postgres database and runs as one replica. A cell that sets `Directory:Url` reaches it with a
+  client-credentials token under its machine client `cell-{name}`; a cell without `Directory:Url` uses local adapters.
+  Serving a tenant never calls the directory, and creating a tenant fails with `503` when the directory is unreachable.
+  [Running cells](platform-bootstrap.md#9-run-the-cells-of-a-platform) sets this up.
+- **Two database roles.** The host connects as a runtime role that cannot bypass the row-level security on tenant-bound
+  tables, and the migrations connect as the schema owner. The two are separate secrets and the chart has no fallback
+  from one to the other (`database.*`, `database.runtimeRole`, `migrations.database.*`).
+- **Valkey is shared by prefix.** Every Valkey key a cell writes starts with `ncode-identity:{cell}:`, so cells that
+  share one Valkey keep to their own keys.
+- **The chart** deploys one cell per release. `cell.name`, `cell.region`, `cell.kind`, `cell.cloudRegions`,
+  `cell.managementUrl`, `cell.isControlPlane` and `cell.controlPlaneIssuer` render as the `Cell__*` settings.
+  `directory.url`, `directory.clientId`, `directory.keyRing` and `directory.keys.*` give the cell its directory client.
+  `directory.enabled` deploys the directory host as well, with `directory.issuer`, its own database Secret and a
+  migration Job. `backup.location` annotates the host and migration pods with `ncode.io/backup-location`, and
+  `telemetry.otlpEndpoint` sets the OTLP endpoint, with `cell.name` and `cell.region` as resource attributes on every
+  pod. The [chart README](../charts/ncode-identity-host/README.md#the-cell) lists every value.
 
 ## 4. Compute sizing
 
