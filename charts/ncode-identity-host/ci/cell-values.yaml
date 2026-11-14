@@ -14,6 +14,8 @@ directory:
   url: https://directory.example.com
   clientId: cell-ci-cell-eu
   keyRing: cell-client
+  keys:
+    pemSecret: cell-client-key
 allowedHosts:
   - id.eu.example.com
 tenantResolution:

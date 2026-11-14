@@ -238,6 +238,36 @@ applied. Rendered for its side effect only.
 {{- if and .Values.directory.url (not .Values.directory.keyRing) }}
 {{- fail "directory.keyRing must name the key ring that signs the cell's client assertions when directory.url is set." }}
 {{- end }}
+{{- if and .Values.directory.url .Values.directory.keyRing }}
+{{- $directoryKeys := .Values.directory.keys }}
+{{- if and (not $directoryKeys.pemSecret) (not $directoryKeys.remoteKeys) }}
+{{- fail (printf "directory.keys must name pemSecret or list a remote key: the directory client's key ring %s needs at least one key." .Values.directory.keyRing) }}
+{{- end }}
+{{- $directoryKeyIds := list }}
+{{- if $directoryKeys.pemSecret }}
+{{- $directoryKeyIds = append $directoryKeyIds (lower .Values.directory.keyRing) }}
+{{- end }}
+{{- range $kid, $key := $directoryKeys.remoteKeys }}
+{{- $directoryKeyIds = append $directoryKeyIds (lower $kid) }}
+{{- $path := printf "directory.keys.remoteKeys.%s.keyId" $kid }}
+{{- if eq $key.provider "aws-kms" }}
+{{- if not (regexMatch "^arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:(key/[A-Za-z0-9-]+|alias/[A-Za-z0-9/_-]+)$" $key.keyId) }}
+{{- fail (printf "%s must be the ARN of an AWS KMS key or alias, such as arn:aws:kms:us-west-2:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab." $path) }}
+{{- end }}
+{{- else if eq $key.provider "azure-key-vault" }}
+{{- if not (regexMatch "^https://[A-Za-z0-9-]+([.][A-Za-z0-9-]+)+/keys/[A-Za-z0-9-]{1,127}/[A-Za-z0-9]{32}$" $key.keyId) }}
+{{- fail (printf "%s must be the identifier of a Key Vault or Managed HSM key version, such as https://contoso.vault.azure.net/keys/cell-client/0123456789abcdef0123456789abcdef." $path) }}
+{{- end }}
+{{- else if eq $key.provider "google-cloud-kms" }}
+{{- if not (regexMatch "^projects/[a-z0-9.:-]+/locations/[a-z0-9-]+/keyRings/[A-Za-z0-9_-]{1,63}/cryptoKeys/[A-Za-z0-9_-]{1,63}/cryptoKeyVersions/[0-9]{1,19}$" $key.keyId) }}
+{{- fail (printf "%s must be the resource name of a Cloud KMS crypto key version, such as projects/my-project/locations/us-central1/keyRings/ncode-identity-cell/cryptoKeys/cell-client/cryptoKeyVersions/1." $path) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if ne (len $directoryKeyIds) (len (uniq $directoryKeyIds)) }}
+{{- fail (printf "directory.keys holds two keys with the same id: each remote key's id differs from every other key's in the ring, compared without case, and from %s when pemSecret is set." .Values.directory.keyRing) }}
+{{- end }}
+{{- end }}
 {{- if and (eq .Values.tenantResolution.strategyCode "StaticSingle") (not .Values.tenantResolution.staticSingle.issuer) }}
 {{- fail "tenantResolution.staticSingle.issuer must be the public issuer URL." }}
 {{- end }}
@@ -629,6 +659,27 @@ same configuration the pods it rewraps keys for read.
 - name: Directory__KeyRing
   value: {{ . | quote }}
 {{- end }}
+{{- if $directory.keys.pemSecret }}
+- name: {{ printf "KeyRings__%s__PemFiles__0" $directory.keyRing }}
+  value: {{ printf "/etc/ncode-identity/directory-key/%s.pem" $directory.keyRing | quote }}
+{{- end }}
+{{- range $kid, $key := $directory.keys.remoteKeys }}
+{{- $prefix := printf "KeyRings__%s__RemoteKeys__%s" $directory.keyRing $kid }}
+- name: {{ $prefix }}__Provider
+  value: {{ $key.provider | quote }}
+- name: {{ $prefix }}__KeyId
+  value: {{ $key.keyId | quote }}
+- name: {{ $prefix }}__Algorithm
+  value: {{ $key.algorithm | quote }}
+- name: {{ $prefix }}__SecretType
+  value: {{ $key.secretType | quote }}
+- name: {{ $prefix }}__KeySizeBits
+  value: {{ $key.keySizeBits | quote }}
+{{- with $key.curve }}
+- name: {{ $prefix }}__Curve
+  value: {{ . | quote }}
+{{- end }}
+{{- end }}
 {{- end }}
 {{ include "identity-host.telemetryEnv" . | trim }}
 - name: OpenId__TenantResolution__StrategyCode
@@ -739,7 +790,7 @@ same configuration the pods it rewraps keys for read.
 {{- end }}
 
 {{/*
-The volume mounts of the host container, which the Deployment and the secret protection Job share.
+The volume mounts of the host container, which the Deployment and the host's Jobs share.
 */}}
 {{- define "identity-host.hostVolumeMounts" -}}
 {{- $secretProtectionRoot := "/etc/ncode-identity/secret-protection" }}
@@ -763,13 +814,18 @@ The volume mounts of the host container, which the Deployment and the secret pro
   mountPath: {{ printf "%s/recovery" $secretProtectionRoot }}
   readOnly: true
 {{- end }}
+{{- if and .Values.directory.url .Values.directory.keys.pemSecret }}
+- name: directory-key
+  mountPath: /etc/ncode-identity/directory-key
+  readOnly: true
+{{- end }}
 {{- with .Values.extraVolumeMounts }}
 {{- toYaml . | nindent 0 }}
 {{- end }}
 {{- end }}
 
 {{/*
-The volumes of the host pod, which the Deployment and the secret protection Job share.
+The volumes of the host pod, which the Deployment and the host's Jobs share.
 */}}
 {{- define "identity-host.hostVolumes" -}}
 {{- $credentials := include "identity-host.kmsCredentials.server" . | fromYaml }}
@@ -793,6 +849,15 @@ The volumes of the host pod, which the Deployment and the secret protection Job 
 - name: secret-protection-recovery
   configMap:
     name: {{ . }}
+    defaultMode: 0440
+{{- end }}
+{{- if and .Values.directory.url .Values.directory.keys.pemSecret }}
+- name: directory-key
+  secret:
+    secretName: {{ .Values.directory.keys.pemSecret }}
+    items:
+      - key: {{ printf "%s.pem" .Values.directory.keyRing }}
+        path: {{ printf "%s.pem" .Values.directory.keyRing }}
     defaultMode: 0440
 {{- end }}
 {{- with .Values.extraVolumes }}

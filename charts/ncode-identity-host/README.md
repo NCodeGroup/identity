@@ -166,6 +166,19 @@ it, and the chart renders them as the `Cell` section the host binds:
 - `cell.controlPlaneIssuer`, the issuer of the control-plane cell, required when `cell.isControlPlane` is `false`
   because the cell accepts platform and team management tokens from it (`Cell__ControlPlane__Issuer`).
 
+A cell reaches the platform's directory through the `directory` values, rendered as the `Directory` section
+(`Directory__Url`, `Directory__ClientId`, `Directory__KeyRing`) when `directory.url` is set, and then `directory.clientId`
+and `directory.keyRing` are required. The key ring that `directory.keyRing` names holds the keys that sign the
+assertions of the cell's client, `cell-<cell.name>`, and is rendered as `KeyRings__<directory.keyRing>__…`:
+
+- `directory.keys.pemSecret`, a Secret holding the client's private key under the key `<directory.keyRing>.pem`, which
+  the pods mount at `/etc/ncode-identity/directory-key`; the key's id is the value of `directory.keyRing`;
+- `directory.keys.remoteKeys`, keys that a key management service holds, by key id, each with `provider`, `keyId`,
+  `algorithm`, `secretType`, `keySizeBits` and, for an elliptic-curve key, `curve`, as for the console's key rings.
+
+The key ring needs at least one key, and rendering fails when it has none, when a remote key's `keyId` does not fit its
+provider, or when two keys share an id, compared without case.
+
 ## What the chart refuses
 
 Rendering fails, before anything is applied, when:

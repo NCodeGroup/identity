@@ -71,6 +71,23 @@ directory:
   clientId: ""
   # The name of the key ring whose key signs the client's assertions (Directory:KeyRing). Required when url is set.
   keyRing: ""
+  # The keys of the key ring that keyRing names, which sign the assertions of the cell's client cell-<cell.name>
+  # (KeyRings:<keyRing>). Holds a PEM key from a Secret, keys a key management service holds, or both, and at least one
+  # key. Required when url is set.
+  keys:
+    # Secret holding the client's private key under the key '<keyRing>.pem'; the key's id is the value of keyRing.
+    pemSecret: ""
+    # Keys a key management service holds, by key id: provider (aws-kms, azure-key-vault or google-cloud-kms), keyId
+    # (an AWS KMS key or alias ARN, a Key Vault key version identifier or a Cloud KMS crypto key version name),
+    # algorithm, secretType, keySizeBits and, for an elliptic-curve key, curve.
+    remoteKeys: {}
+    #  cell-client:
+    #    provider: aws-kms
+    #    keyId: arn:aws:kms:us-west-2:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab
+    #    algorithm: ES256
+    #    secretType: ecc
+    #    keySizeBits: 256
+    #    curve: P-256
   # Runs the directory host as its own Deployment, with a Service and a pre-install and pre-upgrade Job that applies its
   # migrations. The directory keeps its single-use state in process, so it runs one replica.
   enabled: false

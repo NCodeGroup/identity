@@ -394,7 +394,7 @@ jobs:
             done
           }
           cell=$(helm template release "$CHART" --values "$CHART/ci/cell-values.yaml" --show-only templates/deployment.yaml)
-          expect "$cell" 'Cell__ControlPlane__Issuer' 'Cell__CloudRegions__1'
+          expect "$cell" 'Cell__ControlPlane__Issuer' 'Cell__CloudRegions__1' 'KeyRings__cell-client__PemFiles__0' 'directory-key'
 
       - name: Give the migration Job the host's extra settings and a valid name
         run: |
