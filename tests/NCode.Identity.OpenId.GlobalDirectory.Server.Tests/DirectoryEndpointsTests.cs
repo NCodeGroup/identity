@@ -447,6 +447,147 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
     #endregion
 
+    #region Move Tenant Tests
+
+    private async ValueTask SeedPlacedTenantAsync(
+        string targetRegion,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var services = (App ?? throw new InvalidOperationException()).Services;
+        var cells = services.GetRequiredService<ICellDirectory>();
+        var tenants = services.GetRequiredService<ITenantDirectory>();
+
+        await cells.RegisterAsync(CreateCell("a"), cancellationToken);
+        await cells.RegisterAsync(
+            CreateCell("b") with
+            {
+                Region = targetRegion,
+            },
+            cancellationToken
+        );
+        await tenants.ReserveAsync(
+            new TenantReservation
+            {
+                TenantId = TenantId,
+                Issuer = TenantIssuer,
+                Cell = "a",
+            },
+            cancellationToken
+        );
+        await tenants.PlaceAsync(
+            new TenantPlacement
+            {
+                TenantId = TenantId,
+                Issuer = TenantIssuer,
+                Cell = "a",
+                Region = "region-a",
+            },
+            cancellationToken
+        );
+    }
+
+    private async ValueTask<string?> GetPlacedCellAsync(
+        CancellationToken cancellationToken = default
+    )
+    {
+        var response = await Client.GetAsync(
+            $"/directory/v1/tenants/{TenantId}",
+            cancellationToken
+        );
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+
+        return (await ReadAsync<TenantPlacement>(response, cancellationToken)).Cell;
+    }
+
+    [Fact]
+    public async Task MoveTenant_WhenTheCallerIsTheTargetCell_AnswersOkAndMovesThePlacement()
+    {
+        await SeedPlacedTenantAsync("region-a");
+        Authenticate(clientId: "cell-b");
+
+        var response = await Client.PostAsync(
+            $"/directory/v1/tenants/{TenantId}/move?fromCell=a&toCell=b",
+            content: null
+        );
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("b", await GetPlacedCellAsync());
+    }
+
+    [Fact]
+    public async Task MoveTenant_WhenTheCallerIsAnotherCell_AnswersUnprocessableEntity()
+    {
+        await SeedPlacedTenantAsync("region-a");
+        Authenticate(clientId: "cell-a");
+
+        var response = await Client.PostAsync(
+            $"/directory/v1/tenants/{TenantId}/move?fromCell=a&toCell=b",
+            content: null
+        );
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Equal(
+            "Only the target cell moves a tenant to itself.",
+            await ReadProblemDetailAsync(response)
+        );
+        Assert.Equal("a", await GetPlacedCellAsync());
+    }
+
+    [Fact]
+    public async Task MoveTenant_WithoutTheCells_AnswersUnprocessableEntity()
+    {
+        Authenticate(clientId: "cell-b");
+
+        var response = await Client.PostAsync(
+            $"/directory/v1/tenants/{TenantId}/move",
+            content: null
+        );
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task MoveTenant_WhenThePlacementIsInAnotherCell_AnswersConflictWithTheDetail()
+    {
+        await SeedPlacedTenantAsync("region-a");
+        Authenticate(clientId: "cell-b");
+
+        var response = await Client.PostAsync(
+            $"/directory/v1/tenants/{TenantId}/move?fromCell=c&toCell=b",
+            content: null
+        );
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal(
+            $"The tenant '{TenantId}' is not placed in the cell 'c'.",
+            await ReadProblemDetailAsync(response)
+        );
+        Assert.Equal("a", await GetPlacedCellAsync());
+    }
+
+    [Fact]
+    public async Task MoveTenant_WhenTheCellsAreInDifferentRegions_AnswersConflictWithTheDetail()
+    {
+        await SeedPlacedTenantAsync("region-b");
+        Authenticate(clientId: "cell-b");
+
+        var response = await Client.PostAsync(
+            $"/directory/v1/tenants/{TenantId}/move?fromCell=a&toCell=b",
+            content: null
+        );
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal(
+            "The cells 'a' and 'b' are in different regions, and a tenant moves only within its region.",
+            await ReadProblemDetailAsync(response)
+        );
+        Assert.Equal("a", await GetPlacedCellAsync());
+    }
+
+    #endregion
+
     #region Team Tests
 
     [Fact]

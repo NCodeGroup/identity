@@ -136,6 +136,22 @@ internal sealed class LocalTenantDirectory(
     }
 
     /// <inheritdoc />
+    public ValueTask<MoveResult> MoveAsync(
+        string tenantId,
+        string fromCell,
+        string toCell,
+        CancellationToken cancellationToken
+    )
+    {
+        // A cell that runs on its own has no other cell to move a tenant to.
+        return ValueTask.FromResult(
+            MoveResult.Conflict(
+                $"The cell '{CellOptions.Name}' runs on its own, so it has no other cell to move the tenant '{tenantId}' to."
+            )
+        );
+    }
+
+    /// <inheritdoc />
     public async ValueTask RetireAsync(
         TenantRetirement retirement,
         CancellationToken cancellationToken

@@ -209,6 +209,78 @@ internal sealed class DefaultDirectoryStore(
     }
 
     /// <inheritdoc />
+    async ValueTask<MoveResult> ITenantDirectory.MoveAsync(
+        string tenantId,
+        string fromCell,
+        string toCell,
+        CancellationToken cancellationToken
+    )
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken
+        );
+
+        var normalizedTenantId = Normalize(tenantId);
+        var tenant = await dbContext.Tenants.SingleOrDefaultAsync(
+            entity =>
+                entity.NormalizedTenantId == normalizedTenantId
+                && entity.State == TenantRecord.StatePlaced,
+            cancellationToken
+        );
+        if (tenant is null)
+        {
+            return MoveResult.Conflict($"The tenant '{tenantId}' is not placed in a cell.");
+        }
+
+        if (!string.Equals(tenant.Cell, fromCell, StringComparison.Ordinal))
+        {
+            return MoveResult.Conflict(
+                $"The tenant '{tenantId}' is not placed in the cell '{fromCell}'."
+            );
+        }
+
+        if (string.Equals(fromCell, toCell, StringComparison.Ordinal))
+        {
+            return MoveResult.Conflict(
+                $"The tenant '{tenantId}' is already placed in the cell '{toCell}'."
+            );
+        }
+
+        var from = await dbContext
+            .Cells.AsNoTracking()
+            .SingleOrDefaultAsync(entity => entity.Name == fromCell, cancellationToken);
+        if (from is null)
+        {
+            return MoveResult.Conflict($"The cell '{fromCell}' is not registered.");
+        }
+
+        var to = await dbContext
+            .Cells.AsNoTracking()
+            .SingleOrDefaultAsync(entity => entity.Name == toCell, cancellationToken);
+        if (to is null)
+        {
+            return MoveResult.Conflict($"The cell '{toCell}' is not registered.");
+        }
+
+        if (!string.Equals(from.Region, to.Region, StringComparison.Ordinal))
+        {
+            return MoveResult.Conflict(
+                $"The cells '{fromCell}' and '{toCell}' are in different regions, and a tenant moves only within its region."
+            );
+        }
+
+        tenant.Cell = toCell;
+        tenant.ModifiedWhen = TimeProvider.GetUtcNow();
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        return MoveResult.Moved();
+    }
+
+    /// <inheritdoc />
     async ValueTask ITenantDirectory.RetireAsync(
         TenantRetirement retirement,
         CancellationToken cancellationToken

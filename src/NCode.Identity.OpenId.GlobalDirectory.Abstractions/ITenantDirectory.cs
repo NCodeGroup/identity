@@ -65,6 +65,22 @@ public interface ITenantDirectory
     );
 
     /// <summary>
+    /// Moves a placed tenant from one cell to another cell of the same region. The move is refused when the tenant is
+    /// not placed in the source cell, when either cell is not registered, or when the cells are in different regions.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the tenant.</param>
+    /// <param name="fromCell">The name of the cell that holds the tenant.</param>
+    /// <param name="toCell">The name of the cell that receives the tenant.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>A <see cref="MoveResult"/> that is moved, or a conflict with its detail.</returns>
+    ValueTask<MoveResult> MoveAsync(
+        string tenantId,
+        string fromCell,
+        string toCell,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
     /// Gets the placement of a tenant.
     /// </summary>
     /// <param name="tenantId">The identifier of the tenant.</param>

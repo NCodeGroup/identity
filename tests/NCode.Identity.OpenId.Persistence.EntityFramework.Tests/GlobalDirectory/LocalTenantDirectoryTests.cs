@@ -428,6 +428,28 @@ public sealed class LocalTenantDirectoryTests : IDisposable
 
     #endregion
 
+    #region MoveAsync Tests
+
+    [Fact]
+    public async Task MoveAsync_WhenCalled_ConflictsBecauseTheCellRunsOnItsOwnAndWritesNothing()
+    {
+        var result = await Directory.MoveAsync(
+            TenantId,
+            CellName,
+            "cell-b",
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsMoved);
+        Assert.Equal(
+            $"The cell '{CellName}' runs on its own, so it has no other cell to move the tenant '{TenantId}' to.",
+            result.ConflictDetail
+        );
+        Assert.False(DbContext.ChangeTracker.HasChanges());
+    }
+
+    #endregion
+
     #region RetireAsync Tests
 
     private OpenIdDbContext CreateFreshContext() =>

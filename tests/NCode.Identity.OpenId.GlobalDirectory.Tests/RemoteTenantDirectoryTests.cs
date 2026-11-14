@@ -203,6 +203,89 @@ public class RemoteTenantDirectoryTests : RemoteDirectoryTestBase
 
     #endregion
 
+    #region MoveAsync Tests
+
+    [Fact]
+    public async Task MoveAsync_WhenDirectoryAnswersOk_ReturnsMovedAndPostsTheMoveWithTheBearerToken()
+    {
+        var handler = StubHttpMessageHandler.Respond(HttpStatusCode.OK);
+        var directory = new RemoteTenantDirectory(CreateClient(handler));
+
+        var result = await directory.MoveAsync(
+            "tenant 1",
+            "cell-a",
+            "cell-b",
+            CancellationToken.None
+        );
+
+        Assert.True(result.IsMoved);
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Post, request.Method);
+        Assert.Equal(
+            "https://directory.example.test/directory/v1/tenants/tenant%201/move?fromCell=cell-a&toCell=cell-b",
+            request.RequestUri?.AbsoluteUri
+        );
+        Assert.Equal($"Bearer {AccessToken}", request.Authorization);
+    }
+
+    [Fact]
+    public async Task MoveAsync_WhenDirectoryAnswersConflict_ReturnsConflictWithTheProblemDetail()
+    {
+        var handler = StubHttpMessageHandler.Respond(HttpStatusCode.Conflict, ConflictBody);
+        var directory = new RemoteTenantDirectory(CreateClient(handler));
+
+        var result = await directory.MoveAsync(
+            "tenant-1",
+            "cell-a",
+            "cell-b",
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsMoved);
+        Assert.Equal("The issuer is held by another tenant.", result.ConflictDetail);
+    }
+
+    [Fact]
+    public async Task MoveAsync_WhenConflictCarriesNoProblemDetail_ReturnsConflictWithTheFallback()
+    {
+        var handler = StubHttpMessageHandler.Respond(HttpStatusCode.Conflict, "not json");
+        var directory = new RemoteTenantDirectory(CreateClient(handler));
+
+        var result = await directory.MoveAsync(
+            "tenant-1",
+            "cell-a",
+            "cell-b",
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsMoved);
+        Assert.Equal("The directory refused to move a tenant.", result.ConflictDetail);
+    }
+
+    [Fact]
+    public async Task MoveAsync_WhenDirectoryAnswersUnprocessableEntity_ThrowsDirectoryUnavailable()
+    {
+        var handler = StubHttpMessageHandler.Respond(HttpStatusCode.UnprocessableEntity);
+        var directory = new RemoteTenantDirectory(CreateClient(handler));
+
+        await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
+            await directory.MoveAsync("tenant-1", "cell-a", "cell-b", CancellationToken.None)
+        );
+    }
+
+    [Fact]
+    public async Task MoveAsync_WhenDirectoryAnswersServiceUnavailable_ThrowsDirectoryUnavailable()
+    {
+        var handler = StubHttpMessageHandler.Respond(HttpStatusCode.ServiceUnavailable);
+        var directory = new RemoteTenantDirectory(CreateClient(handler));
+
+        await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
+            await directory.MoveAsync("tenant-1", "cell-a", "cell-b", CancellationToken.None)
+        );
+    }
+
+    #endregion
+
     #region GetPlacementOrDefaultAsync Tests
 
     [Fact]

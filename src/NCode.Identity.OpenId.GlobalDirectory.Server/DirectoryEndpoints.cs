@@ -59,6 +59,10 @@ public static class DirectoryEndpoints
         group.MapPost("reserve", ReserveTenantAsync).ProducesProblem(StatusCodes.Status409Conflict);
         group.MapPost("place", PlaceTenantAsync);
         group.MapPost("{tenantId}/release", ReleaseTenantAsync);
+        group
+            .MapPost("{tenantId}/move", MoveTenantAsync)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
         group.MapPost("retire", RetireTenantAsync);
         group
             .MapPost("change-issuer", ChangeTenantIssuerAsync)
@@ -143,6 +147,35 @@ public static class DirectoryEndpoints
     {
         await directory.ReleaseAsync(tenantId, cancellationToken);
         return Results.Ok();
+    }
+
+    private static async ValueTask<IResult> MoveTenantAsync(
+        string tenantId,
+        string? fromCell,
+        string? toCell,
+        HttpContext httpContext,
+        ITenantDirectory directory,
+        CancellationToken cancellationToken
+    )
+    {
+        if (IsBlank(fromCell) || IsBlank(toCell))
+            return UnprocessableEntity("The source cell and the target cell are required.");
+
+        // The target cell asks for the move: the machine client that calls is `cell-{toCell}`.
+        var clientId = httpContext
+            .User.FindFirst(DirectoryAuthenticationEndpointFilter.ClientIdClaimType)
+            ?.Value;
+        if (!string.Equals(clientId, CellClientIdPrefix + toCell, StringComparison.Ordinal))
+            return UnprocessableEntity("Only the target cell moves a tenant to itself.");
+
+        var result = await directory.MoveAsync(tenantId, fromCell, toCell, cancellationToken);
+        return result.IsMoved
+            ? Results.Ok()
+            : Results.Problem(
+                title: "Conflict",
+                detail: result.ConflictDetail,
+                statusCode: StatusCodes.Status409Conflict
+            );
     }
 
     private static async ValueTask<IResult> RetireTenantAsync(
@@ -392,6 +425,13 @@ public static class DirectoryEndpoints
             title: "Bad Request",
             detail: detail,
             statusCode: StatusCodes.Status400BadRequest
+        );
+
+    private static IResult UnprocessableEntity(string detail) =>
+        Results.Problem(
+            title: "Unprocessable Entity",
+            detail: detail,
+            statusCode: StatusCodes.Status422UnprocessableEntity
         );
 
     private static IResult ToResult(ReservationResult result) =>
