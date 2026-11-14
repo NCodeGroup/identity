@@ -1,0 +1,15 @@
+#nullable enable
+const NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.SectionName = "Directory" -> string!
+NCode.Identity.OpenId.GlobalDirectory.DefaultRegistration
+NCode.Identity.OpenId.GlobalDirectory.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!)
+NCode.Identity.OpenId.GlobalDirectory.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!).AddOpenIdDirectoryClient(Microsoft.Extensions.Configuration.IConfiguration! configuration) -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.ClientId.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.ClientId.set -> void
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.DirectoryClientOptions() -> void
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.KeyRing.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.KeyRing.set -> void
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.Url.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.DirectoryClientOptions.Url.set -> void
+NCode.Identity.OpenId.GlobalDirectory.IDirectoryTokenSource
+NCode.Identity.OpenId.GlobalDirectory.IDirectoryTokenSource.GetAccessTokenAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string!>

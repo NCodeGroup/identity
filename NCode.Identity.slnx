@@ -66,6 +66,7 @@
         <Project Path="src/NCode.Identity.OpenId.Client/NCode.Identity.OpenId.Client.csproj" />
         <Project Path="src/NCode.Identity.OpenId.Core/NCode.Identity.OpenId.Core.csproj" />
         <Project Path="src/NCode.Identity.OpenId.GlobalDirectory.Abstractions/NCode.Identity.OpenId.GlobalDirectory.Abstractions.csproj" />
+        <Project Path="src/NCode.Identity.OpenId.GlobalDirectory/NCode.Identity.OpenId.GlobalDirectory.csproj" />
         <Project Path="src/NCode.Identity.OpenId.Management.Abstractions/NCode.Identity.OpenId.Management.Abstractions.csproj" />
         <Project Path="src/NCode.Identity.OpenId.Management/NCode.Identity.OpenId.Management.csproj" />
         <Project Path="src/NCode.Identity.OpenId.Messages.Abstractions/NCode.Identity.OpenId.Messages.Abstractions.csproj" />
