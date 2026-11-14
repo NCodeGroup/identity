@@ -5,6 +5,8 @@ using JetBrains.Annotations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using NCode.Identity.OpenId.GlobalDirectory;
+using NCode.Identity.OpenId.Persistence.EntityFramework.Core.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.Persistence;
@@ -71,6 +73,12 @@ public static class DefaultRegistration
                 IFederatedIdentityStore,
                 FederatedIdentityStore
             >();
+
+            // The local directory adapters answer from the cell's own tables. TryAdd lets a remote adapter registered
+            // first win.
+            serviceCollection.TryAddScoped<ITenantDirectory, LocalTenantDirectory>();
+            serviceCollection.TryAddScoped<ITeamDirectory, LocalTeamDirectory>();
+            serviceCollection.TryAddScoped<ICellDirectory, LocalCellDirectory>();
 
             return newBuilder;
         }
