@@ -155,6 +155,24 @@ NCode.Identity.OpenId.Management.Contracts.Secrets.RotateSecretRequest.RotatedEx
 NCode.Identity.OpenId.Management.Contracts.Secrets.RotateSecretRequest.RotatedExpiresWhen.init -> void
 NCode.Identity.OpenId.Management.Contracts.Secrets.SecretResource.KeyId.get -> string!
 NCode.Identity.OpenId.Management.Contracts.Secrets.SecretResource.KeyId.init -> void
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority.ControlPlaneAuthority() -> void
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority.IsGlobalAdmin.get -> bool
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority.IsGlobalAdmin.init -> void
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority.PlatformRoles.get -> System.Collections.Generic.IReadOnlyList<string!>!
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority.PlatformRoles.init -> void
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority.TeamRoles.get -> System.Collections.Generic.IReadOnlyList<string!>!
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority.TeamRoles.init -> void
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthorityRequest
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthorityRequest.ClientId.get -> string!
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthorityRequest.ClientId.init -> void
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthorityRequest.ControlPlaneAuthorityRequest() -> void
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthorityRequest.Subject.get -> string!
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthorityRequest.Subject.init -> void
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthorityRequest.TeamId.get -> string?
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthorityRequest.TeamId.init -> void
+NCode.Identity.OpenId.Management.ControlPlane.IControlPlaneAuthority
+NCode.Identity.OpenId.Management.ControlPlane.IControlPlaneAuthority.GetAsync(NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthorityRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority!>
 NCode.Identity.OpenId.Management.ControlPlane.IManagementTokenValidator
 NCode.Identity.OpenId.Management.ControlPlane.IManagementTokenValidator.ValidateAsync(Microsoft.AspNetCore.Http.HttpContext! httpContext, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Management.ControlPlane.ManagementTokenValidation!>
 NCode.Identity.OpenId.Management.ControlPlane.ManagementTokenValidation
@@ -785,6 +803,7 @@ override NCode.Identity.OpenId.Management.Auditing.TenantChangedAuditEvent.Resou
 override NCode.Identity.OpenId.Management.Auditing.TenantSecretChangedAuditEvent.ResourceType.get -> string!
 static NCode.Identity.OpenId.Management.Authorization.TenantScopeResource.For(string! tenantId) -> NCode.Identity.OpenId.Management.Authorization.TenantScopeResource!
 static NCode.Identity.OpenId.Management.ClientIdRules.IsValid(string? clientId) -> bool
+static NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority.None.get -> NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority!
 static NCode.Identity.OpenId.Management.ControlPlane.ManagementTokenValidation.Authenticated(System.Security.Claims.ClaimsPrincipal! principal) -> NCode.Identity.OpenId.Management.ControlPlane.ManagementTokenValidation!
 static NCode.Identity.OpenId.Management.ControlPlane.ManagementTokenValidation.Unauthenticated.get -> NCode.Identity.OpenId.Management.ControlPlane.ManagementTokenValidation!
 static NCode.Identity.OpenId.Management.ControlPlane.ManagementTokenValidation.Unavailable(System.TimeSpan retryAfter) -> NCode.Identity.OpenId.Management.ControlPlane.ManagementTokenValidation!

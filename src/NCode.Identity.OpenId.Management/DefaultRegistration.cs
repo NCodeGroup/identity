@@ -75,6 +75,10 @@ public static class DefaultRegistration
                 LocalManagementTokenValidator
             >();
 
+            // Answers the platform and team roles of a caller. A cell's directory client registers its own adapter
+            // first when the control plane is another cell.
+            serviceCollection.TryAddSingleton<IControlPlaneAuthority, LocalControlPlaneAuthority>();
+
             serviceCollection.TryAddSingleton<
                 IManagementTenantEnvironmentResolver,
                 DefaultManagementTenantEnvironmentResolver
