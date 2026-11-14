@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Text.RegularExpressions;
 using JetBrains.Annotations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -21,7 +20,7 @@ namespace NCode.Identity.OpenId.Host.Database;
 /// is created.
 /// </remarks>
 [PublicAPI]
-public static partial class RowLevelSecurity
+public static class RowLevelSecurity
 {
     /// <summary>
     /// The name of the policy that scopes every tenant-bound table.
@@ -48,7 +47,7 @@ public static partial class RowLevelSecurity
         ArgumentNullException.ThrowIfNull(model);
         ArgumentNullException.ThrowIfNull(runtimeRole);
 
-        if (!RuntimeRolePattern().IsMatch(runtimeRole))
+        if (!HostDatabaseRuntimeRole.IsValid(runtimeRole))
             throw new ArgumentException(
                 $"The runtime role '{runtimeRole}' must match ^[a-z_][a-z0-9_]*$.",
                 nameof(runtimeRole)
@@ -151,7 +150,4 @@ public static partial class RowLevelSecurity
 
     private static string Quote(string identifier) =>
         $"\"{identifier.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
-
-    [GeneratedRegex(@"^[a-z_][a-z0-9_]*\z", RegexOptions.CultureInvariant)]
-    private static partial Regex RuntimeRolePattern();
 }
