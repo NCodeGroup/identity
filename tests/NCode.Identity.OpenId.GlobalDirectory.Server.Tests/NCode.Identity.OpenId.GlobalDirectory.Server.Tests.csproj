@@ -27,6 +27,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\..\src\NCode.Identity.OpenId.GlobalDirectory\NCode.Identity.OpenId.GlobalDirectory.csproj" />
         <ProjectReference Include="..\..\src\NCode.Identity.OpenId.GlobalDirectory.Server\NCode.Identity.OpenId.GlobalDirectory.Server.csproj" />
     </ItemGroup>
 </Project>
