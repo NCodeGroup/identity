@@ -1351,6 +1351,14 @@ NCode.Identity.OpenId.Management.Auditing.RoleAssignmentChangedAuditEvent.NodeId
 NCode.Identity.OpenId.Management.Auditing.RoleAssignmentChangedAuditEvent.NodeType.get -> string!
 NCode.Identity.OpenId.Management.Auditing.RoleAssignmentChangedAuditEvent.NodeType.init -> void
 override NCode.Identity.OpenId.Management.Auditing.RoleAssignmentChangedAuditEvent.ResourceType.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantExportRequest
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantExportRequest.Jwk.get -> System.Text.Json.JsonElement
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantExportRequest.Jwk.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantExportRequest.TenantExportRequest() -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantExportResource
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantExportResource.Package.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantExportResource.Package.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantExportResource.TenantExportResource() -> void
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantTransferKeyResource
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantTransferKeyResource.Jwk.get -> System.Text.Json.JsonElement
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantTransferKeyResource.Jwk.init -> void
