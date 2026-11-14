@@ -26,7 +26,8 @@ internal sealed class MachineClientEndpointProvider(
     {
         var platformClients = endpoints
             .MapGroup("/platform/clients")
-            .WithTags(OpenIdConstants.EndpointTags.Clients);
+            .WithTags(OpenIdConstants.EndpointTags.Clients)
+            .AddEndpointFilter<RouteGroupBuilder, ControlPlaneScopeEndpointFilter>();
 
         platformClients
             .MapPost("", ClientApiEndpointHandler.CreatePlatformClientAsync)
@@ -46,7 +47,8 @@ internal sealed class MachineClientEndpointProvider(
 
         var teamClients = endpoints
             .MapGroup("/teams/{teamId}/clients")
-            .WithTags(OpenIdConstants.EndpointTags.Clients);
+            .WithTags(OpenIdConstants.EndpointTags.Clients)
+            .AddEndpointFilter<RouteGroupBuilder, ControlPlaneScopeEndpointFilter>();
 
         teamClients
             .MapPost("", ClientApiEndpointHandler.CreateTeamClientAsync)

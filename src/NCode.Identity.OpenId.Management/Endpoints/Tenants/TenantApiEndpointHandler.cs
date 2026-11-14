@@ -156,11 +156,15 @@ internal class TenantApiEndpointHandler(
     /// <inheritdoc />
     public void Map(IEndpointRouteBuilder endpoints)
     {
-        var tenants = endpoints.MapGroup("/tenants").WithTags(OpenIdConstants.EndpointTags.Tenants);
+        var tenants = endpoints
+            .MapGroup("/tenants")
+            .WithTags(OpenIdConstants.EndpointTags.Tenants)
+            .AddEndpointFilter<RouteGroupBuilder, ControlPlaneScopeEndpointFilter>();
 
         var teamTenants = endpoints
             .MapGroup("/teams/{teamId}/tenants")
-            .WithTags(OpenIdConstants.EndpointTags.Tenants);
+            .WithTags(OpenIdConstants.EndpointTags.Tenants)
+            .AddEndpointFilter<RouteGroupBuilder, ControlPlaneScopeEndpointFilter>();
 
         teamTenants
             .MapPost("", CreateTenantAsync)

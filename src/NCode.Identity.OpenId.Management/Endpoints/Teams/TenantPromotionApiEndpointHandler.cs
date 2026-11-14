@@ -58,7 +58,8 @@ internal class TenantPromotionApiEndpointHandler(
     {
         var promotions = endpoints
             .MapGroup("/teams/{teamId}/promotions")
-            .WithTags(OpenIdConstants.EndpointTags.Teams);
+            .WithTags(OpenIdConstants.EndpointTags.Teams)
+            .AddEndpointFilter<RouteGroupBuilder, ControlPlaneScopeEndpointFilter>();
 
         promotions
             .MapPost("/preview", PreviewPromotionAsync)

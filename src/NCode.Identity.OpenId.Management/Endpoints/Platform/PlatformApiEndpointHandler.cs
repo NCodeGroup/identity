@@ -95,7 +95,8 @@ internal class PlatformApiEndpointHandler(
     {
         var platform = endpoints
             .MapGroup("/platform")
-            .WithTags(OpenIdConstants.EndpointTags.Platform);
+            .WithTags(OpenIdConstants.EndpointTags.Platform)
+            .AddEndpointFilter<RouteGroupBuilder, ControlPlaneScopeEndpointFilter>();
 
         platform
             .MapGet("/settings", GetSettingsAsync)

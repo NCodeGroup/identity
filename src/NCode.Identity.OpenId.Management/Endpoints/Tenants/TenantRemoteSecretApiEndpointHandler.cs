@@ -67,7 +67,10 @@ internal class TenantRemoteSecretApiEndpointHandler(
     /// <inheritdoc />
     public void Map(IEndpointRouteBuilder endpoints)
     {
-        var tenants = endpoints.MapGroup("/tenants").WithTags(OpenIdConstants.EndpointTags.Tenants);
+        var tenants = endpoints
+            .MapGroup("/tenants")
+            .WithTags(OpenIdConstants.EndpointTags.Tenants)
+            .AddEndpointFilter<RouteGroupBuilder, ControlPlaneScopeEndpointFilter>();
 
         tenants
             .MapPost("/{tenantId}/secrets/remote", CreateRemoteSecretAsync)

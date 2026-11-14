@@ -19,8 +19,10 @@ namespace NCode.Identity.OpenId.Management.Endpoints;
 
 /// <summary>
 /// The root management route group (<c>/api</c>). It materializes the OpenID request environment for every management
-/// endpoint via <see cref="ManagementEnvironmentEndpointFilter"/> but opens no tenant scope, so control-plane
-/// families (platform, teams, tenant provisioning) act on unscoped rows. It declares on every route the
+/// endpoint via <see cref="ManagementEnvironmentEndpointFilter"/> but opens no tenant scope. Each control-plane family
+/// (capabilities, caller, platform, teams, machine clients, tenant provisioning) opens the control-plane unscoped scope
+/// through <see cref="ControlPlaneScopeEndpointFilter"/> on its own route group, and the tenant-plane group opens the
+/// route's tenant scope. It declares on every route the
 /// <c>409</c> and <c>503</c> problems that its settings and root-key filters answer. It also describes the problem
 /// responses that every route shares in the OpenAPI document, and answers a thrown request-binding failure with its
 /// status.

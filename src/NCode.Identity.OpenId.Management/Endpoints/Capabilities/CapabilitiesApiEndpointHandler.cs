@@ -33,6 +33,7 @@ internal class CapabilitiesApiEndpointHandler : IEndpointProvider
         endpoints
             .MapGet("/capabilities", GetCapabilitiesAsync)
             .WithTags(OpenIdConstants.EndpointTags.Capabilities)
+            .AddEndpointFilter<ControlPlaneScopeEndpointFilter>()
             .Produces<ManagementCapabilitiesResource>()
             .ProducesProblem(StatusCodes.Status401Unauthorized);
     }

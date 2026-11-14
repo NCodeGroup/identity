@@ -124,7 +124,10 @@ internal class TeamApiEndpointHandler(
     /// <inheritdoc />
     public void Map(IEndpointRouteBuilder endpoints)
     {
-        var teams = endpoints.MapGroup("/teams").WithTags(OpenIdConstants.EndpointTags.Teams);
+        var teams = endpoints
+            .MapGroup("/teams")
+            .WithTags(OpenIdConstants.EndpointTags.Teams)
+            .AddEndpointFilter<RouteGroupBuilder, ControlPlaneScopeEndpointFilter>();
 
         teams
             .MapPost("", CreateTeamAsync)

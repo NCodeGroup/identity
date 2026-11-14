@@ -58,6 +58,7 @@ internal class CallerApiEndpointHandler(
         var me = endpoints
             .MapGroup("/me")
             .WithTags(OpenIdConstants.EndpointTags.Caller)
+            .AddEndpointFilter<RouteGroupBuilder, ControlPlaneScopeEndpointFilter>()
             .ProducesProblem(StatusCodes.Status401Unauthorized);
 
         me.MapGet("", GetCallerAsync).Produces<CallerResource>();
