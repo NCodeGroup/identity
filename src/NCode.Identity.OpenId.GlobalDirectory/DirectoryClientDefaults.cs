@@ -24,6 +24,21 @@ internal static class DirectoryClientDefaults
     internal const string ApiPrefix = "directory/v1/";
 
     /// <summary>
+    /// The audience of the access token that every control-plane authority call presents.
+    /// </summary>
+    internal const string ControlPlaneAudience = "urn:ncode:control-plane";
+
+    /// <summary>
+    /// The scope that the control-plane access token carries.
+    /// </summary>
+    internal const string ControlPlaneScope = "control-plane";
+
+    /// <summary>
+    /// The path of the control-plane authority endpoint, relative to the origin of the control-plane cell's issuer.
+    /// </summary>
+    internal const string AuthorityPath = "/control-plane/v1/authority";
+
+    /// <summary>
     /// The most bytes that a directory response may carry.
     /// </summary>
     internal const int MaxResponseBytes = 1024 * 1024;

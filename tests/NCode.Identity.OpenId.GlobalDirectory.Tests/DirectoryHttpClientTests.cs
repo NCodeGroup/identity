@@ -105,9 +105,15 @@ public class DirectoryHttpClientTests : RemoteDirectoryTestBase
     {
         var factoryMock = CreateStrictMock<IHttpClientFactory>();
         var expected = new DirectoryUnavailableException("No token.");
-        var tokenSourceMock = CreateStrictMock<IDirectoryTokenSource>();
+        var tokenSourceMock = CreateStrictMock<ICellTokenSource>();
         tokenSourceMock
-            .Setup(x => x.GetAccessTokenAsync(It.IsAny<CancellationToken>()))
+            .Setup(x =>
+                x.GetAccessTokenAsync(
+                    DirectoryClientDefaults.Audience,
+                    DirectoryClientDefaults.Scope,
+                    It.IsAny<CancellationToken>()
+                )
+            )
             .Throws(expected)
             .Verifiable(Times.Once);
         var client = new DirectoryHttpClient(

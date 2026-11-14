@@ -39,7 +39,10 @@ public static class DefaultRegistration
         /// cell.
         /// A cell that is not the control plane (<see cref="CellOptions.IsControlPlane"/> is <c>false</c>) also
         /// registers the <see cref="IManagementTokenValidator"/> that validates management tokens against
-        /// <c>Cell:ControlPlane:Issuer</c>.
+        /// <c>Cell:ControlPlane:Issuer</c> and the <see cref="IControlPlaneAuthority"/> that asks the control-plane cell's
+        /// <c>control-plane/v1/authority</c> endpoint for the roles of a caller, with a token for the audience
+        /// <c>urn:ncode:control-plane</c> from the same <see cref="ICellTokenSource"/>. Both replace the local adapters
+        /// whichever registration runs first.
         /// </summary>
         /// <param name="configuration">The <see cref="IConfiguration"/> holding the <c>Directory</c> section.</param>
         /// <returns>The same <see cref="IServiceBuilder{T}"/> so that calls can be chained.</returns>
@@ -69,7 +72,7 @@ public static class DefaultRegistration
             );
 
             serviceCollection.TryAddSingleton(TimeProvider.System);
-            serviceCollection.TryAddSingleton<IDirectoryTokenSource, DefaultDirectoryTokenSource>();
+            serviceCollection.TryAddSingleton<ICellTokenSource, DefaultCellTokenSource>();
             serviceCollection.TryAddSingleton<DirectoryHttpClient>();
 
             // The local adapters are registered with TryAdd, so Replace makes the remote adapters win whichever
@@ -100,6 +103,12 @@ public static class DefaultRegistration
                     ServiceDescriptor.Singleton<
                         IManagementTokenValidator,
                         RemoteManagementTokenValidator
+                    >()
+                );
+                serviceCollection.Replace(
+                    ServiceDescriptor.Singleton<
+                        IControlPlaneAuthority,
+                        RemoteControlPlaneAuthority
                     >()
                 );
             }

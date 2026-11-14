@@ -26,9 +26,15 @@ public abstract class RemoteDirectoryTestBase : BaseTests
             .Returns(httpClient)
             .Verifiable(Times.AtLeastOnce);
 
-        var tokenSourceMock = CreateStrictMock<IDirectoryTokenSource>();
+        var tokenSourceMock = CreateStrictMock<ICellTokenSource>();
         tokenSourceMock
-            .Setup(x => x.GetAccessTokenAsync(It.IsAny<CancellationToken>()))
+            .Setup(x =>
+                x.GetAccessTokenAsync(
+                    DirectoryClientDefaults.Audience,
+                    DirectoryClientDefaults.Scope,
+                    It.IsAny<CancellationToken>()
+                )
+            )
             .Returns(new ValueTask<string>(AccessToken))
             .Verifiable(Times.AtLeastOnce);
 

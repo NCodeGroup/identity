@@ -10,22 +10,22 @@ using NCode.Identity.OpenId.Client;
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
-/// Sends the requests of the remote adapters to the directory service with a bearer token, over the protocol client's
-/// HTTP client, which bounds every call with a total and a per-attempt timeout and retries only safe requests. It
-/// fails closed: a transport failure, a timeout, a <c>5xx</c> answer, an oversized body, a token that cannot be
-/// obtained or any status other than a success, <c>404</c> or <c>409</c> is a
+/// Sends the requests of the remote adapters to the directory service and to the control plane with a bearer token,
+/// over the protocol client's HTTP client, which bounds every call with a total and a per-attempt timeout and retries
+/// only safe requests. It fails closed: a transport failure, a timeout, a <c>5xx</c> answer, an oversized body, a
+/// token that cannot be obtained or any status other than a success, <c>404</c> or <c>409</c> is a
 /// <see cref="DirectoryUnavailableException"/>.
 /// </summary>
 // See ADR-1285 and ADR-1385 (the client's pipeline runs on Polly.Core alone).
 internal sealed class DirectoryHttpClient(
     IHttpClientFactory httpClientFactory,
-    IDirectoryTokenSource tokenSource,
+    ICellTokenSource tokenSource,
     IOptions<DirectoryClientOptions> options
 )
 {
     private IHttpClientFactory HttpClientFactory { get; } = httpClientFactory;
 
-    private IDirectoryTokenSource TokenSource { get; } = tokenSource;
+    private ICellTokenSource TokenSource { get; } = tokenSource;
 
     private Uri BaseUri { get; } = CreateBaseUri(options.Value.Url);
 
@@ -45,22 +45,51 @@ internal sealed class DirectoryHttpClient(
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="DirectoryResponse"/> of a success, <c>404</c> or <c>409</c>.</returns>
     /// <exception cref="DirectoryUnavailableException">The directory cannot be reached or answers with a failure.</exception>
-    public async ValueTask<DirectoryResponse> SendAsync(
+    public ValueTask<DirectoryResponse> SendAsync(
         HttpMethod method,
         string path,
         object? body,
         CancellationToken cancellationToken
+    ) =>
+        SendAsync(
+            new CellApiRequest(
+                method,
+                new Uri(BaseUri, DirectoryClientDefaults.ApiPrefix + path),
+                DirectoryClientDefaults.Audience,
+                DirectoryClientDefaults.Scope
+            )
+            {
+                Body = body,
+            },
+            cancellationToken
+        );
+
+    /// <summary>
+    /// Sends a request to the directory service or to the control plane.
+    /// </summary>
+    /// <param name="cellRequest">The call to make.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="DirectoryResponse"/> of a success, <c>404</c> or <c>409</c>.</returns>
+    /// <exception cref="DirectoryUnavailableException">The endpoint cannot be reached or answers with a failure.</exception>
+    public async ValueTask<DirectoryResponse> SendAsync(
+        CellApiRequest cellRequest,
+        CancellationToken cancellationToken
     )
     {
-        var accessToken = await TokenSource.GetAccessTokenAsync(cancellationToken);
+        ArgumentNullException.ThrowIfNull(cellRequest);
 
-        using var request = new HttpRequestMessage(
-            method,
-            new Uri(BaseUri, DirectoryClientDefaults.ApiPrefix + path)
+        var method = cellRequest.Method;
+        var uri = cellRequest.Uri;
+        var accessToken = await TokenSource.GetAccessTokenAsync(
+            cellRequest.Audience,
+            cellRequest.Scope,
+            cancellationToken
         );
+
+        using var request = new HttpRequestMessage(method, uri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        if (body is not null)
+        if (cellRequest.Body is { } body)
         {
             var content = new ByteArrayContent(
                 JsonSerializer.SerializeToUtf8Bytes(body, body.GetType(), DirectoryJson.Options)
@@ -81,14 +110,14 @@ internal sealed class DirectoryHttpClient(
             var status = response.StatusCode;
             if ((int)status >= (int)HttpStatusCode.InternalServerError)
                 throw new DirectoryUnavailableException(
-                    $"The directory answered {(int)status} to {method} {path}."
+                    $"{uri} answered {(int)status} to {method}."
                 );
 
-            var bytes = await ReadBodyAsync(response.Content, cancellationToken);
+            var bytes = await ReadBodyAsync(response.Content, uri, cancellationToken);
             var result = new DirectoryResponse(status, bytes);
             if (!result.IsSuccess && !result.IsNotFound && !result.IsConflict)
                 throw new DirectoryUnavailableException(
-                    $"The directory answered {(int)status} to {method} {path}."
+                    $"{uri} answered {(int)status} to {method}."
                 );
 
             return result;
@@ -97,14 +126,14 @@ internal sealed class DirectoryHttpClient(
             when (!cancellationToken.IsCancellationRequested)
         {
             throw new DirectoryUnavailableException(
-                $"The request to the directory timed out: {method} {path}.",
+                $"The request timed out: {method} {uri}.",
                 exception
             );
         }
         catch (Exception exception) when (exception is HttpRequestException or IOException)
         {
             throw new DirectoryUnavailableException(
-                $"The directory could not be reached: {method} {path}.",
+                $"The endpoint could not be reached: {method} {uri}.",
                 exception
             );
         }
@@ -122,12 +151,13 @@ internal sealed class DirectoryHttpClient(
 
     private static async ValueTask<byte[]> ReadBodyAsync(
         HttpContent content,
+        Uri uri,
         CancellationToken cancellationToken
     )
     {
         if (content.Headers.ContentLength > DirectoryClientDefaults.MaxResponseBytes)
             throw new DirectoryUnavailableException(
-                $"The directory answered with a body larger than {DirectoryClientDefaults.MaxResponseBytes} bytes."
+                $"{uri} answered with a body larger than {DirectoryClientDefaults.MaxResponseBytes} bytes."
             );
 
         await using var stream = await content.ReadAsStreamAsync(cancellationToken);
@@ -141,7 +171,7 @@ internal sealed class DirectoryHttpClient(
 
             if (buffer.Length + read > DirectoryClientDefaults.MaxResponseBytes)
                 throw new DirectoryUnavailableException(
-                    $"The directory answered with a body larger than {DirectoryClientDefaults.MaxResponseBytes} bytes."
+                    $"{uri} answered with a body larger than {DirectoryClientDefaults.MaxResponseBytes} bytes."
                 );
 
             buffer.Write(chunk, 0, read);
