@@ -33,13 +33,15 @@ internal sealed class OpenIdDbContextDesignTimeFactory
             .AddLocalAccountEntityFramework()
             .ServiceCollection.BuildServiceProvider();
 
+        var ambientTenantAccessor = new HostDatabase.UnscopedAmbientTenantAccessor();
+
         var optionsBuilder = new DbContextOptionsBuilder<OpenIdDbContext>();
-        optionsBuilder.UseOpenIdNpgsql(DesignTimeConnectionString);
+        optionsBuilder.UseOpenIdNpgsql(DesignTimeConnectionString, ambientTenantAccessor);
         optionsBuilder.UseApplicationServiceProvider(serviceProvider);
 
         return new OpenIdDbContext(
             optionsBuilder.Options,
-            new HostDatabase.UnscopedAmbientTenantAccessor(),
+            ambientTenantAccessor,
             serviceProvider.GetServices<IOpenIdModelContributor>()
         );
     }

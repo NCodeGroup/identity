@@ -34,15 +34,17 @@ public static class HostDatabase
     /// </summary>
     /// <param name="options">The options builder to configure.</param>
     /// <param name="connectionString">The Postgres connection string (supplied by Aspire at run time).</param>
+    /// <param name="ambientTenantAccessor">The accessor whose tenant scope the <see cref="TenantSessionInterceptor"/>
+    /// carries into each Postgres session, so row-level security reads the scope the global query filter reads.</param>
     /// <returns>The same <paramref name="options"/> for chaining.</returns>
     public static DbContextOptionsBuilder UseOpenIdNpgsql(
         this DbContextOptionsBuilder options,
-        string connectionString
+        string connectionString,
+        IAmbientTenantAccessor ambientTenantAccessor
     ) =>
-        options.UseNpgsql(
-            connectionString,
-            npgsql => npgsql.MigrationsAssembly(MigrationsAssembly)
-        );
+        options
+            .UseNpgsql(connectionString, npgsql => npgsql.MigrationsAssembly(MigrationsAssembly))
+            .AddInterceptors(new TenantSessionInterceptor(ambientTenantAccessor));
 
     /// <summary>
     /// Configures the <see cref="DeveloperDataProtectionDbContext"/> options to use Npgsql against

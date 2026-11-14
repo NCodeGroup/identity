@@ -13,6 +13,7 @@ using NCode.Identity.OpenId.Host.Database;
 using NCode.Identity.OpenId.Persistence.EntityFramework;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Accounts;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Setup;
 using NCode.Identity.Registration;
 using NCode.Identity.Registration.AspNetCore;
@@ -184,8 +185,12 @@ serviceCollection.AddDatabaseDeveloperPageExceptionFilter();
 var connectionString = HostDatabaseConnection.Resolve(configuration);
 if (!string.IsNullOrEmpty(connectionString))
 {
-    serviceCollection.AddDbContextFactory<OpenIdDbContext>(dbOptions =>
-        dbOptions.UseOpenIdNpgsql(connectionString)
+    serviceCollection.AddDbContextFactory<OpenIdDbContext>(
+        (serviceProvider, dbOptions) =>
+            dbOptions.UseOpenIdNpgsql(
+                connectionString,
+                serviceProvider.GetRequiredService<IAmbientTenantAccessor>()
+            )
     );
     serviceCollection.AddDbContext<DeveloperDataProtectionDbContext>(dbOptions =>
         dbOptions.UseDataProtectionNpgsql(connectionString)

@@ -41,8 +41,10 @@ public static class MigrationRunner
         CancellationToken cancellationToken
     )
     {
+        var ambientTenantAccessor = new HostDatabase.UnscopedAmbientTenantAccessor();
+
         var openIdOptionsBuilder = new DbContextOptionsBuilder<OpenIdDbContext>();
-        openIdOptionsBuilder.UseOpenIdNpgsql(connectionString);
+        openIdOptionsBuilder.UseOpenIdNpgsql(connectionString, ambientTenantAccessor);
         openIdOptionsBuilder.UseApplicationServiceProvider(serviceProvider);
 
         var dataProtectionOptionsBuilder =
@@ -51,7 +53,7 @@ public static class MigrationRunner
 
         await using var openIdContext = new OpenIdDbContext(
             openIdOptionsBuilder.Options,
-            new HostDatabase.UnscopedAmbientTenantAccessor(),
+            ambientTenantAccessor,
             serviceProvider.GetServices<IOpenIdModelContributor>()
         );
         await using var dataProtectionContext = new DeveloperDataProtectionDbContext(
