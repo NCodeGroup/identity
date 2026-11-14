@@ -82,6 +82,11 @@ compiles it and no gate tests it
   local accounts) and `NCode.Identity.OpenId.Accounts.Management(.Abstractions)` (the management API's local-account
   endpoints)
   ([ADR-1051](docs/decisions/1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md))
+- **Directory** — `NCode.Identity.OpenId.GlobalDirectory(.Abstractions)` (the directory ports, the cell identity, and the
+  remote adapters of the directory and the control plane) and `NCode.Identity.OpenId.GlobalDirectory.Server` (the
+  directory API): the global directory reserves tenant and team identifiers platform-wide, places each tenant in a cell
+  and publishes team documents
+  ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md))
 - **Interactive login and consent** — `NCode.Identity.OpenId.Authentication.Interactive(.Abstractions)`: the opt-in
   sign-in, consent and account surface that the OP serves from the `apps/auth` bundle, with a pluggable credential
   verifier
@@ -129,9 +134,11 @@ compiles it and no gate tests it
 - **Hosts (`hosts/`)** — the deployables, which no package ships: `NCode.Identity.OpenId.Host` (the ASP.NET Core
   reference OP), `NCode.Identity.OpenId.Host.Database` (the host's EF Core migrations and Npgsql wiring),
   `NCode.Identity.OpenId.Host.MigrationService` (the migration worker the host image carries),
-  `NCode.Identity.ManagementConsole.Host` (the management console's BFF host) and `NCode.Identity.OpenId.LocalDev`
-  (the .NET Aspire local-dev orchestrator)
-  ([ADR-1073](docs/decisions/1073-one-postgresql-database-holds-the-hosts-schema-and-key-ring-migrated-by-a-worker-and-drift-checked.md),
+  `NCode.Identity.ManagementConsole.Host` (the management console's BFF host),
+  `NCode.Identity.OpenId.GlobalDirectory.Host` (the directory host, with a `migrate` command; its image is built by the
+  `Directory image` check) and `NCode.Identity.OpenId.LocalDev` (the .NET Aspire local-dev orchestrator)
+  ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
+  [ADR-1073](docs/decisions/1073-one-postgresql-database-holds-the-hosts-schema-and-key-ring-migrated-by-a-worker-and-drift-checked.md),
   [ADR-1180](docs/decisions/1180-each-host-contexts-migrations-run-before-the-rollout-and-only-expand-the-schema.md),
   [ADR-1437](docs/decisions/1437-the-management-console-is-a-confidential-client-whose-own-bff-host-serves-only-the-console.md),
   [ADR-1071](docs/decisions/1071-the-aspire-apphost-runs-the-local-stack-in-health-gated-order-after-checking-the-frontend-toolchain.md))

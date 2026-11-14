@@ -112,6 +112,7 @@ A project's top-level folder says whether it ships ([ADR-1501](docs/decisions/15
 | Endpoints & grants   | `NCode.Identity.OpenId.Authentication(.Abstractions)`, `.Authentication.Interactive(.Abstractions)`            |
 | Management API       | `NCode.Identity.OpenId.Management(.Abstractions)`                                                                                  |
 | Accounts             | `NCode.Identity.OpenId.Accounts*` (local-account store, ASP.NET Core Identity adapter, management)                                 |
+| Global directory     | `NCode.Identity.OpenId.GlobalDirectory(.Abstractions)`, `.GlobalDirectory.Server` (the directory API)                              |
 | Persistence          | `NCode.Identity.Persistence.Abstractions`, `NCode.Identity.OpenId.Persistence*(.EntityFramework)` |
 | Protocol client      | `NCode.Identity.OpenId.Client(.Abstractions)`, `NCode.Identity.OpenId.Protocol.Abstractions`                                     |
 | Backend for frontend | `NCode.Identity.Bff(.Abstractions)`, `.Bff.Protocol.Abstractions`, `.Bff.Server` (the turnkey `AddIdentityBff`), `.Bff.Blazor`, `.Bff.Blazor.Client` |
