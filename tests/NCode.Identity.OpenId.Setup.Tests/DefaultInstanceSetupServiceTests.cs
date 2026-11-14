@@ -293,7 +293,7 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
             )
             .Verifiable(Times.Once());
         MockAmbientTenantAccessor
-            .Setup(x => x.BeginScope(TenantId))
+            .Setup(x => x.BeginUnscoped("instance setup"))
             .Returns(MockTenantScope.Object)
             .Verifiable(Times.Once());
         MockTenantScope.Setup(x => x.Dispose()).Verifiable(Times.Once());
