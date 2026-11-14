@@ -114,7 +114,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     Key = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     ConcurrencyToken = table.Column<string>(type: "character varying(50)", unicode: false, maxLength: 50, nullable: false),
                     SettingsConcurrencyToken = table.Column<string>(type: "character varying(50)", unicode: false, maxLength: 50, nullable: false),
-                    SettingsJson = table.Column<string>(type: "text", nullable: false)
+                    SettingsJson = table.Column<string>(type: "text", nullable: false),
+                    DirectorySequence = table.Column<long>(type: "bigint", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -204,7 +205,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     DisplayName = table.Column<string>(type: "text", nullable: false),
                     SettingsJson = table.Column<string>(type: "text", nullable: false),
                     ReconciledSettingsFingerprint = table.Column<string>(type: "character varying(50)", unicode: false, maxLength: 50, nullable: true),
-                    ReconciledSettingsJson = table.Column<string>(type: "text", nullable: true)
+                    ReconciledSettingsJson = table.Column<string>(type: "text", nullable: true),
+                    DirectorySequence = table.Column<long>(type: "bigint", nullable: false)
                 },
                 constraints: table =>
                 {

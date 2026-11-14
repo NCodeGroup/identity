@@ -996,6 +996,9 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnicode(false)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<long>("DirectorySequence")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("Key")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -1471,6 +1474,9 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .HasMaxLength(50)
                         .IsUnicode(false)
                         .HasColumnType("character varying(50)");
+
+                    b.Property<long>("DirectorySequence")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("DisplayName")
                         .IsRequired()

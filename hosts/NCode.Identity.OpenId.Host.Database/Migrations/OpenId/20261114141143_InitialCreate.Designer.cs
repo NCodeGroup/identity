@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 {
     [DbContext(typeof(OpenIdDbContext))]
-    [Migration("20261114120830_InitialCreate")]
+    [Migration("20261114141143_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -999,6 +999,9 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnicode(false)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<long>("DirectorySequence")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("Key")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -1474,6 +1477,9 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .HasMaxLength(50)
                         .IsUnicode(false)
                         .HasColumnType("character varying(50)");
+
+                    b.Property<long>("DirectorySequence")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("DisplayName")
                         .IsRequired()
