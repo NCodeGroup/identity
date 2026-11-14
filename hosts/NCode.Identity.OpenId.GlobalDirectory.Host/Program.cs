@@ -1,0 +1,131 @@
+// Copyright © NCode Group
+// SPDX-License-Identifier: Apache-2.0
+
+using Microsoft.EntityFrameworkCore;
+using NCode.Identity.AspNetCore;
+using NCode.Identity.Jose;
+using NCode.Identity.Jwt;
+using NCode.Identity.OpenId.Client;
+using NCode.Identity.OpenId.GlobalDirectory.Host;
+using NCode.Identity.OpenId.GlobalDirectory.Server;
+using NCode.Identity.Registration;
+using NCode.Identity.Secrets;
+using NCode.Identity.Server;
+using NCode.Identity.SharedState;
+
+// COMPOSITION-ONLY HOST: this file is a flat list of turnkey Add*/Use*/Map* calls. Reusable startup logic does NOT
+// belong here — put it in the owning package as an extension. See csharp-production.instructions.md §4. The 'migrate'
+// command's dispatch below is the one exception: only the entry point can return an exit code.
+
+// OFFLINE COMMAND: 'migrate' applies the directory's migrations and exits, for a one-off Job that runs this image. The
+// host is built without the command's argument, which a command-line configuration provider would read as
+// configuration.
+var migrate = args is ["migrate"];
+var builder = WebApplication.CreateBuilder(migrate ? [] : args);
+
+var configuration = builder.Configuration;
+var serviceCollection = builder.Services;
+
+// Logs go to standard output on every platform: the console provider writes them, and the EventSource provider hands
+// them to a diagnostics tool that attaches (dotnet-monitor, dotnet-trace). See project-template ADR-0115.
+builder.Logging.ClearProviders().AddConsole().AddEventSourceLogger();
+
+serviceCollection.AddHealthChecks();
+
+// Metrics: the family's meters plus ASP.NET Core, Kestrel, outbound HTTP, and the runtime, exported over OTLP when
+// OTEL_EXPORTER_OTLP_ENDPOINT is configured. ADR-1197.
+serviceCollection.AddOpenTelemetryMetrics(configuration);
+
+// HTTP logging writes the request and response properties, the allow-listed headers and the duration, never a query
+// string or a credential header value; the directory's routes keep their bodies confidential (ADR-1503).
+serviceCollection.AddGuardedHttpLogging();
+
+// Trust a reverse proxy's X-Forwarded-* headers, but only the proxies named in the 'ForwardedHeaders' configuration
+// section.
+serviceCollection.AddTrustedForwardedHeaders(configuration);
+
+// Send Strict-Transport-Security as configured by the 'StrictTransportSecurity' configuration section. See ADR-1447.
+serviceCollection.AddStrictTransportSecurity(configuration);
+
+// Send no Server response header, in every environment. See ADR-1511.
+serviceCollection.AddServerHeaderSuppression();
+
+// Refuse to start unless Kestrel serves HTTPS only with a certificate that loads and passes the transport checks
+// (ADR-1504). Inert when 'LocalDevelopment:Enabled' is set.
+serviceCollection.AddTransportSecurity(configuration);
+
+// The pods can require the reverse proxy's client certificate on the proxy-to-pod hop, as configured by the
+// 'ProxyClientCertificate' section (ADR-1506). Inert unless 'ProxyClientCertificate:Required' is true.
+serviceCollection.AddProxyClientCertificate(configuration);
+
+var proxyClientCertificate = configuration.GetProxyClientCertificateOptions();
+builder.WebHost.ConfigureKestrel(kestrel =>
+    kestrel.ConfigureHttpsDefaults(https =>
+        https.RequestProxyClientCertificate(proxyClientCertificate)
+    )
+);
+
+// The directory validates a cell's bearer token against the control-plane issuer's discovery document and signing
+// keys, which the OpenID client library resolves. The in-process key set is correct for one replica.
+serviceCollection.AddSharedStateServices().AddInProcessExpiringKeySet();
+serviceCollection.AddSecretsLibrary().AddJoseLibrary().AddJwtLibrary().AddOpenIdClientLibrary();
+
+// The directory's store, its endpoints' services and the 'DirectoryServer' options, which must name the issuer.
+serviceCollection.AddOpenIdDirectoryServer(configuration);
+
+// The directory's own Postgres database. The migrations live in this assembly, so the context names it.
+var connectionString =
+    configuration.GetConnectionString("directory")
+    ?? throw new InvalidOperationException("The connection string 'directory' is required.");
+serviceCollection.AddDbContextFactory<DirectoryDbContext>(dbOptions =>
+    dbOptions.UseNpgsql(
+        connectionString,
+        npgsql =>
+            npgsql.MigrationsAssembly(
+                typeof(DirectoryDbContextDesignTimeFactory).Assembly.GetName().Name
+            )
+    )
+);
+
+// The replica is ready only while it can reach the database it serves every request from.
+serviceCollection
+    .AddHealthChecks()
+    .AddDbContextCheck<DirectoryDbContext>("directory", tags: [HealthCheckTags.Readiness]);
+
+await using var app = builder.Build();
+
+// The command runs against the built services, never starts the hosted services or binds a port, and returns its exit
+// code.
+if (migrate)
+{
+    var dbContextFactory = app.Services.GetRequiredService<IDbContextFactory<DirectoryDbContext>>();
+    await using var dbContext = await dbContextFactory.CreateDbContextAsync(CancellationToken.None);
+    await dbContext.Database.MigrateAsync(CancellationToken.None);
+    return 0;
+}
+
+// MUST be the first middleware: it refuses a request whose connection does not carry the reverse proxy's client
+// certificate (except the liveness and readiness probes) before anything else reads it. A no-op unless
+// 'ProxyClientCertificate:Required' is true (ADR-1506).
+app.UseProxyClientCertificate();
+
+// Right after the proxy check: everything downstream that reads the scheme, host or client address observes the
+// original request rather than the proxy-to-application hop.
+app.UseTrustedForwardedHeaders();
+app.UseStrictTransportSecurity();
+app.UseLocalDevelopmentHttpsRedirection();
+
+app.UseRouting();
+
+// After routing, so HTTP logging sees the selected endpoint and writes a body only for one that opts in to it.
+app.UseHttpLogging();
+
+app.MapDirectory();
+
+// Liveness runs no checks, so a dependency outage never restarts a replica.
+// Readiness runs the checks tagged ready.
+app.MapHealthProbes();
+
+await app.RunAsync();
+
+return 0;

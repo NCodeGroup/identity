@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+    <!-- The deployable global directory: one small host with its own Postgres database and its own migrations. It
+         reserves tenant and team identifiers platform-wide, places tenants in cells and publishes team and platform
+         documents, and holds no personal data. Never packed. -->
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <UserSecretsId>5e2a9c47-3b1d-4f68-a0c5-7d84e1b96f23</UserSecretsId>
+        <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+        <LangVersion>latest</LangVersion>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\NCode.Identity.Jose\NCode.Identity.Jose.csproj" />
+        <ProjectReference Include="..\..\src\NCode.Identity.Jwt\NCode.Identity.Jwt.csproj" />
+        <ProjectReference Include="..\..\src\NCode.Identity.OpenId.Client\NCode.Identity.OpenId.Client.csproj" />
+        <ProjectReference Include="..\..\src\NCode.Identity.OpenId.GlobalDirectory.Server\NCode.Identity.OpenId.GlobalDirectory.Server.csproj" />
+        <ProjectReference Include="..\..\src\NCode.Identity.Secrets\NCode.Identity.Secrets.csproj" />
+        <ProjectReference Include="..\..\src\NCode.Identity.Server\NCode.Identity.Server.csproj" />
+        <ProjectReference Include="..\..\src\NCode.Identity.SharedState\NCode.Identity.SharedState.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.EntityFrameworkCore" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+        <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" />
+        <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    </ItemGroup>
+</Project>

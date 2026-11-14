@@ -16,6 +16,7 @@
     </Folder>
     <Folder Name="/hosts/">
         <Project Path="hosts/NCode.Identity.ManagementConsole.Host/NCode.Identity.ManagementConsole.Host.csproj" />
+        <Project Path="hosts/NCode.Identity.OpenId.GlobalDirectory.Host/NCode.Identity.OpenId.GlobalDirectory.Host.csproj" />
         <Project Path="hosts/NCode.Identity.OpenId.Host.Database/NCode.Identity.OpenId.Host.Database.csproj" />
         <Project Path="hosts/NCode.Identity.OpenId.Host.MigrationService/NCode.Identity.OpenId.Host.MigrationService.csproj" />
         <Project Path="hosts/NCode.Identity.OpenId.Host/NCode.Identity.OpenId.Host.csproj" />
