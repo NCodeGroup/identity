@@ -13,6 +13,7 @@ using NCode.Identity.Jose;
 using NCode.Identity.Jwt;
 using NCode.Identity.OpenId;
 using NCode.Identity.OpenId.Authentication;
+using NCode.Identity.OpenId.Client;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.Registration;
 using NCode.Identity.Secrets;
@@ -47,6 +48,9 @@ internal sealed class IdentityServerBuilder : ServiceBuilder<IdentityServer>, II
 
     /// <inheritdoc />
     public IServiceBuilder<JwtLibrary> JwtLibraryBuilder { get; }
+
+    /// <inheritdoc />
+    public IServiceBuilder<OpenIdClientLibrary> OpenIdClientLibraryBuilder { get; }
 
     /// <inheritdoc />
     public IServiceBuilder<SettingsLibrary> SettingsLibraryBuilder { get; }
@@ -96,6 +100,7 @@ internal sealed class IdentityServerBuilder : ServiceBuilder<IdentityServer>, II
 
         JoseLibraryBuilder = SecretsLibraryBuilder.AddJoseLibrary();
         JwtLibraryBuilder = JoseLibraryBuilder.AddJwtLibrary();
+        OpenIdClientLibraryBuilder = JwtLibraryBuilder.AddOpenIdClientLibrary();
 
         SettingsLibraryBuilder = serviceCollection.AddSettingsLibrary();
         ClaimsLibraryBuilder = serviceCollection.AddClaimsLibrary();

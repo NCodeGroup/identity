@@ -15,6 +15,7 @@ using NCode.Identity.OpenId.Authentication.OutboundHttp;
 using NCode.Identity.OpenId.Authentication.Persistence;
 using NCode.Identity.OpenId.Authentication.Sessions;
 using NCode.Identity.OpenId.Authentication.Usage;
+using NCode.Identity.OpenId.Client.KeyRings;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Setup;
 using NCode.Identity.OpenId.Tenants;
@@ -113,7 +114,11 @@ public static class IdentityServerBuilderExtensions
         /// key provider that protects the stored secrets and the Data Protection key ring at rest. The top-level
         /// <c>ApiReference</c> section binds <see cref="IdentityServerApiReferenceOptions"/>, which decide whether the
         /// OpenAPI document and the API reference page are served. The top-level <c>Cell</c> section binds
-        /// <see cref="CellOptions"/>, which name the cell this host runs, its region and its kind.
+        /// <see cref="CellOptions"/>, which name the cell this host runs, its region and its kind. The top-level
+        /// <c>KeyRings</c> section holds the named key rings that the OpenID client library loads, and the top-level
+        /// <c>Directory</c> section (<see cref="DirectoryClientOptions"/>) selects the remote global directory: a host
+        /// whose <c>Directory:Url</c> is set reads the directory with its client <c>Directory:ClientId</c> and the key
+        /// ring <c>Directory:KeyRing</c>, and a host without it keeps the local directory.
         /// </summary>
         /// <remarks>
         /// Binding is strict and checked when the host starts: a key that maps to no option — a misspelling, or a
@@ -278,6 +283,13 @@ public static class IdentityServerBuilderExtensions
 
             // Stored secrets and the Data Protection key ring are protected under a root key held outside the database (ADR-1235).
             SecretProtectionRegistration.AddSecretProtection(builder, configuration);
+
+            // The client library loads the named key rings, and the directory client reads the global directory with one
+            // of them when Directory:Url is set.
+            builder.OpenIdClientLibraryBuilder.AddOpenIdClientKeyRings(
+                configuration.GetSection("KeyRings")
+            );
+            builder.OpenIdClientLibraryBuilder.AddOpenIdDirectoryClient(configuration);
 
             return builder;
         }
