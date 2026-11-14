@@ -4,8 +4,10 @@
 using JetBrains.Annotations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using NCode.Identity.OpenId.Accounts.Management.Transfers;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Management.Endpoints;
+using NCode.Identity.OpenId.Management.Transfers;
 using NCode.Identity.Registration;
 using NCode.Identity.Registration.AspNetCore;
 
@@ -54,6 +56,14 @@ public static class DefaultRegistration
             >();
             serviceCollection.TryAddSingleton<LocalAccountPasswords>();
             serviceCollection.TryAddSingleton<ILocalAccountCreator, DefaultLocalAccountCreator>();
+
+            // Carries a tenant's local accounts between cells (ADR-1514).
+            serviceCollection.TryAddEnumerable(
+                ServiceDescriptor.Singleton<
+                    ITenantTransferContributor,
+                    LocalAccountTenantTransferContributor
+                >()
+            );
 
             return builder;
         }
