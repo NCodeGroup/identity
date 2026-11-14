@@ -314,14 +314,17 @@ export type ClientResource = {
 };
 
 /**
- * Mirror of `CreateClientRequest`. The client id is server-generated (not supplied), and `settings`
+ * Mirror of `CreateClientRequest`. The client id is generated when `clientId` is not supplied, `jwks`
+ * is the client's public JSON Web Key Set (for `private_key_jwt`), and `settings`
  * is the initial JSON settings object (empty by default; settings have their own PATCH endpoint).
  * `resourceServerId` binds the new client to the resource server it acts for; the binding cannot
  * change after the client is created.
  */
 export type CreateClientRequest = {
+  readonly clientId?: string;
   readonly isDisabled: boolean;
   readonly resourceServerId?: string | null;
+  readonly jwks?: unknown;
   readonly settings: Readonly<Record<string, unknown>>;
 };
 

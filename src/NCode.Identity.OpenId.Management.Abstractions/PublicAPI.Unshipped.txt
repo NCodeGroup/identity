@@ -435,9 +435,13 @@ NCode.Identity.OpenId.Management.Contracts.Clients.ClientSettingsResource.Settin
 NCode.Identity.OpenId.Management.Contracts.Clients.ClientSettingsResource.TenantId.get -> string!
 NCode.Identity.OpenId.Management.Contracts.Clients.ClientSettingsResource.TenantId.init -> void
 NCode.Identity.OpenId.Management.Contracts.Clients.CreateClientRequest
+NCode.Identity.OpenId.Management.Contracts.Clients.CreateClientRequest.ClientId.get -> string?
+NCode.Identity.OpenId.Management.Contracts.Clients.CreateClientRequest.ClientId.init -> void
 NCode.Identity.OpenId.Management.Contracts.Clients.CreateClientRequest.CreateClientRequest() -> void
 NCode.Identity.OpenId.Management.Contracts.Clients.CreateClientRequest.IsDisabled.get -> bool
 NCode.Identity.OpenId.Management.Contracts.Clients.CreateClientRequest.IsDisabled.init -> void
+NCode.Identity.OpenId.Management.Contracts.Clients.CreateClientRequest.Jwks.get -> System.Text.Json.JsonElement?
+NCode.Identity.OpenId.Management.Contracts.Clients.CreateClientRequest.Jwks.init -> void
 NCode.Identity.OpenId.Management.Contracts.Clients.CreateClientRequest.Settings.get -> System.Text.Json.JsonElement
 NCode.Identity.OpenId.Management.Contracts.Clients.CreateClientRequest.Settings.init -> void
 NCode.Identity.OpenId.Management.Contracts.Clients.IncoherentClientResource

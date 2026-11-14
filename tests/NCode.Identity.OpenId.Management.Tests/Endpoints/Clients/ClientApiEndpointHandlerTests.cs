@@ -831,13 +831,20 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
             .Verifiable();
     }
 
-    // The creation of a machine client that the validators accept, whose stored client the capture receives.
-    private void SetupMachineClientCreation(Action<PersistedClient> capture)
+    // The creation of a machine client that the validators accept, whose stored client the capture receives. A request
+    // that names its client id generates none.
+    private void SetupMachineClientCreation(
+        Action<PersistedClient> capture,
+        string? suppliedClientId = null
+    )
     {
         SetupMachineClientScope();
         SetupValidSettings();
         SetupStore();
-        SetupResourceId("generated-id");
+        if (suppliedClientId is null)
+        {
+            SetupResourceId("generated-id");
+        }
         SetupMachineClientValidation(capture);
         MockClientStore
             .Setup(x => x.AddAsync(It.IsAny<PersistedClient>(), It.IsAny<CancellationToken>()))
@@ -849,7 +856,7 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
             .Verifiable();
         SetupClientChangedAudit();
         SetupEffectiveSettings();
-        SetupCreatedClientAuthenticationMethod();
+        SetupCreatedClientAuthenticationMethod(suppliedClientId ?? "generated-id");
     }
 
     #endregion
@@ -990,14 +997,14 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
     }
 
     // The issuer resolves the created client's method from the tenant's stored settings.
-    private void SetupCreatedClientAuthenticationMethod() =>
+    private void SetupCreatedClientAuthenticationMethod(string clientId = "generated-id") =>
         MockClientSecretIssuer
             .Setup(x =>
                 x.GetTokenEndpointAuthMethodAsync(
                     "platform",
                     TenantId,
                     It.Is<JsonElement?>(settings => settings.HasValue),
-                    "generated-id",
+                    clientId,
                     It.IsAny<JsonElement>(),
                     It.IsAny<CancellationToken>()
                 )
@@ -1419,6 +1426,53 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
         Assert.True(
             DefaultClientSettingsEvaluator.IsClientCredentialsOnly(captured.Settings.Value)
         );
+        Assert.Equal("generated-id", captured.ClientId);
+    }
+
+    [Fact]
+    public async Task CreatePlatformClientAsync_WithAClientIdAndJwks_PassesBothToTheCreator()
+    {
+        SetupAuthorizeCreateMachineClient(
+            ResourceNodeTypes.Platform,
+            OpenIdConstants.PlatformResourceId,
+            error: null
+        );
+        PersistedClient? captured = null;
+        SetupMachineClientCreation(client => captured = client, suppliedClientId: "cell-eu1");
+
+        var jwks = JsonElement.Parse("""{"keys":[]}""");
+        IReadOnlyList<PersistedSecret>? importedSecrets = new List<PersistedSecret>();
+        string? importError = null;
+        MockClientKeyImporter
+            .Setup(x =>
+                x.TryImportRegisteredKeySet(
+                    It.Is<JsonElement>(keySet => keySet.GetRawText() == jwks.GetRawText()),
+                    It.IsAny<DateTimeOffset>(),
+                    out importedSecrets,
+                    out importError
+                )
+            )
+            .Returns(true)
+            .Verifiable();
+
+        var request = new CreateClientRequest
+        {
+            ClientId = "cell-eu1",
+            IsDisabled = false,
+            Jwks = jwks,
+            Settings = EmptyObject(),
+        };
+
+        var result = await Handler.CreatePlatformClientAsync(
+            CreateHttpContext(authenticated: true),
+            request,
+            CancellationToken.None
+        );
+
+        Assert.IsType<Created<ClientResource>>(result);
+        Assert.NotNull(captured);
+        Assert.Equal("cell-eu1", captured.ClientId);
+        Assert.Same(importedSecrets, captured.Secrets.Value);
     }
 
     #endregion

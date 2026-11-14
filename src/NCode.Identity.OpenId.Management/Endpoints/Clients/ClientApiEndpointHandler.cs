@@ -766,7 +766,7 @@ internal class ClientApiEndpointHandler(
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
 
-        var clientId = CryptoService.GenerateResourceId();
+        var clientId = request.ClientId ?? CryptoService.GenerateResourceId();
 
         var creationRequest = new ClientCreationRequest
         {
@@ -775,6 +775,7 @@ internal class ClientApiEndpointHandler(
             IsDisabled = request.IsDisabled,
             ResourceServerId = resourceServerId,
             Settings = request.Settings,
+            Jwks = request.Jwks,
         };
 
         return await AddClientAsync(httpContext, storeManager, creationRequest, cancellationToken);
@@ -885,7 +886,7 @@ internal class ClientApiEndpointHandler(
             }
         }
 
-        var clientId = CryptoService.GenerateResourceId();
+        var clientId = request.ClientId ?? CryptoService.GenerateResourceId();
 
         var settings = ClientSettingsJson.ToJsonObject(request.Settings);
         if (!settings.ContainsKey(OpenIdSettingNames.GrantTypesSupported))
@@ -906,6 +907,7 @@ internal class ClientApiEndpointHandler(
             OwningNodeType = owningNode.ResourceType,
             OwningNodeId = owningNode.ResourceId,
             Settings = settingsValue,
+            Jwks = request.Jwks,
         };
 
         return await AddClientAsync(httpContext, storeManager, creationRequest, cancellationToken);
