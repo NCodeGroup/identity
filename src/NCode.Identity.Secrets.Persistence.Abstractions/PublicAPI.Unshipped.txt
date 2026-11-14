@@ -437,6 +437,9 @@ NCode.Identity.Secrets.Persistence.Protection.MasterKeyStatus.RecoveryConfigured
 static NCode.Identity.Secrets.Persistence.Protection.MasterKeyInfo.From(NCode.Identity.Secrets.Persistence.DataContracts.PersistedMasterKey! masterKey) -> NCode.Identity.Secrets.Persistence.Protection.MasterKeyInfo!
 NCode.Identity.Secrets.Persistence.Protection.IMasterKeyRewrapper
 NCode.Identity.Secrets.Persistence.Protection.IMasterKeyRewrapper.RewrapAsync(NCode.Identity.Secrets.Persistence.Protection.MasterKeyRewrapRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.Secrets.Persistence.Protection.MasterKeyRewrapResult!>
+NCode.Identity.Secrets.Persistence.Protection.IMasterKeyTransfer
+NCode.Identity.Secrets.Persistence.Protection.IMasterKeyTransfer.ExportAsync(NCode.Identity.Secrets.Persistence.Protection.SecretOwner owner, NCode.Identity.Secrets.Keys.SecretKey! recipient, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string!>
+NCode.Identity.Secrets.Persistence.Protection.IMasterKeyTransfer.ImportAsync(NCode.Identity.Secrets.Persistence.Protection.SecretOwner owner, string! package, NCode.Identity.Secrets.Keys.SecretKey! recipientPrivate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.Secrets.Persistence.Protection.MasterKeyTransferResult!>
 NCode.Identity.Secrets.Persistence.Protection.MasterKeyRewrapRequest
 NCode.Identity.Secrets.Persistence.Protection.MasterKeyRewrapRequest.DryRun.get -> bool
 NCode.Identity.Secrets.Persistence.Protection.MasterKeyRewrapRequest.DryRun.init -> void
@@ -457,6 +460,10 @@ NCode.Identity.Secrets.Persistence.Protection.MasterKeyRewrapResult.Rewrapped.ge
 NCode.Identity.Secrets.Persistence.Protection.MasterKeyRewrapResult.Rewrapped.init -> void
 NCode.Identity.Secrets.Persistence.Protection.MasterKeyRewrapResult.Verified.get -> int
 NCode.Identity.Secrets.Persistence.Protection.MasterKeyRewrapResult.Verified.init -> void
+NCode.Identity.Secrets.Persistence.Protection.MasterKeyTransferResult
+NCode.Identity.Secrets.Persistence.Protection.MasterKeyTransferResult.Count.get -> int
+NCode.Identity.Secrets.Persistence.Protection.MasterKeyTransferResult.Count.init -> void
+NCode.Identity.Secrets.Persistence.Protection.MasterKeyTransferResult.MasterKeyTransferResult(int Count) -> void
 NCode.Identity.Secrets.Persistence.Protection.ProtectedValueRewrapResult
 NCode.Identity.Secrets.Persistence.Protection.ProtectedValueRewrapResult.Failed.get -> int
 NCode.Identity.Secrets.Persistence.Protection.ProtectedValueRewrapResult.Failed.init -> void
