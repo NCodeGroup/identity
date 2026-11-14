@@ -57,11 +57,18 @@ public class GoogleCloudKmsKeyWrapperTests : BaseTests
         long? AdditionalAuthenticatedDataCrc32C
     );
 
-    private GoogleCloudKmsKeyWrapper CreateProvider(string? keyName) =>
+    private GoogleCloudKmsKeyWrapper CreateProvider(
+        string? keyName,
+        params string[] allowedLocations
+    ) =>
         new(
             ClientFactory.Object,
             Microsoft.Extensions.Options.Options.Create(
-                new GoogleCloudKmsKeyWrapperOptions { KeyName = keyName }
+                new GoogleCloudKmsKeyWrapperOptions
+                {
+                    KeyName = keyName,
+                    AllowedLocations = [.. allowedLocations],
+                }
             )
         );
 
@@ -867,6 +874,42 @@ public class GoogleCloudKmsKeyWrapperTests : BaseTests
         Assert.Equal(expected, failure is null);
         if (!expected)
             Assert.StartsWith("must be the resource name of a Cloud KMS crypto key", failure);
+    }
+
+    [Theory]
+    [InlineData(CryptoKeyName)]
+    [InlineData(TenantCryptoKeyName)]
+    public void TryValidateKeyReference_LocationListed_Valid(string reference)
+    {
+        var provider = CreateProvider(keyName: null, "us-central1", "europe-west1");
+
+        var valid = provider.TryValidateKeyReference(reference, out var failure);
+
+        Assert.True(valid);
+        Assert.Null(failure);
+    }
+
+    [Fact]
+    public void TryValidateKeyReference_LocationNotListed_FailsNamingAllowedLocations()
+    {
+        var provider = CreateProvider(keyName: null, "us-central1", "us-east1");
+
+        var valid = provider.TryValidateKeyReference(TenantCryptoKeyName, out var failure);
+
+        Assert.False(valid);
+        Assert.NotNull(failure);
+        Assert.Contains("us-central1, us-east1", failure);
+    }
+
+    [Fact]
+    public void TryValidateKeyReference_NoAllowedLocations_AllowsAnyLocation()
+    {
+        var provider = CreateProvider(keyName: null);
+
+        var valid = provider.TryValidateKeyReference(TenantCryptoKeyName, out var failure);
+
+        Assert.True(valid);
+        Assert.Null(failure);
     }
 
     #endregion

@@ -15,6 +15,8 @@ internal static partial class GoogleCloudKmsKeyName
 {
     private const string CryptoKeyVersionsSegment = "/cryptoKeyVersions/";
 
+    private const string LocationsSegment = "/locations/";
+
     // '\z' rather than '$', which also matches before a trailing newline, and '[0-9]' rather than '\d', which accepts
     // any Unicode digit.
     [GeneratedRegex(@"^projects/[a-z0-9.:-]+/locations/[a-z0-9-]+/keyRings/[A-Za-z0-9_-]{1,63}\z")]
@@ -68,5 +70,20 @@ internal static partial class GoogleCloudKmsKeyName
             StringComparison.Ordinal
         );
         return cryptoKeyVersionName.Substring(0, end);
+    }
+
+    /// <summary>
+    /// Gets the location, such as <c>us-central1</c> or <c>global</c>, in the <c>locations/{location}</c> segment of the
+    /// specified name. The name must already have been validated with <see cref="IsKeyRingName"/>,
+    /// <see cref="IsCryptoKeyName"/> or <see cref="IsCryptoKeyVersionName"/>.
+    /// </summary>
+    /// <param name="name">The resource name of a key ring, crypto key or crypto key version.</param>
+    /// <returns>The location of the resource.</returns>
+    public static string GetLocation(string name)
+    {
+        var start =
+            name.IndexOf(LocationsSegment, StringComparison.Ordinal) + LocationsSegment.Length;
+        var end = name.IndexOf('/', start);
+        return name.Substring(start, end - start);
     }
 }

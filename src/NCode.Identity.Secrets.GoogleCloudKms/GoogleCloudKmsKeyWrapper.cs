@@ -105,15 +105,29 @@ internal class GoogleCloudKmsKeyWrapper(
         [NotNullWhen(false)] out string? failure
     )
     {
-        if (GoogleCloudKmsKeyName.IsCryptoKeyName(keyReference))
+        if (!GoogleCloudKmsKeyName.IsCryptoKeyName(keyReference))
         {
-            failure = null;
-            return true;
+            failure =
+                "must be the resource name of a Cloud KMS crypto key without a version, such as projects/my-project/locations/global/keyRings/tenants/cryptoKeys/tenant-root";
+            return false;
         }
 
-        failure =
-            "must be the resource name of a Cloud KMS crypto key without a version, such as projects/my-project/locations/global/keyRings/tenants/cryptoKeys/tenant-root";
-        return false;
+        var allowedLocations = RootKeyOptions.Value.AllowedLocations;
+        if (
+            allowedLocations.Count > 0
+            && !allowedLocations.Contains(
+                GoogleCloudKmsKeyName.GetLocation(keyReference),
+                StringComparer.Ordinal
+            )
+        )
+        {
+            failure =
+                $"must be the resource name of a Cloud KMS crypto key in one of the allowed locations: {string.Join(", ", allowedLocations)}";
+            return false;
+        }
+
+        failure = null;
+        return true;
     }
 
     /// <inheritdoc />

@@ -22,12 +22,31 @@ internal sealed class GoogleCloudKmsRemoteKeyProviderOptionsValidator
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        return
-            string.IsNullOrEmpty(options.KeyRing)
-            || GoogleCloudKmsKeyName.IsKeyRingName(options.KeyRing)
-            ? ValidateOptionsResult.Success
-            : ValidateOptionsResult.Fail(
+        if (string.IsNullOrEmpty(options.KeyRing))
+        {
+            return ValidateOptionsResult.Success;
+        }
+
+        if (!GoogleCloudKmsKeyName.IsKeyRingName(options.KeyRing))
+        {
+            return ValidateOptionsResult.Fail(
                 "SecretProtection:RemoteKeyProviders:GoogleCloudKms:KeyRing must be the resource name of a Cloud KMS key ring, such as projects/my-project/locations/us-central1/keyRings/ncode-identity."
             );
+        }
+
+        if (
+            options.AllowedLocations.Count > 0
+            && !options.AllowedLocations.Contains(
+                GoogleCloudKmsKeyName.GetLocation(options.KeyRing),
+                StringComparer.Ordinal
+            )
+        )
+        {
+            return ValidateOptionsResult.Fail(
+                $"SecretProtection:RemoteKeyProviders:GoogleCloudKms:KeyRing must be in one of the allowed Cloud KMS locations: {string.Join(", ", options.AllowedLocations)}."
+            );
+        }
+
+        return ValidateOptionsResult.Success;
     }
 }

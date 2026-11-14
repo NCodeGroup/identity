@@ -27,6 +27,12 @@ public sealed class GoogleCloudKmsRemoteKeyProviderOptions
     public string? KeyRing { get; set; }
 
     /// <summary>
+    /// Gets or sets the Cloud KMS locations, such as <c>us-central1</c>, in which the provider may create keys. A
+    /// <see cref="KeyRing"/> in a location that is not listed is refused. When it is empty, any location is allowed.
+    /// </summary>
+    public List<string> AllowedLocations { get; set; } = [];
+
+    /// <summary>
     /// Gets or sets a value indicating whether the provider creates keys with the <c>HSM</c> protection level, so the
     /// private half of a key is held in a hardware security module. When <see langword="false"/> the keys have the
     /// <c>SOFTWARE</c> protection level. The default is <see langword="true"/>.

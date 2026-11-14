@@ -63,6 +63,76 @@ public class GoogleCloudKmsRemoteKeyProviderOptionsValidatorTests
     }
 
     [Fact]
+    public void Validate_LocationListed_Succeeds()
+    {
+        var validator = CreateValidator();
+
+        var result = validator.Validate(
+            null,
+            new GoogleCloudKmsRemoteKeyProviderOptions
+            {
+                KeyRing = "projects/my-project/locations/us-central1/keyRings/ncode-identity",
+                AllowedLocations = ["europe-west1", "us-central1"],
+            }
+        );
+
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public void Validate_LocationNotListed_FailsNamingAllowedLocations()
+    {
+        var validator = CreateValidator();
+
+        var result = validator.Validate(
+            null,
+            new GoogleCloudKmsRemoteKeyProviderOptions
+            {
+                KeyRing = "projects/my-project/locations/us-east1/keyRings/ncode-identity",
+                AllowedLocations = ["europe-west1", "us-central1"],
+            }
+        );
+
+        Assert.True(result.Failed);
+        Assert.Contains("KeyRing", result.FailureMessage);
+        Assert.Contains("europe-west1, us-central1", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Validate_NoAllowedLocations_AllowsAnyLocation()
+    {
+        var validator = CreateValidator();
+
+        var result = validator.Validate(
+            null,
+            new GoogleCloudKmsRemoteKeyProviderOptions
+            {
+                KeyRing = "projects/my-project/locations/asia-south1/keyRings/ncode-identity",
+                AllowedLocations = [],
+            }
+        );
+
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public void Validate_NoKeyRingWithAllowedLocations_Succeeds()
+    {
+        var validator = CreateValidator();
+
+        var result = validator.Validate(
+            null,
+            new GoogleCloudKmsRemoteKeyProviderOptions
+            {
+                KeyRing = null,
+                AllowedLocations = ["us-central1"],
+            }
+        );
+
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
     public void Validate_DefaultOptions_HardwareProtected()
     {
         var options = new GoogleCloudKmsRemoteKeyProviderOptions();
