@@ -78,7 +78,17 @@ public static class HostDatabase
         public string? TenantId => null;
 
         /// <inheritdoc />
+        public bool IsUnscoped => true;
+
+        /// <inheritdoc />
+        public string? UnscopedReason => "schema migration";
+
+        /// <inheritdoc />
         public IDisposable BeginScope(string tenantId) =>
             throw new NotSupportedException("Unscoped construction cannot begin a tenant scope.");
+
+        /// <inheritdoc />
+        public IDisposable BeginUnscoped(string reason) =>
+            throw new NotSupportedException("Unscoped construction cannot begin another scope.");
     }
 }

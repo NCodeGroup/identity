@@ -45,11 +45,17 @@ internal sealed class TestAmbientTenantAccessor : IAmbientTenantAccessor
 
     public bool IsScoped => TenantId is not null;
 
+    public bool IsUnscoped => false;
+
+    public string? UnscopedReason => null;
+
     public IDisposable BeginScope(string tenantId)
     {
         TenantId = tenantId;
         return new NoopScope();
     }
+
+    public IDisposable BeginUnscoped(string reason) => throw new NotSupportedException();
 
     private sealed class NoopScope : IDisposable
     {

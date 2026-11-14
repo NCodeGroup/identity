@@ -209,11 +209,17 @@ internal sealed class SwitchableAmbientTenantAccessor : IAmbientTenantAccessor
 
     public bool IsScoped => TenantId is not null;
 
+    public bool IsUnscoped => false;
+
+    public string? UnscopedReason => null;
+
     public IDisposable BeginScope(string tenantId)
     {
         TenantId = tenantId;
         return new Scope(this);
     }
+
+    public IDisposable BeginUnscoped(string reason) => throw new NotSupportedException();
 
     private sealed class Scope(SwitchableAmbientTenantAccessor accessor) : IDisposable
     {

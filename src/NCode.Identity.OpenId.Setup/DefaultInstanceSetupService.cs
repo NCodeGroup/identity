@@ -293,7 +293,9 @@ internal sealed class DefaultInstanceSetupService(
                 );
         }
 
-        using var tenantScope = AmbientTenantAccessor.BeginScope(tenantId);
+        // The writes below span the platform's singleton setup row and the control-plane tenant's rows, so they run
+        // unscoped with a reason; every row they stage still names the control-plane tenant explicitly.
+        using var unscopedScope = AmbientTenantAccessor.BeginUnscoped("instance setup");
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
 
