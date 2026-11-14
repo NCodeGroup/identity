@@ -457,4 +457,16 @@ internal static partial class Log
         string teamId,
         long sequence
     );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryTeamRootKeyNotApplied,
+        Level = LogLevel.Warning,
+        Message = "The root key of the team '{TeamId}' for the region '{Region}' was not applied; the next directory document for the team retries it"
+    )]
+    internal static partial void DirectoryTeamRootKeyNotApplied(
+        this ILogger logger,
+        string teamId,
+        string region,
+        Exception exception
+    );
 }

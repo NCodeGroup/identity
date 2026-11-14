@@ -6,6 +6,7 @@ using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
+using Microsoft.Extensions.Options;
 using Moq;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Logging;
@@ -14,6 +15,7 @@ using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Teams;
 using NCode.Identity.Persistence.Stores;
+using NCode.Identity.Secrets.Persistence.Protection;
 using NCode.Mediator;
 using Xunit;
 
@@ -22,12 +24,18 @@ namespace NCode.Identity.OpenId.Core.Tests.GlobalDirectory;
 public sealed class DefaultTeamDocumentApplierTests : BaseTests
 {
     private const string TeamId = "acme";
+    private const string Region = "region-a";
+    private const string AccessIdentityA = "arn:aws:iam::123456789012:role/team-a";
     private const string UnscopedReason = "directory team mirror";
+
+    private static SecretOwner TeamOwner { get; } =
+        new SecretOwner(SecretOwnerTypes.Team, TeamId).Normalize();
 
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }
     private Mock<IStoreManager> MockStoreManager { get; }
     private Mock<ITeamStore> MockTeamStore { get; }
     private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
+    private Mock<IOwnerRootKeyManager> MockOwnerRootKeyManager { get; }
     private Mock<IMediator> MockMediator { get; }
     private FakeLogger<DefaultTeamDocumentApplier> Logger { get; } = new();
     private ServiceProvider ServiceProvider { get; }
@@ -39,6 +47,7 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
         MockStoreManager = CreateStrictMock<IStoreManager>();
         MockTeamStore = CreateStrictMock<ITeamStore>();
         MockAmbientTenantAccessor = CreateStrictMock<IAmbientTenantAccessor>();
+        MockOwnerRootKeyManager = CreateStrictMock<IOwnerRootKeyManager>();
         MockMediator = CreateStrictMock<IMediator>();
 
         var serviceCollection = new ServiceCollection();
@@ -49,6 +58,8 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
             MockStoreManagerFactory.Object,
             MockAmbientTenantAccessor.Object,
             ServiceProvider.GetRequiredService<IServiceScopeFactory>(),
+            MockOwnerRootKeyManager.Object,
+            Options.Create(new CellOptions { Region = Region }),
             Logger
         );
     }
@@ -79,6 +90,7 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
         SetupMirror(isApplied: true, cancellationToken);
         SetupSave(cancellationToken);
         SetupCommand(settingsChanged: true, cancellationToken);
+        SetupRootKey(current: null, cancellationToken);
 
         await Applier.ApplyAsync(
             CreateDocument("""{"flag":true}""", sequence: 7),
@@ -95,6 +107,7 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
         SetupMirror(isApplied: true, It.IsAny<CancellationToken>());
         SetupSave(It.IsAny<CancellationToken>());
         SetupCommand(settingsChanged: false, It.IsAny<CancellationToken>());
+        SetupRootKey(current: null);
 
         await Applier.ApplyAsync(
             CreateDocument("""{"flag":true}""", sequence: 8),
@@ -111,6 +124,7 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
         SetupMirror(isApplied: true, It.IsAny<CancellationToken>());
         SetupSave(It.IsAny<CancellationToken>());
         SetupCommand(settingsChanged: true, It.IsAny<CancellationToken>());
+        SetupRootKey(current: null);
 
         await Applier.ApplyAsync(
             CreateDocument("""{"flag":true}""", sequence: 8),
@@ -132,14 +146,15 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
             .Verifiable();
         SetupSave(It.IsAny<CancellationToken>());
         SetupCommand(settingsChanged: false, It.IsAny<CancellationToken>());
+        SetupRootKey(current: CreateRootKeyInfo("aws-kms", "kms://key-a", AccessIdentityA));
         var document = CreateDocument("""{"flag":true}""", sequence: 8) with
         {
             RootKeys = ImmutableDictionary<string, TeamRootKeyReference>
                 .Empty.Add(
-                    "region-a",
+                    Region,
                     new TeamRootKeyReference("aws-kms", "kms://key-a")
                     {
-                        AccessIdentity = "arn:aws:iam::123456789012:role/team-a",
+                        AccessIdentity = AccessIdentityA,
                     }
                 )
                 .Add("region-b", new TeamRootKeyReference("gcp-kms", "kms://key-b")),
@@ -149,10 +164,10 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
 
         Assert.NotNull(mirrored);
         Assert.Equal(2, mirrored.RootKeys.Count);
-        var regionA = mirrored.RootKeys["region-a"];
+        var regionA = mirrored.RootKeys[Region];
         Assert.Equal("aws-kms", regionA.KeyWrapperName);
         Assert.Equal("kms://key-a", regionA.KeyReference);
-        Assert.Equal("arn:aws:iam::123456789012:role/team-a", regionA.AccessIdentity);
+        Assert.Equal(AccessIdentityA, regionA.AccessIdentity);
         var regionB = mirrored.RootKeys["region-b"];
         Assert.Equal("gcp-kms", regionB.KeyWrapperName);
         Assert.Equal("kms://key-b", regionB.KeyReference);
@@ -167,11 +182,125 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
         SetupStoredSettings("""{"flag":false}""");
         SetupMirror(isApplied: false, It.IsAny<CancellationToken>());
 
-        // Strict mocks: neither a save nor a command is set up, so either would fail the test.
+        // Strict mocks: neither a save, a command nor a root key call is set up, so any would fail the test.
         await Applier.ApplyAsync(
             CreateDocument("""{"flag":true}""", sequence: 3),
             CancellationToken.None
         );
+    }
+
+    [Fact]
+    public async Task ApplyAsync_WhenTheRegionHasANewRootKey_SetsTheTeamsOwnerRootKey()
+    {
+        using var cts = new CancellationTokenSource();
+        var cancellationToken = cts.Token;
+        SetupApplied(cancellationToken);
+        SetupRootKey(current: null, cancellationToken);
+        SetupSetRootKey("aws-kms", "kms://key-a", AccessIdentityA, cancellationToken);
+
+        await Applier.ApplyAsync(
+            CreateRootKeyDocument("kms://key-a", AccessIdentityA),
+            cancellationToken
+        );
+
+        Assert.Empty(Logger.Collector.GetSnapshot());
+    }
+
+    [Fact]
+    public async Task ApplyAsync_WhenTheRegionsRootKeyDiffers_SetsTheTeamsOwnerRootKey()
+    {
+        SetupApplied(It.IsAny<CancellationToken>());
+        SetupRootKey(CreateRootKeyInfo("aws-kms", "kms://key-a", AccessIdentityA));
+        SetupSetRootKey("aws-kms", "kms://key-b", AccessIdentityA, It.IsAny<CancellationToken>());
+
+        await Applier.ApplyAsync(
+            CreateRootKeyDocument("kms://key-b", AccessIdentityA),
+            CancellationToken.None
+        );
+    }
+
+    [Fact]
+    public async Task ApplyAsync_WhenTheRegionsAccessIdentityDiffers_SetsTheTeamsOwnerRootKey()
+    {
+        SetupApplied(It.IsAny<CancellationToken>());
+        SetupRootKey(CreateRootKeyInfo("aws-kms", "kms://key-a", AccessIdentityA));
+        SetupSetRootKey("aws-kms", "kms://key-a", null, It.IsAny<CancellationToken>());
+
+        await Applier.ApplyAsync(
+            CreateRootKeyDocument("kms://key-a", null),
+            CancellationToken.None
+        );
+    }
+
+    [Fact]
+    public async Task ApplyAsync_WhenTheRegionsRootKeyIsUnchanged_CallsNothingOnTheManager()
+    {
+        SetupApplied(It.IsAny<CancellationToken>());
+        SetupRootKey(CreateRootKeyInfo("aws-kms", "kms://key-a", AccessIdentityA));
+
+        await Applier.ApplyAsync(
+            CreateRootKeyDocument("kms://key-a", AccessIdentityA),
+            CancellationToken.None
+        );
+    }
+
+    [Fact]
+    public async Task ApplyAsync_WhenTheRegionHasNoRootKeyAndTheCellHoldsOne_RemovesIt()
+    {
+        using var cts = new CancellationTokenSource();
+        var cancellationToken = cts.Token;
+        SetupApplied(cancellationToken);
+        SetupRootKey(
+            CreateRootKeyInfo("aws-kms", "kms://key-a", AccessIdentityA),
+            cancellationToken
+        );
+        MockOwnerRootKeyManager
+            .Setup(x => x.RemoveAsync(TeamOwner, cancellationToken))
+            .ReturnsAsync(
+                new OwnerRootKeyRemoval(null, true, new MasterKeyRewrapResult(0, 0, 0, 0))
+            )
+            .Verifiable();
+
+        await Applier.ApplyAsync(
+            CreateDocument("""{"flag":true}""", sequence: 8),
+            cancellationToken
+        );
+
+        Assert.Empty(Logger.Collector.GetSnapshot());
+    }
+
+    [Fact]
+    public async Task ApplyAsync_WhenTheRootKeyFailsItsProbe_LogsAWarningAndStillAppliesTheTeam()
+    {
+        SetupApplied(It.IsAny<CancellationToken>());
+        SetupRootKey(current: null);
+        MockOwnerRootKeyManager
+            .Setup(x =>
+                x.SetAsync(
+                    TeamOwner,
+                    new OwnerRootKeyRequest("aws-kms", "kms://key-a")
+                    {
+                        AccessIdentity = AccessIdentityA,
+                    },
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ThrowsAsync(
+                new OwnerRootKeyProbeException(TeamOwner, "aws-kms", "kms://key-a", "access denied")
+            )
+            .Verifiable();
+
+        await Applier.ApplyAsync(
+            CreateRootKeyDocument("kms://key-a", AccessIdentityA),
+            CancellationToken.None
+        );
+
+        var record = Assert.Single(Logger.Collector.GetSnapshot());
+        Assert.Equal(LogLevel.Warning, record.Level);
+        Assert.Equal(EventIds.DirectoryTeamRootKeyNotApplied, record.Id.Id);
+        Assert.IsType<OwnerRootKeyProbeException>(record.Exception);
+        Assert.Contains(record.StructuredState ?? [], x => x is { Key: "TeamId", Value: TeamId });
+        Assert.Contains(record.StructuredState ?? [], x => x is { Key: "Region", Value: Region });
     }
 
     #endregion
@@ -286,6 +415,41 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
             Sequence = sequence,
         };
 
+    private static TeamDocument CreateRootKeyDocument(
+        string keyReference,
+        string? accessIdentity
+    ) =>
+        CreateDocument("""{"flag":true}""", sequence: 8) with
+        {
+            RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty.Add(
+                Region,
+                new TeamRootKeyReference("aws-kms", keyReference)
+                {
+                    AccessIdentity = accessIdentity,
+                }
+            ),
+        };
+
+    private static OwnerRootKeyInfo CreateRootKeyInfo(
+        string keyWrapperName,
+        string keyReference,
+        string? accessIdentity
+    ) =>
+        new(
+            TeamOwner,
+            keyWrapperName,
+            keyReference,
+            OwnerRootKeyStates.Active,
+            DateTimeOffset.UnixEpoch,
+            DateTimeOffset.UnixEpoch,
+            null,
+            null,
+            null
+        )
+        {
+            AccessIdentity = accessIdentity,
+        };
+
     private static PersistedTeam CreateStoredTeam() =>
         new()
         {
@@ -300,6 +464,52 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
                 Value = JsonElement.Parse("{}"),
             },
         };
+
+    private void SetupApplied(CancellationToken cancellationToken)
+    {
+        SetupUnscoped();
+        SetupStoreManager();
+        SetupStoredSettings("""{"flag":true}""");
+        SetupMirror(isApplied: true, cancellationToken);
+        SetupSave(cancellationToken);
+        SetupCommand(settingsChanged: false, cancellationToken);
+    }
+
+    private void SetupRootKey(OwnerRootKeyInfo? current) =>
+        SetupRootKey(current, It.IsAny<CancellationToken>());
+
+    private void SetupRootKey(OwnerRootKeyInfo? current, CancellationToken cancellationToken) =>
+        MockOwnerRootKeyManager
+            .Setup(x => x.GetAsync(TeamOwner, cancellationToken))
+            .ReturnsAsync(current)
+            .Verifiable();
+
+    private void SetupSetRootKey(
+        string keyWrapperName,
+        string keyReference,
+        string? accessIdentity,
+        CancellationToken cancellationToken
+    ) =>
+        MockOwnerRootKeyManager
+            .Setup(x =>
+                x.SetAsync(
+                    TeamOwner,
+                    new OwnerRootKeyRequest(keyWrapperName, keyReference)
+                    {
+                        AccessIdentity = accessIdentity,
+                    },
+                    cancellationToken
+                )
+            )
+            .ReturnsAsync(
+                new OwnerRootKeyChange(
+                    CreateRootKeyInfo(keyWrapperName, keyReference, accessIdentity),
+                    null,
+                    null,
+                    new MasterKeyRewrapResult(0, 0, 0, 0)
+                )
+            )
+            .Verifiable();
 
     private void SetupUnscoped() =>
         MockAmbientTenantAccessor

@@ -4,6 +4,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.Logging;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -19,19 +20,24 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// Provides the default implementation of <see cref="ITeamDocumentApplier"/>. It mirrors a published team document
 /// into the team's row, or removes the row of a retired team, then sends a <see cref="TeamChangedCommand"/> so caches
 /// evict the team. A team that tenants or teams still name is disabled instead of removed, because the cell refuses to
-/// delete a team that something names.
+/// delete a team that something names. The root key that the document holds for the cell's region is mirrored into the
+/// team's owner root key, which rewraps the master keys of the team's tenants in this cell.
 /// </summary>
 // See ADR-1411 and ADR-1416.
 internal sealed class DefaultTeamDocumentApplier(
     IStoreManagerFactory storeManagerFactory,
     IAmbientTenantAccessor ambientTenantAccessor,
     IServiceScopeFactory serviceScopeFactory,
+    IOwnerRootKeyManager ownerRootKeyManager,
+    IOptions<CellOptions> cellOptionsAccessor,
     ILogger<DefaultTeamDocumentApplier> logger
 ) : ITeamDocumentApplier
 {
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
     private IServiceScopeFactory ServiceScopeFactory { get; } = serviceScopeFactory;
+    private IOwnerRootKeyManager OwnerRootKeyManager { get; } = ownerRootKeyManager;
+    private CellOptions CellOptions { get; } = cellOptionsAccessor.Value;
     private ILogger<DefaultTeamDocumentApplier> Logger { get; } = logger;
 
     /// <inheritdoc />
@@ -89,6 +95,69 @@ internal sealed class DefaultTeamDocumentApplier(
                 new TeamChangedCommand(document.TeamId, settingsChanged),
                 cancellationToken
             );
+
+            await MirrorRootKeyAsync(document, cancellationToken);
+        }
+    }
+
+    // A key that fails validation is logged and left unapplied; the team row and its command are already applied, and the
+    // next document the directory publishes for the team retries the key.
+    private async ValueTask MirrorRootKeyAsync(
+        TeamDocument document,
+        CancellationToken cancellationToken
+    )
+    {
+        var region = CellOptions.Region;
+        var owner = new SecretOwner(SecretOwnerTypes.Team, document.TeamId).Normalize();
+        try
+        {
+            var current = await OwnerRootKeyManager.GetAsync(owner, cancellationToken);
+            if (!document.RootKeys.TryGetValue(region, out var reference))
+            {
+                if (current is not null)
+                    await OwnerRootKeyManager.RemoveAsync(owner, cancellationToken);
+
+                return;
+            }
+
+            if (
+                current is not null
+                && string.Equals(
+                    current.KeyWrapperName,
+                    reference.KeyWrapperName,
+                    StringComparison.Ordinal
+                )
+                && string.Equals(
+                    current.KeyReference,
+                    reference.KeyReference,
+                    StringComparison.Ordinal
+                )
+                && string.Equals(
+                    current.AccessIdentity,
+                    reference.AccessIdentity,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return;
+            }
+
+            var request = new OwnerRootKeyRequest(reference.KeyWrapperName, reference.KeyReference)
+            {
+                AccessIdentity = reference.AccessIdentity,
+            };
+            await OwnerRootKeyManager.SetAsync(owner, request, cancellationToken);
+        }
+        catch (Exception exception)
+            when (exception
+                    is ArgumentException
+                        or OwnerRootKeyNotAllowedException
+                        or OwnerRootKeyProbeException
+                        or MasterKeyRotationTooSoonException
+                        or StoreConcurrencyException
+            )
+        {
+            Logger.DirectoryTeamRootKeyNotApplied(document.TeamId, region, exception);
         }
     }
 

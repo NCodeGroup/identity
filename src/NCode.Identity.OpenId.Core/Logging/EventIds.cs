@@ -101,4 +101,6 @@ internal static class EventIds
     public const int RemoteKeySweepDispatchFailed = Base + 45;
 
     public const int DirectoryRetiredTeamHasDependents = Base + 46;
+
+    public const int DirectoryTeamRootKeyNotApplied = Base + 47;
 }
