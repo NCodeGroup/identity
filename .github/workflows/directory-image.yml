@@ -1,0 +1,103 @@
+# Directory image — builds the production image of NCode.Identity.OpenId.GlobalDirectory.Host for every published
+# architecture.
+#
+# The image is the deployable artifact (ADR-1133), so a change that breaks its build — a project the publish needs, the
+# allow-list .dockerignore — fails here rather than at release. Nothing is pushed. Every stage that runs commands runs
+# on the runner's own architecture and cross-publishes, so the arm64 image builds without emulation (ADR-1248). The
+# image serves HTTPS only (ADR-1504).
+name: Directory image
+
+on:
+  # A push gates only main and the release lines, because a pull request already gates every other branch (see ci.yml).
+  # The merge queue runs the check on the merged result, so a required check must report on merge_group (ADR-1263).
+  # Release lines are gated like main.
+  push:
+    branches: [main, 'release/**']
+  pull_request:
+    branches: [main, 'release/**']
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# See the note in ci.yml: on main and the release lines the group includes the SHA so every commit of a protected line
+# keeps its own verdict.
+concurrency:
+  group: directory-image-${{ github.ref }}-${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && github.sha || 'head' }}
+  cancel-in-progress: ${{ !(github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) }}
+
+jobs:
+  build:
+    name: Build directory image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Nothing in this job pushes, so the token stays out of .git/config, where later steps could read it.
+          persist-credentials: false
+
+      # Third-party actions, so each is pinned to a commit; Dependabot moves the pin and its version comment together.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      # Each image writes its own cache scope, so the workflows never replace each other's layers.
+      - name: Build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: hosts/NCode.Identity.OpenId.GlobalDirectory.Host/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: false
+          cache-from: type=gha,scope=directory-image
+          cache-to: type=gha,mode=max,scope=directory-image
+
+      # A multi-architecture build cannot be loaded into the local Docker daemon, so the amd64 image is built once more,
+      # from the cache, to be inspected.
+      - name: Load the amd64 image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: hosts/NCode.Identity.OpenId.GlobalDirectory.Host/Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: ncode-identity-directory:ci
+          cache-from: type=gha,scope=directory-image
+
+      # The image carries the log format (ADR-1248), so a change that drops it fails here rather than in production.
+      - name: Check the image logs one-line JSON
+        run: |
+          env=$(docker image inspect ncode-identity-directory:ci --format '{{range .Config.Env}}{{println .}}{{end}}')
+          for setting in \
+            Logging__Console__FormatterName=json \
+            Logging__Console__FormatterOptions__UseUtcTimestamp=true \
+            Logging__Console__FormatterOptions__TimestampFormat=O; do
+            if ! grep -qxF "$setting" <<< "$env"; then
+              echo "::error::The image does not set ${setting}"
+              exit 1
+            fi
+          done
+
+      # The image serves HTTPS only on 8443 and reads its certificate from the mount point of the TLS contract
+      # (ADR-1504), so a change that drops it fails here rather than in production.
+      - name: Check the image serves HTTPS
+        run: |
+          env=$(docker image inspect ncode-identity-directory:ci --format '{{range .Config.Env}}{{println .}}{{end}}')
+          for setting in \
+            ASPNETCORE_URLS=https://+:8443 \
+            Kestrel__Certificates__Default__Path=/etc/ncode-identity/tls/tls.crt \
+            Kestrel__Certificates__Default__KeyPath=/etc/ncode-identity/tls/tls.key; do
+            if ! grep -qxF "$setting" <<< "$env"; then
+              echo "::error::The image does not set ${setting}"
+              exit 1
+            fi
+          done
+          ports=$(docker image inspect ncode-identity-directory:ci --format '{{json .Config.ExposedPorts}}')
+          if [ "$ports" != '{"8443/tcp":{}}' ]; then
+            echo "::error::The image must expose only 8443/tcp, not ${ports}"
+            exit 1
+          fi
