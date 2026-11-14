@@ -78,24 +78,6 @@ public class BffStoreKeysTests : BaseTests
 
     #endregion
 
-    #region ClientMember Tests
-
-    [Fact]
-    public void ClientMember_Always_RoundTripsThroughTryParseClientMember()
-    {
-        var client = new BffSessionClient("web", "https://op.example/a|b%7C", "client|id%");
-        var absoluteExpiresAt = new DateTimeOffset(2030, 5, 6, 7, 8, 9, TimeSpan.Zero);
-
-        var member = BffStoreKeys.ClientMember(client, absoluteExpiresAt);
-        var parsed = BffStoreKeys.TryParseClientMember(member, out var result);
-
-        Assert.True(parsed);
-        Assert.Equal(client, result);
-        Assert.StartsWith("2030-05-06|web|", member, StringComparison.Ordinal);
-    }
-
-    #endregion
-
     #region ClientMemberExpiresAt Tests
 
     [Fact]
@@ -106,22 +88,6 @@ public class BffStoreKeysTests : BaseTests
         var result = BffStoreKeys.ClientMemberExpiresAt(absoluteExpiresAt);
 
         Assert.Equal(new DateTimeOffset(2030, 5, 8, 0, 0, 0, TimeSpan.Zero), result);
-    }
-
-    #endregion
-
-    #region TryParseClientMember Tests
-
-    [Theory]
-    [InlineData("")]
-    [InlineData("2030-05-06|web|authority")]
-    [InlineData("2030-05-06|web|authority|client|extra")]
-    public void TryParseClientMember_Malformed_ReturnsFalse(string member)
-    {
-        var result = BffStoreKeys.TryParseClientMember(member, out var client);
-
-        Assert.False(result);
-        Assert.Equal(default, client);
     }
 
     #endregion

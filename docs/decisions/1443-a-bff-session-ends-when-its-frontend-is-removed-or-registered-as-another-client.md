@@ -36,8 +36,9 @@ client; and a background pass on one replica ends every stored session whose fro
    (`BffSessionClient`: frontend, authority and client id) that have stored sessions, and `FindByClientAsync` lists the
    store keys of one client's sessions; a store adapter implements both. The default store keeps one `bff:client:`
    index per client, keyed by digests of the length-prefixed values, and one `bff:clients` index whose members name a
-   client and the UTC day of its sessions' absolute expiry. Each member expires at the end of its day, so adding a
-   session never shortens how long its client stays listed.
+   client and the UTC day of its sessions' absolute expiry. Each member is protected with `IDataProtector`, one per
+   replica, client and day, and expires at the end of its day, so adding a session never shortens how long its client
+   stays listed, and an unreadable member is skipped and removed.
 4. **A pass reconciles the store with the set.** `BffSessionRetirementService` runs `BffSessionRetirement` when the
    host starts and after every change of the set. For each stored client whose frontend is gone, or is configured as
    another client, the pass takes the store lease `retire:<frontend>` for `Bff:SessionRetirement:LeaseDuration` (five

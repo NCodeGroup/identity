@@ -10,8 +10,11 @@ namespace NCode.Identity.Bff.Sessions;
 /// The default <see cref="IBffSessionStore"/>, which keeps sessions, login transactions and refresh leases in the
 /// shared-state sets that every replica sees.
 /// </summary>
-internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSet indexes)
-    : IBffSessionStore
+internal class DefaultBffSessionStore(
+    IExpiringValueSet values,
+    IExpiringIndexSet indexes,
+    IBffClientMemberProtector clientMembers
+) : IBffSessionStore
 {
     /// <inheritdoc />
     public async ValueTask<bool> TryCreateAsync(
@@ -62,7 +65,7 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
             );
             await indexes.AddMemberAsync(
                 BffStoreKeys.ClientsIndex,
-                BffStoreKeys.ClientMember(client, metadata.AbsoluteExpiresAt),
+                clientMembers.Protect(client, metadata.AbsoluteExpiresAt),
                 BffStoreKeys.ClientMemberExpiresAt(metadata.AbsoluteExpiresAt),
                 cancellationToken
             );
@@ -224,8 +227,17 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
             var clients = new List<BffSessionClient>(members.Count);
             foreach (var member in members)
             {
-                if (BffStoreKeys.TryParseClientMember(member, out var client))
+                if (clientMembers.TryUnprotect(member, out var client))
+                {
                     clients.Add(client);
+                    continue;
+                }
+
+                await indexes.RemoveMemberAsync(
+                    BffStoreKeys.ClientsIndex,
+                    member,
+                    cancellationToken
+                );
             }
 
             return clients.Distinct().ToList();

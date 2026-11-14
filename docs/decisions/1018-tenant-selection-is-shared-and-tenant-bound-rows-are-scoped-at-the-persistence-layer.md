@@ -160,7 +160,9 @@ current_setting('app.unscoped', true) = 'on' OR "NormalizedTenantId" = current_s
   one tenant's `alice` and another's are different users.
 - **BFF client members.** The members of the `bff:clients` index are protected with `IDataProtector` under the purpose
   `NCode.Identity.Bff.ClientMembers`, through `IBffClientMemberProtector` (`DefaultBffClientMemberProtector`). An
-  unreadable member is skipped and pruned.
+  unreadable member is skipped and pruned. `IDataProtector` output is randomized, so the protector caches the
+  protected member per client and UTC day of absolute expiry and drops the entries of earlier days; the index holds at
+  most one member per replica, client and day.
 
 ## Options considered
 

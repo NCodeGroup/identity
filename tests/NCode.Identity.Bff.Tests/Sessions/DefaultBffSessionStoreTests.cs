@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using Microsoft.AspNetCore.DataProtection;
 using Moq;
 using NCode.Buffers;
 using NCode.Identity.Bff.Sessions;
@@ -18,13 +19,15 @@ public class DefaultBffSessionStoreTests : BaseTests
 
     private Mock<IExpiringValueSet> MockValues { get; }
     private Mock<IExpiringIndexSet> MockIndexes { get; }
+    private DefaultBffClientMemberProtector ClientMembers { get; } =
+        new(new EphemeralDataProtectionProvider());
     private DefaultBffSessionStore Store { get; }
 
     public DefaultBffSessionStoreTests()
     {
         MockValues = CreateStrictMock<IExpiringValueSet>();
         MockIndexes = CreateStrictMock<IExpiringIndexSet>();
-        Store = new DefaultBffSessionStore(MockValues.Object, MockIndexes.Object);
+        Store = new DefaultBffSessionStore(MockValues.Object, MockIndexes.Object, ClientMembers);
     }
 
     private static BffSessionMetadata CreateMetadata(string? sessionId = "sid-1") =>
@@ -66,7 +69,7 @@ public class DefaultBffSessionStoreTests : BaseTests
             .Setup(x =>
                 x.AddMemberAsync(
                     BffStoreKeys.ClientsIndex,
-                    BffStoreKeys.ClientMember(client, Absolute),
+                    ClientMembers.Protect(client, Absolute),
                     new DateTimeOffset(2026, 1, 3, 0, 0, 0, TimeSpan.Zero),
                     CancellationToken.None
                 )
@@ -488,10 +491,9 @@ public class DefaultBffSessionStoreTests : BaseTests
         var other = new BffSessionClient("other", "https://op.example", "client-2");
         IReadOnlyList<string> members =
         [
-            BffStoreKeys.ClientMember(client, Absolute),
-            BffStoreKeys.ClientMember(client, Absolute.AddDays(1)),
-            BffStoreKeys.ClientMember(other, Absolute),
-            "malformed",
+            ClientMembers.Protect(client, Absolute),
+            ClientMembers.Protect(client, Absolute.AddDays(1)),
+            ClientMembers.Protect(other, Absolute),
         ];
         MockIndexes
             .Setup(x => x.GetMembersAsync(BffStoreKeys.ClientsIndex, CancellationToken.None))
@@ -501,6 +503,27 @@ public class DefaultBffSessionStoreTests : BaseTests
         var result = await Store.FindClientsAsync(CancellationToken.None);
 
         Assert.Equal([client, other], result);
+    }
+
+    [Fact]
+    public async Task FindClientsAsync_UnreadableMember_RemovesItAndReturnsTheOthers()
+    {
+        var client = CreateClient();
+        IReadOnlyList<string> members = ["malformed", ClientMembers.Protect(client, Absolute)];
+        MockIndexes
+            .Setup(x => x.GetMembersAsync(BffStoreKeys.ClientsIndex, CancellationToken.None))
+            .ReturnsAsync(members)
+            .Verifiable(Times.Once);
+        MockIndexes
+            .Setup(x =>
+                x.RemoveMemberAsync(BffStoreKeys.ClientsIndex, "malformed", CancellationToken.None)
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
+
+        var result = await Store.FindClientsAsync(CancellationToken.None);
+
+        Assert.Equal([client], result);
     }
 
     [Fact]
