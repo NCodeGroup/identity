@@ -35,6 +35,8 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
     private const string TenantId = "tenant-1";
     private const string TeamId = "team-1";
     private const string Region = "us-east";
+    private const string CellName = "cell-a";
+    private const string TargetCell = "cell-b";
     private const string MasterKeysPackage = "master-keys-package";
     private const string PackageText = "export-package";
 
@@ -54,6 +56,7 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
     private Mock<IAlgorithmCollection> MockAlgorithmCollection { get; }
     private Mock<KeyManagementAlgorithm> MockKeyManagement { get; }
     private Mock<AuthenticatedEncryptionAlgorithm> MockEncryption { get; }
+    private Mock<ITenantDirectory> MockTenantDirectory { get; }
     private Mock<IManagementAuditRecorder> MockManagementAuditRecorder { get; }
     private FakeJoseEncoder Encoder { get; } = new();
     private TenantTransferApiEndpointHandler Handler { get; }
@@ -76,6 +79,7 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
         MockAlgorithmCollection = MockRepository.Create<IAlgorithmCollection>();
         MockKeyManagement = MockRepository.Create<KeyManagementAlgorithm>();
         MockEncryption = MockRepository.Create<AuthenticatedEncryptionAlgorithm>();
+        MockTenantDirectory = MockRepository.Create<ITenantDirectory>();
         MockManagementAuditRecorder = MockRepository.Create<IManagementAuditRecorder>();
 
         // The handler reads each contributor's order once, to run them in order whatever order they are registered in.
@@ -92,8 +96,11 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
             MockMasterKeyTransfer.Object,
             MockJoseSerializer.Object,
             MockAlgorithmCollectionProvider.Object,
+            MockTenantDirectory.Object,
             MockManagementAuditRecorder.Object,
-            Microsoft.Extensions.Options.Options.Create(new CellOptions { Region = Region }),
+            Microsoft.Extensions.Options.Options.Create(
+                new CellOptions { Name = CellName, Region = Region }
+            ),
             TimeProvider.System
         );
     }
@@ -367,6 +374,83 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
+    private void SetupPlacement(string? cell) =>
+        MockTenantDirectory
+            .Setup(x => x.GetPlacementOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+                cell is null
+                    ? null
+                    : new TenantPlacement
+                    {
+                        TenantId = TenantId,
+                        Issuer = "https://issuer.example.com",
+                        Cell = cell,
+                        Region = Region,
+                    }
+            )
+            .Verifiable();
+
+    // The release removes the contributors' rows in reverse order, then the tenant, and saves.
+    private List<string> SetupReleaseRemovals()
+    {
+        var calls = new List<string>();
+
+        MockAccountsContributor
+            .Setup(x => x.RemoveAsync(TenantId, It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                calls.Add("remove-accounts");
+                return ValueTask.CompletedTask;
+            })
+            .Verifiable();
+
+        MockCoreContributor
+            .Setup(x => x.RemoveAsync(TenantId, It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                calls.Add("remove-core");
+                return ValueTask.CompletedTask;
+            })
+            .Verifiable();
+
+        MockTenantStore
+            .Setup(x => x.RemoveMovedAsync(TenantId, It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                calls.Add("remove-tenant");
+                return new ValueTask<bool>(true);
+            })
+            .Verifiable();
+
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                calls.Add("save");
+                return ValueTask.CompletedTask;
+            })
+            .Verifiable();
+
+        return calls;
+    }
+
+    private void SetupReleasedAudit() =>
+        MockManagementAuditRecorder
+            .Setup(x =>
+                x.RecordTenantChangedAsync(
+                    It.IsAny<HttpContext>(),
+                    TeamId,
+                    TenantId,
+                    "released",
+                    It.Is<JsonElement?>(values =>
+                        values.HasValue
+                        && values.Value.GetProperty("targetCell").GetString() == TargetCell
+                    )
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
     // An encoder that returns the package text and keeps the payload that it was asked to encrypt.
     private sealed class FakeJoseEncoder : JoseEncoder
     {
@@ -600,6 +684,151 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
 
     #endregion
 
+    #region ReleaseMovedTenantAsync Tests
+
+    [Fact]
+    public async Task ReleaseMovedTenantAsync_WhenTheDirectoryPlacesTheTenantInAnotherCell_RemovesItInReverseOrderAndAudits()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupStore(CreateTenant(isDisabled: true));
+        SetupPlacement(TargetCell);
+        var calls = SetupReleaseRemovals();
+        SetupReleasedAudit();
+
+        var result = await Handler.ReleaseMovedTenantAsync(
+            CreateHttpContext(),
+            TenantId,
+            CancellationToken.None
+        );
+
+        Assert.IsType<NoContent>(result);
+        Assert.Equal(["remove-accounts", "remove-core", "remove-tenant", "save"], calls);
+    }
+
+    [Fact]
+    public async Task ReleaseMovedTenantAsync_WhenTheDirectoryPlacesTheTenantInThisCell_ReturnsConflictAndReleasesNothing()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupStore(CreateTenant(isDisabled: true));
+        SetupPlacement(CellName);
+
+        var result = await Handler.ReleaseMovedTenantAsync(
+            CreateHttpContext(),
+            TenantId,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task ReleaseMovedTenantAsync_WhenTheDirectoryDoesNotPlaceTheTenant_ReturnsConflictAndReleasesNothing()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupStore(CreateTenant(isDisabled: true));
+        SetupPlacement(cell: null);
+
+        var result = await Handler.ReleaseMovedTenantAsync(
+            CreateHttpContext(),
+            TenantId,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task ReleaseMovedTenantAsync_WhenTheDirectoryIsUnavailable_ReturnsServiceUnavailableAndReleasesNothing()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupStore(CreateTenant(isDisabled: true));
+        MockTenantDirectory
+            .Setup(x => x.GetPlacementOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()))
+            .Throws(new DirectoryUnavailableException("The directory is unreachable."))
+            .Verifiable();
+        var httpContext = CreateHttpContext();
+
+        var result = await Handler.ReleaseMovedTenantAsync(
+            httpContext,
+            TenantId,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, problem.StatusCode);
+        Assert.True(httpContext.Response.Headers.ContainsKey("Retry-After"));
+    }
+
+    [Fact]
+    public async Task ReleaseMovedTenantAsync_WhenTheTenantDoesNotExist_ReturnsNotFound()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupStore(tenant: null);
+
+        var result = await Handler.ReleaseMovedTenantAsync(
+            CreateHttpContext(),
+            TenantId,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task ReleaseMovedTenantAsync_WhenTheTenantIsReleased_DestroysNoRemoteKeyAndRetiresNothing()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupStore(CreateTenant(isDisabled: true));
+        SetupPlacement(TargetCell);
+        SetupReleaseRemovals();
+        SetupReleasedAudit();
+
+        await Handler.ReleaseMovedTenantAsync(
+            CreateHttpContext(),
+            TenantId,
+            CancellationToken.None
+        );
+
+        // The strict mocks refuse any call that no setup names. The directory is only read, the master keys are
+        // neither exported nor removed, and the store only removes the moved tenant, so no retirement happens and no
+        // master key or remote key is destroyed.
+        MockTenantDirectory.Verify(
+            x => x.GetPlacementOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()),
+            Times.Once
+        );
+        MockTenantDirectory.VerifyNoOtherCalls();
+        MockMasterKeyTransfer.VerifyNoOtherCalls();
+        MockTenantStore.Verify(
+            x => x.RemoveMovedAsync(TenantId, It.IsAny<CancellationToken>()),
+            Times.Once
+        );
+        MockTenantStore.Verify(
+            x => x.GetOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()),
+            Times.Once
+        );
+        MockTenantStore.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task ReleaseMovedTenantAsync_WhenTheCallerIsNotAuthorized_ReturnsForbiddenBeforeReadingAnything()
+    {
+        SetupAuthorization(AuthorizationResult.Failed());
+
+        var result = await Handler.ReleaseMovedTenantAsync(
+            CreateHttpContext(),
+            TenantId,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
+    }
+
+    #endregion
+
     #region Map Tests
 
     [Fact]
@@ -619,6 +848,28 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
                 Handler,
                 "POST",
                 "/tenants/{tenantId}/export",
+                CancellationToken.None
+            )
+        );
+    }
+
+    [Fact]
+    public async Task Map_Always_DeclaresAndDescribesEveryProblemTheReleaseRouteAnswers()
+    {
+        Assert.Equal(
+            new[] { 401, 403, 404, 409, 503 },
+            await EndpointProblemMetadata.ReadStatusCodesAsync(
+                Handler,
+                "POST",
+                "/tenants/{tenantId}/release-moved",
+                CancellationToken.None
+            )
+        );
+        Assert.Empty(
+            await EndpointProblemMetadata.ReadUndescribedStatusCodesAsync(
+                Handler,
+                "POST",
+                "/tenants/{tenantId}/release-moved",
                 CancellationToken.None
             )
         );

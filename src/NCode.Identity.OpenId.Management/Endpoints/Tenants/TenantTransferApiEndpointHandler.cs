@@ -34,15 +34,18 @@ namespace NCode.Identity.OpenId.Management.Endpoints.Tenants;
 /*
 
 POST api/tenants/{tenantId}/export
+POST api/tenants/{tenantId}/release-moved
 
 */
 
 /// <summary>
-/// Provides the API endpoint that exports a disabled tenant from the cell that holds it. The export is one compact
+/// Provides the API endpoints that move a disabled tenant out of the cell that holds it. The export is one compact
 /// <c>JWE</c> to a recipient key that the receiving cell published: it carries the cell's region, the tenant's
 /// identifier, the section of every <see cref="ITenantTransferContributor"/> in order, and the tenant's master keys
-/// sealed to the same key. The caller needs the update operation on the platform node, and the tenant must be disabled
-/// so that nothing changes while it moves. The response is never logged.
+/// sealed to the same key. The tenant must be disabled so that nothing changes while it moves. The release removes
+/// the tenant's rows from this cell once the global directory places the tenant in another cell; it destroys no
+/// remote key and retires nothing. The caller needs the update operation on the platform node. The export's response
+/// is never logged.
 /// </summary>
 // See ADR-1514.
 internal class TenantTransferApiEndpointHandler(
@@ -55,6 +58,7 @@ internal class TenantTransferApiEndpointHandler(
     IMasterKeyTransfer masterKeyTransfer,
     IJoseSerializer joseSerializer,
     IAlgorithmCollectionProvider algorithmCollectionProvider,
+    ITenantDirectory tenantDirectory,
     IManagementAuditRecorder managementAuditRecorder,
     IOptions<CellOptions> cellOptions,
     TimeProvider timeProvider
@@ -64,6 +68,13 @@ internal class TenantTransferApiEndpointHandler(
     /// The change type of the audit record that an export writes, which makes the event <c>tenant.exported</c>.
     /// </summary>
     internal const string ExportedChangeType = "exported";
+
+    /// <summary>
+    /// The change type of the audit record that a release writes, which makes the event <c>tenant.released</c>.
+    /// </summary>
+    internal const string ReleasedChangeType = "released";
+
+    private const int DirectoryRetrySeconds = 5;
 
     /// <summary>
     /// The identifier that the recipient key is imported under.
@@ -83,6 +94,7 @@ internal class TenantTransferApiEndpointHandler(
     private IJoseSerializer JoseSerializer { get; } = joseSerializer;
     private IAlgorithmCollectionProvider AlgorithmCollectionProvider { get; } =
         algorithmCollectionProvider;
+    private ITenantDirectory TenantDirectory { get; } = tenantDirectory;
     private IManagementAuditRecorder ManagementAuditRecorder { get; } = managementAuditRecorder;
     private CellOptions CellOptions { get; } = cellOptions.Value;
     private TimeProvider TimeProvider { get; } = timeProvider;
@@ -111,6 +123,105 @@ internal class TenantTransferApiEndpointHandler(
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status415UnsupportedMediaType)
             .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
+
+        tenants
+            .MapPost("/{tenantId}/release-moved", ReleaseMovedTenantAsync)
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+    }
+
+    /// <summary>
+    /// Releases a tenant that the global directory places in another cell: every
+    /// <see cref="ITenantTransferContributor"/> removes its rows in reverse order, then the tenant is removed with its
+    /// master keys. It destroys no remote key and retires nothing, because the tenant lives on in the other cell.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <response code="204">The tenant is released from this cell.</response>
+    /// <response code="404">The tenant does not exist in this cell.</response>
+    /// <response code="409">The global directory does not place the tenant in another cell.</response>
+    /// <response code="503">The global directory is unavailable; nothing is released.</response>
+    [EndpointName("api/tenants/release-moved/create")]
+    internal virtual async ValueTask<IResult> ReleaseMovedTenantAsync(
+        HttpContext httpContext,
+        [FromRoute] string tenantId,
+        CancellationToken cancellationToken
+    )
+    {
+        var authorizationFailure = await GetAuthorizationFailureAsync(
+            httpContext,
+            GetPlatformNode(httpContext),
+            Operations.Update,
+            cancellationToken
+        );
+
+        if (authorizationFailure is not null)
+        {
+            return authorizationFailure;
+        }
+
+        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+        var tenantStore = storeManager.GetStore<ITenantStore>();
+        var tenant = await tenantStore.GetOrDefaultAsync(tenantId, cancellationToken);
+
+        if (tenant is null)
+        {
+            return ManagementProblems.ResourceNotFound();
+        }
+
+        TenantPlacement? placement;
+        try
+        {
+            placement = await TenantDirectory.GetPlacementOrDefaultAsync(
+                tenantId,
+                cancellationToken
+            );
+        }
+        catch (DirectoryUnavailableException)
+        {
+            return RetryAfterProblem.Create(
+                httpContext,
+                TimeSpan.FromSeconds(DirectoryRetrySeconds),
+                new ProblemDetails
+                {
+                    Status = StatusCodes.Status503ServiceUnavailable,
+                    Detail = "The global directory is unavailable. Retry the request.",
+                }
+            );
+        }
+
+        if (placement is null || placement.Cell == CellOptions.Name)
+        {
+            return TypedResults.Problem(
+                detail: $"The global directory does not place the tenant '{tenantId}' in another cell.",
+                statusCode: StatusCodes.Status409Conflict
+            );
+        }
+
+        for (var index = TenantTransferContributors.Count - 1; index >= 0; index--)
+        {
+            await TenantTransferContributors[index].RemoveAsync(tenantId, cancellationToken);
+        }
+
+        await tenantStore.RemoveMovedAsync(tenantId, cancellationToken);
+        await storeManager.SaveChangesAsync(cancellationToken);
+
+        await ManagementAuditRecorder.RecordTenantChangedAsync(
+            httpContext,
+            tenant.TeamId,
+            tenantId,
+            ReleasedChangeType,
+            JsonSerializer.SerializeToElement(
+                new Dictionary<string, string> { ["targetCell"] = placement.Cell }
+            )
+        );
+
+        return TypedResults.NoContent();
     }
 
     /// <summary>
