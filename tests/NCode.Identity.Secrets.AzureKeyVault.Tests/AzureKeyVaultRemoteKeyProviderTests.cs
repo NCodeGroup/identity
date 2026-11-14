@@ -1136,6 +1136,106 @@ public class AzureKeyVaultRemoteKeyProviderTests : BaseTests
 
     #endregion
 
+    #region RetagKeyAsync Tests
+
+    private void SetupGetKeyFailure(Exception exception) =>
+        KeyClient
+            .Setup(x => x.GetKeyAsync("ncode-key", Version, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(exception)
+            .Verifiable();
+
+    [Fact]
+    public async Task RetagKeyAsync_SetsTheDeploymentTagInTheVaultOfTheKey()
+    {
+        KeyProperties? sent = null;
+        SetupKeyClient<Response<KeyVaultKey>>(VaultUri);
+        SetupGetKey(CreateKey(KeyVersionId, null));
+        SetupUpdateKeyProperties(captured => sent = captured);
+        var provider = CreateProvider(vaultUri: "https://other.vault.azure.net");
+
+        await provider.RetagKeyAsync(KeyVersionId, "deployment-2", CancellationToken.None);
+
+        var properties = Assert.IsType<KeyProperties>(sent);
+        Assert.Equal("ncode-key", properties.Name);
+        Assert.Equal(Version, properties.Version);
+        Assert.Equal(
+            "deployment-2",
+            properties.Tags[AzureKeyVaultRemoteKeyProvider.DeploymentTagKey]
+        );
+    }
+
+    [Fact]
+    public async Task RetagKeyAsync_KeyWithOtherTags_KeepsTheOtherTags()
+    {
+        KeyProperties? sent = null;
+        var key = CreateKey(KeyVersionId, null);
+        key.Properties.Tags[AzureKeyVaultRemoteKeyProvider.DeploymentTagKey] = "deployment-1";
+        key.Properties.Tags["team"] = "identity";
+        SetupKeyClient<Response<KeyVaultKey>>(VaultUri);
+        SetupGetKey(key);
+        SetupUpdateKeyProperties(captured => sent = captured);
+        var provider = CreateProvider();
+
+        await provider.RetagKeyAsync(KeyVersionId, "deployment-2", CancellationToken.None);
+
+        var tags = Assert.IsType<KeyProperties>(sent).Tags;
+        Assert.Equal(2, tags.Count);
+        Assert.Equal("deployment-2", tags[AzureKeyVaultRemoteKeyProvider.DeploymentTagKey]);
+        Assert.Equal("identity", tags["team"]);
+    }
+
+    [Fact]
+    public async Task RetagKeyAsync_VersionNotFound_Completes()
+    {
+        SetupKeyClient<Response<KeyVaultKey>>(VaultUri);
+        SetupGetKeyFailure(new RequestFailedException(404, "Not found."));
+        var provider = CreateProvider();
+
+        await provider.RetagKeyAsync(KeyVersionId, "deployment-2", CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task RetagKeyAsync_VersionRemovedBeforeTheUpdate_Completes()
+    {
+        SetupKeyClient<Response<KeyVaultKey>>(VaultUri);
+        SetupGetKey(CreateKey(KeyVersionId, null));
+        SetupUpdateKeyProperties(exception: new RequestFailedException(404, "Not found."));
+        var provider = CreateProvider();
+
+        await provider.RetagKeyAsync(KeyVersionId, "deployment-2", CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task RetagKeyAsync_OtherFailure_Propagates()
+    {
+        var failure = new RequestFailedException(503, "Unavailable.");
+        SetupKeyClient<Response<KeyVaultKey>>(VaultUri);
+        SetupGetKeyFailure(failure);
+        var provider = CreateProvider();
+
+        var exception = await Assert.ThrowsAsync<RequestFailedException>(() =>
+            provider.RetagKeyAsync(KeyVersionId, "deployment-2", CancellationToken.None).AsTask()
+        );
+
+        Assert.Same(failure, exception);
+    }
+
+    [Fact]
+    public async Task RetagKeyAsync_KeyIdWithoutVersion_Throws()
+    {
+        var provider = CreateProvider();
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+            provider
+                .RetagKeyAsync(VaultUri + "/keys/ncode-key", "deployment-2", CancellationToken.None)
+                .AsTask()
+        );
+
+        Assert.Equal("keyId", exception.ParamName);
+    }
+
+    #endregion
+
     #region ListKeysAsync Tests
 
     private static DateTimeOffset CreatedOn { get; } = new(2026, 1, 2, 3, 4, 5, TimeSpan.Zero);

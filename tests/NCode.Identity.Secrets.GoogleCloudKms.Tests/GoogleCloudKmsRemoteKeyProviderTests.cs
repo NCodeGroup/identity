@@ -1447,6 +1447,163 @@ public class GoogleCloudKmsRemoteKeyProviderTests : BaseTests
 
     #endregion
 
+    #region RetagKeyAsync Tests
+
+    private const string SignCryptoKeyName = KeyRing + "/cryptoKeys/signing";
+
+    private void SetupGetCryptoKey(
+        Func<Task<CryptoKey>> respond,
+        Action<GetCryptoKeyRequest, CallSettings?>? capture = null
+    ) =>
+        Client
+            .Setup(x =>
+                x.GetCryptoKeyAsync(It.IsAny<GetCryptoKeyRequest>(), It.IsAny<CallSettings>())
+            )
+            .Callback<GetCryptoKeyRequest, CallSettings?>(
+                (request, settings) => capture?.Invoke(request, settings)
+            )
+            .Returns(respond)
+            .Verifiable();
+
+    private void SetupUpdateCryptoKey(
+        Func<Task<CryptoKey>> respond,
+        Action<UpdateCryptoKeyRequest, CallSettings?>? capture = null
+    ) =>
+        Client
+            .Setup(x =>
+                x.UpdateCryptoKeyAsync(It.IsAny<UpdateCryptoKeyRequest>(), It.IsAny<CallSettings>())
+            )
+            .Callback<UpdateCryptoKeyRequest, CallSettings?>(
+                (request, settings) => capture?.Invoke(request, settings)
+            )
+            .Returns(respond)
+            .Verifiable();
+
+    [Fact]
+    public async Task RetagKeyAsync_Version_UpdatesTheLabelOfTheCryptoKeyWithTheRetryingSettings()
+    {
+        using var cancellationSource = new CancellationTokenSource();
+        GetCryptoKeyRequest? read = null;
+        CallSettings? readSettings = null;
+        UpdateCryptoKeyRequest? sent = null;
+        CallSettings? sentSettings = null;
+        SetupClient<CryptoKey>();
+        SetupGetCryptoKey(
+            () => Task.FromResult(new CryptoKey { Name = SignCryptoKeyName }),
+            (request, settings) =>
+            {
+                read = request;
+                readSettings = settings;
+            }
+        );
+        SetupUpdateCryptoKey(
+            () => Task.FromResult(new CryptoKey()),
+            (request, settings) =>
+            {
+                sent = request;
+                sentSettings = settings;
+            }
+        );
+        var provider = CreateProvider();
+
+        await provider.RetagKeyAsync(SignKeyName, "deployment-2", cancellationSource.Token);
+
+        Assert.Equal(SignCryptoKeyName, Assert.IsType<GetCryptoKeyRequest>(read).Name);
+        AssertSettings(readSettings, GoogleCloudKmsCallSettings.Retrying, cancellationSource.Token);
+        var request = Assert.IsType<UpdateCryptoKeyRequest>(sent);
+        Assert.Equal(SignCryptoKeyName, request.CryptoKey.Name);
+        Assert.Equal(
+            "deployment-2",
+            request.CryptoKey.Labels[GoogleCloudKmsRemoteKeyProvider.DeploymentLabelKey]
+        );
+        Assert.Equal(["labels"], request.UpdateMask.Paths);
+        AssertSettings(sentSettings, GoogleCloudKmsCallSettings.Retrying, cancellationSource.Token);
+    }
+
+    [Fact]
+    public async Task RetagKeyAsync_CryptoKeyWithOtherLabels_KeepsTheOtherLabels()
+    {
+        UpdateCryptoKeyRequest? sent = null;
+        var cryptoKey = new CryptoKey
+        {
+            Name = SignCryptoKeyName,
+            Labels =
+            {
+                { GoogleCloudKmsRemoteKeyProvider.DeploymentLabelKey, "deployment-1" },
+                { "team", "identity" },
+            },
+        };
+        SetupClient<CryptoKey>();
+        SetupGetCryptoKey(() => Task.FromResult(cryptoKey));
+        SetupUpdateCryptoKey(
+            () => Task.FromResult(new CryptoKey()),
+            (request, _) => sent = request
+        );
+        var provider = CreateProvider();
+
+        await provider.RetagKeyAsync(SignKeyName, "deployment-2", CancellationToken.None);
+
+        var labels = Assert.IsType<UpdateCryptoKeyRequest>(sent).CryptoKey.Labels;
+        Assert.Equal(2, labels.Count);
+        Assert.Equal("deployment-2", labels[GoogleCloudKmsRemoteKeyProvider.DeploymentLabelKey]);
+        Assert.Equal("identity", labels["team"]);
+    }
+
+    [Fact]
+    public async Task RetagKeyAsync_CryptoKeyNotFound_Completes()
+    {
+        SetupClient<CryptoKey>();
+        SetupGetCryptoKey(() =>
+            Task.FromException<CryptoKey>(CreateRpcException(StatusCode.NotFound))
+        );
+        var provider = CreateProvider();
+
+        await provider.RetagKeyAsync(SignKeyName, "deployment-2", CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task RetagKeyAsync_CryptoKeyRemovedBeforeTheUpdate_Completes()
+    {
+        SetupClient<CryptoKey>();
+        SetupGetCryptoKey(() => Task.FromResult(new CryptoKey { Name = SignCryptoKeyName }));
+        SetupUpdateCryptoKey(() =>
+            Task.FromException<CryptoKey>(CreateRpcException(StatusCode.NotFound))
+        );
+        var provider = CreateProvider();
+
+        await provider.RetagKeyAsync(SignKeyName, "deployment-2", CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task RetagKeyAsync_OtherFailure_Propagates()
+    {
+        SetupClient<CryptoKey>();
+        SetupGetCryptoKey(() =>
+            Task.FromException<CryptoKey>(CreateRpcException(StatusCode.PermissionDenied))
+        );
+        var provider = CreateProvider();
+
+        var exception = await Assert.ThrowsAsync<RpcException>(() =>
+            provider.RetagKeyAsync(SignKeyName, "deployment-2", CancellationToken.None).AsTask()
+        );
+
+        Assert.Equal(StatusCode.PermissionDenied, exception.StatusCode);
+    }
+
+    [Fact]
+    public async Task RetagKeyAsync_KeyIdIsNotAVersionName_Throws()
+    {
+        var provider = CreateProvider();
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+            provider.RetagKeyAsync("not-a-version", "deployment-2", CancellationToken.None).AsTask()
+        );
+
+        Assert.Equal("keyId", exception.ParamName);
+    }
+
+    #endregion
+
     #region ListKeysAsync Tests
 
     private static DateTimeOffset CreatedWhen { get; } = new(2026, 1, 2, 3, 4, 5, TimeSpan.Zero);
