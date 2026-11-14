@@ -66,6 +66,7 @@
         <Project Path="src/NCode.Identity.OpenId.Client/NCode.Identity.OpenId.Client.csproj" />
         <Project Path="src/NCode.Identity.OpenId.Core/NCode.Identity.OpenId.Core.csproj" />
         <Project Path="src/NCode.Identity.OpenId.GlobalDirectory.Abstractions/NCode.Identity.OpenId.GlobalDirectory.Abstractions.csproj" />
+        <Project Path="src/NCode.Identity.OpenId.GlobalDirectory.Server/NCode.Identity.OpenId.GlobalDirectory.Server.csproj" />
         <Project Path="src/NCode.Identity.OpenId.GlobalDirectory/NCode.Identity.OpenId.GlobalDirectory.csproj" />
         <Project Path="src/NCode.Identity.OpenId.Management.Abstractions/NCode.Identity.OpenId.Management.Abstractions.csproj" />
         <Project Path="src/NCode.Identity.OpenId.Management/NCode.Identity.OpenId.Management.csproj" />
@@ -126,6 +127,7 @@
         <Project Path="tests/NCode.Identity.OpenId.Authentication.Interactive.Tests/NCode.Identity.OpenId.Authentication.Interactive.Tests.csproj" />
         <Project Path="tests/NCode.Identity.OpenId.Client.Tests/NCode.Identity.OpenId.Client.Tests.csproj" />
         <Project Path="tests/NCode.Identity.OpenId.Core.Tests/NCode.Identity.OpenId.Core.Tests.csproj" />
+        <Project Path="tests/NCode.Identity.OpenId.GlobalDirectory.Server.Tests/NCode.Identity.OpenId.GlobalDirectory.Server.Tests.csproj" />
         <Project Path="tests/NCode.Identity.OpenId.GlobalDirectory.Tests/NCode.Identity.OpenId.GlobalDirectory.Tests.csproj" />
         <Project Path="tests/NCode.Identity.OpenId.Host.Database.EndToEnd.Tests/NCode.Identity.OpenId.Host.Database.EndToEnd.Tests.csproj" />
         <Project Path="tests/NCode.Identity.OpenId.Host.Database.Tests/NCode.Identity.OpenId.Host.Database.Tests.csproj" />

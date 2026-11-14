@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <RootNamespace>NCode.Identity.OpenId.GlobalDirectory.Server</RootNamespace>
+        <Description>The global directory server for NCode.Identity: the store that reserves tenant and team identifiers platform-wide, places tenants in cells and publishes team and platform documents.</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="NCode.Identity.OpenId.GlobalDirectory.Server.Tests" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\NCode.Identity.OpenId.GlobalDirectory.Abstractions\NCode.Identity.OpenId.GlobalDirectory.Abstractions.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="JetBrains.Annotations" PrivateAssets="All" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    </ItemGroup>
+</Project>
