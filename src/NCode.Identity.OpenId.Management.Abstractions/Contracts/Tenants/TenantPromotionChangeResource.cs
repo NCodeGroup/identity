@@ -4,7 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 using JetBrains.Annotations;
 
-namespace NCode.Identity.OpenId.Management.Contracts.Teams;
+namespace NCode.Identity.OpenId.Management.Contracts.Tenants;
 
 /// <summary>
 /// Represents the change a promotion makes to one resource of the target tenant.

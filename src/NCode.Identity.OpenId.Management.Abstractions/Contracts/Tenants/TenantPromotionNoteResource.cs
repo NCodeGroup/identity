@@ -4,7 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 using JetBrains.Annotations;
 
-namespace NCode.Identity.OpenId.Management.Contracts.Teams;
+namespace NCode.Identity.OpenId.Management.Contracts.Tenants;
 
 /// <summary>
 /// Represents a note about a resource a promotion covers or leaves out. A note never refuses the promotion.

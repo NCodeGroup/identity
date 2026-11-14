@@ -55,8 +55,9 @@ keys, principals and environment-bound values stay with their environment.**
    `TeamAdmin`, `TenantAdmin`), usage, audit records, the tenant's metadata (issuer, mTLS alias, display name,
    `isDisabled`), system resource servers and system scopes, and host-managed clients with their grants are never
    copied.
-5. **Host-managed clients.** A source client that `IHostManagedClientPolicy` names for the source tenant is left out
-   with a `host_managed` note, and so are its grants. A target client the policy names for the target tenant is never
+5. **Host-managed clients.** A client that `IHostManagedClientPolicy` names for its tenant is never in that tenant's
+   configuration document, and neither are its grants. An inline document that names one for the source tenant has it
+   left out with a `host_managed` note, and its grants too. A target client the policy names for the target tenant is never
    written: a source client with its id is an error, as every management change to it answers `409`.
 6. **Environment-bound settings never travel.** `SettingDescriptor.IsEnvironmentBound`, `false` by default, marks a
    setting whose value belongs to the environment its owner serves: `environment_type`, `environment_name`,
@@ -89,7 +90,8 @@ keys, principals and environment-bound values stay with their environment.**
    non-environment-bound setting, no promoted resource, or repeated.
 9. **Notes, not errors.** `credential_required` is noted for a promoted client whose `token_endpoint_auth_method` is
    not `none` and whose target holds no secret. `environment_setting_unset` is noted for each environment-bound setting
-   the source sets and the promoted document lacks. `host_managed` is noted for each source client left out. The
+   the source sets and the promoted document lacks. `host_managed` is noted for each client an inline document names
+   that the policy names for the source tenant. The
    operator supplies the missing values in `environmentSettings` and previews again.
 10. **Authority.** The promotion runs on the target tenant's cell, and the caller needs `Create` at the target tenant
     node there. Team-level assignments live in the control-plane cell and are read through `IControlPlaneAuthority`, so a

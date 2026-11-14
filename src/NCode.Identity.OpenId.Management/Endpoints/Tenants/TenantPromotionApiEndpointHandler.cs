@@ -13,7 +13,7 @@ using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
-using NCode.Identity.OpenId.Management.Contracts.Teams;
+using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Management.Promotions;
 using NCode.Identity.OpenId.Persistence;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -21,19 +21,20 @@ using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Registration.AspNetCore;
 
-namespace NCode.Identity.OpenId.Management.Endpoints.Teams;
+namespace NCode.Identity.OpenId.Management.Endpoints.Tenants;
 
 /*
 
-POST api/teams/{teamId}/promotions/preview
-POST api/teams/{teamId}/promotions
+POST api/tenants/{tenantId}/promotions/preview
+POST api/tenants/{tenantId}/promotions
 
 */
 
 /// <summary>
-/// Provides the API endpoints for promoting one tenant's configuration into another tenant of the same team: a
-/// preview that reports what the promotion changes and writes nothing, and the promotion that applies it. The routes
-/// are mapped only on the control-plane cell.
+/// Provides the API endpoints for promoting a tenant's configuration into the tenant named by the route, from a
+/// source tenant of the same cell or from a configuration document exported by another cell of the same region: a
+/// preview that reports what the promotion changes and writes nothing, and the promotion that applies it. Every cell
+/// maps the routes.
 /// </summary>
 // See ADR-1425.
 internal class TenantPromotionApiEndpointHandler(
@@ -64,15 +65,9 @@ internal class TenantPromotionApiEndpointHandler(
     /// <inheritdoc />
     public void Map(IEndpointRouteBuilder endpoints)
     {
-        // Promotion is a team operation, and teams are owned by the control-plane cell, so no other cell maps its routes.
-        if (!CellOptions.IsControlPlane)
-        {
-            return;
-        }
-
         var promotions = endpoints
-            .MapGroup("/teams/{teamId}/promotions")
-            .WithTags(OpenIdConstants.EndpointTags.Teams)
+            .MapGroup("/tenants/{tenantId}/promotions")
+            .WithTags(OpenIdConstants.EndpointTags.Tenants)
             .AddEndpointFilter<RouteGroupBuilder, ControlPlaneScopeEndpointFilter>();
 
         promotions
@@ -82,7 +77,8 @@ internal class TenantPromotionApiEndpointHandler(
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
         promotions
             .MapPost("", PromoteAsync)
             .Produces<TenantPromotionResource>()
@@ -92,34 +88,36 @@ internal class TenantPromotionApiEndpointHandler(
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status412PreconditionFailed)
-            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
     }
 
     /// <summary>
-    /// Previews the promotion of one tenant's configuration into another tenant of the team: what it would change, what
+    /// Previews the promotion of a source configuration into the tenant named by the route: what it would change, what
     /// it notes and what refuses it. A preview writes nothing.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
-    /// <param name="teamId">The identifier of the team both tenants belong to.</param>
-    /// <param name="request">The tenants and the environment-bound settings the target keeps.</param>
+    /// <param name="tenantId">The identifier of the tenant that receives the configuration.</param>
+    /// <param name="request">The source and the environment-bound settings the target keeps.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="200">The report of the promotion, which is not applied.</response>
-    /// <response code="400">The request names no distinct source and target tenant.</response>
+    /// <response code="400">The request names its source in neither or both of the two ways, or names the target as its source.</response>
     /// <response code="403">The caller lacks the authority the promotion needs.</response>
-    /// <response code="404">A tenant does not exist or is not the team's.</response>
-    [EndpointName("api/teams/promotions/preview")]
+    /// <response code="404">A tenant does not exist, or the source is not a tenant of the target's team.</response>
+    /// <response code="422">The source document comes from another region.</response>
+    [EndpointName("api/tenants/promotions/preview")]
     internal virtual async ValueTask<IResult> PreviewPromotionAsync(
         HttpContext httpContext,
-        [FromRoute] string teamId,
+        [FromRoute] string tenantId,
         [FromBody] PromoteTenantRequest request,
         CancellationToken cancellationToken
     )
     {
         return await PlanPromotionAsync(
             httpContext,
-            teamId,
+            tenantId,
             request,
-            (context, _) =>
+            (teamId, context, _) =>
                 ValueTask.FromResult<IResult>(
                     TypedResults.Ok(ToReport(teamId, context, isApplied: false))
                 ),
@@ -128,31 +126,32 @@ internal class TenantPromotionApiEndpointHandler(
     }
 
     /// <summary>
-    /// Promotes one tenant's configuration into another tenant of the team. A promotion that has errors writes nothing.
+    /// Promotes a source configuration into the tenant named by the route. A promotion that has errors writes nothing.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
-    /// <param name="teamId">The identifier of the team both tenants belong to.</param>
-    /// <param name="request">The tenants and the environment-bound settings the target keeps.</param>
+    /// <param name="tenantId">The identifier of the tenant that receives the configuration.</param>
+    /// <param name="request">The source and the environment-bound settings the target keeps.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="200">The report of the promotion, which is applied.</response>
-    /// <response code="400">The request names no distinct source and target tenant.</response>
+    /// <response code="400">The request names its source in neither or both of the two ways, or names the target as its source.</response>
     /// <response code="403">The caller lacks the authority the promotion needs.</response>
-    /// <response code="404">A tenant does not exist or is not the team's.</response>
+    /// <response code="404">A tenant does not exist, or the source is not a tenant of the target's team.</response>
     /// <response code="409">The promotion has errors, so nothing was written.</response>
     /// <response code="412">Another change wrote the target first.</response>
-    [EndpointName("api/teams/promotions/create")]
+    /// <response code="422">The source document comes from another region.</response>
+    [EndpointName("api/tenants/promotions/create")]
     internal virtual async ValueTask<IResult> PromoteAsync(
         HttpContext httpContext,
-        [FromRoute] string teamId,
+        [FromRoute] string tenantId,
         [FromBody] PromoteTenantRequest request,
         CancellationToken cancellationToken
     )
     {
         return await PlanPromotionAsync(
             httpContext,
-            teamId,
+            tenantId,
             request,
-            (context, token) => ApplyPromotionAsync(httpContext, teamId, context, token),
+            (teamId, context, token) => ApplyPromotionAsync(httpContext, teamId, context, token),
             cancellationToken
         );
     }
@@ -197,63 +196,115 @@ internal class TenantPromotionApiEndpointHandler(
         return TypedResults.Ok(report);
     }
 
-    // Refuses a request that names no distinct pair of tenants and a caller without authority at the tenants' nodes. It
-    // reads nothing, so a caller without authority learns nothing about either tenant (ADR-1424).
+    // Refuses a request that names its source in neither or both of the two ways, or names the target as its source,
+    // and a caller without authority at the tenants' nodes. It reads nothing, so a caller without authority learns
+    // nothing about either tenant (ADR-1424).
     private async ValueTask<IResult?> GetRefusalBeforeReadingAsync(
         HttpContext httpContext,
+        string tenantId,
         PromoteTenantRequest request,
         CancellationToken cancellationToken
     )
     {
+        var hasSourceTenantId = !string.IsNullOrWhiteSpace(request.SourceTenantId);
         if (
-            string.IsNullOrWhiteSpace(request.SourceTenantId)
-            || string.IsNullOrWhiteSpace(request.TargetTenantId)
-            || string.Equals(
-                request.SourceTenantId,
-                request.TargetTenantId,
-                StringComparison.Ordinal
-            )
+            string.IsNullOrWhiteSpace(tenantId)
+            || hasSourceTenantId == (request.Source is not null)
+            || string.Equals(request.SourceTenantId, tenantId, StringComparison.Ordinal)
         )
         {
             return TypedResults.Problem(
-                detail: "The promotion needs a source tenant and a different target tenant.",
+                detail: "The promotion needs a target tenant and exactly one source, a different tenant or a configuration document.",
                 statusCode: StatusCodes.Status400BadRequest
             );
         }
 
-        var sourceFailure = await GetAuthorizationFailureAsync(
+        var targetFailure = await GetAuthorizationFailureAsync(
             httpContext,
-            GetTenantNode(request.SourceTenantId),
-            Operations.Read,
+            GetTenantNode(tenantId),
+            Operations.Create,
             cancellationToken
         );
-        if (sourceFailure is not null)
+        if (targetFailure is not null)
         {
-            return sourceFailure;
+            return targetFailure;
+        }
+
+        if (!hasSourceTenantId)
+        {
+            return null;
         }
 
         return await GetAuthorizationFailureAsync(
             httpContext,
-            GetTenantNode(request.TargetTenantId),
-            Operations.Create,
+            GetTenantNode(request.SourceTenantId ?? string.Empty),
+            Operations.Read,
             cancellationToken
         );
     }
 
-    // Refuses before reading, reads both tenants, exports the source's configuration, plans the promotion, then refuses it when the caller lacks the
-    // authority it needs: Update at the node above each changed limit (ADR-1418), then Create at each node whose
-    // role-holding client it changes (ADR-1466). Only a promotion that no check refused reaches completeAsync, while
-    // the unit of work is still open.
-    private async ValueTask<IResult> PlanPromotionAsync(
-        HttpContext httpContext,
+    // Reads the source configuration document: the exported document of a source tenant of the target's team, or the
+    // request's inline document. It returns a refusal when the source is missing, is not the team's, or comes from
+    // another region.
+    private async ValueTask<(
+        TenantConfigurationDocument? Document,
+        IResult? Refusal
+    )> GetSourceAsync(
+        ITenantStore tenantStore,
         string teamId,
         PromoteTenantRequest request,
-        Func<TenantPromotionContext, CancellationToken, ValueTask<IResult>> completeAsync,
+        CancellationToken cancellationToken
+    )
+    {
+        if (request.Source is not null)
+        {
+            return string.Equals(
+                request.Source.Region,
+                CellOptions.Region,
+                StringComparison.Ordinal
+            )
+                ? (request.Source, null)
+                : (
+                    null,
+                    TypedResults.Problem(
+                        detail: "The configuration document comes from another region, and a promotion runs within one region.",
+                        statusCode: StatusCodes.Status422UnprocessableEntity
+                    )
+                );
+        }
+
+        var source = await tenantStore.GetOrDefaultAsync(
+            request.SourceTenantId ?? string.Empty,
+            cancellationToken
+        );
+        if (source is null || !string.Equals(source.TeamId, teamId, StringComparison.Ordinal))
+        {
+            return (null, ManagementProblems.ResourceNotFound());
+        }
+
+        var document = await TenantConfigurationExporter.ExportAsync(
+            source.TenantId,
+            cancellationToken
+        );
+
+        return document is null ? (null, ManagementProblems.ResourceNotFound()) : (document, null);
+    }
+
+    // Refuses before reading, reads the target tenant and the source document, plans the promotion, then refuses it
+    // when the caller lacks the authority it needs: Update at the node above each changed limit (ADR-1418), then
+    // Create at each node whose role-holding client it changes (ADR-1466). Only a promotion that no check refused
+    // reaches completeAsync, while the unit of work is still open.
+    private async ValueTask<IResult> PlanPromotionAsync(
+        HttpContext httpContext,
+        string tenantId,
+        PromoteTenantRequest request,
+        Func<string, TenantPromotionContext, CancellationToken, ValueTask<IResult>> completeAsync,
         CancellationToken cancellationToken
     )
     {
         var refusalBeforeReading = await GetRefusalBeforeReadingAsync(
             httpContext,
+            tenantId,
             request,
             cancellationToken
         );
@@ -265,25 +316,23 @@ internal class TenantPromotionApiEndpointHandler(
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var tenantStore = storeManager.GetStore<ITenantStore>();
 
-        var source = await tenantStore.GetOrDefaultAsync(request.SourceTenantId, cancellationToken);
-        var target = await tenantStore.GetOrDefaultAsync(request.TargetTenantId, cancellationToken);
-        if (
-            source is null
-            || target is null
-            || !string.Equals(source.TeamId, teamId, StringComparison.Ordinal)
-            || !string.Equals(target.TeamId, teamId, StringComparison.Ordinal)
-        )
+        var target = await tenantStore.GetOrDefaultAsync(tenantId, cancellationToken);
+        if (target is null)
         {
             return ManagementProblems.ResourceNotFound();
         }
 
-        var sourceDocument = await TenantConfigurationExporter.ExportAsync(
-            source.TenantId,
+        var teamId = target.TeamId;
+
+        var (sourceDocument, sourceRefusal) = await GetSourceAsync(
+            tenantStore,
+            teamId,
+            request,
             cancellationToken
         );
         if (sourceDocument is null)
         {
-            return ManagementProblems.ResourceNotFound();
+            return sourceRefusal ?? ManagementProblems.ResourceNotFound();
         }
 
         var openIdContext = httpContext.GetOpenIdContext();
@@ -322,7 +371,7 @@ internal class TenantPromotionApiEndpointHandler(
             return custodyRefusal;
         }
 
-        return await completeAsync(context, cancellationToken);
+        return await completeAsync(teamId, context, cancellationToken);
     }
 
     // Groups the changed limits by the node above their document, in the order they were recorded, and returns the first

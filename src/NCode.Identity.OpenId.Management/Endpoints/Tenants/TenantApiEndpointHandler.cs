@@ -83,8 +83,8 @@ DELETE api/tenants/{tenantId}/admins/{principalId}
 */
 
 /// <summary>
-/// Provides the API endpoints for managing an OpenID Tenant, including its settings and secrets. The route that
-/// exports a tenant's configuration document is mapped only on the control-plane cell, as the promotion routes are.
+/// Provides the API endpoints for managing an OpenID Tenant, including its settings, secrets and configuration
+/// document.
 /// </summary>
 internal class TenantApiEndpointHandler(
     IStoreManagerFactory storeManagerFactory,
@@ -280,16 +280,12 @@ internal class TenantApiEndpointHandler(
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound);
 
-        // A configuration document feeds promotion, which the control-plane cell serves, so no other cell maps the route.
-        if (CellOptions.IsControlPlane)
-        {
-            tenants
-                .MapGet("/{tenantId}/configuration", GetConfigurationAsync)
-                .Produces<TenantConfigurationDocument>()
-                .ProducesProblem(StatusCodes.Status401Unauthorized)
-                .ProducesProblem(StatusCodes.Status403Forbidden)
-                .ProducesProblem(StatusCodes.Status404NotFound);
-        }
+        tenants
+            .MapGet("/{tenantId}/configuration", GetConfigurationAsync)
+            .Produces<TenantConfigurationDocument>()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound);
 
         tenants
             .MapGet("/{tenantId}/secrets", GetSecretsAsync)

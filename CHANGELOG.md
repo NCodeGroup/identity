@@ -4114,15 +4114,18 @@ Until the first stable release, the [Unreleased] section describes the product a
   ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
   [ADR-1426](docs/decisions/1426-a-team-can-nest-beneath-a-parent-team-and-its-subtree-is-walked-depth-first.md)).
 
-- **A team promotes one tenant's configuration to another.** `POST /api/teams/{teamId}/promotions/preview` reports what
-  a promotion would create, update or leave unchanged and `POST /api/teams/{teamId}/promotions` applies it: the
-  tenant's settings, its resource servers and scopes, its clients (keeping their `client_id`) and client grants, never
-  secrets, keys, grants, principals, role assignments, a client the host configures, a machine client, or a setting
-  whose value belongs to the environment (`SettingDescriptor.IsEnvironmentBound`, such as `redirect_uris`), whose target
-  values the request may supply. Both tenants belong to the team the route names, not to a team beneath it, so a
-  parent team's administrators promote within a child team through that team's route; a promotion needs read authority
-  on the source and creation authority on the target, and a promoted limit needs the authority that sets it (`403`
-  naming the limit). It records each change and `tenant.promoted`, and the console offers it on a team's tenants page
+- **A team promotes one tenant's configuration to another.** `POST /api/tenants/{tenantId}/promotions/preview` reports
+  what a promotion into the tenant would create, update or leave unchanged and `POST /api/tenants/{tenantId}/promotions`
+  applies it, on the target tenant's cell. The source is another tenant of the target's team in the same cell
+  (`sourceTenantId`) or an inline configuration document (`source`), which `GET /api/tenants/{tenantId}/configuration`
+  exports on every cell; a document from another region is refused with `422`, so a promotion stays within one region.
+  It copies the tenant's settings, its resource servers and scopes, its clients (keeping their `client_id`) and client
+  grants, never secrets, keys, grants, principals, role assignments, a client the host configures, a machine client, or
+  a setting whose value belongs to the environment (`SettingDescriptor.IsEnvironmentBound`, such as `redirect_uris`),
+  whose target values the request may supply. A promotion needs read authority on the source and creation authority on
+  the target, so a parent team's administrators promote between a child team's tenants, and a promoted limit needs the
+  authority that sets it (`403` naming the limit). It records each change and `tenant.promoted`, and the console offers
+  it on a team's tenants page
   ([ADR-1426](docs/decisions/1426-a-team-can-nest-beneath-a-parent-team-and-its-subtree-is-walked-depth-first.md),
   [ADR-1425](docs/decisions/1425-a-team-promotes-one-tenants-configuration-to-another-and-environment-bound-values-stay.md),
   [ADR-1466](docs/decisions/1466-a-client-is-its-own-principal-and-a-machine-client-acts-only-within-its-owning-node.md),

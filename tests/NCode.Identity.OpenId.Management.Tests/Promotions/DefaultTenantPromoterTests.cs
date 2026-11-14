@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Http;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.Json;
 using NCode.Identity.OpenId.Management.Auditing;
-using NCode.Identity.OpenId.Management.Contracts.Teams;
 using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Persistence;
 using NCode.Identity.OpenId.Persistence.DataContracts;

@@ -3,7 +3,6 @@
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NCode.Identity.OpenId.Management.Endpoints.Clients;
-using NCode.Identity.OpenId.Management.Promotions;
 using NCode.Identity.Registration.AspNetCore;
 
 namespace NCode.Identity.OpenId.Management.Endpoints.Teams;
@@ -21,7 +20,6 @@ internal static class DefaultRegistration
         public void AddTeamEndpoint()
         {
             builder.AddEndpoint<TeamApiEndpointHandler>();
-            builder.AddEndpoint<TenantPromotionApiEndpointHandler>();
             builder.ServiceCollection.TryAddSingleton<ITeamValidator, DefaultTeamValidator>();
             builder.ServiceCollection.TryAddSingleton<
                 ITeamClientCoherenceChecker,
@@ -31,7 +29,6 @@ internal static class DefaultRegistration
                 ITenantClientCoherenceChecker,
                 DefaultTenantClientCoherenceChecker
             >();
-            builder.AddTenantPromotionServices();
         }
     }
 }

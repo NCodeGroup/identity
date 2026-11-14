@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Runtime.CompilerServices;
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
@@ -17,7 +18,6 @@ using NCode.Identity.OpenId.Environments;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
-using NCode.Identity.OpenId.Management.Contracts.Teams;
 using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Management.Promotions;
 using NCode.Identity.OpenId.Persistence.DataContracts;
@@ -28,11 +28,13 @@ using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
 using NCode.Mediator;
 
-namespace NCode.Identity.OpenId.Management.Endpoints.Teams;
+namespace NCode.Identity.OpenId.Management.Endpoints.Tenants;
 
 public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
 {
     private const string TeamId = "team-1";
+    private const string Region = "region-1";
+    private const string OtherRegion = "region-2";
     private const string ControlPlaneTenantId = "platform-root";
     private const string SourceTenantId = "source-tenant";
     private const string TargetTenantId = "target-tenant";
@@ -77,7 +79,7 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
             MockTenantPromoter.Object,
             MockTenantConfigurationExporter.Object,
             MockManagementAuditRecorder.Object,
-            Options.Create(new CellOptions { IsControlPlane = isControlPlane })
+            Options.Create(new CellOptions { IsControlPlane = isControlPlane, Region = Region })
         );
 
     public void Dispose()
@@ -87,7 +89,7 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
 
     #region Helpers
 
-    private void SetupStore(PersistedTenant? source, PersistedTenant? target)
+    private void SetupStoreManager()
     {
         MockStoreManagerFactory
             .Setup(x => x.CreateAsync(It.IsAny<CancellationToken>()))
@@ -100,11 +102,11 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
             .Verifiable();
 
         MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
+    }
 
-        MockTenantStore
-            .Setup(x => x.GetOrDefaultAsync(SourceTenantId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(source)
-            .Verifiable();
+    private void SetupTargetStore(PersistedTenant? target)
+    {
+        SetupStoreManager();
 
         MockTenantStore
             .Setup(x => x.GetOrDefaultAsync(TargetTenantId, It.IsAny<CancellationToken>()))
@@ -112,9 +114,19 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
             .Verifiable();
     }
 
-    private void SetupStore()
+    private void SetupSourceStore(PersistedTenant? source, PersistedTenant? target)
     {
-        SetupStore(CreateTenant(SourceTenantId), CreateTenant(TargetTenantId));
+        SetupTargetStore(target);
+
+        MockTenantStore
+            .Setup(x => x.GetOrDefaultAsync(SourceTenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(source)
+            .Verifiable();
+    }
+
+    private void SetupSourceStore()
+    {
+        SetupSourceStore(CreateTenant(SourceTenantId), CreateTenant(TargetTenantId));
         SetupExport(CreateDocument());
     }
 
@@ -124,11 +136,11 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
             .ReturnsAsync(document)
             .Verifiable();
 
-    private static TenantConfigurationDocument CreateDocument() =>
+    private static TenantConfigurationDocument CreateDocument(string region = Region) =>
         new()
         {
             SourceTenantId = SourceTenantId,
-            Region = "region-1",
+            Region = region,
             Settings = JsonElement.Parse("""{"a":1}"""),
             Clients = [],
             ClientGrants = [],
@@ -160,22 +172,31 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
             .ReturnsAsync(result)
             .Verifiable();
 
-    private void SetupRouteAuthorization()
-    {
-        SetupAuthorize(
-            SourceTenantId,
-            ResourceNodeTypes.Tenant,
-            SourceTenantId,
-            Operations.Read,
-            AuthorizationResult.Success()
-        );
+    private void SetupTargetAuthorization(AuthorizationResult result) =>
         SetupAuthorize(
             TargetTenantId,
             ResourceNodeTypes.Tenant,
             TargetTenantId,
             Operations.Create,
-            AuthorizationResult.Success()
+            result
         );
+
+    private void SetupSourceAuthorization(AuthorizationResult result) =>
+        SetupAuthorize(
+            SourceTenantId,
+            ResourceNodeTypes.Tenant,
+            SourceTenantId,
+            Operations.Read,
+            result
+        );
+
+    private void SetupRouteAuthorization(bool hasSourceTenant)
+    {
+        SetupTargetAuthorization(AuthorizationResult.Success());
+        if (hasSourceTenant)
+        {
+            SetupSourceAuthorization(AuthorizationResult.Success());
+        }
     }
 
     private void SetupPlan(Action<TenantPromotionContext> plan) =>
@@ -236,10 +257,38 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
             Settings = JsonElement.Parse("""{"a":1}"""),
         }.Build();
 
-    private static PromoteTenantRequest CreateRequest(
-        string sourceTenantId = SourceTenantId,
-        string targetTenantId = TargetTenantId
-    ) => new() { SourceTenantId = sourceTenantId, TargetTenantId = targetTenantId };
+    private static PromoteTenantRequest CreateSourceTenantRequest(
+        string sourceTenantId = SourceTenantId
+    ) => new() { SourceTenantId = sourceTenantId };
+
+    private static PromoteTenantRequest CreateInlineRequest(
+        TenantConfigurationDocument? document = null
+    ) => new() { Source = document ?? CreateDocument() };
+
+    private ValueTask<IResult> PreviewAsync(
+        PromoteTenantRequest request,
+        string tenantId = TargetTenantId,
+        bool authenticated = true,
+        CancellationToken cancellationToken = default
+    ) =>
+        Handler.PreviewPromotionAsync(
+            CreateHttpContext(authenticated),
+            tenantId,
+            request,
+            cancellationToken
+        );
+
+    private ValueTask<IResult> PromoteAsync(
+        PromoteTenantRequest request,
+        string tenantId = TargetTenantId,
+        CancellationToken cancellationToken = default
+    ) =>
+        Handler.PromoteAsync(
+            CreateHttpContext(authenticated: true),
+            tenantId,
+            request,
+            cancellationToken
+        );
 
     private static void AddChange(TenantPromotionContext context) =>
         context.AddChange(
@@ -264,178 +313,146 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
     private static ResourceNode CreateOtherNode(string tenantId = OtherTenantId) =>
         ResourceNode.For(tenantId, ResourceNodeTypes.Tenant, tenantId);
 
+    private static void AssertProblem(IResult result, int statusCode)
+    {
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(statusCode, problem.StatusCode);
+    }
+
     #endregion
 
     #region PreviewPromotionAsync Tests
 
     [Theory]
-    [InlineData("", TargetTenantId)]
-    [InlineData(SourceTenantId, " ")]
-    [InlineData(SourceTenantId, SourceTenantId)]
-    public async Task PreviewPromotionAsync_WhenTheTenantsAreBlankOrEqual_ReturnsBadRequestBeforeAnyRead(
-        string sourceTenantId,
-        string targetTenantId
+    [InlineData("", SourceTenantId, false)]
+    [InlineData(" ", SourceTenantId, false)]
+    [InlineData(TargetTenantId, SourceTenantId, true)]
+    [InlineData(TargetTenantId, null, false)]
+    [InlineData(TargetTenantId, " ", false)]
+    [InlineData(TargetTenantId, TargetTenantId, false)]
+    public async Task PreviewPromotionAsync_WhenTheRequestIsNotOneDistinctSource_ReturnsBadRequestBeforeAnyRead(
+        string tenantId,
+        string? sourceTenantId,
+        bool hasDocument
     )
     {
-        var result = await Handler.PreviewPromotionAsync(
-            CreateHttpContext(authenticated: true),
-            TeamId,
-            CreateRequest(sourceTenantId, targetTenantId),
-            CancellationToken.None
-        );
+        var request = new PromoteTenantRequest
+        {
+            SourceTenantId = sourceTenantId,
+            Source = hasDocument ? CreateDocument() : null,
+        };
 
-        var problem = Assert.IsType<ProblemHttpResult>(result);
-        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
-    }
+        var result = await PreviewAsync(request, tenantId);
 
-    [Fact]
-    public async Task PreviewPromotionAsync_WhenTheCallerMayNotReadTheSource_ReturnsForbiddenBeforeAnyRead()
-    {
-        SetupAuthorize(
-            SourceTenantId,
-            ResourceNodeTypes.Tenant,
-            SourceTenantId,
-            Operations.Read,
-            AuthorizationResult.Failed()
-        );
-
-        // Strict mocks: no store factory setup, so reading before refusing would fail the test.
-        var result = await Handler.PreviewPromotionAsync(
-            CreateHttpContext(authenticated: true),
-            TeamId,
-            CreateRequest(),
-            CancellationToken.None
-        );
-
-        var problem = Assert.IsType<ProblemHttpResult>(result);
-        Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
-    }
-
-    [Fact]
-    public async Task PreviewPromotionAsync_WhenTheCallerIsAnonymous_ReturnsUnauthorizedBeforeAnyRead()
-    {
-        SetupAuthorize(
-            SourceTenantId,
-            ResourceNodeTypes.Tenant,
-            SourceTenantId,
-            Operations.Read,
-            AuthorizationResult.Failed()
-        );
-
-        var result = await Handler.PreviewPromotionAsync(
-            CreateHttpContext(authenticated: false),
-            TeamId,
-            CreateRequest(),
-            CancellationToken.None
-        );
-
-        var problem = Assert.IsType<ProblemHttpResult>(result);
-        Assert.Equal(StatusCodes.Status401Unauthorized, problem.StatusCode);
+        AssertProblem(result, StatusCodes.Status400BadRequest);
     }
 
     [Fact]
     public async Task PreviewPromotionAsync_WhenTheCallerMayNotCreateInTheTarget_ReturnsForbiddenBeforeAnyRead()
     {
-        SetupAuthorize(
-            SourceTenantId,
-            ResourceNodeTypes.Tenant,
-            SourceTenantId,
-            Operations.Read,
-            AuthorizationResult.Success()
-        );
-        SetupAuthorize(
-            TargetTenantId,
-            ResourceNodeTypes.Tenant,
-            TargetTenantId,
-            Operations.Create,
-            AuthorizationResult.Failed()
-        );
+        SetupTargetAuthorization(AuthorizationResult.Failed());
 
-        var result = await Handler.PreviewPromotionAsync(
-            CreateHttpContext(authenticated: true),
-            TeamId,
-            CreateRequest(),
-            CancellationToken.None
-        );
+        // Strict mocks: no store factory setup, so reading before refusing would fail the test.
+        var result = await PreviewAsync(CreateSourceTenantRequest());
 
-        var problem = Assert.IsType<ProblemHttpResult>(result);
-        Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
+        AssertProblem(result, StatusCodes.Status403Forbidden);
     }
 
     [Fact]
-    public async Task PreviewPromotionAsync_WhenTheSourceDoesNotExist_ReturnsNotFound()
+    public async Task PreviewPromotionAsync_WhenTheCallerIsAnonymous_ReturnsUnauthorizedBeforeAnyRead()
     {
-        SetupRouteAuthorization();
-        SetupStore(source: null, CreateTenant(TargetTenantId));
+        SetupTargetAuthorization(AuthorizationResult.Failed());
 
-        var result = await Handler.PreviewPromotionAsync(
-            CreateHttpContext(authenticated: true),
-            TeamId,
-            CreateRequest(),
-            CancellationToken.None
-        );
+        var result = await PreviewAsync(CreateSourceTenantRequest(), authenticated: false);
 
-        var notFound = Assert.IsType<ProblemHttpResult>(result);
-        Assert.Equal(StatusCodes.Status404NotFound, notFound.StatusCode);
+        AssertProblem(result, StatusCodes.Status401Unauthorized);
     }
 
     [Fact]
-    public async Task PreviewPromotionAsync_WhenTheSourceCannotBeExported_ReturnsNotFound()
+    public async Task PreviewPromotionAsync_WhenTheCallerMayNotReadTheSource_ReturnsForbiddenBeforeAnyRead()
     {
-        SetupRouteAuthorization();
-        SetupStore(CreateTenant(SourceTenantId), CreateTenant(TargetTenantId));
-        SetupExport(document: null);
+        SetupTargetAuthorization(AuthorizationResult.Success());
+        SetupSourceAuthorization(AuthorizationResult.Failed());
 
-        var result = await Handler.PreviewPromotionAsync(
-            CreateHttpContext(authenticated: true),
-            TeamId,
-            CreateRequest(),
-            CancellationToken.None
-        );
+        var result = await PreviewAsync(CreateSourceTenantRequest());
 
-        var notFound = Assert.IsType<ProblemHttpResult>(result);
-        Assert.Equal(StatusCodes.Status404NotFound, notFound.StatusCode);
+        AssertProblem(result, StatusCodes.Status403Forbidden);
     }
 
     [Fact]
     public async Task PreviewPromotionAsync_WhenTheTargetDoesNotExist_ReturnsNotFound()
     {
-        SetupRouteAuthorization();
-        SetupStore(CreateTenant(SourceTenantId), target: null);
+        SetupRouteAuthorization(hasSourceTenant: true);
+        SetupTargetStore(target: null);
 
-        var result = await Handler.PreviewPromotionAsync(
-            CreateHttpContext(authenticated: true),
-            TeamId,
-            CreateRequest(),
-            CancellationToken.None
-        );
+        var result = await PreviewAsync(CreateSourceTenantRequest());
 
-        var notFound = Assert.IsType<ProblemHttpResult>(result);
-        Assert.Equal(StatusCodes.Status404NotFound, notFound.StatusCode);
+        AssertProblem(result, StatusCodes.Status404NotFound);
     }
 
     [Fact]
-    public async Task PreviewPromotionAsync_WhenATenantBelongsToAnotherTeam_ReturnsNotFound()
+    public async Task PreviewPromotionAsync_WhenTheTargetOfAnInlineDocumentDoesNotExist_ReturnsNotFound()
     {
-        SetupRouteAuthorization();
-        SetupStore(CreateTenant(SourceTenantId), CreateTenant(TargetTenantId, "team-2"));
+        SetupRouteAuthorization(hasSourceTenant: false);
+        SetupTargetStore(target: null);
 
-        var result = await Handler.PreviewPromotionAsync(
-            CreateHttpContext(authenticated: true),
-            TeamId,
-            CreateRequest(),
-            CancellationToken.None
-        );
+        var result = await PreviewAsync(CreateInlineRequest());
 
-        var notFound = Assert.IsType<ProblemHttpResult>(result);
-        Assert.Equal(StatusCodes.Status404NotFound, notFound.StatusCode);
+        AssertProblem(result, StatusCodes.Status404NotFound);
     }
 
     [Fact]
-    public async Task PreviewPromotionAsync_WhenPlanned_ReturnsTheReportWithoutApplying()
+    public async Task PreviewPromotionAsync_WhenTheSourceDoesNotExist_ReturnsNotFound()
     {
-        SetupRouteAuthorization();
-        SetupStore();
+        SetupRouteAuthorization(hasSourceTenant: true);
+        SetupSourceStore(source: null, CreateTenant(TargetTenantId));
+
+        var result = await PreviewAsync(CreateSourceTenantRequest());
+
+        AssertProblem(result, StatusCodes.Status404NotFound);
+    }
+
+    [Fact]
+    public async Task PreviewPromotionAsync_WhenTheSourceBelongsToAnotherTeam_ReturnsNotFound()
+    {
+        SetupRouteAuthorization(hasSourceTenant: true);
+        SetupSourceStore(CreateTenant(SourceTenantId, "team-2"), CreateTenant(TargetTenantId));
+
+        // Strict mocks: no export setup, so exporting another team's tenant would fail the test.
+        var result = await PreviewAsync(CreateSourceTenantRequest());
+
+        AssertProblem(result, StatusCodes.Status404NotFound);
+    }
+
+    [Fact]
+    public async Task PreviewPromotionAsync_WhenTheSourceCannotBeExported_ReturnsNotFound()
+    {
+        SetupRouteAuthorization(hasSourceTenant: true);
+        SetupSourceStore(CreateTenant(SourceTenantId), CreateTenant(TargetTenantId));
+        SetupExport(document: null);
+
+        var result = await PreviewAsync(CreateSourceTenantRequest());
+
+        AssertProblem(result, StatusCodes.Status404NotFound);
+    }
+
+    [Fact]
+    public async Task PreviewPromotionAsync_WhenTheInlineDocumentIsFromAnotherRegion_ReturnsUnprocessableEntityWithoutPlanning()
+    {
+        SetupRouteAuthorization(hasSourceTenant: false);
+        SetupTargetStore(CreateTenant(TargetTenantId));
+
+        // Strict mocks: no PlanAsync setup, so planning a document from another region would fail the test.
+        var result = await PreviewAsync(CreateInlineRequest(CreateDocument(OtherRegion)));
+
+        AssertProblem(result, StatusCodes.Status422UnprocessableEntity);
+    }
+
+    [Fact]
+    public async Task PreviewPromotionAsync_WhenPlannedFromASourceTenant_ReturnsTheReportWithoutApplying()
+    {
+        SetupRouteAuthorization(hasSourceTenant: true);
+        SetupSourceStore();
         TenantPromotionContext? planned = null;
         SetupPlan(context =>
         {
@@ -445,12 +462,7 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
         });
 
         // Strict mocks: no ApplyAsync, audit or announcement setup, so a preview that writes would fail the test.
-        var result = await Handler.PreviewPromotionAsync(
-            CreateHttpContext(authenticated: true),
-            TeamId,
-            CreateRequest(),
-            CancellationToken.None
-        );
+        var result = await PreviewAsync(CreateSourceTenantRequest());
 
         var ok = Assert.IsType<Ok<TenantPromotionResource>>(result);
         var report = ok.Value;
@@ -491,10 +503,38 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task PreviewPromotionAsync_WhenPlannedFromAnInlineDocument_ReturnsTheReportWithoutReadingASourceTenant()
+    {
+        SetupRouteAuthorization(hasSourceTenant: false);
+        SetupTargetStore(CreateTenant(TargetTenantId));
+        var document = CreateDocument();
+        TenantPromotionContext? planned = null;
+        SetupPlan(context =>
+        {
+            planned = context;
+            AddChange(context);
+        });
+
+        // Strict mocks: no source read and no export setup, so reading a source tenant would fail the test.
+        var result = await PreviewAsync(CreateInlineRequest(document));
+
+        var ok = Assert.IsType<Ok<TenantPromotionResource>>(result);
+        var report = ok.Value;
+        Assert.NotNull(report);
+        Assert.Equal(TeamId, report.TeamId);
+        Assert.Equal(SourceTenantId, report.SourceTenantId);
+        Assert.Equal(TargetTenantId, report.TargetTenantId);
+        Assert.False(report.IsApplied);
+
+        Assert.NotNull(planned);
+        Assert.Same(document, planned.Source);
+    }
+
+    [Fact]
     public async Task PreviewPromotionAsync_WhenALimitChangesAndTheTeamRefuses_ReturnsForbiddenNamingTheLimit()
     {
-        SetupRouteAuthorization();
-        SetupStore();
+        SetupRouteAuthorization(hasSourceTenant: true);
+        SetupSourceStore();
         SetupPlan(context =>
             context.AddChangedLimits(context.TeamNode, [OpenIdSettingNames.MaxTenants])
         );
@@ -507,12 +547,7 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
         );
 
         // Strict mocks: no ApplyAsync setup, so a refused preview that applies would fail the test.
-        var result = await Handler.PreviewPromotionAsync(
-            CreateHttpContext(authenticated: true),
-            TeamId,
-            CreateRequest(),
-            CancellationToken.None
-        );
+        var result = await PreviewAsync(CreateSourceTenantRequest());
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
@@ -522,8 +557,8 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task PreviewPromotionAsync_WhenLimitsChangeAtOneNode_AuthorizesOnceNamingTheUnion()
     {
-        SetupRouteAuthorization();
-        SetupStore();
+        SetupRouteAuthorization(hasSourceTenant: true);
+        SetupSourceStore();
         SetupPlan(context =>
         {
             context.AddChangedLimits(context.TeamNode, ["b", "a"]);
@@ -537,12 +572,7 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
             AuthorizationResult.Failed()
         );
 
-        var result = await Handler.PreviewPromotionAsync(
-            CreateHttpContext(authenticated: true),
-            TeamId,
-            CreateRequest(),
-            CancellationToken.None
-        );
+        var result = await PreviewAsync(CreateSourceTenantRequest());
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
@@ -552,8 +582,8 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task PreviewPromotionAsync_WhenTheFirstNodeAuthorizesAndTheSecondRefuses_ReturnsForbiddenNamingTheSecondLimit()
     {
-        SetupRouteAuthorization();
-        SetupStore();
+        SetupRouteAuthorization(hasSourceTenant: true);
+        SetupSourceStore();
         SetupPlan(context =>
         {
             context.AddChangedLimits(context.TeamNode, [OpenIdSettingNames.MaxTenants]);
@@ -577,12 +607,7 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
             AuthorizationResult.Failed()
         );
 
-        var result = await Handler.PreviewPromotionAsync(
-            CreateHttpContext(authenticated: true),
-            TeamId,
-            CreateRequest(),
-            CancellationToken.None
-        );
+        var result = await PreviewAsync(CreateSourceTenantRequest());
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
@@ -601,8 +626,8 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task PreviewPromotionAsync_WhenTheCallerMayNotGrantARoleTheClientHolds_ReturnsForbidden()
     {
-        SetupRouteAuthorization();
-        SetupStore();
+        SetupRouteAuthorization(hasSourceTenant: true);
+        SetupSourceStore();
         SetupPlan(context => context.AddRequiredCreateAuthority(CreateOtherNode()));
         SetupAuthorize(
             OtherTenantId,
@@ -613,22 +638,16 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
         );
 
         // Strict mocks: no ApplyAsync setup, so a refused preview that applies would fail the test.
-        var result = await Handler.PreviewPromotionAsync(
-            CreateHttpContext(authenticated: true),
-            TeamId,
-            CreateRequest(),
-            CancellationToken.None
-        );
+        var result = await PreviewAsync(CreateSourceTenantRequest());
 
-        var problem = Assert.IsType<ProblemHttpResult>(result);
-        Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
+        AssertProblem(result, StatusCodes.Status403Forbidden);
     }
 
     [Fact]
     public async Task PreviewPromotionAsync_WhenNodesDifferOnlyByCase_AuthorizesTheNodeOnce()
     {
-        SetupRouteAuthorization();
-        SetupStore();
+        SetupRouteAuthorization(hasSourceTenant: true);
+        SetupSourceStore();
         SetupPlan(context =>
         {
             context.AddRequiredCreateAuthority(CreateOtherNode());
@@ -646,12 +665,7 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
             AuthorizationResult.Success()
         );
 
-        var result = await Handler.PreviewPromotionAsync(
-            CreateHttpContext(authenticated: true),
-            TeamId,
-            CreateRequest(),
-            CancellationToken.None
-        );
+        var result = await PreviewAsync(CreateSourceTenantRequest());
 
         Assert.IsType<Ok<TenantPromotionResource>>(result);
     }
@@ -660,93 +674,87 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
 
     #region PromoteAsync Tests
 
-    [Fact]
-    public async Task PromoteAsync_WhenTheTenantsAreEqual_ReturnsBadRequestBeforeAnyRead()
+    [Theory]
+    [InlineData(TargetTenantId, SourceTenantId, true)]
+    [InlineData(TargetTenantId, null, false)]
+    [InlineData(TargetTenantId, TargetTenantId, false)]
+    public async Task PromoteAsync_WhenTheRequestIsNotOneDistinctSource_ReturnsBadRequestBeforeAnyRead(
+        string tenantId,
+        string? sourceTenantId,
+        bool hasDocument
+    )
     {
-        var result = await Handler.PromoteAsync(
-            CreateHttpContext(authenticated: true),
-            TeamId,
-            CreateRequest(SourceTenantId, SourceTenantId),
-            CancellationToken.None
-        );
+        var request = new PromoteTenantRequest
+        {
+            SourceTenantId = sourceTenantId,
+            Source = hasDocument ? CreateDocument() : null,
+        };
 
-        var problem = Assert.IsType<ProblemHttpResult>(result);
-        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
-    }
+        var result = await PromoteAsync(request, tenantId);
 
-    [Fact]
-    public async Task PromoteAsync_WhenTheCallerMayNotReadTheSource_ReturnsForbiddenBeforeAnyRead()
-    {
-        SetupAuthorize(
-            SourceTenantId,
-            ResourceNodeTypes.Tenant,
-            SourceTenantId,
-            Operations.Read,
-            AuthorizationResult.Failed()
-        );
-
-        var result = await Handler.PromoteAsync(
-            CreateHttpContext(authenticated: true),
-            TeamId,
-            CreateRequest(),
-            CancellationToken.None
-        );
-
-        var problem = Assert.IsType<ProblemHttpResult>(result);
-        Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
+        AssertProblem(result, StatusCodes.Status400BadRequest);
     }
 
     [Fact]
     public async Task PromoteAsync_WhenTheCallerMayNotCreateInTheTarget_ReturnsForbiddenBeforeAnyRead()
     {
-        SetupAuthorize(
-            SourceTenantId,
-            ResourceNodeTypes.Tenant,
-            SourceTenantId,
-            Operations.Read,
-            AuthorizationResult.Success()
-        );
-        SetupAuthorize(
-            TargetTenantId,
-            ResourceNodeTypes.Tenant,
-            TargetTenantId,
-            Operations.Create,
-            AuthorizationResult.Failed()
-        );
+        SetupTargetAuthorization(AuthorizationResult.Failed());
 
-        var result = await Handler.PromoteAsync(
-            CreateHttpContext(authenticated: true),
-            TeamId,
-            CreateRequest(),
-            CancellationToken.None
-        );
+        var result = await PromoteAsync(CreateSourceTenantRequest());
 
-        var problem = Assert.IsType<ProblemHttpResult>(result);
-        Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
+        AssertProblem(result, StatusCodes.Status403Forbidden);
     }
 
     [Fact]
-    public async Task PromoteAsync_WhenATenantDoesNotExist_ReturnsNotFound()
+    public async Task PromoteAsync_WhenTheCallerMayNotReadTheSource_ReturnsForbiddenBeforeAnyRead()
     {
-        SetupRouteAuthorization();
-        SetupStore(source: null, target: null);
+        SetupTargetAuthorization(AuthorizationResult.Success());
+        SetupSourceAuthorization(AuthorizationResult.Failed());
 
-        var result = await Handler.PromoteAsync(
-            CreateHttpContext(authenticated: true),
-            TeamId,
-            CreateRequest(),
-            CancellationToken.None
-        );
+        var result = await PromoteAsync(CreateSourceTenantRequest());
 
-        var notFound = Assert.IsType<ProblemHttpResult>(result);
-        Assert.Equal(StatusCodes.Status404NotFound, notFound.StatusCode);
+        AssertProblem(result, StatusCodes.Status403Forbidden);
+    }
+
+    [Fact]
+    public async Task PromoteAsync_WhenTheTargetDoesNotExist_ReturnsNotFound()
+    {
+        SetupRouteAuthorization(hasSourceTenant: true);
+        SetupTargetStore(target: null);
+
+        var result = await PromoteAsync(CreateSourceTenantRequest());
+
+        AssertProblem(result, StatusCodes.Status404NotFound);
+    }
+
+    [Fact]
+    public async Task PromoteAsync_WhenTheSourceBelongsToAnotherTeam_ReturnsNotFound()
+    {
+        SetupRouteAuthorization(hasSourceTenant: true);
+        SetupSourceStore(CreateTenant(SourceTenantId, "team-2"), CreateTenant(TargetTenantId));
+
+        var result = await PromoteAsync(CreateSourceTenantRequest());
+
+        AssertProblem(result, StatusCodes.Status404NotFound);
+    }
+
+    [Fact]
+    public async Task PromoteAsync_WhenTheInlineDocumentIsFromAnotherRegion_ReturnsUnprocessableEntityWithoutApplying()
+    {
+        SetupRouteAuthorization(hasSourceTenant: false);
+        SetupTargetStore(CreateTenant(TargetTenantId));
+
+        // Strict mocks: no PlanAsync or ApplyAsync setup, so the promoter is never called.
+        var result = await PromoteAsync(CreateInlineRequest(CreateDocument(OtherRegion)));
+
+        AssertProblem(result, StatusCodes.Status422UnprocessableEntity);
     }
 
     [Fact]
     public async Task PromoteAsync_WhenALimitChangesAndTheTeamRefuses_ReturnsForbiddenWithoutApplying()
     {
-        SetupRouteAuthorization();
-        SetupStore();
+        SetupRouteAuthorization(hasSourceTenant: true);
+        SetupSourceStore();
         SetupPlan(context =>
             context.AddChangedLimits(context.TeamNode, [OpenIdSettingNames.MaxTenants])
         );
@@ -759,12 +767,7 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
         );
 
         // Strict mocks: no ApplyAsync setup, so applying a refused promotion would fail the test.
-        var result = await Handler.PromoteAsync(
-            CreateHttpContext(authenticated: true),
-            TeamId,
-            CreateRequest(),
-            CancellationToken.None
-        );
+        var result = await PromoteAsync(CreateSourceTenantRequest());
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
@@ -774,8 +777,8 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task PromoteAsync_WhenTheCallerMayNotGrantARoleTheClientHolds_ReturnsForbiddenWithoutApplying()
     {
-        SetupRouteAuthorization();
-        SetupStore();
+        SetupRouteAuthorization(hasSourceTenant: true);
+        SetupSourceStore();
         SetupPlan(context => context.AddRequiredCreateAuthority(CreateOtherNode()));
         SetupAuthorize(
             OtherTenantId,
@@ -785,31 +788,20 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
             AuthorizationResult.Failed()
         );
 
-        var result = await Handler.PromoteAsync(
-            CreateHttpContext(authenticated: true),
-            TeamId,
-            CreateRequest(),
-            CancellationToken.None
-        );
+        var result = await PromoteAsync(CreateSourceTenantRequest());
 
-        var problem = Assert.IsType<ProblemHttpResult>(result);
-        Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
+        AssertProblem(result, StatusCodes.Status403Forbidden);
     }
 
     [Fact]
     public async Task PromoteAsync_WhenThePlanHasErrors_ReturnsConflictWithTheErrorsWithoutApplying()
     {
-        SetupRouteAuthorization();
-        SetupStore();
+        SetupRouteAuthorization(hasSourceTenant: true);
+        SetupSourceStore();
         SetupPlan(AddError);
 
         // Strict mocks: no ApplyAsync setup, so applying a promotion with errors would fail the test.
-        var result = await Handler.PromoteAsync(
-            CreateHttpContext(authenticated: true),
-            TeamId,
-            CreateRequest(),
-            CancellationToken.None
-        );
+        var result = await PromoteAsync(CreateSourceTenantRequest());
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
@@ -821,14 +813,54 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task PromoteAsync_WhenPlanned_AppliesRecordsTheAuditAndAnnouncesTheTarget()
+    public async Task PromoteAsync_WhenPlannedFromASourceTenant_AppliesRecordsTheAuditAndAnnouncesTheTarget()
     {
-        SetupRouteAuthorization();
-        SetupStore();
+        SetupRouteAuthorization(hasSourceTenant: true);
+        SetupSourceStore();
         SetupPlan(AddChange);
         SetupApply();
+        var resourceValues = SetupAuditAndAnnouncement();
 
-        JsonElement? resourceValues = null;
+        var result = await PromoteAsync(CreateSourceTenantRequest());
+
+        var ok = Assert.IsType<Ok<TenantPromotionResource>>(result);
+        var report = ok.Value;
+        Assert.NotNull(report);
+        Assert.True(report.IsApplied);
+        Assert.Equal(TeamId, report.TeamId);
+        Assert.Equal(TargetTenantId, report.TargetTenantId);
+        Assert.Single(report.Changes);
+
+        Assert.NotNull(resourceValues.Value);
+        Assert.True(resourceValues.Value.Value.GetProperty("isApplied").GetBoolean());
+        Assert.Equal(
+            TargetTenantId,
+            resourceValues.Value.Value.GetProperty("targetTenantId").GetString()
+        );
+    }
+
+    [Fact]
+    public async Task PromoteAsync_WhenPlannedFromAnInlineDocument_AppliesRecordsTheAuditAndAnnouncesTheTarget()
+    {
+        SetupRouteAuthorization(hasSourceTenant: false);
+        SetupTargetStore(CreateTenant(TargetTenantId));
+        SetupPlan(AddChange);
+        SetupApply();
+        _ = SetupAuditAndAnnouncement();
+
+        var result = await PromoteAsync(CreateInlineRequest());
+
+        var ok = Assert.IsType<Ok<TenantPromotionResource>>(result);
+        var report = ok.Value;
+        Assert.NotNull(report);
+        Assert.True(report.IsApplied);
+        Assert.Equal(SourceTenantId, report.SourceTenantId);
+        Assert.Equal(TargetTenantId, report.TargetTenantId);
+    }
+
+    private StrongBox<JsonElement?> SetupAuditAndAnnouncement()
+    {
+        var resourceValues = new StrongBox<JsonElement?>();
         MockManagementAuditRecorder
             .Setup(x =>
                 x.RecordTenantChangedAsync(
@@ -840,7 +872,7 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
                 )
             )
             .Callback<HttpContext, string, string, string, JsonElement?>(
-                (_, _, _, _, values) => resourceValues = values
+                (_, _, _, _, values) => resourceValues.Value = values
             )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
@@ -853,27 +885,7 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
             )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
-
-        var result = await Handler.PromoteAsync(
-            CreateHttpContext(authenticated: true),
-            TeamId,
-            CreateRequest(),
-            CancellationToken.None
-        );
-
-        var ok = Assert.IsType<Ok<TenantPromotionResource>>(result);
-        var report = ok.Value;
-        Assert.NotNull(report);
-        Assert.True(report.IsApplied);
-        Assert.Equal(TargetTenantId, report.TargetTenantId);
-        Assert.Single(report.Changes);
-
-        Assert.NotNull(resourceValues);
-        Assert.True(resourceValues.Value.GetProperty("isApplied").GetBoolean());
-        Assert.Equal(
-            TargetTenantId,
-            resourceValues.Value.GetProperty("targetTenantId").GetString()
-        );
+        return resourceValues;
     }
 
     #endregion
@@ -881,8 +893,16 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
     #region Map Tests
 
     [Theory]
-    [InlineData("POST", "/teams/{teamId}/promotions/preview", new[] { 400, 401, 403, 404, 415 })]
-    [InlineData("POST", "/teams/{teamId}/promotions", new[] { 400, 401, 403, 404, 409, 412, 415 })]
+    [InlineData(
+        "POST",
+        "/tenants/{tenantId}/promotions/preview",
+        new[] { 400, 401, 403, 404, 415, 422 }
+    )]
+    [InlineData(
+        "POST",
+        "/tenants/{tenantId}/promotions",
+        new[] { 400, 401, 403, 404, 409, 412, 415, 422 }
+    )]
     public async Task Map_Always_DeclaresAndDescribesEveryProblemARouteAnswers(
         string httpMethod,
         string routePattern,
@@ -908,20 +928,17 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
         );
     }
 
-    [Fact]
-    public void Map_OnTheControlPlane_MapsThePromotionRoutes()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Map_WhetherOrNotTheCellIsTheControlPlane_MapsThePromotionRoutes(bool isControlPlane)
     {
-        var routes = MapRoutes(CreateHandler(isControlPlane: true));
+        var routes = MapRoutes(CreateHandler(isControlPlane));
 
-        Assert.Equal(["/teams/{teamId}/promotions", "/teams/{teamId}/promotions/preview"], routes);
-    }
-
-    [Fact]
-    public void Map_OnAnotherCell_MapsNoRoute()
-    {
-        var routes = MapRoutes(CreateHandler(isControlPlane: false));
-
-        Assert.Empty(routes);
+        Assert.Equal(
+            ["/tenants/{tenantId}/promotions", "/tenants/{tenantId}/promotions/preview"],
+            routes
+        );
     }
 
     private static string[] MapRoutes(TenantPromotionApiEndpointHandler handler)

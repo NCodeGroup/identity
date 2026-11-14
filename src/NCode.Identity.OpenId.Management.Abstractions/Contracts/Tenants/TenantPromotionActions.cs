@@ -3,7 +3,7 @@
 
 using JetBrains.Annotations;
 
-namespace NCode.Identity.OpenId.Management.Contracts.Teams;
+namespace NCode.Identity.OpenId.Management.Contracts.Tenants;
 
 /// <summary>
 /// Defines the known values of <see cref="TenantPromotionChangeResource.Action"/>.

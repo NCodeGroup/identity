@@ -27,6 +27,12 @@ const NCode.Identity.OpenId.Management.Contracts.ManagementProblemMembers.OwnerT
 const NCode.Identity.OpenId.Management.Contracts.ManagementProblemMembers.Provider = "provider" -> string!
 const NCode.Identity.OpenId.Management.Contracts.ManagementProblemMembers.RetryAfterSeconds = "retryAfterSeconds" -> string!
 const NCode.Identity.OpenId.Management.Contracts.ManagementProblemMembers.SettingsScope = "settingsScope" -> string!
+const NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionActions.Created = "created" -> string!
+const NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionActions.Unchanged = "unchanged" -> string!
+const NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionActions.Updated = "updated" -> string!
+const NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionNoteCodes.CredentialRequired = "credential_required" -> string!
+const NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionNoteCodes.EnvironmentSettingUnset = "environment_setting_unset" -> string!
+const NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionNoteCodes.HostManaged = "host_managed" -> string!
 const NCode.Identity.OpenId.Management.Endpoints.ManagementApiEndpointHandler.DefaultPageSize = 50 -> int
 const NCode.Identity.OpenId.Management.Endpoints.ManagementApiEndpointHandler.MaxPageSize = 100 -> int
 const NCode.Identity.OpenId.Management.Endpoints.ManagementEndpointGroups.Tenant = "api/tenant" -> string!
@@ -163,6 +169,14 @@ NCode.Identity.OpenId.Management.Contracts.Secrets.RotateSecretRequest.RotatedEx
 NCode.Identity.OpenId.Management.Contracts.Secrets.RotateSecretRequest.RotatedExpiresWhen.init -> void
 NCode.Identity.OpenId.Management.Contracts.Secrets.SecretResource.KeyId.get -> string!
 NCode.Identity.OpenId.Management.Contracts.Secrets.SecretResource.KeyId.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.PromoteTenantRequest
+NCode.Identity.OpenId.Management.Contracts.Tenants.PromoteTenantRequest.EnvironmentSettings.get -> System.Collections.Generic.List<NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionEnvironmentSettings!>!
+NCode.Identity.OpenId.Management.Contracts.Tenants.PromoteTenantRequest.EnvironmentSettings.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.PromoteTenantRequest.PromoteTenantRequest() -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.PromoteTenantRequest.Source.get -> NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationDocument?
+NCode.Identity.OpenId.Management.Contracts.Tenants.PromoteTenantRequest.Source.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.PromoteTenantRequest.SourceTenantId.get -> string?
+NCode.Identity.OpenId.Management.Contracts.Tenants.PromoteTenantRequest.SourceTenantId.init -> void
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClient
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClient.ClientId.get -> string!
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClient.ClientId.init -> void
@@ -219,6 +233,60 @@ NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationScope.IsSy
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationScope.TenantConfigurationScope() -> void
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationScope.Value.get -> string!
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationScope.Value.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionActions
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionChangeResource
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionChangeResource.Action.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionChangeResource.Action.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionChangeResource.ResourceId.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionChangeResource.ResourceId.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionChangeResource.ResourceType.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionChangeResource.ResourceType.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionChangeResource.TenantPromotionChangeResource() -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionEnvironmentSettings
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionEnvironmentSettings.ResourceId.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionEnvironmentSettings.ResourceId.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionEnvironmentSettings.ResourceType.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionEnvironmentSettings.ResourceType.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionEnvironmentSettings.Settings.get -> System.Text.Json.JsonElement
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionEnvironmentSettings.Settings.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionEnvironmentSettings.TenantPromotionEnvironmentSettings() -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionErrorResource
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionErrorResource.Detail.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionErrorResource.Detail.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionErrorResource.ResourceId.get -> string?
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionErrorResource.ResourceId.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionErrorResource.ResourceType.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionErrorResource.ResourceType.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionErrorResource.TenantPromotionErrorResource() -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionNoteCodes
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionNoteResource
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionNoteResource.Code.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionNoteResource.Code.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionNoteResource.Detail.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionNoteResource.Detail.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionNoteResource.ResourceId.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionNoteResource.ResourceId.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionNoteResource.ResourceType.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionNoteResource.ResourceType.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionNoteResource.SettingName.get -> string?
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionNoteResource.SettingName.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionNoteResource.TenantPromotionNoteResource() -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionResource
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionResource.Changes.get -> System.Collections.Generic.List<NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionChangeResource!>!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionResource.Changes.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionResource.Errors.get -> System.Collections.Generic.List<NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionErrorResource!>!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionResource.Errors.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionResource.IsApplied.get -> bool
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionResource.IsApplied.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionResource.Notes.get -> System.Collections.Generic.List<NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionNoteResource!>!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionResource.Notes.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionResource.SourceTenantId.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionResource.SourceTenantId.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionResource.TargetTenantId.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionResource.TargetTenantId.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionResource.TeamId.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionResource.TeamId.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionResource.TenantPromotionResource() -> void
 NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority
 NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority.ControlPlaneAuthority() -> void
 NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority.IsActingClient.get -> bool
@@ -249,6 +317,13 @@ NCode.Identity.OpenId.Management.ControlPlane.ManagementTokenValidation.IsUnavai
 NCode.Identity.OpenId.Management.ControlPlane.ManagementTokenValidation.Principal.get -> System.Security.Claims.ClaimsPrincipal?
 NCode.Identity.OpenId.Management.ControlPlane.ManagementTokenValidation.RetryAfter.get -> System.TimeSpan
 NCode.Identity.OpenId.Management.Endpoints.Secrets.ISecretValidator.ValidateUpdate(NCode.Identity.Secrets.Persistence.DataContracts.PersistedSecret! secret, NCode.Identity.OpenId.Management.Contracts.Secrets.UpdateSecretRequest! request) -> NCode.Identity.OpenId.Management.ManagementError?
+NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.AddChange(NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionChangeResource! change) -> void
+NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.AddError(NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionErrorResource! error) -> void
+NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.AddNote(NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionNoteResource! note) -> void
+NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.Changes.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionChangeResource!>!
+NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.EnvironmentSettings.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionEnvironmentSettings!>!
+NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.Errors.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionErrorResource!>!
+NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.Notes.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Management.Contracts.Tenants.TenantPromotionNoteResource!>!
 override NCode.Identity.OpenId.Management.Auditing.InitialAccessTokenCreatedAuditEvent.ResourceType.get -> string!
 NCode.Identity.OpenId.Management.Auditing.IManagementAuditRecorder
 NCode.Identity.OpenId.Management.Auditing.IManagementAuditRecorder.RecordClientChangedAsync(Microsoft.AspNetCore.Http.HttpContext! httpContext, string! tenantId, string! clientId, string! changeType, System.Text.Json.JsonElement? resourceValues) -> System.Threading.Tasks.ValueTask
@@ -1193,74 +1268,6 @@ NCode.Identity.OpenId.Management.Contracts.EncryptionKeys.EncryptionKeysResource
 NCode.Identity.OpenId.Management.Contracts.EncryptionKeys.EncryptionKeyResource.RootKeyAccessIdentity.get -> string?
 NCode.Identity.OpenId.Management.Contracts.EncryptionKeys.EncryptionKeyResource.RootKeyAccessIdentity.init -> void
 const NCode.Identity.OpenId.Management.Auditing.ManagementResourceTypes.ClientGrant = "client_grant" -> string!
-NCode.Identity.OpenId.Management.Contracts.Teams.PromoteTenantRequest
-NCode.Identity.OpenId.Management.Contracts.Teams.PromoteTenantRequest.PromoteTenantRequest() -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.PromoteTenantRequest.SourceTenantId.get -> string!
-NCode.Identity.OpenId.Management.Contracts.Teams.PromoteTenantRequest.SourceTenantId.init -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.PromoteTenantRequest.TargetTenantId.get -> string!
-NCode.Identity.OpenId.Management.Contracts.Teams.PromoteTenantRequest.TargetTenantId.init -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.PromoteTenantRequest.EnvironmentSettings.get -> System.Collections.Generic.List<NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionEnvironmentSettings!>!
-NCode.Identity.OpenId.Management.Contracts.Teams.PromoteTenantRequest.EnvironmentSettings.init -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionEnvironmentSettings
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionEnvironmentSettings.TenantPromotionEnvironmentSettings() -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionEnvironmentSettings.ResourceType.get -> string!
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionEnvironmentSettings.ResourceType.init -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionEnvironmentSettings.ResourceId.get -> string!
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionEnvironmentSettings.ResourceId.init -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionEnvironmentSettings.Settings.get -> System.Text.Json.JsonElement
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionEnvironmentSettings.Settings.init -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionResource
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionResource.TenantPromotionResource() -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionResource.TeamId.get -> string!
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionResource.TeamId.init -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionResource.SourceTenantId.get -> string!
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionResource.SourceTenantId.init -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionResource.TargetTenantId.get -> string!
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionResource.TargetTenantId.init -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionResource.IsApplied.get -> bool
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionResource.IsApplied.init -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionResource.Changes.get -> System.Collections.Generic.List<NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionChangeResource!>!
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionResource.Changes.init -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionResource.Notes.get -> System.Collections.Generic.List<NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionNoteResource!>!
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionResource.Notes.init -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionResource.Errors.get -> System.Collections.Generic.List<NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionErrorResource!>!
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionResource.Errors.init -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionChangeResource
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionChangeResource.TenantPromotionChangeResource() -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionChangeResource.ResourceType.get -> string!
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionChangeResource.ResourceType.init -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionChangeResource.ResourceId.get -> string!
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionChangeResource.ResourceId.init -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionChangeResource.Action.get -> string!
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionChangeResource.Action.init -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionNoteResource
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionNoteResource.TenantPromotionNoteResource() -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionNoteResource.ResourceType.get -> string!
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionNoteResource.ResourceType.init -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionNoteResource.ResourceId.get -> string!
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionNoteResource.ResourceId.init -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionNoteResource.Code.get -> string!
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionNoteResource.Code.init -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionNoteResource.Detail.get -> string!
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionNoteResource.Detail.init -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionNoteResource.SettingName.get -> string?
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionNoteResource.SettingName.init -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionErrorResource
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionErrorResource.TenantPromotionErrorResource() -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionErrorResource.ResourceType.get -> string!
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionErrorResource.ResourceType.init -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionErrorResource.Detail.get -> string!
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionErrorResource.Detail.init -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionErrorResource.ResourceId.get -> string?
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionErrorResource.ResourceId.init -> void
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionActions
-const NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionActions.Created = "created" -> string!
-const NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionActions.Updated = "updated" -> string!
-const NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionActions.Unchanged = "unchanged" -> string!
-NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionNoteCodes
-const NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionNoteCodes.CredentialRequired = "credential_required" -> string!
-const NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionNoteCodes.EnvironmentSettingUnset = "environment_setting_unset" -> string!
-const NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionNoteCodes.HostManaged = "host_managed" -> string!
 NCode.Identity.OpenId.Management.Promotions.ITenantPromotionContributor
 NCode.Identity.OpenId.Management.Promotions.ITenantPromotionContributor.Order.get -> int
 NCode.Identity.OpenId.Management.Promotions.ITenantPromotionContributor.PlanAsync(NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
@@ -1292,21 +1299,14 @@ NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.AmbientTenant
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.AmbientTenantAccessor.init -> void
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.JsonSerializerOptions.get -> System.Text.Json.JsonSerializerOptions!
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.JsonSerializerOptions.init -> void
-NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.EnvironmentSettings.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionEnvironmentSettings!>!
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.EnvironmentSettings.init -> void
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.TargetTenantSettings.get -> System.Text.Json.JsonElement
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.TargetTenantSettings.set -> void
-NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.Changes.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionChangeResource!>!
-NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.Notes.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionNoteResource!>!
-NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.Errors.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionErrorResource!>!
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.AuditEvents.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.Events.Audit.ResourceChangeAuditEvent!>!
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.ChangedLimits.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Management.Promotions.TenantPromotionLimitChange!>!
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.RequiredCreateAuthorities.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Persistence.ISupportTenantId!>!
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.BeginTargetScope() -> System.IDisposable!
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.GetEnvironmentSettingsOrDefault(string! resourceType, string! resourceId) -> System.Text.Json.JsonElement?
-NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.AddChange(NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionChangeResource! change) -> void
-NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.AddNote(NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionNoteResource! note) -> void
-NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.AddError(NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionErrorResource! error) -> void
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.AddAuditEvent(NCode.Identity.Events.Audit.ResourceChangeAuditEvent! auditEvent) -> void
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.AddChangedLimits(NCode.Identity.OpenId.Persistence.ISupportTenantId! authorityAbove, System.Collections.Generic.IReadOnlyList<string!>! settingNames) -> void
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.AddRequiredCreateAuthority(NCode.Identity.OpenId.Persistence.ISupportTenantId! node) -> void

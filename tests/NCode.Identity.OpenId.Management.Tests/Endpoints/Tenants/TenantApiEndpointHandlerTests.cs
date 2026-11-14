@@ -1383,10 +1383,8 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task Map_OnTheControlPlane_DeclaresAndDescribesTheConfigurationRoute()
+    public async Task Map_Always_DeclaresAndDescribesTheConfigurationRoute()
     {
-        CellOptions.IsControlPlane = true;
-
         Assert.Equal(
             [401, 403, 404],
             await EndpointProblemMetadata.ReadStatusCodesAsync(
@@ -1407,11 +1405,10 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     }
 
     [Theory]
-    [InlineData(true, true)]
-    [InlineData(false, false)]
-    public void Map_WhenTheCellIsOrIsNotTheControlPlane_MapsTheConfigurationRouteOnlyOnTheControlPlane(
-        bool isControlPlane,
-        bool isMapped
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Map_WhetherOrNotTheCellIsTheControlPlane_MapsTheConfigurationRoute(
+        bool isControlPlane
     )
     {
         CellOptions.IsControlPlane = isControlPlane;
@@ -1423,7 +1420,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
             .DataSources.SelectMany(dataSource => dataSource.Endpoints)
             .OfType<RouteEndpoint>()
             .Select(endpoint => endpoint.RoutePattern.RawText);
-        Assert.Equal(isMapped, routes.Contains("/tenants/{tenantId}/configuration"));
+        Assert.Contains("/tenants/{tenantId}/configuration", routes);
     }
 
     #endregion
