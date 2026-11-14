@@ -37,23 +37,23 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     #region Helpers
 
     private (
-        AspNetIdentityLocalAccountStore<IdentityUser> Store,
-        Mock<UserManager<IdentityUser>> UserManager
+        AspNetIdentityLocalAccountStore<TestTenantUser> Store,
+        Mock<UserManager<TestTenantUser>> UserManager
     ) CreateStore(
-        IPasswordHasher<IdentityUser>? passwordHasher = null,
-        IUserStore<IdentityUser>? userStore = null,
+        IPasswordHasher<TestTenantUser>? passwordHasher = null,
+        IUserStore<TestTenantUser>? userStore = null,
         bool normalizesPasswords = true
     )
     {
         // UserManager's constructor needs only a user store and the password hasher (index 2); the remaining
         // dependencies are unused by this adapter. The adapter requires the user manager's hasher to normalize.
-        IPasswordHasher<IdentityUser>? userManagerHasher =
+        IPasswordHasher<TestTenantUser>? userManagerHasher =
             normalizesPasswords && passwordHasher is not null
-                ? new NormalizingPasswordHasher<IdentityUser>(passwordHasher)
+                ? new NormalizingPasswordHasher<TestTenantUser>(passwordHasher)
                 : passwordHasher;
         object?[] constructorArguments =
         [
-            Mock.Of<IUserStore<IdentityUser>>(),
+            Mock.Of<IUserStore<TestTenantUser>>(),
             null,
             userManagerHasher,
             null,
@@ -63,21 +63,21 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             null,
             null,
         ];
-        var userManager = Mocks.Create<UserManager<IdentityUser>>((object[])constructorArguments);
+        var userManager = Mocks.Create<UserManager<TestTenantUser>>((object[])constructorArguments);
 
         // UserManager's constructor assigns its virtual Logger property; allow that set on the strict mock.
         userManager.SetupSet(x => x.Logger = It.IsAny<ILogger>()).Verifiable();
 
         var serviceProvider = Mocks.Create<IServiceProvider>();
         serviceProvider
-            .Setup(x => x.GetService(typeof(UserManager<IdentityUser>)))
+            .Setup(x => x.GetService(typeof(UserManager<TestTenantUser>)))
             .Returns(userManager.Object)
             .Verifiable();
 
         if (userStore is not null)
         {
             serviceProvider
-                .Setup(x => x.GetService(typeof(IUserStore<IdentityUser>)))
+                .Setup(x => x.GetService(typeof(IUserStore<TestTenantUser>)))
                 .Returns(userStore)
                 .Verifiable();
         }
@@ -95,35 +95,35 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         var storeProvider = Mocks.Create<IStoreProvider>();
 
         return (
-            new AspNetIdentityLocalAccountStore<IdentityUser>(
+            new AspNetIdentityLocalAccountStore<TestTenantUser>(
                 scopeFactory.Object,
                 storeProvider.Object,
-                new AspNetIdentityDummyPasswordHash<IdentityUser>()
+                new AspNetIdentityDummyPasswordHash<TestTenantUser>()
             ),
             userManager
         );
     }
 
-    private Mock<IPasswordHasher<IdentityUser>> CreatePasswordHasher() =>
-        Mocks.Create<IPasswordHasher<IdentityUser>>();
+    private Mock<IPasswordHasher<TestTenantUser>> CreatePasswordHasher() =>
+        Mocks.Create<IPasswordHasher<TestTenantUser>>();
 
-    private Mock<IUserPasswordStore<IdentityUser>> CreatePasswordStore() =>
-        Mocks.Create<IUserPasswordStore<IdentityUser>>();
+    private Mock<IUserPasswordStore<TestTenantUser>> CreatePasswordStore() =>
+        Mocks.Create<IUserPasswordStore<TestTenantUser>>();
 
     private static void SetupDummyPasswordHash(
-        Mock<IPasswordHasher<IdentityUser>> passwordHasher
+        Mock<IPasswordHasher<TestTenantUser>> passwordHasher
     ) =>
         passwordHasher
             .Setup(x =>
                 x.HashPassword(
-                    It.Is<IdentityUser>(user => user.Id != LocalAccountId),
+                    It.Is<TestTenantUser>(user => user.Id != LocalAccountId),
                     It.IsAny<string>()
                 )
             )
             .Returns(DummyPasswordHash)
             .Verifiable();
 
-    private static IdentityUser CreateUser() =>
+    private static TestTenantUser CreateUser() =>
         new(UserName)
         {
             Id = LocalAccountId,
@@ -133,7 +133,10 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             ConcurrencyStamp = ConcurrencyToken,
         };
 
-    private static void SetupMapping(Mock<UserManager<IdentityUser>> userManager, IdentityUser user)
+    private static void SetupMapping(
+        Mock<UserManager<TestTenantUser>> userManager,
+        TestTenantUser user
+    )
     {
         userManager.Setup(x => x.GetClaimsAsync(user)).ReturnsAsync([RoleClaim]).Verifiable();
         userManager.SetupGet(x => x.SupportsUserLockout).Returns(true).Verifiable();
@@ -175,11 +178,11 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         SetupDummyPasswordHash(passwordHasher);
         userManager
             .Setup(x => x.FindByNameAsync(UserName))
-            .ReturnsAsync((IdentityUser?)null)
+            .ReturnsAsync((TestTenantUser?)null)
             .Verifiable();
         passwordHasher
             .Setup(x =>
-                x.VerifyHashedPassword(It.IsAny<IdentityUser>(), DummyPasswordHash, Password)
+                x.VerifyHashedPassword(It.IsAny<TestTenantUser>(), DummyPasswordHash, Password)
             )
             .Returns(PasswordVerificationResult.Failed)
             .Verifiable();
@@ -207,7 +210,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         userManager.Setup(x => x.IsLockedOutAsync(user)).ReturnsAsync(true).Verifiable();
         passwordHasher
             .Setup(x =>
-                x.VerifyHashedPassword(It.IsAny<IdentityUser>(), DummyPasswordHash, Password)
+                x.VerifyHashedPassword(It.IsAny<TestTenantUser>(), DummyPasswordHash, Password)
             )
             .Returns(PasswordVerificationResult.Success)
             .Verifiable();
@@ -307,7 +310,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             .Verifiable();
         passwordHasher
             .Setup(x =>
-                x.VerifyHashedPassword(It.IsAny<IdentityUser>(), DummyPasswordHash, Password)
+                x.VerifyHashedPassword(It.IsAny<TestTenantUser>(), DummyPasswordHash, Password)
             )
             .Returns(PasswordVerificationResult.Success)
             .Verifiable();
@@ -339,7 +342,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             .Verifiable();
         passwordHasher
             .Setup(x =>
-                x.VerifyHashedPassword(It.IsAny<IdentityUser>(), DummyPasswordHash, Password)
+                x.VerifyHashedPassword(It.IsAny<TestTenantUser>(), DummyPasswordHash, Password)
             )
             .Returns(PasswordVerificationResult.Success)
             .Verifiable();
@@ -516,12 +519,12 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         SetupDummyPasswordHash(passwordHasher);
         userManager
             .Setup(x => x.FindByNameAsync(UserName))
-            .ReturnsAsync((IdentityUser?)null)
+            .ReturnsAsync((TestTenantUser?)null)
             .Verifiable();
         passwordHasher
             .Setup(x =>
                 x.VerifyHashedPassword(
-                    It.IsAny<IdentityUser>(),
+                    It.IsAny<TestTenantUser>(),
                     DummyPasswordHash,
                     ComposedPassword
                 )
@@ -531,7 +534,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         passwordHasher
             .Setup(x =>
                 x.VerifyHashedPassword(
-                    It.IsAny<IdentityUser>(),
+                    It.IsAny<TestTenantUser>(),
                     DummyPasswordHash,
                     DecomposedPassword
                 )
@@ -566,7 +569,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             .Verifiable();
         passwordHasher
             .Setup(x =>
-                x.VerifyHashedPassword(It.IsAny<IdentityUser>(), DummyPasswordHash, Password)
+                x.VerifyHashedPassword(It.IsAny<TestTenantUser>(), DummyPasswordHash, Password)
             )
             .Returns(PasswordVerificationResult.Success)
             .Verifiable(Times.Once());
@@ -656,7 +659,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         var (store, userManager) = CreateStore();
         userManager
             .Setup(x => x.FindByIdAsync(LocalAccountId))
-            .ReturnsAsync((IdentityUser?)null)
+            .ReturnsAsync((TestTenantUser?)null)
             .Verifiable();
 
         var result = await store.GetByIdOrDefaultAsync(LocalAccountId, CancellationToken.None);
@@ -693,29 +696,29 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         var (store, userManager) = CreateStore(passwordHasher.Object, passwordStore.Object);
 
         passwordHasher
-            .Setup(x => x.HashPassword(It.IsAny<IdentityUser>(), Password))
+            .Setup(x => x.HashPassword(It.IsAny<TestTenantUser>(), Password))
             .Returns(PasswordHash)
             .Verifiable();
         passwordStore
             .Setup(x =>
                 x.SetPasswordHashAsync(
-                    It.IsAny<IdentityUser>(),
+                    It.IsAny<TestTenantUser>(),
                     PasswordHash,
                     It.IsAny<CancellationToken>()
                 )
             )
             .Returns(Task.CompletedTask)
             .Verifiable();
-        IdentityUser? created = null;
+        TestTenantUser? created = null;
         userManager
-            .Setup(x => x.CreateAsync(It.IsAny<IdentityUser>()))
-            .Callback<IdentityUser>(user => created = user)
+            .Setup(x => x.CreateAsync(It.IsAny<TestTenantUser>()))
+            .Callback<TestTenantUser>(user => created = user)
             .ReturnsAsync(IdentityResult.Success)
             .Verifiable();
         userManager
             .Setup(x =>
                 x.AddClaimAsync(
-                    It.IsAny<IdentityUser>(),
+                    It.IsAny<TestTenantUser>(),
                     It.Is<Claim>(claim => claim.Type == "role" && claim.Value == "admin")
                 )
             )
@@ -740,16 +743,18 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     {
         var (store, userManager) = CreateStore();
         userManager
-            .Setup(x => x.CreateAsync(It.IsAny<IdentityUser>()))
+            .Setup(x => x.CreateAsync(It.IsAny<TestTenantUser>()))
             .ReturnsAsync(IdentityResult.Success)
             .Verifiable();
         userManager.SetupGet(x => x.SupportsUserLockout).Returns(true).Verifiable();
         userManager
-            .Setup(x => x.SetLockoutEnabledAsync(It.IsAny<IdentityUser>(), true))
+            .Setup(x => x.SetLockoutEnabledAsync(It.IsAny<TestTenantUser>(), true))
             .ReturnsAsync(IdentityResult.Success)
             .Verifiable();
         userManager
-            .Setup(x => x.SetLockoutEndDateAsync(It.IsAny<IdentityUser>(), DateTimeOffset.MaxValue))
+            .Setup(x =>
+                x.SetLockoutEndDateAsync(It.IsAny<TestTenantUser>(), DateTimeOffset.MaxValue)
+            )
             .ReturnsAsync(IdentityResult.Success)
             .Verifiable();
 
@@ -782,7 +787,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         var passwordHasher = CreatePasswordHasher();
         var (store, userManager) = CreateStore(passwordHasher.Object, normalizesPasswords: false);
         userManager
-            .Setup(x => x.CreateAsync(It.IsAny<IdentityUser>()))
+            .Setup(x => x.CreateAsync(It.IsAny<TestTenantUser>()))
             .ReturnsAsync(IdentityResult.Success)
             .Verifiable();
 
@@ -794,7 +799,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     {
         var (store, userManager) = CreateStore();
         userManager
-            .Setup(x => x.CreateAsync(It.IsAny<IdentityUser>()))
+            .Setup(x => x.CreateAsync(It.IsAny<TestTenantUser>()))
             .ReturnsAsync(IdentityResult.Failed(new IdentityError { Description = "boom" }))
             .Verifiable();
 
@@ -813,7 +818,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         var (store, userManager) = CreateStore();
         userManager
             .Setup(x => x.FindByIdAsync(LocalAccountId))
-            .ReturnsAsync((IdentityUser?)null)
+            .ReturnsAsync((TestTenantUser?)null)
             .Verifiable();
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
@@ -926,7 +931,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     [Fact]
     public async Task SetPasswordAsync_WhenTheUserStoreDoesNotStorePasswords_Throws()
     {
-        var userStore = Mocks.Create<IUserStore<IdentityUser>>();
+        var userStore = Mocks.Create<IUserStore<TestTenantUser>>();
         var (store, _) = CreateStore(userStore: userStore.Object);
 
         await Assert.ThrowsAsync<NotSupportedException>(async () =>
@@ -958,7 +963,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         var (store, userManager) = CreateStore();
         userManager
             .Setup(x => x.FindByIdAsync(LocalAccountId))
-            .ReturnsAsync((IdentityUser?)null)
+            .ReturnsAsync((TestTenantUser?)null)
             .Verifiable();
 
         await store.RemoveAsync(LocalAccountId, CancellationToken.None);
@@ -1018,18 +1023,18 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         var (store, userManager) = CreateStore();
         var users = new[]
         {
-            new IdentityUser("alice") { Id = "user-1" },
-            new IdentityUser("bob") { Id = "user-2" },
+            new TestTenantUser("alice") { Id = "user-1" },
+            new TestTenantUser("bob") { Id = "user-2" },
         };
         userManager.SetupGet(x => x.SupportsQueryableUsers).Returns(true).Verifiable();
         userManager.SetupGet(x => x.Users).Returns(users.AsQueryable()).Verifiable();
         userManager
-            .Setup(x => x.GetClaimsAsync(It.IsAny<IdentityUser>()))
+            .Setup(x => x.GetClaimsAsync(It.IsAny<TestTenantUser>()))
             .ReturnsAsync([])
             .Verifiable();
         userManager.SetupGet(x => x.SupportsUserLockout).Returns(true).Verifiable();
         userManager
-            .Setup(x => x.IsLockedOutAsync(It.IsAny<IdentityUser>()))
+            .Setup(x => x.IsLockedOutAsync(It.IsAny<TestTenantUser>()))
             .ReturnsAsync(false)
             .Verifiable();
 

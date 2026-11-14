@@ -13,16 +13,16 @@ public sealed class NormalizingPasswordHasherTests : IDisposable
     private const string StoredHash = "stored-hash";
     private const string MadeHash = "made-hash";
 
-    private static IdentityUser User { get; } = new("alice");
+    private static TestTenantUser User { get; } = new("alice");
 
     private MockRepository Mocks { get; } = new(MockBehavior.Strict);
-    private Mock<IPasswordHasher<IdentityUser>> InnerHasher { get; }
-    private NormalizingPasswordHasher<IdentityUser> Hasher { get; }
+    private Mock<IPasswordHasher<TestTenantUser>> InnerHasher { get; }
+    private NormalizingPasswordHasher<TestTenantUser> Hasher { get; }
 
     public NormalizingPasswordHasherTests()
     {
-        InnerHasher = Mocks.Create<IPasswordHasher<IdentityUser>>();
-        Hasher = new NormalizingPasswordHasher<IdentityUser>(InnerHasher.Object);
+        InnerHasher = Mocks.Create<IPasswordHasher<TestTenantUser>>();
+        Hasher = new NormalizingPasswordHasher<TestTenantUser>(InnerHasher.Object);
     }
 
     public void Dispose() => Mocks.Verify();

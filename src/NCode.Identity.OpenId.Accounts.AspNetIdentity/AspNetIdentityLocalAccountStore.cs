@@ -34,7 +34,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
     IStoreProvider storeProvider,
     AspNetIdentityDummyPasswordHash<TUser> dummyPasswordHash
 ) : ILocalAccountStore
-    where TUser : IdentityUser, new()
+    where TUser : IdentityUser, ITenantBoundUser, new()
 {
     private IServiceScopeFactory ServiceScopeFactory { get; } = serviceScopeFactory;
     private IStoreProvider StoreProvider { get; } = storeProvider;

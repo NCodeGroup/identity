@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Registration;
@@ -40,27 +41,32 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
 
     // A hasher that does not normalize, as the host's pages used before the adapter wrapped it; the user manager's
     // hasher normalizes.
-    private static PasswordHasher<IdentityUser> RawPasswordHasher { get; } = new();
+    private static PasswordHasher<TestTenantUser> RawPasswordHasher { get; } = new();
 
     private static Func<string, CancellationToken, ValueTask<bool>> NotRefused { get; } =
         static (_, _) => ValueTask.FromResult(false);
 
     private ServiceProvider Provider { get; }
     private ILocalAccountStore Store { get; }
+    private IDisposable TenantScope { get; }
 
     public AspNetIdentityLocalAccountStoreEntityFrameworkTests()
     {
+        var accessor = new TestAmbientTenantAccessor();
+        TenantScope = accessor.BeginScope("tenant-1");
+
         var serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton<IAmbientTenantAccessor>(accessor);
         var databaseName = Guid.NewGuid().ToString("N");
-        serviceCollection.AddDbContext<IdentityDbContext>(options =>
+        serviceCollection.AddDbContext<IdentityDbContext<TestTenantUser>>(options =>
             options.UseInMemoryDatabase(databaseName)
         );
         serviceCollection
-            .AddIdentityCore<IdentityUser>()
-            .AddEntityFrameworkStores<IdentityDbContext>();
+            .AddIdentityCore<TestTenantUser>()
+            .AddEntityFrameworkStores<IdentityDbContext<TestTenantUser>>();
         serviceCollection
             .NewBuilder<StoreManagerLibrary>()
-            .AddAspNetIdentityLocalAccountStore<IdentityUser>();
+            .AddAspNetIdentityLocalAccountStore<TestTenantUser>();
 
         Provider = serviceCollection.BuildServiceProvider();
 
@@ -71,7 +77,11 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
 
     public Task InitializeAsync() => Task.CompletedTask;
 
-    public async Task DisposeAsync() => await Provider.DisposeAsync();
+    public async Task DisposeAsync()
+    {
+        TenantScope.Dispose();
+        await Provider.DisposeAsync();
+    }
 
     #region Helpers
 
@@ -104,7 +114,7 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
     )
     {
         using var scope = Provider.CreateScope();
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TestTenantUser>>();
         var user = await userManager.FindByIdAsync(LocalAccountId);
         Assert.NotNull(user);
         user.PasswordHash = RawPasswordHasher.HashPassword(user, password);
@@ -118,7 +128,7 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
     )
     {
         using var scope = Provider.CreateScope();
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TestTenantUser>>();
         var user = await userManager.FindByIdAsync(LocalAccountId);
         Assert.NotNull(user);
         Assert.NotNull(user.PasswordHash);
@@ -132,7 +142,7 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
     )
     {
         using var scope = Provider.CreateScope();
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TestTenantUser>>();
         var user = await userManager.FindByIdAsync(LocalAccountId);
         Assert.NotNull(user);
         return await userManager.CheckPasswordAsync(user, password);
@@ -145,8 +155,8 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
     )
     {
         using var scope = Provider.CreateScope();
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
-        var user = new IdentityUser(UserName) { Id = LocalAccountId };
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TestTenantUser>>();
+        var user = new TestTenantUser(UserName) { Id = LocalAccountId };
         var created = await userManager.CreateAsync(user, password);
         var errors = string.Join("; ", created.Errors.Select(error => error.Description));
         Assert.True(created.Succeeded, errors);
