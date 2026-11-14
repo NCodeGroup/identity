@@ -3,7 +3,7 @@
 
 using JetBrains.Annotations;
 
-namespace NCode.Identity.OpenId.Directory;
+namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
 /// Reserves tenant identifiers and issuers platform-wide, places each tenant in a cell, and remembers the identifiers

@@ -4,7 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 using JetBrains.Annotations;
 
-namespace NCode.Identity.OpenId.Directory;
+namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
 /// Records the cell that holds a tenant.

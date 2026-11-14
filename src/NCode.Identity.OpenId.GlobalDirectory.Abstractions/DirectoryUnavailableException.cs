@@ -3,7 +3,7 @@
 
 using JetBrains.Annotations;
 
-namespace NCode.Identity.OpenId.Directory;
+namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
 /// Represents the failure of a directory port to reach the global directory. A caller that needs the directory fails

@@ -556,6 +556,10 @@ public sealed class IdentityServerBuilderExtensionsTests : BaseTests
                 ["OpenId:TenantResolution:StrategyCode"] = "StaticSingle",
                 ["OpenId:TenantResolution:StaticSingle:TenantPath"] = "/",
                 ["SecretProtection:RootKeyProvider"] = "ephemeral",
+                ["Cell:Name"] = "local",
+                ["Cell:Region"] = "local",
+                ["Cell:Kind"] = "shared",
+                ["Cell:IsControlPlane"] = "true",
             },
             out var secretProtectorProvider
         );
@@ -586,6 +590,10 @@ public sealed class IdentityServerBuilderExtensionsTests : BaseTests
                 ["OpenId:TenantResolution:StrategyCode"] = "StaticSingle",
                 ["OpenId:TenantResolution:StaticSingle:TenantPath"] = "/",
                 ["SecretProtection:RootKeyProvider"] = "ephemeral",
+                ["Cell:Name"] = "local",
+                ["Cell:Region"] = "local",
+                ["Cell:Kind"] = "shared",
+                ["Cell:IsControlPlane"] = "true",
                 ["SecretProtection:RemoteKeyProviders:AwsKms:Region"] = "us-west-2",
                 ["SecretProtection:RemoteKeyProviders:AzureKeyVault:VaultUri"] =
                     "https://contoso.vault.azure.net",

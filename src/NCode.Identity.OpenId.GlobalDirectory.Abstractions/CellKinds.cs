@@ -3,7 +3,7 @@
 
 using JetBrains.Annotations;
 
-namespace NCode.Identity.OpenId.Directory;
+namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
 /// Contains the known values of <see cref="CellOptions.Kind"/>. The vocabulary is open: a deployment may name any

@@ -4,7 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 using JetBrains.Annotations;
 
-namespace NCode.Identity.OpenId.Directory;
+namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
 /// Identifies the control-plane cell to a cell that is not the control plane. Bound from the <c>Cell:ControlPlane</c>

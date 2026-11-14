@@ -1,0 +1,98 @@
+const NCode.Identity.OpenId.GlobalDirectory.CellKinds.Dedicated = "dedicated" -> string!
+const NCode.Identity.OpenId.GlobalDirectory.CellKinds.Shared = "shared" -> string!
+const NCode.Identity.OpenId.GlobalDirectory.CellOptions.SectionName = "Cell" -> string!
+NCode.Identity.OpenId.GlobalDirectory.CellDescriptor
+NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.IsControlPlane.get -> bool
+NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.IsControlPlane.init -> void
+NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.Kind.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.Kind.init -> void
+NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.ManagementUrl.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.ManagementUrl.init -> void
+NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.Name.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.Name.init -> void
+NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.Region.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.Region.init -> void
+NCode.Identity.OpenId.GlobalDirectory.CellKinds
+NCode.Identity.OpenId.GlobalDirectory.CellOptions
+NCode.Identity.OpenId.GlobalDirectory.CellOptions.CellOptions() -> void
+NCode.Identity.OpenId.GlobalDirectory.CellOptions.CloudRegions.get -> string![]!
+NCode.Identity.OpenId.GlobalDirectory.CellOptions.CloudRegions.set -> void
+NCode.Identity.OpenId.GlobalDirectory.CellOptions.ControlPlane.get -> NCode.Identity.OpenId.GlobalDirectory.ControlPlaneOptions!
+NCode.Identity.OpenId.GlobalDirectory.CellOptions.ControlPlane.set -> void
+NCode.Identity.OpenId.GlobalDirectory.CellOptions.IsControlPlane.get -> bool
+NCode.Identity.OpenId.GlobalDirectory.CellOptions.IsControlPlane.set -> void
+NCode.Identity.OpenId.GlobalDirectory.CellOptions.Kind.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.CellOptions.Kind.set -> void
+NCode.Identity.OpenId.GlobalDirectory.CellOptions.ManagementUrl.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.CellOptions.ManagementUrl.set -> void
+NCode.Identity.OpenId.GlobalDirectory.CellOptions.Name.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.CellOptions.Name.set -> void
+NCode.Identity.OpenId.GlobalDirectory.CellOptions.Region.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.CellOptions.Region.set -> void
+NCode.Identity.OpenId.GlobalDirectory.ControlPlaneOptions
+NCode.Identity.OpenId.GlobalDirectory.ControlPlaneOptions.ControlPlaneOptions() -> void
+NCode.Identity.OpenId.GlobalDirectory.ControlPlaneOptions.Issuer.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.ControlPlaneOptions.Issuer.set -> void
+NCode.Identity.OpenId.GlobalDirectory.DirectoryChange
+NCode.Identity.OpenId.GlobalDirectory.DirectoryChange.Document.get -> NCode.Identity.OpenId.GlobalDirectory.TeamDocument?
+NCode.Identity.OpenId.GlobalDirectory.DirectoryChange.Document.init -> void
+NCode.Identity.OpenId.GlobalDirectory.DirectoryChange.Sequence.get -> long
+NCode.Identity.OpenId.GlobalDirectory.DirectoryChange.Sequence.init -> void
+NCode.Identity.OpenId.GlobalDirectory.DirectoryChange.TeamId.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.DirectoryChange.TeamId.init -> void
+NCode.Identity.OpenId.GlobalDirectory.DirectoryUnavailableException
+NCode.Identity.OpenId.GlobalDirectory.DirectoryUnavailableException.DirectoryUnavailableException(string! message) -> void
+NCode.Identity.OpenId.GlobalDirectory.DirectoryUnavailableException.DirectoryUnavailableException(string! message, System.Exception! innerException) -> void
+NCode.Identity.OpenId.GlobalDirectory.ICellDirectory
+NCode.Identity.OpenId.GlobalDirectory.ICellDirectory.GetOrDefaultAsync(string! name, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.CellDescriptor?>
+NCode.Identity.OpenId.GlobalDirectory.ICellDirectory.ListAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.CellDescriptor!>!>
+NCode.Identity.OpenId.GlobalDirectory.ICellDirectory.RegisterAsync(NCode.Identity.OpenId.GlobalDirectory.CellDescriptor! descriptor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.GlobalDirectory.ITeamDirectory
+NCode.Identity.OpenId.GlobalDirectory.ITeamDirectory.GetOrDefaultAsync(string! teamId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.TeamDocument?>
+NCode.Identity.OpenId.GlobalDirectory.ITeamDirectory.IsTeamIdRetiredAsync(string! teamId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+NCode.Identity.OpenId.GlobalDirectory.ITeamDirectory.ListChangesAsync(long after, int limit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.DirectoryChange!>!>
+NCode.Identity.OpenId.GlobalDirectory.ITeamDirectory.PublishAsync(NCode.Identity.OpenId.GlobalDirectory.TeamDocument! document, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.GlobalDirectory.ITeamDirectory.ReserveAsync(string! teamId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.ReservationResult!>
+NCode.Identity.OpenId.GlobalDirectory.ITeamDirectory.RetireAsync(string! teamId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.GlobalDirectory.ITenantDirectory
+NCode.Identity.OpenId.GlobalDirectory.ITenantDirectory.GetPlacementOrDefaultAsync(string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.TenantPlacement?>
+NCode.Identity.OpenId.GlobalDirectory.ITenantDirectory.GetRetiredIssuerHolderOrDefaultAsync(string! issuer, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string?>
+NCode.Identity.OpenId.GlobalDirectory.ITenantDirectory.IsTenantIdRetiredAsync(string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+NCode.Identity.OpenId.GlobalDirectory.ITenantDirectory.PlaceAsync(NCode.Identity.OpenId.GlobalDirectory.TenantPlacement! placement, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.GlobalDirectory.ITenantDirectory.ReleaseAsync(string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.GlobalDirectory.ITenantDirectory.ReserveAsync(NCode.Identity.OpenId.GlobalDirectory.TenantReservation! reservation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.ReservationResult!>
+NCode.Identity.OpenId.GlobalDirectory.ITenantDirectory.RetireAsync(string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.GlobalDirectory.ReservationResult
+NCode.Identity.OpenId.GlobalDirectory.ReservationResult.ConflictDetail.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.ReservationResult.IsReserved.get -> bool
+NCode.Identity.OpenId.GlobalDirectory.TeamDocument
+NCode.Identity.OpenId.GlobalDirectory.TeamDocument.DisplayName.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.TeamDocument.DisplayName.init -> void
+NCode.Identity.OpenId.GlobalDirectory.TeamDocument.RootKeyReferences.get -> System.Collections.Immutable.ImmutableDictionary<string!, string!>!
+NCode.Identity.OpenId.GlobalDirectory.TeamDocument.RootKeyReferences.init -> void
+NCode.Identity.OpenId.GlobalDirectory.TeamDocument.Sequence.get -> long
+NCode.Identity.OpenId.GlobalDirectory.TeamDocument.Sequence.init -> void
+NCode.Identity.OpenId.GlobalDirectory.TeamDocument.SettingsJson.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.TeamDocument.SettingsJson.init -> void
+NCode.Identity.OpenId.GlobalDirectory.TeamDocument.TeamId.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.TeamDocument.TeamId.init -> void
+NCode.Identity.OpenId.GlobalDirectory.TenantPlacement
+NCode.Identity.OpenId.GlobalDirectory.TenantPlacement.Cell.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.TenantPlacement.Cell.init -> void
+NCode.Identity.OpenId.GlobalDirectory.TenantPlacement.Issuer.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.TenantPlacement.Issuer.init -> void
+NCode.Identity.OpenId.GlobalDirectory.TenantPlacement.Region.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.TenantPlacement.Region.init -> void
+NCode.Identity.OpenId.GlobalDirectory.TenantPlacement.TenantId.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.TenantPlacement.TenantId.init -> void
+NCode.Identity.OpenId.GlobalDirectory.TenantReservation
+NCode.Identity.OpenId.GlobalDirectory.TenantReservation.Cell.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.TenantReservation.Cell.init -> void
+NCode.Identity.OpenId.GlobalDirectory.TenantReservation.Issuer.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.TenantReservation.Issuer.init -> void
+NCode.Identity.OpenId.GlobalDirectory.TenantReservation.TeamId.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.TenantReservation.TeamId.init -> void
+NCode.Identity.OpenId.GlobalDirectory.TenantReservation.TenantId.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.TenantReservation.TenantId.init -> void
+static NCode.Identity.OpenId.GlobalDirectory.ReservationResult.Conflict(string! detail) -> NCode.Identity.OpenId.GlobalDirectory.ReservationResult!
+static NCode.Identity.OpenId.GlobalDirectory.ReservationResult.Reserved() -> NCode.Identity.OpenId.GlobalDirectory.ReservationResult!

@@ -42,7 +42,7 @@ host never does and serves as a separate runtime role, and the build fails on dr
 - **One database per cell, and the directory's own.** A cell is a host, its database, its Valkey and its KMS keys
   ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)),
   so every cell has its own `openiddb`, which holds every tenant of the cell. The global directory's host,
-  `hosts/NCode.Identity.OpenId.Directory.Host`, has its own Postgres database, `DirectoryDbContext`, with its own
+  `hosts/NCode.Identity.OpenId.GlobalDirectory.Host`, has its own Postgres database, `DirectoryDbContext`, with its own
   migrations and image. It holds cells, placements, team documents and retired identifiers, and no personal data.
 - **A migration role and a runtime role.** The two roles have separate connection strings: `ConnectionStrings:openid`
   is the runtime role's, and `ConnectionStrings:openid-migration` is the schema owner's, which only the worker uses.

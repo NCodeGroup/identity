@@ -3,7 +3,7 @@
 
 using JetBrains.Annotations;
 
-namespace NCode.Identity.OpenId.Directory;
+namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
 /// Lists the cells of the platform. An implementation that cannot reach the directory throws

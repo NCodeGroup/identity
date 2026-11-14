@@ -4,7 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 using JetBrains.Annotations;
 
-namespace NCode.Identity.OpenId.Directory;
+namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
 /// Describes the cell that a host runs: a host, its database, its Valkey and its KMS keys, in one region. Bound from

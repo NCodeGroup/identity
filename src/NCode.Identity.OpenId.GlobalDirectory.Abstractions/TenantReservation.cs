@@ -4,7 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 using JetBrains.Annotations;
 
-namespace NCode.Identity.OpenId.Directory;
+namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
 /// Describes the identifiers that <see cref="ITenantDirectory.ReserveAsync"/> reserves for a tenant about to be

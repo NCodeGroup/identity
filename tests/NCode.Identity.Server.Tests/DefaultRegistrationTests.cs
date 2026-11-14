@@ -45,6 +45,9 @@ public sealed class DefaultRegistrationTests : BaseTests
             {
                 ["OpenId:TenantResolution:StaticSingle:Issuer"] = "https://op.example",
                 ["SecretProtection:RootKeyProvider"] = "ephemeral",
+                ["Cell:Name"] = "local",
+                ["Cell:Region"] = "local",
+                ["Cell:IsControlPlane"] = "true",
             }
         );
         hostBuilder.Configuration.AddInMemoryCollection(configurationData);
@@ -137,6 +140,18 @@ public sealed class DefaultRegistrationTests : BaseTests
         );
 
         Assert.Contains("ApiReference:PageEnabled", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AddIdentityServer_WhenTheCellHasNoName_FailsToStart()
+    {
+        using var host = BuildHost(new Dictionary<string, string?> { ["Cell:Name"] = null });
+
+        var exception = await Assert.ThrowsAsync<OptionsValidationException>(() =>
+            host.StartAsync()
+        );
+
+        Assert.Contains("Cell:Name", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]

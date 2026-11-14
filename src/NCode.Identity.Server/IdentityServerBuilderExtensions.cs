@@ -15,11 +15,13 @@ using NCode.Identity.OpenId.Authentication.OutboundHttp;
 using NCode.Identity.OpenId.Authentication.Persistence;
 using NCode.Identity.OpenId.Authentication.Sessions;
 using NCode.Identity.OpenId.Authentication.Usage;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Setup;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Registration;
 using NCode.Identity.Registration.AspNetCore;
 using NCode.Identity.Secrets.Persistence.Options;
+using NCode.Identity.Server.Cells;
 using NCode.Identity.Server.Frontend;
 using NCode.Identity.Server.SecretProtection;
 
@@ -110,7 +112,8 @@ public static class IdentityServerBuilderExtensions
         /// The top-level <c>SecretProtection</c> section binds <see cref="SecretProtectionOptions"/>: it names the root
         /// key provider that protects the stored secrets and the Data Protection key ring at rest. The top-level
         /// <c>ApiReference</c> section binds <see cref="IdentityServerApiReferenceOptions"/>, which decide whether the
-        /// OpenAPI document and the API reference page are served.
+        /// OpenAPI document and the API reference page are served. The top-level <c>Cell</c> section binds
+        /// <see cref="CellOptions"/>, which name the cell this host runs, its region and its kind.
         /// </summary>
         /// <remarks>
         /// Binding is strict and checked when the host starts: a key that maps to no option — a misspelling, or a
@@ -165,6 +168,7 @@ public static class IdentityServerBuilderExtensions
             var apiReferenceSection = configuration.GetSection(
                 IdentityServerApiReferenceOptions.DefaultSectionName
             );
+            var cellSection = configuration.GetSection(CellOptions.SectionName);
 
             var serviceCollection = builder.ServiceCollection;
 
@@ -235,6 +239,17 @@ public static class IdentityServerBuilderExtensions
                 .AddOptions<IdentityServerApiReferenceOptions>()
                 .Configure(options => apiReferenceSection.BindStrictly(options))
                 .ValidateOnStart();
+
+            // The cell names itself, its region and its kind, and a cell that is not the control plane names the
+            // control plane's issuer.
+            serviceCollection
+                .AddOptions<CellOptions>()
+                .Configure(options => cellSection.BindStrictly(options))
+                .ValidateOnStart();
+
+            serviceCollection.TryAddEnumerable(
+                ServiceDescriptor.Singleton<IValidateOptions<CellOptions>, CellOptionsValidator>()
+            );
 
             // Setup lists the API reference among the instance's addresses when the host serves it.
             serviceCollection
