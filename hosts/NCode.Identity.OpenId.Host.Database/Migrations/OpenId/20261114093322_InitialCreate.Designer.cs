@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 {
     [DbContext(typeof(OpenIdDbContext))]
-    [Migration("20261113004536_InitialCreate")]
+    [Migration("20261114093322_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -39,6 +39,9 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnicode(false)
                         .HasColumnType("character varying(300)");
 
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -53,6 +56,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     b.HasKey("Id");
 
                     b.HasIndex("LocalAccountEntityId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("LocalAccountClaims", (string)null);
                 });
@@ -119,11 +124,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnicode(false)
                         .HasColumnType("character varying(100)");
 
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .IsUnicode(false)
-                        .HasColumnType("character varying(300)");
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("UserName")
                         .IsRequired()
@@ -132,6 +134,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .HasColumnType("character varying(300)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
 
                     b.HasIndex("NormalizedTenantId", "NormalizedEmail");
 
@@ -1730,6 +1734,25 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .WithMany("Claims")
                         .HasForeignKey("LocalAccountEntityId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TenantEntity", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Accounts.Entities.LocalAccountEntity", b =>
+                {
+                    b.HasOne("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TenantEntity", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.AuditRecordResourceEntity", b =>
