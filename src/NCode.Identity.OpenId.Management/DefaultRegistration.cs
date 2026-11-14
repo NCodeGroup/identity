@@ -97,6 +97,13 @@ public static class DefaultRegistration
                 >()
             );
 
+            serviceCollection.TryAddEnumerable(
+                ServiceDescriptor.Singleton<
+                    ICommandHandler<SeedTenantCommand>,
+                    ControlPlaneResourceServerSeedHandler
+                >()
+            );
+
             // The root group declares its own endpoints and child groups (ADR-1086); registering it wires the whole
             // /api tree.
             builder.AddEndpointGroup<ManagementRootGroup>();
