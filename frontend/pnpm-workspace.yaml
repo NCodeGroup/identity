@@ -15,6 +15,11 @@ strictPeerDependencies: false
 # auto-install) resolves to the root devDependency's range instead of the newest major (ADR-1152).
 overrides:
   '@types/node': '$@types/node'
+  # Lift the copies that security advisories name to their first fixed major, until every dependent asks for it:
+  # minimatch GHSA-g3hv-75wg-m249 (eslint and typescript-eslint) and glob GHSA-3g3m-2fjr-6pw4 (Storybook's docgen
+  # plugin). Each selector names only the vulnerable range, so it lifts nothing once the dependents move past it.
+  'minimatch@>=7.0.0 <11.0.1': '^11.0.1'
+  'glob@>=9.0.0 <14.0.2': '^14.0.2'
 
 # Dependency install scripts are a supply-chain risk, so none runs unless it is reviewed and allowed here, and an
 # unreviewed one fails the install rather than warning. esbuild's postinstall only re-verifies the platform binary that
