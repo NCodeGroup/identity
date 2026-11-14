@@ -79,6 +79,13 @@ internal sealed class LocalTeamDirectory(
     }
 
     /// <inheritdoc />
+    public ValueTask ReleaseAsync(string teamId, CancellationToken cancellationToken)
+    {
+        // A reservation writes no row, because the team row is the reservation, so there is nothing to release.
+        return ValueTask.CompletedTask;
+    }
+
+    /// <inheritdoc />
     public async ValueTask RetireAsync(string teamId, CancellationToken cancellationToken)
     {
         using var unscoped = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);

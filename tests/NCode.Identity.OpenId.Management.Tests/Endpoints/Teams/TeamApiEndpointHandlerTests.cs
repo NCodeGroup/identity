@@ -14,6 +14,7 @@ using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Authentication.Clients;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Environments;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts;
@@ -45,6 +46,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
     private Mock<ITeamStore> MockTeamStore { get; }
     private Mock<IAuthorizationService> MockAuthorizationService { get; }
     private Mock<ITeamValidator> MockTeamValidator { get; }
+    private Mock<ITeamDirectory> MockTeamDirectory { get; }
     private Mock<ICryptoService> MockCryptoService { get; }
     private Mock<ISettingSerializer> MockSettingSerializer { get; }
     private Mock<ISettingScopeCollectionProvider> MockSettingScopeCollectionProvider { get; }
@@ -64,6 +66,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
         MockTeamStore = MockRepository.Create<ITeamStore>();
         MockAuthorizationService = MockRepository.Create<IAuthorizationService>();
         MockTeamValidator = MockRepository.Create<ITeamValidator>();
+        MockTeamDirectory = MockRepository.Create<ITeamDirectory>();
         MockCryptoService = MockRepository.Create<ICryptoService>();
         MockSettingSerializer = MockRepository.Create<ISettingSerializer>();
         MockSettingScopeCollectionProvider =
@@ -79,6 +82,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
             MockStoreManagerFactory.Object,
             MockAuthorizationService.Object,
             MockTeamValidator.Object,
+            MockTeamDirectory.Object,
             TimeProvider.System,
             MockCryptoService.Object,
             MockSettingSerializer.Object,
@@ -129,6 +133,57 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
             .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
+
+    private void SetupReserve(string teamId = TeamId) =>
+        MockTeamDirectory
+            .Setup(x => x.ReserveAsync(teamId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ReservationResult.Reserved())
+            .Verifiable();
+
+    private void SetupPublish(string teamId = TeamId) => SetupPublishCapture(_ => { }, teamId);
+
+    private void SetupPublishCapture(Action<TeamDocument> capture, string teamId = TeamId) =>
+        MockTeamDirectory
+            .Setup(x =>
+                x.PublishAsync(
+                    It.Is<TeamDocument>(document => document.TeamId == teamId),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Callback((TeamDocument document, CancellationToken _) => capture(document))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+    private void SetupPublishUnavailable() =>
+        MockTeamDirectory
+            .Setup(x => x.PublishAsync(It.IsAny<TeamDocument>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new DirectoryUnavailableException("The directory is down."))
+            .Verifiable();
+
+    private void SetupRelease() =>
+        MockTeamDirectory
+            .Setup(x => x.ReleaseAsync(TeamId, CancellationToken.None))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+    private void SetupRetire() =>
+        MockTeamDirectory
+            .Setup(x => x.RetireAsync(TeamId, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+    private void SetupRetireUnavailable() =>
+        MockTeamDirectory
+            .Setup(x => x.RetireAsync(TeamId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new DirectoryUnavailableException("The directory is down."))
+            .Verifiable();
+
+    private static void AssertDirectoryUnavailable(IResult result, HttpContext httpContext)
+    {
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, problem.StatusCode);
+        Assert.Equal("5", httpContext.Response.Headers.RetryAfter.ToString());
+    }
 
     private void SetupTeam(PersistedTeam? team) =>
         MockTeamStore
@@ -739,6 +794,8 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
         SetupCreateValidation(null);
         SetupValidSettings();
         SetupSave();
+        SetupReserve();
+        SetupPublish();
         PersistedTeam? added = null;
         MockTeamStore
             .Setup(x => x.AddAsync(It.IsAny<PersistedTeam>(), It.IsAny<CancellationToken>()))
@@ -819,6 +876,8 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
         SetupCreateValidation(null);
         SetupValidSettings();
         SetupSave();
+        SetupReserve();
+        SetupPublish();
         MockTeamStore
             .Setup(x => x.AddAsync(It.IsAny<PersistedTeam>(), It.IsAny<CancellationToken>()))
             .Returns(ValueTask.CompletedTask)
@@ -915,6 +974,8 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
         SetupCreateValidation(null);
         SetupValidSettings();
         SetupSave();
+        SetupReserve();
+        SetupPublish();
         MockTeamStore
             .Setup(x => x.AddAsync(It.IsAny<PersistedTeam>(), It.IsAny<CancellationToken>()))
             .Returns(ValueTask.CompletedTask)
@@ -988,6 +1049,8 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
         SetupCreateValidation(null);
         SetupValidSettings();
         SetupSave();
+        SetupReserve();
+        SetupPublish();
         MockTeamStore
             .Setup(x => x.AddAsync(It.IsAny<PersistedTeam>(), It.IsAny<CancellationToken>()))
             .Returns(ValueTask.CompletedTask)
@@ -1092,6 +1155,189 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
         AssertSettingsValidationProblem(result);
     }
 
+    [Fact]
+    public async Task CreateTeamAsync_WhenValid_PublishesTheTeamsDocument()
+    {
+        SetupCreateAuthorization(null);
+        SetupStore();
+        SetupCreateValidation(null);
+        SetupValidSettings();
+        SetupSave();
+        SetupReserve();
+        TeamDocument? published = null;
+        SetupPublishCapture(document => published = document);
+        MockTeamStore
+            .Setup(x => x.AddAsync(It.IsAny<PersistedTeam>(), It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockResourceOwnershipService
+            .Setup(x =>
+                x.AssignCreatorAsync(
+                    It.IsAny<OpenIdContext>(),
+                    It.IsAny<ClaimsPrincipal>(),
+                    MockStoreManager.Object,
+                    ControlPlaneTenantId,
+                    ResourceNodeTypes.Team,
+                    TeamId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((PersistedRoleAssignment?)null)
+            .Verifiable();
+        MockResourceOwnershipService
+            .Setup(x =>
+                x.GetOwnersAsync(
+                    MockStoreManager.Object,
+                    ResourceNodeTypes.Team,
+                    TeamId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync([])
+            .Verifiable();
+        SetupTeam(CreateTeam("reloaded-ct"));
+        SetupTeamChangedAudit(ResourceChangeTypes.Created);
+
+        // Strict mocks: no release setup, so releasing the reservation would fail the test.
+        var result = await Handler.CreateTeamAsync(
+            CreateHttpContext(authenticated: true),
+            CreateCreateRequest(),
+            CancellationToken.None
+        );
+
+        Assert.IsType<Created<TeamResource>>(result);
+        Assert.NotNull(published);
+        Assert.Equal(TeamId, published.TeamId);
+        Assert.Equal("Team One", published.DisplayName);
+        Assert.Equal("{}", published.SettingsJson);
+        Assert.Empty(published.RootKeyReferences);
+    }
+
+    [Fact]
+    public async Task CreateTeamAsync_WhenTheIdentifierIsReserved_Returns409AndInsertsNothing()
+    {
+        SetupCreateAuthorization(null);
+        SetupStore();
+        SetupCreateValidation(null);
+        SetupValidSettings();
+        MockTeamDirectory
+            .Setup(x => x.ReserveAsync(TeamId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ReservationResult.Conflict("Another team already has the identifier."))
+            .Verifiable();
+
+        // Strict mocks: no store insert, save or release setup, so any of them would fail the test.
+        var result = await Handler.CreateTeamAsync(
+            CreateHttpContext(authenticated: true),
+            CreateCreateRequest(),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+        Assert.Equal("Another team already has the identifier.", problem.ProblemDetails.Detail);
+    }
+
+    [Fact]
+    public async Task CreateTeamAsync_WhenTheDirectoryIsUnavailableOnReserve_Returns503WithRetryAfter()
+    {
+        SetupCreateAuthorization(null);
+        SetupStore();
+        SetupCreateValidation(null);
+        SetupValidSettings();
+        MockTeamDirectory
+            .Setup(x => x.ReserveAsync(TeamId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new DirectoryUnavailableException("The directory is down."))
+            .Verifiable();
+
+        var httpContext = CreateHttpContext(authenticated: true);
+
+        var result = await Handler.CreateTeamAsync(
+            httpContext,
+            CreateCreateRequest(),
+            CancellationToken.None
+        );
+
+        AssertDirectoryUnavailable(result, httpContext);
+    }
+
+    [Fact]
+    public async Task CreateTeamAsync_WhenTheInsertFails_ReleasesTheReservation()
+    {
+        SetupCreateAuthorization(null);
+        SetupStore();
+        SetupCreateValidation(null);
+        SetupValidSettings();
+        SetupReserve();
+        MockTeamStore
+            .Setup(x => x.AddAsync(It.IsAny<PersistedTeam>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("The insert failed."))
+            .Verifiable();
+        SetupRelease();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Handler.CreateTeamAsync(
+                CreateHttpContext(authenticated: true),
+                CreateCreateRequest(),
+                CancellationToken.None
+            )
+        );
+    }
+
+    [Fact]
+    public async Task CreateTeamAsync_WhenTheDirectoryIsUnavailableOnPublish_ReleasesTheReservationAndReturns503()
+    {
+        SetupCreateAuthorization(null);
+        SetupStore();
+        SetupCreateValidation(null);
+        SetupValidSettings();
+        SetupReserve();
+        MockTeamStore
+            .Setup(x => x.AddAsync(It.IsAny<PersistedTeam>(), It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        SetupSave();
+        SetupPublishUnavailable();
+        SetupRelease();
+
+        var httpContext = CreateHttpContext(authenticated: true);
+
+        var result = await Handler.CreateTeamAsync(
+            httpContext,
+            CreateCreateRequest(),
+            CancellationToken.None
+        );
+
+        AssertDirectoryUnavailable(result, httpContext);
+    }
+
+    [Fact]
+    public async Task CreateTeamAsync_WhenTheReleaseIsUnavailable_SurfacesTheFailureOfTheInsert()
+    {
+        SetupCreateAuthorization(null);
+        SetupStore();
+        SetupCreateValidation(null);
+        SetupValidSettings();
+        SetupReserve();
+        MockTeamStore
+            .Setup(x => x.AddAsync(It.IsAny<PersistedTeam>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("The insert failed."))
+            .Verifiable();
+        MockTeamDirectory
+            .Setup(x => x.ReleaseAsync(TeamId, CancellationToken.None))
+            .ThrowsAsync(new DirectoryUnavailableException("The directory is down."))
+            .Verifiable();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Handler.CreateTeamAsync(
+                CreateHttpContext(authenticated: true),
+                CreateCreateRequest(),
+                CancellationToken.None
+            )
+        );
+
+        Assert.Equal("The insert failed.", exception.Message);
+    }
+
     #endregion
 
     #region CreateChildTeamAsync Tests
@@ -1176,6 +1422,8 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
         SetupLineageAndMaxDepth([CreateTeam()], maxDepth: null);
         SetupAncestorMaxTeams(TeamId, maxTeams: null, descendants: null);
         SetupSave();
+        SetupReserve(ChildTeamId);
+        SetupPublish(ChildTeamId);
         PersistedTeam? added = null;
         MockTeamStore
             .Setup(x => x.AddAsync(It.IsAny<PersistedTeam>(), It.IsAny<CancellationToken>()))
@@ -1419,6 +1667,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
         SetupSave();
+        SetupPublish();
         SetupTeamChangedAudit(ResourceChangeTypes.Updated);
         SetupTeamChangedAnnouncement(settingsChanged: false);
 
@@ -1433,6 +1682,79 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
         Assert.IsType<NoContent>(result);
         Assert.True(team.IsDisabled);
         Assert.Equal("Team One", team.DisplayName);
+    }
+
+    [Fact]
+    public async Task UpdateTeamAsync_WhenSaved_PublishesTheSavedDocument()
+    {
+        SetupUpdateAuthorization(null);
+        SetupStore();
+        var team = CreateTeam();
+        SetupTeam(team);
+        SetupUpdateValidation(null, ifMatch: "team-ct");
+        MockTeamStore
+            .Setup(x => x.UpdateAsync(team, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        SetupSave();
+        TeamDocument? published = null;
+        SetupPublishCapture(document => published = document);
+        SetupTeamChangedAudit(ResourceChangeTypes.Updated);
+        SetupTeamChangedAnnouncement(settingsChanged: false);
+
+        var patch = new JsonPatchDocument<UpdateTeamRequest>();
+        patch.Operations.Add(
+            new Operation<UpdateTeamRequest>(
+                "replace",
+                "/displayName",
+                from: null,
+                value: "Renamed Team"
+            )
+        );
+
+        var result = await Handler.UpdateTeamAsync(
+            CreateHttpContext(authenticated: true),
+            TeamId,
+            patch,
+            "team-ct",
+            CancellationToken.None
+        );
+
+        Assert.IsType<NoContent>(result);
+        Assert.NotNull(published);
+        Assert.Equal(TeamId, published.TeamId);
+        Assert.Equal("Renamed Team", published.DisplayName);
+        Assert.Equal(team.Settings.Value.GetRawText(), published.SettingsJson);
+    }
+
+    [Fact]
+    public async Task UpdateTeamAsync_WhenTheDirectoryIsUnavailableOnPublish_Returns503WithRetryAfter()
+    {
+        SetupUpdateAuthorization(null);
+        SetupStore();
+        var team = CreateTeam();
+        SetupTeam(team);
+        SetupUpdateValidation(null, ifMatch: "team-ct");
+        MockTeamStore
+            .Setup(x => x.UpdateAsync(team, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        SetupSave();
+        SetupPublishUnavailable();
+        SetupTeamChangedAudit(ResourceChangeTypes.Updated);
+        SetupTeamChangedAnnouncement(settingsChanged: false);
+
+        var httpContext = CreateHttpContext(authenticated: true);
+
+        var result = await Handler.UpdateTeamAsync(
+            httpContext,
+            TeamId,
+            CreateDisablePatch(),
+            "team-ct",
+            CancellationToken.None
+        );
+
+        AssertDirectoryUnavailable(result, httpContext);
     }
 
     [Fact]
@@ -1568,6 +1890,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
             .ReturnsAsync(true)
             .Verifiable();
         SetupSave();
+        SetupRetire();
         SetupTeamChangedAudit(ResourceChangeTypes.Deleted);
         SetupTeamChangedAnnouncement(settingsChanged: false);
 
@@ -1578,6 +1901,29 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
         );
 
         Assert.IsType<NoContent>(result);
+    }
+
+    [Fact]
+    public async Task DeleteTeamAsync_WhenTheDirectoryIsUnavailableOnRetire_Returns503WithRetryAfter()
+    {
+        SetupDeleteAuthorization(null);
+        SetupStore();
+        SetupTeam(CreateTeam());
+        SetupDeleteValidation(null);
+        MockTeamStore
+            .Setup(x => x.RemoveAsync(TeamId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true)
+            .Verifiable();
+        SetupSave();
+        SetupRetireUnavailable();
+        SetupTeamChangedAudit(ResourceChangeTypes.Deleted);
+        SetupTeamChangedAnnouncement(settingsChanged: false);
+
+        var httpContext = CreateHttpContext(authenticated: true);
+
+        var result = await Handler.DeleteTeamAsync(httpContext, TeamId, CancellationToken.None);
+
+        AssertDirectoryUnavailable(result, httpContext);
     }
 
     [Fact]
@@ -1955,12 +2301,24 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
             .Verifiable();
     }
 
-    private void SetupSettingsWrite(PersistedTeamSettings settings)
+    private void SetupSettingsWrite(
+        PersistedTeamSettings settings,
+        Action<TeamDocument>? capturePublish = null,
+        bool directoryUnavailable = false
+    )
     {
         MockTeamStore
             .Setup(x => x.UpdateSettingsAsync(settings, It.IsAny<CancellationToken>()))
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
+        if (directoryUnavailable)
+        {
+            SetupPublishUnavailable();
+        }
+        else
+        {
+            SetupPublishCapture(capturePublish ?? (_ => { }));
+        }
         SetupSave();
         SetupTeamChangedAudit(ResourceChangeTypes.SettingsUpdated);
         SetupTeamChangedAnnouncement(settingsChanged: true);
@@ -2041,6 +2399,74 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
         );
 
         Assert.IsType<NoContent>(result);
+    }
+
+    [Fact]
+    public async Task UpdateSettingsAsync_WhenSaved_PublishesTheSavedDocument()
+    {
+        SetupValidSettings();
+        SetupNoChangedLimits();
+        SetupStore();
+        var team = CreateTeam();
+        var settings = team.Settings;
+        SetupTeam(team);
+        SetupAuthorization(AuthorizationResult.Success());
+        var current = CreateSettingCollection();
+        var proposed = CreateSettingCollection();
+        SetupResolveTeam(current, proposed);
+        MockClientCoherenceValidator
+            .Setup(x => x.ReadsChangedSetting(current, proposed))
+            .Returns(false)
+            .Verifiable();
+        TeamDocument? published = null;
+        SetupSettingsWrite(settings, capturePublish: document => published = document);
+
+        var result = await Handler.UpdateSettingsAsync(
+            CreateHttpContext(authenticated: true),
+            TeamId,
+            CreateAddPatch("foo", "bar"),
+            ifMatch: null,
+            CancellationToken.None
+        );
+
+        Assert.IsType<NoContent>(result);
+        Assert.NotNull(published);
+        Assert.Equal(TeamId, published.TeamId);
+        Assert.Equal("Team One", published.DisplayName);
+        Assert.Equal(settings.Value.GetRawText(), published.SettingsJson);
+        Assert.Contains("\"foo\"", published.SettingsJson);
+    }
+
+    [Fact]
+    public async Task UpdateSettingsAsync_WhenTheDirectoryIsUnavailableOnPublish_Returns503WithRetryAfter()
+    {
+        SetupValidSettings();
+        SetupNoChangedLimits();
+        SetupStore();
+        var team = CreateTeam();
+        var settings = team.Settings;
+        SetupTeam(team);
+        SetupAuthorization(AuthorizationResult.Success());
+        var current = CreateSettingCollection();
+        var proposed = CreateSettingCollection();
+        SetupResolveTeam(current, proposed);
+        MockClientCoherenceValidator
+            .Setup(x => x.ReadsChangedSetting(current, proposed))
+            .Returns(false)
+            .Verifiable();
+        SetupSettingsWrite(settings, directoryUnavailable: true);
+
+        var httpContext = CreateHttpContext(authenticated: true);
+
+        var result = await Handler.UpdateSettingsAsync(
+            httpContext,
+            TeamId,
+            CreateAddPatch("foo", "bar"),
+            ifMatch: null,
+            CancellationToken.None
+        );
+
+        AssertDirectoryUnavailable(result, httpContext);
     }
 
     [Fact]

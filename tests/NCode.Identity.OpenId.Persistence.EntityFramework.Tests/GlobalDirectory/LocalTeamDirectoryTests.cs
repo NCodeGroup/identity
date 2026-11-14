@@ -131,6 +131,22 @@ public sealed class LocalTeamDirectoryTests : IDisposable
 
     #endregion
 
+    #region ReleaseAsync Tests
+
+    [Fact]
+    public async Task ReleaseAsync_WhenCalled_WritesNothingAndLeavesTheIdentifierReservable()
+    {
+        await Directory.ReleaseAsync(TeamId, CancellationToken.None);
+
+        Assert.False(DbContext.ChangeTracker.HasChanges());
+
+        SetupUnscoped();
+        var result = await Directory.ReserveAsync(TeamId, CancellationToken.None);
+        Assert.True(result.IsReserved);
+    }
+
+    #endregion
+
     #region RetireAsync Tests
 
     private OpenIdDbContext CreateFreshContext() =>

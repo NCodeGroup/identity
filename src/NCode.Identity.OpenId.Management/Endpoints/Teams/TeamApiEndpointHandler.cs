@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,6 +15,7 @@ using NCode.Identity.Cryptography;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Authentication.Clients;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts;
@@ -69,6 +71,7 @@ internal class TeamApiEndpointHandler(
     IStoreManagerFactory storeManagerFactory,
     IAuthorizationService authorizationService,
     ITeamValidator teamValidator,
+    ITeamDirectory teamDirectory,
     TimeProvider timeProvider,
     ICryptoService cryptoService,
     ISettingSerializer settingSerializer,
@@ -91,9 +94,12 @@ internal class TeamApiEndpointHandler(
     /// </summary>
     internal const int DefaultUsageDays = 30;
 
+    private const int DirectoryRetrySeconds = 5;
+
     /// <inheritdoc />
     protected override IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private ITeamValidator TeamValidator { get; } = teamValidator;
+    private ITeamDirectory TeamDirectory { get; } = teamDirectory;
     private TimeProvider TimeProvider { get; } = timeProvider;
     private ISettingSerializer SettingSerializer { get; } = settingSerializer;
 
@@ -430,11 +436,25 @@ internal class TeamApiEndpointHandler(
             }
         }
 
-        await store.AddAsync(team, cancellationToken);
-
-        // The team row commits first: the creator's assignments are rows the team owns, and the stores resolve an owning
-        // resource from the database rather than the change tracker.
-        await storeManager.SaveChangesAsync(cancellationToken);
+        // The directory reserves the team's identifier platform-wide before the cell holds the team's row, and a
+        // directory that cannot be reached refuses the creation (ADR-1411).
+        try
+        {
+            var directoryFailure = await ReserveInsertAndPublishAsync(
+                team,
+                store,
+                storeManager,
+                cancellationToken
+            );
+            if (directoryFailure is not null)
+            {
+                return directoryFailure;
+            }
+        }
+        catch (DirectoryUnavailableException)
+        {
+            return DirectoryUnavailableProblem(httpContext);
+        }
 
         var creatorAssignment = await ResourceOwnershipService.AssignCreatorAsync(
             openIdContext,
@@ -500,6 +520,122 @@ internal class TeamApiEndpointHandler(
         httpContext.Response.Headers.ETag = ManagementEntityTags.Format(team.ConcurrencyToken);
         return TypedResults.Created($"/teams/{team.TeamId}", ToTeamResource(team));
     }
+
+    /// <summary>
+    /// Creates a team through the directory as a saga: reserves the team's identifier, inserts the team, then publishes
+    /// the team's document. The reservation is released when the creation fails before the document is published.
+    /// </summary>
+    /// <param name="team">The <see cref="PersistedTeam"/> to create.</param>
+    /// <param name="store">The <see cref="ITeamStore"/> that inserts the team.</param>
+    /// <param name="storeManager">The <see cref="IStoreManager"/> that saves the team.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="IResult"/> that refuses the creation, or <c>null</c> when the team is created and published.</returns>
+    // See ADR-1411.
+    private async ValueTask<IResult?> ReserveInsertAndPublishAsync(
+        PersistedTeam team,
+        ITeamStore store,
+        IStoreManager storeManager,
+        CancellationToken cancellationToken
+    )
+    {
+        var reservationResult = await TeamDirectory.ReserveAsync(team.TeamId, cancellationToken);
+        if (!reservationResult.IsReserved)
+        {
+            return ToErrorResult(
+                new ManagementError
+                {
+                    StatusCode = StatusCodes.Status409Conflict,
+                    Detail = reservationResult.ConflictDetail,
+                }
+            );
+        }
+
+        var isPublished = false;
+        try
+        {
+            await store.AddAsync(team, cancellationToken);
+
+            // The team row commits first: the creator's assignments are rows the team owns, and the stores resolve an
+            // owning resource from the database rather than the change tracker.
+            await storeManager.SaveChangesAsync(cancellationToken);
+
+            await TeamDirectory.PublishAsync(ToTeamDocument(team), cancellationToken);
+            isPublished = true;
+        }
+        finally
+        {
+            if (!isPublished)
+            {
+                // The release compensates a creation that failed, so it runs even when the request was canceled. The
+                // failure that brought the creation here is the one that surfaces, so a directory that cannot be
+                // reached for the release does not replace it.
+                try
+                {
+                    await TeamDirectory.ReleaseAsync(team.TeamId, CancellationToken.None);
+                }
+                catch (DirectoryUnavailableException)
+                {
+                    // The creation's own failure surfaces.
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Builds the document that the directory publishes for a team. The root-key references stay empty, and the
+    /// directory assigns the sequence.
+    /// </summary>
+    /// <param name="team">The <see cref="PersistedTeam"/> to describe.</param>
+    /// <returns>The <see cref="TeamDocument"/> of the team.</returns>
+    private static TeamDocument ToTeamDocument(PersistedTeam team) =>
+        new()
+        {
+            TeamId = team.TeamId,
+            DisplayName = team.DisplayName,
+            SettingsJson = team.Settings.Value.GetRawText(),
+        };
+
+    /// <summary>
+    /// Publishes the document of a team whose change is saved. A directory that cannot be reached leaves the change
+    /// unpublished, which the caller reports after the change is audited and announced.
+    /// </summary>
+    /// <param name="team">The <see cref="PersistedTeam"/> as saved.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="DirectoryUnavailableException"/> that the directory threw, or <c>null</c> when the document is published.</returns>
+    private async ValueTask<DirectoryUnavailableException?> TryPublishAsync(
+        PersistedTeam team,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            await TeamDirectory.PublishAsync(ToTeamDocument(team), cancellationToken);
+            return null;
+        }
+        catch (DirectoryUnavailableException exception)
+        {
+            return exception;
+        }
+    }
+
+    /// <summary>
+    /// Answers <c>503 Service Unavailable</c> with a <c>Retry-After</c> for a request that needs the directory while it
+    /// cannot be reached.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <returns>The <see cref="ProblemHttpResult"/> that asks the caller to retry.</returns>
+    private static ProblemHttpResult DirectoryUnavailableProblem(HttpContext httpContext) =>
+        RetryAfterProblem.Create(
+            httpContext,
+            TimeSpan.FromSeconds(DirectoryRetrySeconds),
+            new ProblemDetails
+            {
+                Status = StatusCodes.Status503ServiceUnavailable,
+                Detail = "The global directory is unavailable. Retry the request.",
+            }
+        );
 
     /// <summary>
     /// Lists the teams.
@@ -695,6 +831,10 @@ internal class TeamApiEndpointHandler(
         await store.UpdateAsync(team, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
 
+        // A directory that cannot be reached leaves the saved change unpublished, which the response reports after the
+        // change is audited and announced.
+        var publishFailure = await TryPublishAsync(team, cancellationToken);
+
         await ManagementAuditRecorder.RecordTeamChangedAsync(
             httpContext,
             team.TeamId,
@@ -708,6 +848,11 @@ internal class TeamApiEndpointHandler(
             settingsChanged: false,
             cancellationToken
         );
+
+        if (publishFailure is not null)
+        {
+            return DirectoryUnavailableProblem(httpContext);
+        }
 
         return TypedResults.NoContent();
     }
@@ -766,6 +911,18 @@ internal class TeamApiEndpointHandler(
         await store.RemoveAsync(teamId, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
 
+        // A directory that cannot be reached leaves the identifier unretired, which the response reports after the
+        // deletion is audited and announced.
+        DirectoryUnavailableException? retireFailure = null;
+        try
+        {
+            await TeamDirectory.RetireAsync(team.TeamId, cancellationToken);
+        }
+        catch (DirectoryUnavailableException exception)
+        {
+            retireFailure = exception;
+        }
+
         await ManagementAuditRecorder.RecordTeamChangedAsync(
             httpContext,
             team.TeamId,
@@ -779,6 +936,11 @@ internal class TeamApiEndpointHandler(
             settingsChanged: false,
             cancellationToken
         );
+
+        if (retireFailure is not null)
+        {
+            return DirectoryUnavailableProblem(httpContext);
+        }
 
         return TypedResults.NoContent();
     }
@@ -1038,6 +1200,10 @@ internal class TeamApiEndpointHandler(
         await store.UpdateSettingsAsync(teamSettings, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
 
+        // A directory that cannot be reached leaves the saved settings unpublished, which the response reports after
+        // the change is audited and announced.
+        var publishFailure = await TryPublishAsync(team, cancellationToken);
+
         await ManagementAuditRecorder.RecordTeamChangedAsync(
             httpContext,
             teamSettings.TeamId,
@@ -1051,6 +1217,11 @@ internal class TeamApiEndpointHandler(
             settingsChanged: true,
             cancellationToken
         );
+
+        if (publishFailure is not null)
+        {
+            return DirectoryUnavailableProblem(httpContext);
+        }
 
         httpContext.Response.Headers.ETag = ManagementEntityTags.Format(
             teamSettings.ConcurrencyToken

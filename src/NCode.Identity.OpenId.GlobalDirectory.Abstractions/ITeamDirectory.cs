@@ -31,6 +31,14 @@ public interface ITeamDirectory
     ValueTask PublishAsync(TeamDocument document, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Releases the reservation of a team whose creation failed, so its identifier can be reserved again.
+    /// </summary>
+    /// <param name="teamId">The identifier of the team.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
+    ValueTask ReleaseAsync(string teamId, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Retires the identifier of a deleted team. A retired identifier is never reissued.
     /// </summary>
     /// <param name="teamId">The identifier of the deleted team.</param>

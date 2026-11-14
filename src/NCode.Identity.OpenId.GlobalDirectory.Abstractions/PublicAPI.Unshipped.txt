@@ -52,6 +52,7 @@ NCode.Identity.OpenId.GlobalDirectory.ITeamDirectory.GetOrDefaultAsync(string! t
 NCode.Identity.OpenId.GlobalDirectory.ITeamDirectory.IsTeamIdRetiredAsync(string! teamId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 NCode.Identity.OpenId.GlobalDirectory.ITeamDirectory.ListChangesAsync(long after, int limit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.DirectoryChange!>!>
 NCode.Identity.OpenId.GlobalDirectory.ITeamDirectory.PublishAsync(NCode.Identity.OpenId.GlobalDirectory.TeamDocument! document, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.GlobalDirectory.ITeamDirectory.ReleaseAsync(string! teamId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.GlobalDirectory.ITeamDirectory.ReserveAsync(string! teamId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.ReservationResult!>
 NCode.Identity.OpenId.GlobalDirectory.ITeamDirectory.RetireAsync(string! teamId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.GlobalDirectory.ITenantDirectory
