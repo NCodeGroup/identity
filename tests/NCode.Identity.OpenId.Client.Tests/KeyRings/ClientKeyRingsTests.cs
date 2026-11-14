@@ -12,7 +12,7 @@ public sealed class ClientKeyRingsTests : BaseTests
     private static ClientKeyRings CreateKeyRings() =>
         new(
             Microsoft.Extensions.Options.Options.Create(
-                new ClientKeyRingsOptions { SectionPath = "Bff:KeyRings" }
+                new ClientKeyRingsOptions { SectionPath = "KeyRings" }
             )
         );
 
@@ -55,7 +55,7 @@ public sealed class ClientKeyRingsTests : BaseTests
         var exception = Assert.Throws<InvalidOperationException>(() => keyRings.Get("missing"));
 
         Assert.Equal(
-            "The key ring 'missing' is not loaded: the host loads the key rings of 'Bff:KeyRings' when it starts.",
+            "The key ring 'missing' is not loaded: the host loads the key rings of 'KeyRings' when it starts.",
             exception.Message
         );
     }

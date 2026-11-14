@@ -18,7 +18,7 @@ internal sealed class ClientKeyRingsOptions
 
     /// <summary>
     /// Gets or sets the configuration path of the section that the key rings are bound from, such as
-    /// <c>Bff:KeyRings</c>.
+    /// <c>KeyRings</c>.
     /// </summary>
     public string SectionPath { get; set; } = string.Empty;
 }

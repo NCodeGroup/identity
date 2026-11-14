@@ -8,6 +8,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using NCode.Identity.Bff.Options;
 using NCode.Identity.OpenId.Client;
+using NCode.Identity.Secrets.Collections;
 using NCode.Identity.SharedState;
 using Xunit;
 
@@ -173,6 +174,30 @@ public class DefaultRegistrationTests : BaseTests
                 x.ServiceType == typeof(IHostedService)
                 && x.ImplementationType == typeof(BffRefreshLeaseStartupCheck)
                 && x.Lifetime == ServiceLifetime.Singleton
+        );
+    }
+
+    [Fact]
+    public void AddIdentityBff_WithKeyRingsSection_RegistersKeyedKeyRing()
+    {
+        var serviceCollection = CreateServices();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["KeyRings:client-ring:PemFiles:0"] = "client.pem",
+                }
+            )
+            .Build();
+
+        serviceCollection.AddIdentityBff(configuration);
+
+        Assert.Contains(
+            serviceCollection,
+            x =>
+                x.ServiceType == typeof(ISecretKeyCollectionProvider)
+                && x.IsKeyedService
+                && Equals(x.ServiceKey, "client-ring")
         );
     }
 

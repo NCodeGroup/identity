@@ -9,6 +9,7 @@ using NCode.Identity.Events;
 using NCode.Identity.Jose;
 using NCode.Identity.Jwt;
 using NCode.Identity.OpenId.Client;
+using NCode.Identity.OpenId.Client.KeyRings;
 using NCode.Identity.Registration;
 using NCode.Identity.Secrets;
 using NCode.Identity.SharedState;
@@ -47,7 +48,10 @@ internal sealed class IdentityBffBuilder : ServiceBuilder<IdentityBff>, IIdentit
     /// Initializes a new instance of the <see cref="IdentityBffBuilder"/> class.
     /// </summary>
     /// <param name="serviceCollection">The <see cref="IServiceCollection"/> to add services to.</param>
-    /// <param name="configuration">The configuration whose <c>Bff</c> section configures the BFF.</param>
+    /// <param name="configuration">
+    /// The configuration whose <c>Bff</c> section configures the BFF and whose <c>KeyRings</c> section configures its
+    /// key rings.
+    /// </param>
     public IdentityBffBuilder(IServiceCollection serviceCollection, IConfiguration configuration)
         : base(serviceCollection)
     {
@@ -65,6 +69,9 @@ internal sealed class IdentityBffBuilder : ServiceBuilder<IdentityBff>, IIdentit
         JoseLibraryBuilder = SecretsLibraryBuilder.AddJoseLibrary();
         JwtLibraryBuilder = JoseLibraryBuilder.AddJwtLibrary();
         OpenIdClientLibraryBuilder = JwtLibraryBuilder.AddOpenIdClientLibrary();
+
+        // Key rings are the protocol client's, so they live in the host's top-level KeyRings section (ADR-1439).
+        OpenIdClientLibraryBuilder.AddOpenIdClientKeyRings(configuration.GetSection("KeyRings"));
 
         BffLibraryBuilder = OpenIdClientLibraryBuilder
             .AddBffLibrary(EventsLibraryBuilder)
