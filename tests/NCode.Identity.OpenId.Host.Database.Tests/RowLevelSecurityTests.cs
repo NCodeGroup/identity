@@ -199,6 +199,100 @@ public sealed class RowLevelSecurityTests
 
     #endregion
 
+    #region CreateGrantStatements Tests
+
+    [Fact]
+    public void CreateGrantStatements_WhenModelHasTenantTables_EmitsNoRowLevelSecurityStatement()
+    {
+        var model = CreateHostModel();
+
+        var statements = RowLevelSecurity.CreateGrantStatements(model, Role);
+
+        Assert.NotEmpty(statements);
+        Assert.All(
+            statements,
+            statement =>
+            {
+                Assert.StartsWith("GRANT ", statement);
+                Assert.DoesNotContain("ROW LEVEL SECURITY", statement);
+            }
+        );
+        Assert.Contains(
+            $"GRANT SELECT, INSERT, UPDATE, DELETE ON \"Clients\" TO \"{Role}\"",
+            statements
+        );
+    }
+
+    [Fact]
+    public void CreateGrantStatements_WhenModelHasSequences_GrantsUsageOnEverySequence()
+    {
+        var builder = new ModelBuilder();
+        builder.Entity<TenantRow>(entity =>
+        {
+            entity.ToTable("Rows", "app");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.NormalizedTenantId);
+        });
+        builder.HasSequence("RowSequence", "app");
+        var model = builder.FinalizeModel();
+
+        var statements = RowLevelSecurity.CreateGrantStatements(model, Role);
+
+        Assert.Equal(
+            [
+                $"GRANT SELECT, INSERT, UPDATE, DELETE ON \"app\".\"Rows\" TO \"{Role}\"",
+                $"GRANT USAGE ON SEQUENCE \"app\".\"RowSequence\" TO \"{Role}\"",
+            ],
+            statements
+        );
+    }
+
+    [Fact]
+    public void CreateStatements_WhenModelIsValid_EndsWithTheGrantStatements()
+    {
+        var model = CreateHostModel();
+
+        var statements = RowLevelSecurity.CreateStatements(model, Role);
+        var grants = RowLevelSecurity.CreateGrantStatements(model, Role);
+
+        Assert.Equal(grants, statements.Skip(statements.Count - grants.Count));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("Runtime")]
+    [InlineData("runtime\"; DROP TABLE x; --")]
+    public void CreateGrantStatements_WhenRoleIsInvalid_Throws(string role)
+    {
+        var model = CreateHostModel();
+
+        var exception = Assert.Throws<ArgumentException>(() =>
+            RowLevelSecurity.CreateGrantStatements(model, role)
+        );
+
+        Assert.Equal("runtimeRole", exception.ParamName);
+    }
+
+    [Fact]
+    public void CreateGrantStatements_WhenModelIsNull_Throws()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            RowLevelSecurity.CreateGrantStatements(null!, Role)
+        );
+    }
+
+    [Fact]
+    public void CreateGrantStatements_WhenRoleIsNull_Throws()
+    {
+        var model = CreateHostModel();
+
+        Assert.Throws<ArgumentNullException>(() =>
+            RowLevelSecurity.CreateGrantStatements(model, null!)
+        );
+    }
+
+    #endregion
+
     private sealed class TenantRow : ISupportTenantEntity
     {
         public long Id { get; set; }

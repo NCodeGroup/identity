@@ -44,39 +44,53 @@ public static class RowLevelSecurity
     /// <exception cref="ArgumentException"><paramref name="runtimeRole"/> is not a valid role name.</exception>
     public static IReadOnlyList<string> CreateStatements(IModel model, string runtimeRole)
     {
-        ArgumentNullException.ThrowIfNull(model);
-        ArgumentNullException.ThrowIfNull(runtimeRole);
-
-        if (!HostDatabaseRuntimeRole.IsValid(runtimeRole))
-            throw new ArgumentException(
-                $"The runtime role '{runtimeRole}' must match ^[a-z_][a-z0-9_]*$.",
-                nameof(runtimeRole)
-            );
-
-        var role = Quote(runtimeRole);
-        var tables = FindTables(model);
+        ValidateArguments(model, runtimeRole);
 
         var statements = new List<string>();
-        foreach (var table in tables)
+        foreach (var table in FindTables(model))
         {
+            if (table.TenantColumn is not { } tenantColumn)
+                continue;
+
             var name = QualifiedName(table.Schema, table.Name);
+            var expression =
+                $"current_setting('{UnscopedSetting}', true) = '{UnscopedOn}' "
+                + $"OR {Quote(tenantColumn)} = current_setting('{TenantSetting}', true)";
 
-            if (table.TenantColumn is { } tenantColumn)
-            {
-                var expression =
-                    $"current_setting('{UnscopedSetting}', true) = '{UnscopedOn}' "
-                    + $"OR {Quote(tenantColumn)} = current_setting('{TenantSetting}', true)";
-
-                statements.Add($"ALTER TABLE {name} ENABLE ROW LEVEL SECURITY");
-                statements.Add($"ALTER TABLE {name} FORCE ROW LEVEL SECURITY");
-                statements.Add($"DROP POLICY IF EXISTS {PolicyName} ON {name}");
-                statements.Add(
-                    $"CREATE POLICY {PolicyName} ON {name} USING ({expression}) WITH CHECK ({expression})"
-                );
-            }
-
-            statements.Add($"GRANT SELECT, INSERT, UPDATE, DELETE ON {name} TO {role}");
+            statements.Add($"ALTER TABLE {name} ENABLE ROW LEVEL SECURITY");
+            statements.Add($"ALTER TABLE {name} FORCE ROW LEVEL SECURITY");
+            statements.Add($"DROP POLICY IF EXISTS {PolicyName} ON {name}");
+            statements.Add(
+                $"CREATE POLICY {PolicyName} ON {name} USING ({expression}) WITH CHECK ({expression})"
+            );
         }
+
+        statements.AddRange(CreateGrantStatements(model, runtimeRole));
+        return statements;
+    }
+
+    /// <summary>
+    /// Creates the statements that grant <paramref name="runtimeRole"/> the data access it needs on <paramref name="model"/>:
+    /// <c>SELECT</c>, <c>INSERT</c>, <c>UPDATE</c> and <c>DELETE</c> on every table, and <c>USAGE</c> on every
+    /// sequence. The statements enable no row-level security.
+    /// </summary>
+    /// <param name="model">The model of a host context.</param>
+    /// <param name="runtimeRole">
+    /// The name of the database role the host runs as. It matches <c>^[a-z_][a-z0-9_]*$</c> so it is safe to quote.
+    /// </param>
+    /// <returns>The statements to run, in order, each as one command.</returns>
+    /// <exception cref="ArgumentException"><paramref name="runtimeRole"/> is not a valid role name.</exception>
+    public static IReadOnlyList<string> CreateGrantStatements(IModel model, string runtimeRole)
+    {
+        ValidateArguments(model, runtimeRole);
+
+        var role = Quote(runtimeRole);
+
+        var statements = new List<string>();
+        foreach (var table in FindTables(model))
+            statements.Add(
+                $"GRANT SELECT, INSERT, UPDATE, DELETE ON {QualifiedName(table.Schema, table.Name)} TO {role}"
+            );
 
         var sequences = model
             .GetSequences()
@@ -88,6 +102,18 @@ public static class RowLevelSecurity
             );
 
         return statements;
+    }
+
+    private static void ValidateArguments(IModel model, string runtimeRole)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        ArgumentNullException.ThrowIfNull(runtimeRole);
+
+        if (!HostDatabaseRuntimeRole.IsValid(runtimeRole))
+            throw new ArgumentException(
+                $"The runtime role '{runtimeRole}' must match ^[a-z_][a-z0-9_]*$.",
+                nameof(runtimeRole)
+            );
     }
 
     private static List<(string? Schema, string Name, string? TenantColumn)> FindTables(

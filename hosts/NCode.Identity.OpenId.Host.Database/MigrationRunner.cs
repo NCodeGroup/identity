@@ -3,6 +3,8 @@
 
 using JetBrains.Annotations;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.EntityFramework;
 
@@ -26,12 +28,16 @@ public static class MigrationRunner
     /// <param name="serviceProvider">A provider that has the OpenID persistence slice registered (id generator and
     /// model contributors), used to construct the contexts outside a request scope.</param>
     /// <param name="connectionString">The Postgres connection string supplied by Aspire.</param>
+    /// <param name="runtimeRole">The name of the database role the host runs as. After it migrates, the runner enables
+    /// row-level security on every tenant-bound table and grants this role its data access, in one transaction.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <exception cref="InvalidOperationException">A context's migrations history records a migration this assembly
     /// does not hold.</exception>
+    /// <exception cref="ArgumentException"><paramref name="runtimeRole"/> is not a valid role name.</exception>
     public static async ValueTask MigrateAllAsync(
         IServiceProvider serviceProvider,
         string connectionString,
+        string runtimeRole,
         CancellationToken cancellationToken
     )
     {
@@ -57,6 +63,45 @@ public static class MigrationRunner
 
         await openIdContext.Database.MigrateAsync(cancellationToken);
         await dataProtectionContext.Database.MigrateAsync(cancellationToken);
+
+        var statements = CreateAccessStatements(
+            openIdContext.GetService<IDesignTimeModel>().Model,
+            dataProtectionContext.GetService<IDesignTimeModel>().Model,
+            runtimeRole
+        );
+
+        await using var transaction = await openIdContext.Database.BeginTransactionAsync(
+            cancellationToken
+        );
+        foreach (var statement in statements)
+            await openIdContext.Database.ExecuteSqlRawAsync(statement, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Creates the statements that give <paramref name="runtimeRole"/> its access to the host database: the row-level
+    /// security and grants of the OpenID model, followed by the grants of the Data Protection model, which has no
+    /// tenant-bound table.
+    /// </summary>
+    /// <param name="openIdModel">The model of the <see cref="OpenIdDbContext"/>.</param>
+    /// <param name="dataProtectionModel">The model of the <see cref="DeveloperDataProtectionDbContext"/>.</param>
+    /// <param name="runtimeRole">The name of the database role the host runs as.</param>
+    /// <returns>The statements to run, in order, each as one command.</returns>
+    /// <exception cref="ArgumentException"><paramref name="runtimeRole"/> is not a valid role name.</exception>
+    // See ADR-1018.
+    internal static IReadOnlyList<string> CreateAccessStatements(
+        IModel openIdModel,
+        IModel dataProtectionModel,
+        string runtimeRole
+    )
+    {
+        var statements = new List<string>(
+            RowLevelSecurity.CreateStatements(openIdModel, runtimeRole)
+        );
+        statements.AddRange(
+            RowLevelSecurity.CreateGrantStatements(dataProtectionModel, runtimeRole)
+        );
+        return statements;
     }
 
     private static async ValueTask ThrowIfUnknownMigrationsAppliedAsync(

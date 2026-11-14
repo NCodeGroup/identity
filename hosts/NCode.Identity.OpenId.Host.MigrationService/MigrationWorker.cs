@@ -33,7 +33,12 @@ internal sealed class MigrationWorker(
             var runtimeRole = HostDatabaseRuntimeRole.Resolve(configuration);
 
             logger.MigrationsApplying();
-            await MigrationRunner.MigrateAllAsync(serviceProvider, connectionString, stoppingToken);
+            await MigrationRunner.MigrateAllAsync(
+                serviceProvider,
+                connectionString,
+                runtimeRole,
+                stoppingToken
+            );
             logger.MigrationsApplied();
         }
         catch (Exception exception)
