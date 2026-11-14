@@ -10,6 +10,7 @@ using NCode.Identity.OpenId.Authentication.Auditing;
 using NCode.Identity.OpenId.Authentication.Logging;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence.Stores;
 using Xunit;
 
@@ -22,6 +23,7 @@ public sealed class AuditRecordFlushServiceTests : IDisposable
     private MockRepository MockRepository { get; }
     private Mock<TimeProvider> MockTimeProvider { get; }
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }
+    private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
     private Mock<IStoreManager> MockStoreManager { get; }
     private Mock<IAuditRecordStore> MockAuditRecordStore { get; }
     private AuditRecordQueue Queue { get; }
@@ -32,6 +34,7 @@ public sealed class AuditRecordFlushServiceTests : IDisposable
         MockRepository = new MockRepository(MockBehavior.Strict);
         MockTimeProvider = MockRepository.Create<TimeProvider>();
         MockStoreManagerFactory = MockRepository.Create<IStoreManagerFactory>();
+        MockAmbientTenantAccessor = MockRepository.Create<IAmbientTenantAccessor>();
         MockStoreManager = MockRepository.Create<IStoreManager>();
         MockAuditRecordStore = MockRepository.Create<IAuditRecordStore>();
         var options = Options.Create(new AuditRecordOptions { QueueCapacity = 1000 });
@@ -39,6 +42,7 @@ public sealed class AuditRecordFlushServiceTests : IDisposable
         Service = new AuditRecordFlushService(
             Queue,
             MockStoreManagerFactory.Object,
+            MockAmbientTenantAccessor.Object,
             options,
             MockTimeProvider.Object,
             NullLogger<AuditRecordFlushService>.Instance
@@ -53,6 +57,10 @@ public sealed class AuditRecordFlushServiceTests : IDisposable
 
     private void SetupStores()
     {
+        MockAmbientTenantAccessor
+            .Setup(x => x.BeginUnscoped("audit record flush"))
+            .Returns(Mock.Of<IDisposable>())
+            .Verifiable();
         MockStoreManagerFactory
             .Setup(x => x.CreateAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(MockStoreManager.Object)
@@ -218,6 +226,7 @@ public sealed class AuditRecordFlushServiceTests : IDisposable
         using var service = new AuditRecordFlushService(
             Queue,
             MockStoreManagerFactory.Object,
+            MockAmbientTenantAccessor.Object,
             Options.Create(new AuditRecordOptions { QueueCapacity = 1000 }),
             MockTimeProvider.Object,
             mockLogger.Object

@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.Authentication.Logging;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Authentication.Persistence;
@@ -19,6 +20,7 @@ namespace NCode.Identity.OpenId.Authentication.Persistence;
 // See ADR-1218.
 internal sealed class GrantPruneService(
     IStoreManagerFactory storeManagerFactory,
+    IAmbientTenantAccessor ambientTenantAccessor,
     IOptions<GrantRetentionOptions> options,
     TimeProvider timeProvider,
     ILogger<GrantPruneService> logger
@@ -41,6 +43,8 @@ internal sealed class GrantPruneService(
         );
 
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
+
+    private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
 
     private GrantRetentionOptions Options { get; } = options.Value;
 
@@ -96,6 +100,8 @@ internal sealed class GrantPruneService(
         CancellationToken cancellationToken
     )
     {
+        // The prune removes the ended grants of every tenant.
+        using var _ = AmbientTenantAccessor.BeginUnscoped("grant prune");
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<IGrantStore>();
         var removed = await store.RemoveEndedBeforeAsync(

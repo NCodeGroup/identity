@@ -7,6 +7,7 @@ using Microsoft.Extensions.Time.Testing;
 using Moq;
 using NCode.Identity.OpenId.Authentication.Usage;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence.Stores;
 using Xunit;
 
@@ -21,6 +22,7 @@ public sealed class TenantUsagePruneServiceTests : BaseTests
 
     private FakeTimeProvider TimeProvider { get; } = new(Now);
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }
+    private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
     private Mock<IStoreManager> MockStoreManager { get; }
     private Mock<ITenantUsageStore> MockTenantUsageStore { get; }
     private TenantUsagePruneService Service { get; }
@@ -28,10 +30,12 @@ public sealed class TenantUsagePruneServiceTests : BaseTests
     public TenantUsagePruneServiceTests()
     {
         MockStoreManagerFactory = CreateStrictMock<IStoreManagerFactory>();
+        MockAmbientTenantAccessor = CreateStrictMock<IAmbientTenantAccessor>();
         MockStoreManager = CreateStrictMock<IStoreManager>();
         MockTenantUsageStore = CreateStrictMock<ITenantUsageStore>();
         Service = new TenantUsagePruneService(
             MockStoreManagerFactory.Object,
+            MockAmbientTenantAccessor.Object,
             Options.Create(new TenantUsageOptions { Retention = TimeSpan.FromDays(10) }),
             TimeProvider,
             NullLogger<TenantUsagePruneService>.Instance
@@ -48,8 +52,17 @@ public sealed class TenantUsagePruneServiceTests : BaseTests
         base.Dispose(disposing);
     }
 
+    private void SetupUnscoped()
+    {
+        MockAmbientTenantAccessor
+            .Setup(x => x.BeginUnscoped("tenant usage prune"))
+            .Returns(Mock.Of<IDisposable>())
+            .Verifiable();
+    }
+
     private void SetupStores()
     {
+        SetupUnscoped();
         MockStoreManagerFactory
             .Setup(x => x.CreateAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(MockStoreManager.Object)
@@ -142,6 +155,7 @@ public sealed class TenantUsagePruneServiceTests : BaseTests
         };
         using var service = new TenantUsagePruneService(
             MockStoreManagerFactory.Object,
+            MockAmbientTenantAccessor.Object,
             Options.Create(options),
             mockTimeProvider.Object,
             NullLogger<TenantUsagePruneService>.Instance
@@ -215,6 +229,7 @@ public sealed class TenantUsagePruneServiceTests : BaseTests
         using var cancellationTokenSource = new CancellationTokenSource();
         var cancellationToken = cancellationTokenSource.Token;
         await cancellationTokenSource.CancelAsync();
+        SetupUnscoped();
         MockStoreManagerFactory
             .Setup(x => x.CreateAsync(cancellationToken))
             .ThrowsAsync(new OperationCanceledException(cancellationToken))

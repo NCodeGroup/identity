@@ -7,6 +7,7 @@ using Microsoft.Extensions.Time.Testing;
 using Moq;
 using NCode.Identity.OpenId.Authentication.Auditing;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence.Stores;
 using Xunit;
 
@@ -20,6 +21,7 @@ public sealed class AuditRecordPruneServiceTests : BaseTests
 
     private FakeTimeProvider TimeProvider { get; } = new(Now);
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }
+    private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
     private Mock<IStoreManager> MockStoreManager { get; }
     private Mock<IAuditRecordStore> MockAuditRecordStore { get; }
     private AuditRecordPruneService Service { get; }
@@ -27,11 +29,13 @@ public sealed class AuditRecordPruneServiceTests : BaseTests
     public AuditRecordPruneServiceTests()
     {
         MockStoreManagerFactory = CreateStrictMock<IStoreManagerFactory>();
+        MockAmbientTenantAccessor = CreateStrictMock<IAmbientTenantAccessor>();
         MockStoreManager = CreateStrictMock<IStoreManager>();
         MockAuditRecordStore = CreateStrictMock<IAuditRecordStore>();
         var options = new AuditRecordOptions { Retention = TimeSpan.FromDays(90) };
         Service = new AuditRecordPruneService(
             MockStoreManagerFactory.Object,
+            MockAmbientTenantAccessor.Object,
             Options.Create(options),
             TimeProvider,
             NullLogger<AuditRecordPruneService>.Instance
@@ -48,8 +52,17 @@ public sealed class AuditRecordPruneServiceTests : BaseTests
         base.Dispose(disposing);
     }
 
+    private void SetupUnscoped()
+    {
+        MockAmbientTenantAccessor
+            .Setup(x => x.BeginUnscoped("audit record prune"))
+            .Returns(Mock.Of<IDisposable>())
+            .Verifiable();
+    }
+
     private void SetupStores()
     {
+        SetupUnscoped();
         MockStoreManagerFactory
             .Setup(x => x.CreateAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(MockStoreManager.Object)
@@ -83,6 +96,7 @@ public sealed class AuditRecordPruneServiceTests : BaseTests
         var options = new AuditRecordOptions { Enabled = false };
         using var service = new AuditRecordPruneService(
             MockStoreManagerFactory.Object,
+            MockAmbientTenantAccessor.Object,
             Options.Create(options),
             TimeProvider,
             NullLogger<AuditRecordPruneService>.Instance
@@ -159,6 +173,7 @@ public sealed class AuditRecordPruneServiceTests : BaseTests
         };
         using var service = new AuditRecordPruneService(
             MockStoreManagerFactory.Object,
+            MockAmbientTenantAccessor.Object,
             Options.Create(options),
             mockTimeProvider.Object,
             NullLogger<AuditRecordPruneService>.Instance
@@ -232,6 +247,7 @@ public sealed class AuditRecordPruneServiceTests : BaseTests
         using var cancellationTokenSource = new CancellationTokenSource();
         var cancellationToken = cancellationTokenSource.Token;
         await cancellationTokenSource.CancelAsync();
+        SetupUnscoped();
         MockStoreManagerFactory
             .Setup(x => x.CreateAsync(cancellationToken))
             .ThrowsAsync(new OperationCanceledException(cancellationToken))

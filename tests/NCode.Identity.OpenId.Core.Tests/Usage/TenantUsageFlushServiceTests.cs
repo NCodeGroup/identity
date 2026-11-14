@@ -10,6 +10,7 @@ using NCode.Identity.OpenId.Authentication.Logging;
 using NCode.Identity.OpenId.Authentication.Usage;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence.Stores;
 using Xunit;
 
@@ -23,6 +24,7 @@ public sealed class TenantUsageFlushServiceTests : IDisposable
     private MockRepository MockRepository { get; }
     private FakeTimeProvider TimeProvider { get; } = new(Now);
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }
+    private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
     private Mock<IStoreManager> MockStoreManager { get; }
     private Mock<ITenantUsageStore> MockTenantUsageStore { get; }
     private DefaultTenantUsageRecorder Recorder { get; }
@@ -32,12 +34,14 @@ public sealed class TenantUsageFlushServiceTests : IDisposable
     {
         MockRepository = new MockRepository(MockBehavior.Strict);
         MockStoreManagerFactory = MockRepository.Create<IStoreManagerFactory>();
+        MockAmbientTenantAccessor = MockRepository.Create<IAmbientTenantAccessor>();
         MockStoreManager = MockRepository.Create<IStoreManager>();
         MockTenantUsageStore = MockRepository.Create<ITenantUsageStore>();
         Recorder = new DefaultTenantUsageRecorder(TimeProvider);
         Service = new TenantUsageFlushService(
             Recorder,
             MockStoreManagerFactory.Object,
+            MockAmbientTenantAccessor.Object,
             Options.Create(new TenantUsageOptions { Retention = TimeSpan.FromDays(10) }),
             TimeProvider,
             NullLogger<TenantUsageFlushService>.Instance
@@ -52,6 +56,10 @@ public sealed class TenantUsageFlushServiceTests : IDisposable
 
     private void SetupStores()
     {
+        MockAmbientTenantAccessor
+            .Setup(x => x.BeginUnscoped("tenant usage flush"))
+            .Returns(Mock.Of<IDisposable>())
+            .Verifiable();
         MockStoreManagerFactory
             .Setup(x => x.CreateAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(MockStoreManager.Object)
@@ -319,6 +327,7 @@ public sealed class TenantUsageFlushServiceTests : IDisposable
         using var service = new TenantUsageFlushService(
             Recorder,
             MockStoreManagerFactory.Object,
+            MockAmbientTenantAccessor.Object,
             Options.Create(new TenantUsageOptions()),
             TimeProvider,
             mockLogger.Object
@@ -413,6 +422,7 @@ public sealed class TenantUsageFlushServiceTests : IDisposable
         using var service = new TenantUsageFlushService(
             Recorder,
             MockStoreManagerFactory.Object,
+            MockAmbientTenantAccessor.Object,
             Options.Create(new TenantUsageOptions()),
             TimeProvider,
             mockLogger.Object

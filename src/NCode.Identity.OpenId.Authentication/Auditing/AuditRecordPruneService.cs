@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.Authentication.Logging;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Authentication.Auditing;
@@ -18,6 +19,7 @@ namespace NCode.Identity.OpenId.Authentication.Auditing;
 // See ADR-1303.
 internal sealed class AuditRecordPruneService(
     IStoreManagerFactory storeManagerFactory,
+    IAmbientTenantAccessor ambientTenantAccessor,
     IOptions<AuditRecordOptions> options,
     TimeProvider timeProvider,
     ILogger<AuditRecordPruneService> logger
@@ -29,6 +31,8 @@ internal sealed class AuditRecordPruneService(
     internal const int BatchSize = 256;
 
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
+
+    private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
 
     private AuditRecordOptions Options { get; } = options.Value;
 
@@ -87,6 +91,8 @@ internal sealed class AuditRecordPruneService(
         CancellationToken cancellationToken
     )
     {
+        // The prune removes the audit records of every tenant.
+        using var _ = AmbientTenantAccessor.BeginUnscoped("audit record prune");
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<IAuditRecordStore>();
         var removed = await store.RemoveBeforeAsync(cutoff, BatchSize, cancellationToken);

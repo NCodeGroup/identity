@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.Authentication.Logging;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Authentication.Usage;
@@ -22,6 +23,7 @@ namespace NCode.Identity.OpenId.Authentication.Usage;
 internal sealed class TenantUsageFlushService(
     DefaultTenantUsageRecorder recorder,
     IStoreManagerFactory storeManagerFactory,
+    IAmbientTenantAccessor ambientTenantAccessor,
     IOptions<TenantUsageOptions> options,
     TimeProvider timeProvider,
     ILogger<TenantUsageFlushService> logger
@@ -56,6 +58,8 @@ internal sealed class TenantUsageFlushService(
     private DefaultTenantUsageRecorder Recorder { get; } = recorder;
 
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
+
+    private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
 
     private TenantUsageOptions Options { get; } = options.Value;
 
@@ -209,6 +213,8 @@ internal sealed class TenantUsageFlushService(
     {
         try
         {
+            // A batch holds the usage of every tenant.
+            using var _ = AmbientTenantAccessor.BeginUnscoped("tenant usage flush");
             await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
             var store = storeManager.GetStore<ITenantUsageStore>();
             await store.AddAsync(ReplicaId, batch.Number, batch.Usage, cancellationToken);

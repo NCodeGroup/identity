@@ -9,6 +9,7 @@ using NCode.Identity.OpenId.Authentication.Logging;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Platform;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.SharedState;
@@ -29,6 +30,7 @@ internal sealed class EndedSessionTerminationService(
     IMaterializedPlatformAccessor materializedPlatformAccessor,
     IServiceScopeFactory serviceScopeFactory,
     IStoreManagerFactory storeManagerFactory,
+    IAmbientTenantAccessor ambientTenantAccessor,
     IOpenIdContextFactory openIdContextFactory,
     ISessionService sessionService,
     IExpiringKeySet expiringKeySet,
@@ -51,6 +53,7 @@ internal sealed class EndedSessionTerminationService(
         materializedPlatformAccessor;
     private IServiceScopeFactory ServiceScopeFactory { get; } = serviceScopeFactory;
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
+    private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
     private IOpenIdContextFactory OpenIdContextFactory { get; } = openIdContextFactory;
     private ISessionService SessionService { get; } = sessionService;
     private IExpiringKeySet ExpiringKeySet { get; } = expiringKeySet;
@@ -161,6 +164,8 @@ internal sealed class EndedSessionTerminationService(
         CancellationToken cancellationToken
     )
     {
+        // The page holds the ended sessions of every tenant.
+        using var _ = AmbientTenantAccessor.BeginUnscoped("ended session termination");
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<IGrantStore>();
         return await store.GetUnrevokedExpiredPageAsync(
