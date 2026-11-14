@@ -165,6 +165,7 @@ internal class FederatedPrincipalStore(
         // a platform-owned actor that may hold assignments at the nodes of any tenant. See ADR-1212.
         DbContext.RoleAssignments.RemoveRange(
             await DbContext
+                // Cross-tenant: the principal holds role assignments at nodes of any tenant.
                 .RoleAssignments.IgnoreQueryFilters()
                 .Where(assignment => assignment.NormalizedPrincipalId == normalizedPrincipalId)
                 .ToListAsync(cancellationToken)

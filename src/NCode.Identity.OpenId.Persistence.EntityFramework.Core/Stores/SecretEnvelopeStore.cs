@@ -142,8 +142,11 @@ internal class SecretEnvelopeStore(IStoreProvider storeProvider, OpenIdDbContext
         )
         {
             // Extension properties cannot appear in an expression tree, so the join rows are taken beforehand.
+            // Cross-tenant: the secrets of a tenant are found through the join rows of the tenant, its clients and its resource servers.
             var tenantSecrets = DbContext.TenantSecrets.IgnoreQueryFilters();
+            // Cross-tenant: the secrets of a tenant are found through the join rows of the tenant, its clients and its resource servers.
             var clientSecrets = DbContext.ClientSecrets.IgnoreQueryFilters();
+            // Cross-tenant: the secrets of a tenant are found through the join rows of the tenant, its clients and its resource servers.
             var resourceServerSecrets = DbContext.ResourceServerSecrets.IgnoreQueryFilters();
 
             return DbContext
@@ -170,6 +173,7 @@ internal class SecretEnvelopeStore(IStoreProvider storeProvider, OpenIdDbContext
         var token = Guid.NewGuid().ToString("N");
 
         var tenant = await DbContext
+            // Cross-tenant: the owner of a secret is found from the secret alone, before its tenant is known.
             .TenantSecrets.IgnoreQueryFilters()
             .Where(join => join.SecretId == secretId)
             .Select(join => join.Tenant)
@@ -181,6 +185,7 @@ internal class SecretEnvelopeStore(IStoreProvider storeProvider, OpenIdDbContext
         }
 
         var client = await DbContext
+            // Cross-tenant: the owner of a secret is found from the secret alone, before its tenant is known.
             .ClientSecrets.IgnoreQueryFilters()
             .Where(join => join.SecretId == secretId)
             .Select(join => join.Client)
@@ -192,6 +197,7 @@ internal class SecretEnvelopeStore(IStoreProvider storeProvider, OpenIdDbContext
         }
 
         var resourceServer = await DbContext
+            // Cross-tenant: the owner of a secret is found from the secret alone, before its tenant is known.
             .ResourceServerSecrets.IgnoreQueryFilters()
             .Where(join => join.SecretId == secretId)
             .Select(join => join.ResourceServer)

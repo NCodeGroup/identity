@@ -443,6 +443,7 @@ internal class TeamStore(
         var normalizedTeamId = teamEntity.NormalizedTeamId;
         DbContext.RoleAssignments.RemoveRange(
             await DbContext
+                // Cross-tenant: the role assignments at the team's node are stored under the tenant of their holder.
                 .RoleAssignments.IgnoreQueryFilters()
                 .Where(assignment =>
                     assignment.ResourceType == OpenIdResourceTypes.Team
@@ -509,6 +510,7 @@ internal class TeamStore(
                 cancellationToken
             )
             || await DbContext
+                // Cross-tenant: a team owns machine clients that live in any tenant.
                 .Clients.IgnoreQueryFilters()
                 .AnyAsync(
                     client =>

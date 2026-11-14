@@ -498,6 +498,7 @@ internal class ResourceServerStore(
         // The role assignments at the resource server's node are removed with it. See ADR-1212.
         DbContext.RoleAssignments.RemoveRange(
             await DbContext
+                // Cross-tenant: the assignments at the resource server's node are removed with it whatever the ambient tenant is.
                 .RoleAssignments.IgnoreQueryFilters()
                 .Where(entity =>
                     entity.TenantId == tenantKey

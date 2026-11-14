@@ -256,6 +256,7 @@ internal class ClientStore(
         // A principal is unique across tenants (the unique index on the normalized principal), so at most one row
         // matches. Roles are granted at nodes of the control plane, whatever tenant the client lives in. See ADR-1466.
         var entity = await QueryClients()
+            // Cross-tenant: the principal is looked up before the tenant of its client is known.
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(
                 client => client.NormalizedPrincipalId == normalizedPrincipalId,
@@ -618,24 +619,28 @@ internal class ClientStore(
 
         DbContext.ClientGrants.RemoveRange(
             await DbContext
+                // Cross-tenant: the client's rows are removed with it whatever the ambient tenant is.
                 .ClientGrants.IgnoreQueryFilters()
                 .Where(entity => entity.ClientId == clientKey)
                 .ToListAsync(cancellationToken)
         );
         DbContext.Consents.RemoveRange(
             await DbContext
+                // Cross-tenant: the client's rows are removed with it whatever the ambient tenant is.
                 .Consents.IgnoreQueryFilters()
                 .Where(entity => entity.ClientId == clientKey)
                 .ToListAsync(cancellationToken)
         );
         DbContext.Grants.RemoveRange(
             await DbContext
+                // Cross-tenant: the client's rows are removed with it whatever the ambient tenant is.
                 .Grants.IgnoreQueryFilters()
                 .Where(entity => entity.ClientId == clientKey)
                 .ToListAsync(cancellationToken)
         );
         DbContext.RoleAssignments.RemoveRange(
             await DbContext
+                // Cross-tenant: the client's principal holds role assignments at nodes of any tenant.
                 .RoleAssignments.IgnoreQueryFilters()
                 .Where(entity =>
                     (

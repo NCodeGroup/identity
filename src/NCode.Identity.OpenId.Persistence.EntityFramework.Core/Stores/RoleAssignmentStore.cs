@@ -174,6 +174,7 @@ internal class RoleAssignmentStore(
         // Authority is inherited across tenants, so a principal's assignments are read wherever they are stored.
         // See ADR-1411
         var entities = await DbContext
+            // Cross-tenant: authority is inherited across tenants, so the assignments of a principal are read wherever they are stored.
             .RoleAssignments.IgnoreQueryFilters()
             .Include(entity => entity.Tenant)
             .Where(entity => entity.NormalizedPrincipalId == normalizedPrincipalId)

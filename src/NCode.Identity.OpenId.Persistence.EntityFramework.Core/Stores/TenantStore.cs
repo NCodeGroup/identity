@@ -822,9 +822,11 @@ internal class TenantStore(
         // The role assignments that the tenant's principals hold at the nodes of other tenants are removed with them.
         // See ADR-1212.
         var normalizedTenantId = tenantEntity.NormalizedTenantId;
+        // Cross-tenant: the principals of the tenant that is removed hold assignments at the nodes of other tenants.
         var principals = DbContext.FederatedPrincipals.IgnoreQueryFilters();
         DbContext.RoleAssignments.RemoveRange(
             await DbContext
+                // Cross-tenant: the assignments that the removed tenant's principals hold are stored under other tenants.
                 .RoleAssignments.IgnoreQueryFilters()
                 .Where(assignment =>
                     assignment.NormalizedTenantId != normalizedTenantId
@@ -948,6 +950,7 @@ internal class TenantStore(
     {
         var rows = await DbContext
             .Set<TEntity>()
+            // Cross-tenant: the rows of the tenant that is removed are deleted whatever the ambient tenant is.
             .IgnoreQueryFilters()
             .Where(entity => entity.NormalizedTenantId == normalizedTenantId)
             .ToListAsync(cancellationToken);
@@ -1040,6 +1043,7 @@ internal class TenantStore(
     )
     {
         var hasClients = await DbContext
+            // Cross-tenant: a tenant is removed whatever the ambient tenant is, so its clients are counted in every scope.
             .Clients.IgnoreQueryFilters()
             .AnyAsync(client => client.TenantId == tenantEntity.Id, cancellationToken);
         if (hasClients)
@@ -1048,6 +1052,7 @@ internal class TenantStore(
         }
 
         return await DbContext
+            // Cross-tenant: a tenant is removed whatever the ambient tenant is, so its resource servers are counted in every scope.
             .ResourceServers.IgnoreQueryFilters()
             .AnyAsync(
                 resourceServer =>
