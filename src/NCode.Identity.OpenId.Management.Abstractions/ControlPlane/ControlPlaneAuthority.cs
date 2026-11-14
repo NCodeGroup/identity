@@ -39,4 +39,10 @@ public sealed class ControlPlaneAuthority
     /// resolves to none. Role assignments in every cell hold this identifier.
     /// </summary>
     public string? PrincipalId { get; init; }
+
+    /// <summary>
+    /// Gets a value that indicates whether the subject is the principal of the requesting client acting for itself,
+    /// rather than a user signed in through that client.
+    /// </summary>
+    public bool IsActingClient { get; init; }
 }

@@ -103,6 +103,21 @@ public class RemoteControlPlaneAuthorityTests : BaseTests
     }
 
     [Fact]
+    public async Task GetAsync_WhenTheControlPlaneAnswersThatTheSubjectIsTheActingClient_CarriesTheFlag()
+    {
+        var handler = StubHttpMessageHandler.Respond(
+            HttpStatusCode.OK,
+            """{"principalId":"principal-1","isActingClient":true}"""
+        );
+        var authority = CreateAuthority(handler);
+
+        var result = await authority.GetAsync(CreateRequest(), CancellationToken.None);
+
+        Assert.True(result.IsActingClient);
+        Assert.Equal("principal-1", result.PrincipalId);
+    }
+
+    [Fact]
     public async Task GetAsync_WhenCalled_PostsTheRequestToTheIssuersOriginWithTheControlPlaneToken()
     {
         var handler = StubHttpMessageHandler.Respond(HttpStatusCode.OK, CreateAnswer());

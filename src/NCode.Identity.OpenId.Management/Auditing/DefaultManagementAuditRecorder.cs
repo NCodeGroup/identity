@@ -2,16 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
+using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using NCode.Identity.Events;
 using NCode.Identity.Events.Audit;
+using NCode.Identity.Jose;
 using NCode.Identity.OpenId.Authentication.Auditing;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Environments;
+using NCode.Identity.OpenId.GlobalDirectory;
+using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Management.Logging;
-using NCode.Identity.OpenId.PrincipalResolution;
 using NCode.Identity.Persistence;
 using NCode.Identity.Secrets.Persistence.Auditing;
 using NCode.Identity.Secrets.Persistence.Protection;
@@ -20,9 +23,11 @@ namespace NCode.Identity.OpenId.Management.Auditing;
 
 /// <summary>
 /// Provides the default implementation of <see cref="IManagementAuditRecorder"/> that derives the audit
-/// envelope — including the acting administrator and the effective environment type of the tenant the event names —
-/// from the current request and publishes through the event seam. The whole record, resolving the tenant's
-/// environment type included, runs on its own bounded token and never takes the request's cancellation.
+/// envelope — including the acting administrator or client and the effective environment type of the tenant the event
+/// names — from the current request and publishes through the event seam. The actor is a client when
+/// <see cref="IControlPlaneAuthority"/> answers that the subject is the requesting client acting for itself, and the
+/// administrator the token names otherwise, also when the authority is unavailable. The whole record, resolving the
+/// tenant's environment type included, runs on its own bounded token and never takes the request's cancellation.
 /// </summary>
 [SuppressMessage(
     "Design",
@@ -33,7 +38,7 @@ internal class DefaultManagementAuditRecorder(
     IEventPublisher eventPublisher,
     IOpenIdEnvironmentProvider environmentProvider,
     IManagementTenantEnvironmentResolver tenantEnvironmentResolver,
-    IClientPrincipalResolver clientPrincipalResolver,
+    IControlPlaneAuthority controlPlaneAuthority,
     TimeProvider timeProvider,
     ILogger<DefaultManagementAuditRecorder> logger
 ) : IManagementAuditRecorder
@@ -42,7 +47,7 @@ internal class DefaultManagementAuditRecorder(
     private IOpenIdEnvironmentProvider EnvironmentProvider { get; } = environmentProvider;
     private IManagementTenantEnvironmentResolver TenantEnvironmentResolver { get; } =
         tenantEnvironmentResolver;
-    private IClientPrincipalResolver ClientPrincipalResolver { get; } = clientPrincipalResolver;
+    private IControlPlaneAuthority ControlPlaneAuthority { get; } = controlPlaneAuthority;
     private TimeProvider TimeProvider { get; } = timeProvider;
     private ILogger<DefaultManagementAuditRecorder> Logger { get; } = logger;
 
@@ -514,25 +519,33 @@ internal class DefaultManagementAuditRecorder(
         CancellationToken cancellationToken
     )
     {
-        // A client acting for itself is the actor of the changes it makes. The management authentication filter
-        // resolved the acting client before the change committed, and the resolver answers from that resolution.
-        // See ADR-1466.
-        var openIdContext = httpContext.GetOpenIdContextOrDefault();
-        if (openIdContext is not null)
-        {
-            var client = await ClientPrincipalResolver.GetActingClientOrDefaultAsync(
-                openIdContext,
-                httpContext.User,
-                cancellationToken
-            );
+        var subject = GetActorId(httpContext);
+        var clientId = httpContext.User.FindFirstValue(JoseClaimNames.Payload.ClientId);
 
-            if (client is not null)
+        // A client acting for itself is the actor of the changes it makes. Only the control plane can tell whether the
+        // subject is the principal of the requesting client, so the control-plane authority answers. When it cannot
+        // answer, the administrator is recorded rather than losing the record. See ADR-1466.
+        if (!string.IsNullOrEmpty(subject) && !string.IsNullOrEmpty(clientId))
+        {
+            try
             {
-                return AuditActor.Client(client.ClientId);
+                var authority = await ControlPlaneAuthority.GetAsync(
+                    new ControlPlaneAuthorityRequest { Subject = subject, ClientId = clientId },
+                    cancellationToken
+                );
+
+                if (authority.IsActingClient)
+                {
+                    return AuditActor.Client(clientId);
+                }
+            }
+            catch (DirectoryUnavailableException)
+            {
+                // The record is kept with the administrator the token names.
             }
         }
 
-        return AuditActor.Administrator(GetActorId(httpContext));
+        return AuditActor.Administrator(subject);
     }
 
     // The actor is a self-issued/control-plane admin, so its subject is read with

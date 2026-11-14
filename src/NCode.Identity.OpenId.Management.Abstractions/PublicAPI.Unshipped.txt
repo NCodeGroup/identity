@@ -157,6 +157,8 @@ NCode.Identity.OpenId.Management.Contracts.Secrets.SecretResource.KeyId.get -> s
 NCode.Identity.OpenId.Management.Contracts.Secrets.SecretResource.KeyId.init -> void
 NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority
 NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority.ControlPlaneAuthority() -> void
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority.IsActingClient.get -> bool
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority.IsActingClient.init -> void
 NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority.IsGlobalAdmin.get -> bool
 NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority.IsGlobalAdmin.init -> void
 NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority.PlatformRoles.get -> System.Collections.Generic.IReadOnlyList<string!>!

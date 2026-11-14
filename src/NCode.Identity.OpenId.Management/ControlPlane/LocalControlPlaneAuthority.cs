@@ -48,7 +48,7 @@ internal sealed class LocalControlPlaneAuthority(
             return ControlPlaneAuthority.None;
         }
 
-        var principalId = await FindPrincipalIdAsync(
+        var (principalId, isActingClient) = await FindPrincipalIdAsync(
             request.Subject,
             client,
             storeManager,
@@ -99,6 +99,7 @@ internal sealed class LocalControlPlaneAuthority(
         return new ControlPlaneAuthority
         {
             PrincipalId = principalId,
+            IsActingClient = isActingClient,
             PlatformRoles = GetRoleNames(platformAssignments),
             TeamRoles = GetRoleNames(teamAssignments),
             IsGlobalAdmin = platformAssignments.Any(assignment =>
@@ -111,7 +112,9 @@ internal sealed class LocalControlPlaneAuthority(
         };
     }
 
-    private static async ValueTask<string?> FindPrincipalIdAsync(
+    // Returns the principal identifier the subject resolves to, or null when it resolves to none, together with whether
+    // it resolved to the principal of the requesting client acting for itself.
+    private static async ValueTask<(string? PrincipalId, bool IsActingClient)> FindPrincipalIdAsync(
         string subject,
         PersistedClient actingClient,
         IStoreManager storeManager,
@@ -120,7 +123,7 @@ internal sealed class LocalControlPlaneAuthority(
     {
         if (string.IsNullOrEmpty(subject))
         {
-            return null;
+            return (null, false);
         }
 
         // The subject may be a server-owned principal identifier, the steady state where the server issued the token.
@@ -129,13 +132,13 @@ internal sealed class LocalControlPlaneAuthority(
             .GetOrDefaultAsync(subject, cancellationToken);
         if (principal is not null)
         {
-            return principal.PrincipalId;
+            return (principal.PrincipalId, false);
         }
 
         // Otherwise the subject may be the principal of the client that acts for itself.
         return string.Equals(subject, actingClient.PrincipalId, StringComparison.Ordinal)
-            ? actingClient.PrincipalId
-            : null;
+            ? (actingClient.PrincipalId, true)
+            : (null, false);
     }
 
     private static string[] GetRoleNames(IEnumerable<PersistedRoleAssignment> assignments) =>

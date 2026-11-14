@@ -3,18 +3,23 @@
 
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Options;
+using NCode.Identity.Jose;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Contracts.Caller;
 using NCode.Identity.OpenId.Management.Contracts.Teams;
 using NCode.Identity.OpenId.Management.Contracts.Tenants;
+using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
-using NCode.Identity.OpenId.PrincipalResolution;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
 
@@ -24,12 +29,14 @@ public sealed class CallerApiEndpointHandlerTests : IDisposable
 {
     private const string ControlPlaneTenantId = "platform-root";
     private const string PrincipalId = "principal-1";
+    private const string Subject = "subject-1";
+    private const string ClientId = "client-1";
 
     private MockRepository MockRepository { get; }
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }
     private Mock<IStoreManager> MockStoreManager { get; }
     private Mock<IAuthorizationService> MockAuthorizationService { get; }
-    private Mock<IPrincipalResolver> MockPrincipalResolver { get; }
+    private Mock<IControlPlaneAuthority> MockControlPlaneAuthority { get; }
     private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
     private CallerApiEndpointHandler Handler { get; }
 
@@ -39,15 +46,10 @@ public sealed class CallerApiEndpointHandlerTests : IDisposable
         MockStoreManagerFactory = MockRepository.Create<IStoreManagerFactory>();
         MockStoreManager = MockRepository.Create<IStoreManager>();
         MockAuthorizationService = MockRepository.Create<IAuthorizationService>();
-        MockPrincipalResolver = MockRepository.Create<IPrincipalResolver>();
+        MockControlPlaneAuthority = MockRepository.Create<IControlPlaneAuthority>();
         MockAmbientTenantAccessor = MockRepository.Create<IAmbientTenantAccessor>();
 
-        Handler = new CallerApiEndpointHandler(
-            MockStoreManagerFactory.Object,
-            MockAuthorizationService.Object,
-            MockPrincipalResolver.Object,
-            MockAmbientTenantAccessor.Object
-        );
+        Handler = CreateHandler(isControlPlane: true);
     }
 
     public void Dispose()
@@ -57,9 +59,24 @@ public sealed class CallerApiEndpointHandlerTests : IDisposable
 
     #region Helpers
 
-    private static HttpContext CreateHttpContext()
+    private CallerApiEndpointHandler CreateHandler(bool isControlPlane) =>
+        new(
+            MockStoreManagerFactory.Object,
+            MockAuthorizationService.Object,
+            MockControlPlaneAuthority.Object,
+            MockAmbientTenantAccessor.Object,
+            Options.Create(new CellOptions { IsControlPlane = isControlPlane })
+        );
+
+    private static HttpContext CreateHttpContext(bool withClientId = true)
     {
-        var user = new ClaimsPrincipal(new ClaimsIdentity(authenticationType: "test"));
+        var claims = new List<Claim> { new(JoseClaimNames.Payload.Sub, Subject) };
+        if (withClientId)
+        {
+            claims.Add(new Claim(JoseClaimNames.Payload.ClientId, ClientId));
+        }
+
+        var user = new ClaimsPrincipal(new ClaimsIdentity(claims, authenticationType: "test"));
         var httpContext = new DefaultHttpContext { User = user };
         httpContext.Features.Set<IManagementCallerFeature>(
             new DefaultManagementCallerFeature(user)
@@ -95,16 +112,22 @@ public sealed class CallerApiEndpointHandlerTests : IDisposable
     }
 
     private void SetupPrincipal(string? principalId) =>
-        MockPrincipalResolver
+        MockControlPlaneAuthority
             .Setup(x =>
-                x.ResolvePrincipalIdOrDefaultAsync(
-                    It.IsAny<OpenIdContext>(),
-                    It.IsAny<ClaimsPrincipal>(),
-                    MockStoreManager.Object,
+                x.GetAsync(
+                    It.Is<ControlPlaneAuthorityRequest>(request =>
+                        request.Subject == Subject
+                        && request.ClientId == ClientId
+                        && request.TeamId == null
+                    ),
                     It.IsAny<CancellationToken>()
                 )
             )
-            .ReturnsAsync(principalId)
+            .ReturnsAsync(
+                principalId is null
+                    ? ControlPlaneAuthority.None
+                    : new ControlPlaneAuthority { PrincipalId = principalId }
+            )
             .Verifiable();
 
     private void SetupAssignments(params PersistedRoleAssignment[] assignments)
@@ -248,6 +271,33 @@ public sealed class CallerApiEndpointHandlerTests : IDisposable
             .Verifiable();
 
         var result = await Handler.GetCallerAsync(CreateHttpContext(), CancellationToken.None);
+
+        var json = Assert.IsType<JsonHttpResult<CallerResource>>(result);
+        var caller = Assert.IsType<CallerResource>(json.Value);
+        Assert.Null(caller.PrincipalId);
+        Assert.False(caller.IsPlatformAdministrator);
+        Assert.Empty(caller.Assignments);
+    }
+
+    [Fact]
+    public async Task GetCallerAsync_WhenTheCallerHasNoClientId_ReturnsNoPrincipalAndNoAssignmentsWithoutAskingTheAuthority()
+    {
+        SetupScopeAndStoreManager();
+        MockAuthorizationService
+            .Setup(x =>
+                x.AuthorizeAsync(
+                    It.IsAny<ClaimsPrincipal>(),
+                    It.IsAny<object?>(),
+                    It.IsAny<IEnumerable<IAuthorizationRequirement>>()
+                )
+            )
+            .ReturnsAsync(AuthorizationResult.Failed())
+            .Verifiable();
+
+        var result = await Handler.GetCallerAsync(
+            CreateHttpContext(withClientId: false),
+            CancellationToken.None
+        );
 
         var json = Assert.IsType<JsonHttpResult<CallerResource>>(result);
         var caller = Assert.IsType<CallerResource>(json.Value);
@@ -428,6 +478,37 @@ public sealed class CallerApiEndpointHandlerTests : IDisposable
                 CancellationToken.None
             )
         );
+    }
+
+    [Fact]
+    public void Map_OnTheControlPlane_MapsTheCallerTeamsAndTenantsRoutes()
+    {
+        var routes = MapRoutes(CreateHandler(isControlPlane: true));
+
+        Assert.Equal(["/me", "/me/teams", "/me/tenants"], routes);
+    }
+
+    [Fact]
+    public void Map_OnAnotherCell_MapsTheCallerAndTenantsRoutesWithoutTeams()
+    {
+        var routes = MapRoutes(CreateHandler(isControlPlane: false));
+
+        Assert.Equal(["/me", "/me/tenants"], routes);
+    }
+
+    private static string[] MapRoutes(CallerApiEndpointHandler handler)
+    {
+        var app = WebApplication.CreateSlimBuilder().Build();
+        handler.Map(app);
+
+        return
+        [
+            .. ((IEndpointRouteBuilder)app)
+                .DataSources.SelectMany(dataSource => dataSource.Endpoints)
+                .OfType<RouteEndpoint>()
+                .Select(endpoint => endpoint.RoutePattern.RawText?.TrimEnd('/') ?? string.Empty)
+                .Order(StringComparer.Ordinal),
+        ];
     }
 
     #endregion
