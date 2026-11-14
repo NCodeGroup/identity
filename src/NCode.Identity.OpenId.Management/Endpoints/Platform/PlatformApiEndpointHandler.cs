@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Authentication.Clients;
@@ -52,7 +53,7 @@ POST  api/platform/encryption-keys/rekey
 
 /// <summary>
 /// Provides the API endpoints for the platform's settings and master keys. The platform is the one deployment root, so its routes carry
-/// no identifier.
+/// no identifier. The routes are mapped only on the control-plane cell.
 /// </summary>
 internal class PlatformApiEndpointHandler(
     IStoreManagerFactory storeManagerFactory,
@@ -66,7 +67,8 @@ internal class PlatformApiEndpointHandler(
     IMasterKeyManager masterKeyManager,
     IManagementAuditRecorder managementAuditRecorder,
     IPlatformDirectory platformDirectory,
-    ILogger<PlatformApiEndpointHandler> logger
+    ILogger<PlatformApiEndpointHandler> logger,
+    IOptions<CellOptions> cellOptions
 ) : BaseApiEndpointHandler, IEndpointProvider
 {
     // The number of teams read per page when a settings write is checked against every team's tenants' clients.
@@ -89,6 +91,7 @@ internal class PlatformApiEndpointHandler(
     private IManagementAuditRecorder ManagementAuditRecorder { get; } = managementAuditRecorder;
     private IPlatformDirectory PlatformDirectory { get; } = platformDirectory;
     private ILogger<PlatformApiEndpointHandler> Logger { get; } = logger;
+    private CellOptions CellOptions { get; } = cellOptions.Value;
 
     /// <inheritdoc />
     protected override IAuthorizationService AuthorizationService { get; } = authorizationService;
@@ -99,6 +102,12 @@ internal class PlatformApiEndpointHandler(
     /// <inheritdoc />
     public void Map(IEndpointRouteBuilder endpoints)
     {
+        // The platform is owned by the control-plane cell, so no other cell maps its routes.
+        if (!CellOptions.IsControlPlane)
+        {
+            return;
+        }
+
         var platform = endpoints
             .MapGroup("/platform")
             .WithTags(OpenIdConstants.EndpointTags.Platform)

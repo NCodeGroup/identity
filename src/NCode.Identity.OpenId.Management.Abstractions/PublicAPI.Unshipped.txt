@@ -63,6 +63,14 @@ NCode.Identity.OpenId.Management.Contracts.Capabilities.AlgorithmKeyTypeCapabili
 NCode.Identity.OpenId.Management.Contracts.Capabilities.AlgorithmKeyTypeCapabilityResource.KeyBitSizes.init -> void
 NCode.Identity.OpenId.Management.Contracts.Capabilities.AlgorithmKeyTypeCapabilityResource.SecretType.get -> string!
 NCode.Identity.OpenId.Management.Contracts.Capabilities.AlgorithmKeyTypeCapabilityResource.SecretType.init -> void
+NCode.Identity.OpenId.Management.Contracts.Capabilities.CellCapabilityResource
+NCode.Identity.OpenId.Management.Contracts.Capabilities.CellCapabilityResource.CellCapabilityResource() -> void
+NCode.Identity.OpenId.Management.Contracts.Capabilities.CellCapabilityResource.IsControlPlane.get -> bool
+NCode.Identity.OpenId.Management.Contracts.Capabilities.CellCapabilityResource.IsControlPlane.init -> void
+NCode.Identity.OpenId.Management.Contracts.Capabilities.CellCapabilityResource.Name.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Capabilities.CellCapabilityResource.Name.init -> void
+NCode.Identity.OpenId.Management.Contracts.Capabilities.CellCapabilityResource.Region.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Capabilities.CellCapabilityResource.Region.init -> void
 NCode.Identity.OpenId.Management.Contracts.Capabilities.EccCurveCapabilityResource
 NCode.Identity.OpenId.Management.Contracts.Capabilities.EccCurveCapabilityResource.CurveName.get -> string!
 NCode.Identity.OpenId.Management.Contracts.Capabilities.EccCurveCapabilityResource.CurveName.init -> void

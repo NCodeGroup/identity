@@ -4,13 +4,17 @@
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Environments;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts.Teams;
@@ -58,15 +62,19 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
         MockManagementAuditRecorder = MockRepository.Create<IManagementAuditRecorder>();
         MockMediator = MockRepository.Create<IMediator>();
 
-        Handler = new TenantPromotionApiEndpointHandler(
+        Handler = CreateHandler(isControlPlane: true);
+    }
+
+    private TenantPromotionApiEndpointHandler CreateHandler(bool isControlPlane) =>
+        new(
             MockStoreManagerFactory.Object,
             MockAuthorizationService.Object,
             MockCryptoService.Object,
             MockAmbientTenantAccessor.Object,
             MockTenantPromoter.Object,
-            MockManagementAuditRecorder.Object
+            MockManagementAuditRecorder.Object,
+            Options.Create(new CellOptions { IsControlPlane = isControlPlane })
         );
-    }
 
     public void Dispose()
     {
@@ -856,6 +864,37 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
                 CancellationToken.None
             )
         );
+    }
+
+    [Fact]
+    public void Map_OnTheControlPlane_MapsThePromotionRoutes()
+    {
+        var routes = MapRoutes(CreateHandler(isControlPlane: true));
+
+        Assert.Equal(["/teams/{teamId}/promotions", "/teams/{teamId}/promotions/preview"], routes);
+    }
+
+    [Fact]
+    public void Map_OnAnotherCell_MapsNoRoute()
+    {
+        var routes = MapRoutes(CreateHandler(isControlPlane: false));
+
+        Assert.Empty(routes);
+    }
+
+    private static string[] MapRoutes(TenantPromotionApiEndpointHandler handler)
+    {
+        var app = WebApplication.CreateSlimBuilder().Build();
+        handler.Map(app);
+
+        return
+        [
+            .. ((IEndpointRouteBuilder)app)
+                .DataSources.SelectMany(dataSource => dataSource.Endpoints)
+                .OfType<RouteEndpoint>()
+                .Select(endpoint => endpoint.RoutePattern.RawText?.TrimEnd('/') ?? string.Empty)
+                .Order(StringComparer.Ordinal),
+        ];
     }
 
     #endregion

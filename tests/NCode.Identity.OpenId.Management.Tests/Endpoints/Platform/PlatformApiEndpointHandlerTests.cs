@@ -5,10 +5,13 @@ using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Authentication.Clients;
@@ -77,7 +80,11 @@ public sealed class PlatformApiEndpointHandlerTests : IDisposable
         MockManagementAuditRecorder = MockRepository.Create<IManagementAuditRecorder>();
         MockPlatformDirectory = MockRepository.Create<IPlatformDirectory>();
 
-        Handler = new PlatformApiEndpointHandler(
+        Handler = CreateHandler(isControlPlane: true);
+    }
+
+    private PlatformApiEndpointHandler CreateHandler(bool isControlPlane) =>
+        new(
             MockStoreManagerFactory.Object,
             MockAuthorizationService.Object,
             MockCryptoService.Object,
@@ -89,9 +96,9 @@ public sealed class PlatformApiEndpointHandlerTests : IDisposable
             MockMasterKeyManager.Object,
             MockManagementAuditRecorder.Object,
             MockPlatformDirectory.Object,
-            NullLogger<PlatformApiEndpointHandler>.Instance
+            NullLogger<PlatformApiEndpointHandler>.Instance,
+            Options.Create(new CellOptions { IsControlPlane = isControlPlane })
         );
-    }
 
     // Only a request that changes the resource records it. A saved change is published to the directory unless the
     // test sets up its own publish.
@@ -1822,6 +1829,38 @@ public sealed class PlatformApiEndpointHandlerTests : IDisposable
                 CancellationToken.None
             )
         );
+    }
+
+    [Fact]
+    public void Map_OnTheControlPlane_MapsThePlatformRoutes()
+    {
+        var routes = MapRoutes(CreateHandler(isControlPlane: true));
+
+        Assert.Contains("/platform/settings", routes);
+        Assert.Contains("/platform/encryption-keys/rekey", routes);
+    }
+
+    [Fact]
+    public void Map_OnAnotherCell_MapsNoRoute()
+    {
+        var routes = MapRoutes(CreateHandler(isControlPlane: false));
+
+        Assert.Empty(routes);
+    }
+
+    private static string[] MapRoutes(PlatformApiEndpointHandler handler)
+    {
+        var app = WebApplication.CreateSlimBuilder().Build();
+        handler.Map(app);
+
+        return
+        [
+            .. ((IEndpointRouteBuilder)app)
+                .DataSources.SelectMany(dataSource => dataSource.Endpoints)
+                .OfType<RouteEndpoint>()
+                .Select(endpoint => endpoint.RoutePattern.RawText?.TrimEnd('/') ?? string.Empty)
+                .Order(StringComparer.Ordinal),
+        ];
     }
 
     #endregion

@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.Jose;
@@ -19,6 +20,7 @@ using NCode.Identity.OpenId.Authentication.Clients;
 using NCode.Identity.OpenId.Authentication.OutboundHttp;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Environments;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Clients;
@@ -5778,7 +5780,10 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
         int[] statusCodes
     )
     {
-        var provider = new MachineClientEndpointProvider(Handler);
+        var provider = new MachineClientEndpointProvider(
+            Handler,
+            Options.Create(new CellOptions { IsControlPlane = true })
+        );
         Assert.Equal(
             statusCodes,
             await EndpointProblemMetadata.ReadStatusCodesAsync(

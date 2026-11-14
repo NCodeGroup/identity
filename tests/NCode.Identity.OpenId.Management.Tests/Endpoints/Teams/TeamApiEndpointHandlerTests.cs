@@ -5,10 +5,13 @@ using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Authentication.Clients;
@@ -78,7 +81,11 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
         MockManagementAuditRecorder = MockRepository.Create<IManagementAuditRecorder>();
         MockMediator = MockRepository.Create<IMediator>();
 
-        Handler = new TeamApiEndpointHandler(
+        Handler = CreateHandler(isControlPlane: true);
+    }
+
+    private TeamApiEndpointHandler CreateHandler(bool isControlPlane) =>
+        new(
             MockStoreManagerFactory.Object,
             MockAuthorizationService.Object,
             MockTeamValidator.Object,
@@ -92,9 +99,9 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
             MockTeamClientCoherenceChecker.Object,
             MockResourceOwnershipService.Object,
             MockManagementAuditRecorder.Object,
-            NullLogger<TeamApiEndpointHandler>.Instance
+            NullLogger<TeamApiEndpointHandler>.Instance,
+            Options.Create(new CellOptions { IsControlPlane = isControlPlane })
         );
-    }
 
     public void Dispose()
     {
@@ -4059,6 +4066,38 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
                 CancellationToken.None
             )
         );
+    }
+
+    [Fact]
+    public void Map_OnTheControlPlane_MapsTheTeamRoutes()
+    {
+        var routes = MapRoutes(CreateHandler(isControlPlane: true));
+
+        Assert.Contains("/teams", routes);
+        Assert.Contains("/teams/{teamId}/admins/{principalId}", routes);
+    }
+
+    [Fact]
+    public void Map_OnAnotherCell_MapsNoRoute()
+    {
+        var routes = MapRoutes(CreateHandler(isControlPlane: false));
+
+        Assert.Empty(routes);
+    }
+
+    private static string[] MapRoutes(TeamApiEndpointHandler handler)
+    {
+        var app = WebApplication.CreateSlimBuilder().Build();
+        handler.Map(app);
+
+        return
+        [
+            .. ((IEndpointRouteBuilder)app)
+                .DataSources.SelectMany(dataSource => dataSource.Endpoints)
+                .OfType<RouteEndpoint>()
+                .Select(endpoint => endpoint.RoutePattern.RawText?.TrimEnd('/') ?? string.Empty)
+                .Order(StringComparer.Ordinal),
+        ];
     }
 
     #endregion

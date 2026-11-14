@@ -6,9 +6,11 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Options;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts.Teams;
@@ -30,7 +32,8 @@ POST api/teams/{teamId}/promotions
 
 /// <summary>
 /// Provides the API endpoints for promoting one tenant's configuration into another tenant of the same team: a
-/// preview that reports what the promotion changes and writes nothing, and the promotion that applies it.
+/// preview that reports what the promotion changes and writes nothing, and the promotion that applies it. The routes
+/// are mapped only on the control-plane cell.
 /// </summary>
 // See ADR-1425.
 internal class TenantPromotionApiEndpointHandler(
@@ -39,13 +42,15 @@ internal class TenantPromotionApiEndpointHandler(
     ICryptoService cryptoService,
     IAmbientTenantAccessor ambientTenantAccessor,
     ITenantPromoter tenantPromoter,
-    IManagementAuditRecorder managementAuditRecorder
+    IManagementAuditRecorder managementAuditRecorder,
+    IOptions<CellOptions> cellOptions
 ) : BaseApiEndpointHandler, IEndpointProvider
 {
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
     private ITenantPromoter TenantPromoter { get; } = tenantPromoter;
     private IManagementAuditRecorder ManagementAuditRecorder { get; } = managementAuditRecorder;
+    private CellOptions CellOptions { get; } = cellOptions.Value;
 
     /// <inheritdoc />
     protected override IAuthorizationService AuthorizationService { get; } = authorizationService;
@@ -56,6 +61,12 @@ internal class TenantPromotionApiEndpointHandler(
     /// <inheritdoc />
     public void Map(IEndpointRouteBuilder endpoints)
     {
+        // Promotion is a team operation, and teams are owned by the control-plane cell, so no other cell maps its routes.
+        if (!CellOptions.IsControlPlane)
+        {
+            return;
+        }
+
         var promotions = endpoints
             .MapGroup("/teams/{teamId}/promotions")
             .WithTags(OpenIdConstants.EndpointTags.Teams)

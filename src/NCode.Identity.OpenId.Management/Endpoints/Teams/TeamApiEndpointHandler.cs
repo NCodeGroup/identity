@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Authentication.Clients;
@@ -64,7 +65,8 @@ DELETE api/teams/{teamId}/admins/{principalId}
 
 /// <summary>
 /// Provides the API endpoints for managing a team: a customer's grouping of related tenants. A team is an authority
-/// node beneath the platform, and every team node carries the control-plane tenant as its tenant.
+/// node beneath the platform, and every team node carries the control-plane tenant as its tenant. The routes are
+/// mapped only on the control-plane cell.
 /// </summary>
 // See ADR-1411
 internal class TeamApiEndpointHandler(
@@ -81,7 +83,8 @@ internal class TeamApiEndpointHandler(
     ITeamClientCoherenceChecker teamClientCoherenceChecker,
     IResourceOwnershipService resourceOwnershipService,
     IManagementAuditRecorder managementAuditRecorder,
-    ILogger<TeamApiEndpointHandler> logger
+    ILogger<TeamApiEndpointHandler> logger,
+    IOptions<CellOptions> cellOptions
 ) : BaseOwnableApiEndpointHandler, IEndpointProvider
 {
     /// <summary>
@@ -120,6 +123,7 @@ internal class TeamApiEndpointHandler(
     protected override IResourceOwnershipService ResourceOwnershipService { get; } =
         resourceOwnershipService;
     private ILogger<TeamApiEndpointHandler> Logger { get; } = logger;
+    private CellOptions CellOptions { get; } = cellOptions.Value;
 
     /// <inheritdoc />
     protected override IAuthorizationService AuthorizationService { get; } = authorizationService;
@@ -130,6 +134,12 @@ internal class TeamApiEndpointHandler(
     /// <inheritdoc />
     public void Map(IEndpointRouteBuilder endpoints)
     {
+        // Teams are owned by the control-plane cell, so no other cell maps their routes.
+        if (!CellOptions.IsControlPlane)
+        {
+            return;
+        }
+
         var teams = endpoints
             .MapGroup("/teams")
             .WithTags(OpenIdConstants.EndpointTags.Teams)
