@@ -8,6 +8,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.Client;
+using NCode.Identity.OpenId.GlobalDirectory.ControlPlane;
+using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.Registration;
 
 namespace NCode.Identity.OpenId.GlobalDirectory;
@@ -35,6 +37,9 @@ public static class DefaultRegistration
         /// hosted service that follows the directory's change feed: every <see cref="DirectoryClientOptions.PollInterval"/>
         /// one replica of a cell that is not the control plane mirrors the published team and platform documents into the
         /// cell.
+        /// A cell that is not the control plane (<see cref="CellOptions.IsControlPlane"/> is <c>false</c>) also
+        /// registers the <see cref="IManagementTokenValidator"/> that validates management tokens against
+        /// <c>Cell:ControlPlane:Issuer</c>.
         /// </summary>
         /// <param name="configuration">The <see cref="IConfiguration"/> holding the <c>Directory</c> section.</param>
         /// <returns>The same <see cref="IServiceBuilder{T}"/> so that calls can be chained.</returns>
@@ -81,6 +86,23 @@ public static class DefaultRegistration
             serviceCollection.Replace(
                 ServiceDescriptor.Singleton<ICellDirectory, RemoteCellDirectory>()
             );
+
+            // The control-plane cell validates management tokens with its local adapter; every other cell validates
+            // them against the control plane's issuer. Replace makes the remote adapter win over the local adapter's
+            // TryAdd whichever registration runs first.
+            if (
+                !configuration.GetValue<bool>(
+                    $"{CellOptions.SectionName}:{nameof(CellOptions.IsControlPlane)}"
+                )
+            )
+            {
+                serviceCollection.Replace(
+                    ServiceDescriptor.Singleton<
+                        IManagementTokenValidator,
+                        RemoteManagementTokenValidator
+                    >()
+                );
+            }
 
             // The cell announces itself to the directory when the host starts, then follows its change feed.
             serviceCollection.TryAddEnumerable(
