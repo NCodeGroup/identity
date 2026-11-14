@@ -20,6 +20,7 @@ NCode.Identity.OpenId.Persistence.EntityFramework.Entities.ISupportTenantEntity.
 NCode.Identity.OpenId.Persistence.EntityFramework.IOpenIdModelContributor
 NCode.Identity.OpenId.Persistence.EntityFramework.IOpenIdModelContributor.Configure(Microsoft.EntityFrameworkCore.ModelBuilder! modelBuilder) -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.OpenIdDbContext
+NCode.Identity.OpenId.Persistence.EntityFramework.OpenIdDbContext.IsUnscoped.get -> bool
 NCode.Identity.OpenId.Persistence.EntityFramework.OpenIdDbContext.NormalizedAmbientTenantId.get -> string?
 NCode.Identity.OpenId.Persistence.EntityFramework.OpenIdDbContext.OpenIdDbContext(Microsoft.EntityFrameworkCore.DbContextOptions<NCode.Identity.OpenId.Persistence.EntityFramework.OpenIdDbContext!>! options, NCode.Identity.OpenId.Persistence.Tenants.IAmbientTenantAccessor! ambientTenantAccessor, System.Collections.Generic.IEnumerable<NCode.Identity.OpenId.Persistence.EntityFramework.IOpenIdModelContributor!>! modelContributors) -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TItem, TEntity>
