@@ -4,6 +4,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.ControlPlane;
 
 namespace NCode.Identity.OpenId.Management.Endpoints;
@@ -16,7 +17,8 @@ namespace NCode.Identity.OpenId.Management.Endpoints;
 /// endpoints' resource-based authorization to read. Any other request is anonymous whatever principal an authentication
 /// scheme set, and carries no feature; the imperative authorization returns <c>401</c>/<c>403</c>. When the validator
 /// cannot validate the token because the control plane that validates it is unavailable, the filter answers
-/// <c>503 Service Unavailable</c> with a <c>Retry-After</c> and does not call the endpoint.
+/// <c>503 Service Unavailable</c> with a <c>Retry-After</c> and does not call the endpoint. The same answer covers an endpoint
+/// whose authorization asks <see cref="IControlPlaneAuthority"/> for a role while the control plane is unavailable.
 /// </summary>
 // See ADR-1466 and ADR-1044.
 internal sealed class ManagementAuthenticationEndpointFilter(
@@ -63,6 +65,22 @@ internal sealed class ManagementAuthenticationEndpointFilter(
             httpContext.Features.Set<IManagementCallerFeature>(null);
         }
 
-        return await next(context);
+        try
+        {
+            return await next(context);
+        }
+        catch (DirectoryUnavailableException)
+        {
+            return RetryAfterProblem.Create(
+                httpContext,
+                TimeSpan.FromSeconds(5),
+                new ProblemDetails
+                {
+                    Status = StatusCodes.Status503ServiceUnavailable,
+                    Detail =
+                        "The control plane that holds the platform and team roles is unavailable.",
+                }
+            );
+        }
     }
 }

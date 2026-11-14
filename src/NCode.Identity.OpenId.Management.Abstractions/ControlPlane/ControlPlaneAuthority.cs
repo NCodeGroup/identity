@@ -33,4 +33,10 @@ public sealed class ControlPlaneAuthority
     /// platform node.
     /// </summary>
     public bool IsGlobalAdmin { get; init; }
+
+    /// <summary>
+    /// Gets the control-plane principal identifier that the subject resolves to, or <see langword="null"/> when it
+    /// resolves to none. Role assignments in every cell hold this identifier.
+    /// </summary>
+    public string? PrincipalId { get; init; }
 }

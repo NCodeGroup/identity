@@ -197,6 +197,7 @@ public sealed class LocalControlPlaneAuthorityTests : IDisposable
         var result = await Authority.GetAsync(CreateRequest(), CancellationToken.None);
 
         Assert.True(result.IsGlobalAdmin);
+        Assert.Equal(Subject, result.PrincipalId);
         Assert.Equal<string>(
             [BuiltInRoles.GlobalAdmin, BuiltInRoles.TeamAdmin],
             result.PlatformRoles
@@ -223,6 +224,7 @@ public sealed class LocalControlPlaneAuthorityTests : IDisposable
         );
 
         Assert.False(result.IsGlobalAdmin);
+        Assert.Equal(Subject, result.PrincipalId);
         Assert.Empty(result.PlatformRoles);
         Assert.Equal<string>([BuiltInRoles.Owner], result.TeamRoles);
     }
@@ -244,6 +246,7 @@ public sealed class LocalControlPlaneAuthorityTests : IDisposable
         );
 
         Assert.False(result.IsGlobalAdmin);
+        Assert.Equal(clientPrincipalId, result.PrincipalId);
         Assert.Equal<string>([BuiltInRoles.TeamAdmin], result.PlatformRoles);
     }
 

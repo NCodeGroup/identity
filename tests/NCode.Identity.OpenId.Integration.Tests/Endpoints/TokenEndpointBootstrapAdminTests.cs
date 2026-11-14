@@ -40,8 +40,8 @@ public class TokenEndpointBootstrapAdminTests
         var payload = DecodeJwtPayload(accessToken.GetString()!);
         var payloadRoot = payload;
 
-        // The bootstrap client's management token is stamped with the GlobalAdmin role at issuance (ADR-1044).
-        Assert.Equal("GlobalAdmin", payloadRoot.GetProperty("role").GetString());
+        // The bootstrap client holds the platform GlobalAdmin role, so the management API accepts its token.
+        await AssertManagesAsPlatformAdministratorAsync(factory, CancellationToken.None);
 
         var audElement = payloadRoot.GetProperty("aud");
         var audiences =
@@ -144,8 +144,20 @@ public class TokenEndpointBootstrapAdminTests
         Assert.True(jsonElement.TryGetProperty("access_token", out var accessToken));
         Assert.False(string.IsNullOrEmpty(accessToken.GetString()));
 
-        var payload = DecodeJwtPayload(accessToken.GetString()!);
-        Assert.Equal("GlobalAdmin", payload.GetProperty("role").GetString());
+        await AssertManagesAsPlatformAdministratorAsync(factory, CancellationToken.None);
+    }
+
+    private static async ValueTask AssertManagesAsPlatformAdministratorAsync(
+        BootstrapAdminApplicationFactory factory,
+        CancellationToken cancellationToken
+    )
+    {
+        using var administrator = await factory.CreateAdministratorClientAsync(cancellationToken);
+
+        using var response = await administrator.GetAsync("/api/teams", cancellationToken);
+
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        Assert.True(response.StatusCode == HttpStatusCode.OK, body);
     }
 
     private static JsonElement DecodeJwtPayload(string jwt)

@@ -98,6 +98,7 @@ internal sealed class LocalControlPlaneAuthority(
 
         return new ControlPlaneAuthority
         {
+            PrincipalId = principalId,
             PlatformRoles = GetRoleNames(platformAssignments),
             TeamRoles = GetRoleNames(teamAssignments),
             IsGlobalAdmin = platformAssignments.Any(assignment =>

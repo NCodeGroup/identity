@@ -4,6 +4,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.ControlPlane;
 
 namespace NCode.Identity.OpenId.Management.Endpoints;
@@ -126,6 +127,23 @@ public sealed class ManagementAuthenticationEndpointFilterTests : IDisposable
         Assert.Equal(StatusCodes.Status503ServiceUnavailable, problem.StatusCode);
         Assert.Equal("30", HttpContext.Response.Headers.RetryAfter.ToString());
         Assert.False(nextCalled);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_WhenTheRouteCannotReachTheControlPlane_AnswersServiceUnavailableWithRetryAfter()
+    {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity("Bearer"));
+        SetupValidation(ManagementTokenValidation.Authenticated(principal));
+
+        EndpointFilterDelegate next = _ =>
+            throw new DirectoryUnavailableException("The control plane is unavailable.");
+        var context = EndpointFilterInvocationContext.Create(HttpContext);
+
+        var result = await Filter.InvokeAsync(context, next);
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, problem.StatusCode);
+        Assert.Equal("5", HttpContext.Response.Headers.RetryAfter.ToString());
     }
 
     #endregion

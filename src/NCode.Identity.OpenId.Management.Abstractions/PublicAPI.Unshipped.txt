@@ -161,6 +161,8 @@ NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority.IsGlobalAdmi
 NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority.IsGlobalAdmin.init -> void
 NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority.PlatformRoles.get -> System.Collections.Generic.IReadOnlyList<string!>!
 NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority.PlatformRoles.init -> void
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority.PrincipalId.get -> string?
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority.PrincipalId.init -> void
 NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority.TeamRoles.get -> System.Collections.Generic.IReadOnlyList<string!>!
 NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority.TeamRoles.init -> void
 NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthorityRequest

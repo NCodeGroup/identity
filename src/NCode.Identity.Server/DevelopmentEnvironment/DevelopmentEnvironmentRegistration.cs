@@ -6,7 +6,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
-using NCode.Identity.OpenId.Authentication.Tokens.Commands;
 using NCode.Identity.OpenId.Management.Clients;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Registration;
@@ -51,15 +50,6 @@ public static class DevelopmentEnvironmentRegistration
             var serviceCollection = builder.ServiceCollection;
 
             serviceCollection.AddDeveloperCors(configuration);
-
-            // The bootstrap administrator client's management tokens are stamped with the GlobalAdmin role at issuance
-            // (ADR-1044); the handler is a no-op unless a bootstrap client id is configured.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<GetAccessTokenPayloadClaimsCommand>,
-                    BootstrapAdminAccessTokenClaimsHandler
-                >()
-            );
 
             // The bootstrap administrator client's secret and authority come from host configuration, so the management
             // API refuses every change to it (ADR-1417).

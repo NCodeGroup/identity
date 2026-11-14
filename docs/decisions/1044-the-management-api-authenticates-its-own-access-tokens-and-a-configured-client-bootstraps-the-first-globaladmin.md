@@ -63,17 +63,18 @@ client that configuration seeds.**
 6. **Every other route authorizes imperatively from `HttpContext.User`.** It uses `IAuthorizationService.AuthorizeAsync`
    and the validators, answers `401` when anonymous and `403` without authority
    ([ADR-1424](1424-a-management-route-authorizes-at-the-node-it-names-before-it-reads-through-replaceable-validators.md)), and decides on
-   role assignments and the bootstrap `GlobalAdmin` claim, never on token scopes, which only bind the audience.
+   role assignments, which the control plane answers for the token's `sub` and `client_id`, never on token scopes, which
+   only bind the audience, and never on a role claim.
 
 ### The bootstrap administrator
 
 7. **It is a development and test convenience, opt-in through `BootstrapAdminOptions`.** `BootstrapAdmin:ClientId`,
    `BootstrapAdmin:ClientSecret` (Base64Url-encoded) and `BootstrapAdmin:TenantId` are required once configured, and
-   `TenantId` names a host's static tenant or the root tenant. Without an id and a secret nothing is seeded or
-   conferred. `AddDevelopmentEnvironment` is the only registration that binds the section and registers the client's
-   handlers; elsewhere `IOptions<BootstrapAdminOptions>` resolves unbound and disabled. `AddDeploymentSafety` refuses a
-   configured bootstrap client unless `LocalDevelopment:Enabled` is set, because the first
-   administrator is the root that instance setup creates
+   `TenantId` names the control-plane tenant: a host's static tenant or the root tenant. Without an id and a secret
+   nothing is seeded or assigned. `AddDevelopmentEnvironment` is the only registration that binds the section and
+   registers the client's handlers; elsewhere `IOptions<BootstrapAdminOptions>` resolves unbound and disabled.
+   `AddDeploymentSafety` refuses a configured bootstrap client unless `LocalDevelopment:Enabled` is set, because the
+   first administrator is the root that instance setup creates
    ([ADR-1512](1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md)).
 8. **`BootstrapAdminSeedHandler` seeds the client.** It is an `ICommandHandler<SeedTenantCommand>`
    ([ADR-1166](1166-a-tenant-is-created-and-seeded-through-one-provisioning-pipeline-under-every-strategy.md)) that
@@ -83,8 +84,12 @@ client that configuration seeds.**
    ([ADR-1235](1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md)), so a stale secret
    heals. It never logs the secret.
 9. **The operator's first `client_credentials` request seeds the client before client authentication runs.**
-10. **`BootstrapAdminAccessTokenClaimsHandler` stamps the `GlobalAdmin` role claim** on that client's tokens in that
-    tenant only. `GlobalAdminHandler` succeeds on it, and it is the only role claim that confers management authority.
+10. **The seed handler persists a `GlobalAdmin` role assignment at the platform node for the client's principal.** It
+    adds the assignment only when the client does not hold it, so the seed is idempotent. The control plane answers
+    that assignment as the client's platform role and `IsGlobalAdmin`, and `GlobalAdminHandler` and `OwnershipHandler`
+    ask the control plane about the token's `sub` and `client_id`. The tokens of the client carry no role claim.
+    `BootstrapAdminOptionsValidator` fails startup unless `BootstrapAdmin:TenantId` names the control-plane tenant,
+    where the assignment is read.
 11. **`BootstrapAdminHostManagedClientPolicy` (an `IHostManagedClientPolicy`) marks the client host-managed.** The API
     answers `409` to any change to it after authorizing the caller, `GlobalAdmin` included, so no root-tenant
     administrator obtains a `GlobalAdmin` token through it
@@ -115,17 +120,19 @@ client that configuration seeds.**
   the management API.
 - **Log a generated token at startup.** Rejected: a JWT expires, cannot be revoked and a secret in logs is a worse
   posture than an operator-supplied, out-of-band credential.
-- **A persisted `GlobalAdmin` assignment or a human as the first administrator.** Rejected: operators automate cold
-  start with a machine credential, and on a fresh deployment no administrator exists to write the assignment. A
-  durable `GlobalAdmin` is a role assignment at the platform node, which the bootstrap client grants.
+- **A role claim on the bootstrap client's tokens, or a human as the first administrator.** Rejected: a claim is a
+  second source of authority beside role assignments, which a cell outside the control plane cannot read, and on a
+  fresh deployment no human administrator exists to write the assignment. Operators automate cold start with a machine
+  credential, and a durable `GlobalAdmin` is a role assignment at the platform node, which the seed handler persists
+  for the bootstrap client.
 - **A configured bootstrap client in a deployment.** Rejected: a long-lived credential that holds `GlobalAdmin` and
   sits in configuration is a development and test convenience. A deployed instance creates its first administrator
   once, through instance setup ([ADR-1512](1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md)).
 - **An empty `200` for an anonymous who-am-I request.** Rejected: the answer describes nobody and hides a missing or
   expired token from a client that would sign in again.
 - **Chosen: the filter authenticates the issuer's own tokens in the environment, is the only source of the caller, and a
-  configured client carries the `GlobalAdmin` claim in development and test.** One issuer mints and validates, reuses
-  the tenant's signing keys, and needs no second trust configuration.
+  configured client holds a persisted platform `GlobalAdmin` assignment in development and test.** One issuer mints and
+  validates, reuses the tenant's signing keys, and needs no second trust configuration.
 
 ## Consequences
 
@@ -141,8 +148,9 @@ client that configuration seeds.**
   creates ([ADR-1512](1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md)).
 - The platform's `grant_types_enabled` array adds to the baseline list, so a host that adds `client_credentials` names
   only that grant. A configured `grant_types_supported` array is the platform's whole list.
-- `GlobalAdmin` authority is carried by the token's role claim, not its scope, because its authority is cross-plane and
-  no single requestable scope represents it.
+- `GlobalAdmin` authority is a role assignment that the control plane answers, not a claim of the token, because its
+  authority is cross-plane and no single requestable scope represents it. A cell that is not the control plane asks the
+  control plane, and answers `503` with a `Retry-After` while it is unavailable.
 - A smell: a route that reads `HttpContext.User.Identity.IsAuthenticated` to decide an authentication-only answer
   trusts a principal the filter may not have set.
 

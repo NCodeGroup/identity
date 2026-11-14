@@ -5,12 +5,13 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Authorization;
+using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Persistence;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
-using NCode.Identity.OpenId.PrincipalResolution;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
 
@@ -25,12 +26,13 @@ public class OwnershipHandlerTests : IDisposable
     internal const string TeamId = "team-1";
     private const string TenantId = "tenant-1";
     private const string Subject = "subject-1";
+    private const string CallerClientId = "caller-client";
 
     private static ClaimsPrincipal CreateUser(params Claim[] claims) =>
         new(new ClaimsIdentity(claims, "test"));
 
     private static ClaimsPrincipal CreateSubject(string subjectId = Subject) =>
-        CreateUser(new Claim("sub", subjectId));
+        CreateUser(new Claim("sub", subjectId), new Claim("client_id", CallerClientId));
 
     private static ResourceNode ClientNode(string clientId = "client-1") =>
         ResourceNode.For(TenantId, ResourceNodeTypes.Client, clientId);
@@ -67,6 +69,19 @@ public class OwnershipHandlerTests : IDisposable
             Settings = default,
         }.Build();
 
+    private static PersistedClient CreateClient(
+        string tenantId,
+        string clientId,
+        string owningTeamId
+    ) =>
+        new PersistedClientBuilder
+        {
+            TenantId = tenantId,
+            ClientId = clientId,
+            OwningNodeType = ResourceNodeTypes.Team,
+            OwningNodeId = owningTeamId,
+        }.Build();
+
     private static PersistedTeam CreateTeam(string teamId, string[] ancestorTeamIds) =>
         new PersistedTeamBuilder
         {
@@ -75,8 +90,8 @@ public class OwnershipHandlerTests : IDisposable
             Settings = default,
         }.Build();
 
-    // A requirement the handler does not decide reads nothing, a caller without a principal reads no assignments, and
-    // a team or platform node reads no tenant.
+    // A caller without a sub or client_id claim is judged before the handler asks anything, and a caller the control
+    // plane does not know reads no assignments.
     private async ValueTask<bool> HandleAsync(
         IAuthorizationRequirement requirement,
         ISupportTenantId resource,
@@ -87,28 +102,18 @@ public class OwnershipHandlerTests : IDisposable
     )
     {
         var factory = MockRepository.Create<IStoreManagerFactory>();
-        var resolver = MockRepository.Create<IPrincipalResolver>();
+        var authority = MockRepository.Create<IControlPlaneAuthority>();
         var accessor = MockRepository.Create<IHttpContextAccessor>();
         var ambient = MockRepository.Create<IAmbientTenantAccessor>();
+        SetupContext(accessor);
         if (options.Decides)
         {
-            SetupDecision(
-                factory,
-                resolver,
-                accessor,
-                ambient,
-                resource,
-                assignments,
-                options.ReadsAssignments,
-                options.ReadsTenant,
-                options.TenantTeamId,
-                options.TeamAncestors
-            );
+            SetupDecision(factory, authority, ambient, resource, assignments, options);
         }
 
         var handler = new OwnershipHandler(
             factory.Object,
-            resolver.Object,
+            authority.Object,
             accessor.Object,
             ambient.Object,
             new DefaultAuthorityChainResolver(ambient.Object)
@@ -136,121 +141,49 @@ public class OwnershipHandlerTests : IDisposable
             cancellationToken
         );
 
-    private void SetupDecision(
-        Mock<IStoreManagerFactory> factory,
-        Mock<IPrincipalResolver> resolver,
-        Mock<IHttpContextAccessor> accessor,
-        Mock<IAmbientTenantAccessor> ambient,
-        ISupportTenantId resource,
+    // The answer of the control plane for a caller that holds these assignments: the platform roles, the roles at the
+    // requested team and the teams above it, and the principal the subject resolves to.
+    private static ControlPlaneAuthority Answer(
+        ControlPlaneAuthorityRequest request,
         IReadOnlyList<PersistedRoleAssignment> assignments,
-        bool readsAssignments,
-        bool readsTenant,
-        string? tenantTeamId,
-        string[]? teamAncestors
+        OwnershipHandlerOptions options
     )
     {
-        var manager = MockRepository.Create<IStoreManager>();
-
-        // The handler reads the principal and the node chain in the request's tenant scope.
-        var scope = MockRepository.Create<IDisposable>();
-        scope.Setup(x => x.Dispose()).Verifiable();
-        ambient.Setup(x => x.BeginScope(TenantId)).Returns(scope.Object).Verifiable();
-
-        factory
-            .Setup(x => x.CreateAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(manager.Object)
-            .Verifiable();
-        manager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
-        // The resolver maps the caller to a stable principal id; mirror the token's subject claim (ADR-1035).
-        resolver
-            .Setup(x =>
-                x.ResolvePrincipalIdOrDefaultAsync(
-                    It.IsAny<OpenIdContext>(),
-                    It.IsAny<ClaimsPrincipal>(),
-                    It.IsAny<IStoreManager>(),
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .ReturnsAsync(
-                (
-                    OpenIdContext _,
-                    ClaimsPrincipal callerUser,
-                    IStoreManager _,
-                    CancellationToken _
-                ) => callerUser.FindFirstValue("sub")
-            )
-            .Verifiable();
-        if (readsAssignments)
+        if (!options.KnowsPrincipal)
         {
-            if (readsTenant)
-            {
-                var tenantStore = MockRepository.Create<ITenantStore>();
-                manager
-                    .Setup(x => x.GetStore<ITenantStore>())
-                    .Returns(tenantStore.Object)
-                    .Verifiable();
-                tenantStore
-                    .Setup(x =>
-                        x.GetOrDefaultAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())
-                    )
-                    .ReturnsAsync(tenantTeamId is null ? null : CreateTenant(tenantTeamId))
-                    .Verifiable();
-            }
-
-            var isTeamNode = resource is IResourceNode { ResourceType: ResourceNodeTypes.Team };
-            var teamId = isTeamNode ? ((IResourceNode)resource).ResourceId : tenantTeamId;
-            if (teamId is { } storedTeamId && (isTeamNode || readsTenant))
-            {
-                var teamStore = MockRepository.Create<ITeamStore>();
-                manager.Setup(x => x.GetStore<ITeamStore>()).Returns(teamStore.Object).Verifiable();
-                teamStore
-                    .Setup(x =>
-                        x.GetOrDefaultAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())
-                    )
-                    .ReturnsAsync(CreateTeam(storedTeamId, teamAncestors ?? []))
-                    .Verifiable();
-            }
-
-            // A client node's owning node is read from the client row in the node's tenant scope.
-            if (resource is IResourceNode { ResourceType: ResourceNodeTypes.Client } clientNode)
-            {
-                if (!string.Equals(clientNode.TenantId, TenantId, StringComparison.Ordinal))
-                {
-                    var clientScope = MockRepository.Create<IDisposable>();
-                    clientScope.Setup(x => x.Dispose()).Verifiable();
-                    ambient
-                        .Setup(x => x.BeginScope(clientNode.TenantId))
-                        .Returns(clientScope.Object)
-                        .Verifiable();
-                }
-
-                var clientStore = MockRepository.Create<IClientStore>();
-                manager
-                    .Setup(x => x.GetStore<IClientStore>())
-                    .Returns(clientStore.Object)
-                    .Verifiable();
-                clientStore
-                    .Setup(x =>
-                        x.GetOrDefaultAsync(clientNode.ResourceId, It.IsAny<CancellationToken>())
-                    )
-                    .ReturnsAsync((PersistedClient?)null)
-                    .Verifiable();
-            }
-
-            var store = MockRepository.Create<IRoleAssignmentStore>();
-            manager
-                .Setup(x => x.GetStore<IRoleAssignmentStore>())
-                .Returns(store.Object)
-                .Verifiable();
-            store
-                .Setup(x =>
-                    x.GetByPrincipalAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())
-                )
-                .ReturnsAsync(assignments.ToList())
-                .Verifiable();
+            return ControlPlaneAuthority.None;
         }
 
-        // OwnershipHandler reads the ambient OpenIdContext from the request (the one blessed async-local seam).
+        string[] teamChain = request.TeamId is null
+            ? []
+            : [request.TeamId, .. options.TeamAncestors ?? []];
+
+        var platformRoles = assignments
+            .Where(assignment => assignment.ResourceType == ResourceNodeTypes.Platform)
+            .Select(assignment => assignment.RoleName)
+            .Distinct()
+            .ToList();
+        var teamRoles = assignments
+            .Where(assignment =>
+                assignment.ResourceType == ResourceNodeTypes.Team
+                && teamChain.Contains(assignment.ResourceId, StringComparer.OrdinalIgnoreCase)
+            )
+            .Select(assignment => assignment.RoleName)
+            .Distinct()
+            .ToList();
+
+        return new ControlPlaneAuthority
+        {
+            PrincipalId = request.Subject,
+            PlatformRoles = platformRoles,
+            TeamRoles = teamRoles,
+            IsGlobalAdmin = platformRoles.Contains(BuiltInRoles.GlobalAdmin),
+        };
+    }
+
+    // OwnershipHandler reads the ambient OpenIdContext from the request (the one blessed async-local seam).
+    private void SetupContext(Mock<IHttpContextAccessor> accessor)
+    {
         var openIdContext = MockRepository.Create<OpenIdContext>();
         openIdContext
             .Setup(x => x.Tenant)
@@ -260,6 +193,117 @@ public class OwnershipHandlerTests : IDisposable
         var httpContext = new DefaultHttpContext();
         httpContext.Features.Set(feature.Object);
         accessor.Setup(x => x.HttpContext).Returns(httpContext).Verifiable();
+    }
+
+    private void SetupDecision(
+        Mock<IStoreManagerFactory> factory,
+        Mock<IControlPlaneAuthority> authority,
+        Mock<IAmbientTenantAccessor> ambient,
+        ISupportTenantId resource,
+        IReadOnlyList<PersistedRoleAssignment> assignments,
+        OwnershipHandlerOptions options
+    )
+    {
+        var manager = MockRepository.Create<IStoreManager>();
+
+        // The handler reads the node, its teams and its chain in the request's tenant scope.
+        var scope = MockRepository.Create<IDisposable>();
+        scope.Setup(x => x.Dispose()).Verifiable();
+        ambient.Setup(x => x.BeginScope(TenantId)).Returns(scope.Object).Verifiable();
+
+        factory
+            .Setup(x => x.CreateAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(manager.Object)
+            .Verifiable();
+        manager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
+
+        // The control plane maps the caller to a control-plane principal id; mirror the token's subject claim.
+        authority
+            .Setup(x =>
+                x.GetAsync(
+                    It.Is<ControlPlaneAuthorityRequest>(request =>
+                        request.Subject == Subject && request.ClientId == CallerClientId
+                    ),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(
+                (ControlPlaneAuthorityRequest request, CancellationToken _) =>
+                    options.Answer is { } answer
+                        ? answer(request)
+                        : Answer(request, assignments, options)
+            )
+            .Verifiable();
+
+        var isTeamNode = resource is IResourceNode { ResourceType: ResourceNodeTypes.Team };
+
+        if (options.ReadsTenant)
+        {
+            var tenantStore = MockRepository.Create<ITenantStore>();
+            manager.Setup(x => x.GetStore<ITenantStore>()).Returns(tenantStore.Object).Verifiable();
+            tenantStore
+                .Setup(x => x.GetOrDefaultAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(
+                    options.TenantTeamId is null ? null : CreateTenant(options.TenantTeamId)
+                )
+                .Verifiable();
+        }
+
+        // A client node's owning node is read from the client row in the node's tenant scope.
+        if (resource is IResourceNode { ResourceType: ResourceNodeTypes.Client } clientNode)
+        {
+            if (!string.Equals(clientNode.TenantId, TenantId, StringComparison.Ordinal))
+            {
+                var clientScope = MockRepository.Create<IDisposable>();
+                clientScope.Setup(x => x.Dispose()).Verifiable();
+                ambient
+                    .Setup(x => x.BeginScope(clientNode.TenantId))
+                    .Returns(clientScope.Object)
+                    .Verifiable();
+            }
+
+            var clientStore = MockRepository.Create<IClientStore>();
+            manager.Setup(x => x.GetStore<IClientStore>()).Returns(clientStore.Object).Verifiable();
+            clientStore
+                .Setup(x =>
+                    x.GetOrDefaultAsync(clientNode.ResourceId, It.IsAny<CancellationToken>())
+                )
+                .ReturnsAsync(
+                    options.ClientOwningTeamId is null
+                        ? null
+                        : CreateClient(
+                            clientNode.TenantId,
+                            clientNode.ResourceId,
+                            options.ClientOwningTeamId
+                        )
+                )
+                .Verifiable();
+        }
+
+        // The cell's chain and assignments are read only when the control plane did not already grant the role, so
+        // these setups are not verified.
+        if (options.KnowsPrincipal)
+        {
+            var teamId = isTeamNode ? ((IResourceNode)resource).ResourceId : options.TenantTeamId;
+            if (teamId is { } storedTeamId && (isTeamNode || options.ReadsTenant))
+            {
+                var teamStore = MockRepository.Create<ITeamStore>();
+                manager.Setup(x => x.GetStore<ITeamStore>()).Returns(teamStore.Object);
+                teamStore
+                    .Setup(x =>
+                        x.GetOrDefaultAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())
+                    )
+                    .ReturnsAsync(CreateTeam(storedTeamId, options.TeamAncestors ?? []));
+            }
+
+            var store = MockRepository.Create<IRoleAssignmentStore>();
+            manager.Setup(x => x.GetStore<IRoleAssignmentStore>()).Returns(store.Object);
+            store
+                .Setup(x =>
+                    x.GetByPrincipalAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())
+                )
+                .ReturnsAsync(assignments.ToList());
+        }
     }
 
     #region HandleRequirementAsync Tests
@@ -563,7 +607,7 @@ public class OwnershipHandlerTests : IDisposable
             ClientNode(),
             CreateUser(),
             [Assignment(BuiltInRoles.Owner, ResourceNodeTypes.Client, "client-1")],
-            new OwnershipHandlerOptions { ReadsAssignments = false },
+            new OwnershipHandlerOptions { Decides = false },
             CancellationToken.None
         );
 
@@ -773,6 +817,145 @@ public class OwnershipHandlerTests : IDisposable
         );
 
         Assert.True(succeeded);
+    }
+
+    [Fact]
+    public async Task HandleRequirementAsync_WhenTheControlPlaneDoesNotKnowTheCaller_DoesNotSucceed()
+    {
+        var succeeded = await HandleAsync(
+            Operations.Update,
+            ClientNode(),
+            CreateSubject(),
+            [Assignment(BuiltInRoles.Owner, ResourceNodeTypes.Client, "client-1")],
+            new OwnershipHandlerOptions
+            {
+                KnowsPrincipal = false,
+                Answer = _ => ControlPlaneAuthority.None,
+            },
+            CancellationToken.None
+        );
+
+        Assert.False(succeeded);
+    }
+
+    [Fact]
+    public async Task HandleRequirementAsync_WhenTheControlPlaneAnswersWithoutAPrincipalId_DoesNotSucceed()
+    {
+        var succeeded = await HandleAsync(
+            Operations.Update,
+            ClientNode(),
+            CreateSubject(),
+            [],
+            new OwnershipHandlerOptions
+            {
+                KnowsPrincipal = false,
+                Answer = _ => new ControlPlaneAuthority
+                {
+                    PlatformRoles = [BuiltInRoles.GlobalAdmin],
+                },
+            },
+            CancellationToken.None
+        );
+
+        Assert.False(succeeded);
+    }
+
+    [Fact]
+    public async Task HandleRequirementAsync_WhenTheControlPlaneIsUnavailable_Throws()
+    {
+        await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
+            await HandleAsync(
+                Operations.Update,
+                ClientNode(),
+                CreateSubject(),
+                [],
+                new OwnershipHandlerOptions
+                {
+                    KnowsPrincipal = false,
+                    Answer = _ => throw new DirectoryUnavailableException("unavailable"),
+                },
+                CancellationToken.None
+            )
+        );
+    }
+
+    [Fact]
+    public async Task HandleRequirementAsync_WhenThePlatformRoleComesFromTheControlPlane_Succeeds()
+    {
+        var succeeded = await HandleAsync(
+            Operations.Update,
+            ClientNode(),
+            CreateSubject(),
+            [],
+            new OwnershipHandlerOptions
+            {
+                Answer = request => new ControlPlaneAuthority
+                {
+                    PrincipalId = request.Subject,
+                    PlatformRoles = [BuiltInRoles.GlobalAdmin],
+                    IsGlobalAdmin = true,
+                },
+            },
+            CancellationToken.None
+        );
+
+        Assert.True(succeeded);
+    }
+
+    [Fact]
+    public async Task HandleRequirementAsync_WhenTheNodeIsAPlatformNode_AsksTheControlPlaneOnceWithoutATeam()
+    {
+        var asked = new List<ControlPlaneAuthorityRequest>();
+
+        await HandleAsync(
+            Operations.Update,
+            ResourceNode.For(TenantId, ResourceNodeTypes.Platform, "platform"),
+            CreateSubject(),
+            [],
+            new OwnershipHandlerOptions
+            {
+                ReadsTenant = false,
+                Answer = request =>
+                {
+                    asked.Add(request);
+                    return ControlPlaneAuthority.None;
+                },
+            },
+            CancellationToken.None
+        );
+
+        var request = Assert.Single(asked);
+        Assert.Null(request.TeamId);
+        Assert.Equal(Subject, request.Subject);
+        Assert.Equal(CallerClientId, request.ClientId);
+    }
+
+    [Fact]
+    public async Task HandleRequirementAsync_WhenAClientIsOwnedByATeam_AsksTheControlPlaneForTheTenantsTeamAndTheOwningTeam()
+    {
+        var asked = new List<ControlPlaneAuthorityRequest>();
+
+        await HandleAsync(
+            Operations.Update,
+            ClientNode(),
+            CreateSubject(),
+            [],
+            new OwnershipHandlerOptions
+            {
+                ClientOwningTeamId = "team-owner",
+                Answer = request =>
+                {
+                    asked.Add(request);
+                    return ControlPlaneAuthority.None;
+                },
+            },
+            CancellationToken.None
+        );
+
+        Assert.Equal(
+            [TeamId, "team-owner"],
+            asked.Select(request => request.TeamId).OrderBy(teamId => teamId == TeamId ? 0 : 1)
+        );
     }
 
     #endregion

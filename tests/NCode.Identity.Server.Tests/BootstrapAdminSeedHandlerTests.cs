@@ -9,8 +9,11 @@ using Microsoft.Extensions.Options;
 using Moq;
 using NCode.Buffers;
 using NCode.Identity.Cryptography;
+using NCode.Identity.OpenId;
 using NCode.Identity.OpenId.Authentication.Clients;
 using NCode.Identity.OpenId.Environments;
+using NCode.Identity.OpenId.Management;
+using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Settings;
@@ -33,6 +36,7 @@ public class BootstrapAdminSeedHandlerTests : SecretProtectionTestBase
     private const string SecretText = "bootstrap-secret-value";
     private const string GeneratedSecretId = "generated-secret-id";
     private const string StaleSecretId = "stale-secret-id";
+    private const string BootstrapPrincipalId = "bootstrap-principal";
 
     // The option holds the Base64Url of the secret's UTF-8 bytes.
     private static string EncodedSecret { get; } =
@@ -164,11 +168,74 @@ public class BootstrapAdminSeedHandlerTests : SecretProtectionTestBase
         );
     }
 
-    private IStoreManager CreateStoreManager(IClientStore clientStore)
+    private IStoreManager CreateStoreManager(
+        IClientStore clientStore,
+        IRoleAssignmentStore? roleAssignmentStore = null
+    )
     {
         var mockStoreManager = CreateStrictMock<IStoreManager>();
         mockStoreManager.Setup(x => x.GetStore<IClientStore>()).Returns(clientStore).Verifiable();
+        if (roleAssignmentStore is not null)
+        {
+            mockStoreManager
+                .Setup(x => x.GetStore<IRoleAssignmentStore>())
+                .Returns(roleAssignmentStore)
+                .Verifiable();
+        }
+
         return mockStoreManager.Object;
+    }
+
+    // The control plane reads the bootstrap client's platform role from the principal's assignments. A strict store
+    // without an AddAsync setup refuses an assignment that would be written.
+    private Mock<IRoleAssignmentStore> CreateRoleAssignmentStore(
+        string principalId,
+        IReadOnlyList<PersistedRoleAssignment> existing,
+        Action<PersistedRoleAssignment>? onAdd = null
+    )
+    {
+        var mockStore = CreateStrictMock<IRoleAssignmentStore>();
+        mockStore
+            .Setup(x => x.GetByPrincipalAsync(principalId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existing)
+            .Verifiable();
+        if (onAdd is not null)
+        {
+            mockStore
+                .Setup(x =>
+                    x.AddAsync(It.IsAny<PersistedRoleAssignment>(), It.IsAny<CancellationToken>())
+                )
+                .Callback(
+                    (PersistedRoleAssignment assignment, CancellationToken _) => onAdd(assignment)
+                )
+                .Returns(ValueTask.CompletedTask)
+                .Verifiable();
+        }
+
+        return mockStore;
+    }
+
+    private static PersistedRoleAssignment CreatePlatformAssignment(string roleName) =>
+        new()
+        {
+            TenantId = WorkloadTenantId,
+            AssignmentId = "existing-assignment",
+            PrincipalId = BootstrapPrincipalId,
+            RoleName = roleName,
+            ResourceType = ResourceNodeTypes.Platform,
+            ResourceId = OpenIdConstants.PlatformResourceId,
+            ConcurrencyToken = string.Empty,
+        };
+
+    private static void AssertIsGlobalAdminAtThePlatform(PersistedRoleAssignment? assignment)
+    {
+        Assert.NotNull(assignment);
+        Assert.Equal(WorkloadTenantId, assignment.TenantId);
+        Assert.Equal(BootstrapPrincipalId, assignment.PrincipalId);
+        Assert.Equal(BuiltInRoles.GlobalAdmin, assignment.RoleName);
+        Assert.Equal(ResourceNodeTypes.Platform, assignment.ResourceType);
+        Assert.Equal(OpenIdConstants.PlatformResourceId, assignment.ResourceId);
+        Assert.Equal(GeneratedSecretId, assignment.AssignmentId);
     }
 
     private static BootstrapAdminOptions CreateConfiguredOptions() =>
@@ -232,22 +299,35 @@ public class BootstrapAdminSeedHandlerTests : SecretProtectionTestBase
         );
 
         PersistedClient? addedClient = null;
+        PersistedRoleAssignment? addedAssignment = null;
         var mockClientStore = CreateStrictMock<IClientStore>();
         mockClientStore
             .Setup(x => x.GetOrDefaultAsync(ClientId, It.IsAny<CancellationToken>()))
             .Returns(new ValueTask<PersistedClient?>((PersistedClient?)null))
             .Verifiable();
+        // The store assigns the client's principal identifier when it adds the client.
         mockClientStore
             .Setup(x => x.AddAsync(It.IsAny<PersistedClient>(), It.IsAny<CancellationToken>()))
-            .Callback((PersistedClient client, CancellationToken _) => addedClient = client)
+            .Callback(
+                (PersistedClient client, CancellationToken _) =>
+                {
+                    client.PrincipalId = BootstrapPrincipalId;
+                    addedClient = client;
+                }
+            )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
+        var mockAssignmentStore = CreateRoleAssignmentStore(
+            BootstrapPrincipalId,
+            [],
+            assignment => addedAssignment = assignment
+        );
 
         await handler.HandleAsync(
             CreateCommand(
                 WorkloadTenantId,
                 TenantPlane.Workload,
-                CreateStoreManager(mockClientStore.Object)
+                CreateStoreManager(mockClientStore.Object, mockAssignmentStore.Object)
             ),
             CancellationToken.None
         );
@@ -255,6 +335,7 @@ public class BootstrapAdminSeedHandlerTests : SecretProtectionTestBase
         Assert.NotNull(addedClient);
         Assert.Equal(WorkloadTenantId, addedClient.TenantId);
         Assert.Equal(ClientId, addedClient.ClientId);
+        AssertIsGlobalAdminAtThePlatform(addedAssignment);
         var secret = Assert.Single(addedClient.Secrets.Value);
         await AssertSecretIsVerifierUnderTenantAsync(
             secretServices,
@@ -299,6 +380,7 @@ public class BootstrapAdminSeedHandlerTests : SecretProtectionTestBase
         {
             TenantId = WorkloadTenantId,
             ClientId = ClientId,
+            PrincipalId = BootstrapPrincipalId,
             Settings = clientSettings,
         }.Build();
         var staleSecret = new PersistedSecretBuilder
@@ -341,12 +423,18 @@ public class BootstrapAdminSeedHandlerTests : SecretProtectionTestBase
             )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
+        PersistedRoleAssignment? addedAssignment = null;
+        var mockAssignmentStore = CreateRoleAssignmentStore(
+            BootstrapPrincipalId,
+            [],
+            assignment => addedAssignment = assignment
+        );
 
         await handler.HandleAsync(
             CreateCommand(
                 WorkloadTenantId,
                 TenantPlane.Workload,
-                CreateStoreManager(mockClientStore.Object)
+                CreateStoreManager(mockClientStore.Object, mockAssignmentStore.Object)
             ),
             CancellationToken.None
         );
@@ -354,6 +442,7 @@ public class BootstrapAdminSeedHandlerTests : SecretProtectionTestBase
         var resolvedSettings = Assert.Single(issuer.ResolvedClientSettings);
         Assert.Equal(clientSettings.GetRawText(), resolvedSettings.GetRawText());
         Assert.Equal([tokenEndpointAuthMethod], issuer.IssuedMethods);
+        AssertIsGlobalAdminAtThePlatform(addedAssignment);
         Assert.NotNull(addedSecret);
         if (usesClientSecretAsKey)
         {
@@ -376,6 +465,81 @@ public class BootstrapAdminSeedHandlerTests : SecretProtectionTestBase
                 SecretText,
                 CancellationToken.None
             );
+        }
+    }
+
+    [Theory]
+    [InlineData(BuiltInRoles.GlobalAdmin, false)]
+    [InlineData(BuiltInRoles.TeamAdmin, true)]
+    public async Task HandleAsync_WhenClientExists_AssignsGlobalAdminOnlyWhenItIsNotAlreadyHeld(
+        string heldRole,
+        bool expectsAssignment
+    )
+    {
+        var owner = SecretOwner.ForTenant(WorkloadTenantId);
+        var secretServices = CreateSecretServices(owner);
+        var issuer = new TestClientSecretIssuer(
+            secretServices.GetRequiredService<ISecretGenerator>()
+        )
+        {
+            ResolvedMethod = "client_secret_basic",
+        };
+        var handler = CreateHandler(
+            CreateConfiguredOptions(),
+            secretServices,
+            clientSecretIssuer: issuer
+        );
+
+        var existingClient = new PersistedClientBuilder
+        {
+            TenantId = WorkloadTenantId,
+            ClientId = ClientId,
+            PrincipalId = BootstrapPrincipalId,
+        }.Build();
+        var mockClientStore = CreateStrictMock<IClientStore>();
+        mockClientStore
+            .Setup(x => x.GetOrDefaultAsync(ClientId, It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<PersistedClient?>(existingClient))
+            .Verifiable();
+        mockClientStore
+            .Setup(x => x.GetSecretsOrDefaultAsync(ClientId, It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<PersistedClientSecrets?>((PersistedClientSecrets?)null))
+            .Verifiable();
+        mockClientStore
+            .Setup(x =>
+                x.AddSecretAsync(
+                    ClientId,
+                    It.IsAny<PersistedSecret>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+        // A strict store without an AddAsync setup refuses a duplicate of the assignment the client already holds.
+        PersistedRoleAssignment? addedAssignment = null;
+        var mockAssignmentStore = CreateRoleAssignmentStore(
+            BootstrapPrincipalId,
+            [CreatePlatformAssignment(heldRole)],
+            expectsAssignment ? assignment => addedAssignment = assignment : null
+        );
+
+        await handler.HandleAsync(
+            CreateCommand(
+                WorkloadTenantId,
+                TenantPlane.Workload,
+                CreateStoreManager(mockClientStore.Object, mockAssignmentStore.Object)
+            ),
+            CancellationToken.None
+        );
+
+        if (expectsAssignment)
+        {
+            AssertIsGlobalAdminAtThePlatform(addedAssignment);
+        }
+        else
+        {
+            Assert.Null(addedAssignment);
         }
     }
 

@@ -9,6 +9,8 @@ using NCode.Buffers;
 using NCode.Identity.Cryptography;
 using NCode.Identity.OpenId;
 using NCode.Identity.OpenId.Authentication.Clients;
+using NCode.Identity.OpenId.Management;
+using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Settings;
@@ -24,12 +26,13 @@ namespace NCode.Identity.Server.DevelopmentEnvironment;
 /// <summary>
 /// Seeds the configured bootstrap administrator client into the configured bootstrap tenant as part of the tenant seed
 /// fan-out. The client registers <c>client_secret_basic</c>, so it presents the configured secret with HTTP Basic
-/// authentication. The client's management-audience tokens are stamped with the <c>GlobalAdmin</c> role by
-/// <see cref="BootstrapAdminAccessTokenClaimsHandler"/>, so an operator can make the first authorized management call.
+/// authentication. The client holds a persisted <c>GlobalAdmin</c> role assignment at the platform node, which the
+/// control plane answers for the client's principal, so an operator can make the first authorized management call.
 /// The handler is idempotent and inert unless a bootstrap client id and secret are configured, and it seeds exactly the
 /// one tenant <see cref="BootstrapAdminOptions.TenantId"/> names — never every tenant, which would hand a GlobalAdmin
 /// credential to each tenant created at runtime. The client is checked before it is stored, so a ceiling that excludes
-/// <c>client_secret_basic</c> stops the seed. An existing client is left as it is; the reconciliation of the platform's
+/// <c>client_secret_basic</c> stops the seed. An existing client is left as it is, apart from its secret and its
+/// platform assignment; the reconciliation of the platform's
 /// settings, team by team, reports it, as it reports every stored client, when the settings make it incoherent.
 /// </summary>
 // See ADR-1044 (the bootstrap administrator), ADR-1166 (a seeder that names a tenant seeds exactly that tenant), and
@@ -118,6 +121,12 @@ internal sealed class BootstrapAdminSeedHandler(
                 cancellationToken
             );
             Logger.BootstrapAdminClientSecretRefreshed(clientId, tenantId);
+            await EnsureGlobalAdminAsync(
+                context.StoreManager.GetStore<IRoleAssignmentStore>(),
+                tenantId,
+                existing.PrincipalId,
+                cancellationToken
+            );
             return;
         }
 
@@ -144,7 +153,58 @@ internal sealed class BootstrapAdminSeedHandler(
 
         await store.AddAsync(persistedClient, cancellationToken);
 
+        // The store assigns the client's principal identifier when it adds the client.
+        await EnsureGlobalAdminAsync(
+            context.StoreManager.GetStore<IRoleAssignmentStore>(),
+            tenantId,
+            persistedClient.PrincipalId,
+            cancellationToken
+        );
+
         Logger.BootstrapAdminClientSeeded(clientId, tenantId);
+    }
+
+    // The role that confers every management authority (ADR-1417) is held at the platform node, in the control-plane
+    // tenant, as a persisted assignment; it is added only when the client does not already hold it.
+    private async ValueTask EnsureGlobalAdminAsync(
+        IRoleAssignmentStore store,
+        string tenantId,
+        string principalId,
+        CancellationToken cancellationToken
+    )
+    {
+        var assignments = await store.GetByPrincipalAsync(principalId, cancellationToken);
+        var isAssigned = assignments.Any(assignment =>
+            string.Equals(assignment.RoleName, BuiltInRoles.GlobalAdmin, StringComparison.Ordinal)
+            && string.Equals(
+                assignment.ResourceType,
+                ResourceNodeTypes.Platform,
+                StringComparison.Ordinal
+            )
+            && string.Equals(
+                assignment.ResourceId,
+                OpenIdConstants.PlatformResourceId,
+                StringComparison.Ordinal
+            )
+        );
+        if (isAssigned)
+        {
+            return;
+        }
+
+        await store.AddAsync(
+            new PersistedRoleAssignment
+            {
+                TenantId = tenantId,
+                AssignmentId = CryptoService.GenerateResourceId(),
+                PrincipalId = principalId,
+                RoleName = BuiltInRoles.GlobalAdmin,
+                ResourceType = ResourceNodeTypes.Platform,
+                ResourceId = OpenIdConstants.PlatformResourceId,
+                ConcurrencyToken = string.Empty,
+            },
+            cancellationToken
+        );
     }
 
     private ValueTask<ISecretProtector> GetProtectorAsync(
@@ -183,8 +243,8 @@ internal sealed class BootstrapAdminSeedHandler(
     }
 
     private bool TargetsTenant(TenantSeedContext context) =>
-        // BootstrapAdminOptionsValidator requires the tenant whenever the bootstrap administrator is configured. The root
-        // (control-plane) tenant is a legitimate home for it, wherever a host serves the root tenant.
+        // BootstrapAdminOptionsValidator requires the tenant whenever the bootstrap administrator is configured, and it
+        // must be the control-plane tenant, where the platform role assignment is read.
         string.Equals(context.TenantId, Options.TenantId, StringComparison.Ordinal);
 
     private static JsonElement CreateSettings() =>
