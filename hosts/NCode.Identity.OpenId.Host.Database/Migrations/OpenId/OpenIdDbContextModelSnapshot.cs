@@ -1509,6 +1509,10 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     b.Property<string>("ReconciledSettingsJson")
                         .HasColumnType("text");
 
+                    b.Property<string>("RootKeysJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("SettingsConcurrencyToken")
                         .IsRequired()
                         .HasMaxLength(50)

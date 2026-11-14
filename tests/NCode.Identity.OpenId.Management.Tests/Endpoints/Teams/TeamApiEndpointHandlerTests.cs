@@ -28,6 +28,7 @@ using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Teams;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
+using NCode.Identity.Secrets.Persistence.Protection;
 using NCode.Identity.Settings;
 using NCode.Mediator;
 using SystemTextJsonPatch;
@@ -1218,7 +1219,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
         Assert.Equal("Team One", published.DisplayName);
         Assert.Equal("{}", published.SettingsJson);
         Assert.Null(published.ParentTeamId);
-        Assert.Empty(published.RootKeyReferences);
+        Assert.Empty(published.RootKeys);
     }
 
     [Fact]
@@ -2447,6 +2448,55 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
         Assert.Equal("Team One", published.DisplayName);
         Assert.Equal(settings.Value.GetRawText(), published.SettingsJson);
         Assert.Contains("\"foo\"", published.SettingsJson);
+    }
+
+    [Fact]
+    public async Task UpdateSettingsAsync_WhenTheTeamHoldsRootKeys_PublishesThemWithTheDocument()
+    {
+        SetupValidSettings();
+        SetupNoChangedLimits();
+        SetupStore();
+        var team = CreateTeam();
+        team.RootKeys = new Dictionary<string, OwnerRootKeyRequest>
+        {
+            ["region-a"] = new("aws-kms", "kms://key-a")
+            {
+                AccessIdentity = "arn:aws:iam::123456789012:role/team-a",
+            },
+            ["region-b"] = new("gcp-kms", "kms://key-b"),
+        };
+        var settings = team.Settings;
+        SetupTeam(team);
+        SetupAuthorization(AuthorizationResult.Success());
+        var current = CreateSettingCollection();
+        var proposed = CreateSettingCollection();
+        SetupResolveTeam(current, proposed);
+        MockClientCoherenceValidator
+            .Setup(x => x.ReadsChangedSetting(current, proposed))
+            .Returns(false)
+            .Verifiable();
+        TeamDocument? published = null;
+        SetupSettingsWrite(settings, capturePublish: document => published = document);
+
+        var result = await Handler.UpdateSettingsAsync(
+            CreateHttpContext(authenticated: true),
+            TeamId,
+            CreateAddPatch("foo", "bar"),
+            ifMatch: null,
+            CancellationToken.None
+        );
+
+        Assert.IsType<NoContent>(result);
+        Assert.NotNull(published);
+        Assert.Equal(2, published.RootKeys.Count);
+        var regionA = published.RootKeys["region-a"];
+        Assert.Equal("aws-kms", regionA.KeyWrapperName);
+        Assert.Equal("kms://key-a", regionA.KeyReference);
+        Assert.Equal("arn:aws:iam::123456789012:role/team-a", regionA.AccessIdentity);
+        var regionB = published.RootKeys["region-b"];
+        Assert.Equal("gcp-kms", regionB.KeyWrapperName);
+        Assert.Equal("kms://key-b", regionB.KeyReference);
+        Assert.Null(regionB.AccessIdentity);
     }
 
     [Fact]

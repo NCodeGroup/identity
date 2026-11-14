@@ -9,6 +9,7 @@ using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.Persistence.Stores;
+using NCode.Identity.Secrets.Persistence.Protection;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
 
@@ -74,8 +75,17 @@ internal class TeamStore(
             ReconciledSettingsFingerprint = entity.ReconciledSettingsFingerprint,
             ReconciledSettings = entity.ReconciledSettingsJson,
             DirectorySequence = entity.DirectorySequence,
+            RootKeys = ReadRootKeys(entity.RootKeysJson),
         };
     }
+
+    private static Dictionary<string, OwnerRootKeyRequest> ReadRootKeys(JsonElement rootKeysJson) =>
+        JsonSerializer.Deserialize<Dictionary<string, OwnerRootKeyRequest>>(rootKeysJson)
+        ?? new Dictionary<string, OwnerRootKeyRequest>(StringComparer.Ordinal);
+
+    private static JsonElement WriteRootKeys(
+        IReadOnlyDictionary<string, OwnerRootKeyRequest> rootKeys
+    ) => JsonSerializer.SerializeToElement(rootKeys);
 
     /// <inheritdoc />
     protected override async ValueTask<TeamEntity?> GetEntityOrDefaultAsync(
@@ -319,6 +329,7 @@ internal class TeamStore(
             IsDisabled = persistedTeam.IsDisabled,
             DisplayName = persistedTeam.DisplayName,
             SettingsJson = persistedTeam.Settings.Value,
+            RootKeysJson = WriteRootKeys(persistedTeam.RootKeys),
             ReconciledSettingsFingerprint = persistedTeam.ReconciledSettingsFingerprint,
             ReconciledSettingsJson = persistedTeam.ReconciledSettings,
             DirectorySequence = persistedTeam.DirectorySequence,
@@ -428,6 +439,33 @@ internal class TeamStore(
     }
 
     /// <inheritdoc />
+    public async ValueTask UpdateRootKeysAsync(
+        PersistedTeam persistedTeam,
+        CancellationToken cancellationToken
+    )
+    {
+        var teamId = persistedTeam.TeamId;
+        var teamEntity = await GetEntityAsync(teamId, cancellationToken);
+
+        if (
+            !string.Equals(
+                persistedTeam.ConcurrencyToken,
+                teamEntity.ConcurrencyToken,
+                StringComparison.Ordinal
+            )
+        )
+        {
+            throw new StoreConcurrencyException(
+                $"The team with TeamId='{teamId}' has been modified by another process. Please reload and try again."
+            );
+        }
+
+        // Set only this column and do not call Update, so that only it is written. The interceptor regenerates the row
+        // ConcurrencyToken on save (ADR-1012).
+        teamEntity.RootKeysJson = WriteRootKeys(persistedTeam.RootKeys);
+    }
+
+    /// <inheritdoc />
     public async ValueTask<bool> RemoveAsync(string teamId, CancellationToken cancellationToken)
     {
         var teamEntity = await GetEntityOrDefaultAsync(teamId, cancellationToken);
@@ -530,6 +568,7 @@ internal class TeamStore(
                     IsDisabled = persistedTeam.IsDisabled,
                     DisplayName = persistedTeam.DisplayName,
                     SettingsJson = persistedTeam.Settings.Value,
+                    RootKeysJson = WriteRootKeys(persistedTeam.RootKeys),
                     DirectorySequence = persistedTeam.DirectorySequence,
                     // A collection expression is a fixed-size array, which EF refuses to add to.
                     Tenants = new List<TenantEntity>(),
@@ -558,6 +597,12 @@ internal class TeamStore(
         teamEntity.Path = path;
         teamEntity.DisplayName = persistedTeam.DisplayName;
         teamEntity.DirectorySequence = persistedTeam.DirectorySequence;
+
+        var rootKeysJson = WriteRootKeys(persistedTeam.RootKeys);
+        if (!JsonElement.DeepEquals(teamEntity.RootKeysJson, rootKeysJson))
+        {
+            teamEntity.RootKeysJson = rootKeysJson;
+        }
 
         if (!JsonElement.DeepEquals(teamEntity.SettingsJson, persistedTeam.Settings.Value))
         {

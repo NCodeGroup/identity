@@ -91,6 +91,12 @@ public sealed class TeamEntity : ISupportConcurrencyToken
     public required JsonElement SettingsJson { get; set; }
 
     /// <summary>
+    /// Gets or sets the serialized JSON of the root keys the team brings, an object keyed by region, which is
+    /// <c>{}</c> when the team brings none.
+    /// </summary>
+    public required JsonElement RootKeysJson { get; set; }
+
+    /// <summary>
     /// Gets or sets the fingerprint of the settings the team's tenants were last reconciled against.
     /// </summary>
     [Unicode(false)]

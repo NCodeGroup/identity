@@ -1,11 +1,14 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Collections.Immutable;
+using System.Text.Json;
 using IdGen;
 using Microsoft.EntityFrameworkCore;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 using NCode.Identity.OpenId.Persistence.Tenants;
+using NCode.Identity.Secrets.Persistence.Protection;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.GlobalDirectory;
 
@@ -155,6 +158,7 @@ internal sealed class LocalTeamDirectory(
                 entity.TeamId,
                 entity.DisplayName,
                 entity.SettingsJson,
+                entity.RootKeysJson,
                 ParentTeamId = entity.ParentTeam == null ? null : entity.ParentTeam.TeamId,
             })
             .SingleOrDefaultAsync(cancellationToken);
@@ -163,12 +167,24 @@ internal sealed class LocalTeamDirectory(
             return null;
         }
 
+        var rootKeys =
+            JsonSerializer.Deserialize<Dictionary<string, OwnerRootKeyRequest>>(team.RootKeysJson)
+            ?? [];
+
         return new TeamDocument
         {
             TeamId = team.TeamId,
             DisplayName = team.DisplayName,
             ParentTeamId = team.ParentTeamId,
             SettingsJson = team.SettingsJson.GetRawText(),
+            RootKeys = rootKeys.ToImmutableDictionary(
+                pair => pair.Key,
+                pair => new TeamRootKeyReference(pair.Value.KeyWrapperName, pair.Value.KeyReference)
+                {
+                    AccessIdentity = pair.Value.AccessIdentity,
+                },
+                StringComparer.Ordinal
+            ),
         };
     }
 

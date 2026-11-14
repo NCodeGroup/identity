@@ -418,6 +418,8 @@ NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TeamEntity.Direc
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TeamEntity.ParentTeam.set -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TeamEntity.ParentTeamId.set -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TeamEntity.Path.set -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TeamEntity.RootKeysJson.get -> System.Text.Json.JsonElement
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TeamEntity.RootKeysJson.set -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TenantEntity
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TenantEntity.ConcurrencyToken.get -> string!
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TenantEntity.ConcurrencyToken.set -> void

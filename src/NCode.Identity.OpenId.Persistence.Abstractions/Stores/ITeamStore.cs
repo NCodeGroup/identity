@@ -151,6 +151,16 @@ public interface ITeamStore : IStore<PersistedTeam>
     );
 
     /// <summary>
+    /// Updates the root keys that the team brings, keyed by region. Only the map is written, and the team's other
+    /// columns stay as they are.
+    /// </summary>
+    /// <param name="persistedTeam">The <see cref="PersistedTeam"/> instance carrying the root keys and the concurrency token it was read with.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
+    /// <exception cref="StoreConcurrencyException">Thrown when the team was modified since it was read.</exception>
+    ValueTask UpdateRootKeysAsync(PersistedTeam persistedTeam, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Removes an OpenId Team from the store. The removal is rejected while any tenant or team still belongs to the
     /// team. Removing a team retires its identifier, so it is never reissued.
     /// </summary>

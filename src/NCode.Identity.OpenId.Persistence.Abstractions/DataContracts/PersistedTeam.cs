@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using JetBrains.Annotations;
 using NCode.Identity.Persistence;
+using NCode.Identity.Secrets.Persistence.Protection;
 
 namespace NCode.Identity.OpenId.Persistence.DataContracts;
 
@@ -69,4 +70,11 @@ public sealed class PersistedTeam : BasePersistedTeamResource
     /// team that no document wrote.
     /// </summary>
     public long DirectorySequence { get; set; }
+
+    /// <summary>
+    /// Gets or sets the root keys that the team brings, keyed by region. A cell mirrors the key of its own region into
+    /// the team's owner root key.
+    /// </summary>
+    public IReadOnlyDictionary<string, OwnerRootKeyRequest> RootKeys { get; set; } =
+        new Dictionary<string, OwnerRootKeyRequest>(StringComparer.Ordinal);
 }

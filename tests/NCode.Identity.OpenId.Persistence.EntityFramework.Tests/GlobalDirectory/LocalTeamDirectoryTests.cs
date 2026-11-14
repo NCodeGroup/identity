@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.Tenants;
+using NCode.Identity.Secrets.Persistence.Protection;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.GlobalDirectory;
 
@@ -258,8 +259,39 @@ public sealed class LocalTeamDirectoryTests : IDisposable
         Assert.Equal(TeamId, document.TeamId);
         Assert.Equal("Platform team", document.DisplayName);
         Assert.Equal("""{"max_tenants":3}""", document.SettingsJson);
-        Assert.Empty(document.RootKeyReferences);
+        Assert.Empty(document.RootKeys);
         Assert.Equal(0, document.Sequence);
+    }
+
+    [Fact]
+    public async Task GetOrDefaultAsync_WhenTheTeamHoldsRootKeys_ReturnsThemByRegion()
+    {
+        SetupUnscoped();
+        var team = DbContext.SeedTeam(IdGenerator, TeamId);
+        team.RootKeysJson = JsonSerializer.SerializeToElement(
+            new Dictionary<string, OwnerRootKeyRequest>
+            {
+                ["region-a"] = new("aws-kms", "kms://key-a")
+                {
+                    AccessIdentity = "arn:aws:iam::123456789012:role/team-a",
+                },
+                ["region-b"] = new("gcp-kms", "kms://key-b"),
+            }
+        );
+        await DbContext.SaveChangesAsync();
+
+        var document = await Directory.GetOrDefaultAsync(TeamId, CancellationToken.None);
+
+        Assert.NotNull(document);
+        Assert.Equal(2, document.RootKeys.Count);
+        var regionA = document.RootKeys["region-a"];
+        Assert.Equal("aws-kms", regionA.KeyWrapperName);
+        Assert.Equal("kms://key-a", regionA.KeyReference);
+        Assert.Equal("arn:aws:iam::123456789012:role/team-a", regionA.AccessIdentity);
+        var regionB = document.RootKeys["region-b"];
+        Assert.Equal("gcp-kms", regionB.KeyWrapperName);
+        Assert.Equal("kms://key-b", regionB.KeyReference);
+        Assert.Null(regionB.AccessIdentity);
     }
 
     [Fact]

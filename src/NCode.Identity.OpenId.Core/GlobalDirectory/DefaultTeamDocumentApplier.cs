@@ -10,6 +10,7 @@ using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Teams;
 using NCode.Identity.Persistence.Stores;
+using NCode.Identity.Secrets.Persistence.Protection;
 using NCode.Mediator;
 
 namespace NCode.Identity.OpenId.GlobalDirectory;
@@ -46,6 +47,14 @@ internal sealed class DefaultTeamDocumentApplier(
             IsDisabled = false,
             DisplayName = document.DisplayName,
             DirectorySequence = document.Sequence,
+            RootKeys = document.RootKeys.ToDictionary(
+                pair => pair.Key,
+                pair => new OwnerRootKeyRequest(pair.Value.KeyWrapperName, pair.Value.KeyReference)
+                {
+                    AccessIdentity = pair.Value.AccessIdentity,
+                },
+                StringComparer.Ordinal
+            ),
             Settings = new PersistedTeamSettings
             {
                 TeamId = document.TeamId,

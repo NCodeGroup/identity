@@ -35,10 +35,10 @@ public sealed record TeamDocument
     public string SettingsJson { get; init; } = "{}";
 
     /// <summary>
-    /// Gets the references to the team's root keys, keyed by region.
+    /// Gets the team's root keys, keyed by region.
     /// </summary>
-    public ImmutableDictionary<string, string> RootKeyReferences { get; init; } =
-        ImmutableDictionary<string, string>.Empty;
+    public ImmutableDictionary<string, TeamRootKeyReference> RootKeys { get; init; } =
+        ImmutableDictionary<string, TeamRootKeyReference>.Empty;
 
     /// <summary>
     /// Gets the sequence number of the directory change that published this document, or <c>0</c> for a document that

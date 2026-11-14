@@ -89,14 +89,22 @@ NCode.Identity.OpenId.GlobalDirectory.TeamDocument.DisplayName.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.TeamDocument.DisplayName.init -> void
 NCode.Identity.OpenId.GlobalDirectory.TeamDocument.ParentTeamId.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.TeamDocument.ParentTeamId.init -> void
-NCode.Identity.OpenId.GlobalDirectory.TeamDocument.RootKeyReferences.get -> System.Collections.Immutable.ImmutableDictionary<string!, string!>!
-NCode.Identity.OpenId.GlobalDirectory.TeamDocument.RootKeyReferences.init -> void
+NCode.Identity.OpenId.GlobalDirectory.TeamDocument.RootKeys.get -> System.Collections.Immutable.ImmutableDictionary<string!, NCode.Identity.OpenId.GlobalDirectory.TeamRootKeyReference!>!
+NCode.Identity.OpenId.GlobalDirectory.TeamDocument.RootKeys.init -> void
 NCode.Identity.OpenId.GlobalDirectory.TeamDocument.Sequence.get -> long
 NCode.Identity.OpenId.GlobalDirectory.TeamDocument.Sequence.init -> void
 NCode.Identity.OpenId.GlobalDirectory.TeamDocument.SettingsJson.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.TeamDocument.SettingsJson.init -> void
 NCode.Identity.OpenId.GlobalDirectory.TeamDocument.TeamId.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.TeamDocument.TeamId.init -> void
+NCode.Identity.OpenId.GlobalDirectory.TeamRootKeyReference
+NCode.Identity.OpenId.GlobalDirectory.TeamRootKeyReference.AccessIdentity.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.TeamRootKeyReference.AccessIdentity.init -> void
+NCode.Identity.OpenId.GlobalDirectory.TeamRootKeyReference.KeyReference.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.TeamRootKeyReference.KeyReference.init -> void
+NCode.Identity.OpenId.GlobalDirectory.TeamRootKeyReference.KeyWrapperName.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.TeamRootKeyReference.KeyWrapperName.init -> void
+NCode.Identity.OpenId.GlobalDirectory.TeamRootKeyReference.TeamRootKeyReference(string! KeyWrapperName, string! KeyReference) -> void
 NCode.Identity.OpenId.GlobalDirectory.TenantIssuerChange
 NCode.Identity.OpenId.GlobalDirectory.TenantIssuerChange.Issuer.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.TenantIssuerChange.Issuer.init -> void

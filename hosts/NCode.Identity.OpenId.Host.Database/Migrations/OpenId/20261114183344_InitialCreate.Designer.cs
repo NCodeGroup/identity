@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 {
     [DbContext(typeof(OpenIdDbContext))]
-    [Migration("20261114141143_InitialCreate")]
+    [Migration("20261114183344_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -1510,6 +1510,10 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .HasColumnType("character varying(50)");
 
                     b.Property<string>("ReconciledSettingsJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("RootKeysJson")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("SettingsConcurrencyToken")

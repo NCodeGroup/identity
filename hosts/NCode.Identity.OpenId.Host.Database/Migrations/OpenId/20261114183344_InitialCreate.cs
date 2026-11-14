@@ -204,6 +204,7 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     IsDisabled = table.Column<bool>(type: "boolean", nullable: false),
                     DisplayName = table.Column<string>(type: "text", nullable: false),
                     SettingsJson = table.Column<string>(type: "text", nullable: false),
+                    RootKeysJson = table.Column<string>(type: "text", nullable: false),
                     ReconciledSettingsFingerprint = table.Column<string>(type: "character varying(50)", unicode: false, maxLength: 50, nullable: true),
                     ReconciledSettingsJson = table.Column<string>(type: "text", nullable: true),
                     DirectorySequence = table.Column<long>(type: "bigint", nullable: false)

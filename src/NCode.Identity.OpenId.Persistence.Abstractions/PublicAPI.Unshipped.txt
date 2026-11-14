@@ -260,6 +260,8 @@ NCode.Identity.OpenId.Persistence.DataContracts.PersistedPlatformSettings
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedPlatformSettings.PersistedPlatformSettings() -> void
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedTeam.DirectorySequence.get -> long
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedTeam.DirectorySequence.set -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedTeam.RootKeys.get -> System.Collections.Generic.IReadOnlyDictionary<string!, NCode.Identity.Secrets.Persistence.Protection.OwnerRootKeyRequest!>!
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedTeam.RootKeys.set -> void
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedTenant
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedTenant.DisplayName.get -> string!
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedTenant.DisplayName.set -> void
@@ -393,6 +395,7 @@ NCode.Identity.OpenId.Persistence.Stores.IPlatformStore.GetSettingsOrDefaultAsyn
 NCode.Identity.OpenId.Persistence.Stores.IPlatformStore.UpdateSettingsAsync(NCode.Identity.OpenId.Persistence.DataContracts.PersistedPlatformSettings! persistedPlatformSettings, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Persistence.Stores.ITeamStore.GetMaxDirectorySequenceAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<long>
 NCode.Identity.OpenId.Persistence.Stores.ITeamStore.MirrorAsync(NCode.Identity.OpenId.Persistence.DataContracts.PersistedTeam! persistedTeam, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+NCode.Identity.OpenId.Persistence.Stores.ITeamStore.UpdateRootKeysAsync(NCode.Identity.OpenId.Persistence.DataContracts.PersistedTeam! persistedTeam, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Persistence.Stores.ITenantStore
 NCode.Identity.OpenId.Persistence.Stores.ITenantStore.AddSecretAsync(string! tenantId, NCode.Identity.Secrets.Persistence.DataContracts.PersistedSecret! persistedSecret, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Persistence.Stores.ITenantStore.GetConcurrencyTokensAsync(System.Collections.Generic.IReadOnlyCollection<string!>! tenantIds, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyDictionary<string!, string!>!>

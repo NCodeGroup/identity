@@ -179,9 +179,12 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
             DisplayName = $"Team {teamId}",
             ParentTeamId = parentTeamId,
             SettingsJson = settingsJson,
-            RootKeyReferences = ImmutableDictionary<string, string>.Empty.Add(
+            RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty.Add(
                 "default",
-                "key-reference"
+                new TeamRootKeyReference("aws-kms", "key-reference")
+                {
+                    AccessIdentity = "access-identity",
+                }
             ),
         };
 
@@ -445,7 +448,10 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
         Assert.Equal("Team team-1", document.DisplayName);
         Assert.Null(document.ParentTeamId);
         Assert.Equal(SettingsWithLimit(3), document.SettingsJson);
-        Assert.Equal("key-reference", document.RootKeyReferences["default"]);
+        var rootKey = document.RootKeys["default"];
+        Assert.Equal("aws-kms", rootKey.KeyWrapperName);
+        Assert.Equal("key-reference", rootKey.KeyReference);
+        Assert.Equal("access-identity", rootKey.AccessIdentity);
         Assert.Equal(1, document.Sequence);
     }
 

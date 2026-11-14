@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.Persistence.Stores;
+using NCode.Identity.Secrets.Persistence.Protection;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Stores;
 
@@ -45,7 +46,8 @@ public sealed class TeamStoreMirrorTests : IDisposable
         string? parentTeamId,
         long sequence,
         string displayName = "Team",
-        string settingsJson = "{}"
+        string settingsJson = "{}",
+        IReadOnlyDictionary<string, OwnerRootKeyRequest>? rootKeys = null
     )
     {
         var team = new PersistedTeamBuilder
@@ -56,7 +58,34 @@ public sealed class TeamStoreMirrorTests : IDisposable
             Settings = JsonElement.Parse(settingsJson),
         }.Build();
         team.DirectorySequence = sequence;
+        if (rootKeys is not null)
+            team.RootKeys = rootKeys;
         return team;
+    }
+
+    private static Dictionary<string, OwnerRootKeyRequest> CreateTwoRegionRootKeys() =>
+        new(StringComparer.Ordinal)
+        {
+            ["region-a"] = new("aws-kms", "kms://key-a")
+            {
+                AccessIdentity = "arn:aws:iam::123456789012:role/team-a",
+            },
+            ["region-b"] = new("gcp-kms", "kms://key-b"),
+        };
+
+    private static void AssertTwoRegionRootKeys(
+        IReadOnlyDictionary<string, OwnerRootKeyRequest> rootKeys
+    )
+    {
+        Assert.Equal(2, rootKeys.Count);
+        var regionA = rootKeys["region-a"];
+        Assert.Equal("aws-kms", regionA.KeyWrapperName);
+        Assert.Equal("kms://key-a", regionA.KeyReference);
+        Assert.Equal("arn:aws:iam::123456789012:role/team-a", regionA.AccessIdentity);
+        var regionB = rootKeys["region-b"];
+        Assert.Equal("gcp-kms", regionB.KeyWrapperName);
+        Assert.Equal("kms://key-b", regionB.KeyReference);
+        Assert.Null(regionB.AccessIdentity);
     }
 
     private async ValueTask SaveAndClearAsync(CancellationToken cancellationToken)
@@ -249,6 +278,129 @@ public sealed class TeamStoreMirrorTests : IDisposable
                 CancellationToken.None
             )
         );
+    }
+
+    #endregion
+
+    #region Root Keys Tests
+
+    [Fact]
+    public async Task AddAsync_WhenTheTeamHoldsRootKeys_RoundTripsTheMapByRegion()
+    {
+        var team = CreateTeam("acme", null, sequence: 0, rootKeys: CreateTwoRegionRootKeys());
+
+        await Store.AddAsync(team, CancellationToken.None);
+        await SaveAndClearAsync(CancellationToken.None);
+
+        var stored = await Store.GetOrDefaultAsync("acme", CancellationToken.None);
+        Assert.NotNull(stored);
+        AssertTwoRegionRootKeys(stored.RootKeys);
+    }
+
+    [Fact]
+    public async Task GetOrDefaultAsync_WhenTheTeamHoldsNoRootKeys_ReturnsAnEmptyMap()
+    {
+        await Store.AddAsync(CreateTeam("acme", null, sequence: 0), CancellationToken.None);
+        await SaveAndClearAsync(CancellationToken.None);
+
+        var stored = await Store.GetOrDefaultAsync("acme", CancellationToken.None);
+
+        Assert.NotNull(stored);
+        Assert.Empty(stored.RootKeys);
+    }
+
+    [Fact]
+    public async Task UpdateRootKeysAsync_WhenTheTokenIsCurrent_WritesOnlyTheMap()
+    {
+        await MirrorAsync(CreateTeam("acme", null, sequence: 1, displayName: "Acme"));
+        var team = await Store.GetOrDefaultAsync("acme", CancellationToken.None);
+        Assert.NotNull(team);
+        var previousToken = team.ConcurrencyToken;
+        team.DisplayName = "Not written";
+        team.RootKeys = CreateTwoRegionRootKeys();
+
+        await Store.UpdateRootKeysAsync(team, CancellationToken.None);
+        await SaveAndClearAsync(CancellationToken.None);
+
+        var stored = await Store.GetOrDefaultAsync("acme", CancellationToken.None);
+        Assert.NotNull(stored);
+        AssertTwoRegionRootKeys(stored.RootKeys);
+        Assert.Equal("Acme", stored.DisplayName);
+        Assert.NotEqual(previousToken, stored.ConcurrencyToken);
+    }
+
+    [Fact]
+    public async Task UpdateRootKeysAsync_WhenTheTokenIsStale_Throws()
+    {
+        await MirrorAsync(CreateTeam("acme", null, sequence: 1));
+        var team = await Store.GetOrDefaultAsync("acme", CancellationToken.None);
+        Assert.NotNull(team);
+        team.ConcurrencyToken = "stale";
+        team.RootKeys = CreateTwoRegionRootKeys();
+
+        await Assert.ThrowsAsync<StoreConcurrencyException>(async () =>
+            await Store.UpdateRootKeysAsync(team, CancellationToken.None)
+        );
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenTheTeamHoldsRootKeys_KeepsTheMap()
+    {
+        await MirrorAsync(
+            CreateTeam("acme", null, sequence: 1, rootKeys: CreateTwoRegionRootKeys())
+        );
+        var team = await Store.GetOrDefaultAsync("acme", CancellationToken.None);
+        Assert.NotNull(team);
+        team.DisplayName = "Renamed";
+        team.RootKeys = new Dictionary<string, OwnerRootKeyRequest>();
+
+        await Store.UpdateAsync(team, CancellationToken.None);
+        await SaveAndClearAsync(CancellationToken.None);
+
+        var stored = await Store.GetOrDefaultAsync("acme", CancellationToken.None);
+        Assert.NotNull(stored);
+        Assert.Equal("Renamed", stored.DisplayName);
+        AssertTwoRegionRootKeys(stored.RootKeys);
+    }
+
+    [Fact]
+    public async Task MirrorAsync_WhenTheTeamIsNotStored_InsertsItsRootKeys()
+    {
+        await MirrorAsync(
+            CreateTeam("acme", null, sequence: 1, rootKeys: CreateTwoRegionRootKeys())
+        );
+
+        var stored = await Store.GetOrDefaultAsync("acme", CancellationToken.None);
+        Assert.NotNull(stored);
+        AssertTwoRegionRootKeys(stored.RootKeys);
+    }
+
+    [Fact]
+    public async Task MirrorAsync_WhenTheRootKeysChange_WritesTheNewMap()
+    {
+        await MirrorAsync(CreateTeam("acme", null, sequence: 1));
+
+        await MirrorAsync(
+            CreateTeam("acme", null, sequence: 2, rootKeys: CreateTwoRegionRootKeys())
+        );
+
+        var stored = await Store.GetOrDefaultAsync("acme", CancellationToken.None);
+        Assert.NotNull(stored);
+        AssertTwoRegionRootKeys(stored.RootKeys);
+    }
+
+    [Fact]
+    public async Task MirrorAsync_WhenTheDocumentHoldsNoRootKeys_ClearsTheMap()
+    {
+        await MirrorAsync(
+            CreateTeam("acme", null, sequence: 1, rootKeys: CreateTwoRegionRootKeys())
+        );
+
+        await MirrorAsync(CreateTeam("acme", null, sequence: 2));
+
+        var stored = await Store.GetOrDefaultAsync("acme", CancellationToken.None);
+        Assert.NotNull(stored);
+        Assert.Empty(stored.RootKeys);
     }
 
     #endregion

@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Collections.Immutable;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Authorization;
@@ -594,7 +595,7 @@ internal class TeamApiEndpointHandler(
     }
 
     /// <summary>
-    /// Builds the document that the directory publishes for a team. The root-key references stay empty, and the
+    /// Builds the document that the directory publishes for a team. The team's root keys travel with it, and the
     /// directory assigns the sequence.
     /// </summary>
     /// <param name="team">The <see cref="PersistedTeam"/> to describe.</param>
@@ -606,6 +607,14 @@ internal class TeamApiEndpointHandler(
             DisplayName = team.DisplayName,
             SettingsJson = team.Settings.Value.GetRawText(),
             ParentTeamId = team.ParentTeamId,
+            RootKeys = team.RootKeys.ToImmutableDictionary(
+                pair => pair.Key,
+                pair => new TeamRootKeyReference(pair.Value.KeyWrapperName, pair.Value.KeyReference)
+                {
+                    AccessIdentity = pair.Value.AccessIdentity,
+                },
+                StringComparer.Ordinal
+            ),
         };
 
     /// <summary>

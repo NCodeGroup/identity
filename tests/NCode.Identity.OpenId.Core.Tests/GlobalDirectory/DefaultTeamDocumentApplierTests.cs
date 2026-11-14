@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Collections.Immutable;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -115,6 +116,47 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
             CreateDocument("""{"flag":true}""", sequence: 8),
             CancellationToken.None
         );
+    }
+
+    [Fact]
+    public async Task ApplyAsync_WhenTheDocumentCarriesRootKeys_MirrorsThemIntoTheTeam()
+    {
+        SetupUnscoped();
+        SetupStoreManager();
+        SetupStoredSettings("""{"flag":true}""");
+        PersistedTeam? mirrored = null;
+        MockTeamStore
+            .Setup(x => x.MirrorAsync(It.IsAny<PersistedTeam>(), It.IsAny<CancellationToken>()))
+            .Callback<PersistedTeam, CancellationToken>((team, _) => mirrored = team)
+            .ReturnsAsync(true)
+            .Verifiable();
+        SetupSave(It.IsAny<CancellationToken>());
+        SetupCommand(settingsChanged: false, It.IsAny<CancellationToken>());
+        var document = CreateDocument("""{"flag":true}""", sequence: 8) with
+        {
+            RootKeys = ImmutableDictionary<string, TeamRootKeyReference>
+                .Empty.Add(
+                    "region-a",
+                    new TeamRootKeyReference("aws-kms", "kms://key-a")
+                    {
+                        AccessIdentity = "arn:aws:iam::123456789012:role/team-a",
+                    }
+                )
+                .Add("region-b", new TeamRootKeyReference("gcp-kms", "kms://key-b")),
+        };
+
+        await Applier.ApplyAsync(document, CancellationToken.None);
+
+        Assert.NotNull(mirrored);
+        Assert.Equal(2, mirrored.RootKeys.Count);
+        var regionA = mirrored.RootKeys["region-a"];
+        Assert.Equal("aws-kms", regionA.KeyWrapperName);
+        Assert.Equal("kms://key-a", regionA.KeyReference);
+        Assert.Equal("arn:aws:iam::123456789012:role/team-a", regionA.AccessIdentity);
+        var regionB = mirrored.RootKeys["region-b"];
+        Assert.Equal("gcp-kms", regionB.KeyWrapperName);
+        Assert.Equal("kms://key-b", regionB.KeyReference);
+        Assert.Null(regionB.AccessIdentity);
     }
 
     [Fact]

@@ -82,10 +82,15 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
             DisplayName = "Team 1",
             ParentTeamId = "team-0",
             SettingsJson = SettingsWithLimit(3),
-            RootKeyReferences = ImmutableDictionary<string, string>.Empty.Add(
-                "region-a",
-                "kms://key-a"
-            ),
+            RootKeys = ImmutableDictionary<string, TeamRootKeyReference>
+                .Empty.Add(
+                    "region-a",
+                    new TeamRootKeyReference("aws-kms", "kms://key-a")
+                    {
+                        AccessIdentity = "arn:aws:iam::123456789012:role/team-a",
+                    }
+                )
+                .Add("region-b", new TeamRootKeyReference("gcp-kms", "kms://key-b")),
             Sequence = 99,
         };
 
@@ -97,7 +102,15 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
         Assert.Equal("Team 1", stored.DisplayName);
         Assert.Equal("team-0", stored.ParentTeamId);
         Assert.Equal(SettingsWithLimit(3), stored.SettingsJson);
-        Assert.Equal("kms://key-a", stored.RootKeyReferences["region-a"]);
+        Assert.Equal(["region-a", "region-b"], stored.RootKeys.Keys.Order(StringComparer.Ordinal));
+        var regionA = stored.RootKeys["region-a"];
+        Assert.Equal("aws-kms", regionA.KeyWrapperName);
+        Assert.Equal("kms://key-a", regionA.KeyReference);
+        Assert.Equal("arn:aws:iam::123456789012:role/team-a", regionA.AccessIdentity);
+        var regionB = stored.RootKeys["region-b"];
+        Assert.Equal("gcp-kms", regionB.KeyWrapperName);
+        Assert.Equal("kms://key-b", regionB.KeyReference);
+        Assert.Null(regionB.AccessIdentity);
         Assert.Equal(1, stored.Sequence);
     }
 

@@ -70,6 +70,7 @@ internal static class TestOpenIdDbContextSetup
             IsDisabled = false,
             DisplayName = "Platform",
             SettingsJson = JsonSerializer.SerializeToElement(new Dictionary<string, object>()),
+            RootKeysJson = JsonSerializer.SerializeToElement(new Dictionary<string, object>()),
             Tenants = new List<TenantEntity>(),
         };
         dbContext.Set<TeamEntity>().Add(entity);
