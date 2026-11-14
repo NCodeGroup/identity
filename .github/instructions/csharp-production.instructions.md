@@ -1302,6 +1302,7 @@ MethodImplOptions.AggressiveOptimization)]`, manual unrolling of tiny fixed-coun
     | `27000`–`27999` | `NCode.Identity.Cryptography`                       |
     | `28000`–`28999` | `NCode.Identity.AspNetCore`                         |
     | `29000`–`29999` | `NCode.Identity.OpenId.Setup`                       |
+    | `30000`–`30999` | `NCode.Identity.OpenId.Host.Database`               |
 
 ### Metrics
 
