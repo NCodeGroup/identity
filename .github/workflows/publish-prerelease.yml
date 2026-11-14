@@ -14,7 +14,8 @@
 #
 # Setup the maintainers own: a nuget.org trusted publishing policy for NCodeGroup/identity, this workflow file and the
 # `nuget` environment; the `nuget` environment with required reviewers and deployment rules for main and `v*` tags; and
-# the repository variable NUGET_USER naming the nuget.org account that owns the policy.
+# the NCodeGroup organization's Actions variable NUGET_USER naming the nuget.org account that owns the policy, shared by
+# every repository that publishes to that account.
 name: Publish prerelease packages
 
 on:
