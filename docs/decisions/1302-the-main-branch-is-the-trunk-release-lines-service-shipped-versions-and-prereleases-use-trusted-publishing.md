@@ -72,7 +72,7 @@ prerelease publishes from a deliberate trigger through a short-lived nuget.org k
     - `build` runs the gate and uploads the packages with read-only permissions.
     - `publish` runs in the protected `nuget` environment (required reviewers, deployment rules for `main` and `v*`
       tags) with `contents: read` and `id-token: write`. It exchanges its OIDC token for a job-lived API key through
-      nuget.org trusted publishing (`NuGet/login`, repository variable `NUGET_USER`), under a policy for this
+      nuget.org trusted publishing (`NuGet/login`, organization Actions variable `NUGET_USER`), under a policy for this
       repository, workflow and environment. No long-lived API key exists.
 12. **A version publishes once.** The publish job refuses a version every package of which is already on nuget.org, so
     a run on an unchanged `version.json` fails instead of reporting success for nothing. It pushes with
@@ -100,7 +100,9 @@ prerelease publishes from a deliberate trigger through a short-lived nuget.org k
 - Release publishing (issue #184) reuses the trusted publishing policy, the `nuget` environment and the two-job shape,
   adding signing, timestamping and `dotnet nuget verify`.
 - The `nuget` environment, the trusted publishing policy for `NCodeGroup/identity` and the `NUGET_USER` variable are
-  configured on the host, not in the repository.
+  configured on the host, not in the repository. `NUGET_USER` is an `NCodeGroup` organization variable, so every
+  repository that publishes to the same nuget.org account reads one value; a repository or environment variable of
+  the same name would override it, so none is defined.
 
 ## References
 
