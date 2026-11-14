@@ -10,6 +10,7 @@ using Moq;
 using NCode.Identity.OpenId.Environments;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Platform;
 using NCode.Identity.OpenId.Teams;
 using NCode.Identity.Persistence.Stores;
@@ -38,6 +39,7 @@ public sealed class TeamSettingsReconciliationServiceTests : BaseTests
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }
     private Mock<IStoreManager> MockStoreManager { get; }
     private Mock<ITeamStore> MockTeamStore { get; }
+    private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
     private TeamSettingsReconciliationQueue Queue { get; } = new();
     private DefaultTeamSettingsReconciliationTrigger Trigger { get; }
     private Mock<OpenIdPlatform> MockPlatform { get; }
@@ -78,6 +80,13 @@ public sealed class TeamSettingsReconciliationServiceTests : BaseTests
         MockStoreManagerFactory = CreateStrictMock<IStoreManagerFactory>();
         MockStoreManager = CreateStrictMock<IStoreManager>();
         MockTeamStore = CreateStrictMock<ITeamStore>();
+        MockAmbientTenantAccessor = CreateStrictMock<IAmbientTenantAccessor>();
+
+        // Every pass opens an unscoped scope, and the first test asserts it.
+        MockAmbientTenantAccessor
+            .Setup(x => x.BeginUnscoped(It.IsAny<string>()))
+            .Returns(Mock.Of<IDisposable>());
+
         Trigger = new DefaultTeamSettingsReconciliationTrigger(Queue);
 
         Service = new TeamSettingsReconciliationService(
@@ -85,6 +94,7 @@ public sealed class TeamSettingsReconciliationServiceTests : BaseTests
             MockPlatformProvider.Object,
             MockEnvironmentProvider.Object,
             MockStoreManagerFactory.Object,
+            MockAmbientTenantAccessor.Object,
             MockReconciler.Object,
             MockWalker.Object,
             Queue,
@@ -117,6 +127,11 @@ public sealed class TeamSettingsReconciliationServiceTests : BaseTests
         await Service.StartAsync(CancellationToken.None);
         await Calls[0].Task.WaitAsync(Deadline);
         await Service.StopAsync(CancellationToken.None);
+
+        MockAmbientTenantAccessor.Verify(
+            x => x.BeginUnscoped("team settings reconciliation"),
+            Times.AtLeastOnce
+        );
     }
 
     [Fact]
@@ -331,6 +346,7 @@ public sealed class TeamSettingsReconciliationServiceTests : BaseTests
             MockPlatformProvider.Object,
             MockEnvironmentProvider.Object,
             MockStoreManagerFactory.Object,
+            MockAmbientTenantAccessor.Object,
             MockReconciler.Object,
             MockWalker.Object,
             Queue,

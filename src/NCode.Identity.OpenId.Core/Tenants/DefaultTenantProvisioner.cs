@@ -66,6 +66,8 @@ internal sealed class DefaultTenantProvisioner(
             cancellationToken
         );
 
+        // The tenant is created, and judged against every other tenant's address, outside any tenant scope.
+        using var unscoped = AmbientTenantAccessor.BeginUnscoped("tenant provisioning");
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<ITenantStore>();
 
@@ -235,6 +237,8 @@ internal sealed class DefaultTenantProvisioner(
         CancellationToken cancellationToken
     )
     {
+        // The seed reads the tenant back before any tenant scope exists.
+        using var unscoped = AmbientTenantAccessor.BeginUnscoped("tenant lookup");
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<ITenantStore>();
         return await store.GetOrDefaultAsync(tenantId, cancellationToken);

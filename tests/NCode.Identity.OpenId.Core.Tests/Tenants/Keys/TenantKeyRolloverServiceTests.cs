@@ -13,6 +13,7 @@ using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Core.Tests;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Platform;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Tenants;
@@ -50,6 +51,7 @@ public sealed class TenantKeyRolloverServiceTests : BaseTests
     private Mock<IEffectiveSettingsResolver> MockEffectiveSettingsResolver { get; }
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }
     private Mock<IStoreManager> MockStoreManager { get; }
+    private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
     private Mock<ITenantStore> MockTenantStore { get; }
     private Mock<ITeamStore> MockTeamStore { get; }
     private Mock<IExpiringKeySet> MockExpiringKeySet { get; }
@@ -73,6 +75,12 @@ public sealed class TenantKeyRolloverServiceTests : BaseTests
         MockEffectiveSettingsResolver = CreateStrictMock<IEffectiveSettingsResolver>();
         MockStoreManagerFactory = CreateStrictMock<IStoreManagerFactory>();
         MockStoreManager = CreateStrictMock<IStoreManager>();
+        MockAmbientTenantAccessor = CreateStrictMock<IAmbientTenantAccessor>();
+
+        // A pass that holds the lease rolls over in an unscoped scope.
+        MockAmbientTenantAccessor
+            .Setup(x => x.BeginUnscoped("tenant key rollover"))
+            .Returns(Mock.Of<IDisposable>());
         MockTenantStore = CreateStrictMock<ITenantStore>();
         MockTeamStore = CreateStrictMock<ITeamStore>();
         MockExpiringKeySet = CreateStrictMock<IExpiringKeySet>();
@@ -100,6 +108,7 @@ public sealed class TenantKeyRolloverServiceTests : BaseTests
             MockRollover.Object,
             MockEffectiveSettingsResolver.Object,
             MockStoreManagerFactory.Object,
+            MockAmbientTenantAccessor.Object,
             expiringKeySet,
             MockEventPublisher.Object,
             MockRemoteSecretDestroyer.Object,
@@ -151,6 +160,8 @@ public sealed class TenantKeyRolloverServiceTests : BaseTests
         SetupPlan([second], empty: true);
 
         await Service.RollOverAsync(CancellationToken.None);
+
+        MockAmbientTenantAccessor.Verify(x => x.BeginUnscoped("tenant key rollover"), Times.Once);
     }
 
     [Fact]

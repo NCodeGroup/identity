@@ -8,6 +8,7 @@ using NCode.Identity.Events;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Logging;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
@@ -31,6 +32,7 @@ internal sealed class RemoteKeySweepJobHandler(
     IRemoteKeyProviderCatalog remoteKeyProviderCatalog,
     IRemoteKeyDescriptorCatalog remoteKeyDescriptorCatalog,
     IStoreManagerFactory storeManagerFactory,
+    IAmbientTenantAccessor ambientTenantAccessor,
     IRemoteSecretDestroyer remoteSecretDestroyer,
     IEventPublisher eventPublisher,
     ITenantResolver tenantResolver,
@@ -45,6 +47,7 @@ internal sealed class RemoteKeySweepJobHandler(
     private IRemoteKeyDescriptorCatalog RemoteKeyDescriptorCatalog { get; } =
         remoteKeyDescriptorCatalog;
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
+    private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
     private IRemoteSecretDestroyer RemoteSecretDestroyer { get; } = remoteSecretDestroyer;
     private IEventPublisher EventPublisher { get; } = eventPublisher;
     private ITenantResolver TenantResolver { get; } = tenantResolver;
@@ -123,6 +126,9 @@ internal sealed class RemoteKeySweepJobHandler(
     )
     {
         var referenced = new HashSet<string>(StringComparer.Ordinal);
+
+        // The references of every tenant's secrets decide which keys are orphaned.
+        using var unscoped = AmbientTenantAccessor.BeginUnscoped("remote key sweep");
 
         var page = new PageRequest { Limit = PageSize };
         do

@@ -7,6 +7,7 @@ using Moq;
 using NCode.Identity.Dispatch;
 using NCode.Identity.OpenId.Core.Tests;
 using NCode.Identity.OpenId.Logging;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Platform;
 using NCode.Identity.OpenId.SecretProtection;
 using NCode.Identity.Secrets.Persistence.Options;
@@ -25,6 +26,7 @@ public sealed class RemoteKeySweepServiceTests : BaseTests
     private Mock<IMaterializedPlatformAccessor> PlatformAccessor { get; }
     private Mock<IRemoteKeyDescriptorCatalog> Catalog { get; }
     private Mock<IJobDispatcher> Dispatcher { get; }
+    private Mock<IAmbientTenantAccessor> AmbientTenantAccessor { get; }
     private Mock<IExpiringKeySet> KeySet { get; }
     private Mock<OpenIdPlatform> Platform { get; }
     private RemoteKeySweepService Service { get; }
@@ -35,6 +37,7 @@ public sealed class RemoteKeySweepServiceTests : BaseTests
         PlatformAccessor = CreateStrictMock<IMaterializedPlatformAccessor>();
         Catalog = CreateStrictMock<IRemoteKeyDescriptorCatalog>();
         Dispatcher = CreateStrictMock<IJobDispatcher>();
+        AmbientTenantAccessor = CreateStrictMock<IAmbientTenantAccessor>();
         KeySet = CreateStrictMock<IExpiringKeySet>();
         Platform = CreateStrictMock<OpenIdPlatform>();
 
@@ -54,6 +57,7 @@ public sealed class RemoteKeySweepServiceTests : BaseTests
             PlatformAccessor.Object,
             Catalog.Object,
             Dispatcher.Object,
+            AmbientTenantAccessor.Object,
             KeySet.Object,
             Microsoft.Extensions.Options.Options.Create(
                 new SecretProtectionOptions { RemoteKeys = KeyOptions }
@@ -109,7 +113,8 @@ public sealed class RemoteKeySweepServiceTests : BaseTests
             )
             .Verifiable();
 
-    private void SetupLease(bool acquired) =>
+    private void SetupLease(bool acquired)
+    {
         KeySet
             .Setup(x =>
                 x.TryAddAsync(
@@ -120,6 +125,16 @@ public sealed class RemoteKeySweepServiceTests : BaseTests
             )
             .ReturnsAsync(acquired)
             .Verifiable(Times.Once());
+
+        // A pass that wins the lease dispatches in an unscoped scope.
+        if (acquired)
+        {
+            AmbientTenantAccessor
+                .Setup(x => x.BeginUnscoped("remote key sweep dispatch"))
+                .Returns(Mock.Of<IDisposable>())
+                .Verifiable(Times.Once());
+        }
+    }
 
     private void SetupDispatch() =>
         Dispatcher

@@ -9,6 +9,7 @@ using NCode.Identity.OpenId.Environments;
 using NCode.Identity.OpenId.Logging;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Platform;
 using NCode.Identity.Persistence.Stores;
 
@@ -32,6 +33,7 @@ internal sealed class TeamSettingsReconciliationService(
     IOpenIdPlatformProvider platformProvider,
     IOpenIdEnvironmentProvider environmentProvider,
     IStoreManagerFactory storeManagerFactory,
+    IAmbientTenantAccessor ambientTenantAccessor,
     ITeamSettingsReconciler teamSettingsReconciler,
     ITeamDescendantWalker teamDescendantWalker,
     TeamSettingsReconciliationQueue queue,
@@ -51,6 +53,7 @@ internal sealed class TeamSettingsReconciliationService(
     private IOpenIdPlatformProvider PlatformProvider { get; } = platformProvider;
     private IOpenIdEnvironmentProvider EnvironmentProvider { get; } = environmentProvider;
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
+    private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
     private ITeamSettingsReconciler TeamSettingsReconciler { get; } = teamSettingsReconciler;
     private ITeamDescendantWalker TeamDescendantWalker { get; } = teamDescendantWalker;
     private TeamSettingsReconciliationQueue Queue { get; } = queue;
@@ -155,6 +158,9 @@ internal sealed class TeamSettingsReconciliationService(
         CancellationToken stoppingToken
     )
     {
+        // The pass reconciles teams and the tenants beneath them, outside any request.
+        using var unscoped = AmbientTenantAccessor.BeginUnscoped("team settings reconciliation");
+
         if (request.EveryTeam)
             await ReconcileEveryTeamAsync(stoppingToken);
         else
@@ -165,6 +171,10 @@ internal sealed class TeamSettingsReconciliationService(
     {
         // The deadline is cleared first, so a retry that leaves a team unsettled sets a fresh one.
         RetryDeadline = null;
+
+        // The retry reconciles teams and the tenants beneath them, outside any request.
+        using var unscoped = AmbientTenantAccessor.BeginUnscoped("team settings reconciliation");
+
         if (EveryTeamUnsettled)
             await ReconcileEveryTeamAsync(stoppingToken);
         else

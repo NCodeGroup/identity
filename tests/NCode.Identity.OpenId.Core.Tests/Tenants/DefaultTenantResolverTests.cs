@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
 using Xunit;
@@ -43,7 +44,11 @@ public sealed class DefaultTenantResolverTests
             }
         );
 
-        var resolver = new DefaultTenantResolver(options, [strategy.Object]);
+        var resolver = new DefaultTenantResolver(
+            options,
+            mocks.Create<IAmbientTenantAccessor>().Object,
+            [strategy.Object]
+        );
 
         var result = resolver.TryGetTenantId(new DefaultHttpContext(), out var tenantId);
 
@@ -56,7 +61,10 @@ public sealed class DefaultTenantResolverTests
 
     #region ValidateTenantAsync Tests
 
-    private static DefaultTenantResolver CreateResolver(ITenantStrategy strategy) =>
+    private static DefaultTenantResolver CreateResolver(
+        ITenantStrategy strategy,
+        IAmbientTenantAccessor? ambientTenantAccessor = null
+    ) =>
         new(
             Options.Create(
                 new TenantResolutionOptions
@@ -64,8 +72,28 @@ public sealed class DefaultTenantResolverTests
                     StrategyCode = OpenIdConstants.TenantStrategyCodes.DynamicByPath,
                 }
             ),
+            ambientTenantAccessor ?? CreateAmbientTenantAccessor(),
             [strategy]
         );
+
+    // The tests that do not assert the scope accept any unscoped scope; the scope tests pass their own strict mock.
+    private static IAmbientTenantAccessor CreateAmbientTenantAccessor()
+    {
+        var accessor = new Mock<IAmbientTenantAccessor>(MockBehavior.Loose);
+        accessor.Setup(x => x.BeginUnscoped(It.IsAny<string>())).Returns(Mock.Of<IDisposable>());
+        return accessor.Object;
+    }
+
+    private static Mock<IAmbientTenantAccessor> CreateUnscopedAccessor(
+        MockRepository mocks,
+        string reason,
+        Mock<IDisposable> scope
+    )
+    {
+        var accessor = mocks.Create<IAmbientTenantAccessor>();
+        accessor.Setup(x => x.BeginUnscoped(reason)).Returns(scope.Object).Verifiable();
+        return accessor;
+    }
 
     private static Mock<ITenantStrategy> CreateStrategy(MockRepository mocks)
     {
@@ -516,15 +544,78 @@ public sealed class DefaultTenantResolverTests
             Issuer = Issuer,
             DisplayName = RootTenantOptions.DefaultDisplayName,
         }.Build();
+        var scope = mocks.Create<IDisposable>();
+        scope.Setup(x => x.Dispose()).Verifiable();
+        var accessor = CreateUnscopedAccessor(mocks, "control-plane tenant resolution", scope);
         strategy
             .Setup(x => x.ResolveControlPlaneTenantAsync(httpContext, CancellationToken.None))
             .ReturnsAsync(tenant)
             .Verifiable();
 
-        var result = await CreateResolver(strategy.Object)
+        var result = await CreateResolver(strategy.Object, accessor.Object)
             .ResolveControlPlaneTenantAsync(httpContext, CancellationToken.None);
 
         Assert.Same(tenant, result);
+        mocks.Verify();
+    }
+
+    #endregion
+
+    #region ResolveTenantAsync Tests
+
+    [Fact]
+    public async Task ResolveTenantAsync_OpensAnUnscopedScopeAroundTheStrategy()
+    {
+        var mocks = new MockRepository(MockBehavior.Strict);
+        var strategy = CreateStrategy(mocks);
+        var httpContext = new DefaultHttpContext();
+        var tenant = CreatePersistedTenant(TenantId);
+        var scope = mocks.Create<IDisposable>();
+        scope.Setup(x => x.Dispose()).Verifiable();
+        var accessor = CreateUnscopedAccessor(mocks, "tenant resolution", scope);
+        strategy
+            .Setup(x => x.ResolveTenantAsync(httpContext, CancellationToken.None))
+            .ReturnsAsync(tenant)
+            .Verifiable();
+
+        var result = await CreateResolver(strategy.Object, accessor.Object)
+            .ResolveTenantAsync(httpContext, CancellationToken.None);
+
+        Assert.Same(tenant, result);
+        mocks.Verify();
+    }
+
+    #endregion
+
+    #region ValidateTenantAsync Scope Tests
+
+    [Fact]
+    public async Task ValidateTenantAsync_WhenTheAddressIsWellFormed_OpensAnUnscopedScopeForTheLookups()
+    {
+        var mocks = new MockRepository(MockBehavior.Strict);
+        var strategy = CreateStrategy(mocks);
+        var storeManager = mocks.Create<IStoreManager>();
+        CreateStore(mocks, storeManager, TenantId);
+        var scope = mocks.Create<IDisposable>();
+        scope.Setup(x => x.Dispose()).Verifiable();
+        var accessor = CreateUnscopedAccessor(mocks, "tenant address validation", scope);
+        strategy
+            .Setup(x =>
+                x.ValidateTenantAsync(
+                    TenantId,
+                    null,
+                    null,
+                    storeManager.Object,
+                    CancellationToken.None
+                )
+            )
+            .ReturnsAsync([])
+            .Verifiable();
+
+        var failures = await CreateResolver(strategy.Object, accessor.Object)
+            .ValidateTenantAsync(TenantId, null, null, storeManager.Object, CancellationToken.None);
+
+        Assert.Empty(failures);
         mocks.Verify();
     }
 

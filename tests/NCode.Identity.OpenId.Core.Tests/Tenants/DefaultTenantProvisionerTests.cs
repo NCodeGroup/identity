@@ -46,6 +46,12 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
         MockMediator = Mocks.Create<IMediator>();
         MockTeamProvisioner = Mocks.Create<ITeamProvisioner>();
 
+        // The unscoped scopes the provisioner opens around its cross-tenant reads and writes; the tests that assert
+        // them verify the calls.
+        MockAmbientTenantAccessor
+            .Setup(x => x.BeginUnscoped(It.IsAny<string>()))
+            .Returns(Mock.Of<IDisposable>());
+
         Provisioner = new DefaultTenantProvisioner(
             MockStoreManagerFactory.Object,
             MockAmbientTenantAccessor.Object,
@@ -179,6 +185,7 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
         );
 
         Assert.Same(existing, result);
+        MockAmbientTenantAccessor.Verify(x => x.BeginUnscoped("tenant provisioning"), Times.Once);
     }
 
     [Fact]
@@ -417,6 +424,7 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
         Assert.Equal(TenantPlane.Root, command.Context.Plane);
         Assert.Same(MockStoreManager.Object, command.Context.StoreManager);
         MockAmbientTenantAccessor.Verify(x => x.BeginScope(RootTenantId), Times.Once);
+        MockAmbientTenantAccessor.Verify(x => x.BeginUnscoped("tenant lookup"), Times.Once);
     }
 
     [Fact]
