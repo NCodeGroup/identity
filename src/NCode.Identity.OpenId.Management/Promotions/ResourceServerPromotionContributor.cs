@@ -6,10 +6,10 @@ using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Contracts.ResourceServers;
 using NCode.Identity.OpenId.Management.Contracts.Teams;
+using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Settings;
-using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Settings;
 
 namespace NCode.Identity.OpenId.Management.Promotions;
@@ -25,8 +25,6 @@ internal class ResourceServerPromotionContributor(
     ISettingSerializer settingSerializer
 ) : ITenantPromotionContributor
 {
-    private const int PageLimit = 100;
-
     private IPromotedSettingsComposer PromotedSettingsComposer { get; } = promotedSettingsComposer;
 
     private ISettingSerializer SettingSerializer { get; } = settingSerializer;
@@ -256,7 +254,7 @@ internal class ResourceServerPromotionContributor(
                 .ToList(),
         };
 
-    private static PersistedScope CopyScope(PersistedScope scope) =>
+    private static PersistedScope CopyScope(TenantConfigurationScope scope) =>
         new()
         {
             Value = scope.Value,
@@ -270,7 +268,7 @@ internal class ResourceServerPromotionContributor(
     )
     {
         var store = context.StoreManager.GetStore<IResourceServerStore>();
-        var sources = await GetSourceResourceServersAsync(context, store, cancellationToken);
+        var sources = context.Source.ResourceServers;
         var computation = new ResourceServerPromotionComputation();
 
         foreach (var source in sources)
@@ -320,7 +318,7 @@ internal class ResourceServerPromotionContributor(
             computation.TargetIdentifiers[source.ResourceServerId] = targetId;
 
             var promoted = PromotedSettingsComposer.Compose(
-                source.Settings.Value,
+                source.Settings,
                 target?.Settings.Value,
                 context.GetEnvironmentSettingsOrDefault(
                     ManagementResourceTypes.ResourceServer,
@@ -345,7 +343,7 @@ internal class ResourceServerPromotionContributor(
                 errors.Add(settingError.Message);
             }
 
-            var missingScopes = new List<PersistedScope>();
+            var missingScopes = new List<TenantConfigurationScope>();
             var changedScopes = new List<PersistedScope>();
             IReadOnlyCollection<PersistedScope> targetScopes = target?.Scopes ?? [];
             foreach (var sourceScope in source.Scopes.Where(x => !x.IsSystem))
@@ -418,29 +416,5 @@ internal class ResourceServerPromotionContributor(
         }
 
         return computation;
-    }
-
-    private static async ValueTask<List<PersistedResourceServer>> GetSourceResourceServersAsync(
-        TenantPromotionContext context,
-        IResourceServerStore store,
-        CancellationToken cancellationToken
-    )
-    {
-        using var scope = context.BeginSourceScope();
-
-        var resourceServers = new List<PersistedResourceServer>();
-        string? cursor = null;
-        do
-        {
-            var page = await store.GetPageAsync(
-                new PageRequest { Cursor = cursor, Limit = PageLimit },
-                cancellationToken
-            );
-
-            resourceServers.AddRange(page.Items);
-            cursor = page.NextCursor;
-        } while (cursor is not null);
-
-        return resourceServers;
     }
 }

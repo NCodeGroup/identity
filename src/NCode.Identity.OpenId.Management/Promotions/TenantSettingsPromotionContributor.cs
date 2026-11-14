@@ -157,7 +157,7 @@ internal class TenantSettingsPromotionContributor(
 
     private PromotedSettings Compose(TenantPromotionContext context) =>
         PromotedSettingsComposer.Compose(
-            context.SourceTenant.Settings.Value,
+            context.Source.Settings,
             context.TargetTenant.Settings.Value,
             context.GetEnvironmentSettingsOrDefault(
                 ManagementResourceTypes.Tenant,

@@ -42,6 +42,7 @@ internal class TenantPromotionApiEndpointHandler(
     ICryptoService cryptoService,
     IAmbientTenantAccessor ambientTenantAccessor,
     ITenantPromoter tenantPromoter,
+    ITenantConfigurationExporter tenantConfigurationExporter,
     IManagementAuditRecorder managementAuditRecorder,
     IOptions<CellOptions> cellOptions
 ) : BaseApiEndpointHandler, IEndpointProvider
@@ -49,6 +50,8 @@ internal class TenantPromotionApiEndpointHandler(
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
     private ITenantPromoter TenantPromoter { get; } = tenantPromoter;
+    private ITenantConfigurationExporter TenantConfigurationExporter { get; } =
+        tenantConfigurationExporter;
     private IManagementAuditRecorder ManagementAuditRecorder { get; } = managementAuditRecorder;
     private CellOptions CellOptions { get; } = cellOptions.Value;
 
@@ -237,7 +240,7 @@ internal class TenantPromotionApiEndpointHandler(
         );
     }
 
-    // Refuses before reading, reads both tenants, plans the promotion, then refuses it when the caller lacks the
+    // Refuses before reading, reads both tenants, exports the source's configuration, plans the promotion, then refuses it when the caller lacks the
     // authority it needs: Update at the node above each changed limit (ADR-1418), then Create at each node whose
     // role-holding client it changes (ADR-1466). Only a promotion that no check refused reaches completeAsync, while
     // the unit of work is still open.
@@ -274,10 +277,19 @@ internal class TenantPromotionApiEndpointHandler(
             return ManagementProblems.ResourceNotFound();
         }
 
+        var sourceDocument = await TenantConfigurationExporter.ExportAsync(
+            source.TenantId,
+            cancellationToken
+        );
+        if (sourceDocument is null)
+        {
+            return ManagementProblems.ResourceNotFound();
+        }
+
         var openIdContext = httpContext.GetOpenIdContext();
         var context = new TenantPromotionContext
         {
-            SourceTenant = source,
+            Source = sourceDocument,
             TargetTenant = target,
             TeamNode = GetTeamNode(httpContext, teamId),
             TargetTenantNode = GetTenantNode(target.TenantId),
@@ -400,7 +412,7 @@ internal class TenantPromotionApiEndpointHandler(
         new()
         {
             TeamId = teamId,
-            SourceTenantId = context.SourceTenant.TenantId,
+            SourceTenantId = context.Source.SourceTenantId,
             TargetTenantId = context.TargetTenant.TenantId,
             IsApplied = isApplied,
             Changes = [.. context.Changes],

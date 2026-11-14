@@ -6,6 +6,7 @@ using NCode.Identity.Events.Audit;
 using NCode.Identity.Json;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Contracts.Teams;
+using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Persistence;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Tenants;
@@ -32,6 +33,17 @@ public sealed class TenantPromotionContextTests : IDisposable
 
     public void Dispose() => MockRepository.Verify();
 
+    private static TenantConfigurationDocument CreateDocument(string tenantId) =>
+        new()
+        {
+            SourceTenantId = tenantId,
+            Region = "region-1",
+            Settings = JsonElements.EmptyObject,
+            Clients = [],
+            ClientGrants = [],
+            ResourceServers = [],
+        };
+
     private static PersistedTenant CreateTenant(string tenantId) =>
         new PersistedTenantBuilder { TenantId = tenantId, TeamId = "team-1" }.Build();
 
@@ -40,7 +52,7 @@ public sealed class TenantPromotionContextTests : IDisposable
     ) =>
         new()
         {
-            SourceTenant = CreateTenant(SourceTenantId),
+            Source = CreateDocument(SourceTenantId),
             TargetTenant = CreateTenant(TargetTenantId),
             TeamNode = MockTeamNode.Object,
             TargetTenantNode = MockTargetTenantNode.Object,
@@ -74,25 +86,6 @@ public sealed class TenantPromotionContextTests : IDisposable
         context.TargetTenantSettings = settings;
 
         Assert.Equal("""{"a":1}""", context.TargetTenantSettings.GetRawText());
-    }
-
-    #endregion
-
-    #region BeginSourceScope Tests
-
-    [Fact]
-    public void BeginSourceScope_OpensTheScopeOfTheSourceTenant()
-    {
-        var scope = MockRepository.Create<IDisposable>();
-        MockAmbientTenantAccessor
-            .Setup(x => x.BeginScope(SourceTenantId))
-            .Returns(scope.Object)
-            .Verifiable();
-        var context = CreateContext();
-
-        var actual = context.BeginSourceScope();
-
-        Assert.Same(scope.Object, actual);
     }
 
     #endregion

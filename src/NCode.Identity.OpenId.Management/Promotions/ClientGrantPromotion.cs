@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 
 namespace NCode.Identity.OpenId.Management.Promotions;
@@ -18,9 +19,9 @@ internal sealed class ClientGrantPromotion
     public required string ClientId { get; init; }
 
     /// <summary>
-    /// Gets the grant of the source tenant.
+    /// Gets the grant of the source tenant's configuration document.
     /// </summary>
-    public required PersistedClientGrant Source { get; init; }
+    public required TenantConfigurationClientGrant Source { get; init; }
 
     /// <summary>
     /// Gets the grant of the target tenant for the same client and resource server, or <c>null</c> when the

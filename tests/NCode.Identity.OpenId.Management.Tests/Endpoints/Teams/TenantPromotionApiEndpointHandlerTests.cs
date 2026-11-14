@@ -18,6 +18,7 @@ using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts.Teams;
+using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Management.Promotions;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -45,6 +46,7 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
     private Mock<ICryptoService> MockCryptoService { get; }
     private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
     private Mock<ITenantPromoter> MockTenantPromoter { get; }
+    private Mock<ITenantConfigurationExporter> MockTenantConfigurationExporter { get; }
     private Mock<IManagementAuditRecorder> MockManagementAuditRecorder { get; }
     private Mock<IMediator> MockMediator { get; }
     private TenantPromotionApiEndpointHandler Handler { get; }
@@ -59,6 +61,7 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
         MockCryptoService = MockRepository.Create<ICryptoService>();
         MockAmbientTenantAccessor = MockRepository.Create<IAmbientTenantAccessor>();
         MockTenantPromoter = MockRepository.Create<ITenantPromoter>();
+        MockTenantConfigurationExporter = MockRepository.Create<ITenantConfigurationExporter>();
         MockManagementAuditRecorder = MockRepository.Create<IManagementAuditRecorder>();
         MockMediator = MockRepository.Create<IMediator>();
 
@@ -72,6 +75,7 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
             MockCryptoService.Object,
             MockAmbientTenantAccessor.Object,
             MockTenantPromoter.Object,
+            MockTenantConfigurationExporter.Object,
             MockManagementAuditRecorder.Object,
             Options.Create(new CellOptions { IsControlPlane = isControlPlane })
         );
@@ -108,8 +112,28 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
             .Verifiable();
     }
 
-    private void SetupStore() =>
+    private void SetupStore()
+    {
         SetupStore(CreateTenant(SourceTenantId), CreateTenant(TargetTenantId));
+        SetupExport(CreateDocument());
+    }
+
+    private void SetupExport(TenantConfigurationDocument? document) =>
+        MockTenantConfigurationExporter
+            .Setup(x => x.ExportAsync(SourceTenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(document)
+            .Verifiable();
+
+    private static TenantConfigurationDocument CreateDocument() =>
+        new()
+        {
+            SourceTenantId = SourceTenantId,
+            Region = "region-1",
+            Settings = JsonElement.Parse("""{"a":1}"""),
+            Clients = [],
+            ClientGrants = [],
+            ResourceServers = [],
+        };
 
     private void SetupAuthorize(
         string tenantId,
@@ -356,6 +380,24 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task PreviewPromotionAsync_WhenTheSourceCannotBeExported_ReturnsNotFound()
+    {
+        SetupRouteAuthorization();
+        SetupStore(CreateTenant(SourceTenantId), CreateTenant(TargetTenantId));
+        SetupExport(document: null);
+
+        var result = await Handler.PreviewPromotionAsync(
+            CreateHttpContext(authenticated: true),
+            TeamId,
+            CreateRequest(),
+            CancellationToken.None
+        );
+
+        var notFound = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, notFound.StatusCode);
+    }
+
+    [Fact]
     public async Task PreviewPromotionAsync_WhenTheTargetDoesNotExist_ReturnsNotFound()
     {
         SetupRouteAuthorization();
@@ -422,7 +464,7 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
         Assert.Empty(report.Notes);
 
         Assert.NotNull(planned);
-        Assert.Equal(SourceTenantId, planned.SourceTenant.TenantId);
+        Assert.Equal(SourceTenantId, planned.Source.SourceTenantId);
         Assert.Equal(TargetTenantId, planned.TargetTenant.TenantId);
         Assert.Equal(
             (ControlPlaneTenantId, ResourceNodeTypes.Team, TeamId),

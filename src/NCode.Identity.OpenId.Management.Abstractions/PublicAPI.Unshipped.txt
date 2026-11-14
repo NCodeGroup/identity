@@ -1278,8 +1278,8 @@ NCode.Identity.OpenId.Management.Promotions.TenantPromotionLimitChange.SettingNa
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionLimitChange.SettingNames.init -> void
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.TenantPromotionContext() -> void
-NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.SourceTenant.get -> NCode.Identity.OpenId.Persistence.DataContracts.PersistedTenant!
-NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.SourceTenant.init -> void
+NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.Source.get -> NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationDocument!
+NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.Source.init -> void
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.TargetTenant.get -> NCode.Identity.OpenId.Persistence.DataContracts.PersistedTenant!
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.TargetTenant.init -> void
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.TeamNode.get -> NCode.Identity.OpenId.Persistence.ISupportTenantId!
@@ -1302,7 +1302,6 @@ NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.Errors.get ->
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.AuditEvents.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.Events.Audit.ResourceChangeAuditEvent!>!
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.ChangedLimits.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Management.Promotions.TenantPromotionLimitChange!>!
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.RequiredCreateAuthorities.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Persistence.ISupportTenantId!>!
-NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.BeginSourceScope() -> System.IDisposable!
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.BeginTargetScope() -> System.IDisposable!
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.GetEnvironmentSettingsOrDefault(string! resourceType, string! resourceId) -> System.Text.Json.JsonElement?
 NCode.Identity.OpenId.Management.Promotions.TenantPromotionContext.AddChange(NCode.Identity.OpenId.Management.Contracts.Teams.TenantPromotionChangeResource! change) -> void

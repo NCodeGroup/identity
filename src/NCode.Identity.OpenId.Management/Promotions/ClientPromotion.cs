@@ -1,21 +1,22 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 
 namespace NCode.Identity.OpenId.Management.Promotions;
 
 /// <summary>
-/// Contains what a promotion does for one client of the source tenant that the host does not manage: the target it
-/// reaches, the resource server it acts for, the settings document it writes, and the errors that refuse it.
+/// Contains what a promotion does for one client of the source tenant's configuration document: the target it reaches, the
+/// resource server it acts for, the settings document it writes, and the errors that refuse it.
 /// </summary>
 // See ADR-1425.
 internal sealed class ClientPromotion
 {
     /// <summary>
-    /// Gets the client of the source tenant.
+    /// Gets the client of the source tenant's configuration document.
     /// </summary>
-    public required PersistedClient Source { get; init; }
+    public required TenantConfigurationClient Source { get; init; }
 
     /// <summary>
     /// Gets the client of the target tenant that has the source's client identifier, or <c>null</c> when the

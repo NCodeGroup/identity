@@ -6,6 +6,7 @@ using System.Text.Json;
 using JetBrains.Annotations;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Management.Contracts.Teams;
+using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Persistence;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Tenants;
@@ -14,7 +15,7 @@ using NCode.Identity.Persistence.Stores;
 namespace NCode.Identity.OpenId.Management.Promotions;
 
 /// <summary>
-/// Carries the shared state of one tenant promotion: the source and target tenants, the unit of work every contributor
+/// Carries the shared state of one tenant promotion: the source configuration document and the target tenant, the unit of work every contributor
 /// enlists in, the document the target holds once promoted, and what planning records for the report, the audit trail
 /// and the authority checks (changes, notes, errors, changed limits, required creation authorities and the mapping
 /// of source identifiers to target identifiers).
@@ -32,9 +33,10 @@ public sealed class TenantPromotionContext
     private Dictionary<(string ResourceType, string SourceId), string> Identifiers { get; } = [];
 
     /// <summary>
-    /// Gets the tenant the promotion reads its configuration from.
+    /// Gets the configuration document the promotion reads its source from: the settings, clients, client grants and
+    /// resource servers of the source tenant.
     /// </summary>
-    public required PersistedTenant SourceTenant { get; init; }
+    public required TenantConfigurationDocument Source { get; init; }
 
     /// <summary>
     /// Gets the tenant the promotion writes its configuration to.
@@ -110,14 +112,6 @@ public sealed class TenantPromotionContext
     /// target client whose principal holds role assignments there.
     /// </summary>
     public IReadOnlyList<ISupportTenantId> RequiredCreateAuthorities => RequiredCreateAuthorityList;
-
-    /// <summary>
-    /// Opens the ambient tenant scope of the source tenant. Contributors open it around every tenant-bound read of the
-    /// source tenant.
-    /// </summary>
-    /// <returns>The scope, which ends when disposed.</returns>
-    public IDisposable BeginSourceScope() =>
-        AmbientTenantAccessor.BeginScope(SourceTenant.TenantId);
 
     /// <summary>
     /// Opens the ambient tenant scope of the target tenant. Contributors open it around every tenant-bound read and

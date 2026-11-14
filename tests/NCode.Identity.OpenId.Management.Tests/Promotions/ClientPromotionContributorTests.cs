@@ -9,6 +9,7 @@ using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts.Clients;
 using NCode.Identity.OpenId.Management.Contracts.Teams;
+using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Management.Endpoints.Clients;
 using NCode.Identity.OpenId.Persistence;
 using NCode.Identity.OpenId.Persistence.DataContracts;
@@ -44,6 +45,7 @@ public sealed class ClientPromotionContributorTests : IDisposable
     private Mock<IReadOnlySettingCollection> MockTeamSettings { get; }
     private Mock<IReadOnlySettingCollection> MockTenantSettings { get; }
     private HashSet<string> ScopedTenantIds { get; } = [];
+    private TenantConfigurationDocument SourceDocument { get; } = CreateDocument();
 
     public ClientPromotionContributorTests()
     {
@@ -71,8 +73,6 @@ public sealed class ClientPromotionContributorTests : IDisposable
             .Setup(x => x.GetStore<IClientStore>())
             .Returns(MockClientStore.Object)
             .Verifiable();
-
-    private void SetupSourceScope() => SetupScope(SourceTenantId);
 
     private void SetupTargetScope() => SetupScope(TargetTenantId);
 
@@ -102,7 +102,6 @@ public sealed class ClientPromotionContributorTests : IDisposable
         SetupStores();
         SetupTeamSettings();
         SetupResolveTenant("{}", MockTenantSettings);
-        SetupSourceScope();
     }
 
     private void SetupNoClientHostManaged() =>
@@ -159,7 +158,7 @@ public sealed class ClientPromotionContributorTests : IDisposable
     ) =>
         new()
         {
-            SourceTenant = CreateTenant(SourceTenantId),
+            Source = SourceDocument,
             TargetTenant = CreateTenant(TargetTenantId),
             TeamNode = MockTeamNode.Object,
             TargetTenantNode = MockTargetTenantNode.Object,
@@ -219,29 +218,28 @@ public sealed class ClientPromotionContributorTests : IDisposable
             RefusedSettingNames = refusedSettingNames ?? [],
         };
 
-    private void SetupSourcePages(params PagedResult<PersistedClient>[] pages)
-    {
-        string? cursor = null;
-        foreach (var page in pages)
-        {
-            var expectedCursor = cursor;
-            MockClientStore
-                .Setup(x =>
-                    x.GetPageAsync(
-                        It.Is<PageRequest>(request =>
-                            request.Cursor == expectedCursor && request.Limit == 100
-                        ),
-                        CancellationToken.None
-                    )
-                )
-                .ReturnsAsync(page)
-                .Verifiable();
-            cursor = page.NextCursor;
-        }
-    }
-
     private void SetupSource(params PersistedClient[] sources) =>
-        SetupSourcePages(new PagedResult<PersistedClient> { Items = sources, NextCursor = null });
+        SourceDocument.Clients.AddRange(sources.Select(ToDocumentClient));
+
+    private static TenantConfigurationDocument CreateDocument() =>
+        new()
+        {
+            SourceTenantId = SourceTenantId,
+            Region = "region-1",
+            Settings = JsonElement.Parse("{}"),
+            Clients = [],
+            ClientGrants = [],
+            ResourceServers = [],
+        };
+
+    private static TenantConfigurationClient ToDocumentClient(PersistedClient client) =>
+        new()
+        {
+            ClientId = client.ClientId,
+            IsDisabled = client.IsDisabled,
+            ResourceServerId = client.ResourceServerId,
+            Settings = client.Settings.Value,
+        };
 
     private void SetupTarget(string clientId, PersistedClient? target) =>
         MockClientStore
@@ -502,25 +500,6 @@ public sealed class ClientPromotionContributorTests : IDisposable
         Assert.Equal(ManagementResourceTypes.Client, error.ResourceType);
         Assert.Equal("client-1", error.ResourceId);
         Assert.Contains("host configures", error.Detail);
-    }
-
-    [Fact]
-    public async Task PlanAsync_WhenTheSourceHoldsAMachineClient_LeavesItOut()
-    {
-        SetupCompute();
-        var context = CreateContext();
-        var source = CreateClient(
-            SourceTenantId,
-            "client-1",
-            owningNodeType: ResourceNodeTypes.Team
-        );
-        SetupSource(source);
-
-        await CreateContributor().PlanAsync(context, CancellationToken.None);
-
-        Assert.Empty(context.Changes);
-        Assert.Empty(context.Notes);
-        Assert.Empty(context.Errors);
     }
 
     [Fact]
@@ -838,16 +817,13 @@ public sealed class ClientPromotionContributorTests : IDisposable
     }
 
     [Fact]
-    public async Task PlanAsync_WhenTheSourceHasSeveralPages_ReadsEveryPage()
+    public async Task PlanAsync_WhenTheDocumentHoldsSeveralClients_PlansEach()
     {
         SetupCompute();
         var context = CreateContext();
         var first = CreateClient(SourceTenantId, "client-1", settingsJson: """{"a":1}""");
         var second = CreateClient(SourceTenantId, "client-2", settingsJson: """{"b":1}""");
-        SetupSourcePages(
-            new PagedResult<PersistedClient> { Items = [first], NextCursor = "next" },
-            new PagedResult<PersistedClient> { Items = [second], NextCursor = null }
-        );
+        SetupSource(first, second);
         SetupClient(context, first, null, """{"a":1}""");
         SetupClient(context, second, null, """{"b":1}""");
 

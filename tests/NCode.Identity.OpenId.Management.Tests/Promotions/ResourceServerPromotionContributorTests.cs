@@ -7,6 +7,7 @@ using NCode.Identity.Json;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Contracts.ResourceServers;
 using NCode.Identity.OpenId.Management.Contracts.Teams;
+using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Persistence;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -31,6 +32,7 @@ public sealed class ResourceServerPromotionContributorTests : IDisposable
     private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
     private Mock<ISupportTenantId> MockTeamNode { get; }
     private Mock<ISupportTenantId> MockTargetTenantNode { get; }
+    private TenantConfigurationDocument SourceDocument { get; } = CreateDocument();
 
     public ResourceServerPromotionContributorTests()
     {
@@ -51,11 +53,7 @@ public sealed class ResourceServerPromotionContributorTests : IDisposable
             .Returns(MockResourceServerStore.Object)
             .Verifiable();
 
-    private void SetupScopes()
-    {
-        SetupScope(SourceTenantId);
-        SetupScope(TargetTenantId);
-    }
+    private void SetupScopes() => SetupScope(TargetTenantId);
 
     private void SetupScope(string tenantId)
     {
@@ -78,7 +76,7 @@ public sealed class ResourceServerPromotionContributorTests : IDisposable
     ) =>
         new()
         {
-            SourceTenant = CreateTenant(SourceTenantId),
+            Source = SourceDocument,
             TargetTenant = CreateTenant(TargetTenantId),
             TeamNode = MockTeamNode.Object,
             TargetTenantNode = MockTargetTenantNode.Object,
@@ -135,31 +133,41 @@ public sealed class ResourceServerPromotionContributorTests : IDisposable
             RefusedSettingNames = refusedSettingNames ?? [],
         };
 
-    private void SetupSourcePages(params PagedResult<PersistedResourceServer>[] pages)
-    {
-        string? cursor = null;
-        foreach (var page in pages)
-        {
-            var expectedCursor = cursor;
-            MockResourceServerStore
-                .Setup(x =>
-                    x.GetPageAsync(
-                        It.Is<PageRequest>(request =>
-                            request.Cursor == expectedCursor && request.Limit == 100
-                        ),
-                        CancellationToken.None
-                    )
-                )
-                .ReturnsAsync(page)
-                .Verifiable();
-            cursor = page.NextCursor;
-        }
-    }
-
     private void SetupSource(params PersistedResourceServer[] sources) =>
-        SetupSourcePages(
-            new PagedResult<PersistedResourceServer> { Items = sources, NextCursor = null }
-        );
+        SourceDocument.ResourceServers.AddRange(sources.Select(ToDocumentResourceServer));
+
+    private static TenantConfigurationDocument CreateDocument() =>
+        new()
+        {
+            SourceTenantId = SourceTenantId,
+            Region = "region-1",
+            Settings = JsonElements.EmptyObject,
+            Clients = [],
+            ClientGrants = [],
+            ResourceServers = [],
+        };
+
+    private static TenantConfigurationResourceServer ToDocumentResourceServer(
+        PersistedResourceServer resourceServer
+    ) =>
+        new()
+        {
+            ResourceServerId = resourceServer.ResourceServerId,
+            Identifier = resourceServer.Identifier,
+            Name = resourceServer.Name,
+            IsSystem = resourceServer.IsSystem,
+            IsDisabled = resourceServer.IsDisabled,
+            Settings = resourceServer.Settings.Value,
+            Scopes =
+            [
+                .. resourceServer.Scopes.Select(scope => new TenantConfigurationScope
+                {
+                    Value = scope.Value,
+                    Description = scope.Description,
+                    IsSystem = scope.IsSystem,
+                }),
+            ],
+        };
 
     private void SetupTarget(string identifier, PersistedResourceServer? target) =>
         MockResourceServerStore
@@ -743,7 +751,7 @@ public sealed class ResourceServerPromotionContributorTests : IDisposable
     }
 
     [Fact]
-    public async Task PlanAsync_WhenTheSourceHasSeveralPages_ReadsEveryPage()
+    public async Task PlanAsync_WhenTheDocumentHoldsSeveralResourceServers_PlansEach()
     {
         SetupStores();
         SetupScopes();
@@ -760,10 +768,7 @@ public sealed class ResourceServerPromotionContributorTests : IDisposable
             "https://two",
             settingsJson: """{"b":1}"""
         );
-        SetupSourcePages(
-            new PagedResult<PersistedResourceServer> { Items = [first], NextCursor = "next" },
-            new PagedResult<PersistedResourceServer> { Items = [second], NextCursor = null }
-        );
+        SetupSource(first, second);
         foreach (var source in new[] { first, second })
         {
             SetupTarget(source.Identifier, null);

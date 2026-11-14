@@ -12,7 +12,6 @@ using NCode.Identity.OpenId.Management.Endpoints.Clients;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Settings;
-using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Settings;
 
 namespace NCode.Identity.OpenId.Management.Promotions;
@@ -34,8 +33,6 @@ internal class ClientPromotionContributor(
     IClientJwksUriChecker clientJwksUriChecker
 ) : ITenantPromotionContributor
 {
-    private const int PageLimit = 100;
-
     private IPromotedSettingsComposer PromotedSettingsComposer { get; } = promotedSettingsComposer;
 
     private ISettingSerializer SettingSerializer { get; } = settingSerializer;
@@ -390,20 +387,15 @@ internal class ClientPromotionContributor(
                 $"The promoted tenant settings cannot be resolved, so the client's coherence cannot be checked: {exception.Message}";
         }
 
-        var sources = await GetSourceClientsAsync(context, store, cancellationToken);
+        var sources = context.Source.Clients;
 
         foreach (var source in sources)
         {
-            // A machine client belongs to its owning node, not to the tenant's configuration.
-            // See ADR-1466.
-            if (source.OwningNodeType is not null)
-            {
-                continue;
-            }
-
+            // The document holds no machine client, which belongs to its owning node, not to the tenant's
+            // configuration. See ADR-1466.
             if (
                 HostManagedClientChecker.IsHostManaged(
-                    context.SourceTenant.TenantId,
+                    context.Source.SourceTenantId,
                     source.ClientId
                 )
             )
@@ -483,7 +475,7 @@ internal class ClientPromotionContributor(
             }
 
             var promoted = PromotedSettingsComposer.Compose(
-                source.Settings.Value,
+                source.Settings,
                 target?.Settings.Value,
                 context.GetEnvironmentSettingsOrDefault(
                     ManagementResourceTypes.Client,
@@ -584,29 +576,5 @@ internal class ClientPromotionContributor(
         }
 
         return computation;
-    }
-
-    private static async ValueTask<List<PersistedClient>> GetSourceClientsAsync(
-        TenantPromotionContext context,
-        IClientStore store,
-        CancellationToken cancellationToken
-    )
-    {
-        using var scope = context.BeginSourceScope();
-
-        var clients = new List<PersistedClient>();
-        string? cursor = null;
-        do
-        {
-            var page = await store.GetPageAsync(
-                new PageRequest { Cursor = cursor, Limit = PageLimit },
-                cancellationToken
-            );
-
-            clients.AddRange(page.Items);
-            cursor = page.NextCursor;
-        } while (cursor is not null);
-
-        return clients;
     }
 }
