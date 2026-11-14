@@ -23,7 +23,8 @@ internal static class DefaultRegistration
         /// <summary>
         /// Registers the sources of the protected values the family stores (stored secrets and grant payloads), the
         /// announcement of master key and owner root key changes, the job that rewraps the values of retired keys, the
-        /// policy that keeps the control-plane tenant under the deployment's root key, the services that maintain
+        /// policy that keeps the control-plane tenant under the deployment's root key, the resolver that names a tenant's
+        /// team chain as the ancestors whose root keys can wrap its master keys, the services that maintain
         /// master keys and validate the root keys that owners bring, and the job and the service that sweep the
         /// remote keys that no stored secret names.
         /// </summary>
@@ -78,6 +79,13 @@ internal static class DefaultRegistration
                 ServiceDescriptor.Scoped<
                     IDispatchJobHandler<RemoteKeySweepJob>,
                     RemoteKeySweepJobHandler
+                >()
+            );
+
+            serviceCollection.Replace(
+                ServiceDescriptor.Singleton<
+                    ISecretOwnerParentResolver,
+                    TeamChainSecretOwnerParentResolver
                 >()
             );
 
