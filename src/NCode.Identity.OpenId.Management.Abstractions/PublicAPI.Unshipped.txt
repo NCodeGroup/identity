@@ -155,6 +155,13 @@ NCode.Identity.OpenId.Management.Contracts.Secrets.RotateSecretRequest.RotatedEx
 NCode.Identity.OpenId.Management.Contracts.Secrets.RotateSecretRequest.RotatedExpiresWhen.init -> void
 NCode.Identity.OpenId.Management.Contracts.Secrets.SecretResource.KeyId.get -> string!
 NCode.Identity.OpenId.Management.Contracts.Secrets.SecretResource.KeyId.init -> void
+NCode.Identity.OpenId.Management.ControlPlane.IManagementTokenValidator
+NCode.Identity.OpenId.Management.ControlPlane.IManagementTokenValidator.ValidateAsync(Microsoft.AspNetCore.Http.HttpContext! httpContext, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Management.ControlPlane.ManagementTokenValidation!>
+NCode.Identity.OpenId.Management.ControlPlane.ManagementTokenValidation
+NCode.Identity.OpenId.Management.ControlPlane.ManagementTokenValidation.IsAuthenticated.get -> bool
+NCode.Identity.OpenId.Management.ControlPlane.ManagementTokenValidation.IsUnavailable.get -> bool
+NCode.Identity.OpenId.Management.ControlPlane.ManagementTokenValidation.Principal.get -> System.Security.Claims.ClaimsPrincipal?
+NCode.Identity.OpenId.Management.ControlPlane.ManagementTokenValidation.RetryAfter.get -> System.TimeSpan
 NCode.Identity.OpenId.Management.Endpoints.Secrets.ISecretValidator.ValidateUpdate(NCode.Identity.Secrets.Persistence.DataContracts.PersistedSecret! secret, NCode.Identity.OpenId.Management.Contracts.Secrets.UpdateSecretRequest! request) -> NCode.Identity.OpenId.Management.ManagementError?
 override NCode.Identity.OpenId.Management.Auditing.InitialAccessTokenCreatedAuditEvent.ResourceType.get -> string!
 NCode.Identity.OpenId.Management.Auditing.IManagementAuditRecorder
@@ -778,6 +785,9 @@ override NCode.Identity.OpenId.Management.Auditing.TenantChangedAuditEvent.Resou
 override NCode.Identity.OpenId.Management.Auditing.TenantSecretChangedAuditEvent.ResourceType.get -> string!
 static NCode.Identity.OpenId.Management.Authorization.TenantScopeResource.For(string! tenantId) -> NCode.Identity.OpenId.Management.Authorization.TenantScopeResource!
 static NCode.Identity.OpenId.Management.ClientIdRules.IsValid(string? clientId) -> bool
+static NCode.Identity.OpenId.Management.ControlPlane.ManagementTokenValidation.Authenticated(System.Security.Claims.ClaimsPrincipal! principal) -> NCode.Identity.OpenId.Management.ControlPlane.ManagementTokenValidation!
+static NCode.Identity.OpenId.Management.ControlPlane.ManagementTokenValidation.Unauthenticated.get -> NCode.Identity.OpenId.Management.ControlPlane.ManagementTokenValidation!
+static NCode.Identity.OpenId.Management.ControlPlane.ManagementTokenValidation.Unavailable(System.TimeSpan retryAfter) -> NCode.Identity.OpenId.Management.ControlPlane.ManagementTokenValidation!
 static NCode.Identity.OpenId.Management.Endpoints.Clients.ClientCreation.Failed(NCode.Identity.OpenId.Management.ManagementError! error) -> NCode.Identity.OpenId.Management.Endpoints.Clients.ClientCreation!
 static NCode.Identity.OpenId.Management.Endpoints.Clients.ClientCreation.InvalidSettings(System.Collections.Generic.IReadOnlyDictionary<string!, string![]!>! settingErrors) -> NCode.Identity.OpenId.Management.Endpoints.Clients.ClientCreation!
 static NCode.Identity.OpenId.Management.Endpoints.Clients.ClientCreation.Staged(NCode.Identity.OpenId.Persistence.DataContracts.PersistedClient! client) -> NCode.Identity.OpenId.Management.Endpoints.Clients.ClientCreation!

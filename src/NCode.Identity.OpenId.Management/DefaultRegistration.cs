@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
+using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Management.Endpoints;
 using NCode.Identity.OpenId.Management.Endpoints.Secrets;
 using NCode.Identity.OpenId.Management.OpenApi;
@@ -65,6 +66,13 @@ public static class DefaultRegistration
             serviceCollection.TryAddSingleton<
                 IAuthorityChainResolver,
                 DefaultAuthorityChainResolver
+            >();
+
+            // Validates the management access token of a request. A cell's directory client registers its own adapter
+            // first when the control plane is another cell.
+            serviceCollection.TryAddSingleton<
+                IManagementTokenValidator,
+                LocalManagementTokenValidator
             >();
 
             serviceCollection.TryAddSingleton<
