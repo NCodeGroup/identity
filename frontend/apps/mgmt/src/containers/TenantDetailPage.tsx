@@ -1,9 +1,28 @@
 import { useState } from 'react';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import { apiErrorMessage, type ApiError, useGetTenantUsageQuery } from '@ncode/store';
-import { DataStateBoundary, TenantUsageTable } from '@ncode/ui';
+import {
+  apiErrorMessage,
+  type ApiError,
+  useCreateTransferKeyMutation,
+  useExportTenantMutation,
+  useGetCallerQuery,
+  useGetTenantQuery,
+  useGetTenantUsageQuery,
+  useImportTenantMutation,
+  useListCellsQuery,
+  useReleaseMovedTenantMutation,
+} from '@ncode/store';
+import {
+  DataStateBoundary,
+  TenantMoveDialog,
+  TenantUsageTable,
+  type TenantMoveDialogOperations,
+} from '@ncode/ui';
 import type { TenantOwnSurface } from '../routes.js';
 import { useTenantCell } from '../tenantCell.js';
 import { OwnerAccessTab } from './OwnerAccessTab.js';
@@ -27,21 +46,25 @@ type TenantTabProps = {
  * owner-generic {@link OwnerSecretsTab}/{@link OwnerSettingsTab}, the {@link OwnerEncryptionKeysTab} and the
  * {@link OwnerAccessTab} (the tenant's administrators and owners) to the tenant, and shows the tenant's usage ledger
  * (ADR-1199) through {@link TenantUsageTable}. The tenant id comes from the active scope, so the boundary stays
- * structural (a tenant administrator can never address another tenant).
+ * structural (a tenant administrator can never address another tenant). A platform administrator also gets the
+ * {@link TenantMoveAction}.
  */
 export function TenantDetailPage({ tenantId, surface }: TenantDetailPageProps) {
   const owner = { kind: 'tenant', tenantId } as const;
 
   return (
     <>
-      <Stack sx={{ mb: 2 }}>
-        <Typography variant="h5" component="h2">
-          Tenant
-        </Typography>
-        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-          {tenantId}
-        </Typography>
-      </Stack>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+        <Stack>
+          <Typography variant="h5" component="h2">
+            Tenant
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+            {tenantId}
+          </Typography>
+        </Stack>
+        <TenantMoveAction tenantId={tenantId} />
+      </Box>
       {surface === 'secrets' && <OwnerSecretsTab owner={owner} ownerLabel="tenant" />}
       {surface === 'encryption-keys' && (
         <OwnerEncryptionKeysTab owner={owner} ownerLabel="tenant" />
@@ -49,6 +72,79 @@ export function TenantDetailPage({ tenantId, surface }: TenantDetailPageProps) {
       {surface === 'settings' && <OwnerSettingsTab owner={owner} />}
       {surface === 'access' && <OwnerAccessTab owner={owner} />}
       {surface === 'usage' && <TenantUsageTab tenantId={tenantId} />}
+    </>
+  );
+}
+
+/**
+ * The Move action of a tenant: shown to a platform administrator (the export and the release are authorized at the
+ * platform node) when the tenant lives in a named cell, and enabled only while the tenant is disabled. The cells the
+ * dialog offers come from the platform's cells, by the region of the tenant's own cell; the four calls of the move
+ * each address the cell they concern.
+ */
+function TenantMoveAction({ tenantId }: TenantTabProps) {
+  const cell = useTenantCell();
+  const [isOpen, setIsOpen] = useState(false);
+  const caller = useGetCallerQuery();
+  const isShown = caller.data?.isPlatformAdministrator === true && cell !== undefined;
+  const tenant = useGetTenantQuery(
+    { tenantId, ...(cell === undefined ? {} : { cell }) },
+    { skip: !isShown },
+  );
+  const cells = useListCellsQuery(undefined, { skip: !isShown });
+  const [createTransferKey] = useCreateTransferKeyMutation();
+  const [exportTenant] = useExportTenantMutation();
+  const [importTenant] = useImportTenantMutation();
+  const [releaseMovedTenant] = useReleaseMovedTenantMutation();
+
+  if (!isShown) {
+    return null;
+  }
+
+  const isDisabled = tenant.data?.isDisabled === true;
+
+  // Each call rejects with an Error that carries the server's reason, which the dialog shows against its stage.
+  const run = async <T,>(call: { unwrap: () => Promise<T> }): Promise<T> => {
+    try {
+      return await call.unwrap();
+    } catch (error) {
+      throw new Error(apiErrorMessage(error as ApiError), { cause: error });
+    }
+  };
+  const operations: TenantMoveDialogOperations = {
+    createTransferKey: (target) => run(createTransferKey({ cell: target })),
+    exportTenant: async (source, id, jwk) =>
+      (await run(exportTenant({ cell: source, tenantId: id, jwk }))).package,
+    importTenant: async (target, kid, sealedPackage) => {
+      await run(importTenant({ cell: target, kid, package: sealedPackage }));
+    },
+    releaseMovedTenant: async (source, id) => {
+      await run(releaseMovedTenant({ cell: source, tenantId: id }));
+    },
+  };
+
+  return (
+    <>
+      <Tooltip title={isDisabled ? '' : 'Disable the tenant before moving it.'}>
+        <span>
+          <Button
+            variant="outlined"
+            onClick={() => setIsOpen(true)}
+            disabled={!isDisabled}
+            data-testid="move-tenant"
+          >
+            Move
+          </Button>
+        </span>
+      </Tooltip>
+      <TenantMoveDialog
+        open={isOpen}
+        tenantId={tenantId}
+        sourceCell={cell}
+        cells={cells.data ?? []}
+        operations={operations}
+        onClose={() => setIsOpen(false)}
+      />
     </>
   );
 }

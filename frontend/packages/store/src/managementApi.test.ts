@@ -1747,6 +1747,14 @@ const invalidationCases: readonly InvalidationCase[] = [
     refetches: ['tenants', 'tenant:acme', 'clients', 'resourceServers'],
   },
   {
+    name: 'releaseMovedTenant',
+    mutate: (s) =>
+      s.dispatch(
+        managementApi.endpoints.releaseMovedTenant.initiate({ cell: 'eu-1', tenantId: 'acme-dev' }),
+      ),
+    refetches: ['tenants', 'tenant:acme-dev'],
+  },
+  {
     name: 'createTeam',
     mutate: (s) =>
       s.dispatch(
@@ -2447,6 +2455,82 @@ describe('managementApi across cells', () => {
       'GET https://api.test/cells/eu-1/api/tenants/acme-dev/configuration',
       'GET https://api.test/api/tenants/acme-dev/configuration',
     ]);
+  });
+
+  it('the four calls of a move are addressed to their cells and carry their bodies', async () => {
+    const captured: CapturedRequest[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const request = input as Request;
+        captured.push({
+          url: request.url,
+          method: request.method,
+          antiforgery: request.headers.get('x-csrf'),
+          ifMatch: request.headers.get('if-match'),
+          body: await request.clone().text(),
+        });
+        if (request.url.endsWith('/transfer-keys')) {
+          return jsonResponse({ kid: 'k-1', jwk: { kty: 'EC', crv: 'P-256' } });
+        }
+        if (request.url.endsWith('/export')) {
+          return jsonResponse({ package: 'jwe' });
+        }
+        if (request.url.endsWith('/api/tenant-imports')) {
+          return jsonResponse({ tenantId: 'acme-dev', sourceCell: 'eu-1' });
+        }
+        return new Response(null, { status: 204 });
+      }),
+    );
+    const store = createStore();
+
+    await store.dispatch(managementApi.endpoints.createTransferKey.initiate({ cell: 'eu-2' }));
+    await store.dispatch(
+      managementApi.endpoints.exportTenant.initiate({
+        cell: 'eu-1',
+        tenantId: 'acme-dev',
+        jwk: { kty: 'EC', crv: 'P-256' },
+      }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.importTenant.initiate({ cell: 'eu-2', kid: 'k-1', package: 'jwe' }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.releaseMovedTenant.initiate({ cell: 'eu-1', tenantId: 'acme-dev' }),
+    );
+
+    expect(captured.map((request) => `${request.method} ${request.url}`)).toEqual([
+      'POST https://api.test/cells/eu-2/api/tenant-imports/transfer-keys',
+      'POST https://api.test/cells/eu-1/api/tenants/acme-dev/export',
+      'POST https://api.test/cells/eu-2/api/tenant-imports',
+      'POST https://api.test/cells/eu-1/api/tenants/acme-dev/release-moved',
+    ]);
+    expect(captured[0]?.body).toBe('');
+    expect(JSON.parse(captured[1]?.body ?? '{}')).toEqual({ jwk: { kty: 'EC', crv: 'P-256' } });
+    expect(JSON.parse(captured[2]?.body ?? '{}')).toEqual({ kid: 'k-1', package: 'jwe' });
+    expect(captured[3]?.body).toBe('');
+  });
+
+  it('importTenant refreshes the tenant it imported', async () => {
+    const fetches = routeFetch((method, path) => {
+      if (method === 'GET') {
+        return jsonResponse({ tenantId: 'acme-dev' });
+      }
+      return path.endsWith('/api/tenant-imports')
+        ? jsonResponse({ tenantId: 'acme-dev', sourceCell: 'eu-1' })
+        : new Response(null, { status: 204 });
+    });
+    const store = createStore();
+    await store.dispatch(managementApi.endpoints.getTenant.initiate({ tenantId: 'acme-dev' }));
+    await store.dispatch(managementApi.endpoints.getTenant.initiate({ tenantId: 'other' }));
+
+    await store.dispatch(
+      managementApi.endpoints.importTenant.initiate({ cell: 'eu-2', kid: 'k-1', package: 'jwe' }),
+    );
+    await settle(store);
+
+    expect(fetches.count('GET', '/api/tenants/acme-dev')).toBe(2);
+    expect(fetches.count('GET', '/api/tenants/other')).toBe(1);
   });
 
   it('listTenants asks the control plane alone when no cell is named', async () => {

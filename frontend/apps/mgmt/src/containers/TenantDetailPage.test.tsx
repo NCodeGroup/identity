@@ -127,7 +127,9 @@ describe('TenantDetailPage', () => {
     renderPage('usage', 'eu-1');
 
     expect(await screen.findByTestId('data-empty')).toBeInTheDocument();
-    expect(calls[0]?.url).toBe('https://api.test/cells/eu-1/api/tenants/acme/usage');
+    expect(calls.find((c) => c.url.includes('/usage'))?.url).toBe(
+      'https://api.test/cells/eu-1/api/tenants/acme/usage',
+    );
   });
 
   it('identifies the tenant whose own secrets are listed', async () => {
@@ -410,5 +412,152 @@ describe('TenantDetailPage', () => {
 
     expect(await screen.findByTestId('encryption-key-row-k-1')).toBeInTheDocument();
     expect(screen.getByTestId('encryption-keys-rekey')).toBeInTheDocument();
+  });
+
+  describe('Move action', () => {
+    const cells = [
+      { name: 'eu-1', region: 'eu', kind: 'shared', isControlPlane: true },
+      { name: 'eu-2', region: 'eu', kind: 'shared', isControlPlane: false },
+      { name: 'us-1', region: 'us', kind: 'shared', isControlPlane: false },
+    ];
+
+    /** Stubs the console's reads and the four calls of a move; `failing` is the URL suffix of a call that fails. */
+    function installMoveFetch(options: {
+      readonly isPlatformAdministrator?: boolean;
+      readonly isDisabled?: boolean;
+      readonly failing?: string;
+    }) {
+      return installFetch((url, method) => {
+        if (url.endsWith('/api/me')) {
+          return jsonResponse({
+            principalId: 'root',
+            isPlatformAdministrator: options.isPlatformAdministrator ?? true,
+            assignments: [],
+          });
+        }
+        if (url.endsWith('/api/cells')) {
+          return jsonResponse(cells);
+        }
+        if (url.endsWith('/cells/eu-1/api/tenants/acme') && method === 'GET') {
+          return jsonResponse({ tenantId: 'acme', isDisabled: options.isDisabled ?? true });
+        }
+        if (options.failing !== undefined && url.endsWith(options.failing)) {
+          return jsonResponse({ title: 'Conflict', detail: 'The cell refused it.' }, 409);
+        }
+        if (url.endsWith('/cells/eu-2/api/tenant-imports/transfer-keys')) {
+          return jsonResponse({ kid: 'k-1', jwk: { kty: 'EC', crv: 'P-256' } });
+        }
+        if (url.endsWith('/cells/eu-1/api/tenants/acme/export')) {
+          return jsonResponse({ package: 'sealed' });
+        }
+        if (url.endsWith('/cells/eu-2/api/tenant-imports')) {
+          return jsonResponse({ tenantId: 'acme', sourceCell: 'eu-1' });
+        }
+        if (url.endsWith('/cells/eu-1/api/tenants/acme/release-moved')) {
+          return new Response(null, { status: 204 });
+        }
+        if (url.endsWith('/api/tenants/acme/secrets')) {
+          return jsonResponse({ concurrencyToken: 'c1', secrets: [] });
+        }
+        if (url.endsWith('/api/capabilities')) {
+          return jsonResponse({ secretTypes: [] });
+        }
+        throw new Error(`Unexpected ${method} ${url}`);
+      });
+    }
+
+    const moves = (calls: readonly Call[]) =>
+      calls.filter((c) => c.method === 'POST').map((c) => `${c.method} ${c.url}`);
+
+    it('moves a disabled tenant through the four calls, each to its cell and in order', async () => {
+      const calls = installMoveFetch({});
+      renderPage('secrets', 'eu-1');
+
+      await waitFor(() => expect(screen.getByTestId('move-tenant')).toBeEnabled());
+      fireEvent.click(screen.getByTestId('move-tenant'));
+      await waitFor(() => expect(screen.getByTestId('move-target')).toBeEnabled());
+      fireEvent.change(screen.getByTestId('move-target'), { target: { value: 'eu-2' } });
+      fireEvent.click(screen.getByTestId('move-confirm'));
+
+      expect(await screen.findByTestId('move-done')).toHaveTextContent('Moved to eu-2.');
+      expect(moves(calls)).toEqual([
+        'POST https://api.test/cells/eu-2/api/tenant-imports/transfer-keys',
+        'POST https://api.test/cells/eu-1/api/tenants/acme/export',
+        'POST https://api.test/cells/eu-2/api/tenant-imports',
+        'POST https://api.test/cells/eu-1/api/tenants/acme/release-moved',
+      ]);
+      const posts = calls.filter((c) => c.method === 'POST');
+      expect(JSON.parse(posts[1]?.body ?? '{}')).toEqual({ jwk: { kty: 'EC', crv: 'P-256' } });
+      expect(JSON.parse(posts[2]?.body ?? '{}')).toEqual({ kid: 'k-1', package: 'sealed' });
+    });
+
+    it('offers the other cells of the tenant region', async () => {
+      installMoveFetch({});
+      renderPage('secrets', 'eu-1');
+
+      await waitFor(() => expect(screen.getByTestId('move-tenant')).toBeEnabled());
+      fireEvent.click(screen.getByTestId('move-tenant'));
+      await waitFor(() => expect(screen.getByTestId('move-target')).toBeEnabled());
+      fireEvent.mouseDown(screen.getByRole('combobox', { name: /target cell/i }));
+
+      expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual(['eu-2']);
+    });
+
+    it('reports the failed stage and what remains', async () => {
+      const calls = installMoveFetch({ failing: '/cells/eu-1/api/tenants/acme/export' });
+      renderPage('secrets', 'eu-1');
+
+      await waitFor(() => expect(screen.getByTestId('move-tenant')).toBeEnabled());
+      fireEvent.click(screen.getByTestId('move-tenant'));
+      await waitFor(() => expect(screen.getByTestId('move-target')).toBeEnabled());
+      fireEvent.change(screen.getByTestId('move-target'), { target: { value: 'eu-2' } });
+      fireEvent.click(screen.getByTestId('move-confirm'));
+
+      expect(await screen.findByTestId('move-failure')).toHaveTextContent(
+        'Export the tenant from eu-1 failed: The cell refused it.',
+      );
+      expect(screen.getByTestId('move-remaining')).toHaveTextContent(
+        'Remaining: Export the tenant from eu-1; Import the tenant into eu-2; Release the tenant at eu-1.',
+      );
+      expect(moves(calls)).toEqual([
+        'POST https://api.test/cells/eu-2/api/tenant-imports/transfer-keys',
+        'POST https://api.test/cells/eu-1/api/tenants/acme/export',
+      ]);
+    });
+
+    it('disables the action while the tenant is enabled', async () => {
+      const calls = installMoveFetch({ isDisabled: false });
+      renderPage('secrets', 'eu-1');
+
+      const action = await screen.findByTestId('move-tenant');
+      await waitFor(() =>
+        expect(calls.some((c) => c.url.endsWith('/cells/eu-1/api/tenants/acme'))).toBe(true),
+      );
+      await waitFor(() => expect(action).toBeDisabled());
+      fireEvent.click(action);
+
+      expect(screen.queryByTestId('move-confirm')).not.toBeInTheDocument();
+    });
+
+    it('is not shown to a caller who is not a platform administrator', async () => {
+      const calls = installMoveFetch({ isPlatformAdministrator: false });
+      renderPage('secrets', 'eu-1');
+
+      await waitFor(() => expect(calls.some((c) => c.url.endsWith('/api/me'))).toBe(true));
+      expect(await screen.findByTestId('data-empty')).toBeInTheDocument();
+
+      expect(screen.queryByTestId('move-tenant')).not.toBeInTheDocument();
+      expect(calls.some((c) => c.url.endsWith('/api/cells'))).toBe(false);
+    });
+
+    it('is not shown for a tenant that lives in no named cell', async () => {
+      const calls = installMoveFetch({});
+      renderPage('secrets');
+
+      expect(await screen.findByTestId('data-empty')).toBeInTheDocument();
+      await waitFor(() => expect(calls.some((c) => c.url.endsWith('/api/me'))).toBe(true));
+
+      expect(screen.queryByTestId('move-tenant')).not.toBeInTheDocument();
+    });
   });
 });

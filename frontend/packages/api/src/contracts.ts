@@ -872,3 +872,40 @@ export type EncryptionRootKeyChangeResource = {
   /** How many master keys could not be rewrapped yet. */
   readonly failedKeys: number;
 };
+
+/**
+ * Mirror of `TenantTransferKeyResource` — the one-time transfer key a cell issues to receive a tenant: its `kid` and
+ * the public key as a JSON Web Key (`jwk`) for the `ECDH-ES+A256KW` algorithm.
+ */
+export type TenantTransferKeyResource = {
+  readonly kid: string;
+  readonly jwk: Readonly<Record<string, unknown>>;
+};
+
+/**
+ * Mirror of `TenantExportRequest` — the request to export a disabled tenant: the public half (`jwk`) of the receiving
+ * cell's transfer key, to which the export is sealed.
+ */
+export type TenantExportRequest = {
+  readonly jwk: Readonly<Record<string, unknown>>;
+};
+
+/** Mirror of `TenantExportResource` — the export of a disabled tenant as a compact JWE (`package`) to the receiving cell's transfer key. */
+export type TenantExportResource = {
+  readonly package: string;
+};
+
+/**
+ * Mirror of `TenantImportRequest` — the request to import a tenant: the `kid` of the transfer key the receiving cell
+ * issued and the sealed export (`package`) sealed to it.
+ */
+export type TenantImportRequest = {
+  readonly kid: string;
+  readonly package: string;
+};
+
+/** Mirror of `TenantImportResource` — the tenant a cell imported and the cell it came from. */
+export type TenantImportResource = {
+  readonly tenantId: string;
+  readonly sourceCell: string;
+};

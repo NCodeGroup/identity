@@ -62,8 +62,13 @@ import {
   type TeamUsageResource,
   type TenantAddressResource,
   type TenantConfigurationDocument,
+  type TenantExportRequest,
+  type TenantExportResource,
+  type TenantImportRequest,
+  type TenantImportResource,
   type TenantPromotionResource,
   type TenantResource,
+  type TenantTransferKeyResource,
   type TenantUsageResource,
   type UpdateClientFields,
   type UpdateResourceServerFields,
@@ -489,6 +494,54 @@ export const managementApi = createApi({
         }
         return tags;
       },
+    }),
+    // A move runs in four calls, each addressed to the cell it concerns: the receiving cell issues a one-time transfer
+    // key, the tenant's own cell exports to it, the receiving cell imports the export and the tenant's own cell
+    // releases what it still holds. The import and the release change where the tenant lives, so each refreshes the
+    // tenant's tags, which every list that holds it provides, and the caller's access.
+    createTransferKey: build.mutation<TenantTransferKeyResource, { cell: string }>({
+      query: ({ cell }) =>
+        inCell(cell, { url: 'api/tenant-imports/transfer-keys', method: 'POST' }),
+    }),
+    exportTenant: build.mutation<
+      TenantExportResource,
+      { cell: string; tenantId: string; jwk: TenantExportRequest['jwk'] }
+    >({
+      query: ({ cell, tenantId, jwk }) =>
+        inCell(cell, {
+          url: `api/tenants/${encodeURIComponent(tenantId)}/export`,
+          method: 'POST',
+          body: { jwk } satisfies TenantExportRequest,
+        }),
+    }),
+    importTenant: build.mutation<
+      TenantImportResource,
+      { cell: string; kid: string; package: string }
+    >({
+      query: ({ cell, kid, package: sealedPackage }) =>
+        inCell(cell, {
+          url: 'api/tenant-imports',
+          method: 'POST',
+          body: { kid, package: sealedPackage } satisfies TenantImportRequest,
+        }),
+      invalidatesTags: (result) =>
+        result
+          ? [
+              { type: 'Tenant', id: platformTag(result.tenantId) },
+              { type: 'Caller', id: callerTag },
+            ]
+          : [],
+    }),
+    releaseMovedTenant: build.mutation<void, { cell: string; tenantId: string }>({
+      query: ({ cell, tenantId }) =>
+        inCell(cell, {
+          url: `api/tenants/${encodeURIComponent(tenantId)}/release-moved`,
+          method: 'POST',
+        }),
+      invalidatesTags: (_result, _error, { tenantId }) => [
+        { type: 'Tenant', id: platformTag(tenantId) },
+        { type: 'Caller', id: callerTag },
+      ],
     }),
     createClient: build.mutation<
       ClientResource,
@@ -1063,6 +1116,10 @@ export const {
   useDeleteTenantMutation,
   usePreviewTenantPromotionMutation,
   usePromoteTenantMutation,
+  useCreateTransferKeyMutation,
+  useExportTenantMutation,
+  useImportTenantMutation,
+  useReleaseMovedTenantMutation,
   useCreateClientMutation,
   useUpdateClientMutation,
   useDeleteClientMutation,

@@ -49,6 +49,13 @@ export {
   type TenantFormValues,
 } from './components/TenantFormDialog.js';
 export {
+  TenantMoveDialog,
+  type TenantMoveDialogCell,
+  type TenantMoveDialogOperations,
+  type TenantMoveDialogProps,
+  type TenantMoveDialogTransferKey,
+} from './components/TenantMoveDialog.js';
+export {
   TenantPromotionDialog,
   type TenantPromotionDialogChange,
   type TenantPromotionDialogEnvironmentSettings,
