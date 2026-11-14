@@ -63,9 +63,10 @@ management API at `/api` on the origin of its authority.**
    - The host's `Program.cs` holds composition only.
 3. **Topology.** The console is served at the root of its origin as the fallback BFF frontend `mgmt`
    (`ManagementConsoleDefaults.FrontendName`), so no selection rule exists, and its cookie is `__Host-Http-bff.mgmt`.
-   `ManagementConsoleFrontendValidator` refuses at start a host without that frontend. The management API is forwarded
-   at `/management/api/*` (`ManagementConsoleDefaults.ApiPath`) to `ManagementConsole:ManagementApiUrl` with the `user`
-   token requirement and the resource `urn:ncode:management`, so the console's API base is `/management`.
+   `ManagementConsoleFrontendValidator` refuses at start a host without that frontend. The management API of the control
+   plane is forwarded at `/management/api/*` (`ManagementConsoleDefaults.ApiPath`) to
+   `ManagementConsole:ManagementApiUrl` with the `user` token requirement and the resource `urn:ncode:management`, so
+   the console's API base is `/management`.
 4. **The API URL is the authority's origin plus `/api`.** `ManagementConsole:ManagementApiUrl` is the origin of the
    console's authority followed by `/api`, because that is the only URL the OP accepts from a DPoP-bound call. The host
    chart derives it and has no override value ([ADR-1458](1458-the-host-chart-deploys-the-server-and-an-opt-in-management-console-and-refuses-unsafe-releases.md)).
@@ -76,7 +77,26 @@ management API at `/api` on the origin of its authority.**
    uses `/api` on the origin of the control-plane tenant's issuer, which the server's Ingress serves. On the hosted
    platform ([ADR-1495](1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md))
    the management API is at `auth.<apex>/api`, and `manage.<apex>` serves only the console.
-6. **Client registration.** `mgmt-console` is a confidential client of the control-plane tenant:
+6. **The console reaches every cell.** A platform runs several cells
+   ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)),
+   and one console manages them all.
+   - `/management/api/*` is forwarded to the control-plane cell, which serves platform, team, caller and machine-client
+     management, and `/management/api/cells/{cell}/*` is forwarded to the management URL of the named cell, which
+     serves that cell's tenants. Both forwards carry the same `user` token requirement, frontend and antiforgery
+     check, and the cell validates the token against the control plane
+     ([ADR-1191](1191-a-management-request-is-authenticated-by-the-control-plane-tenant-and-scoped-by-its-routes-tenant.md)).
+   - `ManagementConsole:Cells` maps each cell name, a DNS label, to its management URL. Each URL passes the same check
+     as `ManagementApiUrl`, and the console maps one forwarder per entry at start. The bootstrap document lists the
+     cell names.
+   - The control plane's `GET api/cells` supplies each cell's region and kind for display. It never returns a
+     management URL: the console's own configuration holds those.
+   - The Tenants page queries every cell, merges the lists and shows each tenant's cell and region. A cell that does not
+     answer is marked unavailable and the others still list. A tenant's routes carry its cell, so every call for the
+     tenant reaches the cell that holds it.
+   - Promotion between two cells of one region is carried by the console: it reads the source tenant's configuration
+     document from the source cell and posts it to the target cell
+     ([ADR-1425](1425-a-team-promotes-one-tenants-configuration-to-another-and-environment-bound-values-stay.md)).
+7. **Client registration.** `mgmt-console` is a confidential client of the control-plane tenant:
    - authentication method `private_key_jwt`, `require_pushed_authorization_requests`,
      `require_dpop_bound_access_tokens`, grant types `authorization_code` and `refresh_token`;
    - redirect URI `<origin>/bff/callback`, post-logout redirect URI `<origin>/`, back-channel logout URI
@@ -86,16 +106,16 @@ management API at `/api` on the origin of its authority.**
      seed registers the public key by value, because the OP's outbound guard never reaches a loopback address
      ([ADR-1370](1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)
      holds the seeder).
-7. **The `mgmt` frontend.**
+8. **The `mgmt` frontend.**
    - Key rings `mgmt-client` and `mgmt-dpop`, with `DPoP:Mode` `required` and `Jwks:Enabled`.
    - Scopes `profile email offline_access read:clients` (the BFF adds `openid`) and no `resource`, so the login access
      token carries the UserInfo audience
      ([ADR-1026](1026-resource-servers-own-scopes-settings-and-keys-and-decide-a-clients-scopes-and-token-audiences.md)).
    - `UserInfo:Load`, and `UserClaims` `preferred_username` and `email` for `/bff/user`.
    - `ReturnUrls` `/`.
-8. **Host filtering.** `ManagementConsoleHostFilteringValidator` refuses an empty or wildcard `AllowedHosts` unless
+9. **Host filtering.** `ManagementConsoleHostFilteringValidator` refuses an empty or wildcard `AllowedHosts` unless
    `LocalDevelopment:Enabled` is set, so a deployment lists its own host names.
-9. **Local development.** The AppHost ([ADR-1071](1071-the-aspire-apphost-runs-the-local-stack-in-health-gated-order-after-checking-the-frontend-toolchain.md))
+10. **Local development.** The AppHost ([ADR-1071](1071-the-aspire-apphost-runs-the-local-stack-in-health-gated-order-after-checking-the-frontend-toolchain.md))
    runs the console host on `https://localhost:5005` and `http://localhost:5004`. It generates per-machine P-256 keys
    `mgmt-client.pem` and `mgmt-dpop.pem` beside the other development secrets, passes their paths to the console as
    `Bff__KeyRings__…` and gives the OP the client JWKS as `DeveloperInteractiveSeed__BffClients__0__Jwks`. `apps/mgmt` is
@@ -117,6 +137,10 @@ management API at `/api` on the origin of its authority.**
   override can only make every DPoP-bound call fail.
 - **A separate host that serves only the console.** Chosen: origin and process isolation, one authentication model for
   the management API, and a console that stands where any third party's BFF stands.
+- **One console per cell.** Rejected: an operator would sign in to each cell and could not see a team's tenants
+  together, and the team and platform views live in the control plane alone.
+- **The browser calls each cell directly.** Rejected: the console's tokens never reach the browser, so the console's
+  BFF forwards every call.
 
 ## Consequences
 
@@ -126,6 +150,8 @@ management API at `/api` on the origin of its authority.**
   with the OP. The console's pods reach the server at its public origin, as they do for discovery, pushed authorization
   requests and the token endpoint.
 - A default install's console calls succeed.
+- A platform with several cells needs one `ManagementConsole:Cells` entry per cell, and a cell the console cannot reach
+  is marked unavailable in the Tenants page while the others keep listing.
 - Local development runs three processes for the console: the OP (`api`), the console host (`console`) and the `mgmt`
   bundle's build watcher.
 - The OP cannot deliver a back-channel logout to the console host on a developer machine, because its outbound guard
@@ -139,6 +165,8 @@ management API at `/api` on the origin of its authority.**
 - [ADR-1442](1442-a-bff-serves-the-frontends-its-configuration-lists-each-selected-per-request-by-an-open-rule.md)
 - [ADR-1365](1365-no-url-the-server-publishes-or-compares-takes-its-origin-from-the-requests-host.md)
 - [ADR-1458](1458-the-host-chart-deploys-the-server-and-an-opt-in-management-console-and-refuses-unsafe-releases.md)
+- [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)
+- [ADR-1425](1425-a-team-promotes-one-tenants-configuration-to-another-and-environment-bound-values-stay.md)
 - `src/NCode.Identity.ManagementConsole/` and `hosts/NCode.Identity.ManagementConsole.Host/`
 - `charts/ncode-identity-host`, `.github/workflows/host-chart.yml`
 - Issues [#158](https://github.com/NCodeGroup/identity/issues/158) and [#720](https://github.com/NCodeGroup/identity/issues/720)
