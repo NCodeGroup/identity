@@ -109,6 +109,14 @@ public static class DefaultRegistration
                 DefaultTenantTransferKeyService
             >();
 
+            // Carries a tenant's core records between cells (ADR-1514).
+            serviceCollection.TryAddEnumerable(
+                ServiceDescriptor.Singleton<
+                    ITenantTransferContributor,
+                    CoreTenantTransferContributor
+                >()
+            );
+
             serviceCollection.TryAddEnumerable(
                 ServiceDescriptor.Singleton<
                     ICommandHandler<SeedTenantCommand>,

@@ -1357,12 +1357,28 @@ NCode.Identity.OpenId.Management.Contracts.Tenants.TenantTransferKeyResource.Jwk
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantTransferKeyResource.Kid.get -> string!
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantTransferKeyResource.Kid.init -> void
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantTransferKeyResource.TenantTransferKeyResource() -> void
+NCode.Identity.OpenId.Management.Transfers.ITenantTransferContributor
+NCode.Identity.OpenId.Management.Transfers.ITenantTransferContributor.ExportAsync(string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Management.Transfers.TenantTransferSection!>
+NCode.Identity.OpenId.Management.Transfers.ITenantTransferContributor.ImportAsync(string! tenantId, NCode.Identity.OpenId.Management.Transfers.TenantTransferSection! section, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Management.Transfers.TenantTransferImportResult!>
+NCode.Identity.OpenId.Management.Transfers.ITenantTransferContributor.Name.get -> string!
+NCode.Identity.OpenId.Management.Transfers.ITenantTransferContributor.Order.get -> int
+NCode.Identity.OpenId.Management.Transfers.ITenantTransferContributor.RemoveAsync(string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Management.Transfers.ITenantTransferKeyService
 NCode.Identity.OpenId.Management.Transfers.ITenantTransferKeyService.CreateAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Management.Transfers.TenantTransferKey!>
 NCode.Identity.OpenId.Management.Transfers.ITenantTransferKeyService.TakeAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.Secrets.Keys.SecretKey?>
+NCode.Identity.OpenId.Management.Transfers.TenantTransferImportResult
+NCode.Identity.OpenId.Management.Transfers.TenantTransferImportResult.RemoteKeys.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.Secrets.RemoteKeys.RemoteKeyReference>!
+NCode.Identity.OpenId.Management.Transfers.TenantTransferImportResult.RemoteKeys.init -> void
+NCode.Identity.OpenId.Management.Transfers.TenantTransferImportResult.TenantTransferImportResult() -> void
 NCode.Identity.OpenId.Management.Transfers.TenantTransferKey
 NCode.Identity.OpenId.Management.Transfers.TenantTransferKey.Jwk.get -> System.Text.Json.JsonElement
 NCode.Identity.OpenId.Management.Transfers.TenantTransferKey.Jwk.init -> void
 NCode.Identity.OpenId.Management.Transfers.TenantTransferKey.KeyId.get -> string!
 NCode.Identity.OpenId.Management.Transfers.TenantTransferKey.KeyId.init -> void
 NCode.Identity.OpenId.Management.Transfers.TenantTransferKey.TenantTransferKey() -> void
+NCode.Identity.OpenId.Management.Transfers.TenantTransferSection
+NCode.Identity.OpenId.Management.Transfers.TenantTransferSection.Json.get -> System.Text.Json.JsonElement
+NCode.Identity.OpenId.Management.Transfers.TenantTransferSection.Json.init -> void
+NCode.Identity.OpenId.Management.Transfers.TenantTransferSection.Name.get -> string!
+NCode.Identity.OpenId.Management.Transfers.TenantTransferSection.Name.init -> void
+NCode.Identity.OpenId.Management.Transfers.TenantTransferSection.TenantTransferSection() -> void
