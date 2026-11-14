@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Setup;
 using NCode.Identity.OpenId.Setup.Contracts;
@@ -33,7 +34,8 @@ public class InstanceSetupCommandLineTests : BaseTests
         SetupRootOptions? root = null,
         CapturingLoggerProvider? loggerProvider = null,
         SetupManagementConsoleOptions? managementConsole = null,
-        SetupAutomationOptions? automation = null
+        SetupAutomationOptions? automation = null,
+        bool isControlPlane = true
     )
     {
         var options = new SetupOptions { Root = root ?? new SetupRootOptions() };
@@ -50,6 +52,9 @@ public class InstanceSetupCommandLineTests : BaseTests
         });
         serviceCollection.AddSingleton(setupService);
         serviceCollection.AddSingleton(Options.Create(options));
+        serviceCollection.AddSingleton(
+            Options.Create(new CellOptions { IsControlPlane = isControlPlane })
+        );
 
         return serviceCollection.BuildServiceProvider();
     }
@@ -153,6 +158,52 @@ public class InstanceSetupCommandLineTests : BaseTests
         var exitCode = await command.RunAsync(services, CancellationToken.None);
 
         Assert.Equal(2, exitCode);
+    }
+
+    [Fact]
+    public async Task RunAsync_TheCellIsNotTheControlPlane_ReturnsTwoWithoutTouchingTheInstance()
+    {
+        var loggerProvider = new CapturingLoggerProvider();
+        var setupService = CreateStrictMock<IInstanceSetupService>();
+        using var services = CreateServices(
+            setupService.Object,
+            CreateRoot(),
+            loggerProvider,
+            isControlPlane: false
+        );
+
+        var exitCode = await Parse("setup").RunAsync(services, CancellationToken.None);
+
+        Assert.Equal(2, exitCode);
+        Assert.Contains(
+            loggerProvider.Messages,
+            message => message.Contains("control-plane cell", StringComparison.Ordinal)
+        );
+    }
+
+    [Fact]
+    public async Task RunAsync_TheCellIsTheControlPlane_CreatesTheRoot()
+    {
+        var setupService = CreateStrictMock<IInstanceSetupService>();
+        setupService
+            .Setup(x => x.IsInitializedAsync(It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<bool>(false))
+            .Verifiable();
+        setupService
+            .Setup(x =>
+                x.SetUpAsync(It.IsAny<InstanceSetupRequest>(), It.IsAny<CancellationToken>())
+            )
+            .Returns(new ValueTask<InstanceSetupResult>(CreateSuccess()))
+            .Verifiable();
+        using var services = CreateServices(
+            setupService.Object,
+            CreateRoot(),
+            isControlPlane: true
+        );
+
+        var exitCode = await Parse("setup").RunAsync(services, CancellationToken.None);
+
+        Assert.Equal(0, exitCode);
     }
 
     [Fact]

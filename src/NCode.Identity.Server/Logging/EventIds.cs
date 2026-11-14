@@ -39,4 +39,5 @@ internal static class EventIds
     public const int InstanceSetupCommandManagementConsoleRegistered = Base + 23;
     public const int InstanceSetupCommandAutomationClientCreated = Base + 24;
     public const int InstanceSetupCommandRootPasswordMissing = Base + 25;
+    public const int InstanceSetupCommandNotOnTheControlPlane = Base + 26;
 }

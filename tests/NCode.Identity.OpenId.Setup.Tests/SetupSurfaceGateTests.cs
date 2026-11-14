@@ -3,7 +3,9 @@
 
 using System.Net;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Options;
 using NCode.Identity.AspNetCore;
+using NCode.Identity.OpenId.GlobalDirectory;
 
 namespace NCode.Identity.OpenId.Setup;
 
@@ -21,8 +23,15 @@ public sealed class SetupSurfaceGateTests : IDisposable
 
     #region Helpers
 
-    private DefaultSetupSurfaceGate CreateGate(bool localDevelopmentEnabled = false) =>
-        new(MockInstanceSetupService.Object, new LocalDevelopmentMode(localDevelopmentEnabled));
+    private DefaultSetupSurfaceGate CreateGate(
+        bool localDevelopmentEnabled = false,
+        bool isControlPlane = true
+    ) =>
+        new(
+            MockInstanceSetupService.Object,
+            new LocalDevelopmentMode(localDevelopmentEnabled),
+            Options.Create(new CellOptions { IsControlPlane = isControlPlane })
+        );
 
     private void SetupIsInitialized(bool isInitialized) =>
         MockInstanceSetupService
@@ -44,6 +53,33 @@ public sealed class SetupSurfaceGateTests : IDisposable
     #endregion
 
     #region IsServedAsync Tests
+
+    [Fact]
+    public async Task IsServedAsync_WhenTheCellIsNotTheControlPlane_IsNotServedWithoutReadingTheInstance()
+    {
+        var gate = CreateGate(isControlPlane: false);
+
+        var isServed = await gate.IsServedAsync(
+            CreateHttpContext(isHttps: true),
+            CancellationToken.None
+        );
+
+        Assert.False(isServed);
+    }
+
+    [Fact]
+    public async Task IsServedAsync_WhenTheCellIsTheControlPlaneAndTheInstanceIsNotInitialized_IsServed()
+    {
+        SetupIsInitialized(false);
+        var gate = CreateGate(isControlPlane: true);
+
+        var isServed = await gate.IsServedAsync(
+            CreateHttpContext(isHttps: true),
+            CancellationToken.None
+        );
+
+        Assert.True(isServed);
+    }
 
     [Fact]
     public async Task IsServedAsync_WhenTheInstanceIsNotInitialized_IsServed()

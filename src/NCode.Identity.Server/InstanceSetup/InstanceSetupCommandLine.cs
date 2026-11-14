@@ -5,6 +5,7 @@ using JetBrains.Annotations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Setup;
 using NCode.Identity.Server.Logging;
 
@@ -20,7 +21,8 @@ namespace NCode.Identity.Server.InstanceSetup;
 /// <remarks>
 /// The exit code is <c>0</c> when the root administrator is created or the instance is already initialized, so a Job can
 /// run the command on every release, <c>1</c> when the root administrator cannot be created, and <c>2</c> for a usage
-/// error or when the configuration lacks the root administrator's username or password.
+/// error, when the configuration lacks the root administrator's username or password, or when the cell is not the
+/// control-plane cell, because setup belongs to the control plane.
 /// </remarks>
 // See ADR-1512.
 [PublicAPI]
@@ -104,6 +106,13 @@ public sealed class InstanceSetupCommandLine
         if (Error is { } error)
         {
             logger.InstanceSetupCommandUsageInvalid(error, Usage);
+            return 2;
+        }
+
+        var cellOptions = services.GetRequiredService<IOptions<CellOptions>>().Value;
+        if (!cellOptions.IsControlPlane)
+        {
+            logger.InstanceSetupCommandNotOnTheControlPlane();
             return 2;
         }
 

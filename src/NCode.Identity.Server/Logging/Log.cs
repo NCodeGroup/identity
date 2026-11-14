@@ -252,4 +252,11 @@ internal static partial class Log
         Message = "The setup command needs the root administrator's Setup:Root:Password."
     )]
     internal static partial void InstanceSetupCommandRootPasswordMissing(this ILogger logger);
+
+    [LoggerMessage(
+        EventId = EventIds.InstanceSetupCommandNotOnTheControlPlane,
+        Level = LogLevel.Error,
+        Message = "Setup belongs to the control-plane cell, and this cell is not the control plane; run the setup command there."
+    )]
+    internal static partial void InstanceSetupCommandNotOnTheControlPlane(this ILogger logger);
 }

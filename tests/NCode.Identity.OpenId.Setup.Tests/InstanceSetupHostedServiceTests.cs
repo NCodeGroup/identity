@@ -1,6 +1,11 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using NCode.Identity.OpenId.GlobalDirectory;
+using NCode.Identity.OpenId.Setup.Logging;
+
 namespace NCode.Identity.OpenId.Setup;
 
 public sealed class InstanceSetupHostedServiceTests : IDisposable
@@ -8,6 +13,7 @@ public sealed class InstanceSetupHostedServiceTests : IDisposable
     private MockRepository MockRepository { get; }
     private Mock<IInstanceSetupService> MockInstanceSetupService { get; }
     private Mock<ISetupTokenService> MockSetupTokenService { get; }
+    private Mock<ILogger<InstanceSetupHostedService>> MockLogger { get; }
     private List<string> CallLog { get; } = [];
 
     public InstanceSetupHostedServiceTests()
@@ -15,6 +21,7 @@ public sealed class InstanceSetupHostedServiceTests : IDisposable
         MockRepository = new MockRepository(MockBehavior.Strict);
         MockInstanceSetupService = MockRepository.Create<IInstanceSetupService>();
         MockSetupTokenService = MockRepository.Create<ISetupTokenService>();
+        MockLogger = MockRepository.Create<ILogger<InstanceSetupHostedService>>();
     }
 
     public void Dispose()
@@ -24,8 +31,32 @@ public sealed class InstanceSetupHostedServiceTests : IDisposable
 
     #region Helpers
 
-    private InstanceSetupHostedService CreateService() =>
-        new(MockInstanceSetupService.Object, MockSetupTokenService.Object);
+    private InstanceSetupHostedService CreateService(bool isControlPlane = true) =>
+        new(
+            MockInstanceSetupService.Object,
+            MockSetupTokenService.Object,
+            Options.Create(new CellOptions { IsControlPlane = isControlPlane }),
+            MockLogger.Object
+        );
+
+    private void SetupLogged(LogLevel level, int eventId)
+    {
+        MockLogger.Setup(x => x.IsEnabled(level)).Returns(true).Verifiable(Times.Once());
+#pragma warning disable CA1873 // The arguments are matchers of a mock setup, not log arguments.
+        MockLogger
+            .Setup(x =>
+                x.Log(
+                    level,
+                    It.Is<EventId>(id => id.Id == eventId),
+                    It.IsAny<It.IsAnyType>(),
+                    It.IsAny<Exception?>(),
+                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()
+                )
+            )
+#pragma warning restore CA1873
+            .Callback(new InvocationAction(_ => CallLog.Add("log")))
+            .Verifiable(Times.Once());
+    }
 
     private void SetupIsInitialized(bool isInitialized)
     {
@@ -47,6 +78,16 @@ public sealed class InstanceSetupHostedServiceTests : IDisposable
     #endregion
 
     #region StartAsync Tests
+
+    [Fact]
+    public async Task StartAsync_WhenTheCellIsNotTheControlPlane_LogsOnceAndPreparesNothing()
+    {
+        SetupLogged(LogLevel.Information, EventIds.SetupBelongsToTheControlPlane);
+
+        await CreateService(isControlPlane: false).StartAsync(CancellationToken.None);
+
+        Assert.Equal(["log"], CallLog);
+    }
 
     [Fact]
     public async Task StartAsync_WhenInitialized_DoesNotEnsureToken()
