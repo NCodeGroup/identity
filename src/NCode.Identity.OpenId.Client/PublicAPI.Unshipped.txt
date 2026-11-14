@@ -5,6 +5,31 @@ NCode.Identity.OpenId.Client.ClientAuthenticatorRegistration.extension(NCode.Ide
 NCode.Identity.OpenId.Client.DefaultRegistration
 NCode.Identity.OpenId.Client.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Jwt.JwtLibrary>!)
 NCode.Identity.OpenId.Client.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Jwt.JwtLibrary>!).AddOpenIdClientLibrary() -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!
+NCode.Identity.OpenId.Client.KeyRings.ClientKeyRingOptions
+NCode.Identity.OpenId.Client.KeyRings.ClientKeyRingOptions.ClientKeyRingOptions() -> void
+NCode.Identity.OpenId.Client.KeyRings.ClientKeyRingOptions.PemFiles.get -> System.Collections.Generic.List<string!>!
+NCode.Identity.OpenId.Client.KeyRings.ClientKeyRingOptions.PemFiles.set -> void
+NCode.Identity.OpenId.Client.KeyRings.ClientKeyRingOptions.RemoteKeys.get -> System.Collections.Generic.Dictionary<string!, NCode.Identity.OpenId.Client.KeyRings.ClientRemoteKeyOptions!>!
+NCode.Identity.OpenId.Client.KeyRings.ClientKeyRingOptions.RemoteKeys.set -> void
+NCode.Identity.OpenId.Client.KeyRings.ClientKeyRingRegistration
+NCode.Identity.OpenId.Client.KeyRings.ClientKeyRingRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!)
+NCode.Identity.OpenId.Client.KeyRings.ClientKeyRingRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!).AddOpenIdClientKeyRings(Microsoft.Extensions.Configuration.IConfigurationSection! section) -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!
+NCode.Identity.OpenId.Client.KeyRings.ClientRemoteKeyOptions
+NCode.Identity.OpenId.Client.KeyRings.ClientRemoteKeyOptions.Algorithm.get -> string?
+NCode.Identity.OpenId.Client.KeyRings.ClientRemoteKeyOptions.Algorithm.set -> void
+NCode.Identity.OpenId.Client.KeyRings.ClientRemoteKeyOptions.ClientRemoteKeyOptions() -> void
+NCode.Identity.OpenId.Client.KeyRings.ClientRemoteKeyOptions.Curve.get -> string?
+NCode.Identity.OpenId.Client.KeyRings.ClientRemoteKeyOptions.Curve.set -> void
+NCode.Identity.OpenId.Client.KeyRings.ClientRemoteKeyOptions.KeyId.get -> string?
+NCode.Identity.OpenId.Client.KeyRings.ClientRemoteKeyOptions.KeyId.set -> void
+NCode.Identity.OpenId.Client.KeyRings.ClientRemoteKeyOptions.KeySizeBits.get -> int
+NCode.Identity.OpenId.Client.KeyRings.ClientRemoteKeyOptions.KeySizeBits.set -> void
+NCode.Identity.OpenId.Client.KeyRings.ClientRemoteKeyOptions.Provider.get -> string?
+NCode.Identity.OpenId.Client.KeyRings.ClientRemoteKeyOptions.Provider.set -> void
+NCode.Identity.OpenId.Client.KeyRings.ClientRemoteKeyOptions.SecretType.get -> string?
+NCode.Identity.OpenId.Client.KeyRings.ClientRemoteKeyOptions.SecretType.set -> void
+NCode.Identity.OpenId.Client.Metrics.OpenIdClientMetrics
+const NCode.Identity.OpenId.Client.Metrics.OpenIdClientMetrics.MeterName = "NCode.Identity.OpenId.Client" -> string!
 NCode.Identity.OpenId.Client.Options.OpenIdClientOptions
 NCode.Identity.OpenId.Client.Options.OpenIdClientOptions.AttemptTimeout.get -> System.TimeSpan
 NCode.Identity.OpenId.Client.Options.OpenIdClientOptions.AttemptTimeout.set -> void
@@ -25,5 +50,3 @@ NCode.Identity.OpenId.Client.Options.OpenIdClientOptions.StaleLifetime.get -> Sy
 NCode.Identity.OpenId.Client.Options.OpenIdClientOptions.StaleLifetime.set -> void
 NCode.Identity.OpenId.Client.Options.OpenIdClientOptions.TotalTimeout.get -> System.TimeSpan
 NCode.Identity.OpenId.Client.Options.OpenIdClientOptions.TotalTimeout.set -> void
-NCode.Identity.OpenId.Client.Metrics.OpenIdClientMetrics
-const NCode.Identity.OpenId.Client.Metrics.OpenIdClientMetrics.MeterName = "NCode.Identity.OpenId.Client" -> string!

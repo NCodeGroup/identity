@@ -12,12 +12,16 @@
         <ProjectReference Include="..\NCode.Identity.Jwt.Abstractions\NCode.Identity.Jwt.Abstractions.csproj" />
         <ProjectReference Include="..\NCode.Identity.SharedState.Abstractions\NCode.Identity.SharedState.Abstractions.csproj" />
         <ProjectReference Include="..\NCode.Identity.Json\NCode.Identity.Json.csproj" />
+        <ProjectReference Include="..\NCode.Identity.Registration\NCode.Identity.Registration.csproj" />
+        <ProjectReference Include="..\NCode.Identity.Jose.Abstractions\NCode.Identity.Jose.Abstractions.csproj" />
+        <ProjectReference Include="..\NCode.Identity.Secrets.Abstractions\NCode.Identity.Secrets.Abstractions.csproj" />
     </ItemGroup>
 
     <ItemGroup>
         <PackageReference Include="JetBrains.Annotations" PrivateAssets="All" />
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
         <PackageReference Include="Microsoft.Extensions.Diagnostics" />
+        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
         <PackageReference Include="Microsoft.Extensions.Http" />
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
         <PackageReference Include="Microsoft.Extensions.Options" />
