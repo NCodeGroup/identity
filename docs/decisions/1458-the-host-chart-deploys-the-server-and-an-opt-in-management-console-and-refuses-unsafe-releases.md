@@ -46,7 +46,9 @@ release the host or the console would refuse.**
 3. **Rendering fails, so `helm install` applies nothing,** instead of leaving a pod in a crash loop, when:
    - `allowedHosts` is empty or contains `*`;
    - the probe host would be a wildcard;
-   - neither `database.existingSecret` nor `database.parts.existingSecret` is named;
+   - neither `database.existingSecret` nor `database.parts.existingSecret` is named, neither
+     `migrations.database.existingSecret` nor `migrations.database.parts.existingSecret` is named, or
+     `database.runtimeRole` is empty or not a lower-case Postgres role name;
    - a connection names both its connection-string Secret and its parts Secret, or a parts Secret leaves its host,
      database, user or password key empty;
    - a Valkey connection (`valkey` or `managementConsole.valkey`) names both its connection-string Secret and its parts

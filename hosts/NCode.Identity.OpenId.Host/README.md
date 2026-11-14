@@ -378,8 +378,9 @@ the deployment provides:
 - `ConnectionStrings__openiddb`, or the parts `OpenIdDatabase__Host`, `OpenIdDatabase__Port` (optional),
   `OpenIdDatabase__Name`, `OpenIdDatabase__Username` and `OpenIdDatabase__Password`: the Postgres database, as a
   finished Npgsql connection string or as its parts, which the host assembles into one with the password quoted.
-  Setting both, or some but not all of the required parts, stops the host at start. It also stores the key ring, so the
-  host refuses to start without it
+  Setting both, or some but not all of the required parts, stops the host at start. The host connects as the runtime
+  role, which must not own the tables, be a superuser or have `BYPASSRLS`, or the host refuses to start. It also stores
+  the key ring, so the host refuses to start without it
   ([ADR-1509](../../docs/decisions/1509-the-host-chart-passes-a-postgres-operators-secret-as-the-connections-parts-and-the-host-assembles-the-npgsql-connection.md)).
 - `OpenId__TenantResolution__StaticSingle__Issuer`: the public issuer URL, or another tenant resolution mode. A served
   tenant without an issuer fails closed
@@ -391,7 +392,8 @@ More than one replica needs Valkey to share single-use state: set `ConnectionStr
 ([ADR-1510](../../docs/decisions/1510-the-host-chart-passes-a-valkey-servers-address-and-password-as-parts-and-the-adapter-assembles-the-connection.md)).
 
 The host does not migrate on boot. The image also carries the migration worker, which runs from `/app/migrations` with
-`dotnet NCode.Identity.OpenId.Host.MigrationService.dll` and the same database settings.
+`dotnet NCode.Identity.OpenId.Host.MigrationService.dll`. It takes the same database settings with the schema owner's
+credentials, and `HostDatabase__RuntimeRole`, the runtime role it grants access to the tables after it migrates.
 
 The Helm chart in [`charts/ncode-identity-host`](../../charts/ncode-identity-host/README.md) deploys the image with
 these settings and refuses a release that lacks them.

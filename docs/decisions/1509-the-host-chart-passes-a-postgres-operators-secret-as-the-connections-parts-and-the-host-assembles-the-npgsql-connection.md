@@ -40,10 +40,17 @@ characters it holds.**
    `database.parts` default to CloudNativePG's (`host`, `port`, `dbname`, `user`, `password`), so a CloudNativePG
    cluster needs only the Secret's name. The keys of `migrations.database.parts` fall back to those of
    `database.parts`.
-3. **The chart refuses an unusable release.** For `database` and for `migrations.database`, it refuses both
-   `existingSecret` and `parts.existingSecret`, and a parts Secret whose host, database, user name or password key is
-   empty. It refuses a `database` that names neither form. The migration Job and the server may use different forms.
-4. **A rotation reaches the pods at the next pod start.** A `secretKeyRef` environment variable is read when a
+3. **The chart carries two credentials.** `database` is the connection of the runtime role, which the pods read, and
+   `migrations.database` is the connection of the schema owner, which only the migration Job reads. The runtime role
+   cannot change the schema, and the migration Job grants it access to the tables, so `database.runtimeRole` names the
+   role and feeds `HostDatabase__RuntimeRole` in the Job. Both connections are required, and the Job never reads
+   `database`. The migration worker applies row-level security under the owner, and the host connects as the runtime
+   role, which does not bypass it.
+4. **The chart refuses an unusable release.** For `database` and for `migrations.database`, it refuses both
+   `existingSecret` and `parts.existingSecret`, a connection that names neither form, and a parts Secret whose host,
+   database, user name or password key is empty. It refuses an empty `database.runtimeRole` and one that is not a
+   lower-case Postgres role name. The migration Job and the server may use different forms.
+5. **A rotation reaches the pods at the next pod start.** A `secretKeyRef` environment variable is read when a
    container starts, so a password the operator rotates reaches the pods when they restart.
 
 ## Options considered
@@ -62,12 +69,15 @@ characters it holds.**
 
 ## Consequences
 
-- No Secret is hand-built for the database: a deployer names the operator's Secret, and a deployer without an operator
-  keeps the finished-string form in `database.existingSecret`.
+- No Secret is hand-built for the database: a deployer names the operator's Secret for the owner and a Secret of the
+  same shape for the runtime role, and a deployer without an operator keeps the finished-string form in
+  `database.existingSecret` and `migrations.database.existingSecret`.
 - TLS settings the connection needs, such as `SSL Mode`, arrive through `extraEnv`.
-- The `cluster` job of the `Host chart` workflow creates a Secret of the shape an operator writes and installs the kind
-  release with the parts form, so the form is proven against a real database and the migration Job.
-- The Aspire AppHost keeps supplying `ConnectionStrings:openiddb`, which the host resolves as the finished-string form.
+- The `cluster` job of the `Host chart` workflow creates a Secret of the shape an operator writes for the owner and one
+  for the runtime role, creates the role in the kind Postgres, and installs the kind release with the parts form, so the
+  form is proven against a real database and the migration Job.
+- The Aspire AppHost supplies `ConnectionStrings:openiddb`, which the host resolves as the finished-string form: the
+  owner's to the migration worker and the runtime role's to the hosts.
 
 ## References
 

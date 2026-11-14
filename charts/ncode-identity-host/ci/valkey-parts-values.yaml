@@ -15,6 +15,11 @@ forwardedHeaders:
 database:
   parts:
     existingSecret: identity-db-app
+  runtimeRole: ncode_identity_app
+migrations:
+  database:
+    parts:
+      existingSecret: identity-db-schema
 valkey:
   parts:
     existingSecret: identity-valkey-app

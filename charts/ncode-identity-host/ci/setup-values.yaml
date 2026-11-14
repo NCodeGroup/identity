@@ -7,6 +7,10 @@ tenantResolution:
     issuer: https://id.example.com
 database:
   existingSecret: identity-database
+  runtimeRole: ncode_identity_app
+migrations:
+  database:
+    existingSecret: identity-database-owner
 secretProtection:
   rootKeyProvider: local
   local:

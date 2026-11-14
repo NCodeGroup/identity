@@ -13,6 +13,10 @@ forwardedHeaders:
     - 10.42.0.0/16
 database:
   existingSecret: identity-database
+  runtimeRole: ncode_identity_app
+migrations:
+  database:
+    existingSecret: identity-database-owner
 valkey:
   existingSecret: identity-valkey
 secretProtection:

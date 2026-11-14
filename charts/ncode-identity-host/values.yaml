@@ -44,10 +44,14 @@ apiReference:
   documentEnabled: false
   pageEnabled: false
 
-# The Postgres database (ConnectionStrings:openiddb). It also persists the Data Protection key ring. Required: name
-# either existingSecret, a Secret holding the finished Npgsql connection string, or parts.existingSecret, a Secret
-# holding the connection's parts, as a Postgres operator writes it; never both.
+# The Postgres database (ConnectionStrings:openiddb) the pods read, as the runtime role. It also persists the Data
+# Protection key ring. Required: name either existingSecret, a Secret holding the finished Npgsql connection string, or
+# parts.existingSecret, a Secret holding the connection's parts, as a Postgres operator writes it; never both. The role
+# the connection logs in as must not own the tables, be a superuser or bypass row-level security.
 database:
+  # The runtime role's name. Required. The migration Job grants the role access to the tables after it migrates, and
+  # the pods connect as it.
+  runtimeRole: ""
   existingSecret: ""
   connectionStringKey: connection-string
   # The defaults are the keys of a CloudNativePG <cluster>-app Secret. An empty portKey leaves the port out.
@@ -63,13 +67,13 @@ database:
 # migration must stay compatible with the previous release, which keeps serving until the rollout finishes.
 migrations:
   enabled: true
-  # A connection allowed to change the schema. Defaults to the database Secret; name a separate one so the running host
+  # The owner's connection, the one that creates and changes the schema. Required, in the same two forms as database:
+  # name either existingSecret or parts.existingSecret, never both. Only the migration Job reads it, so the running host
   # connects without schema rights.
   database:
     existingSecret: ""
     connectionStringKey: ""
-    # Used when its existingSecret or parts.existingSecret is set, else the migration Job uses database. An empty key
-    # falls back to database.parts.
+    # An empty key falls back to the same key under database.parts, so a Secret of the same shape needs only its name.
     parts:
       existingSecret: ""
       hostKey: ""

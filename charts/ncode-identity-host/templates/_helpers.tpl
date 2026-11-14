@@ -194,7 +194,7 @@ without its key, or a parts Secret whose required key is empty. Rendered for its
 {{- fail (printf "%s.existingSecret and %s.parts.existingSecret are both set: name the Secret that holds the finished connection string or the Secret that holds its parts, not both." .path .path) }}
 {{- end }}
 {{- if and .required (not $scope.existingSecret) (not $scope.parts.existingSecret) }}
-{{- fail "database.existingSecret must name the Secret holding the openiddb connection string, or database.parts.existingSecret the Secret holding its host, database, user and password." }}
+{{- fail (printf "%s.existingSecret must name the Secret holding the openiddb connection string, or %s.parts.existingSecret the Secret holding its host, database, user and password." .path .path) }}
 {{- end }}
 {{- if and $scope.existingSecret (not ($scope.connectionStringKey | default .defaults.connectionStringKey)) }}
 {{- fail (printf "%s.connectionStringKey must name the key that holds the connection string in %s.existingSecret." .path .path) }}
@@ -224,7 +224,13 @@ applied. Rendered for its side effect only.
 {{- fail "probes.host must name a concrete host that allowedHosts accepts: the first allowed host is a wildcard." }}
 {{- end }}
 {{- include "identity-host.databaseValidate" (dict "path" "database" "scope" .Values.database "defaults" .Values.database "required" true) }}
-{{- include "identity-host.databaseValidate" (dict "path" "migrations.database" "scope" .Values.migrations.database "defaults" .Values.database "required" false) }}
+{{- include "identity-host.databaseValidate" (dict "path" "migrations.database" "scope" .Values.migrations.database "defaults" .Values.database "required" true) }}
+{{- if not .Values.database.runtimeRole }}
+{{- fail "database.runtimeRole must name the Postgres role the host connects as: the migration Job grants it access to the tables." }}
+{{- end }}
+{{- if not (regexMatch "^[a-z_][a-z0-9_]*$" .Values.database.runtimeRole) }}
+{{- fail "database.runtimeRole must be a lower-case Postgres role name of letters, digits and underscores that does not start with a digit." }}
+{{- end }}
 {{- include "identity-host.valkeyValidate" (dict "path" "valkey" "scope" .Values.valkey "defaults" .Values.valkey) }}
 {{- if and (eq .Values.tenantResolution.strategyCode "StaticSingle") (not .Values.tenantResolution.staticSingle.issuer) }}
 {{- fail "tenantResolution.staticSingle.issuer must be the public issuer URL." }}

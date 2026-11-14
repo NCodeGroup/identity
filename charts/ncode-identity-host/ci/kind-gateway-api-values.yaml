@@ -13,7 +13,12 @@ tenantResolution:
     issuer: https://id.example.com
 database:
   parts:
-    existingSecret: postgres-app
+    existingSecret: postgres-runtime
+  runtimeRole: ncode_identity_app
+migrations:
+  database:
+    parts:
+      existingSecret: postgres-app
 secretProtection:
   rootKeyProvider: local
   local:

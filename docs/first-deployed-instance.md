@@ -15,7 +15,10 @@ it
 
 ## 1. Prerequisites
 
-- **A Postgres database.** One database holds the host's schema and its Data Protection key ring.
+- **A Postgres database and two roles.** One database holds the host's schema and its Data Protection key ring. The
+  schema owner creates and changes the schema, and only the migration worker connects as it. The pods connect as the
+  runtime role, which must not own the tables, be a superuser or have `BYPASSRLS`: the host refuses to start when it
+  does.
 - **A root key provider and a recovery key.** The host refuses the `ephemeral` root key provider unless
   `LocalDevelopment:Enabled` is set, which a deployment never sets. Create the root key
   and the recovery key pair before the first start, back up the root key, and keep the recovery private key offline:
@@ -36,7 +39,8 @@ Install the chart, or run the host image with the same settings.
 helm install identity charts/ncode-identity-host \
   --set 'allowedHosts={id.example.com}' \
   --set tenantResolution.staticSingle.issuer=https://id.example.com \
-  --set database.parts.existingSecret=pg-app \
+  --set database.parts.existingSecret=pg-runtime --set database.runtimeRole=ncode_identity_app \
+  --set migrations.database.parts.existingSecret=pg-app \
   --set secretProtection.rootKeyProvider=local --set secretProtection.local.keySecret=identity-root-key --set secretProtection.recovery.publicKeyConfigMap=identity-recovery-key
 ```
 
@@ -49,7 +53,8 @@ The host does not migrate on boot. The chart runs the migration worker from the 
 the rollout, and a failed migration stops the release
 ([ADR-1180](decisions/1180-each-host-contexts-migrations-run-before-the-rollout-and-only-expand-the-schema.md)). Without
 the chart, run `dotnet NCode.Identity.OpenId.Host.MigrationService.dll` from `/app/migrations` in the image with the
-same database settings, or apply a generated idempotent script. The instance has no administrator and no setup state
+schema owner's database settings and `HostDatabase__RuntimeRole`, or apply a generated idempotent script and grant the
+runtime role access. The instance has no administrator and no setup state
 until the schema exists.
 
 ## 4. Create the root administrator

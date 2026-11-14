@@ -93,6 +93,14 @@ jobs:
           refuse --set database.existingSecret= --set database.parts.existingSecret=identity-db-app --set database.parts.usernameKey=
           refuse --set database.existingSecret= --set database.parts.existingSecret=identity-db-app --set database.parts.passwordKey=
           refuse --set migrations.database.existingSecret=schema --set migrations.database.parts.existingSecret=schema-parts
+          # The schema owner's connection is required, and never falls back to the runtime role's.
+          refuse --set migrations.database.existingSecret=
+          refuse --set migrations.database.existingSecret= --set migrations.database.parts.existingSecret=
+          refuse --set migrations.database.existingSecret= --set migrations.database.parts.existingSecret=identity-db-schema --set migrations.database.parts.hostKey= --set database.parts.hostKey=
+          # The runtime role is named, and is a lower-case Postgres role name.
+          refuse --set database.runtimeRole=
+          refuse --set database.runtimeRole=Not-A-Role
+          refuse --set database.runtimeRole=1role
           refuse --set database.parts.unknownKey=x
           # Valkey takes the same two forms, one per connection (ADR-1510).
           refuse --set valkey.existingSecret=a --set valkey.parts.existingSecret=b
@@ -260,12 +268,14 @@ jobs:
           # An empty port key leaves the port out.
           reject "$(helm template release "$CHART" --values "$parts" --set database.parts.portKey= \
             --show-only templates/deployment.yaml)" 'OpenIdDatabase__Port'
-          # The migration Job reads its own parts Secret, and falls back to the database's when it names none.
+          # The migration Job reads its own parts Secret, the schema owner's, and never the runtime role's.
           job=$(helm template release "$CHART" --values "$parts" --show-only templates/migration-job.yaml)
           expect "$job" 'identity-db-schema'
           reject "$job" 'identity-db-app'
-          expect "$(helm template release "$CHART" --values "$parts" --set migrations.database.parts.existingSecret= \
-            --show-only templates/migration-job.yaml)" 'identity-db-app'
+          # The Job names the runtime role it grants access to, and the pods do not.
+          expect "$job" 'name: HostDatabase__RuntimeRole' 'value: "ncode_identity_app"'
+          reject "$(helm template release "$CHART" --values "$parts" --show-only templates/deployment.yaml)" \
+            'HostDatabase__RuntimeRole'
           # A connection string of the migration Job's own may go with a parts Secret of the host's.
           mixed=$(helm template release "$CHART" --values "$parts" --set migrations.database.parts.existingSecret= \
             --set migrations.database.existingSecret=schema-connection --show-only templates/migration-job.yaml)
@@ -793,17 +803,22 @@ jobs:
           helm install traefik traefik --repo https://traefik.github.io/charts --version 42.3.1 \
             --namespace traefik --create-namespace --set service.spec.type=ClusterIP --wait --timeout 5m
 
-      # The release reads the database from `postgres-app`, a Secret shaped like a Postgres operator's `<cluster>-app`
-      # Secret, and the root key and the management console's two key rings (client and DPoP) from Secrets of their own;
-      # all are generated here and never stored.
+      # The release reads the database from two Secrets shaped like a Postgres operator's `<cluster>-app` Secret:
+      # `postgres-runtime`, the runtime role the pods connect as, and `postgres-app`, the schema owner the migration Job
+      # connects as. The root key and the management console's two key rings (client and DPoP) come from Secrets of
+      # their own; all are generated here and never stored.
       - name: Create the database and the release's Secrets
         run: |
           set -euo pipefail
           kubectl create namespace "$NAMESPACE"
           password=$(openssl rand -hex 16)
+          runtime_password=$(openssl rand -hex 16)
           kubectl -n "$NAMESPACE" create secret generic postgres-app \
             --from-literal=host=postgres --from-literal=port=5432 --from-literal=dbname=openiddb \
             --from-literal=user=postgres --from-literal=password="$password"
+          kubectl -n "$NAMESPACE" create secret generic postgres-runtime \
+            --from-literal=host=postgres --from-literal=port=5432 --from-literal=dbname=openiddb \
+            --from-literal=user=ncode_identity_app --from-literal=password="$runtime_password"
           kubectl -n "$NAMESPACE" create secret generic identity-root-key \
             --from-literal=key="$(head -c 32 /dev/urandom | basenc --base64url -w0 | tr -d '=')"
           openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out "$RUNNER_TEMP/mgmt-client.pem"

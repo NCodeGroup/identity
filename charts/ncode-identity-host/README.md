@@ -11,9 +11,15 @@ It requires Kubernetes 1.30 or later.
 
 The chart takes no secret values. It references Secrets you create in the release's namespace:
 
-- `database.existingSecret` or `database.parts.existingSecret`: the Postgres database, as a Secret holding the finished
-  Npgsql connection string under the `connection-string` key, or as the Secret your Postgres operator writes, with no
-  Secret of your own to build; see [Database and Valkey](#database-and-valkey).
+- `database.existingSecret` or `database.parts.existingSecret`: the Postgres database as the runtime role's connection,
+  the one the pods read, as a Secret holding the finished Npgsql connection string under the `connection-string` key,
+  or as the Secret your Postgres operator writes, with no Secret of your own to build; see
+  [Database and Valkey](#database-and-valkey).
+- `migrations.database.existingSecret` or `migrations.database.parts.existingSecret`: the schema owner's connection,
+  read only by the migration Job, in the same two forms. The role has the right to create and change the schema; the
+  runtime role does not.
+- `database.runtimeRole`: the name of the runtime role, a value rather than a Secret. The migration Job grants the role
+  access to the tables.
 - `secretProtection.local.keySecret`: a Secret holding the local root key under the `key` key (base64url, 32 bytes).
   The root key encrypts every stored secret and the Data Protection key ring, so back it up and never change it in
   place; see [Secret protection](#secret-protection).
@@ -23,8 +29,6 @@ The chart takes no secret values. It references Secrets you create in the releas
 - `valkey.existingSecret` or `valkey.parts.existingSecret`, for more than one replica: the Valkey server, as a Secret
   holding the finished connection string under the `connection-string` key, or as the Secret your Valkey operator
   writes, with no Secret of your own to build; see [Database and Valkey](#database-and-valkey).
-- `migrations.database`, optional: a connection with the right to change the schema, used only by the migration Job,
-  in either form (`existingSecret` or `parts.existingSecret`). It defaults to `database`.
 - cert-manager, unless `backendTls.existingSecret` names a Secret: the chart creates the `Certificate` (and, without
   `backendTls.certManager.issuerRef.name`, a private CA) that issues the pods' serving certificate; see
   [Transport security](#transport-security). The chart also creates the ingress `Certificate` `<release>-ingress`
@@ -40,12 +44,15 @@ The chart takes no secret values. It references Secrets you create in the releas
 Create each Secret in the release's namespace, and name it in the value that references it. The key names below are the
 chart's defaults; each is a value you can change.
 
-The database connection string, as `database.existingSecret` reads it. Use the Npgsql connection string of your
-database; the placeholders are yours:
+The database connection string of the runtime role, as `database.existingSecret` reads it, and of the schema owner, as
+`migrations.database.existingSecret` reads it. Use the Npgsql connection string of your database; the placeholders are
+yours:
 
 ```bash
 kubectl create secret generic identity-database \
-  --from-literal=connection-string='Host=<host>;Database=<database>;Username=<user>;Password=<password>'
+  --from-literal=connection-string='Host=<host>;Database=<database>;Username=<runtime role>;Password=<password>'
+kubectl create secret generic identity-database-owner \
+  --from-literal=connection-string='Host=<host>;Database=<database>;Username=<owner>;Password=<password>'
 ```
 
 The Valkey connection string, as `valkey.existingSecret` reads it, for more than one replica. Use your server's
@@ -124,12 +131,14 @@ points here.
 helm install identity charts/ncode-identity-host \
   --set 'allowedHosts={id.example.com}' \
   --set tenantResolution.staticSingle.issuer=https://id.example.com \
-  --set database.parts.existingSecret=pg-app \
+  --set database.parts.existingSecret=pg-runtime --set database.runtimeRole=ncode_identity_app \
+  --set migrations.database.parts.existingSecret=pg-app \
   --set secretProtection.rootKeyProvider=local --set secretProtection.local.keySecret=identity-root-key --set secretProtection.recovery.publicKeyConfigMap=identity-recovery-key
 ```
 
-`pg-app` is a CloudNativePG cluster's Secret; a deployer without an operator names a connection-string Secret with
-`database.existingSecret` instead (see [Database and Valkey](#database-and-valkey)).
+`pg-app` is a CloudNativePG cluster's Secret for the schema owner, and `pg-runtime` holds the runtime role's connection
+(see [Database and Valkey](#database-and-valkey)); a deployer without an operator names connection-string Secrets with
+`database.existingSecret` and `migrations.database.existingSecret` instead.
 
 `ci/high-availability-values.yaml` shows a rolling three-replica release with Valkey, an ingress, and a retired local
 root key.
@@ -152,10 +161,12 @@ Rendering fails, before anything is applied, when:
 - `backendTls.caPublisher.enabled` is `true`, the management console is enabled with a certificate of your own in
   `managementConsole.backendTls.existingSecret`, and `managementConsole.backendTls.caConfigMap` is empty, because the
   console's CA ConfigMap would fall back to the one the publisher writes, which holds only the chart's private CA;
-- neither `database.existingSecret` nor `database.parts.existingSecret` is set, a connection (`database` or
-  `migrations.database`) sets both, a connection's `existingSecret` is set and the key of its connection string,
-  `connectionStringKey`, is empty (a `migrations.database` key falls back to the one under `database`), or a parts
-  Secret leaves `hostKey`, `databaseKey`, `usernameKey` or `passwordKey` empty;
+- neither `database.existingSecret` nor `database.parts.existingSecret` is set, neither
+  `migrations.database.existingSecret` nor `migrations.database.parts.existingSecret` is set, `database.runtimeRole` is
+  empty or is not a lower-case Postgres role name, a connection (`database` or `migrations.database`) sets both
+  forms, a connection's `existingSecret` is set and the key of its connection string, `connectionStringKey`, is empty
+  (a `migrations.database` key falls back to the one under `database`), or a parts Secret leaves `hostKey`,
+  `databaseKey`, `usernameKey` or `passwordKey` empty;
 - a Valkey connection (`valkey` or `managementConsole.valkey`) sets both `existingSecret` and `parts.existingSecret`,
   sets `existingSecret` and leaves `connectionStringKey` empty, or has a parts Secret that leaves `hostKey` empty. The
   other `parts` keys may be empty, because an empty key leaves that part out;
@@ -211,9 +222,11 @@ Rendering fails, before anything is applied, when:
 ## Migrations
 
 The host does not migrate on boot. Before each install and upgrade, a Helm hook Job runs the migration worker from the
-host's image and applies the pending EF Core migrations. Helm waits for it: a failed migration fails the release before
-any pod is replaced, and the Job stays until the next release so its logs can be read. Helm's `--timeout` must cover
-the migrations.
+host's image as the schema owner (`migrations.database`) and applies the pending EF Core migrations. It then enables
+row-level security on the tenant tables and grants the runtime role (`database.runtimeRole`) access to the tables, so
+the pods connect as a role that cannot change the schema or bypass row-level security. Helm waits for it: a failed
+migration fails the release before any pod is replaced, and the Job stays until the next release so its logs can be
+read. Helm's `--timeout` must cover the migrations.
 
 The previous version keeps serving while the Job runs and until the rollout ends, so every migration must keep it
 working: add first, and drop or rename only in a later release
@@ -792,7 +805,8 @@ Pass console settings such as `ManagementConsole__Branding__DisplayName` through
 helm install identity charts/ncode-identity-host \
   --set 'allowedHosts={id.example.com}' \
   --set tenantResolution.staticSingle.issuer=https://id.example.com \
-  --set database.parts.existingSecret=pg-app \
+  --set database.parts.existingSecret=pg-runtime --set database.runtimeRole=ncode_identity_app \
+  --set migrations.database.parts.existingSecret=pg-app \
   --set secretProtection.rootKeyProvider=local --set secretProtection.local.keySecret=identity-root-key --set secretProtection.recovery.publicKeyConfigMap=identity-recovery-key \
   --set managementConsole.enabled=true --set managementConsole.host=manage.example.com \
   --set managementConsole.keyRings.client.pemSecret=identity-mgmt-client-key \
@@ -1142,7 +1156,8 @@ missing Secret stays in `CreateContainerConfigError`. The example's release name
 
 | Kind        | Name                       | Keys                            | Holds                                                                                              |
 |-------------|----------------------------|---------------------------------|----------------------------------------------------------------------------------------------------|
-| `Secret`    | `identity-database`        | `connection-string`             | The Npgsql connection string of the database, or use `database.parts.existingSecret`.              |
+| `Secret`    | `identity-database`        | `connection-string`             | The runtime role's Npgsql connection string, or use `database.parts.existingSecret`.               |
+| `Secret`    | `identity-database-owner`  | `connection-string`             | The schema owner's Npgsql connection string, or use `migrations.database.parts.existingSecret`.    |
 | `Secret`    | `identity-root-key`        | `key`                           | The local root key; see [Creating the local root key Secret](#creating-the-local-root-key-secret). |
 | `ConfigMap` | `identity-recovery-key`    | `recovery-public.pem`           | The recovery public key; see [Creating the recovery key](#creating-the-recovery-key).              |
 | `Secret`    | `identity-setup-token`     | `token`                         | The setup token, at least 32 characters; see [First use](#first-use).                              |
@@ -1258,6 +1273,10 @@ spec:
         - 10.42.0.0/16
     database:
       existingSecret: identity-database
+      runtimeRole: ncode_identity_app
+    migrations:
+      database:
+        existingSecret: identity-database-owner
     secretProtection:
       rootKeyProvider: local
       local:
@@ -1374,7 +1393,13 @@ without a release enabling it.
 
 ## Database and Valkey
 
-The Postgres database takes one of two forms, and a connection never takes both:
+The Postgres database takes two credentials. `database` is the runtime role's connection, which the pods read, and
+`migrations.database` is the schema owner's connection, which only the migration Job reads. Both are required, and
+`migrations.database` never falls back to `database`. `database.runtimeRole` names the runtime role, and the Job grants it
+access to the tables. The runtime role must not own the tables, be a superuser or have `BYPASSRLS`: the host refuses
+to start when it does.
+
+Each connection takes one of two forms, and a connection never takes both:
 
 - `database.existingSecret` names a Secret that holds the finished Npgsql connection string under
   `database.connectionStringKey` (`connection-string` by default). The pods receive it as `ConnectionStrings__openiddb`.
@@ -1395,21 +1420,22 @@ The key that holds each part is a value, and the defaults are the keys of a Clou
 An empty `portKey` leaves the port out, and Npgsql uses 5432. The host, database, user and password keys must name a
 key.
 
-For a CloudNativePG cluster named `pg`, its `pg-app` Secret works as it is:
+For a CloudNativePG cluster named `pg`, its `pg-app` Secret works as the owner's connection as it is, and a Secret of
+the same shape holds the runtime role's:
 
 ```shell
---set database.parts.existingSecret=pg-app
+--set migrations.database.parts.existingSecret=pg-app
+--set database.parts.existingSecret=pg-runtime --set database.runtimeRole=ncode_identity_app
 ```
 
-To give the migration Job the Secret of a role with the right to change the schema, name it under
-`migrations.database.parts`. Its keys default to the ones under `database.parts`, so a Secret of the same shape needs
+The keys of `migrations.database.parts` default to the ones under `database.parts`, so a Secret of the same shape needs
 only its name:
 
 ```yaml
 migrations:
   database:
     parts:
-      existingSecret: pg-schema
+      existingSecret: pg-app
 ```
 
 The host assembles the connection with the password quoted, so any password works, including one that holds `;`, `'`

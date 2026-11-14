@@ -1,11 +1,8 @@
 {{- if .Values.migrations.enabled }}
 {{- include "identity-host.validate" . }}
-{{- $scope := .Values.database }}
-{{- if or .Values.migrations.database.existingSecret .Values.migrations.database.parts.existingSecret }}
-{{- $scope = .Values.migrations.database }}
-{{- end }}
 # Applies the database migrations before an install or upgrade changes anything else, while the previous version still
-# serves. Helm waits for the Job, and a failed Job fails the release before its rollout starts (ADR-1180).
+# serves. Helm waits for the Job, and a failed Job fails the release before its rollout starts (ADR-1180). The Job
+# connects as the schema owner and grants the runtime role access to the tables it migrated.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -53,7 +50,9 @@ spec:
           env:
             - name: DOTNET_ENVIRONMENT
               value: {{ .Values.environment | quote }}
-            {{- include "identity-host.databaseEnv" (dict "scope" $scope "defaults" .Values.database) | trim | nindent 12 }}
+            {{- include "identity-host.databaseEnv" (dict "scope" .Values.migrations.database "defaults" .Values.database) | trim | nindent 12 }}
+            - name: HostDatabase__RuntimeRole
+              value: {{ .Values.database.runtimeRole | quote }}
             # The host's extra settings and volumes apply to the worker too, such as the CA bundle and SSL mode a
             # TLS connection to Postgres needs.
             {{- with .Values.extraEnv }}
