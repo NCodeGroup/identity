@@ -52,6 +52,18 @@ public sealed class TeamStoreLifecycleTests : IDisposable
         DbContext.ChangeTracker.Clear();
     }
 
+    private async ValueTask<bool> IsTeamIdRetiredAsync(
+        string teamId,
+        CancellationToken cancellationToken
+    )
+    {
+        var normalizedTeamId = teamId.ToLowerInvariant();
+        return await DbContext.RetiredTeams.AnyAsync(
+            entity => entity.NormalizedTeamId == normalizedTeamId,
+            cancellationToken
+        );
+    }
+
     private async ValueTask SeedTeamAsync(CancellationToken cancellationToken)
     {
         await Store.AddAsync(CreateTeam(), cancellationToken);
@@ -336,7 +348,7 @@ public sealed class TeamStoreLifecycleTests : IDisposable
 
         Assert.True(removed);
         Assert.Null(await Store.GetOrDefaultAsync(TeamId, CancellationToken.None));
-        Assert.True(await Store.IsTeamIdRetiredAsync(TeamId, CancellationToken.None));
+        Assert.True(await IsTeamIdRetiredAsync(TeamId, CancellationToken.None));
         var remaining = await DbContext.Set<RoleAssignmentEntity>().ToListAsync();
         var survivor = Assert.Single(remaining);
         Assert.Equal(OpenIdResourceTypes.Tenant, survivor.ResourceType);
@@ -436,24 +448,24 @@ public sealed class TeamStoreLifecycleTests : IDisposable
     }
 
     [Fact]
-    public async Task IsTeamIdRetiredAsync_WithADifferentCasing_ReturnsTrueAfterRemoval()
+    public async Task RemoveAsync_WithADifferentCasing_RetiresTheNormalizedIdentifier()
     {
         await SeedTeamAsync(CancellationToken.None);
         await Store.RemoveAsync(TeamId, CancellationToken.None);
         await SaveAndClearAsync(CancellationToken.None);
 
-        Assert.True(await Store.IsTeamIdRetiredAsync("TEAM-1", CancellationToken.None));
+        Assert.True(await IsTeamIdRetiredAsync("TEAM-1", CancellationToken.None));
     }
 
     [Fact]
-    public async Task IsTeamIdRetiredAsync_AfterRemoval_ReturnsTrue()
+    public async Task RemoveAsync_WhenTheTeamExists_RetiresTheIdentifier()
     {
         await SeedTeamAsync(CancellationToken.None);
-        Assert.False(await Store.IsTeamIdRetiredAsync(TeamId, CancellationToken.None));
+        Assert.False(await IsTeamIdRetiredAsync(TeamId, CancellationToken.None));
 
         await Store.RemoveAsync(TeamId, CancellationToken.None);
         await SaveAndClearAsync(CancellationToken.None);
 
-        Assert.True(await Store.IsTeamIdRetiredAsync(TeamId, CancellationToken.None));
+        Assert.True(await IsTeamIdRetiredAsync(TeamId, CancellationToken.None));
     }
 }

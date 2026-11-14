@@ -5,6 +5,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts.Teams;
 using NCode.Identity.OpenId.Persistence.DataContracts;
@@ -25,7 +26,8 @@ namespace NCode.Identity.OpenId.Management.Endpoints.Teams;
 // See ADR-1411, ADR-1424 and ADR-1426.
 internal class DefaultTeamValidator(
     IAuthorizationService authorizationService,
-    IOptions<TenantResolutionOptions> tenantResolutionOptions
+    IOptions<TenantResolutionOptions> tenantResolutionOptions,
+    ITeamDirectory teamDirectory
 ) : DefaultResourceValidator(authorizationService), ITeamValidator
 {
     private IOptions<TenantResolutionOptions> TenantResolutionOptions { get; } =
@@ -151,7 +153,7 @@ internal class DefaultTeamValidator(
             };
         }
 
-        if (await store.IsTeamIdRetiredAsync(team.TeamId, cancellationToken))
+        if (await teamDirectory.IsTeamIdRetiredAsync(team.TeamId, cancellationToken))
         {
             return new ManagementError
             {

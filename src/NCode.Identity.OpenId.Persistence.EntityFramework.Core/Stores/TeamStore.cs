@@ -483,19 +483,6 @@ internal class TeamStore(
         return await HasDependentsAsync(teamEntity, cancellationToken);
     }
 
-    /// <inheritdoc />
-    public async ValueTask<bool> IsTeamIdRetiredAsync(
-        string teamId,
-        CancellationToken cancellationToken
-    )
-    {
-        var normalizedTeamId = Normalize(teamId);
-        return await DbContext.RetiredTeams.AnyAsync(
-            entity => entity.NormalizedTeamId == normalizedTeamId,
-            cancellationToken
-        );
-    }
-
     private async ValueTask<bool> HasDependentsAsync(
         TeamEntity entity,
         CancellationToken cancellationToken

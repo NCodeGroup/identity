@@ -169,14 +169,4 @@ public interface ITeamStore : IStore<PersistedTeam>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c>
     /// when any tenant, team or machine client belongs to the team; otherwise <c>false</c> (including when no such team exists).</returns>
     ValueTask<bool> HasDependentsAsync(string teamId, CancellationToken cancellationToken);
-
-    /// <summary>
-    /// Determines whether the specified team identifier belonged to a deleted team. A team identifier is never
-    /// reissued.
-    /// </summary>
-    /// <param name="teamId">The team identifier to look up.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c> when a
-    /// deleted team had the identifier; otherwise <c>false</c>.</returns>
-    ValueTask<bool> IsTeamIdRetiredAsync(string teamId, CancellationToken cancellationToken);
 }
