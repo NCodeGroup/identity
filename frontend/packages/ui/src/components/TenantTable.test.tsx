@@ -28,6 +28,12 @@ const tenants: TenantRow[] = [
   },
 ];
 
+const cellTenants: TenantRow[] = [
+  { ...tenants[0]!, cell: { name: 'eu-1', region: 'eu-west' } },
+  { ...tenants[1]!, cell: { name: 'us-1', region: null } },
+  tenants[2]!,
+];
+
 describe('TenantTable', () => {
   it('renders a row per tenant', () => {
     render(<TenantTable tenants={tenants} />);
@@ -54,6 +60,21 @@ describe('TenantTable', () => {
     expect(sandbox).toHaveTextContent('Dev EU (development)');
     expect(sandbox).toHaveAttribute('data-production', 'false');
     expect(screen.queryByTestId('tenant-environment-old')).not.toBeInTheDocument();
+  });
+
+  it('hides the Cell column by default', () => {
+    render(<TenantTable tenants={cellTenants} />);
+    expect(screen.queryByRole('columnheader', { name: 'Cell' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('tenant-cell-root')).not.toBeInTheDocument();
+  });
+
+  it('shows the name and region of each tenant cell, and an empty cell without one', () => {
+    render(<TenantTable tenants={cellTenants} showCell />);
+    expect(screen.getByRole('columnheader', { name: 'Cell' })).toBeInTheDocument();
+    expect(screen.getByTestId('tenant-cell-root')).toHaveTextContent('eu-1');
+    expect(screen.getByTestId('tenant-cell-root')).toHaveTextContent('eu-west');
+    expect(screen.getByTestId('tenant-cell-sandbox')).toHaveTextContent(/^us-1$/);
+    expect(screen.getByTestId('tenant-cell-old')).toBeEmptyDOMElement();
   });
 
   it('invokes onSelect with the tenant id when a row is clicked', () => {

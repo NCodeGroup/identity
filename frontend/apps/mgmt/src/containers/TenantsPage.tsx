@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import AddIcon from '@mui/icons-material/Add';
+import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
@@ -16,15 +17,19 @@ import {
   matchesTenantEnvironment,
   tenantEnvironmentTypes,
   type TenantAddressInput,
+  type TenantCellOption,
   type TenantFormValues,
+  type TenantRow,
 } from '@ncode/ui';
 import type { PromoteTenantRequest, TenantPromotionResource, TenantResource } from '@ncode/api';
 import {
   apiErrorMessage,
+  useAppSelector,
   useCreateTenantMutation,
   useDeleteTenantMutation,
   useGetNewTenantAddressQuery,
   useGetTenantAddressQuery,
+  useListCellsQuery,
   useListTenantsQuery,
   usePreviewTenantPromotionMutation,
   usePromoteTenantMutation,
@@ -114,14 +119,33 @@ export function TenantsPage({
 }: TenantsPageProps) {
   const { data, isLoading, error } = useListTenantsQuery({ teamId });
   const tenants = data?.items ?? [];
+  const unavailableCells = data?.unavailableCells ?? [];
+
+  // The console forwards to the cells its bootstrap names; the platform's cell list supplies each one's region.
+  const runtime = useAppSelector((state) => state.config.runtime);
+  const cellNames = runtime?.kind === 'bff' ? (runtime.cells ?? []) : [];
+  const platformCells = useListCellsQuery(undefined, { skip: cellNames.length === 0 }).data ?? [];
+  const regionOf = (cell: string) => platformCells.find((c) => c.name === cell)?.region ?? null;
+  const cellOptions: TenantCellOption[] = cellNames.map((name) => ({
+    name,
+    region: regionOf(name),
+  }));
+  const controlPlaneCell = platformCells.find(
+    (c) => c.isControlPlane && cellNames.includes(c.name),
+  )?.name;
+
+  const rows: TenantRow[] = tenants.map(({ cell, ...tenant }) => ({
+    ...tenant,
+    ...(cell !== undefined && { cell: { name: cell, region: regionOf(cell) } }),
+  }));
 
   const [environmentFilter, setEnvironmentFilter] = useState(allTenantEnvironments);
-  const environmentTypes = tenantEnvironmentTypes(tenants);
+  const environmentTypes = tenantEnvironmentTypes(rows);
   // A filter whose type no listed tenant has any longer (its last tenant was deleted) shows every tenant.
   const activeEnvironment = environmentTypes.includes(environmentFilter)
     ? environmentFilter
     : allTenantEnvironments;
-  const visibleTenants = tenants.filter((tenant) =>
+  const visibleTenants = rows.filter((tenant) =>
     matchesTenantEnvironment(tenant, activeEnvironment),
   );
 
@@ -178,7 +202,10 @@ export function TenantsPage({
           mtlsEndpointAliasAuthority: dialog.tenant.mtlsEndpointAliasAuthority ?? '',
           isDisabled: dialog.tenant.isDisabled,
         }
-      : emptyTenantFormValues;
+      : {
+          ...emptyTenantFormValues,
+          ...(controlPlaneCell !== undefined && { cell: controlPlaneCell }),
+        };
 
   // The address is previewed against the server's own rules: for a new tenant through its team's route,
   // always, and for an existing tenant through its own route, only when its issuer or mTLS endpoint alias
@@ -203,7 +230,11 @@ export function TenantsPage({
       : {}),
   };
   const newTenantPreview = useGetNewTenantAddressQuery(
-    { teamId, ...previewArgsInput },
+    {
+      teamId,
+      ...previewArgsInput,
+      ...(debouncedAddress?.cell ? { cell: debouncedAddress.cell } : {}),
+    },
     { skip: dialog.kind !== 'create' || !shouldPreview, refetchOnMountOrArgChange: true },
   );
   const existingTenantPreview = useGetTenantAddressQuery(
@@ -228,7 +259,8 @@ export function TenantsPage({
     addressInput &&
     previewArgs?.tenantId === addressInput.tenantId &&
     (previewArgs.issuer ?? '') === addressInput.issuer &&
-    (previewArgs.mtlsEndpointAliasAuthority ?? '') === addressInput.mtlsEndpointAliasAuthority
+    (previewArgs.mtlsEndpointAliasAuthority ?? '') === addressInput.mtlsEndpointAliasAuthority &&
+    (dialog.kind === 'edit' || previewArgs.cell === addressInput.cell)
       ? preview
       : undefined;
 
@@ -241,6 +273,7 @@ export function TenantsPage({
       if (dialog.kind === 'create') {
         await createTenant({
           teamId,
+          ...(values.cell !== undefined && { cell: values.cell }),
           body: {
             tenantId: values.tenantId,
             issuer,
@@ -335,6 +368,15 @@ export function TenantsPage({
           </Button>
         </Box>
       </Box>
+      {unavailableCells.length > 0 && (
+        <Alert severity="warning" sx={{ mb: 1 }} data-testid="unavailable-cells">
+          {unavailableCells.map((cell) => (
+            <div
+              key={cell}
+            >{`The cell ${cell} did not answer, so its tenants are not listed.`}</div>
+          ))}
+        </Alert>
+      )}
       <DataStateBoundary
         isLoading={isLoading}
         error={error ? 'Failed to load tenants.' : undefined}
@@ -343,6 +385,7 @@ export function TenantsPage({
       >
         <TenantTable
           tenants={visibleTenants}
+          showCell={cellNames.length > 0}
           onSelect={(tenantId) => {
             // The tenant opens in its own cell, which the list carries; a tenant without one opens in the control plane.
             const cell = tenants.find((tenant) => tenant.tenantId === tenantId)?.cell;
@@ -363,6 +406,7 @@ export function TenantsPage({
         submitLabel={dialog.kind === 'edit' ? 'Save' : 'Create'}
         initialValues={formInitial}
         isTenantIdLocked={dialog.kind === 'edit'}
+        cells={cellOptions}
         isSubmitting={isCreating || isUpdating}
         error={formError}
         addressPreview={addressPreview}

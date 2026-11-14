@@ -7,6 +7,7 @@ import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Tooltip from '@mui/material/Tooltip';
+import Typography from '@mui/material/Typography';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 
@@ -15,6 +16,12 @@ export type TenantEnvironmentRow = {
   readonly type: string;
   readonly name: string | null;
   readonly isProduction: boolean;
+};
+
+/** The cell a tenant lives in: its name, and the region it runs in when that is known. */
+export type TenantCellRow = {
+  readonly name: string;
+  readonly region: string | null;
 };
 
 /** The minimal tenant shape this presentational table needs (decoupled from the API contract). */
@@ -26,10 +33,14 @@ export type TenantRow = {
   readonly isDisabled: boolean;
   /** Absent when the environment cannot be determined. */
   readonly environment?: TenantEnvironmentRow;
+  /** Absent when the tenant is not tied to a named cell. */
+  readonly cell?: TenantCellRow;
 };
 
 export type TenantTableProps = {
   readonly tenants: readonly TenantRow[];
+  /** Whether to show the Cell column, for a platform whose tenants live in more than one cell. */
+  readonly showCell?: boolean;
   readonly onSelect?: (tenantId: string) => void;
   readonly onEdit?: (tenantId: string) => void;
   readonly onDelete?: (tenantId: string) => void;
@@ -39,9 +50,16 @@ export type TenantTableProps = {
  * Stateless tenant table. Receives rows and callbacks as props; holds no state and does no fetching,
  * so it renders directly in Storybook and under RTL. The row-level edit/delete controls appear only
  * when their callbacks are supplied, and stop propagation so they never trigger row selection. A
- * non-production environment is highlighted, so a sandbox tenant is never mistaken for production.
+ * non-production environment is highlighted, so a sandbox tenant is never mistaken for production. The Cell
+ * column appears only when `showCell` is set.
  */
-export function TenantTable({ tenants, onSelect, onEdit, onDelete }: TenantTableProps) {
+export function TenantTable({
+  tenants,
+  showCell = false,
+  onSelect,
+  onEdit,
+  onDelete,
+}: TenantTableProps) {
   const showActions = Boolean(onEdit || onDelete);
   return (
     <Table size="small" aria-label="Tenants">
@@ -49,6 +67,7 @@ export function TenantTable({ tenants, onSelect, onEdit, onDelete }: TenantTable
         <TableRow>
           <TableCell>Display name</TableCell>
           <TableCell>Tenant ID</TableCell>
+          {showCell && <TableCell>Cell</TableCell>}
           <TableCell>Issuer</TableCell>
           <TableCell>mTLS endpoint alias</TableCell>
           <TableCell>Environment</TableCell>
@@ -68,6 +87,20 @@ export function TenantTable({ tenants, onSelect, onEdit, onDelete }: TenantTable
           >
             <TableCell>{tenant.displayName}</TableCell>
             <TableCell>{tenant.tenantId}</TableCell>
+            {showCell && (
+              <TableCell data-testid={`tenant-cell-${tenant.tenantId}`}>
+                {tenant.cell && (
+                  <>
+                    {tenant.cell.name}
+                    {tenant.cell.region && (
+                      <Typography variant="caption" color="text.secondary" component="div">
+                        {tenant.cell.region}
+                      </Typography>
+                    )}
+                  </>
+                )}
+              </TableCell>
+            )}
             <TableCell>{tenant.issuer ?? '—'}</TableCell>
             <TableCell>{tenant.mtlsEndpointAliasAuthority ?? '—'}</TableCell>
             <TableCell>

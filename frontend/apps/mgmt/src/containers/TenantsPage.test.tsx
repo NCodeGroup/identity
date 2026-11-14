@@ -52,6 +52,11 @@ const globex = {
   concurrencyToken: 'c2',
 };
 
+const cellList = [
+  { name: 'eu-1', region: 'eu-west', kind: 'shared', isControlPlane: true },
+  { name: 'us-1', region: 'us-east', kind: 'shared', isControlPlane: false },
+];
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -140,9 +145,11 @@ describe('TenantsPage (list states)', () => {
 
   it("opens a tenant in the tenant's cell when the list names one", async () => {
     installFetch((url) =>
-      url.includes('/cells/eu-1/')
-        ? jsonResponse({ items: [acme] })
-        : jsonResponse({ items: [globex] }),
+      url.endsWith('/api/cells')
+        ? jsonResponse(cellList)
+        : url.includes('/cells/eu-1/')
+          ? jsonResponse({ items: [acme] })
+          : jsonResponse({ items: [globex] }),
     );
 
     const onOpenTenant = renderPage(vi.fn(), undefined, { ...runtime, cells: ['eu-1', 'us-1'] });
@@ -151,6 +158,51 @@ describe('TenantsPage (list states)', () => {
 
     expect(onOpenTenant).toHaveBeenNthCalledWith(1, 'acme-dev', 'eu-1');
     expect(onOpenTenant).toHaveBeenNthCalledWith(2, 'globex-dev', 'us-1');
+  });
+
+  it("shows each tenant's cell with its region", async () => {
+    installFetch((url) =>
+      url.endsWith('/api/cells')
+        ? jsonResponse(cellList)
+        : url.includes('/cells/eu-1/')
+          ? jsonResponse({ items: [acme] })
+          : jsonResponse({ items: [globex] }),
+    );
+
+    renderPage(vi.fn(), undefined, { ...runtime, cells: ['eu-1', 'us-1'] });
+
+    expect(await screen.findByRole('columnheader', { name: 'Cell' })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId('tenant-cell-acme-dev')).toHaveTextContent('eu-1eu-west'),
+    );
+    expect(screen.getByTestId('tenant-cell-globex-dev')).toHaveTextContent('us-1us-east');
+    expect(screen.queryByTestId('unavailable-cells')).not.toBeInTheDocument();
+  });
+
+  it('shows no Cell column when the console forwards to no named cell', async () => {
+    installFetch(() => jsonResponse({ items: [acme] }));
+
+    renderPage();
+
+    expect(await screen.findByTestId('tenant-row-acme-dev')).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Cell' })).not.toBeInTheDocument();
+  });
+
+  it('names each cell that did not answer and keeps the tenants of the others', async () => {
+    installFetch((url) =>
+      url.endsWith('/api/cells')
+        ? jsonResponse(cellList)
+        : url.includes('/cells/eu-1/')
+          ? jsonResponse({ items: [acme] })
+          : jsonResponse({ title: 'Bad Gateway' }, 502),
+    );
+
+    renderPage(vi.fn(), undefined, { ...runtime, cells: ['eu-1', 'us-1'] });
+
+    expect(await screen.findByTestId('tenant-row-acme-dev')).toBeInTheDocument();
+    expect(screen.getByTestId('unavailable-cells')).toHaveTextContent(
+      'The cell us-1 did not answer, so its tenants are not listed.',
+    );
   });
 });
 
@@ -301,6 +353,63 @@ describe('TenantsPage (CRUD wiring)', () => {
     });
   });
 
+  it("creates a tenant in the chosen cell, starting on the control plane's", async () => {
+    const calls = installFetch((url, method) => {
+      if (url.endsWith('/api/cells')) {
+        return jsonResponse(cellList);
+      }
+      if (url.includes('/address')) {
+        return jsonResponse({
+          tenantId: 'new-co',
+          issuer: null,
+          isIssuerDerived: false,
+          mtlsEndpointAliasAuthority: null,
+          isMtlsEndpointAliasAuthorityDerived: false,
+          exists: false,
+          failures: [],
+        });
+      }
+      if (url.endsWith('/api/teams/acme/tenants') && method === 'POST') {
+        return jsonResponse({ ...acme, tenantId: 'new-co', displayName: 'New Co' }, 201);
+      }
+      if (url.endsWith('/cells/eu-1/api/teams/acme/tenants')) {
+        return jsonResponse({ items: [acme] });
+      }
+      if (url.endsWith('/cells/us-1/api/teams/acme/tenants')) {
+        return jsonResponse({ items: [] });
+      }
+      throw new Error(`Unexpected ${method} ${url}`);
+    });
+
+    renderPage(vi.fn(), 0, { ...runtime, cells: ['eu-1', 'us-1'] });
+    await waitFor(() =>
+      expect(screen.getByTestId('tenant-cell-acme-dev')).toHaveTextContent('eu-west'),
+    );
+
+    fireEvent.click(screen.getByTestId('create-tenant'));
+    expect(screen.getByTestId('tenant-cell')).toHaveValue('eu-1');
+    fireEvent.change(screen.getByTestId('tenant-id'), { target: { value: 'new-co' } });
+    await waitFor(() =>
+      expect(calls.map((c) => c.url)).toContain(
+        'https://api.test/cells/eu-1/api/teams/acme/tenants/new-co/address',
+      ),
+    );
+
+    fireEvent.change(screen.getByTestId('tenant-cell'), { target: { value: 'us-1' } });
+    await waitFor(() =>
+      expect(calls.map((c) => c.url)).toContain(
+        'https://api.test/cells/us-1/api/teams/acme/tenants/new-co/address',
+      ),
+    );
+    fireEvent.change(screen.getByTestId('tenant-display-name'), { target: { value: 'New Co' } });
+    fireEvent.click(screen.getByTestId('tenant-form-submit'));
+
+    await waitFor(() => expect(screen.queryByTestId('tenant-form-submit')).not.toBeInTheDocument());
+    expect(calls.find((c) => c.method === 'POST')?.url).toBe(
+      'https://api.test/cells/us-1/api/teams/acme/tenants',
+    );
+  });
+
   it('edits a tenant through the form dialog with an If-Match JSON Patch', async () => {
     let renamed = false;
     const calls = installFetch((url, method) => {
@@ -354,6 +463,9 @@ describe('TenantsPage (CRUD wiring)', () => {
 
   it("edits and deletes a cell's tenant at its cell's URL", async () => {
     const calls = installFetch((url, method) => {
+      if (url.endsWith('/api/cells')) {
+        return jsonResponse(cellList);
+      }
       if (url.endsWith('/cells/eu-1/api/teams/acme/tenants')) {
         return jsonResponse({ items: [acme] });
       }

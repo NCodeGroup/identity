@@ -41,6 +41,37 @@ export const Populated: Story = {
 
 export const Empty: Story = { args: { tenants: [] } };
 
+export const WithCells: Story = {
+  args: {
+    showCell: true,
+    tenants: [
+      {
+        tenantId: 'root',
+        displayName: 'Root',
+        issuer: 'https://auth.example',
+        mtlsEndpointAliasAuthority: 'https://mtls.example',
+        isDisabled: false,
+        cell: { name: 'eu-1', region: 'eu-west' },
+      },
+      {
+        tenantId: 'acme',
+        displayName: 'Acme Inc',
+        issuer: 'https://acme.auth.example',
+        mtlsEndpointAliasAuthority: 'https://acme.mtls.example',
+        isDisabled: false,
+        cell: { name: 'us-1', region: null },
+      },
+      {
+        tenantId: 'old',
+        displayName: 'Legacy',
+        issuer: null,
+        mtlsEndpointAliasAuthority: null,
+        isDisabled: true,
+      },
+    ],
+  },
+};
+
 export const WithActions: Story = {
   args: {
     tenants: [

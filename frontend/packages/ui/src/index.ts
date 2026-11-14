@@ -6,6 +6,7 @@ export { DataStateBoundary, type DataStateBoundaryProps } from './components/Dat
 export { BootstrapScreen, type BootstrapScreenProps } from './components/BootstrapScreen.js';
 export {
   TenantTable,
+  type TenantCellRow,
   type TenantEnvironmentRow,
   type TenantRow,
   type TenantTableProps,
@@ -43,6 +44,7 @@ export {
   type TenantAddressInput,
   type TenantAddressPreview,
   type TenantAddressPreviewFailure,
+  type TenantCellOption,
   type TenantFormDialogProps,
   type TenantFormValues,
 } from './components/TenantFormDialog.js';
