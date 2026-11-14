@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Linq.Expressions;
+using System.Text.Json;
 using IdGen;
 using Microsoft.EntityFrameworkCore;
 using NCode.Identity.OpenId.Persistence.DataContracts;
@@ -72,6 +73,7 @@ internal class TeamStore(
             Settings = await MapSettingsAsync(entity, cancellationToken),
             ReconciledSettingsFingerprint = entity.ReconciledSettingsFingerprint,
             ReconciledSettings = entity.ReconciledSettingsJson,
+            DirectorySequence = entity.DirectorySequence,
         };
     }
 
@@ -319,6 +321,7 @@ internal class TeamStore(
             SettingsJson = persistedTeam.Settings.Value,
             ReconciledSettingsFingerprint = persistedTeam.ReconciledSettingsFingerprint,
             ReconciledSettingsJson = persistedTeam.ReconciledSettings,
+            DirectorySequence = persistedTeam.DirectorySequence,
             // A collection expression is a fixed-size array, which EF refuses to add to.
             Tenants = new List<TenantEntity>(),
         };
@@ -455,6 +458,159 @@ internal class TeamStore(
         DbContext.Teams.Remove(teamEntity);
 
         return true;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<long> GetMaxDirectorySequenceAsync(CancellationToken cancellationToken)
+    {
+        var maxSequence = await DbContext.Teams.MaxAsync(
+            team => (long?)team.DirectorySequence,
+            cancellationToken
+        );
+
+        return maxSequence ?? 0;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<bool> MirrorAsync(
+        PersistedTeam persistedTeam,
+        CancellationToken cancellationToken
+    )
+    {
+        var teamEntity = await GetEntityOrDefaultAsync(persistedTeam.TeamId, cancellationToken);
+        if (
+            teamEntity is not null
+            && teamEntity.DirectorySequence >= persistedTeam.DirectorySequence
+        )
+        {
+            return false;
+        }
+
+        TeamEntity? parent = null;
+        if (persistedTeam.ParentTeamId is { } parentTeamId)
+        {
+            parent =
+                await GetEntityOrDefaultAsync(parentTeamId, cancellationToken)
+                ?? throw new InvalidOperationException(
+                    $"The parent team with TeamId='{parentTeamId}' does not exist."
+                );
+        }
+
+        var teamId = teamEntity?.TeamId ?? persistedTeam.TeamId;
+        IReadOnlyList<string> teamIds = parent is null
+            ? [teamId]
+            : [.. TeamPaths.Parse(parent.Path), teamId];
+
+        if (teamIds.Count > TeamPaths.MaxDepth)
+        {
+            throw new InvalidOperationException(
+                $"The team with TeamId='{teamId}' cannot be nested deeper than {TeamPaths.MaxDepth} levels."
+            );
+        }
+
+        var path = TeamPaths.Format(teamIds);
+        persistedTeam.AncestorTeamIds = [.. teamIds.Take(teamIds.Count - 1)];
+
+        if (teamEntity is null)
+        {
+            persistedTeam.ConcurrencyToken = NextConcurrencyToken();
+            persistedTeam.Settings.ConcurrencyToken = NextConcurrencyToken();
+
+            await DbContext.Teams.AddAsync(
+                new TeamEntity
+                {
+                    Id = NextId(),
+                    TeamId = persistedTeam.TeamId,
+                    NormalizedTeamId = Normalize(persistedTeam.TeamId),
+                    ParentTeamId = parent?.Id,
+                    ParentTeam = parent,
+                    Path = path,
+                    ConcurrencyToken = persistedTeam.ConcurrencyToken,
+                    SettingsConcurrencyToken = persistedTeam.Settings.ConcurrencyToken,
+                    IsDisabled = persistedTeam.IsDisabled,
+                    DisplayName = persistedTeam.DisplayName,
+                    SettingsJson = persistedTeam.Settings.Value,
+                    DirectorySequence = persistedTeam.DirectorySequence,
+                    // A collection expression is a fixed-size array, which EF refuses to add to.
+                    Tenants = new List<TenantEntity>(),
+                },
+                cancellationToken
+            );
+
+            return true;
+        }
+
+        var previousPath = teamEntity.Path;
+        if (parent is not null && parent.Path.StartsWith(previousPath, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"The team with TeamId='{teamId}' cannot be placed beneath itself or a team beneath it."
+            );
+        }
+
+        if (!string.Equals(path, previousPath, StringComparison.Ordinal))
+        {
+            await RewriteDescendantPathsAsync(teamEntity, path, cancellationToken);
+        }
+
+        teamEntity.ParentTeamId = parent?.Id;
+        teamEntity.ParentTeam = parent;
+        teamEntity.Path = path;
+        teamEntity.DisplayName = persistedTeam.DisplayName;
+        teamEntity.DirectorySequence = persistedTeam.DirectorySequence;
+
+        if (!JsonElement.DeepEquals(teamEntity.SettingsJson, persistedTeam.Settings.Value))
+        {
+            teamEntity.SettingsConcurrencyToken = NextConcurrencyToken();
+            teamEntity.SettingsJson = persistedTeam.Settings.Value;
+
+            // A second change before the first is reconciled leaves settings that no pass reconciled. See ADR-1412.
+            if (teamEntity.ReconciledSettingsFingerprint is null)
+                teamEntity.ReconciledSettingsJson = null;
+
+            teamEntity.ReconciledSettingsFingerprint = null;
+        }
+
+        DbContext.Teams.Update(teamEntity);
+
+        persistedTeam.Settings.ConcurrencyToken = teamEntity.SettingsConcurrencyToken;
+
+        return true;
+    }
+
+    // Replaces the path of the team being moved with its new path at the start of the path of every team beneath it.
+    private async ValueTask RewriteDescendantPathsAsync(
+        TeamEntity teamEntity,
+        string path,
+        CancellationToken cancellationToken
+    )
+    {
+        var previousPath = teamEntity.Path;
+        var entityId = teamEntity.Id;
+        var descendants = await DbContext
+            .Teams.Where(team => team.Path.StartsWith(previousPath) && team.Id != entityId)
+            .ToListAsync(cancellationToken);
+
+        var rewritten = descendants
+            .Select(descendant =>
+                (Entity: descendant, Path: path + descendant.Path[previousPath.Length..])
+            )
+            .ToList();
+
+        foreach (var (descendant, descendantPath) in rewritten)
+        {
+            if (TeamPaths.Parse(descendantPath).Count > TeamPaths.MaxDepth)
+            {
+                throw new InvalidOperationException(
+                    $"The team with TeamId='{descendant.TeamId}' cannot be nested deeper than {TeamPaths.MaxDepth} levels."
+                );
+            }
+        }
+
+        foreach (var (descendant, descendantPath) in rewritten)
+        {
+            descendant.Path = descendantPath;
+        }
     }
 
     /// <inheritdoc />

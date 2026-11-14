@@ -8,6 +8,7 @@ using NCode.Identity.Cryptography;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Environments;
 using NCode.Identity.OpenId.Exceptions;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Messages;
 using NCode.Identity.OpenId.Platform;
 using NCode.Identity.OpenId.PrincipalResolution;
@@ -66,6 +67,7 @@ public static class DefaultRegistration
                 .AddSecretProtectionServices()
                 .AddTenantResolutionServices()
                 .AddTeamServices()
+                .AddDirectoryMirrorServices()
                 .AddPrincipalResolutionServices();
 
             return newBuilder;

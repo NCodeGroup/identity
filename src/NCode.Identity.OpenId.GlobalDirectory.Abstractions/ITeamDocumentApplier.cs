@@ -1,0 +1,41 @@
+// Copyright © NCode Group
+// SPDX-License-Identifier: Apache-2.0
+
+using JetBrains.Annotations;
+
+namespace NCode.Identity.OpenId.GlobalDirectory;
+
+/// <summary>
+/// Applies the team changes of the directory's change feed to the cell's team rows. Register a custom implementation to
+/// replace the default behavior.
+/// </summary>
+[PublicAPI]
+public interface ITeamDocumentApplier
+{
+    /// <summary>
+    /// Applies a published team document: it inserts or updates the team's row, and announces the change so caches
+    /// evict the team. A document whose sequence the row already carries or exceeds changes nothing.
+    /// </summary>
+    /// <param name="document">The <see cref="TeamDocument"/> to apply.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
+    ValueTask ApplyAsync(TeamDocument document, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Applies the retirement of a team: it removes the team's row, or disables it when tenants or teams still name it,
+    /// and announces the change so caches evict the team. A team without a row changes nothing.
+    /// </summary>
+    /// <param name="teamId">The identifier of the retired team.</param>
+    /// <param name="sequence">The sequence of the directory change that retired the team.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
+    ValueTask RetireAsync(string teamId, long sequence, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Gets the highest sequence of the directory's change feed that the team rows carry.
+    /// </summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the highest applied
+    /// sequence, or <c>0</c> when none is applied.</returns>
+    ValueTask<long> GetAppliedSequenceAsync(CancellationToken cancellationToken);
+}

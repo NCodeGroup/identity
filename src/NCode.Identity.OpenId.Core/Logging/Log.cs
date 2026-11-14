@@ -446,4 +446,15 @@ internal static partial class Log
         string provider,
         Exception exception
     );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryRetiredTeamHasDependents,
+        Level = LogLevel.Warning,
+        Message = "The directory retired the team '{TeamId}' at sequence {Sequence}, but its tenants or teams still name it; the team is disabled instead of removed"
+    )]
+    internal static partial void DirectoryRetiredTeamHasDependents(
+        this ILogger logger,
+        string teamId,
+        long sequence
+    );
 }

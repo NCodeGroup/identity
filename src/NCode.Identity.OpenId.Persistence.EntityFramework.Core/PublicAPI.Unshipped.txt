@@ -243,6 +243,8 @@ NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.MasterKeyEntity.
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.MasterKeyEntity.RootWrappedKey.set -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.MasterKeyEntity.Version.get -> int
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.MasterKeyEntity.Version.init -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.PlatformEntity.DirectorySequence.get -> long
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.PlatformEntity.DirectorySequence.set -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ResourceServerEntity
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ResourceServerEntity.ConcurrencyToken.get -> string!
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ResourceServerEntity.ConcurrencyToken.set -> void
@@ -411,6 +413,11 @@ NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.PlatformEntity.S
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.PlatformEntity.SettingsConcurrencyToken.set -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.PlatformEntity.SettingsJson.get -> System.Text.Json.JsonElement
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.PlatformEntity.SettingsJson.set -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TeamEntity.DirectorySequence.get -> long
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TeamEntity.DirectorySequence.set -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TeamEntity.ParentTeam.set -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TeamEntity.ParentTeamId.set -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TeamEntity.Path.set -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TenantEntity
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TenantEntity.ConcurrencyToken.get -> string!
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TenantEntity.ConcurrencyToken.set -> void
@@ -550,11 +557,8 @@ NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TeamEntity.IsDis
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TeamEntity.NormalizedTeamId.get -> string!
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TeamEntity.NormalizedTeamId.init -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TeamEntity.ParentTeam.get -> NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TeamEntity?
-NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TeamEntity.ParentTeam.init -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TeamEntity.ParentTeamId.get -> long?
-NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TeamEntity.ParentTeamId.init -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TeamEntity.Path.get -> string!
-NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TeamEntity.Path.init -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TeamEntity.ReconciledSettingsFingerprint.get -> string?
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TeamEntity.ReconciledSettingsFingerprint.set -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TeamEntity.ReconciledSettingsJson.get -> System.Text.Json.JsonElement?

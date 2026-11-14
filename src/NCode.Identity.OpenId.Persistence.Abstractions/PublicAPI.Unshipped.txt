@@ -160,6 +160,8 @@ NCode.Identity.OpenId.Persistence.DataContracts.PersistedGrant.SubjectId.get -> 
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedGrant.SubjectId.init -> void
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedGrant.TenantId.get -> string!
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedGrant.TenantId.init -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedPlatform.DirectorySequence.get -> long
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedPlatform.DirectorySequence.set -> void
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedResourceServer
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedResourceServer.Identifier.get -> string!
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedResourceServer.Identifier.init -> void
@@ -256,6 +258,8 @@ NCode.Identity.OpenId.Persistence.DataContracts.PersistedPlatformResource<TValue
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedPlatformResource<TValue>.Value.set -> void
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedPlatformSettings
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedPlatformSettings.PersistedPlatformSettings() -> void
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedTeam.DirectorySequence.get -> long
+NCode.Identity.OpenId.Persistence.DataContracts.PersistedTeam.DirectorySequence.set -> void
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedTenant
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedTenant.DisplayName.get -> string!
 NCode.Identity.OpenId.Persistence.DataContracts.PersistedTenant.DisplayName.set -> void
@@ -351,6 +355,7 @@ NCode.Identity.OpenId.Persistence.Stores.IGrantStore.GetActiveByRefreshTokenLine
 NCode.Identity.OpenId.Persistence.Stores.IGrantStore.RemoveEndedBeforeAsync(System.DateTimeOffset endedBefore, System.Collections.Generic.IReadOnlyCollection<string!>! grantTypesEndedByRevocation, int limit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
 NCode.Identity.OpenId.Persistence.Stores.IInstanceSetupStore
 NCode.Identity.OpenId.Persistence.Stores.IInstanceSetupStore.GetOrDefaultAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Persistence.DataContracts.PersistedInstanceSetup?>
+NCode.Identity.OpenId.Persistence.Stores.IPlatformStore.MirrorSettingsAsync(NCode.Identity.OpenId.Persistence.DataContracts.PersistedPlatformSettings! settings, long directorySequence, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 NCode.Identity.OpenId.Persistence.Stores.IResourceServerStore
 NCode.Identity.OpenId.Persistence.Stores.IResourceServerStore.AddScopeAsync(string! resourceServerId, NCode.Identity.OpenId.Persistence.DataContracts.PersistedScope! persistedScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Persistence.Stores.IResourceServerStore.AddSecretAsync(string! resourceServerId, NCode.Identity.Secrets.Persistence.DataContracts.PersistedSecret! persistedSecret, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
@@ -386,6 +391,8 @@ NCode.Identity.OpenId.Persistence.Stores.IPlatformStore
 NCode.Identity.OpenId.Persistence.Stores.IPlatformStore.GetOrDefaultAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Persistence.DataContracts.PersistedPlatform?>
 NCode.Identity.OpenId.Persistence.Stores.IPlatformStore.GetSettingsOrDefaultAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Persistence.DataContracts.PersistedPlatformSettings?>
 NCode.Identity.OpenId.Persistence.Stores.IPlatformStore.UpdateSettingsAsync(NCode.Identity.OpenId.Persistence.DataContracts.PersistedPlatformSettings! persistedPlatformSettings, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.Persistence.Stores.ITeamStore.GetMaxDirectorySequenceAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<long>
+NCode.Identity.OpenId.Persistence.Stores.ITeamStore.MirrorAsync(NCode.Identity.OpenId.Persistence.DataContracts.PersistedTeam! persistedTeam, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 NCode.Identity.OpenId.Persistence.Stores.ITenantStore
 NCode.Identity.OpenId.Persistence.Stores.ITenantStore.AddSecretAsync(string! tenantId, NCode.Identity.Secrets.Persistence.DataContracts.PersistedSecret! persistedSecret, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Persistence.Stores.ITenantStore.GetConcurrencyTokensAsync(System.Collections.Generic.IReadOnlyCollection<string!>! tenantIds, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyDictionary<string!, string!>!>

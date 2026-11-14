@@ -52,6 +52,9 @@ NCode.Identity.OpenId.GlobalDirectory.ICellDirectory.RegisterAsync(NCode.Identit
 NCode.Identity.OpenId.GlobalDirectory.IPlatformDirectory
 NCode.Identity.OpenId.GlobalDirectory.IPlatformDirectory.GetOrDefaultAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.PlatformDocument?>
 NCode.Identity.OpenId.GlobalDirectory.IPlatformDirectory.PublishAsync(NCode.Identity.OpenId.GlobalDirectory.PlatformDocument! document, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.GlobalDirectory.IPlatformDocumentApplier
+NCode.Identity.OpenId.GlobalDirectory.IPlatformDocumentApplier.ApplyAsync(NCode.Identity.OpenId.GlobalDirectory.PlatformDocument! document, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.GlobalDirectory.IPlatformDocumentApplier.GetAppliedSequenceAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<long>
 NCode.Identity.OpenId.GlobalDirectory.ITeamDirectory
 NCode.Identity.OpenId.GlobalDirectory.ITeamDirectory.GetOrDefaultAsync(string! teamId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.TeamDocument?>
 NCode.Identity.OpenId.GlobalDirectory.ITeamDirectory.IsTeamIdRetiredAsync(string! teamId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
@@ -60,6 +63,10 @@ NCode.Identity.OpenId.GlobalDirectory.ITeamDirectory.PublishAsync(NCode.Identity
 NCode.Identity.OpenId.GlobalDirectory.ITeamDirectory.ReleaseAsync(string! teamId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.GlobalDirectory.ITeamDirectory.ReserveAsync(string! teamId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.ReservationResult!>
 NCode.Identity.OpenId.GlobalDirectory.ITeamDirectory.RetireAsync(string! teamId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.GlobalDirectory.ITeamDocumentApplier
+NCode.Identity.OpenId.GlobalDirectory.ITeamDocumentApplier.ApplyAsync(NCode.Identity.OpenId.GlobalDirectory.TeamDocument! document, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.GlobalDirectory.ITeamDocumentApplier.GetAppliedSequenceAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<long>
+NCode.Identity.OpenId.GlobalDirectory.ITeamDocumentApplier.RetireAsync(string! teamId, long sequence, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.GlobalDirectory.ITenantDirectory
 NCode.Identity.OpenId.GlobalDirectory.ITenantDirectory.ChangeIssuerAsync(NCode.Identity.OpenId.GlobalDirectory.TenantIssuerChange! change, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.ReservationResult!>
 NCode.Identity.OpenId.GlobalDirectory.ITenantDirectory.GetPlacementOrDefaultAsync(string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.TenantPlacement?>

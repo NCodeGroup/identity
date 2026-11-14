@@ -169,4 +169,28 @@ public interface ITeamStore : IStore<PersistedTeam>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c>
     /// when any tenant, team or machine client belongs to the team; otherwise <c>false</c> (including when no such team exists).</returns>
     ValueTask<bool> HasDependentsAsync(string teamId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Gets the highest directory sequence that the teams' rows carry, which is the position in the directory's change
+    /// feed that this store has applied.
+    /// </summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the highest
+    /// <see cref="PersistedTeam.DirectorySequence"/>, or <c>0</c> when no team exists.</returns>
+    ValueTask<long> GetMaxDirectorySequenceAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Upserts the team named by the persisted team's <c>TeamId</c> from a team document that the directory published.
+    /// The team row is left as it is when its <see cref="PersistedTeam.DirectorySequence"/> is at or above the
+    /// document's. Otherwise a missing row is inserted, its display name, settings, parent and path are set from the
+    /// document, and, when the parent changes, the paths of the teams beneath it are rewritten.
+    /// </summary>
+    /// <param name="persistedTeam">The <see cref="PersistedTeam"/> instance that carries the document's values and its sequence.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c> when
+    /// the document was applied; otherwise <c>false</c> when the row already carries a sequence at or above the
+    /// document's.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the parent team does not exist, or when the team or a
+    /// team beneath it would be nested deeper than <see cref="TeamPaths.MaxDepth"/> levels.</exception>
+    ValueTask<bool> MirrorAsync(PersistedTeam persistedTeam, CancellationToken cancellationToken);
 }

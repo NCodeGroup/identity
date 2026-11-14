@@ -63,4 +63,10 @@ public sealed class PersistedTeam : BasePersistedTeamResource
     /// <c>null</c> when they have not been reconciled.
     /// </summary>
     public JsonElement? ReconciledSettings { get; set; }
+
+    /// <summary>
+    /// Gets or sets the sequence of the directory change whose team document the team last mirrored, or <c>0</c> for a
+    /// team that no document wrote.
+    /// </summary>
+    public long DirectorySequence { get; set; }
 }

@@ -44,6 +44,16 @@ internal sealed class CoreModelContributor : IOpenIdModelContributor
         modelBuilder.Entity<AuditRecordEntity>().ToTable("AuditRecords");
         modelBuilder.Entity<AuditRecordResourceEntity>().ToTable("AuditRecordResources");
 
+        // The sequence of the directory change a team or the platform row last mirrored.
+        modelBuilder
+            .Entity<TeamEntity>()
+            .Property(entity => entity.DirectorySequence)
+            .IsRequired();
+        modelBuilder
+            .Entity<PlatformEntity>()
+            .Property(entity => entity.DirectorySequence)
+            .IsRequired();
+
         // An owner has at most one active master key (the one with no retirement time), so enforce uniqueness only
         // over the active rows (a filtered index): two replicas that race to create an owner's first key cannot both
         // succeed, and the loser reloads the winner's key. Retired keys are unconstrained here (their versions are
