@@ -29,7 +29,10 @@ batches; the store keeps a record for 90 days by default.**
    then the event time. An envelope value longer than its column is not indexed: an optional field is `null` and a
    required one keeps its leading characters, while the JSON keeps it whole. Records are not tenant-scoped data: they
    outlive their tenant until their retention ends, as the usage ledger does
-   ([ADR-1199](1199-tenant-usage-is-a-daily-ledger-that-replicas-add-to-once-and-prune-in-batches.md)).
+   ([ADR-1199](1199-tenant-usage-is-a-daily-ledger-that-replicas-add-to-once-and-prune-in-batches.md)). Each record
+   also carries its cell, the `Cell:Name` of the host that wrote it, as an indexed envelope field. The store is the
+   cell's own database, so a record stays in the region of its cell and no other cell reads it
+   ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
 2. **Queued inline, written in the background.** `AuditRecordHandler` maps each audit event and adds it to a bounded
    in-memory queue (`QueueCapacity`, 10,000 by default), so the audited operation never waits on the database. A record
    that arrives when the queue is full is dropped and counted, and the count is logged once per flush: the log, which
@@ -79,6 +82,8 @@ batches; the store keeps a record for 90 days by default.**
 - The `AuditRecords` and `AuditRecordResources` tables grow with the audited traffic of `Retention`; a deployment with a
   compliance need sets a longer one, and one without a store need sets `Enabled: false`.
 - A full queue drops records from the store, and the logged count says how many.
+- A record names the cell that wrote it, and it stays in that cell's region and database. When a tenant changes cell
+  within its region, its audit records stay in the source cell until their retention ends (ADR-1514).
 
 ## References
 
@@ -87,6 +92,8 @@ batches; the store keeps a record for 90 days by default.**
   its prune service, which the audit store mirrors
 - [ADR-1137](1137-configuration-binds-strictly-and-every-option-timer-period-and-retention-is-validated-at-startup.md) — the
   startup validation of the options
+- [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md) — the
+  cell that holds the store
 - [project-template ADR-0142](project-template/0142-data-that-grows-with-use-is-pruned-in-bounded-batches.md) — bounded
   pruning of data that grows with use
 - Issue [#468](https://github.com/NCodeGroup/identity/issues/468) — the prune interval and its own hosted service

@@ -59,6 +59,16 @@ leaves a dependent behind (issue [#250](https://github.com/NCodeGroup/identity/i
    ([ADR-1229](1229-a-blocked-disabled-or-deleted-end-user-loses-its-sessions-and-is-refused-with-access-denied.md)).
 8. **The last owner of a resource can be deleted.** Deletion is erasure, and the resource stays manageable through roles
    at the nodes of its ancestors.
+9. **What erasure means.** Deleting a tenant crypto-shreds its master key
+   ([ADR-1235](1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md)),
+   so its stored secrets and grant payloads are unreadable at once, and the store removes its rows in the same unit of
+   work. Audit records stay in their cell until their 90-day retention ends
+   ([ADR-1303](1303-audit-records-are-kept-in-an-indexed-store-that-each-replica-writes-in-batches.md)). The usage
+   ledger and the retired identifiers hold no personal data. Backups expire on their own schedule, and they become
+   unreadable earlier when the tenant held its own root key and revokes it
+   ([ADR-1414](1414-a-tenant-can-wrap-its-master-keys-under-a-root-key-it-controls.md)). A tenant move deletes the source
+   cell's copy of the tenant without retiring its identifiers, because the tenant lives on in its target cell
+   (ADR-1514).
 
 ## Options considered
 
