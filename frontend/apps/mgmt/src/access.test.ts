@@ -10,23 +10,25 @@ import {
 } from './access.js';
 import { HOME_ROUTE, platformRoute, teamRoute, tenantRoute } from './routes.js';
 
-const admin: CallerAccess = { isPlatformAdministrator: true, teamIds: [], tenantIds: [] };
-const member: CallerAccess = { isPlatformAdministrator: false, teamIds: ['acme'], tenantIds: [] };
+const admin: CallerAccess = { isPlatformAdministrator: true, teamIds: [], tenants: [] };
+const member: CallerAccess = { isPlatformAdministrator: false, teamIds: ['acme'], tenants: [] };
 
 describe('toCallerAccess', () => {
-  it('combines the caller with the ids of its teams and tenants', () => {
+  it('combines the caller with its teams and tenants', () => {
     const caller: CallerResource = {
       principalId: 'p1',
       isPlatformAdministrator: false,
       assignments: [],
     };
     const teams = [{ teamId: 'acme' }, { teamId: 'beta' }] as TeamResource[];
-    const tenants = [{ tenantId: 'web' }] as TenantResource[];
+    const tenants = [{ tenantId: 'web' }, { tenantId: 'api', cell: 'eu' }] as (TenantResource & {
+      cell?: string;
+    })[];
 
     expect(toCallerAccess(caller, teams, tenants)).toEqual({
       isPlatformAdministrator: false,
       teamIds: ['acme', 'beta'],
-      tenantIds: ['web'],
+      tenants: [{ tenantId: 'web' }, { tenantId: 'api', cell: 'eu' }],
     });
   });
 
@@ -55,9 +57,15 @@ describe('soleDestination', () => {
   });
 
   it('is the tenant of a caller holding one tenant', () => {
-    expect(soleDestination({ ...member, teamIds: [], tenantIds: ['web'] })).toEqual(
+    expect(soleDestination({ ...member, teamIds: [], tenants: [{ tenantId: 'web' }] })).toEqual(
       tenantRoute('web'),
     );
+  });
+
+  it("is the cell of a caller's sole tenant", () => {
+    expect(
+      soleDestination({ ...member, teamIds: [], tenants: [{ tenantId: 'web', cell: 'eu' }] }),
+    ).toEqual(tenantRoute('web', undefined, 'eu'));
   });
 
   it('is null when the caller has several destinations', () => {
@@ -98,7 +106,7 @@ describe('teamExit', () => {
     const other: CallerAccess = {
       isPlatformAdministrator: false,
       teamIds: ['beta'],
-      tenantIds: [],
+      tenants: [],
     };
     expect(teamExit(other, 'acme')).toEqual({ route: HOME_ROUTE, label: 'Home' });
   });

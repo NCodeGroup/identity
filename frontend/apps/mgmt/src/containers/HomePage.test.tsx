@@ -13,9 +13,9 @@ const runtime: BffRuntimeConfig = {
   features: {},
 };
 
-function renderPage(onNavigate = vi.fn()) {
+function renderPage(onNavigate = vi.fn(), config: BffRuntimeConfig = runtime) {
   const store = createAppStore({
-    config: { runtime },
+    config: { runtime: config },
   });
   render(
     <Provider store={store}>
@@ -98,6 +98,15 @@ describe('HomePage', () => {
     fireEvent.click(screen.getByTestId('tenant-row-acme'));
     expect(onNavigate).toHaveBeenLastCalledWith(tenantRoute('acme'));
     expect(onNavigate).toHaveBeenCalledTimes(3);
+  });
+
+  it("opens a tenant in the tenant's cell", async () => {
+    installFetch({ isPlatformAdministrator: true, teams: [team], tenants: [tenant] });
+
+    const onNavigate = renderPage(vi.fn(), { ...runtime, cells: ['eu-1'] });
+
+    fireEvent.click(await screen.findByTestId('tenant-row-acme'));
+    expect(onNavigate).toHaveBeenLastCalledWith(tenantRoute('acme', undefined, 'eu-1'));
   });
 
   it('opens the only team with replace', async () => {

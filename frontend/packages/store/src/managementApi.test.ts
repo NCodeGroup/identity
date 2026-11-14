@@ -1161,7 +1161,7 @@ const queryRequestCases: readonly QueryRequestCase[] = [
   {
     name: 'getTenant',
     url: 'https://api.test/api/tenants/acme%2F1',
-    run: (s) => s.dispatch(managementApi.endpoints.getTenant.initiate('acme/1')),
+    run: (s) => s.dispatch(managementApi.endpoints.getTenant.initiate({ tenantId: 'acme/1' })),
   },
   {
     name: 'getTenantAddress (derived issuer)',
@@ -1577,19 +1577,20 @@ const cachedQueries: readonly CachedQuery[] = [
     label: 'tenant:acme',
     path: '/api/tenants/acme',
     body: { tenantId: 'acme' },
-    subscribe: (s) => s.dispatch(managementApi.endpoints.getTenant.initiate('acme')),
+    subscribe: (s) => s.dispatch(managementApi.endpoints.getTenant.initiate({ tenantId: 'acme' })),
   },
   {
     label: 'tenant:acme-dev',
     path: '/api/tenants/acme-dev',
     body: { tenantId: 'acme-dev' },
-    subscribe: (s) => s.dispatch(managementApi.endpoints.getTenant.initiate('acme-dev')),
+    subscribe: (s) =>
+      s.dispatch(managementApi.endpoints.getTenant.initiate({ tenantId: 'acme-dev' })),
   },
   {
     label: 'tenant:other',
     path: '/api/tenants/other',
     body: { tenantId: 'other' },
-    subscribe: (s) => s.dispatch(managementApi.endpoints.getTenant.initiate('other')),
+    subscribe: (s) => s.dispatch(managementApi.endpoints.getTenant.initiate({ tenantId: 'other' })),
   },
   {
     label: 'teams',
@@ -2327,6 +2328,99 @@ describe('managementApi across cells', () => {
 
     expect(captured[0]?.url).toBe('https://api.test/cells/eu-1/api/tenants/acme-prod/grants/g-1');
     expect(captured[0]?.method).toBe('DELETE');
+  });
+
+  it('getTenant sends a call with a cell to the cell forwarder and one without to the control plane', async () => {
+    const captured = mockFetch(jsonResponse(tenant('acme-prod')));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.getTenant.initiate({ tenantId: 'acme-prod', cell: 'eu-1' }),
+    );
+    await store.dispatch(managementApi.endpoints.getTenant.initiate({ tenantId: 'acme-prod' }));
+
+    expect(captured.map((request) => request.url)).toEqual([
+      'https://api.test/cells/eu-1/api/tenants/acme-prod',
+      'https://api.test/api/tenants/acme-prod',
+    ]);
+  });
+
+  it('getNewTenantAddress sends a call with a cell to the cell forwarder and one without to the control plane', async () => {
+    const captured = mockFetch(jsonResponse({ issuer: 'https://new.auth.test' }));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.getNewTenantAddress.initiate({
+        teamId: 'acme',
+        tenantId: 'new',
+        issuer: 'https://new.auth.test',
+        cell: 'eu-1',
+      }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.getNewTenantAddress.initiate({ teamId: 'acme', tenantId: 'new' }),
+    );
+
+    expect(captured.map((request) => request.url)).toEqual([
+      'https://api.test/cells/eu-1/api/teams/acme/tenants/new/address?issuer=https%3A%2F%2Fnew.auth.test',
+      'https://api.test/api/teams/acme/tenants/new/address',
+    ]);
+  });
+
+  it('createTenant sends a call with a cell to the cell forwarder and one without to the control plane', async () => {
+    const captured = mockFetch(jsonResponse(tenant('new'), 201));
+    const store = createStore();
+    const body = {
+      tenantId: 'new',
+      issuer: 'https://new.auth.test',
+      mtlsEndpointAliasAuthority: 'https://new.mtls.test',
+      displayName: 'New',
+      isDisabled: false,
+      settings: {},
+    };
+
+    await store.dispatch(
+      managementApi.endpoints.createTenant.initiate({ teamId: 'acme', body, cell: 'eu-1' }),
+    );
+    await store.dispatch(managementApi.endpoints.createTenant.initiate({ teamId: 'acme', body }));
+
+    expect(captured.map((request) => `${request.method} ${request.url}`)).toEqual([
+      'POST https://api.test/cells/eu-1/api/teams/acme/tenants',
+      'POST https://api.test/api/teams/acme/tenants',
+    ]);
+    expect(JSON.parse(captured[0]?.body ?? '{}')).toEqual(body);
+  });
+
+  it('previewTenantPromotion and promoteTenant send a call with a cell to the cell forwarder and one without to the control plane', async () => {
+    const captured = mockFetch(jsonResponse({ changes: [] }));
+    const store = createStore();
+    const body = {
+      sourceTenantId: 'acme-dev',
+      targetTenantId: 'acme-prod',
+      environmentSettings: [],
+    };
+
+    await store.dispatch(
+      managementApi.endpoints.previewTenantPromotion.initiate({
+        teamId: 'acme',
+        body,
+        cell: 'eu-1',
+      }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.previewTenantPromotion.initiate({ teamId: 'acme', body }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.promoteTenant.initiate({ teamId: 'acme', body, cell: 'eu-1' }),
+    );
+    await store.dispatch(managementApi.endpoints.promoteTenant.initiate({ teamId: 'acme', body }));
+
+    expect(captured.map((request) => request.url)).toEqual([
+      'https://api.test/cells/eu-1/api/teams/acme/promotions/preview',
+      'https://api.test/api/teams/acme/promotions/preview',
+      'https://api.test/cells/eu-1/api/teams/acme/promotions',
+      'https://api.test/api/teams/acme/promotions',
+    ]);
   });
 
   it('listTenants asks the control plane alone when no cell is named', async () => {

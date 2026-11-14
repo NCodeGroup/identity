@@ -7,6 +7,7 @@ import {
   useUpdateSettingsMutation,
 } from '@ncode/store';
 import { RevealSecretDialog } from '@ncode/ui';
+import { useTenantCell } from '../tenantCell.js';
 import { SettingsManager } from './SettingsManager.js';
 
 export type OwnerSettingsTabProps = {
@@ -22,13 +23,16 @@ export type OwnerSettingsTabProps = {
  * response carries its material once, which the tab reveals in the one-time dialog.
  */
 export function OwnerSettingsTab({ owner }: OwnerSettingsTabProps) {
-  const { data: settings, isLoading, error } = useGetSettingsQuery(owner);
-  const { data: effective } = useGetEffectiveSettingsQuery(owner);
+  const cell = useTenantCell();
+  const inCell = cell === undefined ? {} : { cell };
+  const ownerInCell = { ...owner, ...inCell };
+  const { data: settings, isLoading, error } = useGetSettingsQuery(ownerInCell);
+  const { data: effective } = useGetEffectiveSettingsQuery(ownerInCell);
   const {
     data: limits,
     isLoading: limitsLoading,
     error: limitsError,
-  } = useGetSettingLimitsQuery(owner);
+  } = useGetSettingLimitsQuery(ownerInCell);
   const [updateSettings, { isLoading: isSaving }] = useUpdateSettingsMutation();
   const [issued, setIssued] = useState<CreatedSecretResource | null>(null);
 
@@ -47,6 +51,7 @@ export function OwnerSettingsTab({ owner }: OwnerSettingsTabProps) {
             concurrencyToken,
             original,
             desired,
+            ...inCell,
           }).unwrap();
           setIssued(issuedSecret ?? null);
         }}

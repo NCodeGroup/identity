@@ -23,6 +23,7 @@ import {
   useRevokeGrantsMutation,
   type ApiError,
 } from '@ncode/store';
+import { useTenantCell } from '../tenantCell.js';
 
 export type GrantsPageProps = {
   readonly tenantId: string;
@@ -51,6 +52,8 @@ const closed: DialogState = { kind: 'none' };
  * scoped to one and the client it registers is bound to it (ADR-1192).
  */
 export function GrantsPage({ tenantId }: GrantsPageProps) {
+  const cell = useTenantCell();
+  const inCell = cell === undefined ? {} : { cell };
   // Read the clock once, in a state initializer: reading it during render would make the table's output impure.
   const [now] = useState(() => Date.now());
   const [subjectId, setSubjectId] = useState('');
@@ -64,6 +67,7 @@ export function GrantsPage({ tenantId }: GrantsPageProps) {
     tenantId,
     ...(trimmedSubject ? { subjectId: trimmedSubject } : {}),
     ...(trimmedClient ? { clientId: trimmedClient } : {}),
+    ...inCell,
   });
   const grants = data?.items ?? [];
 
@@ -73,7 +77,7 @@ export function GrantsPage({ tenantId }: GrantsPageProps) {
 
   const [dialog, setDialog] = useState<DialogState>(closed);
   const { data: resourceServerData } = useListResourceServersQuery(
-    { tenantId },
+    { tenantId, ...inCell },
     { skip: dialog.kind !== 'mint' },
   );
   const resourceServers = (resourceServerData?.items ?? []).filter((r) => !r.isSystem);
@@ -95,7 +99,7 @@ export function GrantsPage({ tenantId }: GrantsPageProps) {
     }
     setDialogError(undefined);
     try {
-      await revokeGrant({ tenantId, grantId: dialog.grant.grantId }).unwrap();
+      await revokeGrant({ tenantId, grantId: dialog.grant.grantId, ...inCell }).unwrap();
       setDialog(closed);
     } catch (revokeError) {
       setDialogError(apiErrorMessage(revokeError as ApiError));
@@ -112,6 +116,7 @@ export function GrantsPage({ tenantId }: GrantsPageProps) {
         tenantId,
         ...(trimmedSubject ? { subjectId: trimmedSubject } : {}),
         ...(trimmedClient ? { clientId: trimmedClient } : {}),
+        ...inCell,
       }).unwrap();
       setDialog(closed);
     } catch (revokeError) {
@@ -130,6 +135,7 @@ export function GrantsPage({ tenantId }: GrantsPageProps) {
             values.lifetimeSeconds.length > 0 ? Number(values.lifetimeSeconds) : null,
           ...(values.resourceServerId ? { resourceServerId: values.resourceServerId } : {}),
         },
+        ...inCell,
       }).unwrap();
       const scopedTo = created.resourceServerId ?? null;
       const resourceServer = scopedTo

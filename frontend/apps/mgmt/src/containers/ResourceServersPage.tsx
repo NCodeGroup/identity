@@ -20,6 +20,7 @@ import {
   useUpdateResourceServerMutation,
   type ApiError,
 } from '@ncode/store';
+import { useTenantCell } from '../tenantCell.js';
 import { ResourceServerDetailPage } from './ResourceServerDetailPage.js';
 
 export type ResourceServersPageProps = {
@@ -42,7 +43,9 @@ const closed: DialogState = { kind: 'none' };
  * reads the embedded scopes from this same list query so a scope mutation refreshes both views.
  */
 export function ResourceServersPage({ tenantId }: ResourceServersPageProps) {
-  const { data, isLoading, error } = useListResourceServersQuery({ tenantId });
+  const cell = useTenantCell();
+  const inCell = cell === undefined ? {} : { cell };
+  const { data, isLoading, error } = useListResourceServersQuery({ tenantId, ...inCell });
   const resourceServers = data?.items ?? [];
 
   const [createResourceServer, { isLoading: isCreating }] = useCreateResourceServerMutation();
@@ -108,6 +111,7 @@ export function ResourceServersPage({ tenantId }: ResourceServersPageProps) {
             isDisabled: values.isDisabled,
             settings: {},
           },
+          ...inCell,
         }).unwrap();
       } else if (dialog.kind === 'edit') {
         await updateResourceServer({
@@ -115,6 +119,7 @@ export function ResourceServersPage({ tenantId }: ResourceServersPageProps) {
           resourceServerId: dialog.resourceServer.resourceServerId,
           concurrencyToken: dialog.resourceServer.concurrencyToken,
           fields: { name: values.name, isDisabled: values.isDisabled },
+          ...inCell,
         }).unwrap();
       }
       setDialog(closed);
@@ -132,6 +137,7 @@ export function ResourceServersPage({ tenantId }: ResourceServersPageProps) {
       await deleteResourceServer({
         tenantId,
         resourceServerId: dialog.resourceServer.resourceServerId,
+        ...inCell,
       }).unwrap();
       setDialog(closed);
     } catch (removeError) {

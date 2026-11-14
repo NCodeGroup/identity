@@ -6,6 +6,7 @@ import { useAppSelector, useGetTeamQuery, useGetTenantQuery } from '@ncode/store
 import { AppLayout } from './components/AppLayout.js';
 import { permittedRoute, teamExit, tenantExit } from './access.js';
 import { useCallerAccess } from './useCallerAccess.js';
+import { TenantCellProvider } from './tenantCell.js';
 import { announceSessionEnded, submitLogout } from './session.js';
 import { useConsoleRoute, navigateTo } from './navigation.js';
 import {
@@ -91,15 +92,19 @@ export function App() {
     }
   }, [route, access]);
 
-  const openTenant = (tenantId: string) => navigateTo(tenantRoute(tenantId));
+  const openTenant = (tenantId: string, cell?: string) =>
+    navigateTo(tenantRoute(tenantId, undefined, cell));
   const openTeam = (teamId: string) => navigateTo(teamRoute(teamId));
 
   // A tenant's enclosing scope is its team; until the tenant loads, the exit leads where a team's exit leads. Only
-  // the current tenant's data counts, so a previously viewed tenant's team never labels the exit.
+  // the current tenant's data counts, so a previously viewed tenant's team never labels the exit. The tenant is read
+  // from its own cell.
   const tenantId = route.kind === 'tenant' ? route.tenantId : undefined;
-  const { currentData: tenant } = useGetTenantQuery(tenantId ?? '', {
-    skip: tenantId === undefined,
-  });
+  const tenantCell = route.kind === 'tenant' ? route.cell : undefined;
+  const { currentData: tenant } = useGetTenantQuery(
+    { tenantId: tenantId ?? '', ...(tenantCell === undefined ? {} : { cell: tenantCell }) },
+    { skip: tenantId === undefined },
+  );
 
   // Tell the other tabs the session ended, then post the BFF's logout form: the BFF ends its session, revokes its
   // refresh token and runs RP-Initiated Logout at the OP, which returns the browser to the console's sign-in screen.
@@ -199,12 +204,13 @@ export function App() {
         </Fragment>
       ) : (
         // Keyed by tenant: moving between tenants (e.g. back/forward) remounts the surface, so no per-tenant UI
-        // state such as an open detail view leaks across the boundary.
-        <Fragment key={`tenant:${route.tenantId}`}>
+        // state such as an open detail view leaks across the boundary. The tenant's cell is provided to every
+        // container beneath it.
+        <TenantCellProvider key={`tenant:${route.cell ?? ''}:${route.tenantId}`} cell={route.cell}>
           <Tabs
             value={route.surface}
             onChange={(_event, value: TenantSurface) =>
-              navigateTo(tenantRoute(route.tenantId, value))
+              navigateTo(tenantRoute(route.tenantId, value, route.cell))
             }
             sx={{ mb: 2 }}
           >
@@ -236,7 +242,7 @@ export function App() {
               <TenantDetailPage tenantId={route.tenantId} surface={route.surface} />
             )}
           </Suspense>
-        </Fragment>
+        </TenantCellProvider>
       )}
     </AppLayout>
   );

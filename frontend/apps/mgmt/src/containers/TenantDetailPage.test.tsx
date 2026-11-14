@@ -6,6 +6,7 @@ import type { CreatedSecretResource } from '@ncode/api';
 import type { BffRuntimeConfig } from '@ncode/config';
 import { TenantDetailPage } from './TenantDetailPage.js';
 import type { TenantOwnSurface } from '../routes.js';
+import { TenantCellProvider } from '../tenantCell.js';
 
 const runtime: BffRuntimeConfig = {
   kind: 'bff',
@@ -14,13 +15,15 @@ const runtime: BffRuntimeConfig = {
   features: {},
 };
 
-function renderPage(surface: TenantOwnSurface = 'secrets') {
+function renderPage(surface: TenantOwnSurface = 'secrets', cell?: string) {
   const store = createAppStore({
     config: { runtime },
   });
   return render(
     <Provider store={store}>
-      <TenantDetailPage tenantId="acme" surface={surface} />
+      <TenantCellProvider cell={cell}>
+        <TenantDetailPage tenantId="acme" surface={surface} />
+      </TenantCellProvider>
     </Provider>,
   );
 }
@@ -77,6 +80,54 @@ const createdSecret: CreatedSecretResource = {
 describe('TenantDetailPage', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("reads and deletes the tenant's secrets in the tenant's cell", async () => {
+    let deleted = false;
+    const calls = installFetch((url, method) => {
+      if (url.endsWith('/api/capabilities')) {
+        return jsonResponse({ secretTypes: [] });
+      }
+      if (url.endsWith('/cells/eu-1/api/tenants/acme/secrets/s-old') && method === 'DELETE') {
+        deleted = true;
+        return new Response(null, { status: 204 });
+      }
+      if (url.endsWith('/cells/eu-1/api/tenants/acme/secrets')) {
+        return jsonResponse({
+          concurrencyToken: 'c1',
+          secrets: deleted ? [] : [{ ...createdSecret, secretId: 's-old' }],
+        });
+      }
+      throw new Error(`Unexpected ${method} ${url}`);
+    });
+
+    renderPage('secrets', 'eu-1');
+    fireEvent.click(await screen.findByTestId('secret-delete-s-old'));
+    fireEvent.click(screen.getByTestId('confirm-accept'));
+
+    expect(await screen.findByTestId('data-empty')).toBeInTheDocument();
+    expect(calls.find((c) => c.method === 'DELETE')?.url).toBe(
+      'https://api.test/cells/eu-1/api/tenants/acme/secrets/s-old',
+    );
+  });
+
+  it("reads the tenant's usage in the tenant's cell", async () => {
+    const calls = installFetch((url, method) => {
+      if (url.endsWith('/cells/eu-1/api/tenants/acme/usage')) {
+        return jsonResponse({
+          tenantId: 'acme',
+          from: '2026-09-21',
+          to: '2026-10-21',
+          entries: [],
+        });
+      }
+      throw new Error(`Unexpected ${method} ${url}`);
+    });
+
+    renderPage('usage', 'eu-1');
+
+    expect(await screen.findByTestId('data-empty')).toBeInTheDocument();
+    expect(calls[0]?.url).toBe('https://api.test/cells/eu-1/api/tenants/acme/usage');
   });
 
   it('identifies the tenant whose own secrets are listed', async () => {

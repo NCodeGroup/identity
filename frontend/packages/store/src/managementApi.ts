@@ -306,9 +306,11 @@ export const managementApi = createApi({
         })),
       ],
     }),
-    getTenant: build.query<TenantResource, string>({
-      query: (tenantId) => `api/tenants/${encodeURIComponent(tenantId)}`,
-      providesTags: (_result, _error, tenantId) => [{ type: 'Tenant', id: platformTag(tenantId) }],
+    getTenant: build.query<TenantResource, WithCell<{ tenantId: string }>>({
+      query: ({ tenantId, cell }) => inCell(cell, `api/tenants/${encodeURIComponent(tenantId)}`),
+      providesTags: (_result, _error, { tenantId }) => [
+        { type: 'Tenant', id: platformTag(tenantId) },
+      ],
     }),
     // A preview of the address an existing tenant has, or would have with a proposed issuer or alias. It
     // is never cached beyond its subscriber, so it always reflects the tenants that exist when it is asked.
@@ -332,17 +334,22 @@ export const managementApi = createApi({
     // beyond its subscriber, so it always reflects the tenants that exist when it is asked.
     getNewTenantAddress: build.query<
       TenantAddressResource,
-      { teamId: string; tenantId: string; issuer?: string; mtlsEndpointAliasAuthority?: string }
+      WithCell<{
+        teamId: string;
+        tenantId: string;
+        issuer?: string;
+        mtlsEndpointAliasAuthority?: string;
+      }>
     >({
-      query: ({ teamId, tenantId, issuer, mtlsEndpointAliasAuthority }) => {
+      query: ({ teamId, tenantId, issuer, mtlsEndpointAliasAuthority, cell }) => {
         const params = {
           ...(issuer ? { issuer } : {}),
           ...(mtlsEndpointAliasAuthority ? { mtlsEndpointAliasAuthority } : {}),
         };
-        return {
+        return inCell(cell, {
           url: `api/teams/${encodeURIComponent(teamId)}/tenants/${encodeURIComponent(tenantId)}/address`,
           ...(Object.keys(params).length > 0 ? { params } : {}),
-        };
+        });
       },
       keepUnusedDataFor: 0,
     }),
@@ -364,12 +371,16 @@ export const managementApi = createApi({
         })),
       ],
     }),
-    createTenant: build.mutation<TenantResource, { teamId: string; body: CreateTenantRequest }>({
-      query: ({ teamId, body }) => ({
-        url: `api/teams/${encodeURIComponent(teamId)}/tenants`,
-        method: 'POST',
-        body,
-      }),
+    createTenant: build.mutation<
+      TenantResource,
+      WithCell<{ teamId: string; body: CreateTenantRequest }>
+    >({
+      query: ({ teamId, body, cell }) =>
+        inCell(cell, {
+          url: `api/teams/${encodeURIComponent(teamId)}/tenants`,
+          method: 'POST',
+          body,
+        }),
       invalidatesTags: (_result, _error, { teamId }) => [
         { type: 'Tenant', id: teamTag(teamId, LIST_TAG) },
         { type: 'Caller', id: callerTag },
@@ -411,25 +422,27 @@ export const managementApi = createApi({
     }),
     previewTenantPromotion: build.mutation<
       TenantPromotionResource,
-      { teamId: string; body: PromoteTenantRequest }
+      WithCell<{ teamId: string; body: PromoteTenantRequest }>
     >({
-      query: ({ teamId, body }) => ({
-        url: `api/teams/${encodeURIComponent(teamId)}/promotions/preview`,
-        method: 'POST',
-        body,
-      }),
+      query: ({ teamId, body, cell }) =>
+        inCell(cell, {
+          url: `api/teams/${encodeURIComponent(teamId)}/promotions/preview`,
+          method: 'POST',
+          body,
+        }),
     }),
     // A promotion writes the target tenant's settings, clients and resource servers, so it refreshes the
     // target's own tags and, for every client and resource server it reports, the item and its settings.
     promoteTenant: build.mutation<
       TenantPromotionResource,
-      { teamId: string; body: PromoteTenantRequest }
+      WithCell<{ teamId: string; body: PromoteTenantRequest }>
     >({
-      query: ({ teamId, body }) => ({
-        url: `api/teams/${encodeURIComponent(teamId)}/promotions`,
-        method: 'POST',
-        body,
-      }),
+      query: ({ teamId, body, cell }) =>
+        inCell(cell, {
+          url: `api/teams/${encodeURIComponent(teamId)}/promotions`,
+          method: 'POST',
+          body,
+        }),
       invalidatesTags: (result, _error, { body }) => {
         const tenantId = body.targetTenantId;
         const tags: { type: 'Tenant' | 'Client' | 'ResourceServer' | 'Settings'; id: string }[] = [

@@ -23,6 +23,7 @@ import {
   emptyEncryptionRootKeyFormValues,
   type EncryptionRootKeyFormValues,
 } from '@ncode/ui';
+import { useTenantCell } from '../tenantCell.js';
 
 export type OwnerEncryptionKeysTabProps = {
   readonly owner: EncryptionKeyOwner;
@@ -69,6 +70,8 @@ function TenantRootKeySection({
   const [setRootKey, { isLoading: isSetting }] = useSetTenantRootKeyMutation();
   const [removeRootKey, { isLoading: isRemoving }] = useRemoveTenantRootKeyMutation();
   const [validateRootKey, { isLoading: isValidating }] = useValidateTenantRootKeyMutation();
+  const cell = useTenantCell();
+  const inCell = cell === undefined ? {} : { cell };
   const [setting, setSetting] = useState(false);
   const [setError, setSetError] = useState<string | undefined>(undefined);
   const [removing, setRemoving] = useState(false);
@@ -88,7 +91,7 @@ function TenantRootKeySection({
   const handleSet = async (values: EncryptionRootKeyFormValues) => {
     setSetError(undefined);
     try {
-      await setRootKey({ tenantId, body: values }).unwrap();
+      await setRootKey({ tenantId, body: values, ...inCell }).unwrap();
       closeSet();
     } catch (failure) {
       setSetError(rootKeyErrorMessage(failure));
@@ -98,7 +101,7 @@ function TenantRootKeySection({
   const handleRemove = async () => {
     setRemoveError(undefined);
     try {
-      await removeRootKey({ tenantId }).unwrap();
+      await removeRootKey({ tenantId, ...inCell }).unwrap();
       closeRemove();
     } catch (failure) {
       setRemoveError(rootKeyErrorMessage(failure));
@@ -108,7 +111,7 @@ function TenantRootKeySection({
   const handleValidate = async () => {
     setValidateError(undefined);
     try {
-      await validateRootKey({ tenantId }).unwrap();
+      await validateRootKey({ tenantId, ...inCell }).unwrap();
     } catch (failure) {
       setValidateError(rootKeyErrorMessage(failure));
     }
@@ -172,7 +175,10 @@ function TenantRootKeySection({
  * the platform never does.
  */
 export function OwnerEncryptionKeysTab({ owner, ownerLabel }: OwnerEncryptionKeysTabProps) {
-  const { data, isLoading, error } = useListEncryptionKeysQuery(owner);
+  const cell = useTenantCell();
+  const inCell = cell === undefined ? {} : { cell };
+  const ownerInCell = { ...owner, ...inCell };
+  const { data, isLoading, error } = useListEncryptionKeysQuery(ownerInCell);
   const [rekey, { isLoading: isRekeying }] = useRekeyEncryptionKeysMutation();
   const [confirming, setConfirming] = useState(false);
   const [rekeyError, setRekeyError] = useState<string | undefined>(undefined);
@@ -185,7 +191,7 @@ export function OwnerEncryptionKeysTab({ owner, ownerLabel }: OwnerEncryptionKey
   const handleConfirm = async () => {
     setRekeyError(undefined);
     try {
-      await rekey(owner).unwrap();
+      await rekey(ownerInCell).unwrap();
       closeDialog();
     } catch (failure) {
       setRekeyError(apiErrorMessage(failure as ApiError));

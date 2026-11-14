@@ -9,7 +9,9 @@ import { PLATFORM_SCOPE, teamScope, tenantScope, type ManagementScope } from '@n
  * - `/teams/{teamId}/{surface}` — a team scope's surfaces (`tenants`, `teams`, `clients`, `settings`, `access`,
  *   `encryption-keys` and `usage`), the team id percent-encoded as one segment;
  * - `/tenants/{tenantId}/{surface}` — a tenant scope's surfaces (`clients`, `resource-servers`, `grants`, `secrets`,
- *   `encryption-keys`, `settings`, `access` and `usage`), the tenant id percent-encoded as one segment (ADR-1255).
+ *   `encryption-keys`, `settings`, `access` and `usage`), the tenant id percent-encoded as one segment (ADR-1255);
+ * - `/cells/{cell}/tenants/{tenantId}/{surface}` — the same tenant surfaces of a tenant that lives in a named cell,
+ *   the cell percent-encoded as one segment; a tenant path without a cell addresses the control plane.
  *
  * This module is UI-free so the route grammar is unit-tested; `navigation.ts` binds it to the browser history.
  */
@@ -57,7 +59,12 @@ export type ConsoleRoute =
   | { readonly kind: 'home' }
   | { readonly kind: 'platform'; readonly surface: PlatformSurface }
   | { readonly kind: 'team'; readonly teamId: string; readonly surface: TeamSurface }
-  | { readonly kind: 'tenant'; readonly tenantId: string; readonly surface: TenantSurface };
+  | {
+      readonly kind: 'tenant';
+      readonly tenantId: string;
+      readonly surface: TenantSurface;
+      readonly cell?: string;
+    };
 
 /** The route of the caller's home: the places it holds authority. */
 export const HOME_ROUTE: ConsoleRoute = { kind: 'home' };
@@ -88,13 +95,23 @@ export function teamRoute(
   return { kind: 'team', teamId, surface };
 }
 
-/** Builds the route of a tenant surface, rejecting an empty/blank tenant id. */
+/**
+ * Builds the route of a tenant surface in `cell` (the control plane without one), rejecting an empty/blank tenant id
+ * and a blank cell.
+ */
 export function tenantRoute(
   tenantId: string,
   surface: TenantSurface = DEFAULT_TENANT_SURFACE,
+  cell?: string,
 ): ScopedConsoleRoute {
   tenantScope(tenantId);
-  return { kind: 'tenant', tenantId, surface };
+  if (cell === undefined) {
+    return { kind: 'tenant', tenantId, surface };
+  }
+  if (cell.trim().length === 0) {
+    throw new Error('A cell must be a non-empty string.');
+  }
+  return { kind: 'tenant', tenantId, surface, cell };
 }
 
 /** The management scope a route addresses — derived from the route, never held separately. */
@@ -118,8 +135,12 @@ export function routePath(route: ConsoleRoute): string {
       return `/${route.surface}`;
     case 'team':
       return `/teams/${encodeURIComponent(route.teamId)}/${route.surface}`;
-    case 'tenant':
-      return `/tenants/${encodeURIComponent(route.tenantId)}/${route.surface}`;
+    case 'tenant': {
+      const tenantPath = `/tenants/${encodeURIComponent(route.tenantId)}/${route.surface}`;
+      return route.cell === undefined
+        ? tenantPath
+        : `/cells/${encodeURIComponent(route.cell)}${tenantPath}`;
+    }
   }
 }
 
@@ -154,6 +175,15 @@ export function parseRoute(pathname: string): ConsoleRoute | null {
   const trimmed = pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
   const segments = trimmed.slice(1).split('/');
 
+  if (segments[0] === 'cells') {
+    const [, encodedCell = '', ...scoped] = segments;
+    const cell = decodeSegment(encodedCell);
+    if (cell === null || cell.trim().length === 0 || scoped[0] !== 'tenants') {
+      return null;
+    }
+    return parseTenantRoute(scoped, cell);
+  }
+
   if (segments.length === 1) {
     const [surface = ''] = segments;
     if (surface === 'home') {
@@ -175,12 +205,28 @@ export function parseRoute(pathname: string): ConsoleRoute | null {
     return isTeamSurface(teamSurface) ? { kind: 'team', teamId: id, surface: teamSurface } : null;
   }
   if (root === 'tenants') {
-    const tenantSurface = surface ?? DEFAULT_TENANT_SURFACE;
-    return isTenantSurface(tenantSurface)
-      ? { kind: 'tenant', tenantId: id, surface: tenantSurface }
-      : null;
+    return parseTenantRoute(segments);
   }
   return null;
+}
+
+/** Parses the segments of a tenant path (`tenants`, the id and an optional surface) in the given cell, if any. */
+function parseTenantRoute(
+  segments: readonly string[],
+  cell?: string,
+): Extract<ConsoleRoute, { readonly kind: 'tenant' }> | null {
+  const [, encodedId = '', surface, ...rest] = segments;
+  if (rest.length > 0) {
+    return null;
+  }
+  const tenantId = decodeSegment(encodedId);
+  if (tenantId === null || tenantId.trim().length === 0) {
+    return null;
+  }
+  const tenantSurface = surface ?? DEFAULT_TENANT_SURFACE;
+  return isTenantSurface(tenantSurface)
+    ? { kind: 'tenant', tenantId, surface: tenantSurface, ...(cell === undefined ? {} : { cell }) }
+    : null;
 }
 
 /**

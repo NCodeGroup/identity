@@ -17,7 +17,7 @@ export type TeamDetailPageProps = {
   /** The team surface the address bar names. */
   readonly surface: TeamSurface;
   /** Opens a tenant of the team. */
-  readonly onOpenTenant: (tenantId: string) => void;
+  readonly onOpenTenant: (tenantId: string, cell?: string) => void;
   /** Opens a child team of the team. */
   readonly onOpenTeam: (teamId: string) => void;
 };

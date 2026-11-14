@@ -12,9 +12,13 @@ const runtime: BffRuntimeConfig = {
   features: {},
 };
 
-function renderPage(onOpenTenant = vi.fn(), addressPreviewDelayMs?: number) {
+function renderPage(
+  onOpenTenant = vi.fn(),
+  addressPreviewDelayMs?: number,
+  config: BffRuntimeConfig = runtime,
+) {
   const store = createAppStore({
-    config: { runtime },
+    config: { runtime: config },
   });
   render(
     <Provider store={store}>
@@ -132,6 +136,21 @@ describe('TenantsPage (list states)', () => {
     fireEvent.click(await screen.findByTestId('tenant-row-acme-dev'));
 
     expect(onOpenTenant).toHaveBeenCalledWith('acme-dev');
+  });
+
+  it("opens a tenant in the tenant's cell when the list names one", async () => {
+    installFetch((url) =>
+      url.includes('/cells/eu-1/')
+        ? jsonResponse({ items: [acme] })
+        : jsonResponse({ items: [globex] }),
+    );
+
+    const onOpenTenant = renderPage(vi.fn(), undefined, { ...runtime, cells: ['eu-1', 'us-1'] });
+    fireEvent.click(await screen.findByTestId('tenant-row-acme-dev'));
+    fireEvent.click(screen.getByTestId('tenant-row-globex-dev'));
+
+    expect(onOpenTenant).toHaveBeenNthCalledWith(1, 'acme-dev', 'eu-1');
+    expect(onOpenTenant).toHaveBeenNthCalledWith(2, 'globex-dev', 'us-1');
   });
 });
 
@@ -331,6 +350,41 @@ describe('TenantsPage (CRUD wiring)', () => {
       { op: 'replace', path: '/displayName', value: 'Acme Corp' },
       { op: 'replace', path: '/isDisabled', value: true },
     ]);
+  });
+
+  it("edits and deletes a cell's tenant at its cell's URL", async () => {
+    const calls = installFetch((url, method) => {
+      if (url.endsWith('/cells/eu-1/api/teams/acme/tenants')) {
+        return jsonResponse({ items: [acme] });
+      }
+      if (url.endsWith('/cells/us-1/api/teams/acme/tenants')) {
+        return jsonResponse({ items: [globex] });
+      }
+      if (method === 'PATCH' || method === 'DELETE') {
+        return new Response(null, { status: 204 });
+      }
+      throw new Error(`Unexpected ${method} ${url}`);
+    });
+
+    renderPage(vi.fn(), undefined, { ...runtime, cells: ['eu-1', 'us-1'] });
+    fireEvent.click(await screen.findByTestId('tenant-edit-acme-dev'));
+    fireEvent.change(screen.getByTestId('tenant-display-name'), {
+      target: { value: 'Acme Corp' },
+    });
+    fireEvent.click(screen.getByTestId('tenant-form-submit'));
+    await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true));
+    await waitFor(() => expect(screen.queryByTestId('tenant-form-submit')).not.toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId('tenant-delete-globex-dev'));
+    fireEvent.click(await screen.findByTestId('confirm-accept'));
+    await waitFor(() => expect(calls.some((c) => c.method === 'DELETE')).toBe(true));
+
+    expect(calls.find((c) => c.method === 'PATCH')?.url).toBe(
+      'https://api.test/cells/eu-1/api/tenants/acme-dev',
+    );
+    expect(calls.find((c) => c.method === 'DELETE')?.url).toBe(
+      'https://api.test/cells/us-1/api/tenants/globex-dev',
+    );
   });
 
   it('prefills the edit form from a tenant with an issuer and discards it on cancel', async () => {

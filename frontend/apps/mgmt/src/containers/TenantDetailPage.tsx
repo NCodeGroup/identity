@@ -5,6 +5,7 @@ import Typography from '@mui/material/Typography';
 import { apiErrorMessage, type ApiError, useGetTenantUsageQuery } from '@ncode/store';
 import { DataStateBoundary, TenantUsageTable } from '@ncode/ui';
 import type { TenantOwnSurface } from '../routes.js';
+import { useTenantCell } from '../tenantCell.js';
 import { OwnerAccessTab } from './OwnerAccessTab.js';
 import { OwnerEncryptionKeysTab } from './OwnerEncryptionKeysTab.js';
 import { OwnerSecretsTab } from './OwnerSecretsTab.js';
@@ -57,12 +58,14 @@ export function TenantDetailPage({ tenantId, surface }: TenantDetailPageProps) {
  * the last 30 days and refuses one longer than 366 days; the effective range is echoed back and shown.
  */
 function TenantUsageTab({ tenantId }: TenantTabProps) {
+  const cell = useTenantCell();
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const { data, isFetching, error } = useGetTenantUsageQuery({
     tenantId,
     from: from || undefined,
     to: to || undefined,
+    ...(cell === undefined ? {} : { cell }),
   });
 
   return (

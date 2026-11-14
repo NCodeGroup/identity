@@ -35,7 +35,7 @@ import {
 export type TenantsPageProps = {
   /** The team whose tenants are listed and created. */
   readonly teamId: string;
-  readonly onOpenTenant: (tenantId: string) => void;
+  readonly onOpenTenant: (tenantId: string, cell?: string) => void;
   /**
    * How long the address must stay unchanged before it is previewed. Defaults to 300 ms so typing sends no burst of
    * requests; a test passes `0`.
@@ -43,12 +43,14 @@ export type TenantsPageProps = {
   readonly addressPreviewDelayMs?: number;
 };
 
+type TenantListing = TenantResource & { readonly cell?: string };
+
 type DialogState =
   | { readonly kind: 'none' }
   | { readonly kind: 'create' }
   | { readonly kind: 'promote' }
-  | { readonly kind: 'edit'; readonly tenant: TenantResource }
-  | { readonly kind: 'delete'; readonly tenant: TenantResource };
+  | { readonly kind: 'edit'; readonly tenant: TenantListing }
+  | { readonly kind: 'delete'; readonly tenant: TenantListing };
 
 const closed: DialogState = { kind: 'none' };
 
@@ -204,10 +206,18 @@ export function TenantsPage({
     { teamId, ...previewArgsInput },
     { skip: dialog.kind !== 'create' || !shouldPreview, refetchOnMountOrArgChange: true },
   );
-  const existingTenantPreview = useGetTenantAddressQuery(previewArgsInput, {
-    skip: dialog.kind !== 'edit' || !shouldPreview,
-    refetchOnMountOrArgChange: true,
-  });
+  const existingTenantPreview = useGetTenantAddressQuery(
+    {
+      ...previewArgsInput,
+      ...(dialog.kind === 'edit' && dialog.tenant.cell !== undefined
+        ? { cell: dialog.tenant.cell }
+        : {}),
+    },
+    {
+      skip: dialog.kind !== 'edit' || !shouldPreview,
+      refetchOnMountOrArgChange: true,
+    },
+  );
   const { data: preview, originalArgs: previewArgs } =
     dialog.kind === 'edit' ? existingTenantPreview : newTenantPreview;
 
@@ -244,6 +254,7 @@ export function TenantsPage({
         await updateTenant({
           teamId,
           tenantId: dialog.tenant.tenantId,
+          ...(dialog.tenant.cell !== undefined && { cell: dialog.tenant.cell }),
           concurrencyToken: dialog.tenant.concurrencyToken,
           fields: {
             issuer,
@@ -265,7 +276,11 @@ export function TenantsPage({
     }
     setDeleteError(undefined);
     try {
-      await deleteTenant({ teamId, tenantId: dialog.tenant.tenantId }).unwrap();
+      await deleteTenant({
+        teamId,
+        tenantId: dialog.tenant.tenantId,
+        ...(dialog.tenant.cell !== undefined && { cell: dialog.tenant.cell }),
+      }).unwrap();
       setDialog(closed);
     } catch (removeError) {
       setDeleteError(apiErrorMessage(removeError as ApiError));
@@ -328,7 +343,15 @@ export function TenantsPage({
       >
         <TenantTable
           tenants={visibleTenants}
-          onSelect={onOpenTenant}
+          onSelect={(tenantId) => {
+            // The tenant opens in its own cell, which the list carries; a tenant without one opens in the control plane.
+            const cell = tenants.find((tenant) => tenant.tenantId === tenantId)?.cell;
+            if (cell === undefined) {
+              onOpenTenant(tenantId);
+            } else {
+              onOpenTenant(tenantId, cell);
+            }
+          }}
           onEdit={openEdit}
           onDelete={openDelete}
         />

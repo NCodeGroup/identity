@@ -101,7 +101,15 @@ export function HomePage({ onNavigate }: HomePageProps) {
                 mtlsEndpointAliasAuthority: t.mtlsEndpointAliasAuthority,
                 isDisabled: t.isDisabled,
               }))}
-              onSelect={(tenantId) => onNavigate(tenantRoute(tenantId))}
+              onSelect={(tenantId) =>
+                onNavigate(
+                  tenantRoute(
+                    tenantId,
+                    undefined,
+                    tenantItems.find((t) => t.tenantId === tenantId)?.cell,
+                  ),
+                )
+              }
             />
           </Box>
         )}

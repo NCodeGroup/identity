@@ -87,6 +87,24 @@ describe('routePath', () => {
   it('percent-encodes the tenant id as a single segment', () => {
     expect(routePath(tenantRoute('a/b c', 'grants'))).toBe('/tenants/a%2Fb%20c/grants');
   });
+
+  it('nests a tenant surface under its cell', () => {
+    expect(routePath(tenantRoute('acme', 'grants', 'eu-1'))).toBe(
+      '/cells/eu-1/tenants/acme/grants',
+    );
+  });
+
+  it('opens a tenant of a cell on its clients by default', () => {
+    expect(routePath(tenantRoute('acme', undefined, 'eu-1'))).toBe(
+      '/cells/eu-1/tenants/acme/clients',
+    );
+  });
+
+  it('percent-encodes the cell as a single segment', () => {
+    expect(routePath(tenantRoute('a/b c', 'grants', 'e/u 1'))).toBe(
+      '/cells/e%2Fu%201/tenants/a%2Fb%20c/grants',
+    );
+  });
 });
 
 describe('TENANT_SURFACES', () => {
@@ -105,6 +123,28 @@ describe('tenantRoute', () => {
   it('rejects a blank tenant id', () => {
     expect(() => tenantRoute('  ')).toThrow(/non-empty/);
   });
+
+  it('rejects a blank cell', () => {
+    expect(() => tenantRoute('acme', 'grants', '  ')).toThrow(/non-empty/);
+  });
+
+  it('carries no cell without one', () => {
+    expect(tenantRoute('acme', 'grants')).toEqual({
+      kind: 'tenant',
+      tenantId: 'acme',
+      surface: 'grants',
+    });
+    expect('cell' in tenantRoute('acme', 'grants')).toBe(false);
+  });
+
+  it('carries the cell it is given', () => {
+    expect(tenantRoute('acme', 'grants', 'eu-1')).toEqual({
+      kind: 'tenant',
+      tenantId: 'acme',
+      surface: 'grants',
+      cell: 'eu-1',
+    });
+  });
 });
 
 describe('parseRoute', () => {
@@ -119,6 +159,28 @@ describe('parseRoute', () => {
   it.each(TENANT_SURFACES)('round-trips the tenant %s surface', (surface) => {
     expect(parseRoute(routePath(tenantRoute('acme', surface)))).toEqual(
       tenantRoute('acme', surface),
+    );
+  });
+
+  it.each(TENANT_SURFACES)('round-trips the tenant %s surface in a cell', (surface) => {
+    expect(parseRoute(routePath(tenantRoute('acme', surface, 'eu-1')))).toEqual(
+      tenantRoute('acme', surface, 'eu-1'),
+    );
+  });
+
+  it('decodes a percent-encoded cell and tenant id', () => {
+    expect(parseRoute('/cells/e%2Fu%201/tenants/a%2Fb%20c/grants')).toEqual(
+      tenantRoute('a/b c', 'grants', 'e/u 1'),
+    );
+  });
+
+  it('names the default surface for a tenant path of a cell without one', () => {
+    expect(parseRoute('/cells/eu-1/tenants/acme')).toEqual(tenantRoute('acme', undefined, 'eu-1'));
+  });
+
+  it('tolerates a single trailing slash on a tenant path of a cell', () => {
+    expect(parseRoute('/cells/eu-1/tenants/acme/grants/')).toEqual(
+      tenantRoute('acme', 'grants', 'eu-1'),
     );
   });
 
@@ -164,6 +226,16 @@ describe('parseRoute', () => {
     ['an empty tenant id', '/tenants//clients'],
     ['a malformed percent-encoding', '/tenants/%E0%A4%A/clients'],
     ['extra segments', '/tenants/acme/clients/web'],
+    ['a blank cell', '/cells/%20/tenants/acme/clients'],
+    ['an empty cell', '/cells//tenants/acme/clients'],
+    ['a malformed cell percent-encoding', '/cells/%E0%A4%A/tenants/acme/clients'],
+    ['a cell without a tenant', '/cells/eu-1'],
+    ['a cell with no tenant id', '/cells/eu-1/tenants'],
+    ['a cell with a team path', '/cells/eu-1/teams/acme/tenants'],
+    ['a cell with a platform surface', '/cells/eu-1/settings'],
+    ['a blank tenant id in a cell', '/cells/eu-1/tenants/%20/clients'],
+    ['an unknown tenant surface in a cell', '/cells/eu-1/tenants/acme/servers'],
+    ['extra segments in a cell', '/cells/eu-1/tenants/acme/clients/web'],
   ])('names no route for %s', (_name, pathname) => {
     expect(parseRoute(pathname)).toBeNull();
   });
@@ -179,6 +251,7 @@ describe('resolveRoute', () => {
 
   it('canonicalizes a path that names a route', () => {
     expect(resolveRoute('/tenants/acme').path).toBe('/tenants/acme/clients');
+    expect(resolveRoute('/cells/eu-1/tenants/acme').path).toBe('/cells/eu-1/tenants/acme/clients');
     expect(resolveRoute('/teams/acme').path).toBe('/teams/acme/tenants');
   });
 
@@ -198,5 +271,9 @@ describe('routeScope', () => {
 
   it('derives the tenant scope from a tenant route', () => {
     expect(routeScope(tenantRoute('acme', 'settings'))).toEqual(tenantScope('acme'));
+  });
+
+  it('derives the same tenant scope whatever cell the tenant route names', () => {
+    expect(routeScope(tenantRoute('acme', 'settings', 'eu-1'))).toEqual(tenantScope('acme'));
   });
 });

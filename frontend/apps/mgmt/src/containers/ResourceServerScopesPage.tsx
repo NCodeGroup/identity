@@ -21,6 +21,7 @@ import {
   useUpdateScopeMutation,
   type ApiError,
 } from '@ncode/store';
+import { useTenantCell } from '../tenantCell.js';
 
 export type ResourceServerScopesPageProps = {
   readonly tenantId: string;
@@ -53,6 +54,8 @@ export function ResourceServerScopesPage({
 }: ResourceServerScopesPageProps) {
   const resourceServerId = resourceServer.resourceServerId;
   const scopes = resourceServer.scopes;
+  const cell = useTenantCell();
+  const inCell = cell === undefined ? {} : { cell };
 
   const [createScope, { isLoading: isCreating }] = useCreateScopeMutation();
   const [updateScope, { isLoading: isUpdating }] = useUpdateScopeMutation();
@@ -98,6 +101,7 @@ export function ResourceServerScopesPage({
           tenantId,
           resourceServerId,
           body: { value: values.value, description },
+          ...inCell,
         }).unwrap();
       } else if (dialog.kind === 'edit') {
         await updateScope({
@@ -105,6 +109,7 @@ export function ResourceServerScopesPage({
           resourceServerId,
           scopeValue: dialog.scope.value,
           body: { description },
+          ...inCell,
         }).unwrap();
       }
       setDialog(closed);
@@ -119,7 +124,12 @@ export function ResourceServerScopesPage({
     }
     setDeleteError(undefined);
     try {
-      await deleteScope({ tenantId, resourceServerId, scopeValue: dialog.scope.value }).unwrap();
+      await deleteScope({
+        tenantId,
+        resourceServerId,
+        scopeValue: dialog.scope.value,
+        ...inCell,
+      }).unwrap();
       setDialog(closed);
     } catch (removeError) {
       setDeleteError(apiErrorMessage(removeError as ApiError));
