@@ -26,7 +26,7 @@ A revocation must take effect across replicas within a bounded period, without a
 An owner other than the platform may bring its own root key, a key it controls in a key management service. The key
 wraps the owner's master keys in place of the deployment root, with no recovery copy, and revoking or destroying the key
 makes the owner's data unreadable wherever a copy is. The code says "owner root key"; the management API, the console
-and the docs say "tenant root key".
+and the docs say "tenant root key" or "team root key". A team's key is held per region (rule 21).
 
 1. **The tenant's key is an owner root key, a record of its own.** One `PersistedOwnerRootKey` row per secret owner
    lives in the table `OwnerRootKeys`, set and removed through `IOwnerRootKeyManager` and `PUT` and
@@ -140,6 +140,20 @@ and the docs say "tenant root key".
     `Retry-After` (rotated within twice the refresh interval), `412` (lost race) or `422` (probe failed). `DELETE`
     answers `204`, or `202` while master keys remain under the tenant key. `POST .../root-key/validate` answers `200`,
     or `404` with no root key. The console's tenant encryption keys tab offers set, validate and remove.
+21. **A team holds one root key per region.** The `Team` value is a secret owner type, and its root key is set per
+    region on the control-plane cell through `PUT` and `DELETE /api/teams/{teamId}/encryption-keys/root-keys/{region}`
+    and `POST .../root-keys/{region}/validate`. The team document the directory publishes carries the per-region key
+    references
+    ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
+    Each cell mirrors its own region's reference into an `OwnerRootKey` row of the team, so a cell never reaches a key
+    of another region. A tenant with no root key of its own wraps its master keys under its team's key, through the
+    nearest-root rule of
+    [ADR-1235](1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md). A
+    change of a team's root key rewraps the master keys of the team and of the tenants under it, with the engine of
+    [ADR-1408](1408-an-offline-host-command-rewraps-every-master-key-under-the-configured-root-and-recovery-keys.md).
+    The console shows a team's root keys per region.
+22. **A key stays in the cell's cloud regions.** The AWS and Google Cloud adapters refuse a key reference whose region or
+    location is not in `Cell:CloudRegions`, so a key outside them is never used by the cell.
 
 ## Options considered
 
@@ -179,6 +193,8 @@ rotating on every change of key.
   either from unwrapping another owner's rows, so an operator grants its identity a tenant's key only through that
   tenant's own key policy.
 - Changing only the access identity creates no master key material.
+- A team's root key reaches every cell of its region through the team document, and a cell holds no key of another
+  region.
 
 ## References
 
