@@ -137,7 +137,9 @@ compiles it and no gate tests it
   [ADR-1071](docs/decisions/1071-the-aspire-apphost-runs-the-local-stack-in-health-gated-order-after-checking-the-frontend-toolchain.md))
 - **Build analyzers** — `NCode.Identity.Analyzers`, under `analyzers/`, the repository's own Roslyn analyzers, which
   every project's build loads and no package ships: `NCID0001` reports a field that could be an auto-property
-  ([ADR-1486](docs/decisions/1486-the-repositorys-own-analyzer-project-fails-the-build-on-a-field-an-auto-property-could-replace.md))
+  ([ADR-1486](docs/decisions/1486-the-repositorys-own-analyzer-project-fails-the-build-on-a-field-an-auto-property-could-replace.md)),
+  and `NCID0004` reports an `IgnoreQueryFilters()` call that no `// Cross-tenant: <why>` comment explains
+  ([ADR-1018](docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md))
 - **Frontend (`frontend/`)** — the pnpm workspace of the web apps (`apps/auth`, `apps/mgmt`, `apps/playground`,
   `apps/conformance`, `apps/conformance-runner`) and their shared `@ncode/*` packages, with a gate of its own
   ([ADR-1064](docs/decisions/1064-one-frontend-platform-of-shared-packages-and-thin-app-shells-serves-every-web-surface.md))
