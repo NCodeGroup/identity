@@ -548,6 +548,16 @@ NCode.Identity.OpenId.Management.Contracts.Caller.CallerResource.IsPlatformAdmin
 NCode.Identity.OpenId.Management.Contracts.Caller.CallerResource.IsPlatformAdministrator.init -> void
 NCode.Identity.OpenId.Management.Contracts.Caller.CallerResource.PrincipalId.get -> string?
 NCode.Identity.OpenId.Management.Contracts.Caller.CallerResource.PrincipalId.init -> void
+NCode.Identity.OpenId.Management.Contracts.Cells.CellResource
+NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.CellResource() -> void
+NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.IsControlPlane.get -> bool
+NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.IsControlPlane.init -> void
+NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.Kind.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.Kind.init -> void
+NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.Name.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.Name.init -> void
+NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.Region.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Cells.CellResource.Region.init -> void
 NCode.Identity.OpenId.Management.Contracts.ManagementProblemMembers
 NCode.Identity.OpenId.Management.Contracts.RoleAssignmentResource
 NCode.Identity.OpenId.Management.Contracts.RoleAssignmentResource.AssignmentId.get -> string!
