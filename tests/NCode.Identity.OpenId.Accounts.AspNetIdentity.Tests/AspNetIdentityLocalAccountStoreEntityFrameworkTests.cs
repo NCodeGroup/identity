@@ -22,6 +22,7 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
 {
     private const string UserName = "alice";
     private const string LocalAccountId = "user-1";
+    private const string TenantId = "tenant-1";
     private const string ComposedPassword = "caf\u00E9 correct horse battery";
     private const string DecomposedPassword = "cafe\u0301 correct horse battery";
 
@@ -53,7 +54,7 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
     public AspNetIdentityLocalAccountStoreEntityFrameworkTests()
     {
         var accessor = new TestAmbientTenantAccessor();
-        TenantScope = accessor.BeginScope("tenant-1");
+        TenantScope = accessor.BeginScope(TenantId);
 
         var serviceCollection = new ServiceCollection();
         serviceCollection.AddSingleton<IAmbientTenantAccessor>(accessor);
@@ -156,7 +157,7 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
     {
         using var scope = Provider.CreateScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TestTenantUser>>();
-        var user = new TestTenantUser(UserName) { Id = LocalAccountId };
+        var user = new TestTenantUser(UserName) { Id = LocalAccountId, TenantId = TenantId };
         var created = await userManager.CreateAsync(user, password);
         var errors = string.Join("; ", created.Errors.Select(error => error.Description));
         Assert.True(created.Succeeded, errors);

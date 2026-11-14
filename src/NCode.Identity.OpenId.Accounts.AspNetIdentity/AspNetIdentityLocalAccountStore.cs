@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NCode.Buffers;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Accounts.AspNetIdentity;
@@ -23,22 +24,27 @@ namespace NCode.Identity.OpenId.Accounts.AspNetIdentity;
 /// so a failed verification takes as long whether or not the user exists.
 /// </summary>
 /// <remarks>
-/// ASP.NET Core Identity users are global (tenant-independent), so <see cref="PersistedLocalAccount.TenantId"/> is mapped
-/// as empty; the resource-owner password grant authenticates against the request's tenant, not the account's. Each
-/// operation resolves the scoped <see cref="UserManager{TUser}"/> from a fresh dependency-injection scope, so this
-/// adapter holds no scoped state and its writes commit immediately (they do not enlist in the OpenID unit of work).
+/// Each user belongs to one tenant (<see cref="ITenantBoundUser.TenantId"/>). Creating a user stamps the tenant of the
+/// ambient tenant scope and fails when no tenant scope is set. Every lookup treats a user of another tenant as not
+/// found, inside a tenant scope; an unscoped scope (<see cref="IAmbientTenantAccessor.IsUnscoped"/>) reads across
+/// tenants, and an unset scope finds nothing. <see cref="PersistedLocalAccount.TenantId"/> is mapped as empty; the
+/// resource-owner password grant authenticates against the request's tenant. Each operation resolves the scoped
+/// <see cref="UserManager{TUser}"/> from a fresh dependency-injection scope, so this adapter holds no scoped state and
+/// its writes commit immediately (they do not enlist in the OpenID unit of work).
 /// </remarks>
 /// <typeparam name="TUser">The ASP.NET Core Identity user type.</typeparam>
 internal sealed class AspNetIdentityLocalAccountStore<TUser>(
     IServiceScopeFactory serviceScopeFactory,
     IStoreProvider storeProvider,
-    AspNetIdentityDummyPasswordHash<TUser> dummyPasswordHash
+    AspNetIdentityDummyPasswordHash<TUser> dummyPasswordHash,
+    IAmbientTenantAccessor ambientTenantAccessor
 ) : ILocalAccountStore
     where TUser : IdentityUser, ITenantBoundUser, new()
 {
     private IServiceScopeFactory ServiceScopeFactory { get; } = serviceScopeFactory;
     private IStoreProvider StoreProvider { get; } = storeProvider;
     private AspNetIdentityDummyPasswordHash<TUser> DummyPasswordHash { get; } = dummyPasswordHash;
+    private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
 
     /// <inheritdoc />
     public object? GetService(Type serviceType) => StoreProvider.GetService(serviceType);
@@ -62,6 +68,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         var user = new TUser
         {
             Id = account.LocalAccountId,
+            TenantId = GetRequiredTenantId(),
             UserName = account.UserName,
             Email = account.Email,
             EmailConfirmed = account.EmailVerified,
@@ -183,7 +190,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
 
         var submitted = DecodePassword(password);
 
-        var user = await userManager.FindByNameAsync(userName);
+        var user = await FindByNameAsync(userManager, userName, cancellationToken);
         var storedHash = user is null
             ? null
             : await GetVerifiablePasswordHashAsync(
@@ -241,7 +248,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
 
-        var user = await userManager.FindByIdAsync(localAccountId);
+        var user = await FindByIdAsync(userManager, localAccountId, cancellationToken);
         return user is null ? null : await MapAsync(userManager, user, cancellationToken);
     }
 
@@ -254,7 +261,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
 
-        var user = await userManager.FindByNameAsync(userName);
+        var user = await FindByNameAsync(userManager, userName, cancellationToken);
         return user is null ? null : await MapAsync(userManager, user, cancellationToken);
     }
 
@@ -275,6 +282,16 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         }
 
         var query = userManager.Users;
+        var pageTenantId = GetCurrentTenantId();
+        if (pageTenantId is not null)
+        {
+            query = query.Where(user => user.TenantId == pageTenantId);
+        }
+        else if (!AmbientTenantAccessor.IsUnscoped)
+        {
+            query = query.Where(_ => false);
+        }
+
         if (!string.IsNullOrEmpty(page.Cursor))
         {
             var cursor = page.Cursor;
@@ -307,7 +324,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
 
-        var user = await userManager.FindByIdAsync(localAccountId);
+        var user = await FindByIdAsync(userManager, localAccountId, cancellationToken);
         if (user is null)
         {
             return;
@@ -361,7 +378,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
 
         return new PersistedLocalAccount
         {
-            // ASP.NET Core Identity users are global; the grant authenticates against the request's tenant.
+            // The store has restricted the user to the ambient tenant; the grant authenticates against the request's tenant.
             TenantId = string.Empty,
             LocalAccountId = user.Id,
             UserName = user.UserName ?? string.Empty,
@@ -418,15 +435,55 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         );
     }
 
-    private static async ValueTask<TUser> GetRequiredUserAsync(
+    private async ValueTask<TUser> GetRequiredUserAsync(
         UserManager<TUser> userManager,
         string localAccountId,
         CancellationToken cancellationToken
     ) =>
-        await userManager.FindByIdAsync(localAccountId)
+        await FindByIdAsync(userManager, localAccountId, cancellationToken)
         ?? throw new InvalidOperationException(
             $"A local account with '{localAccountId}' was not found."
         );
+
+    // The tenant the store stamps and compares is the lower-invariant form of the ambient tenant, which is the form
+    // TenantLookupNormalizer prefixes lookups with.
+    private string? GetCurrentTenantId() => AmbientTenantAccessor.TenantId?.ToLowerInvariant();
+
+    private string GetRequiredTenantId() =>
+        GetCurrentTenantId()
+        ?? throw new InvalidOperationException(
+            "A local account cannot be created without a tenant scope. Open a tenant scope with IAmbientTenantAccessor.BeginScope."
+        );
+
+    // A user of another tenant is not found inside a tenant scope; an unscoped scope reads across tenants, and an unset
+    // scope finds nothing.
+    private TUser? FilterByTenant(TUser? user)
+    {
+        if (user is null)
+        {
+            return null;
+        }
+
+        var tenantId = GetCurrentTenantId();
+        if (tenantId is null)
+        {
+            return AmbientTenantAccessor.IsUnscoped ? user : null;
+        }
+
+        return string.Equals(user.TenantId, tenantId, StringComparison.Ordinal) ? user : null;
+    }
+
+    private async ValueTask<TUser?> FindByIdAsync(
+        UserManager<TUser> userManager,
+        string localAccountId,
+        CancellationToken cancellationToken
+    ) => FilterByTenant(await userManager.FindByIdAsync(localAccountId));
+
+    private async ValueTask<TUser?> FindByNameAsync(
+        UserManager<TUser> userManager,
+        string userName,
+        CancellationToken cancellationToken
+    ) => FilterByTenant(await userManager.FindByNameAsync(userName));
 
     private static IUserPasswordStore<TUser> GetPasswordStore(IServiceProvider serviceProvider) =>
         serviceProvider.GetRequiredService<IUserStore<TUser>>() as IUserPasswordStore<TUser>

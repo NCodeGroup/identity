@@ -23,6 +23,8 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     private const string DummyPasswordHash = "dummy-hash";
     private const string SecurityStamp = "stamp";
     private const string ConcurrencyToken = "ctoken";
+    private const string TenantId = "tenant-1";
+    private const string OtherTenantId = "tenant-2";
     private static byte[] PasswordBytes { get; } = "correct-horse"u8.ToArray();
     private static byte[] DecomposedPasswordBytes { get; } = "cafe\u0301-correct-horse"u8.ToArray();
     private static Claim RoleClaim { get; } = new("role", "admin");
@@ -32,7 +34,17 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
 
     private MockRepository Mocks { get; } = new(MockBehavior.Strict);
 
-    public void Dispose() => Mocks.Verify();
+    private TestAmbientTenantAccessor TenantAccessor { get; } = new();
+    private IDisposable TenantScope { get; }
+
+    public AspNetIdentityLocalAccountStoreTests() =>
+        TenantScope = TenantAccessor.BeginScope(TenantId);
+
+    public void Dispose()
+    {
+        TenantScope.Dispose();
+        Mocks.Verify();
+    }
 
     #region Helpers
 
@@ -98,7 +110,8 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             new AspNetIdentityLocalAccountStore<TestTenantUser>(
                 scopeFactory.Object,
                 storeProvider.Object,
-                new AspNetIdentityDummyPasswordHash<TestTenantUser>()
+                new AspNetIdentityDummyPasswordHash<TestTenantUser>(),
+                TenantAccessor
             ),
             userManager
         );
@@ -127,6 +140,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         new(UserName)
         {
             Id = LocalAccountId,
+            TenantId = TenantId,
             Email = null,
             EmailConfirmed = false,
             SecurityStamp = SecurityStamp,
@@ -1023,8 +1037,8 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         var (store, userManager) = CreateStore();
         var users = new[]
         {
-            new TestTenantUser("alice") { Id = "user-1" },
-            new TestTenantUser("bob") { Id = "user-2" },
+            new TestTenantUser("alice") { Id = "user-1", TenantId = TenantId },
+            new TestTenantUser("bob") { Id = "user-2", TenantId = TenantId },
         };
         userManager.SetupGet(x => x.SupportsQueryableUsers).Returns(true).Verifiable();
         userManager.SetupGet(x => x.Users).Returns(users.AsQueryable()).Verifiable();
@@ -1044,6 +1058,120 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         Assert.Null(page.NextCursor);
         Assert.Equal("user-1", page.Items[0].LocalAccountId);
         Assert.Equal("user-2", page.Items[1].LocalAccountId);
+    }
+
+    #endregion
+
+    #region Tenant Scope Tests
+
+    [Fact]
+    public async Task Create_InTenantScope_StampsTenantId()
+    {
+        var (store, userManager) = CreateStore();
+        TestTenantUser? created = null;
+        userManager
+            .Setup(x => x.CreateAsync(It.IsAny<TestTenantUser>()))
+            .Callback<TestTenantUser>(user => created = user)
+            .ReturnsAsync(IdentityResult.Success)
+            .Verifiable();
+
+        await store.AddAsync(CreateAccount(), password: null, CancellationToken.None);
+
+        Assert.NotNull(created);
+        Assert.Equal(TenantId, created.TenantId);
+    }
+
+    [Fact]
+    public async Task Create_WithoutTenantScope_Throws()
+    {
+        var (store, _) = CreateStore();
+        TenantScope.Dispose();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await store.AddAsync(CreateAccount(), password: null, CancellationToken.None)
+        );
+    }
+
+    [Fact]
+    public async Task FindByName_UserOfOtherTenant_ReturnsNull()
+    {
+        var (store, userManager) = CreateStore();
+        var user = CreateUser();
+        user.TenantId = OtherTenantId;
+        userManager.Setup(x => x.FindByNameAsync(UserName)).ReturnsAsync(user).Verifiable();
+
+        var result = await store.GetByUserNameOrDefaultAsync(UserName, CancellationToken.None);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task FindById_UserOfOtherTenant_ReturnsNull()
+    {
+        var (store, userManager) = CreateStore();
+        var user = CreateUser();
+        user.TenantId = OtherTenantId;
+        userManager.Setup(x => x.FindByIdAsync(LocalAccountId)).ReturnsAsync(user).Verifiable();
+
+        var result = await store.GetByIdOrDefaultAsync(LocalAccountId, CancellationToken.None);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task FindById_UserOfOtherTenantInUnscopedScope_ReturnsTheUser()
+    {
+        var (store, userManager) = CreateStore();
+        var user = CreateUser();
+        user.TenantId = OtherTenantId;
+        userManager.Setup(x => x.FindByIdAsync(LocalAccountId)).ReturnsAsync(user).Verifiable();
+        SetupMapping(userManager, user);
+        TenantScope.Dispose();
+        using var unscoped = TenantAccessor.BeginUnscoped("test");
+
+        var result = await store.GetByIdOrDefaultAsync(LocalAccountId, CancellationToken.None);
+
+        Assert.NotNull(result);
+    }
+
+    [Fact]
+    public async Task FindById_WithoutTenantScope_ReturnsNull()
+    {
+        var (store, userManager) = CreateStore();
+        var user = CreateUser();
+        userManager.Setup(x => x.FindByIdAsync(LocalAccountId)).ReturnsAsync(user).Verifiable();
+        TenantScope.Dispose();
+
+        var result = await store.GetByIdOrDefaultAsync(LocalAccountId, CancellationToken.None);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task GetPageAsync_WithUsersOfOtherTenants_ReturnsOnlyTheScopedTenantsUsers()
+    {
+        var (store, userManager) = CreateStore();
+        var users = new[]
+        {
+            new TestTenantUser("alice") { Id = "user-1", TenantId = TenantId },
+            new TestTenantUser("bob") { Id = "user-2", TenantId = OtherTenantId },
+        };
+        userManager.SetupGet(x => x.SupportsQueryableUsers).Returns(true).Verifiable();
+        userManager.SetupGet(x => x.Users).Returns(users.AsQueryable()).Verifiable();
+        userManager
+            .Setup(x => x.GetClaimsAsync(It.IsAny<TestTenantUser>()))
+            .ReturnsAsync([])
+            .Verifiable();
+        userManager.SetupGet(x => x.SupportsUserLockout).Returns(true).Verifiable();
+        userManager
+            .Setup(x => x.IsLockedOutAsync(It.IsAny<TestTenantUser>()))
+            .ReturnsAsync(false)
+            .Verifiable();
+
+        var page = await store.GetPageAsync(new PageRequest { Limit = 10 }, CancellationToken.None);
+
+        var item = Assert.Single(page.Items);
+        Assert.Equal("user-1", item.LocalAccountId);
     }
 
     #endregion
