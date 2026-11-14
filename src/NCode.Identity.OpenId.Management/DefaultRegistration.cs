@@ -12,6 +12,7 @@ using NCode.Identity.OpenId.Management.Endpoints;
 using NCode.Identity.OpenId.Management.Endpoints.Secrets;
 using NCode.Identity.OpenId.Management.OpenApi;
 using NCode.Identity.OpenId.Management.ResourceServers;
+using NCode.Identity.OpenId.Management.Transfers;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Registration;
 using NCode.Identity.Registration.AspNetCore;
@@ -101,6 +102,12 @@ public static class DefaultRegistration
 
             // Binds a key a key management service already holds to a tenant, after proving the key signs (ADR-1476).
             serviceCollection.TryAddSingleton<IRemoteSecretImporter, DefaultRemoteSecretImporter>();
+
+            // Issues the one-time keys that seal a tenant's export to this cell (ADR-1514).
+            serviceCollection.TryAddSingleton<
+                ITenantTransferKeyService,
+                DefaultTenantTransferKeyService
+            >();
 
             serviceCollection.TryAddEnumerable(
                 ServiceDescriptor.Singleton<

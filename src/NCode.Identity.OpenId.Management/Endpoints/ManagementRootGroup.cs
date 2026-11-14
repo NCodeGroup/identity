@@ -75,6 +75,7 @@ internal sealed class ManagementRootGroup : IEndpointGroup
         builder.AddTeamEndpoint();
         builder.AddMachineClientEndpoint();
         builder.AddTenantEndpoint();
+        builder.AddEndpoint<TenantImportApiEndpointHandler>();
         builder.AddGroup<TenantManagementGroup>();
     }
 }

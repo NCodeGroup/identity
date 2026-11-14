@@ -1351,3 +1351,18 @@ NCode.Identity.OpenId.Management.Auditing.RoleAssignmentChangedAuditEvent.NodeId
 NCode.Identity.OpenId.Management.Auditing.RoleAssignmentChangedAuditEvent.NodeType.get -> string!
 NCode.Identity.OpenId.Management.Auditing.RoleAssignmentChangedAuditEvent.NodeType.init -> void
 override NCode.Identity.OpenId.Management.Auditing.RoleAssignmentChangedAuditEvent.ResourceType.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantTransferKeyResource
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantTransferKeyResource.Jwk.get -> System.Text.Json.JsonElement
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantTransferKeyResource.Jwk.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantTransferKeyResource.Kid.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantTransferKeyResource.Kid.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantTransferKeyResource.TenantTransferKeyResource() -> void
+NCode.Identity.OpenId.Management.Transfers.ITenantTransferKeyService
+NCode.Identity.OpenId.Management.Transfers.ITenantTransferKeyService.CreateAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Management.Transfers.TenantTransferKey!>
+NCode.Identity.OpenId.Management.Transfers.ITenantTransferKeyService.TakeAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.Secrets.Keys.SecretKey?>
+NCode.Identity.OpenId.Management.Transfers.TenantTransferKey
+NCode.Identity.OpenId.Management.Transfers.TenantTransferKey.Jwk.get -> System.Text.Json.JsonElement
+NCode.Identity.OpenId.Management.Transfers.TenantTransferKey.Jwk.init -> void
+NCode.Identity.OpenId.Management.Transfers.TenantTransferKey.KeyId.get -> string!
+NCode.Identity.OpenId.Management.Transfers.TenantTransferKey.KeyId.init -> void
+NCode.Identity.OpenId.Management.Transfers.TenantTransferKey.TenantTransferKey() -> void
