@@ -71,6 +71,9 @@ public static class DefaultRegistration
         /// <see cref="IOwnerRootKeyPolicy"/> decides which owners can bring one; the platform owner cannot.</description></item>
         /// <item><description><see cref="ISecretOwnerParentResolver"/> - Resolves the ancestors of an owner, whose root
         /// keys can wrap the owner's master keys; the default names the platform owner as the only ancestor.</description></item>
+        /// <item><description><see cref="INearestOwnerRootKeyResolver"/> - Finds the root key that wraps an owner's master
+        /// keys: the owner's own, else the nearest ancestor's that
+        /// <see cref="ISecretOwnerParentResolver"/> names.</description></item>
         /// <item><description>Options for <see cref="SecretProtectionOptions"/> and
         /// <see cref="LocalKeyWrapperOptions"/>, which are bound to configuration elsewhere, and for
         /// <see cref="SharedSecretVerifierOptions"/>, <see cref="Pbkdf2SecretVerifierOptions"/> and
@@ -150,6 +153,10 @@ public static class DefaultRegistration
             serviceCollection.TryAddSingleton<
                 ISecretOwnerParentResolver,
                 DefaultSecretOwnerParentResolver
+            >();
+            serviceCollection.TryAddSingleton<
+                INearestOwnerRootKeyResolver,
+                DefaultNearestOwnerRootKeyResolver
             >();
             serviceCollection.TryAddEnumerable(
                 ServiceDescriptor.Singleton<IOwnerRootKeyPolicy, PlatformOwnerRootKeyPolicy>()

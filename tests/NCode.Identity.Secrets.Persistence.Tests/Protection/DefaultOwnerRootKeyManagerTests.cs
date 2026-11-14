@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
@@ -34,6 +35,7 @@ public class DefaultOwnerRootKeyManagerTests : BaseTests
     private Mock<IMasterKeyManager> MasterKeys { get; }
     private Mock<IMasterKeyRewrapper> Rewrapper { get; }
     private Mock<IOwnerRootKeyChangeObserver> Observer { get; }
+    private Mock<IMasterKeyStore> PagingMasterKeys { get; }
     private List<IOwnerRootKeyPolicy> Policies { get; } = [new PlatformOwnerRootKeyPolicy()];
     private FakeReferencedKeyWrapper Kms { get; } = new();
     private InMemoryOwnerRootKeyStores Stores { get; } = new();
@@ -48,6 +50,50 @@ public class DefaultOwnerRootKeyManagerTests : BaseTests
         MasterKeys = CreateStrictMock<IMasterKeyManager>();
         Rewrapper = CreateStrictMock<IMasterKeyRewrapper>();
         Observer = CreateStrictMock<IOwnerRootKeyChangeObserver>();
+        PagingMasterKeys = CreateStrictMock<IMasterKeyStore>();
+        SetupPagingMasterKeys();
+    }
+
+    // The in-memory stores do not page master keys, so the manager reads the master keys through a store that lists
+    // an owner's rows from them and pages every stored row, of every owner, in pages of the requested size.
+    private void SetupPagingMasterKeys()
+    {
+        PagingMasterKeys
+            .Setup(x => x.ListAsync(It.IsAny<SecretOwner>(), It.IsAny<CancellationToken>()))
+            .Returns(
+                async (SecretOwner owner, CancellationToken cancellationToken) =>
+                {
+                    await using var manager = await Stores.CreateAsync(cancellationToken);
+                    return await manager
+                        .GetStore<IMasterKeyStore>()
+                        .ListAsync(owner, cancellationToken);
+                }
+            )
+            .Verifiable(Times.AtMost(int.MaxValue));
+
+        PagingMasterKeys
+            .Setup(x => x.GetPageAsync(It.IsAny<PageRequest>(), It.IsAny<CancellationToken>()))
+            .Returns(
+                (PageRequest page, CancellationToken _) =>
+                {
+                    var skip = page.Cursor is null
+                        ? 0
+                        : int.Parse(page.Cursor, CultureInfo.InvariantCulture);
+                    var items = Stores.MasterKeys.Skip(skip).Take(page.Limit).ToList();
+                    var next = skip + items.Count;
+                    return ValueTask.FromResult(
+                        new PagedResult<PersistedMasterKey>
+                        {
+                            Items = items,
+                            NextCursor =
+                                next < Stores.MasterKeys.Count
+                                    ? next.ToString(CultureInfo.InvariantCulture)
+                                    : null,
+                        }
+                    );
+                }
+            )
+            .Verifiable(Times.AtMost(int.MaxValue));
     }
 
     private DefaultOwnerRootKeyManager CreateManager(
@@ -61,7 +107,7 @@ public class DefaultOwnerRootKeyManagerTests : BaseTests
         );
         return new DefaultOwnerRootKeyManager(
             catalog,
-            Stores,
+            new PagingStoreManagerFactory(Stores, PagingMasterKeys.Object),
             Protectors.Object,
             MasterKeys.Object,
             Rewrapper.Object,
@@ -96,7 +142,7 @@ public class DefaultOwnerRootKeyManagerTests : BaseTests
     // right after the change is committed.
     private void ExpectEvictAndCancelTheCaller(CancellationTokenSource caller)
     {
-        Protectors.Setup(x => x.Evict(NormalizedOwner)).Verifiable(Times.AtLeastOnce());
+        Protectors.Setup(x => x.EvictAll()).Verifiable(Times.AtLeastOnce());
         Observer
             .Setup(x => x.ChangedAsync(NormalizedOwner, It.IsAny<CancellationToken>()))
             .Callback(
@@ -122,6 +168,19 @@ public class DefaultOwnerRootKeyManagerTests : BaseTests
             KeyWrapperName = "fake-kms",
             KeyReference = reference,
             AccessIdentity = accessIdentity,
+            State = state,
+            CreatedWhen = Time.GetUtcNow().AddDays(-1),
+            StateChangedWhen = Time.GetUtcNow().AddDays(-1),
+            ValidatedWhen = Time.GetUtcNow().AddMinutes(-90),
+        };
+
+    private PersistedOwnerRootKey CreateTeamRootKey(SecretOwner team, string state) =>
+        new()
+        {
+            OwnerType = team.OwnerType,
+            OwnerId = team.OwnerId,
+            KeyWrapperName = "fake-kms",
+            KeyReference = Reference,
             State = state,
             CreatedWhen = Time.GetUtcNow().AddDays(-1),
             StateChangedWhen = Time.GetUtcNow().AddDays(-1),
@@ -178,7 +237,7 @@ public class DefaultOwnerRootKeyManagerTests : BaseTests
 
     private void ExpectEvictAndNotify(Times? times = null)
     {
-        Protectors.Setup(x => x.Evict(NormalizedOwner)).Verifiable(times ?? Times.AtLeastOnce());
+        Protectors.Setup(x => x.EvictAll()).Verifiable(times ?? Times.AtLeastOnce());
         Observer
             .Setup(x => x.ChangedAsync(NormalizedOwner, It.IsAny<CancellationToken>()))
             .Returns(ValueTask.CompletedTask)
@@ -193,7 +252,7 @@ public class DefaultOwnerRootKeyManagerTests : BaseTests
                         request.NonconformingOnly
                         && !request.DryRun
                         && !request.RecoveryOnly
-                        && request.Owner == NormalizedOwner
+                        && request.Owner == null
                     ),
                     It.IsAny<CancellationToken>()
                 )
@@ -754,6 +813,7 @@ public class DefaultOwnerRootKeyManagerTests : BaseTests
     public async Task Remove_WithRowsThatCannotBeMoved_StaysRemovingAndRecordsTheFailure()
     {
         Stores.Seed(CreateRootKey());
+        Stores.Seed(CreateRow(1, Time.GetUtcNow().AddDays(-1), rootKeyReference: Reference));
         ExpectEvictAndNotify();
         ExpectRewrap(new MasterKeyRewrapResult(2, 1, 0, 1));
 
@@ -765,6 +825,80 @@ public class DefaultOwnerRootKeyManagerTests : BaseTests
         Assert.Equal(OwnerRootKeyStates.Removing, stored.State);
         Assert.Equal(Time.GetUtcNow(), stored.FailedWhen);
         Assert.Equal("1 master keys remain under the owner root key", stored.Failure);
+    }
+
+    [Fact]
+    public async Task Validate_RemovingKeyWithAMasterKeyOfAnotherOwnerUnderIt_KeepsTheBinding()
+    {
+        var team = new SecretOwner(SecretOwnerTypes.Team, "team-a");
+        Stores.Seed(CreateTeamRootKey(team, OwnerRootKeyStates.Removing));
+        Stores.Seed(CreateRow(1, Time.GetUtcNow().AddDays(-1), rootKeyReference: Reference));
+        ExpectRewrap(new MasterKeyRewrapResult(1, 0, 0, 0));
+
+        var validation = await CreateManager().ValidateAsync(team, CancellationToken.None);
+
+        Assert.Equal(OwnerRootKeyStates.Removing, validation.RootKey?.State);
+        var stored = Assert.Single(Stores.RootKeys);
+        Assert.Equal(OwnerRootKeyStates.Removing, stored.State);
+        Assert.Equal("1 master keys remain under the owner root key", stored.Failure);
+    }
+
+    [Fact]
+    public async Task Validate_RemovingKeyWithAMasterKeyUnderItBeyondTheFirstPage_KeepsTheBinding()
+    {
+        Stores.Seed(CreateRootKey(OwnerRootKeyStates.Removing));
+        for (var version = 1; version <= 150; version++)
+            Stores.Seed(CreateRow(version, Time.GetUtcNow().AddDays(-version)));
+
+        Stores.Seed(CreateRow(151, Time.GetUtcNow(), rootKeyReference: Reference));
+        ExpectRewrap(new MasterKeyRewrapResult(151, 0, 0, 0));
+
+        var validation = await CreateManager().ValidateAsync(Owner, CancellationToken.None);
+
+        Assert.Equal(OwnerRootKeyStates.Removing, validation.RootKey?.State);
+        Assert.Equal(
+            "1 master keys remain under the owner root key",
+            Assert.Single(Stores.RootKeys).Failure
+        );
+    }
+
+    [Fact]
+    public async Task Validate_RemovingKeyWithMasterKeysOnlyUnderAnotherReference_DeletesTheBinding()
+    {
+        Stores.Seed(CreateRootKey(OwnerRootKeyStates.Removing));
+        Stores.Seed(CreateRow(1, Time.GetUtcNow().AddDays(-1), rootKeyReference: OtherReference));
+        ExpectEvictAndNotify(Times.Once());
+        ExpectRewrap(new MasterKeyRewrapResult(1, 0, 0, 0));
+
+        var validation = await CreateManager().ValidateAsync(Owner, CancellationToken.None);
+
+        Assert.Null(validation.RootKey);
+        Assert.Empty(Stores.RootKeys);
+    }
+
+    [Fact]
+    public async Task Set_TheCompletion_RewrapsTheMasterKeysOfEveryOwner()
+    {
+        Stores.Seed(CreateRow(1, Time.GetUtcNow().AddDays(-400)));
+        ExpectEvictAndNotify();
+        MasterKeys
+            .Setup(x => x.RotateAsync(NormalizedOwner, It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<MasterKeyRotation>(CreateRotation()))
+            .Verifiable();
+        MasterKeyRewrapRequest? captured = null;
+        Rewrapper
+            .Setup(x =>
+                x.RewrapAsync(It.IsAny<MasterKeyRewrapRequest>(), It.IsAny<CancellationToken>())
+            )
+            .Callback((MasterKeyRewrapRequest request, CancellationToken _) => captured = request)
+            .Returns(new ValueTask<MasterKeyRewrapResult>(new MasterKeyRewrapResult(1, 1, 0, 0)))
+            .Verifiable();
+
+        await CreateManager().SetAsync(Owner, Request(), CancellationToken.None);
+
+        Assert.NotNull(captured);
+        Assert.Null(captured.Owner);
+        Assert.True(captured.NonconformingOnly);
     }
 
     #endregion
@@ -1038,5 +1172,32 @@ public class DefaultOwnerRootKeyManagerTests : BaseTests
             reason = null;
             return true;
         }
+    }
+
+    // Serves the master key store that pages every stored row in place of the one that the in-memory stores serve.
+    private sealed class PagingStoreManagerFactory(
+        IStoreManagerFactory inner,
+        IMasterKeyStore masterKeys
+    ) : IStoreManagerFactory
+    {
+        public async ValueTask<IStoreManager> CreateAsync(CancellationToken cancellationToken) =>
+            new PagingStoreManager(await inner.CreateAsync(cancellationToken), masterKeys);
+    }
+
+    private sealed class PagingStoreManager(IStoreManager inner, IMasterKeyStore masterKeys)
+        : IStoreManager
+    {
+        public TStore GetStore<TStore>()
+            where TStore : IStore =>
+            typeof(TStore) == typeof(IMasterKeyStore)
+                ? (TStore)masterKeys
+                : inner.GetStore<TStore>();
+
+        public object? GetService(Type serviceType) => inner.GetService(serviceType);
+
+        public ValueTask SaveChangesAsync(CancellationToken cancellationToken) =>
+            inner.SaveChangesAsync(cancellationToken);
+
+        public ValueTask DisposeAsync() => inner.DisposeAsync();
     }
 }

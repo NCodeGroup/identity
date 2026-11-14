@@ -827,6 +827,34 @@ public class MasterKeyFactoryTests : BaseTests
         );
     }
 
+    [Fact]
+    public void IsWrappedByKey_OwnerRootKey_IgnoresTheStateAndTheAccessIdentity()
+    {
+        var removing = CreateRootKey(
+            OwnerRootKeyStates.Removing,
+            accessIdentity: "test-identity-a"
+        );
+
+        Assert.True(
+            MasterKeyFactory.IsWrappedByKey(
+                CreateRow("kms://tenant-a/root", accessIdentity: "test-identity-b"),
+                removing
+            )
+        );
+        Assert.True(
+            MasterKeyFactory.IsWrappedByKey(CreateRow("kms://tenant-a/root"), CreateRootKey())
+        );
+        Assert.False(MasterKeyFactory.IsWrappedByKey(CreateRow("kms://tenant-a/other"), removing));
+        Assert.False(
+            MasterKeyFactory.IsWrappedByKey(
+                CreateRow("kms://tenant-a/root", provider: "other-kms"),
+                removing
+            )
+        );
+        Assert.False(MasterKeyFactory.IsWrappedByKey(CreateRow(null), removing));
+        Assert.False(MasterKeyFactory.IsUnderKey(CreateRow("kms://tenant-a/root"), removing));
+    }
+
     [Theory]
     [InlineData(OwnerRootKeyStates.Active, true)]
     [InlineData(OwnerRootKeyStates.Unavailable, true)]

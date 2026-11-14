@@ -14,8 +14,9 @@ namespace NCode.Identity.Secrets.Persistence.Protection;
 /// <remarks>
 /// Each row is rewrapped in its own unit of work. A row that vanished during the run, whether its update conflicts or
 /// finds it gone, counts as examined only. The material of a master key does not change, so no replica needs to
-/// reload it. The target of a row is the root of its owner: the root key the owner brings when it has one that is not
-/// being removed, otherwise the configured root key provider. A row that already sits under the owner root key is
+/// reload it. The target of a row is the root of its owner: the nearest root key that is not being removed, the
+/// owner's own or else its nearest ancestor's, otherwise the configured root key provider. A row that already sits
+/// under that root key is
 /// examined only, and a row that is moved under it loses its recovery copy; a row moved under the deployment's root
 /// key gets a recovery copy when a recovery public key is configured, and when none is, the existing recovery copy is
 /// left as it is, because a recovery path is never removed silently.
@@ -23,6 +24,7 @@ namespace NCode.Identity.Secrets.Persistence.Protection;
 // See ADR-1408 and ADR-1414.
 internal sealed class DefaultMasterKeyRewrapper(
     MasterKeyFactory factory,
+    INearestOwnerRootKeyResolver nearestRootKeyResolver,
     IStoreManagerFactory storeManagerFactory,
     IRecoveryKeyWrapper recovery,
     ILogger<DefaultMasterKeyRewrapper> logger
@@ -33,6 +35,8 @@ internal sealed class DefaultMasterKeyRewrapper(
     private const int MaxAttempts = 3;
 
     private MasterKeyFactory Factory { get; } = factory;
+
+    private INearestOwnerRootKeyResolver NearestRootKeyResolver { get; } = nearestRootKeyResolver;
 
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
 
@@ -147,7 +151,7 @@ internal sealed class DefaultMasterKeyRewrapper(
         return page;
     }
 
-    private static async ValueTask ReadRootKeysAsync(
+    private async ValueTask ReadRootKeysAsync(
         IStoreManager storeManager,
         IEnumerable<PersistedMasterKey> rows,
         Dictionary<SecretOwner, PersistedOwnerRootKey?> rootKeys,
@@ -159,9 +163,11 @@ internal sealed class DefaultMasterKeyRewrapper(
             if (rootKeys.ContainsKey(owner))
                 continue;
 
-            rootKeys[owner] = await storeManager
-                .GetStore<IOwnerRootKeyStore>()
-                .FindAsync(owner.Normalize(), cancellationToken);
+            rootKeys[owner] = await NearestRootKeyResolver.FindNearestAsync(
+                storeManager.GetStore<IOwnerRootKeyStore>(),
+                owner,
+                cancellationToken
+            );
         }
     }
 
@@ -312,7 +318,8 @@ internal sealed class DefaultMasterKeyRewrapper(
         await storeManager.SaveChangesAsync(cancellationToken);
     }
 
-    // Reads the row again and the root key of its owner through the same unit of work.
+    // Reads the row again and the root key that wraps it, the owner's own or the nearest ancestor's, through the same unit
+    // of work.
     private async ValueTask<(PersistedMasterKey? Row, PersistedOwnerRootKey? RootKey)> FindAsync(
         PersistedMasterKey row,
         CancellationToken cancellationToken
@@ -323,9 +330,11 @@ internal sealed class DefaultMasterKeyRewrapper(
             .GetStore<IMasterKeyStore>()
             .FindByKeyIdsAsync(row.Owner.Normalize(), [row.KeyId], cancellationToken);
 
-        var rootKey = await storeManager
-            .GetStore<IOwnerRootKeyStore>()
-            .FindAsync(row.Owner.Normalize(), cancellationToken);
+        var rootKey = await NearestRootKeyResolver.FindNearestAsync(
+            storeManager.GetStore<IOwnerRootKeyStore>(),
+            row.Owner,
+            cancellationToken
+        );
 
         return (rows.SingleOrDefault(), rootKey);
     }

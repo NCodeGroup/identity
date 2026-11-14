@@ -48,6 +48,7 @@ namespace NCode.Identity.Secrets.Persistence.Protection;
 /// </para>
 /// </remarks>
 /// <param name="factory">The factory that creates new master keys and unwraps persisted master keys.</param>
+/// <param name="nearestRootKeyResolver">The resolver that finds the root key that wraps the master keys of an owner.</param>
 /// <param name="storeManagerFactory">The factory that creates the unit of work that reads and writes master keys.</param>
 /// <param name="recovery">The wrapper that reports whether master keys are wrapped under a recovery key.</param>
 /// <param name="options">The options whose master key refresh interval bounds how long an entry is used.</param>
@@ -56,6 +57,7 @@ namespace NCode.Identity.Secrets.Persistence.Protection;
 // See ADR-1235 and ADR-1414.
 internal class DefaultMasterKeyRing(
     MasterKeyFactory factory,
+    INearestOwnerRootKeyResolver nearestRootKeyResolver,
     IStoreManagerFactory storeManagerFactory,
     IRecoveryKeyWrapper recovery,
     IOptions<SecretProtectionOptions> options,
@@ -69,6 +71,8 @@ internal class DefaultMasterKeyRing(
     private long _evictionCount;
 
     private MasterKeyFactory Factory { get; } = factory;
+
+    private INearestOwnerRootKeyResolver NearestRootKeyResolver { get; } = nearestRootKeyResolver;
 
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
 
@@ -541,9 +545,11 @@ internal class DefaultMasterKeyRing(
             PersistedOwnerRootKey? rootKey = null;
             if (activeRow is null || rowsUnderOwnerRootKey)
             {
-                rootKey = await storeManager
-                    .GetStore<IOwnerRootKeyStore>()
-                    .FindAsync(key, cancellationToken);
+                rootKey = await NearestRootKeyResolver.FindNearestAsync(
+                    storeManager.GetStore<IOwnerRootKeyStore>(),
+                    key,
+                    cancellationToken
+                );
 
                 if (MasterKeyFactory.IsOwnerRooted(rootKey))
                     isOwnerRooted = true;

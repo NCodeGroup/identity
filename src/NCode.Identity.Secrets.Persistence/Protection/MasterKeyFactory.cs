@@ -320,8 +320,27 @@ internal class MasterKeyFactory(
     {
         ArgumentNullException.ThrowIfNull(row);
 
-        return IsOwnerRooted(rootKey)
-            && row.RootKeyReference is not null
+        return IsOwnerRooted(rootKey) && IsWrappedByKey(row, rootKey);
+    }
+
+    /// <summary>
+    /// Determines whether a persisted master key is wrapped under the key an owner root key names, whatever the state
+    /// of the root key and whatever identity reaches the key: the row has the provider and the reference of the root
+    /// key.
+    /// </summary>
+    /// <param name="row">The persisted master key.</param>
+    /// <param name="rootKey">The root key whose key the master key may be wrapped under.</param>
+    /// <returns>
+    /// <see langword="true"/> when the master key is under the key that the root key names, including while the root
+    /// key is being removed.
+    /// </returns>
+    // See ADR-1414.
+    public static bool IsWrappedByKey(PersistedMasterKey row, PersistedOwnerRootKey rootKey)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        ArgumentNullException.ThrowIfNull(rootKey);
+
+        return row.RootKeyReference is not null
             && string.Equals(row.RootKeyProvider, rootKey.KeyWrapperName, StringComparison.Ordinal)
             && string.Equals(row.RootKeyReference, rootKey.KeyReference, StringComparison.Ordinal);
     }
