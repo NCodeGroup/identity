@@ -2224,6 +2224,153 @@ describe('managementApi tenant root key requests', () => {
   });
 });
 
+describe('managementApi cells', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('listCells GETs the cells of the platform', async () => {
+    const cells = [{ name: 'eu-1', region: 'eu', kind: 'shared', isControlPlane: true }];
+    const captured = mockFetch(jsonResponse(cells));
+    const store = createStore();
+
+    const result = await store.dispatch(managementApi.endpoints.listCells.initiate());
+
+    expect(captured[0]?.url).toBe('https://api.test/api/cells');
+    expect(captured[0]?.method).toBe('GET');
+    expect(result).toMatchObject({ data: cells });
+  });
+});
+
+describe('managementApi team root key requests', () => {
+  const teamRootKey = {
+    region: 'eu west',
+    provider: 'aws-kms',
+    keyReference: 'arn:aws:kms:eu-west-1:111122223333:key/abc',
+    accessIdentity: 'arn:aws:iam::111122223333:role/ncode-identity',
+  };
+  const rootKeys = {
+    rootKeys: [teamRootKey],
+    rootKeyProviders: ['aws-kms'],
+    rootKeyAccessBinding: 'team:acme',
+  };
+  const removing = {
+    provider: 'aws-kms',
+    keyReference: teamRootKey.keyReference,
+    accessIdentity: teamRootKey.accessIdentity,
+    state: 'removing',
+    createdWhen: '2026-10-01T09:00:00Z',
+    stateChangedWhen: '2026-10-01T09:00:00Z',
+    validatedWhen: null,
+    failedWhen: null,
+    failure: null,
+  };
+  const listPath = 'https://api.test/api/teams/acme/encryption-keys/root-keys';
+  const regionPath = `${listPath}/eu%20west`;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  /** Primes the root keys of two teams, runs the mutation and returns the requests it caused. */
+  async function runMutation(
+    response: Response,
+    dispatch: (store: ReturnType<typeof createStore>) => PromiseLike<unknown>,
+  ) {
+    const captured = mockFetch(response);
+    const store = createStore();
+    const subscriptions = [
+      store.dispatch(managementApi.endpoints.listTeamRootKeys.initiate({ teamId: 'acme' })),
+      store.dispatch(managementApi.endpoints.listTeamRootKeys.initiate({ teamId: 'other' })),
+    ];
+    await Promise.all(subscriptions);
+    const before = captured.length;
+    await dispatch(store);
+    await settle(store);
+    for (const subscription of subscriptions) subscription.unsubscribe();
+    return { mutation: captured[before], refetched: captured.slice(before + 1) };
+  }
+
+  it('listTeamRootKeys GETs the root keys of the team', async () => {
+    const captured = mockFetch(jsonResponse(rootKeys));
+    const store = createStore();
+
+    const result = await store.dispatch(
+      managementApi.endpoints.listTeamRootKeys.initiate({ teamId: 'acme' }),
+    );
+
+    expect(captured[0]?.url).toBe(listPath);
+    expect(captured[0]?.method).toBe('GET');
+    expect(result).toMatchObject({ data: rootKeys });
+  });
+
+  it('setTeamRootKey PUTs the root key of the region and refetches only the team root keys', async () => {
+    const body = {
+      provider: 'aws-kms',
+      keyReference: teamRootKey.keyReference,
+      accessIdentity: teamRootKey.accessIdentity,
+    };
+
+    const { mutation, refetched } = await runMutation(jsonResponse(teamRootKey), (store) =>
+      store.dispatch(
+        managementApi.endpoints.setTeamRootKey.initiate({
+          teamId: 'acme',
+          region: 'eu west',
+          body,
+        }),
+      ),
+    );
+
+    expect(mutation?.url).toBe(regionPath);
+    expect(mutation?.method).toBe('PUT');
+    expect(JSON.parse(mutation?.body ?? '{}')).toEqual(body);
+    expect(refetched.map((request) => request.url)).toEqual([listPath]);
+  });
+
+  it('removeTeamRootKey DELETEs the root key of the region and resolves null on 204', async () => {
+    const captured = mockFetch(new Response(null, { status: 204 }));
+    const store = createStore();
+
+    const result = await store.dispatch(
+      managementApi.endpoints.removeTeamRootKey.initiate({ teamId: 'acme', region: 'eu west' }),
+    );
+
+    expect(captured[0]?.url).toBe(regionPath);
+    expect(captured[0]?.method).toBe('DELETE');
+    expect(result).toMatchObject({ data: null });
+  });
+
+  it('removeTeamRootKey resolves the removing root key on 202 and refetches only the team root keys', async () => {
+    const { mutation, refetched } = await runMutation(jsonResponse(removing, 202), (store) =>
+      store.dispatch(
+        managementApi.endpoints.removeTeamRootKey.initiate({ teamId: 'acme', region: 'eu west' }),
+      ),
+    );
+
+    expect(mutation?.method).toBe('DELETE');
+    expect(refetched.map((request) => request.url)).toEqual([listPath]);
+  });
+
+  it('validateTeamRootKey POSTs the validation of the region and refetches only the team root keys', async () => {
+    const { mutation, refetched } = await runMutation(
+      jsonResponse({ ...removing, state: 'active' }),
+      (store) =>
+        store.dispatch(
+          managementApi.endpoints.validateTeamRootKey.initiate({
+            teamId: 'acme',
+            region: 'eu west',
+          }),
+        ),
+    );
+
+    expect(mutation?.url).toBe(`${regionPath}/validate`);
+    expect(mutation?.method).toBe('POST');
+    expect(refetched.map((request) => request.url)).toEqual([listPath]);
+  });
+});
+
 describe('managementApi owner-generic secrets and settings requests', () => {
   afterEach(() => {
     vi.restoreAllMocks();

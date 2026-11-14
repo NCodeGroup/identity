@@ -30,6 +30,11 @@ describe('routePath', () => {
     expect(routePath(teamRoute('acme', 'settings'))).toBe('/teams/acme/settings');
   });
 
+  it('nests the encryption keys surface under its team', () => {
+    expect(routePath(teamRoute('acme', 'encryption-keys'))).toBe('/teams/acme/encryption-keys');
+    expect(parseRoute('/teams/acme/encryption-keys')).toEqual(teamRoute('acme', 'encryption-keys'));
+  });
+
   it('nests the access surface under its team', () => {
     expect(routePath(teamRoute('acme', 'access'))).toBe('/teams/acme/access');
     expect(parseRoute('/teams/acme/access')).toEqual(teamRoute('acme', 'access'));

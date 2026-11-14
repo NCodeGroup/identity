@@ -13,7 +13,7 @@ import TextField from '@mui/material/TextField';
 /** The root key form's own field shape. */
 export type EncryptionRootKeyFormValues = {
   /**
-   * The preferred key wrapper name (e.g. `aws-kms`). The form offers only the providers the tenant may choose, so a
+   * The preferred key wrapper name (e.g. `aws-kms`). The form offers only the providers the owner may choose, so a
    * provider it does not offer gives way to the first one it does.
    */
   readonly provider: string;
@@ -28,10 +28,12 @@ export type EncryptionRootKeyFormValues = {
 
 export type EncryptionRootKeyFormDialogProps = {
   readonly open: boolean;
+  /** The noun for the owner that brings the root key, such as `tenant` or `team`. */
+  readonly ownerLabel: string;
   readonly initialValues: EncryptionRootKeyFormValues;
-  /** The binding of the tenant that an AWS role's trust policy requires as the external ID, or `null` when there is none. */
+  /** The binding of the owner that an AWS role's trust policy requires as the external ID, or `null` when there is none. */
   readonly accessBinding: string | null;
-  /** The key wrapper names the tenant may choose from. None are offered while they load, and the form cannot be submitted. */
+  /** The key wrapper names the owner may choose from. None are offered while they load, and the form cannot be submitted. */
   readonly providers: readonly string[];
   readonly isSubmitting?: boolean;
   readonly error?: string | undefined;
@@ -47,7 +49,7 @@ export const emptyEncryptionRootKeyFormValues: EncryptionRootKeyFormValues = {
 };
 
 /**
- * Stateless root key form rendered in a dialog (ADR-1414): the provider the tenant chooses from the allowed ones, the
+ * Stateless root key form rendered in a dialog (ADR-1414) for the owner `ownerLabel` names: the provider the owner chooses from the allowed ones, the
  * key reference and the optional access identity the server assumes to reach the key. The field state is local because it is intrinsic to the controlled inputs (it reseeds on the rising
  * edge of `open`), so the component still renders in isolation under Storybook/RTL. The server validates the key by
  * wrapping and unwrapping a probe through it, and its error is shown in the dialog; persistence and that error handling
@@ -55,6 +57,7 @@ export const emptyEncryptionRootKeyFormValues: EncryptionRootKeyFormValues = {
  */
 export function EncryptionRootKeyFormDialog({
   open,
+  ownerLabel,
   initialValues,
   providers,
   accessBinding,
@@ -101,8 +104,9 @@ export function EncryptionRootKeyFormDialog({
             </Alert>
           )}
           <DialogContentText component="div">
-            Every encryption key of this tenant is wrapped under this key, with no operator recovery
-            copy. Revoking or destroying the key makes the tenant&apos;s data unreadable.
+            Every encryption key of this {ownerLabel} is wrapped under this key, with no operator
+            recovery copy. Revoking or destroying the key makes the {ownerLabel}&apos;s data
+            unreadable.
           </DialogContentText>
           <TextField
             select

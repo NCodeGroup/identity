@@ -179,6 +179,15 @@ export type TeamResource = {
   readonly parentTeamId?: string | null;
 };
 
+/** Mirror of `CellResource`: one cell of the platform, with the region it serves and whether it is the control plane. */
+export type CellResource = {
+  readonly name: string;
+  readonly region: string;
+  /** The cell's kind, such as `shared` or `dedicated`. */
+  readonly kind: string;
+  readonly isControlPlane: boolean;
+};
+
 /** Mirror of `RoleAssignmentResource`: one role a principal holds at one node of the resource tree. */
 export type RoleAssignmentResource = {
   readonly assignmentId: string;
@@ -757,6 +766,29 @@ export type EncryptionKeysResource = {
    * policy; `null` when the owner cannot bring a key.
    */
   readonly rootKeyAccessBinding: string | null;
+};
+
+/**
+ * Mirror of `TeamRootKeyResource` — the root key a team brings for one region: the key wrapper that reaches it, the
+ * reference that names it and the identity the server reaches it through. It carries no key material.
+ */
+export type TeamRootKeyResource = {
+  readonly region: string;
+  /** The name of the key wrapper that reaches the key, such as `aws-kms`. */
+  readonly provider: string;
+  /** The reference that names the key at its provider, such as a KMS key ARN. */
+  readonly keyReference: string;
+  /** The identity the server reaches the key through, or absent when it uses the deployment's own identity. */
+  readonly accessIdentity?: string | null;
+};
+
+/** Mirror of `TeamRootKeysResource` — the root keys of a team per region, with what the team may choose from. */
+export type TeamRootKeysResource = {
+  readonly rootKeys: readonly TeamRootKeyResource[];
+  /** The key wrapper names the team may choose a root key from. */
+  readonly rootKeyProviders: readonly string[];
+  /** The value an identity the team grants can require of the server, such as the external ID of an AWS role's trust policy. */
+  readonly rootKeyAccessBinding: string;
 };
 
 /** Mirror of `EncryptionKeyRotationResource` — the result of a rekey. */

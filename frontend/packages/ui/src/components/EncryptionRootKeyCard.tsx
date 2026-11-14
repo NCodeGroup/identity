@@ -13,18 +13,24 @@ export type EncryptionRootKeyRow = {
   readonly keyReference: string;
   /** The identity the server assumes to reach the key, or absent when it reaches it with the deployment's identity. */
   readonly accessIdentity?: string | null;
-  /** `active` or `removing`; any other state reads as unavailable. */
-  readonly state: string;
-  readonly createdWhen: string;
+  /**
+   * `active` or `removing`; any other state reads as unavailable. Absent for a key whose state the owner does not
+   * report, which shows no state and no unavailable alert.
+   */
+  readonly state?: string;
+  /** When the key was created, or absent for a key that has no creation time, which shows no created field. */
+  readonly createdWhen?: string;
   readonly validatedWhen?: string | null;
   /** Why the last validation failed, or absent when it did not. */
   readonly failure?: string | null;
 };
 
 export type EncryptionRootKeyCardProps = {
-  /** The root key the tenant brings, or absent when the deployment's root key wraps its keys. */
+  /** The noun for the owner that brings the root key, such as `tenant` or `team`. */
+  readonly ownerLabel: string;
+  /** The root key the owner brings, or absent when the deployment's root key wraps its keys. */
   readonly rootKey: EncryptionRootKeyRow | null | undefined;
-  /** Whether the tenant may choose a root key provider; without one and without a root key there is nothing to set. */
+  /** Whether the owner may choose a root key provider; without one and without a root key there is nothing to set. */
   readonly canSet: boolean;
   readonly isBusy?: boolean;
   readonly onSet: () => void;
@@ -56,12 +62,14 @@ function Field({ label, value, testId }: FieldProps) {
 }
 
 /**
- * Stateless card for the root key a tenant brings (ADR-1414): the provider, the key reference, its state, when it was
- * created and last validated, and why the last validation failed. It shows no key material, because the API returns
- * none. With no root key it says the deployment's root key wraps the tenant's keys, and offers "Set root key" only when
+ * Stateless card for the root key an owner brings (ADR-1414), named by `ownerLabel`: the provider, the key reference, its
+ * state and when it was created when the row has them, when it was last validated, and why the last validation failed. It
+ * shows no key material, because the API returns none. With no root key it says the deployment's root key wraps the
+ * owner's keys, and offers "Set root key" only when
  * a provider is available. Holds no state and does no fetching.
  */
 export function EncryptionRootKeyCard({
+  ownerLabel,
   rootKey,
   canSet,
   isBusy = false,
@@ -69,7 +77,7 @@ export function EncryptionRootKeyCard({
   onValidate,
   onRemove,
 }: EncryptionRootKeyCardProps) {
-  const state = rootKey ? stateLabel(rootKey.state) : undefined;
+  const state = rootKey?.state === undefined ? undefined : stateLabel(rootKey.state);
 
   return (
     <Paper variant="outlined" sx={{ p: 2 }} data-testid="root-key-card">
@@ -90,7 +98,7 @@ export function EncryptionRootKeyCard({
             </Button>
           )}
         </Stack>
-        {rootKey && state ? (
+        {rootKey ? (
           <>
             {state === 'unavailable' && (
               <Alert severity="error" data-testid="root-key-unavailable">
@@ -113,22 +121,26 @@ export function EncryptionRootKeyCard({
                   testId="root-key-access-identity"
                 />
               )}
-              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                <Typography variant="body2" color="text.secondary" sx={{ minWidth: 120 }}>
-                  State
-                </Typography>
-                <Chip
-                  size="small"
-                  label={state}
-                  color={stateColor[state]}
-                  data-testid="root-key-state"
+              {state && (
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ minWidth: 120 }}>
+                    State
+                  </Typography>
+                  <Chip
+                    size="small"
+                    label={state}
+                    color={stateColor[state]}
+                    data-testid="root-key-state"
+                  />
+                </Stack>
+              )}
+              {rootKey.createdWhen && (
+                <Field
+                  label="Created"
+                  value={formatWhen(rootKey.createdWhen)}
+                  testId="root-key-created"
                 />
-              </Stack>
-              <Field
-                label="Created"
-                value={formatWhen(rootKey.createdWhen)}
-                testId="root-key-created"
-              />
+              )}
               <Field
                 label="Last validated"
                 value={formatWhen(rootKey.validatedWhen)}
@@ -165,8 +177,8 @@ export function EncryptionRootKeyCard({
         ) : (
           <Typography variant="body2" color="text.secondary" data-testid="root-key-none">
             {canSet
-              ? "This tenant's keys are wrapped under the deployment's root key."
-              : 'No root key provider is available to this tenant.'}
+              ? `This ${ownerLabel}'s keys are wrapped under the deployment's root key.`
+              : `No root key provider is available to this ${ownerLabel}.`}
           </Typography>
         )}
       </Stack>

@@ -15,6 +15,7 @@ import {
   teamScope,
   type AddRoleHolderRequest,
   type CallerResource,
+  type CellResource,
   type ClientOwner,
   type ClientResource,
   type CollectionResource,
@@ -55,6 +56,8 @@ import {
   type SettingLimitsResource,
   type SettingsResource,
   type TeamResource,
+  type TeamRootKeyResource,
+  type TeamRootKeysResource,
   type TeamUsageResource,
   type TenantAddressResource,
   type TenantPromotionResource,
@@ -102,6 +105,8 @@ export const managementApi = createApi({
     'SettingLimits',
     'RoleAssignment',
     'EncryptionKey',
+    'TeamRootKey',
+    'Cell',
     'Caller',
   ],
   endpoints: (build) => ({
@@ -119,6 +124,10 @@ export const managementApi = createApi({
     listCallerTenants: build.query<CollectionResource<TenantResource>, void>({
       query: () => 'api/me/tenants',
       providesTags: [{ type: 'Caller', id: callerTag }],
+    }),
+    listCells: build.query<CellResource[], void>({
+      query: () => 'api/cells',
+      providesTags: [{ type: 'Cell', id: LIST_TAG }],
     }),
     listTeams: build.query<CollectionResource<TeamResource>, void>({
       query: () => 'api/teams',
@@ -746,6 +755,52 @@ export const managementApi = createApi({
         { type: 'EncryptionKey', id: ownerTagId({ kind: 'tenant', tenantId }) },
       ],
     }),
+    // The root key a team brings per region. Changing one region's key changes only that team's keys.
+    listTeamRootKeys: build.query<TeamRootKeysResource, { teamId: string }>({
+      query: ({ teamId }) => `${ownerApiPath({ kind: 'team', teamId })}/encryption-keys/root-keys`,
+      providesTags: (_result, _error, { teamId }) => [
+        { type: 'TeamRootKey' as const, id: ownerTagId({ kind: 'team', teamId }) },
+      ],
+    }),
+    setTeamRootKey: build.mutation<
+      TeamRootKeyResource,
+      { teamId: string; region: string; body: EncryptionRootKeyRequest }
+    >({
+      query: ({ teamId, region, body }) => ({
+        url: `${ownerApiPath({ kind: 'team', teamId })}/encryption-keys/root-keys/${encodeURIComponent(region)}`,
+        method: 'PUT',
+        body,
+      }),
+      invalidatesTags: (_result, _error, { teamId }) => [
+        { type: 'TeamRootKey', id: ownerTagId({ kind: 'team', teamId }) },
+      ],
+    }),
+    // Answers 204 once the region's keys are back under the deployment's root key, or 202 with the root key while keys
+    // remain under the team's.
+    removeTeamRootKey: build.mutation<
+      EncryptionRootKeyResource | null,
+      { teamId: string; region: string }
+    >({
+      query: ({ teamId, region }) => ({
+        url: `${ownerApiPath({ kind: 'team', teamId })}/encryption-keys/root-keys/${encodeURIComponent(region)}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (_result, _error, { teamId }) => [
+        { type: 'TeamRootKey', id: ownerTagId({ kind: 'team', teamId }) },
+      ],
+    }),
+    validateTeamRootKey: build.mutation<
+      EncryptionRootKeyResource,
+      { teamId: string; region: string }
+    >({
+      query: ({ teamId, region }) => ({
+        url: `${ownerApiPath({ kind: 'team', teamId })}/encryption-keys/root-keys/${encodeURIComponent(region)}/validate`,
+        method: 'POST',
+      }),
+      invalidatesTags: (_result, _error, { teamId }) => [
+        { type: 'TeamRootKey', id: ownerTagId({ kind: 'team', teamId }) },
+      ],
+    }),
     getSecretPublicKey: build.query<PublicKeyResource, { owner: SecretOwner; secretId: string }>({
       query: ({ owner, secretId }) =>
         `${ownerApiPath(owner)}/secrets/${encodeURIComponent(secretId)}/public-key`,
@@ -829,6 +884,7 @@ export const {
   useGetTenantQuery,
   useGetTenantAddressQuery,
   useGetNewTenantAddressQuery,
+  useListCellsQuery,
   useListTeamsQuery,
   useGetTeamQuery,
   useGetTeamUsageQuery,
@@ -870,6 +926,10 @@ export const {
   useSetTenantRootKeyMutation,
   useRemoveTenantRootKeyMutation,
   useValidateTenantRootKeyMutation,
+  useListTeamRootKeysQuery,
+  useSetTeamRootKeyMutation,
+  useRemoveTeamRootKeyMutation,
+  useValidateTeamRootKeyMutation,
   useGetSettingsQuery,
   useGetEffectiveSettingsQuery,
   useGetSettingLimitsQuery,

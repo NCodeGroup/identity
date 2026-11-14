@@ -1,6 +1,7 @@
 export type {
   AddRoleHolderRequest,
   CallerResource,
+  CellResource,
   ClientResource,
   CollectionResource,
   CreateClientRequest,
@@ -46,6 +47,8 @@ export type {
   SettingLimitsResource,
   SettingsResource,
   TeamResource,
+  TeamRootKeyResource,
+  TeamRootKeysResource,
   TeamUsageEntry,
   TeamUsageResource,
   TenantAddressFailure,

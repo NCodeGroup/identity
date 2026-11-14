@@ -63,7 +63,7 @@ const surfaceFallback = <CircularProgress aria-label="Loading" data-testid="surf
  * home lists the places the caller holds authority (ADR-1465); once that access is known, a caller without platform
  * authority is sent home from a platform route, and the team and tenant back controls lead to a place the caller can
  * open. In the platform scope that is the teams, the platform's machine clients, its settings or its encryption
- * keys; within a team it is the team's tenants, child teams, machine clients, settings, access or usage; within a
+ * keys; within a team it is the team's tenants, child teams, machine clients, settings, access, encryption keys or usage; within a
  * tenant it is clients, resource servers, grants, or one of the tenant's own surfaces: secrets, encryption keys,
  * settings, access, or usage (ADR-1255). All data fetching lives in the child containers; this component only maps
  * the route to a surface and tab changes to navigation.
@@ -181,6 +181,11 @@ export function App() {
             <Tab value="clients" label="Clients" data-testid="team-tab-clients" />
             <Tab value="settings" label="Settings" data-testid="team-tab-settings" />
             <Tab value="access" label="Access" data-testid="team-tab-access" />
+            <Tab
+              value="encryption-keys"
+              label="Encryption keys"
+              data-testid="team-tab-encryption-keys"
+            />
             <Tab value="usage" label="Usage" data-testid="team-tab-usage" />
           </Tabs>
           <Suspense fallback={surfaceFallback}>

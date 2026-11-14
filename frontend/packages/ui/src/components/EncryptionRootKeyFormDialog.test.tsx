@@ -13,6 +13,7 @@ function renderDialog(overrides: Partial<EncryptionRootKeyFormDialogProps> = {})
   const onCancel = vi.fn();
   const props: EncryptionRootKeyFormDialogProps = {
     open: true,
+    ownerLabel: 'tenant',
     initialValues: emptyEncryptionRootKeyFormValues,
     providers,
     accessBinding: null,
@@ -33,6 +34,18 @@ describe('EncryptionRootKeyFormDialog', () => {
 
     fireEvent.change(screen.getByTestId('root-key-form-reference'), { target: { value: '   ' } });
     expect(screen.getByTestId('root-key-form-submit')).toBeDisabled();
+  });
+
+  it('names the owner through its label', () => {
+    const { rerender, props } = renderDialog();
+
+    expect(screen.getByText(/Every encryption key of this tenant is wrapped/)).toBeInTheDocument();
+    expect(screen.getByText(/makes the tenant's data unreadable/)).toBeInTheDocument();
+
+    rerender(<EncryptionRootKeyFormDialog {...props} ownerLabel="team" />);
+
+    expect(screen.getByText(/Every encryption key of this team is wrapped/)).toBeInTheDocument();
+    expect(screen.getByText(/makes the team's data unreadable/)).toBeInTheDocument();
   });
 
   it('submits the chosen provider and the trimmed key reference', () => {

@@ -34,7 +34,7 @@ export type OwnerEncryptionKeysTabProps = {
  * The message of a failed root key request: the validation messages of a rejected field, else the server's problem
  * detail or title (such as the failure of the probe that validates the key).
  */
-function rootKeyErrorMessage(failure: unknown): string {
+export function rootKeyErrorMessage(failure: unknown): string {
   const data = (failure as { data?: unknown } | undefined)?.data;
   const errors =
     data && typeof data === 'object' ? (data as { errors?: unknown }).errors : undefined;
@@ -122,6 +122,7 @@ function TenantRootKeySection({
         </Alert>
       )}
       <EncryptionRootKeyCard
+        ownerLabel="tenant"
         rootKey={rootKey}
         canSet={providers.length > 0}
         isBusy={isSetting || isRemoving || isValidating}
@@ -131,6 +132,7 @@ function TenantRootKeySection({
       />
       <EncryptionRootKeyFormDialog
         open={setting}
+        ownerLabel="tenant"
         initialValues={{
           ...emptyEncryptionRootKeyFormValues,
           provider: rootKey?.provider ?? emptyEncryptionRootKeyFormValues.provider,

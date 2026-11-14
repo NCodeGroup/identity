@@ -12,10 +12,18 @@ const active: EncryptionRootKeyRow = {
 
 function renderCard(
   rootKey: EncryptionRootKeyRow | null | undefined,
-  overrides: { canSet?: boolean; isBusy?: boolean } = {},
+  overrides: { ownerLabel?: string; canSet?: boolean; isBusy?: boolean } = {},
 ) {
   const handlers = { onSet: vi.fn(), onValidate: vi.fn(), onRemove: vi.fn() };
-  render(<EncryptionRootKeyCard rootKey={rootKey} canSet={true} {...overrides} {...handlers} />);
+  render(
+    <EncryptionRootKeyCard
+      ownerLabel="tenant"
+      rootKey={rootKey}
+      canSet={true}
+      {...overrides}
+      {...handlers}
+    />,
+  );
   return handlers;
 }
 
@@ -37,6 +45,7 @@ describe('EncryptionRootKeyCard', () => {
   it('shows the access identity of the root key when it is set, and no row otherwise', () => {
     const { unmount } = render(
       <EncryptionRootKeyCard
+        ownerLabel="tenant"
         rootKey={{ ...active, accessIdentity: 'arn:aws:iam::111122223333:role/tenant' }}
         canSet={true}
         onSet={vi.fn()}
@@ -86,6 +95,40 @@ describe('EncryptionRootKeyCard', () => {
 
     expect(screen.getByTestId('root-key-state')).toHaveTextContent('removing');
     expect(screen.queryByTestId('root-key-unavailable')).not.toBeInTheDocument();
+  });
+
+  it('names the owner through its label', () => {
+    const { unmount } = render(
+      <EncryptionRootKeyCard
+        ownerLabel="team"
+        rootKey={null}
+        canSet={true}
+        onSet={vi.fn()}
+        onValidate={vi.fn()}
+        onRemove={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId('root-key-none')).toHaveTextContent(
+      "This team's keys are wrapped under the deployment's root key.",
+    );
+    unmount();
+
+    renderCard(null, { ownerLabel: 'team', canSet: false });
+
+    expect(screen.getByTestId('root-key-none')).toHaveTextContent(
+      'No root key provider is available to this team.',
+    );
+  });
+
+  it('shows no state and no created field for a row without a state or a creation time', () => {
+    renderCard({ provider: 'aws-kms', keyReference: 'arn', failure: 'The key is disabled.' });
+
+    expect(screen.getByTestId('root-key-provider')).toHaveTextContent('aws-kms');
+    expect(screen.queryByTestId('root-key-state')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('root-key-unavailable')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('root-key-created')).not.toBeInTheDocument();
+    expect(screen.getByTestId('root-key-validate')).toBeInTheDocument();
   });
 
   it('calls the handlers of the set, validate and remove actions', () => {

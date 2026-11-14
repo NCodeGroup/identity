@@ -6,8 +6,8 @@ import { PLATFORM_SCOPE, teamScope, tenantScope, type ManagementScope } from '@n
  *
  * - `/home` — the caller's home: the places it holds authority (ADR-1465);
  * - `/teams`, `/clients`, `/settings`, `/encryption-keys` — the platform scope's surfaces;
- * - `/teams/{teamId}/{surface}` — a team scope's surfaces (`tenants`, `teams`, `clients`, `settings`, `access` and
- *   `usage`), the team id percent-encoded as one segment;
+ * - `/teams/{teamId}/{surface}` — a team scope's surfaces (`tenants`, `teams`, `clients`, `settings`, `access`,
+ *   `encryption-keys` and `usage`), the team id percent-encoded as one segment;
  * - `/tenants/{tenantId}/{surface}` — a tenant scope's surfaces (`clients`, `resource-servers`, `grants`, `secrets`,
  *   `encryption-keys`, `settings`, `access` and `usage`), the tenant id percent-encoded as one segment (ADR-1255).
  *
@@ -24,6 +24,7 @@ export const TEAM_SURFACES = [
   'clients',
   'settings',
   'access',
+  'encryption-keys',
   'usage',
 ] as const;
 
