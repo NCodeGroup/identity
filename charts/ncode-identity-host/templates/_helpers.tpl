@@ -997,16 +997,16 @@ The environment of the management console container.
 - name: Bff__Frontends__mgmt__PublicOrigin
   value: {{ printf "https://%s" $console.host | quote }}
 {{- if $console.keyRings.client.pemSecret }}
-- name: Bff__KeyRings__mgmt-client__PemFiles__0
+- name: KeyRings__mgmt-client__PemFiles__0
   value: {{ printf "%s/client-key/mgmt-client.pem" $keyRoot | quote }}
 {{- end }}
 {{- if $console.keyRings.dpop.pemSecret }}
-- name: Bff__KeyRings__mgmt-dpop__PemFiles__0
+- name: KeyRings__mgmt-dpop__PemFiles__0
   value: {{ printf "%s/dpop-key/mgmt-dpop.pem" $keyRoot | quote }}
 {{- end }}
 {{- range $ring := list "client" "dpop" }}
 {{- range $kid, $key := (index $console.keyRings $ring).remoteKeys }}
-{{- $prefix := printf "Bff__KeyRings__mgmt-%s__RemoteKeys__%s" $ring $kid }}
+{{- $prefix := printf "KeyRings__mgmt-%s__RemoteKeys__%s" $ring $kid }}
 - name: {{ $prefix }}__Provider
   value: {{ $key.provider | quote }}
 - name: {{ $prefix }}__KeyId

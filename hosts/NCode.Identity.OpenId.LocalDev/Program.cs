@@ -204,8 +204,8 @@ builder.AddJavaScriptApp("setup", "../../frontend/apps/setup").WithPnpm(install:
 builder
     .AddProject<Projects.NCode_Identity_ManagementConsole_Host>("console")
     .WithHttpHealthCheck("/health/ready")
-    .WithEnvironment("Bff__KeyRings__mgmt-client__PemFiles__0", consoleClientKeyPath)
-    .WithEnvironment("Bff__KeyRings__mgmt-dpop__PemFiles__0", consoleDPoPKeyPath)
+    .WithEnvironment("KeyRings__mgmt-client__PemFiles__0", consoleClientKeyPath)
+    .WithEnvironment("KeyRings__mgmt-dpop__PemFiles__0", consoleDPoPKeyPath)
     .WaitFor(api)
     .WithExternalHttpEndpoints();
 

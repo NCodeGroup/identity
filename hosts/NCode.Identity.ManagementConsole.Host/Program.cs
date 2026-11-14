@@ -21,20 +21,20 @@ builder.Logging.ClearProviders().AddConsole().AddEventSourceLogger();
 var managementConsole = builder.Services.AddManagementConsole(builder.Configuration);
 managementConsole.IdentityBffBuilder.SharedStateLibraryBuilder.AddValkey(builder.Configuration);
 
-// AWS KMS can hold the console's client, decryption and DPoP keys (Bff:KeyRings:{name}:RemoteKeys). The provider
+// AWS KMS can hold the console's client, decryption and DPoP keys (KeyRings:{name}:RemoteKeys). The provider
 // reads each key where its ARN names, so it registers without a region and creates no key.
 managementConsole.IdentityBffBuilder.SecretsLibraryBuilder.AddAwsKmsRemoteKeyProvider(
     builder.Configuration
 );
 
 // Azure Key Vault or Managed HSM can hold the console's client, decryption and DPoP keys
-// (Bff:KeyRings:{name}:RemoteKeys). The provider reads each key where its key identifier names, so it registers
+// (KeyRings:{name}:RemoteKeys). The provider reads each key where its key identifier names, so it registers
 // without a vault URI and creates no key.
 managementConsole.IdentityBffBuilder.SecretsLibraryBuilder.AddAzureKeyVaultRemoteKeyProvider(
     builder.Configuration
 );
 
-// Google Cloud KMS can hold the console's client, decryption and DPoP keys (Bff:KeyRings:{name}:RemoteKeys). The
+// Google Cloud KMS can hold the console's client, decryption and DPoP keys (KeyRings:{name}:RemoteKeys). The
 // provider reads each key where its key version name names, so it registers without a key ring and creates no key.
 managementConsole.IdentityBffBuilder.SecretsLibraryBuilder.AddGoogleCloudKmsRemoteKeyProvider(
     builder.Configuration

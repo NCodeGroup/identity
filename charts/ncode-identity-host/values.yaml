@@ -529,8 +529,8 @@ managementConsole:
   # Bff:Frontends:mgmt:Authority. Defaults to tenantResolution.staticSingle.issuer under StaticSingle. The console calls
   # the management API at /api on its origin.
   authority: ""
-  # The console's two key rings: client is Bff:KeyRings:mgmt-client, which signs the client's assertions, and dpop is
-  # Bff:KeyRings:mgmt-dpop, which signs its DPoP proofs. Each holds a PEM key from a Secret, keys a key management
+  # The console's two key rings: client is KeyRings:mgmt-client, which signs the client's assertions, and dpop is
+  # KeyRings:mgmt-dpop, which signs its DPoP proofs. Each holds a PEM key from a Secret, keys a key management
   # service holds, or both, and at least one key (ADR-1479, ADR-1485).
   keyRings:
     client:

@@ -56,11 +56,11 @@ identity of its own in the server's shapes.**
    `pendingWindowInDays` outside 7 to 30. The tag of the keys a vendor with a location creates is `cell.name`, which the
    host reads as `Cell:Name`
    ([ADR-1478](1478-a-background-job-destroys-the-key-management-service-keys-that-no-stored-secret-names.md)).
-5. **Console key rings.** `managementConsole.keyRings.client` (`Bff:KeyRings:mgmt-client`, PEM file `mgmt-client.pem`)
-   and `managementConsole.keyRings.dpop` (`Bff:KeyRings:mgmt-dpop`, PEM file `mgmt-dpop.pem`) each have `pemSecret`, a
+5. **Console key rings.** `managementConsole.keyRings.client` (`KeyRings:mgmt-client`, PEM file `mgmt-client.pem`)
+   and `managementConsole.keyRings.dpop` (`KeyRings:mgmt-dpop`, PEM file `mgmt-dpop.pem`) each have `pemSecret`, a
    Secret that holds the PEM file, and `remoteKeys`, a map from key id (`kid`) to `provider`, `keyId`, `algorithm`,
    `secretType`, `keySizeBits` and an optional `curve`. A ring may have either or both. The chart renders each remote
-   key as `Bff__KeyRings__mgmt-<ring>__RemoteKeys__<kid>__*`. A map cannot name one id twice.
+   key as `KeyRings__mgmt-<ring>__RemoteKeys__<kid>__*`. A map cannot name one id twice.
 6. **No provider section for the console.** The chart renders no `SecretProtection__RemoteKeyProviders__*` for the
    console: the console host registers every vendor without a location and reads each key where its identifier names
    it.

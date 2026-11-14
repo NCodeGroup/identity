@@ -119,7 +119,7 @@ management API at `/api` on the origin of its authority.**
 10. **Local development.** The AppHost ([ADR-1071](1071-the-aspire-apphost-runs-the-local-stack-in-health-gated-order-after-checking-the-frontend-toolchain.md))
    runs the console host on `https://localhost:5005` and `http://localhost:5004`. It generates per-machine P-256 keys
    `mgmt-client.pem` and `mgmt-dpop.pem` beside the other development secrets, passes their paths to the console as
-   `Bff__KeyRings__…` and gives the OP the client JWKS as `DeveloperInteractiveSeed__BffClients__0__Jwks`. `apps/mgmt` is
+   `KeyRings__…` and gives the OP the client JWKS as `DeveloperInteractiveSeed__BffClients__0__Jwks`. `apps/mgmt` is
    a build-watched bundle (`vite build --watch`) that the console host serves.
 
 ## Options considered

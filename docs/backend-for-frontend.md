@@ -943,7 +943,7 @@ every registered rule, and `IsMatch` reads only the request. Two rules are built
   `Antiforgery` and `Tokens` at once only when it passes. An invalid change keeps the last valid set and is logged at
   `Error` (event 19012). The endpoints of `MapBffEndpoints()` and `MapBffRemoteApis()` follow the set, with the
   conventions added to their route group, and the endpoint check runs again. A source that never reloads, such as
-  options configured in code, fixes the frontends for the host's life. `Bff:KeyRings` entries are registered when
+  options configured in code, fixes the frontends for the host's life. `KeyRings` entries are registered when
   `AddIdentityBff` is called and load when the host starts, and a change does not re-read them, so a frontend added by a
   change must name a key ring that the host already has, or the change is refused
   ([ADR-1442](decisions/1442-a-bff-serves-the-frontends-its-configuration-lists-each-selected-per-request-by-an-open-rule.md),
@@ -1077,7 +1077,8 @@ app.MapFallbackToFile("index.html");                    // the SPA itself, same 
 ```
 
 A BFF reads the key rings its frontends name from PEM files, from keys that a key management service (KMS) holds, or
-from both. `Bff:KeyRings:{name}` configures the key ring `{name}`, and `AddIdentityBff` registers a keyed
+from both. The key rings are the protocol client's: `AddIdentityBff` points `AddOpenIdClientKeyRings` at the
+host's top-level `KeyRings` section, so `KeyRings:{name}` configures the key ring `{name}` and registers a keyed
 `ISecretKeyCollectionProvider` under that name, which a frontend's `ClientAuthentication:KeyRing` or `DPoP:KeyRing`
 refers to. `PemFiles` lists the files of the ring. Each file holds one EC or RSA private key (PKCS#8, SEC1 or PKCS#1),
 read through sensitive buffers, and a key's `kid` is its file name without the extension. A relative path resolves
@@ -1106,22 +1107,20 @@ source registers the keyed provider in code and configures no entry for it
 
 ```jsonc
 {
-  "Bff": {
-    "KeyRings": {
-      "orders-web-client-key": {
-        "PemFiles": ["/run/secrets/orders-web-client-key.pem"], // kid: orders-web-client-key
-        "RemoteKeys": {
-          "orders-web-enc": {                                   // kid: orders-web-enc; a KMS holds the decryption key
-            "Provider": "aws-kms",
-            "KeyId": "arn:aws:kms:us-west-2:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab",
-            "Algorithm": "RSA-OAEP-256",
-            "SecretType": "rsa",
-            "KeySizeBits": 3072,
-          },
+  "KeyRings": {
+    "orders-web-client-key": {
+      "PemFiles": ["/run/secrets/orders-web-client-key.pem"], // kid: orders-web-client-key
+      "RemoteKeys": {
+        "orders-web-enc": {                                   // kid: orders-web-enc; a KMS holds the decryption key
+          "Provider": "aws-kms",
+          "KeyId": "arn:aws:kms:us-west-2:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab",
+          "Algorithm": "RSA-OAEP-256",
+          "SecretType": "rsa",
+          "KeySizeBits": 3072,
         },
       },
-      "orders-web-dpop": { "PemFiles": ["/run/secrets/orders-web-dpop.pem"] },
     },
+    "orders-web-dpop": { "PemFiles": ["/run/secrets/orders-web-dpop.pem"] },
   },
 }
 ```
@@ -1154,7 +1153,7 @@ source registers the keyed provider in code and configures no entry for it
   `IdleTimeout`.
 - The antiforgery cookie's name does not start with `__Host-`, or the cookie is not `Secure`, has a `Path` other than
   `/`, or has a `Domain`.
-- `Bff:KeyRings` has a key ring without a name, or a key ring lists neither a PEM file nor a remote key. A `PemFiles`
+- `KeyRings` has a key ring without a name, or a key ring lists neither a PEM file nor a remote key. A `PemFiles`
   entry is blank or names a file that does not exist, a remote key has no id, a remote key's `Provider` is not a remote
   key provider's name, or its `KeyId`, `Algorithm` or `SecretType` is blank or its `KeySizeBits` is not positive, and
   one key ring holds two keys with the same id.
@@ -1349,7 +1348,7 @@ host to the console host, and sets `ManagementConsole:ManagementApiUrl` to `/api
 [ADR-1437](decisions/1437-the-management-console-is-a-confidential-client-whose-own-bff-host-serves-only-the-console.md)).
 
 **Local development.** The AppHost generates per-machine P-256 keys `mgmt-client.pem` and `mgmt-dpop.pem` beside the
-other development secrets, hands their paths to the console host (`Bff__KeyRings__…`) and the client key's public JWKS
+other development secrets, hands their paths to the console host (`KeyRings__…`) and the client key's public JWKS
 to the OP (`DeveloperInteractiveSeed__BffClients__0__Jwks`). `apps/mgmt` is a build-watched bundle (`vite build
 --watch`) that the console host serves on `https://localhost:5005`. The OP's outbound guard never reaches loopback, so
 on a developer machine the OP cannot fetch a `jwks_uri` or deliver a back-channel logout to the console. The seed
@@ -1570,7 +1569,7 @@ Each capability ends green under `./build/dod.ps1` and records its decisions in 
 | Multiple frontends             | One `Bff:Frontends:{name}` entry per frontend, selected per request by the open `IBffFrontendSelector` rules `host` and `path`, with its own cookies, client registration, endpoints, tokens and security headers, validated as a whole at startup ([§5.10](#510-frontends), [ADR-1442](decisions/1442-a-bff-serves-the-frontends-its-configuration-lists-each-selected-per-request-by-an-open-rule.md)). |
 | Endpoint startup check         | The host refuses to start when an endpoint's BFF metadata is incomplete, such as a YARP route that names a token requirement without `AsBffRemoteApis()`; the per-request `502` stays the backstop ([ADR-1433](decisions/1433-a-bff-host-checks-every-endpoints-bff-metadata-at-start-and-again-whenever-the-endpoints-change.md)). |
 | Server-rendered and Blazor hosts | Pages that accept a form post with the antiforgery token, hubs as a guarded endpoint kind with connection sessions, and the opt-in `NCode.Identity.Bff.Blazor` and `NCode.Identity.Bff.Blazor.Client` packages ([§5.14](#514-server-rendered-and-blazor-hosts), [ADR-1435](decisions/1435-server-rendered-and-blazor-hosts-use-the-bff-session-through-pages-hubs-and-opt-in-packages.md), [ADR-1292](decisions/1292-the-bffs-cookie-authenticates-only-guarded-endpoints-which-refuse-cross-site-requests-and-reload-cookieless-navigations.md)). |
-| Key rings                      | `Bff:KeyRings:{name}` registers a keyed `ISecretKeyCollectionProvider` that holds the private keys of its `PemFiles` and the remote keys that a KMS holds (`RemoteKeys:{kid}`), loaded when the host starts ([§5.12](#512-composition-and-configuration), [ADR-1439](decisions/1439-a-bff-loads-its-configured-key-rings-at-start-and-refuses-frontends-naming-an-unknown-ring.md), [ADR-1479](decisions/1479-a-protocol-clients-and-a-bffs-keys-can-be-held-in-a-key-management-service.md)). |
+| Key rings                      | `KeyRings:{name}` registers a keyed `ISecretKeyCollectionProvider` that holds the private keys of its `PemFiles` and the remote keys that a KMS holds (`RemoteKeys:{kid}`), loaded when the host starts ([§5.12](#512-composition-and-configuration), [ADR-1439](decisions/1439-a-bff-loads-its-configured-key-rings-at-start-and-refuses-frontends-naming-an-unknown-ring.md), [ADR-1479](decisions/1479-a-protocol-clients-and-a-bffs-keys-can-be-held-in-a-key-management-service.md)). |
 | Management console            | `NCode.Identity.ManagementConsole.Host` serves `apps/mgmt` as the confidential client `mgmt-console` of the control-plane tenant ([§5.15](#515-the-management-console), [ADR-1437](decisions/1437-the-management-console-is-a-confidential-client-whose-own-bff-host-serves-only-the-console.md), [ADR-1438](decisions/1438-the-management-console-holds-no-token-and-reads-its-session-from-its-bff.md)). The Playground stays a public client on purpose.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 ---

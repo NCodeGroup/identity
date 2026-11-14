@@ -105,7 +105,7 @@ effect only when the whole set is valid.**
     stops the host.
     - **No switch.** The configuration source decides whether the frontends change at run time.
     - **One live view.** Nothing reads `IOptions<BffOptions>`; other packages read `IBffOptionsAccessor.Current`. The
-      `Bff:KeyRings` entries load once, when the host starts
+      `KeyRings` entries load once, when the host starts
       ([ADR-1439](1439-a-bff-loads-its-configured-key-rings-at-start-and-refuses-frontends-naming-an-unknown-ring.md),
       [ADR-1479](1479-a-protocol-clients-and-a-bffs-keys-can-be-held-in-a-key-management-service.md)).
 11. **The set checks.** The checks are `BffClientAuthenticationCheck` (each frontend's client-authentication method has a

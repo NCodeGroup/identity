@@ -42,9 +42,9 @@ the deployment provides:
 - `AllowedHosts`: the console's public host name. A missing value or `*` is refused.
 - `Bff__Frontends__mgmt__Authority`: the OP's issuer URL.
 - `Bff__Frontends__mgmt__PublicOrigin`: the console's public origin, such as `https://manage.example.com`.
-- `Bff__KeyRings__mgmt-client__…`: the key ring of the console's client authentication key, a PEM file
+- `KeyRings__mgmt-client__…`: the key ring of the console's client authentication key, a PEM file
   (`PemFiles__0`), keys that a key management service holds (`RemoteKeys__<kid>__…`), or both.
-- `Bff__KeyRings__mgmt-dpop__…`: the key ring of the console's DPoP key, a PEM file (`PemFiles__0`), keys that a key
+- `KeyRings__mgmt-dpop__…`: the key ring of the console's DPoP key, a PEM file (`PemFiles__0`), keys that a key
   management service holds (`RemoteKeys__<kid>__…`), or both.
 - `ManagementConsole__ManagementApiUrl`: the OP's management API, `/api` on the origin of
   `Bff__Frontends__mgmt__Authority`, such as `https://id.example.com/api`: the OP
@@ -57,7 +57,7 @@ the deployment provides:
   ([ADR-1510](../../docs/decisions/1510-the-host-chart-passes-a-valkey-servers-address-and-password-as-parts-and-the-adapter-assembles-the-connection.md)).
 
 A key ring can come from a key management service instead of a PEM file, or beside one. Each key is an entry
-`Bff__KeyRings__<ring>__RemoteKeys__<kid>__Provider` with `__KeyId`, `__Algorithm`, `__SecretType`, `__KeySizeBits` and
+`KeyRings__<ring>__RemoteKeys__<kid>__Provider` with `__KeyId`, `__Algorithm`, `__SecretType`, `__KeySizeBits` and
 `__Curve`. The console registers the AWS KMS, Azure Key Vault and Google Cloud KMS providers without a
 key-creation location and reads each key where the key's identifier names, so it needs no
 `SecretProtection__RemoteKeyProviders__…` setting. The provider's row for the algorithm decides whether the key signs or

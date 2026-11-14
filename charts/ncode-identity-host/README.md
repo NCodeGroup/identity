@@ -784,8 +784,8 @@ kubectl create secret generic identity-mgmt-dpop-key --from-file=mgmt-dpop.pem
 ```
 
 Name the Secrets in `managementConsole.keyRings.client.pemSecret` and `managementConsole.keyRings.dpop.pemSecret`. The
-chart mounts each read-only and points `Bff__KeyRings__mgmt-client__PemFiles__0` and
-`Bff__KeyRings__mgmt-dpop__PemFiles__0` at the files. To hold a ring's keys in a key management service instead or as
+chart mounts each read-only and points `KeyRings__mgmt-client__PemFiles__0` and
+`KeyRings__mgmt-dpop__PemFiles__0` at the files. To hold a ring's keys in a key management service instead or as
 well, see [The console's keys in a key management service](#the-consoles-keys-in-a-key-management-service).
 
 Register `mgmt-console` with the server as a confidential client of the control-plane tenant, with the metadata of
@@ -837,8 +837,8 @@ helm install identity charts/ncode-identity-host \
 
 ### The console's keys in a key management service
 
-Each console key ring, `managementConsole.keyRings.client` (`Bff:KeyRings:mgmt-client`) and
-`managementConsole.keyRings.dpop` (`Bff:KeyRings:mgmt-dpop`), holds a PEM key from a Secret, keys that a key management
+Each console key ring, `managementConsole.keyRings.client` (`KeyRings:mgmt-client`) and
+`managementConsole.keyRings.dpop` (`KeyRings:mgmt-dpop`), holds a PEM key from a Secret, keys that a key management
 service holds, or both. A key a key management service holds signs every request the console makes, so the private key
 never reaches the pod
 ([ADR-1479](../../docs/decisions/1479-a-protocol-clients-and-a-bffs-keys-can-be-held-in-a-key-management-service.md),
@@ -875,7 +875,7 @@ managementConsole:
         roleArn: arn:aws:iam::111122223333:role/ncode-identity-management-console
 ```
 
-The chart renders each remote key as `Bff__KeyRings__<ring>__RemoteKeys__<kid>__Provider`, `__KeyId`, `__Algorithm`,
+The chart renders each remote key as `KeyRings__<ring>__RemoteKeys__<kid>__Provider`, `__KeyId`, `__Algorithm`,
 `__SecretType`, `__KeySizeBits` and `__Curve`, where `<ring>` is `mgmt-client` or `mgmt-dpop`. The console image
 registers the AWS KMS, Azure Key Vault and Google Cloud KMS providers without a key-creation location, and the console
 reads every key where the key's own identifier names, so the chart renders no

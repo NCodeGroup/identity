@@ -348,9 +348,9 @@ rows as a tenant's keys.
   algorithm without a KMS call and reads the key's public half from the KMS, and `IRemoteKeyProver` proves that the KMS
   holds the private half. A host that composes a protocol client's key ring in code reads each key with the resolver
   and proves it with the prover before the ring is first resolved.
-- **A BFF names its remote keys in its configuration.** `Bff:KeyRings:{name}:RemoteKeys:{kid}` holds `Provider`,
-  `KeyId`, `Algorithm`, `SecretType`, `KeySizeBits` and `Curve`, next to or instead of the ring's `PemFiles`; a ring
-  lists at least one key and no id twice.
+- **A BFF names its remote keys in its configuration.** `KeyRings:{name}:RemoteKeys:{kid}`, which the
+  protocol client loads, holds `Provider`, `KeyId`, `Algorithm`, `SecretType`, `KeySizeBits` and `Curve`, next to or
+  instead of the ring's `PemFiles`; a ring lists at least one key and no id twice.
 - **The row decides whether the key signs or decrypts.** A signing row gives a `private_key_jwt` assertion key or a DPoP
   proof key, a decryption row gives the key that decrypts an encrypted ID token, UserInfo response or logout token, so
   one ring can hold both, and `/bff/jwks` publishes each half with its `use`.

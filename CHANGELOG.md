@@ -2991,9 +2991,9 @@ Until the first stable release, the [Unreleased] section describes the product a
   [ADR-1447](docs/decisions/1447-each-host-composes-forwarded-header-trust-and-strict-transport-security-from-one-general-package.md),
   [ADR-1253](docs/decisions/1253-a-tenant-brands-its-sign-in-pages-through-settings-and-the-bundle-mounts-over-the-hosts-page.md)).
 
-- **A BFF loads its key rings from PEM files and key management services when the host starts.**
-  `Bff:KeyRings:{name}:PemFiles` lists EC or RSA private-key PEM files, each key's `kid` its file name without the
-  extension, and `Bff:KeyRings:{name}:RemoteKeys:{kid}` names a key a KMS holds by its `Provider`, `KeyId`, `Algorithm`,
+- **A BFF host and the identity server load their key rings through the protocol client when the host starts.**
+  `KeyRings:{name}:PemFiles` lists EC or RSA private-key PEM files, each key's `kid` its file name without the
+  extension, and `KeyRings:{name}:RemoteKeys:{kid}` names a key a KMS holds by its `Provider`, `KeyId`, `Algorithm`,
   `SecretType`, `KeySizeBits` and `Curve`, the provider's row deciding whether it signs or decrypts. Every configured
   key ring loads before the host serves: a remote key's public half is read from its KMS and the key proves it holds the
   private half, and `/bff/jwks` publishes the half without a KMS call. The host validates the entries when it starts,
