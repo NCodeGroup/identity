@@ -162,6 +162,8 @@ public sealed class ClientStoreTenantScopingTests : IDisposable
     {
         await SeedAsync(CancellationToken.None);
 
+        using var scope = AmbientTenantAccessor.BeginUnscoped("test");
+
         var tenantA = await Store.GetOrDefaultAsync(ClientA, CancellationToken.None);
         var tenantB = await Store.GetOrDefaultAsync(ClientB, CancellationToken.None);
 
@@ -189,21 +191,30 @@ public sealed class ClientStoreTenantScopingTests : IDisposable
 
         public bool IsScoped => TenantId is not null;
 
-        public bool IsUnscoped => false;
+        public bool IsUnscoped { get; private set; }
 
-        public string? UnscopedReason => null;
+        public string? UnscopedReason { get; private set; }
 
         public IDisposable BeginScope(string tenantId)
         {
             TenantId = tenantId;
-            return new NoopScope();
+            return new Scope(() => TenantId = null);
         }
 
-        public IDisposable BeginUnscoped(string reason) => throw new NotSupportedException();
-
-        private sealed class NoopScope : IDisposable
+        public IDisposable BeginUnscoped(string reason)
         {
-            public void Dispose() { }
+            IsUnscoped = true;
+            UnscopedReason = reason;
+            return new Scope(() =>
+            {
+                IsUnscoped = false;
+                UnscopedReason = null;
+            });
+        }
+
+        private sealed class Scope(Action restore) : IDisposable
+        {
+            public void Dispose() => restore();
         }
     }
 }

@@ -80,6 +80,8 @@ public sealed class RoleAssignmentStoreTests : IDisposable
     {
         await SeedTenantAsync(CancellationToken.None);
 
+        using var scope = Ambient.BeginScope(TenantId);
+
         await Store.AddAsync(
             CreateAssignment("assign-1", Subject, "Owner", "client", "client-1"),
             CancellationToken.None
@@ -101,6 +103,8 @@ public sealed class RoleAssignmentStoreTests : IDisposable
     public async Task GetByResourceAsync_WhenNodeHasOwners_ReturnsOnlyThatNode()
     {
         await SeedTenantAsync(CancellationToken.None);
+
+        using var scope = Ambient.BeginScope(TenantId);
 
         await Store.AddAsync(
             CreateAssignment("assign-1", "owner-a", "Owner", "client", "client-1"),
@@ -186,6 +190,8 @@ public sealed class RoleAssignmentStoreTests : IDisposable
     {
         await SeedTenantAsync(CancellationToken.None);
 
+        using var scope = Ambient.BeginScope(TenantId);
+
         await Store.AddAsync(
             CreateAssignment("assign-1", Subject, "Owner", "client", "client-1"),
             CancellationToken.None
@@ -201,7 +207,8 @@ public sealed class RoleAssignmentStoreTests : IDisposable
 }
 
 /// <summary>
-/// An ambient tenant accessor whose scope a test begins and ends, so the tenant-scoping query filter applies.
+/// An ambient tenant accessor whose tenant and unscoped scopes a test begins and ends, so the fail-closed
+/// tenant-scoping query filter applies. With no scope begun, the scope is unset and matches no tenant row.
 /// </summary>
 internal sealed class SwitchableAmbientTenantAccessor : IAmbientTenantAccessor
 {
@@ -209,20 +216,39 @@ internal sealed class SwitchableAmbientTenantAccessor : IAmbientTenantAccessor
 
     public bool IsScoped => TenantId is not null;
 
-    public bool IsUnscoped => false;
+    public bool IsUnscoped { get; private set; }
 
-    public string? UnscopedReason => null;
+    public string? UnscopedReason { get; private set; }
 
     public IDisposable BeginScope(string tenantId)
     {
+        var scope = new Scope(this);
         TenantId = tenantId;
-        return new Scope(this);
+        IsUnscoped = false;
+        UnscopedReason = null;
+        return scope;
     }
 
-    public IDisposable BeginUnscoped(string reason) => throw new NotSupportedException();
+    public IDisposable BeginUnscoped(string reason)
+    {
+        var scope = new Scope(this);
+        TenantId = null;
+        IsUnscoped = true;
+        UnscopedReason = reason;
+        return scope;
+    }
 
     private sealed class Scope(SwitchableAmbientTenantAccessor accessor) : IDisposable
     {
-        public void Dispose() => accessor.TenantId = null;
+        private string? PreviousTenantId { get; } = accessor.TenantId;
+        private bool PreviousIsUnscoped { get; } = accessor.IsUnscoped;
+        private string? PreviousUnscopedReason { get; } = accessor.UnscopedReason;
+
+        public void Dispose()
+        {
+            accessor.TenantId = PreviousTenantId;
+            accessor.IsUnscoped = PreviousIsUnscoped;
+            accessor.UnscopedReason = PreviousUnscopedReason;
+        }
     }
 }

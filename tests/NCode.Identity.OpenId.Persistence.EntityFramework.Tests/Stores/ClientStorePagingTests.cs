@@ -80,6 +80,8 @@ public sealed class ClientStorePagingTests : IDisposable
     {
         await SeedAsync(5, CancellationToken.None);
 
+        using var scope = Ambient.BeginScope(TenantId);
+
         var seen = new List<string>();
         string? cursor = null;
         var pageCount = 0;
@@ -106,6 +108,8 @@ public sealed class ClientStorePagingTests : IDisposable
     {
         await SeedAsync(3, CancellationToken.None);
 
+        using var scope = Ambient.BeginScope(TenantId);
+
         var page = await Store.GetPageAsync(new PageRequest { Limit = 10 }, CancellationToken.None);
 
         Assert.Equal(3, page.Items.Count);
@@ -116,6 +120,8 @@ public sealed class ClientStorePagingTests : IDisposable
     public async Task GetPageAsync_WhenCursorIsMalformed_StartsFromBeginning()
     {
         await SeedAsync(3, CancellationToken.None);
+
+        using var scope = Ambient.BeginScope(TenantId);
 
         var page = await Store.GetPageAsync(
             new PageRequest { Cursor = "not-a-valid-cursor", Limit = 10 },
@@ -128,6 +134,7 @@ public sealed class ClientStorePagingTests : IDisposable
     [Fact]
     public async Task GetPageAsync_WhenEmpty_ReturnsEmptyPageAndNullCursor()
     {
+        using var scope = Ambient.BeginScope(TenantId);
         var page = await Store.GetPageAsync(new PageRequest { Limit = 10 }, CancellationToken.None);
 
         Assert.Empty(page.Items);
@@ -140,6 +147,8 @@ public sealed class ClientStorePagingTests : IDisposable
     public async Task GetSettingsPageAsync_TraversesEveryClientExactlyOnce()
     {
         await SeedAsync(5, CancellationToken.None);
+
+        using var scope = Ambient.BeginScope(TenantId);
 
         var seen = new List<string>();
         string? cursor = null;
@@ -175,6 +184,8 @@ public sealed class ClientStorePagingTests : IDisposable
     public async Task GetSettingsPageAsync_ReadsWithoutTracking()
     {
         await SeedAsync(3, CancellationToken.None);
+
+        using var scope = Ambient.BeginScope(TenantId);
 
         var page = await Store.GetSettingsPageAsync(
             new PageRequest { Limit = 10 },
@@ -212,6 +223,7 @@ public sealed class ClientStorePagingTests : IDisposable
         await DbContext.SaveChangesAsync();
         DbContext.ChangeTracker.Clear();
 
+        using var scope = Ambient.BeginScope(TenantId);
         var teamPage = await Store.GetPageByOwningNodeAsync(
             "team",
             "team-1",
@@ -261,6 +273,8 @@ public sealed class ClientStorePagingTests : IDisposable
     public async Task GetByPrincipalOrDefaultAsync_WhenNoClientHoldsThePrincipal_ReturnsNull()
     {
         await SeedAsync(2, CancellationToken.None);
+
+        using var scope = Ambient.BeginScope(TenantId);
 
         var loaded = await Store.GetByPrincipalOrDefaultAsync(
             "unknown-principal",

@@ -36,8 +36,8 @@ internal static class TestOpenIdDbContextSetup
 }
 
 /// <summary>
-/// An ambient tenant accessor whose active tenant is settable, so a test can leave data access unscoped
-/// (<see cref="TenantId"/> is <c>null</c>) or scope it to a specific tenant.
+/// An ambient tenant accessor whose tenant scope and unscoped scope a test begins and ends, so a test can leave data
+/// access unset (matching no tenant row), scope it to a specific tenant, or open it across every tenant.
 /// </summary>
 internal sealed class TestAmbientTenantAccessor : IAmbientTenantAccessor
 {
@@ -45,20 +45,32 @@ internal sealed class TestAmbientTenantAccessor : IAmbientTenantAccessor
 
     public bool IsScoped => TenantId is not null;
 
-    public bool IsUnscoped => false;
+    public bool IsUnscoped { get; private set; }
 
-    public string? UnscopedReason => null;
+    public string? UnscopedReason { get; private set; }
 
     public IDisposable BeginScope(string tenantId)
     {
+        var previousTenantId = TenantId;
         TenantId = tenantId;
-        return new NoopScope();
+        return new Scope(() => TenantId = previousTenantId);
     }
 
-    public IDisposable BeginUnscoped(string reason) => throw new NotSupportedException();
-
-    private sealed class NoopScope : IDisposable
+    public IDisposable BeginUnscoped(string reason)
     {
-        public void Dispose() { }
+        var previousIsUnscoped = IsUnscoped;
+        var previousReason = UnscopedReason;
+        IsUnscoped = true;
+        UnscopedReason = reason;
+        return new Scope(() =>
+        {
+            IsUnscoped = previousIsUnscoped;
+            UnscopedReason = previousReason;
+        });
+    }
+
+    private sealed class Scope(Action restore) : IDisposable
+    {
+        public void Dispose() => restore();
     }
 }

@@ -113,7 +113,7 @@ public sealed class LocalAccountStoreTenantScopingTests : IDisposable
     {
         await SeedAsync(CancellationToken.None);
 
-        Accessor.TenantId = null;
+        using var scope = Accessor.BeginUnscoped("test");
         Assert.NotNull(await Store.GetByIdOrDefaultAsync(AccountA, CancellationToken.None));
         Assert.NotNull(await Store.GetByIdOrDefaultAsync(AccountB, CancellationToken.None));
     }

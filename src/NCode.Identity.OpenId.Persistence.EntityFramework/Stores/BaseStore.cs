@@ -99,32 +99,38 @@ public abstract class BaseStore<TItem, TEntity> : IStore
 
     /// <summary>
     /// Returns an already-tracked entity matching the predicate without querying the database. The lookup applies
-    /// the tenant scope the tenant-scoping query filter applies, so it answers exactly what the query would: a
-    /// tracked tenant-child entity of another tenant is not returned while an ambient tenant is set. EF identity
-    /// resolution would return this same tracked instance from a query anyway, so a <c>Local</c>-first lookup
-    /// avoids a redundant round-trip when the entity was already loaded in the current unit of work.
+    /// the tenant scope the fail-closed tenant-scoping query filter applies, so it answers exactly what the query
+    /// would: a tracked entity that is not tenant-bound matches; a tracked tenant-child entity matches only when the
+    /// scope is unscoped or its tenant is the ambient tenant. With the scope unset, no tracked tenant-child entity
+    /// matches. EF identity resolution would return this same tracked instance from a query anyway, so a
+    /// <c>Local</c>-first lookup avoids a redundant round-trip when the entity was already loaded in the current
+    /// unit of work.
     /// </summary>
     /// <param name="predicate">The predicate to match against the tracked (local) entities.</param>
-    /// <returns>The tracked entity if one matches in the ambient tenant; otherwise <c>null</c>.</returns>
+    /// <returns>The tracked entity if one matches in the tenant scope; otherwise <c>null</c>.</returns>
     protected TEntity? GetLocalOrDefault(Expression<Func<TEntity, bool>> predicate)
     {
         var compiled = predicate.Compile();
+        var isUnscoped = DbContext.IsUnscoped;
         var ambientTenantId = DbContext.NormalizedAmbientTenantId;
         return DbContext
             .Set<TEntity>()
             .Local.FirstOrDefault(entity =>
-                compiled(entity) && IsInAmbientTenant(entity, ambientTenantId)
+                compiled(entity) && IsInTenantScope(entity, isUnscoped, ambientTenantId)
             );
     }
 
-    private static bool IsInAmbientTenant(TEntity entity, string? ambientTenantId)
+    private static bool IsInTenantScope(TEntity entity, bool isUnscoped, string? ambientTenantId)
     {
-        return ambientTenantId is null
+        return isUnscoped
             || entity is not ISupportTenantEntity tenantEntity
-            || string.Equals(
-                tenantEntity.NormalizedTenantId,
-                ambientTenantId,
-                StringComparison.Ordinal
+            || (
+                ambientTenantId is not null
+                && string.Equals(
+                    tenantEntity.NormalizedTenantId,
+                    ambientTenantId,
+                    StringComparison.Ordinal
+                )
             );
     }
 

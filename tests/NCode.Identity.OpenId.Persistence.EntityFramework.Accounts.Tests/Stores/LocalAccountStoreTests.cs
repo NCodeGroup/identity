@@ -20,6 +20,7 @@ public sealed class LocalAccountStoreTests : IDisposable
 
     private ServiceProvider Provider { get; }
     private OpenIdDbContext DbContext { get; }
+    private IDisposable TenantScope { get; }
     private LocalAccountStore Store { get; }
     private PlainPasswordHasher Hasher { get; } = new();
 
@@ -32,6 +33,7 @@ public sealed class LocalAccountStoreTests : IDisposable
 
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
+        TenantScope = Provider.GetRequiredService<TestAmbientTenantAccessor>().BeginScope(TenantId);
         var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
         Store = new LocalAccountStore(
             Mock.Of<IStoreProvider>(),
@@ -43,6 +45,7 @@ public sealed class LocalAccountStoreTests : IDisposable
 
     public void Dispose()
     {
+        TenantScope.Dispose();
         DbContext.Dispose();
         Provider.Dispose();
     }
