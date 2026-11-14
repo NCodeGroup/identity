@@ -59,6 +59,69 @@ telemetry:
   # The OTLP collector's absolute URL (OTEL_EXPORTER_OTLP_ENDPOINT). Empty sets none.
   otlpEndpoint: ""
 
+# The global directory, the service that reserves tenant and team identifiers platform-wide, places each tenant in a cell
+# and publishes team documents. The cell reaches it through url, and a release can run the directory itself through
+# enabled.
+directory:
+  # The directory's absolute URL (Directory:Url). Empty keeps the local adapters, which serve one cell on its own with no
+  # extra service. Required when cell.isControlPlane is false: a cell outside the control plane reaches the platform's
+  # directory.
+  url: ""
+  # The machine client the cell authenticates as (Directory:ClientId), cell-<cell.name>. Required when url is set.
+  clientId: ""
+  # The name of the key ring whose key signs the client's assertions (Directory:KeyRing). Required when url is set.
+  keyRing: ""
+  # Runs the directory host as its own Deployment, with a Service and a pre-install and pre-upgrade Job that applies its
+  # migrations. The directory keeps its single-use state in process, so it runs one replica.
+  enabled: false
+  # The issuer of the control-plane cell (DirectoryServer:Issuer), whose bearer tokens the directory accepts. Required
+  # when enabled.
+  issuer: ""
+  # The host names the directory answers to (AllowedHosts), such as the host of url. The probes send the first. Required
+  # when enabled; '*' is refused.
+  allowedHosts: []
+  image:
+    repository: ghcr.io/ncodegroup/ncode-identity-directory
+    # Defaults to the chart's appVersion.
+    tag: ""
+    # When set, the image is pulled by digest and the tag is ignored.
+    digest: ""
+    pullPolicy: IfNotPresent
+  # The directory's own Postgres database (ConnectionStrings:directory), never the cell's. The Deployment and the
+  # migration Job read the same finished Npgsql connection string, from the key of a Secret the operator created.
+  # Required when enabled.
+  database:
+    existingSecret: ""
+    connectionStringKey: connection-string
+  # A kubernetes.io/tls Secret the operator created, with tls.crt and tls.key, that the directory serves. Its
+  # certificate names the host of url. Required when enabled.
+  tls:
+    existingSecret: ""
+  service:
+    type: ClusterIP
+    port: 443
+  migrations:
+    backoffLimit: 1
+    activeDeadlineSeconds: 600
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  # Any other directory setting, as environment variables, and extra volumes. The migration Job receives the
+  # environment variables too.
+  extraEnv: []
+  extraEnvFrom: []
+  extraVolumes: []
+  extraVolumeMounts: []
+
 tenantResolution:
   # OpenId:TenantResolution:StrategyCode. Settings for another strategy go in extraEnv.
   strategyCode: StaticSingle

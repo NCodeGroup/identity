@@ -232,6 +232,12 @@ applied. Rendered for its side effect only.
 {{- fail "database.runtimeRole must be a lower-case Postgres role name of letters, digits and underscores that does not start with a digit." }}
 {{- end }}
 {{- include "identity-host.valkeyValidate" (dict "path" "valkey" "scope" .Values.valkey "defaults" .Values.valkey) }}
+{{- if and .Values.directory.url (not .Values.directory.clientId) }}
+{{- fail "directory.clientId must name the cell's machine client when directory.url is set." }}
+{{- end }}
+{{- if and .Values.directory.url (not .Values.directory.keyRing) }}
+{{- fail "directory.keyRing must name the key ring that signs the cell's client assertions when directory.url is set." }}
+{{- end }}
 {{- if and (eq .Values.tenantResolution.strategyCode "StaticSingle") (not .Values.tenantResolution.staticSingle.issuer) }}
 {{- fail "tenantResolution.staticSingle.issuer must be the public issuer URL." }}
 {{- end }}
@@ -610,6 +616,19 @@ same configuration the pods it rewraps keys for read.
 {{- with .Values.cell.controlPlaneIssuer }}
 - name: Cell__ControlPlane__Issuer
   value: {{ . | quote }}
+{{- end }}
+{{- $directory := .Values.directory }}
+{{- if $directory.url }}
+- name: Directory__Url
+  value: {{ $directory.url | quote }}
+{{- with $directory.clientId }}
+- name: Directory__ClientId
+  value: {{ . | quote }}
+{{- end }}
+{{- with $directory.keyRing }}
+- name: Directory__KeyRing
+  value: {{ . | quote }}
+{{- end }}
 {{- end }}
 {{ include "identity-host.telemetryEnv" . | trim }}
 - name: OpenId__TenantResolution__StrategyCode
@@ -1015,5 +1034,100 @@ The environment of the management console container.
 {{- end }}
 {{- with $console.extraEnv }}
 {{- toYaml . | nindent 0 }}
+{{- end }}
+{{- end }}
+
+{{/*
+The fully qualified name of the directory's resources. The release's fully qualified name is shortened first so the name,
+with its suffix, fits the 63-character limit.
+*/}}
+{{- define "identity-host.directory.fullname" -}}
+{{- printf "%s-directory" (include "identity-host.fullname" . | trunc 54 | trimSuffix "-") }}
+{{- end }}
+
+{{/*
+The name of the directory's migration Job. The fully qualified name is shortened first so the name, with its suffix, fits
+the 63-character label value Kubernetes copies it into (batch.kubernetes.io/job-name).
+*/}}
+{{- define "identity-host.directory.migrationsJobName" -}}
+{{- printf "%s-directory-migrations" (include "identity-host.fullname" . | trunc 40 | trimSuffix "-") }}
+{{- end }}
+
+{{/*
+The labels that select the directory's pods. The component keeps the migration Job's pod out of the Service.
+*/}}
+{{- define "identity-host.directory.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "identity-host.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: directory
+{{- end }}
+
+{{/*
+The labels every resource of the directory carries.
+*/}}
+{{- define "identity-host.directory.labels" -}}
+{{ include "identity-host.commonLabels" . }}
+app.kubernetes.io/component: directory
+{{- end }}
+
+{{/*
+The directory's container image: the digest when one is set, else the tag, which defaults to the chart's appVersion.
+*/}}
+{{- define "identity-host.directory.image" -}}
+{{- if .Values.directory.image.digest }}
+{{- printf "%s@%s" .Values.directory.image.repository .Values.directory.image.digest }}
+{{- else }}
+{{- printf "%s:%s" .Values.directory.image.repository (default .Chart.AppVersion .Values.directory.image.tag) }}
+{{- end }}
+{{- end }}
+
+{{/*
+The environment of the directory container, which the Deployment and the migration Job share, so the Job reads the same
+configuration the pods it migrates the database for read.
+*/}}
+{{- define "identity-host.directory.env" -}}
+{{- $directory := .Values.directory }}
+- name: ASPNETCORE_ENVIRONMENT
+  value: {{ .Values.environment | quote }}
+- name: AllowedHosts
+  value: {{ join ";" $directory.allowedHosts | quote }}
+- name: DirectoryServer__Issuer
+  value: {{ $directory.issuer | quote }}
+- name: ConnectionStrings__directory
+  valueFrom:
+    secretKeyRef:
+      name: {{ $directory.database.existingSecret }}
+      key: {{ $directory.database.connectionStringKey | quote }}
+{{ include "identity-host.telemetryEnv" . | trim }}
+{{- with $directory.extraEnv }}
+{{- toYaml . | nindent 0 }}
+{{- end }}
+{{- end }}
+
+{{/*
+Refuses a directory the host would refuse, before anything is applied. Rendered for its side effect only.
+*/}}
+{{- define "identity-host.directory.validate" -}}
+{{- $directory := .Values.directory }}
+{{- if not $directory.allowedHosts }}
+{{- fail "directory.allowedHosts must list the host names the directory answers to when directory.enabled is true." }}
+{{- end }}
+{{- if has "*" $directory.allowedHosts }}
+{{- fail "directory.allowedHosts must not contain '*': it accepts every Host header." }}
+{{- end }}
+{{- if contains "*" (first $directory.allowedHosts) }}
+{{- fail "directory.allowedHosts must start with a concrete host that the probes can send: the first host is a wildcard." }}
+{{- end }}
+{{- if not $directory.issuer }}
+{{- fail "directory.issuer must be the issuer of the control-plane cell when directory.enabled is true: the directory accepts bearer tokens from it." }}
+{{- end }}
+{{- if not $directory.database.existingSecret }}
+{{- fail "directory.database.existingSecret must name the Secret holding the directory's connection string when directory.enabled is true." }}
+{{- end }}
+{{- if not $directory.database.connectionStringKey }}
+{{- fail "directory.database.connectionStringKey must name the key that holds the connection string in directory.database.existingSecret." }}
+{{- end }}
+{{- if not $directory.tls.existingSecret }}
+{{- fail "directory.tls.existingSecret must name the Secret holding the directory's serving certificate when directory.enabled is true: the directory serves HTTPS only." }}
 {{- end }}
 {{- end }}

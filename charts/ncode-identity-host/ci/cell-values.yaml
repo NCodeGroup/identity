@@ -1,6 +1,6 @@
 # A production release of a cell that is not the control plane: a dedicated cell spanning two cloud regions, which
-# reaches its management API at its own URL and accepts platform and team management tokens from the control-plane
-# cell's issuer.
+# reaches its management API at its own URL, accepts platform and team management tokens from the control-plane cell's
+# issuer, and reaches the platform's directory at its URL.
 cell:
   name: ci-cell-eu
   region: eu
@@ -10,6 +10,10 @@ cell:
     - eu-central-1
   managementUrl: https://manage.eu.example.com
   controlPlaneIssuer: https://id.example.com
+directory:
+  url: https://directory.example.com
+  clientId: cell-ci-cell-eu
+  keyRing: cell-client
 allowedHosts:
   - id.eu.example.com
 tenantResolution:

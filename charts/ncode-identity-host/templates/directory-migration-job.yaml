@@ -1,0 +1,72 @@
+{{- if .Values.directory.enabled }}
+{{- include "identity-host.directory.validate" . }}
+{{- $directory := .Values.directory }}
+# Applies the directory's database migrations before an install or upgrade changes anything else, while the previous
+# version still serves. Helm waits for the Job, and a failed Job fails the release before its rollout starts. The
+# directory host image runs its own migrations: the 'migrate' command applies them and exits.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "identity-host.directory.migrationsJobName" . }}
+  labels:
+    {{- include "identity-host.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/component: directory-migrations
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "0"
+    # A failed Job stays for its logs until the next release replaces it.
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ $directory.migrations.backoffLimit }}
+  activeDeadlineSeconds: {{ $directory.migrations.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "identity-host.commonLabels" . | nindent 8 }}
+        app.kubernetes.io/component: directory-migrations
+    spec:
+      restartPolicy: Never
+      # The migration never calls the Kubernetes API, so the pod uses the namespace's default account.
+      automountServiceAccountToken: false
+      {{- with include "identity-host.imagePullSecrets" . }}
+      {{- . | trim | nindent 6 }}
+      {{- end }}
+      securityContext:
+        {{- include "identity-host.podSecurityContext" . | nindent 8 }}
+      containers:
+        - name: migrations
+          image: {{ include "identity-host.directory.image" . | quote }}
+          imagePullPolicy: {{ $directory.image.pullPolicy }}
+          # The image's entry point is the directory host, and its only argument here selects the command that migrates
+          # the database and exits.
+          args:
+            - migrate
+          securityContext:
+            {{- include "identity-host.containerSecurityContext" . | nindent 12 }}
+          env:
+            {{- include "identity-host.directory.env" . | trim | nindent 12 }}
+          {{- with $directory.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $directory.migrations.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            {{- with $directory.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+        {{- with $directory.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with include "identity-host.scheduling" . }}
+      {{- . | trim | nindent 6 }}
+      {{- end }}
+{{- end }}
