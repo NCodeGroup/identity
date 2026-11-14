@@ -74,11 +74,12 @@ public static class DefaultRegistration
                 FederatedIdentityStore
             >();
 
-            // The local directory adapters answer from the cell's own tables. TryAdd lets a remote adapter registered
-            // first win.
-            serviceCollection.TryAddScoped<ITenantDirectory, LocalTenantDirectory>();
-            serviceCollection.TryAddScoped<ITeamDirectory, LocalTeamDirectory>();
-            serviceCollection.TryAddScoped<ICellDirectory, LocalCellDirectory>();
+            // The local directory adapters answer from the cell's own tables. Each call opens its own context through
+            // the context factory and commits its own writes, so the adapters are singletons. TryAdd lets a remote
+            // adapter registered first win.
+            serviceCollection.TryAddSingleton<ITenantDirectory, LocalTenantDirectory>();
+            serviceCollection.TryAddSingleton<ITeamDirectory, LocalTeamDirectory>();
+            serviceCollection.TryAddSingleton<ICellDirectory, LocalCellDirectory>();
 
             return newBuilder;
         }

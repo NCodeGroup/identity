@@ -4,6 +4,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using Moq;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
@@ -47,6 +48,7 @@ public sealed class DefaultTenantResolverTests
         var resolver = new DefaultTenantResolver(
             options,
             mocks.Create<IAmbientTenantAccessor>().Object,
+            mocks.Create<ITenantDirectory>().Object,
             [strategy.Object]
         );
 
@@ -63,7 +65,8 @@ public sealed class DefaultTenantResolverTests
 
     private static DefaultTenantResolver CreateResolver(
         ITenantStrategy strategy,
-        IAmbientTenantAccessor? ambientTenantAccessor = null
+        IAmbientTenantAccessor? ambientTenantAccessor = null,
+        ITenantDirectory? tenantDirectory = null
     ) =>
         new(
             Options.Create(
@@ -73,6 +76,7 @@ public sealed class DefaultTenantResolverTests
                 }
             ),
             ambientTenantAccessor ?? CreateAmbientTenantAccessor(),
+            tenantDirectory ?? new Mock<ITenantDirectory>(MockBehavior.Strict).Object,
             [strategy]
         );
 
@@ -107,18 +111,26 @@ public sealed class DefaultTenantResolverTests
 
     private static Mock<ITenantStore> CreateStore(
         MockRepository mocks,
-        Mock<IStoreManager> storeManager,
-        string tenantId,
-        bool isTenantIdRetired = false
+        Mock<IStoreManager> storeManager
     )
     {
         var store = mocks.Create<ITenantStore>();
         storeManager.Setup(x => x.GetStore<ITenantStore>()).Returns(store.Object).Verifiable();
-        store
+        return store;
+    }
+
+    private static Mock<ITenantDirectory> CreateDirectory(
+        MockRepository mocks,
+        string tenantId,
+        bool isTenantIdRetired = false
+    )
+    {
+        var directory = mocks.Create<ITenantDirectory>();
+        directory
             .Setup(x => x.IsTenantIdRetiredAsync(tenantId, CancellationToken.None))
             .ReturnsAsync(isTenantIdRetired)
             .Verifiable();
-        return store;
+        return directory;
     }
 
     private static PersistedTenant CreatePersistedTenant(string tenantId) =>
@@ -176,7 +188,8 @@ public sealed class DefaultTenantResolverTests
         var mocks = new MockRepository(MockBehavior.Strict);
         var strategy = CreateStrategy(mocks);
         var storeManager = mocks.Create<IStoreManager>();
-        CreateStore(mocks, storeManager, TenantId);
+        CreateStore(mocks, storeManager);
+        var directory = CreateDirectory(mocks, TenantId);
 
         strategy
             .Setup(x =>
@@ -191,7 +204,7 @@ public sealed class DefaultTenantResolverTests
             .ReturnsAsync([])
             .Verifiable();
 
-        var failures = await CreateResolver(strategy.Object)
+        var failures = await CreateResolver(strategy.Object, tenantDirectory: directory.Object)
             .ValidateTenantAsync(
                 TenantId,
                 string.Empty,
@@ -210,7 +223,8 @@ public sealed class DefaultTenantResolverTests
         var mocks = new MockRepository(MockBehavior.Strict);
         var strategy = CreateStrategy(mocks);
         var storeManager = mocks.Create<IStoreManager>();
-        var store = CreateStore(mocks, storeManager, TenantId);
+        var store = CreateStore(mocks, storeManager);
+        var directory = CreateDirectory(mocks, TenantId);
         store
             .Setup(x => x.GetOrDefaultByIssuerAsync(Issuer, CancellationToken.None))
             .ReturnsAsync(CreatePersistedTenant("globex"))
@@ -228,7 +242,7 @@ public sealed class DefaultTenantResolverTests
             .ReturnsAsync([new TenantValidationFailure { Detail = "route" }])
             .Verifiable();
 
-        var failures = await CreateResolver(strategy.Object)
+        var failures = await CreateResolver(strategy.Object, tenantDirectory: directory.Object)
             .ValidateTenantAsync(
                 TenantId,
                 Issuer,
@@ -250,12 +264,13 @@ public sealed class DefaultTenantResolverTests
         var mocks = new MockRepository(MockBehavior.Strict);
         var strategy = CreateStrategy(mocks);
         var storeManager = mocks.Create<IStoreManager>();
-        var store = CreateStore(mocks, storeManager, TenantId);
+        var store = CreateStore(mocks, storeManager);
+        var directory = CreateDirectory(mocks, TenantId);
         store
             .Setup(x => x.GetOrDefaultByIssuerAsync(Issuer, CancellationToken.None))
             .ReturnsAsync(CreatePersistedTenant(TenantId))
             .Verifiable();
-        store
+        directory
             .Setup(x => x.GetRetiredIssuerHolderOrDefaultAsync(Issuer, CancellationToken.None))
             .ReturnsAsync((string?)null)
             .Verifiable();
@@ -278,7 +293,7 @@ public sealed class DefaultTenantResolverTests
             .ReturnsAsync([])
             .Verifiable();
 
-        var failures = await CreateResolver(strategy.Object)
+        var failures = await CreateResolver(strategy.Object, tenantDirectory: directory.Object)
             .ValidateTenantAsync(
                 TenantId,
                 Issuer,
@@ -301,12 +316,13 @@ public sealed class DefaultTenantResolverTests
         var mocks = new MockRepository(MockBehavior.Strict);
         var strategy = CreateStrategy(mocks);
         var storeManager = mocks.Create<IStoreManager>();
-        var store = CreateStore(mocks, storeManager, TenantId);
+        var store = CreateStore(mocks, storeManager);
+        var directory = CreateDirectory(mocks, TenantId);
         store
             .Setup(x => x.GetOrDefaultByIssuerAsync(issuer, CancellationToken.None))
             .ReturnsAsync((PersistedTenant?)null)
             .Verifiable();
-        store
+        directory
             .Setup(x => x.GetRetiredIssuerHolderOrDefaultAsync(issuer, CancellationToken.None))
             .ReturnsAsync((string?)null)
             .Verifiable();
@@ -329,7 +345,7 @@ public sealed class DefaultTenantResolverTests
             .ReturnsAsync([])
             .Verifiable();
 
-        var failures = await CreateResolver(strategy.Object)
+        var failures = await CreateResolver(strategy.Object, tenantDirectory: directory.Object)
             .ValidateTenantAsync(
                 TenantId,
                 issuer,
@@ -352,12 +368,13 @@ public sealed class DefaultTenantResolverTests
         var mocks = new MockRepository(MockBehavior.Strict);
         var strategy = CreateStrategy(mocks);
         var storeManager = mocks.Create<IStoreManager>();
-        var store = CreateStore(mocks, storeManager, RootTenantOptions.DefaultTenantId);
+        var store = CreateStore(mocks, storeManager);
+        var directory = CreateDirectory(mocks, RootTenantOptions.DefaultTenantId);
         store
             .Setup(x => x.GetOrDefaultByIssuerAsync(rootIssuer, CancellationToken.None))
             .ReturnsAsync((PersistedTenant?)null)
             .Verifiable();
-        store
+        directory
             .Setup(x => x.GetRetiredIssuerHolderOrDefaultAsync(rootIssuer, CancellationToken.None))
             .ReturnsAsync((string?)null)
             .Verifiable();
@@ -374,7 +391,7 @@ public sealed class DefaultTenantResolverTests
             .ReturnsAsync([])
             .Verifiable();
 
-        var failures = await CreateResolver(strategy.Object)
+        var failures = await CreateResolver(strategy.Object, tenantDirectory: directory.Object)
             .ValidateTenantAsync(
                 RootTenantOptions.DefaultTenantId,
                 rootIssuer,
@@ -393,7 +410,8 @@ public sealed class DefaultTenantResolverTests
         var mocks = new MockRepository(MockBehavior.Strict);
         var strategy = CreateStrategy(mocks);
         var storeManager = mocks.Create<IStoreManager>();
-        CreateStore(mocks, storeManager, TenantId, isTenantIdRetired: true);
+        CreateStore(mocks, storeManager);
+        var directory = CreateDirectory(mocks, TenantId, isTenantIdRetired: true);
 
         strategy
             .Setup(x =>
@@ -408,7 +426,7 @@ public sealed class DefaultTenantResolverTests
             .ReturnsAsync([])
             .Verifiable();
 
-        var failures = await CreateResolver(strategy.Object)
+        var failures = await CreateResolver(strategy.Object, tenantDirectory: directory.Object)
             .ValidateTenantAsync(TenantId, null, null, storeManager.Object, CancellationToken.None);
 
         var failure = Assert.Single(failures);
@@ -424,13 +442,14 @@ public sealed class DefaultTenantResolverTests
         var mocks = new MockRepository(MockBehavior.Strict);
         var strategy = CreateStrategy(mocks);
         var storeManager = mocks.Create<IStoreManager>();
-        var store = CreateStore(mocks, storeManager, TenantId);
+        var store = CreateStore(mocks, storeManager);
+        var directory = CreateDirectory(mocks, TenantId);
 
         store
             .Setup(x => x.GetOrDefaultByIssuerAsync(Issuer, CancellationToken.None))
             .ReturnsAsync((PersistedTenant?)null)
             .Verifiable();
-        store
+        directory
             .Setup(x => x.GetRetiredIssuerHolderOrDefaultAsync(Issuer, CancellationToken.None))
             .ReturnsAsync("globex")
             .Verifiable();
@@ -447,7 +466,7 @@ public sealed class DefaultTenantResolverTests
             .ReturnsAsync([])
             .Verifiable();
 
-        var failures = await CreateResolver(strategy.Object)
+        var failures = await CreateResolver(strategy.Object, tenantDirectory: directory.Object)
             .ValidateTenantAsync(
                 TenantId,
                 Issuer,
@@ -469,13 +488,14 @@ public sealed class DefaultTenantResolverTests
         var mocks = new MockRepository(MockBehavior.Strict);
         var strategy = CreateStrategy(mocks);
         var storeManager = mocks.Create<IStoreManager>();
-        var store = CreateStore(mocks, storeManager, TenantId);
+        var store = CreateStore(mocks, storeManager);
+        var directory = CreateDirectory(mocks, TenantId);
 
         store
             .Setup(x => x.GetOrDefaultByIssuerAsync(Issuer, CancellationToken.None))
             .ReturnsAsync((PersistedTenant?)null)
             .Verifiable();
-        store
+        directory
             .Setup(x => x.GetRetiredIssuerHolderOrDefaultAsync(Issuer, CancellationToken.None))
             .ReturnsAsync(TenantId.ToUpperInvariant())
             .Verifiable();
@@ -498,7 +518,7 @@ public sealed class DefaultTenantResolverTests
             .ReturnsAsync([])
             .Verifiable();
 
-        var failures = await CreateResolver(strategy.Object)
+        var failures = await CreateResolver(strategy.Object, tenantDirectory: directory.Object)
             .ValidateTenantAsync(
                 TenantId,
                 Issuer,
@@ -595,7 +615,8 @@ public sealed class DefaultTenantResolverTests
         var mocks = new MockRepository(MockBehavior.Strict);
         var strategy = CreateStrategy(mocks);
         var storeManager = mocks.Create<IStoreManager>();
-        CreateStore(mocks, storeManager, TenantId);
+        CreateStore(mocks, storeManager);
+        var directory = CreateDirectory(mocks, TenantId);
         var scope = mocks.Create<IDisposable>();
         scope.Setup(x => x.Dispose()).Verifiable();
         var accessor = CreateUnscopedAccessor(mocks, "tenant address validation", scope);
@@ -612,13 +633,12 @@ public sealed class DefaultTenantResolverTests
             .ReturnsAsync([])
             .Verifiable();
 
-        var failures = await CreateResolver(strategy.Object, accessor.Object)
+        var failures = await CreateResolver(strategy.Object, accessor.Object, directory.Object)
             .ValidateTenantAsync(TenantId, null, null, storeManager.Object, CancellationToken.None);
 
         Assert.Empty(failures);
         mocks.Verify();
     }
-
     #endregion
 
     #region IsRequiredTenant Tests

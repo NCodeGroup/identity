@@ -68,36 +68,29 @@ public sealed class TenantStoreRetirementTests : IDisposable
         await SaveAndClearAsync(cancellationToken);
     }
 
-    #region IsTenantIdRetiredAsync Tests
-
-    [Fact]
-    public async Task IsTenantIdRetiredAsync_WhenNothingIsRetired_ReturnsFalse()
+    private async ValueTask<bool> IsTenantIdRetiredAsync(
+        string tenantId,
+        CancellationToken cancellationToken
+    )
     {
-        await SeedTenantAsync(Issuer, CancellationToken.None);
-
-        var isRetired = await Store.IsTenantIdRetiredAsync(TenantId, CancellationToken.None);
-
-        Assert.False(isRetired);
-    }
-
-    #endregion
-
-    #region GetRetiredIssuerHolderOrDefaultAsync Tests
-
-    [Fact]
-    public async Task GetRetiredIssuerHolderOrDefaultAsync_WhenNothingIsRetired_ReturnsNull()
-    {
-        await SeedTenantAsync(Issuer, CancellationToken.None);
-
-        var holder = await Store.GetRetiredIssuerHolderOrDefaultAsync(
-            Issuer,
-            CancellationToken.None
+        var normalizedTenantId = tenantId.ToLowerInvariant();
+        return await DbContext.RetiredTenants.AnyAsync(
+            entity => entity.NormalizedTenantId == normalizedTenantId,
+            cancellationToken
         );
-
-        Assert.Null(holder);
     }
 
-    #endregion
+    private async ValueTask<string?> GetRetiredIssuerHolderOrDefaultAsync(
+        string issuer,
+        CancellationToken cancellationToken
+    )
+    {
+        var normalizedIssuer = issuer.ToLowerInvariant();
+        return await DbContext
+            .RetiredIssuers.Where(entity => entity.NormalizedIssuer == normalizedIssuer)
+            .Select(entity => entity.TenantId)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
 
     #region RemoveAsync Tests
 
@@ -111,11 +104,11 @@ public sealed class TenantStoreRetirementTests : IDisposable
 
         Assert.True(removed);
         Assert.True(
-            await Store.IsTenantIdRetiredAsync(TenantId.ToUpperInvariant(), CancellationToken.None)
+            await IsTenantIdRetiredAsync(TenantId.ToUpperInvariant(), CancellationToken.None)
         );
         Assert.Equal(
             TenantId,
-            await Store.GetRetiredIssuerHolderOrDefaultAsync(
+            await GetRetiredIssuerHolderOrDefaultAsync(
                 Issuer.ToUpperInvariant(),
                 CancellationToken.None
             )
@@ -130,7 +123,7 @@ public sealed class TenantStoreRetirementTests : IDisposable
         await Store.RemoveAsync(TenantId, CancellationToken.None);
         await SaveAndClearAsync(CancellationToken.None);
 
-        Assert.True(await Store.IsTenantIdRetiredAsync(TenantId, CancellationToken.None));
+        Assert.True(await IsTenantIdRetiredAsync(TenantId, CancellationToken.None));
         Assert.Empty(await DbContext.RetiredIssuers.ToListAsync());
     }
 
@@ -164,12 +157,10 @@ public sealed class TenantStoreRetirementTests : IDisposable
 
         Assert.Equal(
             TenantId,
-            await Store.GetRetiredIssuerHolderOrDefaultAsync(Issuer, CancellationToken.None)
+            await GetRetiredIssuerHolderOrDefaultAsync(Issuer, CancellationToken.None)
         );
-        Assert.Null(
-            await Store.GetRetiredIssuerHolderOrDefaultAsync(NewIssuer, CancellationToken.None)
-        );
-        Assert.False(await Store.IsTenantIdRetiredAsync(TenantId, CancellationToken.None));
+        Assert.Null(await GetRetiredIssuerHolderOrDefaultAsync(NewIssuer, CancellationToken.None));
+        Assert.False(await IsTenantIdRetiredAsync(TenantId, CancellationToken.None));
     }
 
     [Fact]
@@ -181,7 +172,7 @@ public sealed class TenantStoreRetirementTests : IDisposable
 
         Assert.Equal(
             TenantId,
-            await Store.GetRetiredIssuerHolderOrDefaultAsync(Issuer, CancellationToken.None)
+            await GetRetiredIssuerHolderOrDefaultAsync(Issuer, CancellationToken.None)
         );
     }
 

@@ -12,19 +12,20 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.GlobalDirectory
 /// <summary>
 /// Provides the <see cref="ITeamDirectory"/> of a cell that runs on its own. It answers from the cell's own team tables:
 /// the team rows and the retired team identifiers. The team row is the published document, so publishing writes
-/// nothing and the change feed is always empty. Retiring a team adds its retired row to the unit of work of the
-/// <see cref="OpenIdDbContext"/>, which commits it with the caller's save.
+/// nothing and the change feed is always empty. Every call is its own atomic operation: it opens an
+/// <see cref="OpenIdDbContext"/> of its own and commits its writes before it returns, so retiring a team is durable
+/// whether or not the caller saves anything else.
 /// </summary>
 // See ADR-1411.
 internal sealed class LocalTeamDirectory(
-    OpenIdDbContext dbContext,
+    IDbContextFactory<OpenIdDbContext> dbContextFactory,
     IIdGenerator<long> idGenerator,
     IAmbientTenantAccessor ambientTenantAccessor
 ) : ITeamDirectory
 {
     private const string UnscopedReason = "directory";
 
-    private OpenIdDbContext DbContext { get; } = dbContext;
+    private IDbContextFactory<OpenIdDbContext> DbContextFactory { get; } = dbContextFactory;
 
     private IIdGenerator<long> IdGenerator { get; } = idGenerator;
 
@@ -39,11 +40,12 @@ internal sealed class LocalTeamDirectory(
     )
     {
         using var unscoped = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
 
         var normalizedTeamId = Normalize(teamId);
 
         if (
-            await DbContext.RetiredTeams.AnyAsync(
+            await dbContext.RetiredTeams.AnyAsync(
                 entity => entity.NormalizedTeamId == normalizedTeamId,
                 cancellationToken
             )
@@ -55,7 +57,7 @@ internal sealed class LocalTeamDirectory(
         }
 
         if (
-            await DbContext.Teams.AnyAsync(
+            await dbContext.Teams.AnyAsync(
                 entity => entity.NormalizedTeamId == normalizedTeamId,
                 cancellationToken
             )
@@ -80,36 +82,36 @@ internal sealed class LocalTeamDirectory(
     public async ValueTask RetireAsync(string teamId, CancellationToken cancellationToken)
     {
         using var unscoped = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
 
         var normalizedTeamId = Normalize(teamId);
-        var isRetired =
-            DbContext.RetiredTeams.Local.Any(entity => entity.NormalizedTeamId == normalizedTeamId)
-            || await DbContext.RetiredTeams.AnyAsync(
+        if (
+            await dbContext.RetiredTeams.AnyAsync(
                 entity => entity.NormalizedTeamId == normalizedTeamId,
                 cancellationToken
-            );
-        if (isRetired)
+            )
+        )
         {
             return;
         }
 
         var heldTeamId =
-            await DbContext
+            await dbContext
                 .Teams.AsNoTracking()
                 .Where(entity => entity.NormalizedTeamId == normalizedTeamId)
                 .Select(entity => entity.TeamId)
                 .SingleOrDefaultAsync(cancellationToken)
             ?? teamId;
 
-        await DbContext.RetiredTeams.AddAsync(
+        dbContext.RetiredTeams.Add(
             new RetiredTeamEntity
             {
                 Id = IdGenerator.CreateId(),
                 TeamId = heldTeamId,
                 NormalizedTeamId = normalizedTeamId,
-            },
-            cancellationToken
+            }
         );
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     /// <inheritdoc />
@@ -119,9 +121,10 @@ internal sealed class LocalTeamDirectory(
     )
     {
         using var unscoped = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
 
         var normalizedTeamId = Normalize(teamId);
-        return await DbContext.RetiredTeams.AnyAsync(
+        return await dbContext.RetiredTeams.AnyAsync(
             entity => entity.NormalizedTeamId == normalizedTeamId,
             cancellationToken
         );
@@ -134,9 +137,10 @@ internal sealed class LocalTeamDirectory(
     )
     {
         using var unscoped = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
 
         var normalizedTeamId = Normalize(teamId);
-        var team = await DbContext
+        var team = await dbContext
             .Teams.AsNoTracking()
             .Where(entity => entity.NormalizedTeamId == normalizedTeamId)
             .Select(entity => new

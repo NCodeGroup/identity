@@ -12,30 +12,32 @@ public sealed class LocalDirectoryRegistrationTests
     #region AddEntityFrameworkCorePersistence Tests
 
     [Fact]
-    public void AddEntityFrameworkCorePersistence_WhenNoDirectoryIsRegistered_RegistersTheLocalAdapters()
+    public void AddEntityFrameworkCorePersistence_WhenNoDirectoryIsRegistered_RegistersTheLocalAdaptersAsSingletons()
     {
         var serviceCollection = new ServiceCollection();
 
         serviceCollection.AddEntityFrameworkCorePersistence<OpenIdDbContext>();
 
-        Assert.Equal(
-            typeof(LocalTenantDirectory),
-            Assert
-                .Single(serviceCollection, x => x.ServiceType == typeof(ITenantDirectory))
-                .ImplementationType
+        var tenantDirectory = Assert.Single(
+            serviceCollection,
+            x => x.ServiceType == typeof(ITenantDirectory)
         );
-        Assert.Equal(
-            typeof(LocalTeamDirectory),
-            Assert
-                .Single(serviceCollection, x => x.ServiceType == typeof(ITeamDirectory))
-                .ImplementationType
+        Assert.Equal(typeof(LocalTenantDirectory), tenantDirectory.ImplementationType);
+        Assert.Equal(ServiceLifetime.Singleton, tenantDirectory.Lifetime);
+
+        var teamDirectory = Assert.Single(
+            serviceCollection,
+            x => x.ServiceType == typeof(ITeamDirectory)
         );
-        Assert.Equal(
-            typeof(LocalCellDirectory),
-            Assert
-                .Single(serviceCollection, x => x.ServiceType == typeof(ICellDirectory))
-                .ImplementationType
+        Assert.Equal(typeof(LocalTeamDirectory), teamDirectory.ImplementationType);
+        Assert.Equal(ServiceLifetime.Singleton, teamDirectory.Lifetime);
+
+        var cellDirectory = Assert.Single(
+            serviceCollection,
+            x => x.ServiceType == typeof(ICellDirectory)
         );
+        Assert.Equal(typeof(LocalCellDirectory), cellDirectory.ImplementationType);
+        Assert.Equal(ServiceLifetime.Singleton, cellDirectory.Lifetime);
     }
 
     [Fact]

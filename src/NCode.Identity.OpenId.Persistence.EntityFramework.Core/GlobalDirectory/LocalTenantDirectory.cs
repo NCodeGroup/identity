@@ -14,13 +14,14 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.GlobalDirectory
 /// <summary>
 /// Provides the <see cref="ITenantDirectory"/> of a cell that runs on its own. It answers from the cell's own tables:
 /// the retired tenant identifiers and issuers, the tenant rows and the tenant count of each team. The tenant row is the
-/// placement, so placing and releasing a tenant write nothing, and retiring a tenant adds its retired rows to the unit
-/// of work of the <see cref="OpenIdDbContext"/>, which commits them with the caller's save.
+/// placement, so placing and releasing a tenant write nothing. Every call is its own atomic operation: it opens an
+/// <see cref="OpenIdDbContext"/> of its own and commits its writes before it returns, so retiring a tenant is durable
+/// whether or not the caller saves anything else.
 /// </summary>
 // See ADR-1160.
 // See ADR-1411.
 internal sealed class LocalTenantDirectory(
-    OpenIdDbContext dbContext,
+    IDbContextFactory<OpenIdDbContext> dbContextFactory,
     IIdGenerator<long> idGenerator,
     IAmbientTenantAccessor ambientTenantAccessor,
     IOptions<CellOptions> cellOptions
@@ -32,7 +33,7 @@ internal sealed class LocalTenantDirectory(
     // reference the OpenID abstractions that declare it.
     private const string MaxTenantsSettingName = "max_tenants";
 
-    private OpenIdDbContext DbContext { get; } = dbContext;
+    private IDbContextFactory<OpenIdDbContext> DbContextFactory { get; } = dbContextFactory;
 
     private IIdGenerator<long> IdGenerator { get; } = idGenerator;
 
@@ -49,13 +50,14 @@ internal sealed class LocalTenantDirectory(
     )
     {
         using var unscoped = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
 
         var tenantId = reservation.TenantId;
         var normalizedTenantId = Normalize(tenantId);
         var normalizedIssuer = Normalize(reservation.Issuer);
 
         if (
-            await DbContext.RetiredTenants.AnyAsync(
+            await dbContext.RetiredTenants.AnyAsync(
                 entity => entity.NormalizedTenantId == normalizedTenantId,
                 cancellationToken
             )
@@ -67,7 +69,7 @@ internal sealed class LocalTenantDirectory(
         }
 
         if (
-            await DbContext.Tenants.AnyAsync(
+            await dbContext.Tenants.AnyAsync(
                 entity => entity.NormalizedTenantId == normalizedTenantId,
                 cancellationToken
             )
@@ -79,7 +81,7 @@ internal sealed class LocalTenantDirectory(
         }
 
         if (
-            await DbContext.Tenants.AnyAsync(
+            await dbContext.Tenants.AnyAsync(
                 entity => entity.NormalizedIssuer == normalizedIssuer,
                 cancellationToken
             )
@@ -91,6 +93,7 @@ internal sealed class LocalTenantDirectory(
         }
 
         var formerHolder = await GetRetiredIssuerHolderCoreAsync(
+            dbContext,
             normalizedIssuer,
             cancellationToken
         );
@@ -108,7 +111,7 @@ internal sealed class LocalTenantDirectory(
 
         if (reservation.TeamId is { } teamId)
         {
-            var fullTeamDetail = await FindTeamAtLimitAsync(teamId, cancellationToken);
+            var fullTeamDetail = await FindTeamAtLimitAsync(dbContext, teamId, cancellationToken);
             if (fullTeamDetail is not null)
             {
                 return ReservationResult.Conflict(fullTeamDetail);
@@ -136,9 +139,10 @@ internal sealed class LocalTenantDirectory(
     public async ValueTask RetireAsync(string tenantId, CancellationToken cancellationToken)
     {
         using var unscoped = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
 
         var normalizedTenantId = Normalize(tenantId);
-        var tenant = await DbContext
+        var tenant = await dbContext
             .Tenants.AsNoTracking()
             .Where(entity => entity.NormalizedTenantId == normalizedTenantId)
             .Select(entity => new
@@ -151,53 +155,45 @@ internal sealed class LocalTenantDirectory(
 
         var heldTenantId = tenant?.TenantId ?? tenantId;
 
-        var isTenantIdRetired =
-            DbContext.RetiredTenants.Local.Any(entity =>
-                entity.NormalizedTenantId == normalizedTenantId
-            )
-            || await DbContext.RetiredTenants.AnyAsync(
+        if (
+            !await dbContext.RetiredTenants.AnyAsync(
                 entity => entity.NormalizedTenantId == normalizedTenantId,
                 cancellationToken
-            );
-        if (!isTenantIdRetired)
+            )
+        )
         {
-            await DbContext.RetiredTenants.AddAsync(
+            dbContext.RetiredTenants.Add(
                 new RetiredTenantEntity
                 {
                     Id = IdGenerator.CreateId(),
                     TenantId = heldTenantId,
                     NormalizedTenantId = normalizedTenantId,
-                },
-                cancellationToken
+                }
             );
         }
 
-        if (tenant is not { Issuer: { } issuer, NormalizedIssuer: { } normalizedIssuer })
+        if (tenant is { Issuer: { } issuer, NormalizedIssuer: { } normalizedIssuer })
         {
-            return;
-        }
-
-        var isIssuerRetired =
-            DbContext.RetiredIssuers.Local.Any(entity =>
-                entity.NormalizedIssuer == normalizedIssuer
+            if (
+                !await dbContext.RetiredIssuers.AnyAsync(
+                    entity => entity.NormalizedIssuer == normalizedIssuer,
+                    cancellationToken
+                )
             )
-            || await DbContext.RetiredIssuers.AnyAsync(
-                entity => entity.NormalizedIssuer == normalizedIssuer,
-                cancellationToken
-            );
-        if (!isIssuerRetired)
-        {
-            await DbContext.RetiredIssuers.AddAsync(
-                new RetiredIssuerEntity
-                {
-                    Id = IdGenerator.CreateId(),
-                    Issuer = issuer,
-                    NormalizedIssuer = normalizedIssuer,
-                    TenantId = heldTenantId,
-                },
-                cancellationToken
-            );
+            {
+                dbContext.RetiredIssuers.Add(
+                    new RetiredIssuerEntity
+                    {
+                        Id = IdGenerator.CreateId(),
+                        Issuer = issuer,
+                        NormalizedIssuer = normalizedIssuer,
+                        TenantId = heldTenantId,
+                    }
+                );
+            }
         }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     /// <inheritdoc />
@@ -207,9 +203,10 @@ internal sealed class LocalTenantDirectory(
     )
     {
         using var unscoped = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
 
         var normalizedTenantId = Normalize(tenantId);
-        var tenant = await DbContext
+        var tenant = await dbContext
             .Tenants.AsNoTracking()
             .Where(entity => entity.NormalizedTenantId == normalizedTenantId)
             .Select(entity => new { entity.TenantId, entity.Issuer })
@@ -235,9 +232,10 @@ internal sealed class LocalTenantDirectory(
     )
     {
         using var unscoped = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
 
         var normalizedTenantId = Normalize(tenantId);
-        return await DbContext.RetiredTenants.AnyAsync(
+        return await dbContext.RetiredTenants.AnyAsync(
             entity => entity.NormalizedTenantId == normalizedTenantId,
             cancellationToken
         );
@@ -250,16 +248,22 @@ internal sealed class LocalTenantDirectory(
     )
     {
         using var unscoped = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
 
-        return await GetRetiredIssuerHolderCoreAsync(Normalize(issuer), cancellationToken);
+        return await GetRetiredIssuerHolderCoreAsync(
+            dbContext,
+            Normalize(issuer),
+            cancellationToken
+        );
     }
 
-    private async ValueTask<string?> GetRetiredIssuerHolderCoreAsync(
+    private static async ValueTask<string?> GetRetiredIssuerHolderCoreAsync(
+        OpenIdDbContext dbContext,
         string normalizedIssuer,
         CancellationToken cancellationToken
     )
     {
-        return await DbContext
+        return await dbContext
             .RetiredIssuers.Where(entity => entity.NormalizedIssuer == normalizedIssuer)
             .Select(entity => entity.TenantId)
             .SingleOrDefaultAsync(cancellationToken);
@@ -269,18 +273,20 @@ internal sealed class LocalTenantDirectory(
     /// Finds a team, of the lineage of the specified team, that already holds the most tenants its own
     /// <c>max_tenants</c> setting allows. A team's limit bounds the tenants of the team and of every team beneath it.
     /// </summary>
+    /// <param name="dbContext">The <see cref="OpenIdDbContext"/> to read from.</param>
     /// <param name="teamId">The identifier of the team that would hold the new tenant.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The conflict detail when a team of the lineage is full; otherwise, <c>null</c>.</returns>
     // See ADR-1411.
     // See ADR-1426.
-    private async ValueTask<string?> FindTeamAtLimitAsync(
+    private static async ValueTask<string?> FindTeamAtLimitAsync(
+        OpenIdDbContext dbContext,
         string teamId,
         CancellationToken cancellationToken
     )
     {
         var normalizedTeamId = Normalize(teamId);
-        var path = await DbContext
+        var path = await dbContext
             .Teams.AsNoTracking()
             .Where(entity => entity.NormalizedTeamId == normalizedTeamId)
             .Select(entity => entity.Path)
@@ -291,7 +297,7 @@ internal sealed class LocalTenantDirectory(
         }
 
         List<string> normalizedLineageIds = [.. TeamPaths.Parse(path).Select(Normalize)];
-        var lineage = await DbContext
+        var lineage = await dbContext
             .Teams.AsNoTracking()
             .Where(entity => normalizedLineageIds.Contains(entity.NormalizedTeamId))
             .Select(entity => new
@@ -314,7 +320,7 @@ internal sealed class LocalTenantDirectory(
             }
 
             var teamPath = team.Path;
-            var count = await DbContext
+            var count = await dbContext
                 .Tenants.Where(tenant => tenant.Team.Path.StartsWith(teamPath))
                 .LongCountAsync(cancellationToken);
             if (count >= maxTenants)

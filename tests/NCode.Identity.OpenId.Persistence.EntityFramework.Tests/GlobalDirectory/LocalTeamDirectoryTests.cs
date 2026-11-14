@@ -31,12 +31,13 @@ public sealed class LocalTeamDirectoryTests : IDisposable
         serviceCollection.AddTestOpenIdDbContext(options =>
             options.UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
         );
+        serviceCollection.AddDbContextFactory<OpenIdDbContext>();
 
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
         IdGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
         Directory = new LocalTeamDirectory(
-            DbContext,
+            Provider.GetRequiredService<IDbContextFactory<OpenIdDbContext>>(),
             IdGenerator,
             MockAmbientTenantAccessor.Object
         );
@@ -132,16 +133,19 @@ public sealed class LocalTeamDirectoryTests : IDisposable
 
     #region RetireAsync Tests
 
+    private OpenIdDbContext CreateFreshContext() =>
+        Provider.GetRequiredService<IDbContextFactory<OpenIdDbContext>>().CreateDbContext();
+
     [Fact]
-    public async Task RetireAsync_WhenTheTeamExists_RetiresItsIdentifier()
+    public async Task RetireAsync_WhenTheTeamExists_RetiresItsIdentifierWithoutACallersSave()
     {
         SetupUnscoped();
         DbContext.SeedTeam(IdGenerator, TeamId);
 
         await Directory.RetireAsync(TeamId.ToUpperInvariant(), CancellationToken.None);
-        await DbContext.SaveChangesAsync();
 
-        var retired = Assert.Single(await DbContext.RetiredTeams.ToListAsync());
+        await using var fresh = CreateFreshContext();
+        var retired = Assert.Single(await fresh.RetiredTeams.ToListAsync());
         Assert.Equal(TeamId, retired.TeamId);
         Assert.Equal(TeamId, retired.NormalizedTeamId);
     }
@@ -152,9 +156,9 @@ public sealed class LocalTeamDirectoryTests : IDisposable
         SetupUnscoped();
 
         await Directory.RetireAsync(TeamId, CancellationToken.None);
-        await DbContext.SaveChangesAsync();
 
-        var retired = Assert.Single(await DbContext.RetiredTeams.ToListAsync());
+        await using var fresh = CreateFreshContext();
+        var retired = Assert.Single(await fresh.RetiredTeams.ToListAsync());
         Assert.Equal(TeamId, retired.TeamId);
     }
 
@@ -165,9 +169,24 @@ public sealed class LocalTeamDirectoryTests : IDisposable
 
         await Directory.RetireAsync(TeamId, CancellationToken.None);
         await Directory.RetireAsync(TeamId, CancellationToken.None);
-        await DbContext.SaveChangesAsync();
 
-        Assert.Single(await DbContext.RetiredTeams.ToListAsync());
+        await using var fresh = CreateFreshContext();
+        Assert.Single(await fresh.RetiredTeams.ToListAsync());
+    }
+
+    [Fact]
+    public async Task RetireAsync_WhenTheIdentifierIsAlreadyRetired_LeavesTheRetiredRowAsItIs()
+    {
+        SetupUnscoped();
+        SeedRetiredTeam(TeamId);
+        await using var before = CreateFreshContext();
+        var retiredId = Assert.Single(await before.RetiredTeams.ToListAsync()).Id;
+
+        await Directory.RetireAsync(TeamId, CancellationToken.None);
+
+        await using var fresh = CreateFreshContext();
+        var retired = Assert.Single(await fresh.RetiredTeams.ToListAsync());
+        Assert.Equal(retiredId, retired.Id);
     }
 
     #endregion

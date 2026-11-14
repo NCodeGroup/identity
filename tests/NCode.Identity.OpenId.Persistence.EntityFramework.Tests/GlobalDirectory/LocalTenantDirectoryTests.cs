@@ -38,12 +38,13 @@ public sealed class LocalTenantDirectoryTests : IDisposable
         serviceCollection.AddTestOpenIdDbContext(options =>
             options.UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
         );
+        serviceCollection.AddDbContextFactory<OpenIdDbContext>();
 
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
         IdGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
         Directory = new LocalTenantDirectory(
-            DbContext,
+            Provider.GetRequiredService<IDbContextFactory<OpenIdDbContext>>(),
             IdGenerator,
             MockAmbientTenantAccessor.Object,
             Options.Create(new CellOptions { Name = CellName, Region = CellRegion })
@@ -345,19 +346,22 @@ public sealed class LocalTenantDirectoryTests : IDisposable
 
     #region RetireAsync Tests
 
+    private OpenIdDbContext CreateFreshContext() =>
+        Provider.GetRequiredService<IDbContextFactory<OpenIdDbContext>>().CreateDbContext();
+
     [Fact]
-    public async Task RetireAsync_WhenTheTenantHasAnIssuer_RetiresTheIdentifierAndTheIssuer()
+    public async Task RetireAsync_WhenTheTenantHasAnIssuer_RetiresTheIdentifierAndTheIssuerWithoutACallersSave()
     {
         SetupUnscoped();
         SeedTenantWithIssuer(SeedTeamWithLimit(TeamId, maxTenants: null), TenantId, Issuer);
 
         await Directory.RetireAsync(TenantId.ToUpperInvariant(), CancellationToken.None);
-        await DbContext.SaveChangesAsync();
 
-        var retiredTenant = Assert.Single(await DbContext.RetiredTenants.ToListAsync());
+        await using var fresh = CreateFreshContext();
+        var retiredTenant = Assert.Single(await fresh.RetiredTenants.ToListAsync());
         Assert.Equal(TenantId, retiredTenant.TenantId);
         Assert.Equal(TenantId, retiredTenant.NormalizedTenantId);
-        var retiredIssuer = Assert.Single(await DbContext.RetiredIssuers.ToListAsync());
+        var retiredIssuer = Assert.Single(await fresh.RetiredIssuers.ToListAsync());
         Assert.Equal(Issuer, retiredIssuer.Issuer);
         Assert.Equal(TenantId, retiredIssuer.TenantId);
     }
@@ -369,10 +373,10 @@ public sealed class LocalTenantDirectoryTests : IDisposable
         SeedTenantWithIssuer(SeedTeamWithLimit(TeamId, maxTenants: null), TenantId, issuer: null);
 
         await Directory.RetireAsync(TenantId, CancellationToken.None);
-        await DbContext.SaveChangesAsync();
 
-        Assert.Single(await DbContext.RetiredTenants.ToListAsync());
-        Assert.Empty(await DbContext.RetiredIssuers.ToListAsync());
+        await using var fresh = CreateFreshContext();
+        Assert.Single(await fresh.RetiredTenants.ToListAsync());
+        Assert.Empty(await fresh.RetiredIssuers.ToListAsync());
     }
 
     [Fact]
@@ -381,11 +385,11 @@ public sealed class LocalTenantDirectoryTests : IDisposable
         SetupUnscoped();
 
         await Directory.RetireAsync(TenantId, CancellationToken.None);
-        await DbContext.SaveChangesAsync();
 
-        var retiredTenant = Assert.Single(await DbContext.RetiredTenants.ToListAsync());
+        await using var fresh = CreateFreshContext();
+        var retiredTenant = Assert.Single(await fresh.RetiredTenants.ToListAsync());
         Assert.Equal(TenantId, retiredTenant.TenantId);
-        Assert.Empty(await DbContext.RetiredIssuers.ToListAsync());
+        Assert.Empty(await fresh.RetiredIssuers.ToListAsync());
     }
 
     [Fact]
@@ -396,10 +400,25 @@ public sealed class LocalTenantDirectoryTests : IDisposable
 
         await Directory.RetireAsync(TenantId, CancellationToken.None);
         await Directory.RetireAsync(TenantId, CancellationToken.None);
-        await DbContext.SaveChangesAsync();
 
-        Assert.Single(await DbContext.RetiredTenants.ToListAsync());
-        Assert.Single(await DbContext.RetiredIssuers.ToListAsync());
+        await using var fresh = CreateFreshContext();
+        Assert.Single(await fresh.RetiredTenants.ToListAsync());
+        Assert.Single(await fresh.RetiredIssuers.ToListAsync());
+    }
+
+    [Fact]
+    public async Task RetireAsync_WhenTheIdentifierIsAlreadyRetired_LeavesTheRetiredRowAsItIs()
+    {
+        SetupUnscoped();
+        SeedRetiredTenant(TenantId);
+        await using var before = CreateFreshContext();
+        var retiredId = Assert.Single(await before.RetiredTenants.ToListAsync()).Id;
+
+        await Directory.RetireAsync(TenantId, CancellationToken.None);
+
+        await using var fresh = CreateFreshContext();
+        var retiredTenant = Assert.Single(await fresh.RetiredTenants.ToListAsync());
+        Assert.Equal(retiredId, retiredTenant.Id);
     }
 
     #endregion

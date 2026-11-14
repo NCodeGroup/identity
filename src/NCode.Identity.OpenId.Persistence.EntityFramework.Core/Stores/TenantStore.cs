@@ -993,32 +993,6 @@ internal class TenantStore(
     }
 
     /// <inheritdoc />
-    public async ValueTask<bool> IsTenantIdRetiredAsync(
-        string tenantId,
-        CancellationToken cancellationToken
-    )
-    {
-        var normalizedTenantId = Normalize(tenantId);
-        return await DbContext.RetiredTenants.AnyAsync(
-            entity => entity.NormalizedTenantId == normalizedTenantId,
-            cancellationToken
-        );
-    }
-
-    /// <inheritdoc />
-    public async ValueTask<string?> GetRetiredIssuerHolderOrDefaultAsync(
-        string issuer,
-        CancellationToken cancellationToken
-    )
-    {
-        var normalizedIssuer = Normalize(issuer);
-        return await DbContext
-            .RetiredIssuers.Where(entity => entity.NormalizedIssuer == normalizedIssuer)
-            .Select(entity => entity.TenantId)
-            .SingleOrDefaultAsync(cancellationToken);
-    }
-
-    /// <inheritdoc />
     public async ValueTask<bool> HasDependentsAsync(
         string tenantId,
         CancellationToken cancellationToken
