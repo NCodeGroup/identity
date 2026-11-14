@@ -798,6 +798,39 @@ internal class TenantStore(
             );
         }
 
+        await RemoveTenantAndOwnedRowsAsync(tenantEntity, cancellationToken);
+
+        return true;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<bool> RemoveMovedAsync(
+        string tenantId,
+        CancellationToken cancellationToken
+    )
+    {
+        var tenantEntity = await GetEntityOrDefaultAsync(tenantId, cancellationToken);
+        if (tenantEntity is null)
+        {
+            return false;
+        }
+
+        await RemoveTenantAndOwnedRowsAsync(tenantEntity, cancellationToken);
+
+        return true;
+    }
+
+    /// <summary>
+    /// Removes a tenant together with every row that it owns: the role assignments that its principals hold at the
+    /// nodes of other tenants, its tenant-owned rows, its master keys, its owner root key rows and the tenant row.
+    /// </summary>
+    /// <param name="tenantEntity">The tracked tenant to remove.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    private async ValueTask RemoveTenantAndOwnedRowsAsync(
+        TenantEntity tenantEntity,
+        CancellationToken cancellationToken
+    )
+    {
         // The role assignments that the tenant's principals hold at the nodes of other tenants are removed with them.
         // See ADR-1212.
         var normalizedTenantId = tenantEntity.NormalizedTenantId;
@@ -839,8 +872,6 @@ internal class TenantStore(
         DbContext.OwnerRootKeys.RemoveRange(ownerRootKeys);
 
         DbContext.Tenants.Remove(tenantEntity);
-
-        return true;
     }
 
     /// <summary>
