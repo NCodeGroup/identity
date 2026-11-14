@@ -84,7 +84,7 @@ same scope and surface.
   cohesive frontend presentation platform.
 - [ADR-1160](1160-a-tenant-is-named-by-its-creator-validated-by-its-strategy-and-never-reissued.md): tenant identifiers
   are readable names.
-- [ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md): the
+- [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md): the
   platform, its teams and its tenants.
 - [ADR-1465](1465-role-lists-share-one-audited-grant-and-revoke-flow-and-a-caller-discovers-its-own-assignments.md): a
   caller discovers its own assignments.

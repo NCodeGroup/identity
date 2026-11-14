@@ -93,7 +93,7 @@ client that configuration seeds.**
 12. **A host enables `client_credentials` at the platform**, under the configuration path
     `OpenId:Platform:Settings:grant_types_enabled`, which an environment variable spells
     `OpenId__Platform__Settings__grant_types_enabled__0`
-    ([ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md)),
+    ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)),
     because the baseline omits it and `grant_types_supported` is an intersect-merged ceiling. `grant_types_enabled`
     adds its grants to the baseline list (`authorization_code`, `refresh_token`,
     `urn:ietf:params:oauth:grant-type:device_code` and `urn:openid:params:grant-type:ciba`), so the host names only the
@@ -155,7 +155,7 @@ client that configuration seeds.**
 - [ADR-1166](1166-a-tenant-is-created-and-seeded-through-one-provisioning-pipeline-under-every-strategy.md): the seed
   command.
 - [ADR-1235](1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md): the tenant master key.
-- [ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md): the
+- [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md): the
   platform settings.
 - [ADR-1424](1424-a-management-route-authorizes-at-the-node-it-names-before-it-reads-through-replaceable-validators.md): the 401/403/404
   rule.

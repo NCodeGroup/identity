@@ -9,7 +9,7 @@
 The management API needs one answer to "who may do this to that resource". The resources form a hierarchy: the
 platform, the teams beneath it (a team can nest beneath a parent team,
 [ADR-1426](1426-a-team-can-nest-beneath-a-parent-team-and-its-subtree-is-walked-depth-first.md)), the tenants in a team
-([ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md)), and
+([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)), and
 beneath a tenant its clients, resource servers and grants.
 
 Two sources of authority could coexist: a role assignment at a node, inherited down that hierarchy, and a role claim in
@@ -111,7 +111,7 @@ claim confers management authority except the development bootstrap client's `Gl
 - [ADR-1035](1035-an-end-user-is-one-tenant-scoped-principal-that-every-authentication-entry-point-resolves-to.md): principal resolution
 - [ADR-1044](1044-the-management-api-authenticates-its-own-access-tokens-and-a-configured-client-bootstraps-the-first-globaladmin.md):
   management API authentication and the `GlobalAdmin` bootstrap
-- [ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md): the
+- [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md): the
   platform is the deployment root
 - [ADR-1424](1424-a-management-route-authorizes-at-the-node-it-names-before-it-reads-through-replaceable-validators.md): a route authorizes
   at the node it names

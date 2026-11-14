@@ -10,7 +10,7 @@ The management API is the `/api` route group (`ManagementRootGroup`, at `Managem
 separate from the protocol endpoints, which the runtime mounts under the tenant route
 ([ADR-1086](1086-endpoints-compose-as-a-declarative-group-tree-and-a-protocol-endpoint-is-a-thin-mediator-driven-provider.md)).
 It belongs to the control plane
-([ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md)). Two
+([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)). Two
 questions decide how a call is handled, and the answers must not depend on the hosting strategy:
 
 - **Which tenant authenticates the caller?** The access token is validated through `IIssuedTokenValidator` against the
@@ -101,7 +101,7 @@ are independent: the first is the security domain that issued the caller's token
 - Code: `ManagementRootGroup`, `TenantManagementGroup`, `ClientManagementGroup`, `ManagementEnvironmentEndpointFilter`,
   `TenantScopeEndpointFilter`, `ITenantStrategy`, `ITenantResolver`, `IOpenIdTenantFactory`, `IOpenIdContextFactory`,
   `IAmbientTenantAccessor`, `OwnershipHandler`.
-- [ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md) — the
+- [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md) — the
   control plane and the platform root.
 - [ADR-1018](1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md) — the
   ambient-scope query filter.

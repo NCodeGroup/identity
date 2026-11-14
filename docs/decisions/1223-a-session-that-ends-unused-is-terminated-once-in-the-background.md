@@ -35,7 +35,7 @@ interval, and the grant prune keeps a session until it is terminated.**
    session terminate it once.
 2. **A hosted service runs the pass.** `EndedSessionTerminationService` awaits
    `IMaterializedPlatformAccessor.GetPlatformAsync`
-   ([ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md)), so it never reads the store
+   ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)), so it never reads the store
    while the host starts. It then ticks a `PeriodicTimer` on `EndedSessionTerminationOptions.Interval` with the
    registered `TimeProvider` and runs one pass per tick. It never throws on stop, and it logs a failed pass and runs
    again at the next tick.
@@ -117,7 +117,7 @@ interval, and the grant prune keeps a session until it is terminated.**
   is terminated.
 - [ADR-1220](1220-an-end-user-session-is-a-grant-keyed-by-its-sid-bounded-by-idle-and-absolute-lifetimes.md) — the session bounds and the
   termination by a request.
-- [ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md) — the materialized platform that
+- [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md) — the materialized platform that
   background work waits for.
 - [ADR-1137](1137-configuration-binds-strictly-and-every-option-timer-period-and-retention-is-validated-at-startup.md) — the options that
   are validated when the host starts.

@@ -2287,7 +2287,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   static single-tenant strategy provisions the root tenant lazily alongside its workload tenant, so a single-tenant
   deployment has its control plane with no extra configuration. See
   [ADR-1417](docs/decisions/1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md),
-  [ADR-1411](docs/decisions/1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md) and
+  [ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md) and
   [ADR-1166](docs/decisions/1166-a-tenant-is-created-and-seeded-through-one-provisioning-pipeline-under-every-strategy.md).
 
 - **Resource ownership is data-driven.** Persisted `(principal, role, resource-node)` role assignments
@@ -4070,7 +4070,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   (`OpenId:Platform:Settings`) and one persisted settings document, read and written through `GET`/`PATCH
   /api/platform/settings` and previewed through `GET /api/platform/effective-settings`, are the root of every team's and
   tenant's settings; its authority node is `(platform, platform)`, and its master key protects the Data Protection key
-  ring ([ADR-1411](docs/decisions/1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md),
+  ring ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
   [ADR-1247](docs/decisions/1247-the-platform-master-key-protects-the-data-protection-ring-and-an-unreadable-key-stops-the-host.md)).
 
 - **A team groups a customer's related tenants.** `POST /api/teams` creates a team named by its creator (the tenant-id
@@ -4079,7 +4079,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   tenant belongs to exactly one team and never moves: `POST /api/teams/{teamId}/tenants` creates a tenant under its team
   and `GET /api/teams/{teamId}/tenants` lists them, `TenantResource` carries `teamId`, and the platform's own team
   (`TenantResolution:Root:TeamId`, default `platform`) holds the root tenant and every tenant a strategy creates
-  ([ADR-1411](docs/decisions/1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md)).
+  ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
 
 - **A team can nest beneath a parent team.** `POST /api/teams/{teamId}/teams` creates a team beneath its parent and
   `GET /api/teams/{teamId}/teams` lists a team's child teams; `TeamResource` carries `parentTeamId`, and `GET /api/teams`
@@ -4099,7 +4099,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   and `max_teams` apply to the team scope, merge with `Min` and are limits set by the administrators above the team: a
   team's `max_tenants` bounds the tenants of the team and of every team beneath it, its `max_teams` bounds the teams
   beneath it at every level, and a creation that would exceed the limit of any team above it answers `409`
-  ([ADR-1411](docs/decisions/1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md),
+  ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
   [ADR-1418](docs/decisions/1418-limits-are-set-by-the-authority-above-their-scope-and-readers-learn-which-they-may-change.md),
   [ADR-1426](docs/decisions/1426-a-team-can-nest-beneath-a-parent-team-and-its-subtree-is-walked-depth-first.md),
   [#563](https://github.com/NCodeGroup/identity/issues/563)).
@@ -4111,7 +4111,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   globally unique, retired identifiers and match an assignment on type and identifier, and any other node counts an
   assignment only when it belongs to the node's tenant, because client and resource-server identifiers
   are unique only within a tenant
-  ([ADR-1411](docs/decisions/1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md),
+  ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
   [ADR-1426](docs/decisions/1426-a-team-can-nest-beneath-a-parent-team-and-its-subtree-is-walked-depth-first.md)).
 
 - **A team promotes one tenant's configuration to another.** `POST /api/teams/{teamId}/promotions/preview` reports what
@@ -4187,21 +4187,21 @@ Until the first stable release, the [Unreleased] section describes the product a
   Creating, deleting, disabling and restoring a top-level team, and `GET /api/teams` and `GET /api/tenants`, need
   `GlobalAdmin` or an assignment at the platform node. Creating, deleting, disabling and restoring a child team need
   that authority at its parent team
-  ([ADR-1411](docs/decisions/1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md),
+  ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
   [ADR-1426](docs/decisions/1426-a-team-can-nest-beneath-a-parent-team-and-its-subtree-is-walked-depth-first.md)).
 
 - **Usage is queryable per team, across every team beneath it.** Every usage row carries the path of the teams its
   tenant belonged to, so a deleted tenant's or deleted team's final days still bill to every team above it, and
   `GET /api/teams/{teamId}/usage?from=&to=` lists the counts of each tenant of the team and of every team beneath it per
   day and meter, each entry naming its team and tenant
-  ([ADR-1411](docs/decisions/1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md),
+  ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
   [ADR-1426](docs/decisions/1426-a-team-can-nest-beneath-a-parent-team-and-its-subtree-is-walked-depth-first.md),
   [ADR-1199](docs/decisions/1199-tenant-usage-is-a-daily-ledger-that-replicas-add-to-once-and-prune-in-batches.md)).
 
 - **Team and platform changes are audited in the control-plane tenant.** `TeamChangedAuditEvent` (`team`) and
   `PlatformChangedAuditEvent` (`platform`) are recorded under the control-plane tenant, and a tenant's audit event names
   its team as a parent resource
-  ([ADR-1411](docs/decisions/1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md)).
+  ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
 
 - **The management console manages teams, machine clients and the platform's settings.** The platform scope has a
   Teams surface (`TeamTable`, `TeamFormDialog`, create, edit, disable and delete), a Clients surface, a Settings
@@ -4213,7 +4213,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   principal; the console routes `/teams`, `/clients`, `/settings`, `/encryption-keys`,
   `/teams/{teamId}/{tenants|teams|clients|settings|access|usage}` and `/tenants/{tenantId}/…`
   ([#636](https://github.com/NCodeGroup/identity/issues/636),
-  [ADR-1411](docs/decisions/1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md),
+  [ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
   [ADR-1426](docs/decisions/1426-a-team-can-nest-beneath-a-parent-team-and-its-subtree-is-walked-depth-first.md),
   [ADR-1466](docs/decisions/1466-a-client-is-its-own-principal-and-a-machine-client-acts-only-within-its-owning-node.md),
   [ADR-1255](docs/decisions/1255-the-management-consoles-url-is-its-navigation-state-and-every-scopes-surface-has-its-own-address.md)).

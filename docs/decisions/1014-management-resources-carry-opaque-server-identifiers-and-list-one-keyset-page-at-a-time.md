@@ -33,7 +33,7 @@ Validators and unique indexes still assert uniqueness as a safety net.
 Some identifiers come from elsewhere by design:
 
 - A team's and a tenant's identifier is a name its creator chooses ([ADR-1160](1160-a-tenant-is-named-by-its-creator-validated-by-its-strategy-and-never-reissued.md),
-  [ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md)). The
+  [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)). The
   opaque server identifiers of this record cover every other management resource.
 - The platform has no identifier.
 - A resource server's `Identifier` (its audience) is operator-chosen and sits beside its opaque `ResourceServerId`.
@@ -94,5 +94,5 @@ no general query protocol.
 - [project-template ADR-0123](project-template/0123-resource-ids-are-server-generated-and-opaque.md)
 - [project-template ADR-0124](project-template/0124-collection-endpoints-use-keyset-pagination.md)
 - [ADR-1160](1160-a-tenant-is-named-by-its-creator-validated-by-its-strategy-and-never-reissued.md)
-- [ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md)
+- [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)
 - [ADR-1417](1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md)

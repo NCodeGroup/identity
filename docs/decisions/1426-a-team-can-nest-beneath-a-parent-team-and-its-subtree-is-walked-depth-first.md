@@ -7,7 +7,7 @@
 ## Context
 
 A team groups a customer's tenants, and its settings, administrators, quotas and usage are the customer's
-([ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md)). A
+([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)). A
 customer with several products, each needing a sandbox, a testing and a production tenant, needs two levels: the
 customer's policy, administrators, quota and usage at one team, and each product's at a team beneath it.
 
@@ -147,7 +147,7 @@ teams per level, and `ITeamStore` has no read of a whole subtree.**
 
 - [ADR-1199](1199-tenant-usage-is-a-daily-ledger-that-replicas-add-to-once-and-prune-in-batches.md) — tenant usage is a
   daily ledger that replicas add to
-- [ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md) — the
+- [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md) — the
   platform is the deployment root and a team groups a customer's tenants
 - [ADR-1412](1412-a-settings-change-reaches-every-replica-at-once-and-is-reconciled-per-team-against-what-changed.md) —
   settings are reconciled per team

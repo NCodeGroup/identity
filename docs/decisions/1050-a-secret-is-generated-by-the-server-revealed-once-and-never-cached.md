@@ -9,7 +9,7 @@
 
 A tenant, a client and a resource server own secrets: signing and encryption keys, a client's shared secret, a resource
 server's introspection credential. The platform and a team hold none
-([ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md)). The
+([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)). The
 management API mints and maintains them, and three forces pull against each other:
 
 - A tenant's private key is the server's own. No party outside the server ever needs it, so it must never cross the API.
