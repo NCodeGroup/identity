@@ -33,7 +33,7 @@ public static class DefaultRegistration
     {
         /// <summary>
         /// Registers the OpenID client library: provider metadata and key set resolution, client authentication (including mutual-TLS),
-        /// the authorization request client (with PAR), the token and token revocation clients, DPoP proofs and nonces, and ID-token and logout-token validation, layered on the
+        /// the authorization request client (with PAR), the token and token revocation clients, DPoP proofs and nonces, and ID-token and logout-token validation, and validation of another issuer's access tokens, layered on the
         /// <see cref="JwtLibrary"/>. Every HTTP call is bounded by a total and a per-attempt timeout with bounded retries of safe requests. Logout-token validation looks each token's <c>jti</c> up, and <c>TryRecordHandledAsync</c> records it, in the shared
         /// <c>IExpiringKeySet</c>, whose adapter the composition root registers
         /// (<c>AddSharedStateServices().AddInProcessExpiringKeySet()</c> for one replica, Valkey for several).
@@ -113,6 +113,10 @@ public static class DefaultRegistration
             serviceCollection.TryAddSingleton<ProviderJwtValidator>();
             serviceCollection.TryAddSingleton<IIdTokenValidator, DefaultIdTokenValidator>();
             serviceCollection.TryAddSingleton<ILogoutTokenValidator, DefaultLogoutTokenValidator>();
+            serviceCollection.TryAddSingleton<
+                IIssuerAccessTokenValidator,
+                DefaultIssuerAccessTokenValidator
+            >();
 
             serviceCollection.TryAddEnumerable([
                 ServiceDescriptor.Singleton<
