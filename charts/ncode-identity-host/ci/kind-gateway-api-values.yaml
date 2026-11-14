@@ -6,6 +6,10 @@ image:
   repository: ncode-identity-host
   tag: kind
   pullPolicy: Never
+cell:
+  name: ci-kind
+  region: ci
+  isControlPlane: true
 allowedHosts:
   - id.example.com
 tenantResolution:
@@ -25,9 +29,6 @@ secretProtection:
     keySecret: identity-root-key
   recovery:
     disabled: true
-  # Names this release's keys; with no remote key provider enabled, nothing uses it.
-  remoteKeys:
-    deployment: ci-kind
 backendTls:
   caPublisher:
     enabled: true

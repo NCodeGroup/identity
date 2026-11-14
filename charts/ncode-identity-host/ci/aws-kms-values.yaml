@@ -1,4 +1,8 @@
 # A production release whose root key is in AWS KMS, reached through web identity federation.
+cell:
+  name: ci-aws-kms
+  region: ci
+  isControlPlane: true
 allowedHosts:
   - id.example.com
 tenantResolution:

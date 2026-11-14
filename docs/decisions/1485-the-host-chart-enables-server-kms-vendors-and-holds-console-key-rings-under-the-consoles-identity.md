@@ -51,11 +51,11 @@ identity of its own in the server's shapes.**
    the root key provider, is listed in `secretProtection.ownerRootKeys.providers` or is enabled under
    `secretProtection.remoteKeyProviders` (`identity-host.usesKeyManagementService`).
 4. **Server refusals.** The chart refuses a location on a vendor that is not enabled, because a location registers
-   nothing on its own; an enabled vendor with a location and no `secretProtection.remoteKeys.deployment`, because that
-   provider creates keys
-   ([ADR-1478](1478-a-background-job-destroys-the-key-management-service-keys-that-no-stored-secret-names.md)); and a
-   half-set workload identity. The schema refuses an `enabled` that is not a boolean, a malformed location and a
-   `pendingWindowInDays` outside 7 to 30. A release whose enabled vendors have no location needs no deployment.
+   nothing on its own, and a half-set workload identity. The schema refuses an `enabled` that is not a boolean, a
+   malformed location and a
+   `pendingWindowInDays` outside 7 to 30. The tag of the keys a vendor with a location creates is `cell.name`, which the
+   host reads as `Cell:Name`
+   ([ADR-1478](1478-a-background-job-destroys-the-key-management-service-keys-that-no-stored-secret-names.md)).
 5. **Console key rings.** `managementConsole.keyRings.client` (`Bff:KeyRings:mgmt-client`, PEM file `mgmt-client.pem`)
    and `managementConsole.keyRings.dpop` (`Bff:KeyRings:mgmt-dpop`, PEM file `mgmt-dpop.pem`) each have `pemSecret`, a
    Secret that holds the PEM file, and `remoteKeys`, a map from key id (`kid`) to `provider`, `keyId`, `algorithm`,
@@ -101,7 +101,7 @@ identity of its own in the server's shapes.**
   root key, its federated credentials trust the server's ServiceAccount, and the console has its own ServiceAccount, so
   least privilege gives the console an identity of its own.
 - **`secretProtection.remoteKeyProviders` for the console.** Rejected: tenants could then hold keys there, and
-  `remoteKeys.deployment` is required.
+  `cell.name` is required.
 - **A list of remote keys with a `kid` field.** Rejected: a map cannot name one id twice, and the list can.
 - **Copies of the server's credential helpers.** Rejected: two renderings of one shape drift.
 - **Chosen:** an `enabled` switch per server vendor, a key ring map with a PEM Secret and remote keys for the console,

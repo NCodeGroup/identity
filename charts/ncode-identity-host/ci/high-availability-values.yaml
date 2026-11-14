@@ -2,6 +2,10 @@
 replicaCount: 3
 image:
   digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+cell:
+  name: ci-high-availability
+  region: ci
+  isControlPlane: true
 allowedHosts:
   - id.example.com
   - id.example.org

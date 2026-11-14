@@ -37,6 +37,7 @@ Install the chart, or run the host image with the same settings.
 
 ```bash
 helm install identity charts/ncode-identity-host \
+  --set cell.name=prod-1 --set cell.region=eu --set cell.isControlPlane=true \
   --set 'allowedHosts={id.example.com}' \
   --set tenantResolution.staticSingle.issuer=https://id.example.com \
   --set database.parts.existingSecret=pg-runtime --set database.runtimeRole=ncode_identity_app \

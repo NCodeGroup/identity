@@ -129,6 +129,7 @@ points here.
 
 ```bash
 helm install identity charts/ncode-identity-host \
+  --set cell.name=prod-1 --set cell.region=eu --set cell.isControlPlane=true \
   --set 'allowedHosts={id.example.com}' \
   --set tenantResolution.staticSingle.issuer=https://id.example.com \
   --set database.parts.existingSecret=pg-runtime --set database.runtimeRole=ncode_identity_app \
@@ -138,10 +139,32 @@ helm install identity charts/ncode-identity-host \
 
 `pg-app` is a CloudNativePG cluster's Secret for the schema owner, and `pg-runtime` holds the runtime role's connection
 (see [Database and Valkey](#database-and-valkey)); a deployer without an operator names connection-string Secrets with
-`database.existingSecret` and `migrations.database.existingSecret` instead.
+`database.existingSecret` and `migrations.database.existingSecret` instead. The release is one cell, named and placed by
+`cell.name` and `cell.region` (see [The cell](#the-cell)).
 
 `ci/high-availability-values.yaml` shows a rolling three-replica release with Valkey, an ingress, and a retired local
-root key.
+root key. `ci/cell-values.yaml` shows a cell that is not the control plane.
+
+## The cell
+
+A release is one cell: a host, its database, its Valkey and its KMS keys, in one region
+([ADR-1411](../../docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)). The `cell` values name
+it, and the chart renders them as the `Cell` section the host binds:
+
+- `cell.name`, required, the cell's name, unique across the platform: a lowercase letter, then lowercase letters, digits
+  and hyphens, at most 31 characters (`Cell__Name`). It is also the tag the host's remote-key sweep reads, so every
+  replica and release that shares the cell's database uses it;
+- `cell.region`, required, the region the cell runs in, in the same form (`Cell__Region`). Tenants of one region move
+  between its cells;
+- `cell.kind` (default `shared`), an open name such as `shared` or `dedicated` (`Cell__Kind`);
+- `cell.cloudRegions` (default empty), the cloud regions the cell's infrastructure spans, rendered as
+  `Cell__CloudRegions__<i>` (the KMS adapters refuse a key outside them);
+- `cell.managementUrl`, the absolute URL at which the cell's management API is reachable, rendered when set
+  (`Cell__ManagementUrl`);
+- `cell.isControlPlane` (default `false`), whether the cell is the control-plane cell, which serves platform and team
+  management and setup (`Cell__IsControlPlane`);
+- `cell.controlPlaneIssuer`, the issuer of the control-plane cell, required when `cell.isControlPlane` is `false`
+  because the cell accepts platform and team management tokens from it (`Cell__ControlPlane__Issuer`).
 
 ## What the chart refuses
 
@@ -188,9 +211,10 @@ Rendering fails, before anything is applied, when:
 - a `secretProtection.remoteKeyProviders` location, `awsKms.region`, `azureKeyVault.vaultUri` or
   `googleCloudKms.keyRing`, is set and the provider's `enabled` is `false`, because a location registers nothing on its
   own;
-- an enabled `secretProtection.remoteKeyProviders` provider has its location and
-  `secretProtection.remoteKeys.deployment` is empty, because the provider creates keys and the sweep finds them by the
-  deployment;
+- `cell.name` or `cell.region` is empty or is not a lowercase label (a lowercase letter, then lowercase letters, digits
+  and hyphens, at most 31 characters), or `cell.isControlPlane` is `false` and `cell.controlPlaneIssuer` is empty,
+  because the host's remote-key sweep reads the cell's name and a cell that is not the control plane reaches the control
+  plane's issuer;
 - a key management service is used, as `secretProtection.rootKeyProvider`, in `secretProtection.ownerRootKeys.providers`
   or enabled under `secretProtection.remoteKeyProviders`, and its workload credentials are half set: only one of
   `secretProtection.azureKeyVault.workloadIdentity.tenantId` and `clientId` is set, or
@@ -646,11 +670,9 @@ workload identity. The values are:
   `hardwareProtected` (default `true`);
 - `secretProtection.remoteKeyProviders.googleCloudKms.keyRing`, the key ring in which keys are created, and
   `hardwareProtected` (default `true`);
-- `secretProtection.remoteKeys.deployment`, which names this release's keys in a shared KMS scope (an AWS account, a
-  vault or a key ring): lowercase letters, digits and hyphens, at most 40 characters. It is required when an enabled
-  provider has its location. A deployment is one database of stored secrets: every replica and release that shares the
-  database uses its name, and no other deployment in the same AWS account, vault or key ring uses it, because each
-  deployment destroys every key of its name that its own database does not name;
+- the tag of the keys the host creates is `cell.name`: a cell is one database of stored secrets, so every replica and
+  release that shares the database uses its name, and no other cell in the same AWS account, vault or key ring uses it,
+  because each cell destroys every key of its name that its own database does not name;
 - `secretProtection.remoteKeys.sweepEnabled` (default `true`), `sweepInterval` (default `1.00:00:00`) and
   `sweepGracePeriod` (default `1.00:00:00`, between one hour and 365 days), which control the background sweep that
   destroys the keys no stored secret names
@@ -661,16 +683,13 @@ The chart renders an enabled provider as `SecretProtection__RemoteKeyProviders__
 ([ADR-1485](../../docs/decisions/1485-the-host-chart-enables-server-kms-vendors-and-holds-console-key-rings-under-the-consoles-identity.md));
 it renders `pendingWindowInDays` and `hardwareProtected` whenever the provider is enabled and its location only when
 set, and `hardwareProtected` applies only to the keys the provider creates; a provider that is not enabled renders
-nothing and no tenant can choose it; the deployment renders as `SecretProtection__RemoteKeys__Deployment` with
-`__SweepEnabled`, `__SweepInterval` and `__SweepGracePeriod`.
+nothing and no tenant can choose it; the sweep renders as `SecretProtection__RemoteKeys__SweepEnabled`,
+`__SweepInterval` and `__SweepGracePeriod`, and the host derives the sweep's tag from `Cell:Name`.
 
 An enabled provider with its location creates keys: `tenant_key_provider` can name it, the host does not start unless it
 holds every signing and encryption key the database provisions through it, and the sweep destroys only keys tagged with
-the deployment, older than the grace period, that no stored secret names. A release that enables such a provider
-without `secretProtection.remoteKeys.deployment` is refused:
-`secretProtection.remoteKeys.deployment must name this deployment when an enabled remote key provider creates keys,
-because its region, vaultUri or keyRing is set: lowercase letters, digits and hyphens.` A location on a provider that is
-not enabled is refused too:
+the cell's name, older than the grace period, that no stored secret names. A location on a provider that is
+not enabled is refused:
 `secretProtection.remoteKeyProviders.<vendor>.<location> is set and <vendor>.enabled is false: set enabled to register
 the provider, or clear <location>.` `ci/remote-key-providers-values.yaml` shows a release that creates keys in all
 three.
@@ -680,7 +699,7 @@ creates none
 ([ADR-1474](../../docs/decisions/1474-a-remote-key-provider-is-described-by-data-and-reads-signs-and-decrypts-by-key-identifier.md)):
 the management API binds a key by its identifier and the server reads, signs with and decrypts with it;
 `tenant_key_provider` cannot name the provider, the management API refuses to create a key in it, the sweep skips it,
-and the release needs no `secretProtection.remoteKeys.deployment`; the server never destroys a key it binds.
+and the release names no key-creating location; the server never destroys a key it binds.
 `ci/bind-only-remote-key-providers-values.yaml` shows a release that binds keys in all three.
 
 ```yaml
@@ -803,6 +822,7 @@ Pass console settings such as `ManagementConsole__Branding__DisplayName` through
 
 ```bash
 helm install identity charts/ncode-identity-host \
+  --set cell.name=prod-1 --set cell.region=eu --set cell.isControlPlane=true \
   --set 'allowedHosts={id.example.com}' \
   --set tenantResolution.staticSingle.issuer=https://id.example.com \
   --set database.parts.existingSecret=pg-runtime --set database.runtimeRole=ncode_identity_app \
@@ -882,7 +902,7 @@ server's.
 
 The console reads and proves each key at start. A key it cannot read or use stops it, and a rotation of the key takes
 effect when the console restarts. The key is the operator's: the console never creates, tags or destroys it. Keep it
-out of the `ncid-` groups and out of the tag of `secretProtection.remoteKeys.deployment`, in a scope of its own, so the
+out of the `ncid-` groups and out of the tag of `cell.name`, in a scope of its own, so the
 server's sweep never names it. Keep the DPoP key in a Secret unless the threat model needs it in a key management
 service and the request rate fits the service's quota
 ([ADR-1479](../../docs/decisions/1479-a-protocol-clients-and-a-bffs-keys-can-be-held-in-a-key-management-service.md)).
@@ -1263,6 +1283,10 @@ spec:
   values:
     # The release's values: one replica behind Traefik, the management console on its own host, and the root
     # administrator created by the setup Job. Every Secret and the ConfigMap named here exists before the release.
+    cell:
+      name: ci-gitops
+      region: ci
+      isControlPlane: true
     allowedHosts:
       - id.example.com
     tenantResolution:

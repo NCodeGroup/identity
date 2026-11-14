@@ -1,5 +1,9 @@
 # A production release whose management console holds its client authentication key in AWS KMS, reached through the
 # console's own web identity, and its DPoP key in a Secret.
+cell:
+  name: ci-console-remote-keys
+  region: ci
+  isControlPlane: true
 allowedHosts:
   - id.example.com
 tenantResolution:

@@ -1104,8 +1104,9 @@ Until the first stable release, the [Unreleased] section describes the product a
   provider cannot hold a provisioned key, or holds it for another use, does not start. A provider registered without its
   region, vault URI or key ring (`RemoteKeyProviderDescriptor.CreatesKeys` is `false`) binds a key a KMS already holds
   and reads, signs with, decrypts with and destroys keys by their identifiers, but creates and lists none: the setting
-  cannot name it, the management API refuses to create a key in it, the sweep skips it, and
-  `SecretProtection:RemoteKeys:Deployment` is required only when a provider creates keys. A change of custody hands each
+  cannot name it, the management API refuses to create a key in it, the sweep skips it, and the tag of the keys a
+  provider creates is `Cell:Name`, from which the host derives `SecretProtection:RemoteKeys:Deployment`. A change of
+  custody hands each
   key over after the activation delay (`custody_changed`), a successor is a new version of its KMS key (a new tagged key
   on AWS KMS), a removed key the server created is destroyed in its KMS after the commit, each SDK retries a repeatable
   call with jittered exponential back-off, and a key creation is made once; the setting's domain and the provisioning
@@ -1143,8 +1144,8 @@ Until the first stable release, the [Unreleased] section describes the product a
   [ADR-1485](docs/decisions/1485-the-host-chart-enables-server-kms-vendors-and-holds-console-key-rings-under-the-consoles-identity.md)).
 
 - **A background job destroys the KMS keys that no stored secret names.** Every key the server creates in a KMS carries
-  the deployment that `SecretProtection:RemoteKeys:Deployment` names
-  (required when a remote key provider that creates keys is registered), and its group name hashes the deployment, so
+  the deployment that `Cell:Name` names, from which the host derives `SecretProtection:RemoteKeys:Deployment`
+  (the chart sets it from `cell.name`), and its group name hashes the deployment, so
   deployments that share an AWS account, a vault or a key ring, each under a name of its own, never share or sweep each
   other's keys. At start and every `SecretProtection:RemoteKeys:SweepInterval` (one day), one replica dispatches
   a `RemoteKeySweepJob` per provider that creates keys through the dispatch port, logging a provider whose dispatch

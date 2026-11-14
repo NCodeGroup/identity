@@ -1,5 +1,9 @@
 # The management-console release routed by Gateway API: an HTTPRoute and a BackendTLSPolicy for the server and for the
 # console, with no Ingress.
+cell:
+  name: ci-gateway-api
+  region: ci
+  isControlPlane: true
 allowedHosts:
   - id.example.com
 tenantResolution:

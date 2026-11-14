@@ -1,4 +1,8 @@
 # A production release with the management console on its own host.
+cell:
+  name: ci-management-console
+  region: ci
+  isControlPlane: true
 allowedHosts:
   - id.example.com
 tenantResolution:

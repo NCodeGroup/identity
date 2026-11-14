@@ -125,7 +125,12 @@ jobs:
           refuse --set 'secretProtection.ownerRootKeys.providers={nope}'
           refuse --set secretProtection.remoteKeyProviders.awsKms.enabled=true --set secretProtection.remoteKeyProviders.awsKms.region=Not_A_Region
           refuse --set secretProtection.remoteKeyProviders.awsKms.enabled=true --set secretProtection.remoteKeyProviders.awsKms.pendingWindowInDays=6
-          refuse --set secretProtection.remoteKeyProviders.awsKms.enabled=true --set secretProtection.remoteKeyProviders.awsKms.region=us-west-2 --set secretProtection.remoteKeys.deployment=
+          # A cell names itself and its region with lowercase labels, and a cell that is not the control plane names the
+          # control plane's issuer.
+          refuse --set cell.name=
+          refuse --set cell.region=
+          refuse --set cell.name=Not_A_Label
+          refuse --set cell.isControlPlane=false
           refuse --set secretProtection.remoteKeyProviders.azureKeyVault.enabled=true --set secretProtection.remoteKeyProviders.azureKeyVault.vaultUri=http://contoso.vault.azure.net
           refuse --set secretProtection.remoteKeyProviders.googleCloudKms.enabled=true --set secretProtection.remoteKeyProviders.googleCloudKms.keyRing=projects/p/locations/l/keyRings/r/cryptoKeys/k
           refuse --set secretProtection.remoteKeyProviders.azureKeyVault.enabled=true --set secretProtection.azureKeyVault.workloadIdentity.clientId=00000000-0000-0000-0000-000000000000
@@ -361,24 +366,35 @@ jobs:
           }
           # A provider that is not enabled is not registered, and the pods carry none of its credentials.
           reject "$(helm template release "$CHART" --values "$base" --set "$role")" 'AWS_ROLE_ARN' 'RemoteKeyProviders'
-          # Enabled without its location, a provider binds keys and creates none, so it needs no deployment (ADR-1485).
-          binding=$(helm template release "$CHART" --values "$base" --set "$role" --set "$aws.enabled=true" \
-            --set secretProtection.remoteKeys.deployment=)
+          # Enabled without its location, a provider binds keys and creates none.
+          binding=$(helm template release "$CHART" --values "$base" --set "$role" --set "$aws.enabled=true")
           expect "$binding" 'AWS_ROLE_ARN' 'SecretProtection__RemoteKeyProviders__AwsKms__PendingWindowInDays'
-          reject "$binding" 'SecretProtection__RemoteKeyProviders__AwsKms__Region' \
-            'SecretProtection__RemoteKeys__Deployment'
-          # Enabled with its location, a provider creates keys under the release's deployment.
+          reject "$binding" 'SecretProtection__RemoteKeyProviders__AwsKms__Region'
+          # Enabled with its location, a provider creates keys under the cell's name.
           creating=$(helm template release "$CHART" --values "$base" --set "$role" --set "$aws.enabled=true" \
             --set "$aws.region=us-west-2")
           expect "$creating" 'AWS_ROLE_ARN' 'SecretProtection__RemoteKeyProviders__AwsKms__Region' \
-            'SecretProtection__RemoteKeys__Deployment'
+            'Cell__Name'
           # Every vendor binds without its location.
           bound=$(helm template release "$CHART" --values "$CHART/ci/bind-only-remote-key-providers-values.yaml")
           expect "$bound" 'SecretProtection__RemoteKeyProviders__AzureKeyVault__HardwareProtected' \
             'SecretProtection__RemoteKeyProviders__GoogleCloudKms__HardwareProtected' 'AZURE_CLIENT_ID' \
             'GOOGLE_APPLICATION_CREDENTIALS'
-          reject "$bound" '__AwsKms__Region' '__AzureKeyVault__VaultUri' '__GoogleCloudKms__KeyRing' \
-            'SecretProtection__RemoteKeys__Deployment'
+          reject "$bound" '__AwsKms__Region' '__AzureKeyVault__VaultUri' '__GoogleCloudKms__KeyRing'
+
+      - name: Render the cell's identity and the control plane it reaches
+        run: |
+          expect() {
+            local rendered="$1"; shift
+            for expected in "$@"; do
+              if ! grep -q -- "$expected" <<< "$rendered"; then
+                echo "::error::The release lacks: $expected"
+                exit 1
+              fi
+            done
+          }
+          cell=$(helm template release "$CHART" --values "$CHART/ci/cell-values.yaml" --show-only templates/deployment.yaml)
+          expect "$cell" 'Cell__ControlPlane__Issuer' 'Cell__CloudRegions__1'
 
       - name: Give the migration Job the host's extra settings and a valid name
         run: |

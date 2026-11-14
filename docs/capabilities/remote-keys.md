@@ -215,20 +215,22 @@ such as a BFF, needs no `SecretProtection:RemoteKeys`.
 | `azure-key-vault`           | `SecretProtection:RemoteKeyProviders:AzureKeyVault`      | `VaultUri` (optional: where keys are created); `HardwareProtected` (default `true`)      |
 | `google-cloud-kms`          | `SecretProtection:RemoteKeyProviders:GoogleCloudKms`     | `KeyRing` (optional: where keys are created); `HardwareProtected` (default `true`)       |
 
-The deployment names itself and tunes the sweep ([Orphaned keys](#orphaned-keys)) in `SecretProtection:RemoteKeys`,
-which binds strictly. The `SecretProtection` section recognizes the `RemoteKeys` and `RemoteKeyProviders` children.
+The deployment names itself through `Cell:Name` and tunes the sweep ([Orphaned keys](#orphaned-keys)) in
+`SecretProtection:RemoteKeys`, which binds strictly. The `SecretProtection` section recognizes the `RemoteKeys` and
+`RemoteKeyProviders` children.
 
 | Setting                                  | Default  | Meaning                                                                                                              |
 | ---------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------- |
-| `SecretProtection:RemoteKeys:Deployment` | none     | Names this deployment: lowercase letters and digits in hyphen-separated groups, at most 40 characters. Required when a provider that creates keys is registered. |
+| `SecretProtection:RemoteKeys:Deployment` | `Cell:Name` | The tag of the keys this deployment creates, which the host derives from `Cell:Name`. A value that differs from `Cell:Name` is refused. |
 | `SweepEnabled`                           | `true`   | Turns the sweep of orphaned keys on or off.                                                                          |
 | `SweepInterval`                          | one day  | How often the sweep runs: at least one minute, at most the timer maximum.                                            |
 | `SweepGracePeriod`                       | one day  | How old a key is before the sweep may destroy it: between one hour and 365 days.                                     |
 
 The reference host's Helm chart configures them with the `secretProtection.remoteKeyProviders` values
 (`awsKms.enabled`, `region` and `pendingWindowInDays`, `azureKeyVault.enabled`, `vaultUri` and `hardwareProtected`,
-`googleCloudKms.enabled`, `keyRing` and `hardwareProtected`) and the `secretProtection.remoteKeys` values (`deployment`,
-`sweepEnabled`, `sweepInterval` and `sweepGracePeriod`). It registers a provider whose `enabled` is `true` and renders
+`googleCloudKms.enabled`, `keyRing` and `hardwareProtected`) and the `secretProtection.remoteKeys` values
+(`sweepEnabled`, `sweepInterval` and `sweepGracePeriod`). The chart sets `Cell:Name` from `cell.name`, which the host
+uses as the tag of the keys it creates. It registers a provider whose `enabled` is `true` and renders
 its location only when set, so a release binds keys without creating any, and mounts that vendor's workload identity
 into the pods
 ([ADR-1485](../decisions/1485-the-host-chart-enables-server-kms-vendors-and-holds-console-key-rings-under-the-consoles-identity.md));
@@ -303,7 +305,8 @@ A key that a seed, a rollover or a management create made can end up with no sto
 that lost its commit race or whose process crashed, or a destruction that failed. A background job finds such keys and
 destroys them.
 
-- **A deployment names itself.** `SecretProtection:RemoteKeys:Deployment` tags every created key
+- **A deployment names itself.** The host derives `SecretProtection:RemoteKeys:Deployment` from `Cell:Name`, and the
+  chart sets `Cell:Name` from `cell.name`. The name tags every created key
   (`ncode-identity:deployment` on AWS, `ncode-identity-deployment` on Azure tags and Google crypto key labels) and is
   hashed first into the key's `ncid-` group name, so deployments that share an AWS account, a vault or a key ring never
   share a group and never sweep each other's keys. A deployment is one database of stored secrets: every replica and

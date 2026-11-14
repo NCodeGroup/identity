@@ -1,4 +1,8 @@
 # A production release whose root key is in Google Cloud KMS, reached through workload identity federation.
+cell:
+  name: ci-google-cloud-kms
+  region: ci
+  isControlPlane: true
 allowedHosts:
   - id.example.com
 tenantResolution:

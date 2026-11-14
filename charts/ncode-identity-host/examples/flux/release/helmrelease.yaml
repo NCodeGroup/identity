@@ -27,6 +27,10 @@ spec:
   values:
     # The release's values: one replica behind Traefik, the management console on its own host, and the root
     # administrator created by the setup Job. Every Secret and the ConfigMap named here exists before the release.
+    cell:
+      name: ci-gitops
+      region: ci
+      isControlPlane: true
     allowedHosts:
       - id.example.com
     tenantResolution:

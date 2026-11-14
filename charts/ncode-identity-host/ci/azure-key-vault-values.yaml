@@ -1,4 +1,8 @@
 # A production release whose root key is in Azure Key Vault, reached through workload identity federation.
+cell:
+  name: ci-azure-key-vault
+  region: ci
+  isControlPlane: true
 allowedHosts:
   - id.example.com
 tenantResolution:

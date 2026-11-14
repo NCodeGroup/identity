@@ -117,6 +117,9 @@
       }
     }
   },
+  "required": [
+    "cell"
+  ],
   "properties": {
     "global": {
       "type": "object"
@@ -170,6 +173,72 @@
       "type": "array",
       "items": {
         "type": "string"
+      }
+    },
+    "cell": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "region"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,30}$"
+        },
+        "region": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,30}$"
+        },
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cloudRegions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "managementUrl": {
+          "type": "string",
+          "anyOf": [
+            {
+              "maxLength": 0
+            },
+            {
+              "format": "uri"
+            }
+          ]
+        },
+        "isControlPlane": {
+          "type": "boolean"
+        },
+        "controlPlaneIssuer": {
+          "type": "string"
+        }
+      },
+      "if": {
+        "required": [
+          "isControlPlane"
+        ],
+        "properties": {
+          "isControlPlane": {
+            "const": false
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "controlPlaneIssuer"
+        ],
+        "properties": {
+          "controlPlaneIssuer": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
       }
     },
     "tenantResolution": {
@@ -508,11 +577,6 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "deployment": {
-              "type": "string",
-              "pattern": "^([a-z0-9]+(-[a-z0-9]+)*)?$",
-              "maxLength": 40
-            },
             "sweepEnabled": {
               "type": "boolean"
             },

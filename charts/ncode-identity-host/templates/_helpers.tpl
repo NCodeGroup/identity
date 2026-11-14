@@ -264,10 +264,6 @@ applied. Rendered for its side effect only.
 {{- fail (printf "secretProtection.remoteKeyProviders.%s.%s is set and %s.enabled is false: set enabled to register the provider, or clear %s." $vendor $location $vendor $location) }}
 {{- end }}
 {{- end }}
-{{- $createsKeys := or (and $remoteKeyProviders.awsKms.enabled $remoteKeyProviders.awsKms.region) (and $remoteKeyProviders.azureKeyVault.enabled $remoteKeyProviders.azureKeyVault.vaultUri) (and $remoteKeyProviders.googleCloudKms.enabled $remoteKeyProviders.googleCloudKms.keyRing) }}
-{{- if and $createsKeys (not .Values.secretProtection.remoteKeys.deployment) }}
-{{- fail "secretProtection.remoteKeys.deployment must name this deployment when an enabled remote key provider creates keys, because its region, vaultUri or keyRing is set: lowercase letters, digits and hyphens." }}
-{{- end }}
 {{- if .Values.secretProtection.rewrapJob.enabled }}
 {{- if and (eq .Values.secretProtection.rewrapJob.command "rewrap-recovery") (not .Values.secretProtection.recovery.publicKeyConfigMap) }}
 {{- fail "secretProtection.rewrapJob.command rewrap-recovery replaces the recovery copies, so secretProtection.recovery.publicKeyConfigMap must name the recovery public key ConfigMap." }}
@@ -572,6 +568,26 @@ same configuration the pods it rewraps keys for read.
   value: {{ .Values.environment | quote }}
 - name: AllowedHosts
   value: {{ join ";" .Values.allowedHosts | quote }}
+- name: Cell__Name
+  value: {{ .Values.cell.name | quote }}
+- name: Cell__Region
+  value: {{ .Values.cell.region | quote }}
+- name: Cell__Kind
+  value: {{ .Values.cell.kind | quote }}
+{{- range $index, $cloudRegion := .Values.cell.cloudRegions }}
+- name: Cell__CloudRegions__{{ $index }}
+  value: {{ $cloudRegion | quote }}
+{{- end }}
+{{- with .Values.cell.managementUrl }}
+- name: Cell__ManagementUrl
+  value: {{ . | quote }}
+{{- end }}
+- name: Cell__IsControlPlane
+  value: {{ .Values.cell.isControlPlane | quote }}
+{{- with .Values.cell.controlPlaneIssuer }}
+- name: Cell__ControlPlane__Issuer
+  value: {{ . | quote }}
+{{- end }}
 - name: OpenId__TenantResolution__StrategyCode
   value: {{ .Values.tenantResolution.strategyCode | quote }}
 {{- with .Values.tenantResolution.staticSingle.issuer }}
@@ -656,16 +672,12 @@ same configuration the pods it rewraps keys for read.
   value: {{ $remoteKeyProviders.googleCloudKms.hardwareProtected | quote }}
 {{- end }}
 {{- $remoteKeys := .Values.secretProtection.remoteKeys }}
-{{- with $remoteKeys.deployment }}
-- name: SecretProtection__RemoteKeys__Deployment
-  value: {{ . | quote }}
 - name: SecretProtection__RemoteKeys__SweepEnabled
   value: {{ $remoteKeys.sweepEnabled | quote }}
 - name: SecretProtection__RemoteKeys__SweepInterval
   value: {{ $remoteKeys.sweepInterval | quote }}
 - name: SecretProtection__RemoteKeys__SweepGracePeriod
   value: {{ $remoteKeys.sweepGracePeriod | quote }}
-{{- end }}
 {{- if .Values.secretProtection.recovery.publicKeyConfigMap }}
 - name: SecretProtection__Recovery__PublicKeyPath
   value: {{ printf "%s/recovery/recovery-public.pem" $secretProtectionRoot }}
