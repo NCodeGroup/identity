@@ -429,6 +429,69 @@ internal class GoogleCloudKmsRemoteKeyProvider(
     }
 
     /// <inheritdoc />
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="keyId"/> is not a Cloud KMS crypto key version name.
+    /// </exception>
+    public async ValueTask RetagKeyAsync(
+        string keyId,
+        string deployment,
+        CancellationToken cancellationToken
+    )
+    {
+        ArgumentNullException.ThrowIfNull(keyId);
+        ArgumentNullException.ThrowIfNull(deployment);
+
+        if (!GoogleCloudKmsKeyName.IsCryptoKeyVersionName(keyId))
+        {
+            throw new ArgumentException(
+                "The key identifier is not the name of a Cloud KMS crypto key version.",
+                nameof(keyId)
+            );
+        }
+
+        var cryptoKeyName = GoogleCloudKmsKeyName.GetCryptoKeyName(keyId);
+        var callSettings = CreateCallSettings(
+            GoogleCloudKmsCallSettings.Retrying,
+            cancellationToken
+        );
+
+        try
+        {
+            await ClientFactory.ExecuteAsync(
+                access: null,
+                async (client, _) =>
+                {
+                    // An update with the field mask 'labels' replaces the whole label map, so the other labels are read
+                    // first and written back.
+                    var cryptoKey = await client.GetCryptoKeyAsync(
+                        new GetCryptoKeyRequest { Name = cryptoKeyName },
+                        callSettings
+                    );
+
+                    cryptoKey.Labels[DeploymentLabelKey] = deployment;
+
+                    return await client.UpdateCryptoKeyAsync(
+                        new UpdateCryptoKeyRequest
+                        {
+                            CryptoKey = cryptoKey,
+                            UpdateMask = new Google.Protobuf.WellKnownTypes.FieldMask
+                            {
+                                Paths = { "labels" },
+                            },
+                        },
+                        callSettings
+                    );
+                },
+                cancellationToken
+            );
+        }
+        catch (RpcException exception) when (exception.StatusCode is StatusCode.NotFound)
+        {
+            // The crypto key is already missing.
+        }
+    }
+
+    /// <inheritdoc />
     /// <exception cref="InvalidOperationException">
     /// Thrown when the configured key ring is not a Cloud KMS key ring name.
     /// </exception>

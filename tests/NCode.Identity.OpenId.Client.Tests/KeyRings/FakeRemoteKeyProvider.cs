@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers;
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using NCode.Identity.Secrets;
 using NCode.Identity.Secrets.KeyTypes;
@@ -93,6 +94,12 @@ internal sealed class FakeRemoteKeyProvider
     /// Gets the number of ciphertexts that the provider decrypted.
     /// </summary>
     public int DecryptionCount => (int)Interlocked.Read(ref _decryptionCount);
+
+    /// <summary>
+    /// Gets the deployment that each retagged key carries, by key identifier.
+    /// </summary>
+    public ConcurrentDictionary<string, string> RetaggedDeployments { get; } =
+        new(StringComparer.Ordinal);
 
     /// <inheritdoc />
     public string Name => ProviderName;
@@ -192,6 +199,17 @@ internal sealed class FakeRemoteKeyProvider
     /// <inheritdoc />
     public ValueTask DestroyKeyAsync(string keyId, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
+
+    /// <inheritdoc />
+    public ValueTask RetagKeyAsync(
+        string keyId,
+        string deployment,
+        CancellationToken cancellationToken
+    )
+    {
+        RetaggedDeployments[keyId] = deployment;
+        return ValueTask.CompletedTask;
+    }
 
     /// <inheritdoc />
     public void Dispose()

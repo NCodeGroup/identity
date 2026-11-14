@@ -141,6 +141,18 @@ public interface IRemoteKeyProvider
     ValueTask DestroyKeyAsync(string keyId, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Sets the deployment tag of the key in the key management service, the tag that the remote-key sweep reads, so
+    /// the key belongs to the deployment of another cell and only the sweep of that deployment lists it.
+    /// The key's other tags and labels are kept. Completes without error for a key that is missing.
+    /// </summary>
+    /// <param name="keyId">The key management service's identifier for the key.</param>
+    /// <param name="deployment">The deployment to tag the key with.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>A task that completes when the key carries the deployment.</returns>
+    // See ADR-1478.
+    ValueTask RetagKeyAsync(string keyId, string deployment, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Lists the enabled keys in the provider's configured location that the server created for the deployment: each
     /// carries a group that begins with <see cref="RemoteKeyGroupNames.Prefix"/> and the request's deployment. A key
     /// that is disabled, scheduled for deletion or destroyed, or whose tags cannot be read, is not listed.

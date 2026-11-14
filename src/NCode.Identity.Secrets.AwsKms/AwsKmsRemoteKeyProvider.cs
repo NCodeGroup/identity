@@ -635,6 +635,50 @@ internal class AwsKmsRemoteKeyProvider(
     }
 
     /// <inheritdoc />
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="keyId"/> is not a KMS key ARN.
+    /// </exception>
+    public async ValueTask RetagKeyAsync(
+        string keyId,
+        string deployment,
+        CancellationToken cancellationToken
+    )
+    {
+        ArgumentNullException.ThrowIfNull(keyId);
+        ArgumentNullException.ThrowIfNull(deployment);
+
+        if (!AwsKmsKeyArn.IsValid(keyId))
+        {
+            throw new ArgumentException(
+                "The key identifier is not the ARN of a KMS key.",
+                nameof(keyId)
+            );
+        }
+
+        var region = AwsKmsKeyArn.GetRegion(keyId);
+        var tagRequest = new TagResourceRequest
+        {
+            KeyId = keyId,
+            Tags = [new Tag { TagKey = DeploymentTagKey, TagValue = deployment }],
+        };
+
+        try
+        {
+            await ClientFactory.ExecuteAsync(
+                region,
+                access: null,
+                (client, token) =>
+                    new ValueTask<TagResourceResponse>(client.TagResourceAsync(tagRequest, token)),
+                cancellationToken
+            );
+        }
+        catch (NotFoundException)
+        {
+            // The key is already deleted.
+        }
+    }
+
+    /// <inheritdoc />
     /// <exception cref="InvalidOperationException">
     /// Thrown when the configured region is not set.
     /// </exception>

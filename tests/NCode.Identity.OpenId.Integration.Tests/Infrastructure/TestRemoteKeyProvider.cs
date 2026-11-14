@@ -79,6 +79,8 @@ public sealed class TestRemoteKeyProvider
 
     private ConcurrentQueue<string> DestroyedKeys { get; } = new();
 
+    private ConcurrentQueue<string> RetaggedKeys { get; } = new();
+
     private long _signatureCount;
 
     private long _decryptionCount;
@@ -119,6 +121,11 @@ public sealed class TestRemoteKeyProvider
     /// Gets the identifier of every key that the provider destroyed, in order.
     /// </summary>
     public IReadOnlyList<string> DestroyedKeyIds => [.. DestroyedKeys];
+
+    /// <summary>
+    /// Gets the identifier of every key that the provider retagged, in order.
+    /// </summary>
+    public IReadOnlyList<string> RetaggedKeyIds => [.. RetaggedKeys];
 
     /// <summary>
     /// Adds a key that the service already holds, one that the provider did not create, and returns its identifier.
@@ -385,6 +392,22 @@ public sealed class TestRemoteKeyProvider
         }
 
         DestroyedKeys.Enqueue(keyId);
+        return ValueTask.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public ValueTask RetagKeyAsync(
+        string keyId,
+        string deployment,
+        CancellationToken cancellationToken
+    )
+    {
+        RetaggedKeys.Enqueue(keyId);
+        if (Listings.TryGetValue(keyId, out var entry))
+        {
+            Listings[keyId] = (deployment, entry.Listing);
+        }
+
         return ValueTask.CompletedTask;
     }
 

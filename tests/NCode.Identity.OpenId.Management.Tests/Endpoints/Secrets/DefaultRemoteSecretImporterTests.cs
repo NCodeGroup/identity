@@ -405,6 +405,9 @@ public sealed class DefaultRemoteSecretImporterTests : IAsyncLifetime
 
         public Exception? PublicKeyFailure { get; set; }
 
+        public Dictionary<string, string> RetaggedDeployments { get; } =
+            new(StringComparer.Ordinal);
+
         public ECDsa? SigningKey { get; set; }
 
         public string Name => ProviderName;
@@ -482,6 +485,16 @@ public sealed class DefaultRemoteSecretImporterTests : IAsyncLifetime
 
         public ValueTask DestroyKeyAsync(string keyId, CancellationToken cancellationToken) =>
             ValueTask.FromException(new NotSupportedException());
+
+        public ValueTask RetagKeyAsync(
+            string keyId,
+            string deployment,
+            CancellationToken cancellationToken
+        )
+        {
+            RetaggedDeployments[keyId] = deployment;
+            return ValueTask.CompletedTask;
+        }
 
         public ValueTask<int> DecryptAsync(
             RemoteDecryptionRequest request,
