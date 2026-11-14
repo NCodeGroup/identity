@@ -25,4 +25,10 @@ public sealed class AwsKmsKeyWrapperOptions
     /// endpoint.
     /// </summary>
     public string? KeyArn { get; set; }
+
+    /// <summary>
+    /// Gets or sets the system names of the AWS regions, such as <c>us-west-2</c>, in which a key that a caller names
+    /// may be held. A key ARN in any other region is refused. When it is empty, a key in any region is allowed.
+    /// </summary>
+    public List<string> AllowedRegions { get; set; } = [];
 }

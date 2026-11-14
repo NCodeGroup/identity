@@ -26,6 +26,12 @@ public sealed class AwsKmsRemoteKeyProviderOptions
     public string? Region { get; set; }
 
     /// <summary>
+    /// Gets or sets the system names of the AWS regions, such as <c>us-west-2</c>, in which the provider may create
+    /// keys. A <see cref="Region"/> that is not listed is refused. When it is empty, any region is allowed.
+    /// </summary>
+    public List<string> AllowedRegions { get; set; } = [];
+
+    /// <summary>
     /// Gets or sets the number of days, from 7 to 30, that AWS KMS waits before it deletes a key that the provider
     /// destroys. The default is 30.
     /// </summary>

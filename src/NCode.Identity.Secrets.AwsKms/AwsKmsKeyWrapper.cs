@@ -101,15 +101,29 @@ internal class AwsKmsKeyWrapper(
         [NotNullWhen(false)] out string? failure
     )
     {
-        if (AwsKmsKeyArn.IsValid(keyReference))
+        if (!AwsKmsKeyArn.IsValid(keyReference))
         {
-            failure = null;
-            return true;
+            failure =
+                "must be the ARN of a KMS key or alias, such as arn:aws:kms:us-west-2:111122223333:alias/tenant-root";
+            return false;
         }
 
-        failure =
-            "must be the ARN of a KMS key or alias, such as arn:aws:kms:us-west-2:111122223333:alias/tenant-root";
-        return false;
+        var allowedRegions = RootKeyOptions.Value.AllowedRegions;
+        if (
+            allowedRegions.Count > 0
+            && !allowedRegions.Contains(
+                AwsKmsKeyArn.GetRegion(keyReference),
+                StringComparer.Ordinal
+            )
+        )
+        {
+            failure =
+                $"must be the ARN of a KMS key or alias in one of the allowed AWS regions: {string.Join(", ", allowedRegions)}";
+            return false;
+        }
+
+        failure = null;
+        return true;
     }
 
     /// <inheritdoc />

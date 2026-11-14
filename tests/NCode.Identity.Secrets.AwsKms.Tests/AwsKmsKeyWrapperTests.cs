@@ -55,11 +55,15 @@ public class AwsKmsKeyWrapperTests : BaseTests
         Dictionary<string, string> EncryptionContext
     );
 
-    private AwsKmsKeyWrapper CreateProvider(string? keyArn) =>
+    private AwsKmsKeyWrapper CreateProvider(string? keyArn, params string[] allowedRegions) =>
         new(
             ClientFactory.Object,
             Microsoft.Extensions.Options.Options.Create(
-                new AwsKmsKeyWrapperOptions { KeyArn = keyArn }
+                new AwsKmsKeyWrapperOptions
+                {
+                    KeyArn = keyArn,
+                    AllowedRegions = [.. allowedRegions],
+                }
             )
         );
 
@@ -810,6 +814,42 @@ public class AwsKmsKeyWrapperTests : BaseTests
         Assert.Equal(expected, failure is null);
         if (!expected)
             Assert.StartsWith("must be the ARN of a KMS key or alias", failure);
+    }
+
+    [Theory]
+    [InlineData(KeyArn)]
+    [InlineData(AliasOtherRegion)]
+    public void TryValidateKeyReference_RegionListed_Valid(string reference)
+    {
+        var provider = CreateProvider(null, "us-west-2", "eu-central-1");
+
+        var valid = provider.TryValidateKeyReference(reference, out var failure);
+
+        Assert.True(valid);
+        Assert.Null(failure);
+    }
+
+    [Fact]
+    public void TryValidateKeyReference_RegionNotListed_FailsNamingAllowedRegions()
+    {
+        var provider = CreateProvider(null, "us-west-2", "us-east-1");
+
+        var valid = provider.TryValidateKeyReference(OtherRegionKeyArn, out var failure);
+
+        Assert.False(valid);
+        Assert.NotNull(failure);
+        Assert.Contains("us-west-2, us-east-1", failure);
+    }
+
+    [Fact]
+    public void TryValidateKeyReference_NoAllowedRegions_AllowsAnyRegion()
+    {
+        var provider = CreateProvider(keyArn: null);
+
+        var valid = provider.TryValidateKeyReference(OtherRegionKeyArn, out var failure);
+
+        Assert.True(valid);
+        Assert.Null(failure);
     }
 
     #endregion

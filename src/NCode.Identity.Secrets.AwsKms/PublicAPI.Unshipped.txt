@@ -5,10 +5,14 @@ NCode.Identity.Secrets.AwsKms.DefaultRegistration
 NCode.Identity.Secrets.AwsKms.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Secrets.Persistence.SecretPersistenceLibrary>!)
 NCode.Identity.Secrets.AwsKms.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Secrets.Persistence.SecretPersistenceLibrary>!).AddAwsKmsKeyWrapper(Microsoft.Extensions.Configuration.IConfiguration! configuration) -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Secrets.Persistence.SecretPersistenceLibrary>!
 NCode.Identity.Secrets.AwsKms.Options.AwsKmsKeyWrapperOptions
+NCode.Identity.Secrets.AwsKms.Options.AwsKmsKeyWrapperOptions.AllowedRegions.get -> System.Collections.Generic.List<string!>!
+NCode.Identity.Secrets.AwsKms.Options.AwsKmsKeyWrapperOptions.AllowedRegions.set -> void
 NCode.Identity.Secrets.AwsKms.Options.AwsKmsKeyWrapperOptions.AwsKmsKeyWrapperOptions() -> void
 NCode.Identity.Secrets.AwsKms.Options.AwsKmsKeyWrapperOptions.KeyArn.get -> string?
 NCode.Identity.Secrets.AwsKms.Options.AwsKmsKeyWrapperOptions.KeyArn.set -> void
 NCode.Identity.Secrets.AwsKms.Options.AwsKmsRemoteKeyProviderOptions
+NCode.Identity.Secrets.AwsKms.Options.AwsKmsRemoteKeyProviderOptions.AllowedRegions.get -> System.Collections.Generic.List<string!>!
+NCode.Identity.Secrets.AwsKms.Options.AwsKmsRemoteKeyProviderOptions.AllowedRegions.set -> void
 NCode.Identity.Secrets.AwsKms.Options.AwsKmsRemoteKeyProviderOptions.AwsKmsRemoteKeyProviderOptions() -> void
 NCode.Identity.Secrets.AwsKms.Options.AwsKmsRemoteKeyProviderOptions.PendingWindowInDays.get -> int
 NCode.Identity.Secrets.AwsKms.Options.AwsKmsRemoteKeyProviderOptions.PendingWindowInDays.set -> void
