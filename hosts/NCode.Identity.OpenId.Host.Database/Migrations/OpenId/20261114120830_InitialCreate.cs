@@ -22,6 +22,7 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     EventCategory = table.Column<string>(type: "character varying(100)", unicode: false, maxLength: 100, nullable: false),
                     Outcome = table.Column<string>(type: "character varying(100)", unicode: false, maxLength: 100, nullable: false),
                     Severity = table.Column<string>(type: "character varying(100)", unicode: false, maxLength: 100, nullable: false),
+                    Cell = table.Column<string>(type: "character varying(32)", unicode: false, maxLength: 32, nullable: false),
                     TenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: true),
                     SubjectId = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: true),
                     ClientId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: true),
@@ -225,6 +226,7 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     TeamPath = table.Column<string>(type: "character varying(513)", unicode: false, maxLength: 513, nullable: false),
                     Day = table.Column<DateOnly>(type: "date", nullable: false),
                     Meter = table.Column<string>(type: "character varying(100)", unicode: false, maxLength: 100, nullable: false),
+                    Cell = table.Column<string>(type: "character varying(32)", unicode: false, maxLength: 32, nullable: false),
                     Count = table.Column<long>(type: "bigint", nullable: false),
                     ConcurrencyToken = table.Column<string>(type: "character varying(50)", unicode: false, maxLength: 50, nullable: false)
                 },
@@ -761,6 +763,11 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "IX_AuditRecords_ActorId_EventTime",
                 table: "AuditRecords",
                 columns: new[] { "ActorId", "EventTime" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AuditRecords_Cell_EventTime",
+                table: "AuditRecords",
+                columns: new[] { "Cell", "EventTime" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_AuditRecords_ClientId_EventTime",

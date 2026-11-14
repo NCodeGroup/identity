@@ -160,6 +160,12 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnicode(false)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<string>("Cell")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(32)");
+
                     b.Property<string>("ClientId")
                         .HasMaxLength(300)
                         .IsUnicode(false)
@@ -228,6 +234,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     b.HasIndex("TraceId");
 
                     b.HasIndex("ActorId", "EventTime");
+
+                    b.HasIndex("Cell", "EventTime");
 
                     b.HasIndex("ClientId", "EventTime");
 
@@ -1681,6 +1689,12 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 {
                     b.Property<long>("Id")
                         .HasColumnType("bigint");
+
+                    b.Property<string>("Cell")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(32)");
 
                     b.Property<string>("ConcurrencyToken")
                         .IsConcurrencyToken()
