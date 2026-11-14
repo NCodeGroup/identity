@@ -325,6 +325,35 @@ public class TenantRootKeyTests
     }
 
     [Fact]
+    public async Task PutRootKey_WithAnAwsKmsKeyOutsideTheCellsCloudRegions_ReturnsBadRequestAndSetsNoKey()
+    {
+        using var factory = new CellRegionHostApplicationFactory();
+        using var administrator = await factory.CreateAdministratorClientAsync(
+            ControlPlaneTokenPath,
+            CancellationToken.None
+        );
+        await CreateTenantAsync(administrator, CancellationToken.None);
+
+        using var response = await administrator.PutAsJsonAsync(
+            RootKeyPath,
+            new
+            {
+                provider = "aws-kms",
+                keyReference = "arn:aws:kms:us-east-1:111122223333:alias/tenant-root",
+            }
+        );
+
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.True(response.StatusCode == HttpStatusCode.BadRequest, body);
+        Assert.True(
+            JsonElement.Parse(body).GetProperty("errors").TryGetProperty("keyReference", out _)
+        );
+
+        var keys = await GetKeysAsync(administrator, CancellationToken.None);
+        Assert.Null(GetOptionalObject(keys, "rootKey"));
+    }
+
+    [Fact]
     public async Task PutRootKey_WithinTwiceTheRefreshIntervalOfARekey_ReturnsConflictAndSetsNoKey()
     {
         using var factory = new TenantRootKeyHostApplicationFactory(
@@ -595,6 +624,26 @@ public class TenantRootKeyTests
             });
         }
     }
+
+    /// <summary>
+    /// A factory that selects the tenant by path, with the bootstrap administrator in the control-plane tenant, the
+    /// host's own AWS KMS key wrapper allowed as the key wrapper of an owner's root key, and a cell whose only cloud
+    /// region is <c>eu-west-1</c>.
+    /// </summary>
+    private sealed class CellRegionHostApplicationFactory()
+        : BootstrapAdminApplicationFactory(
+            new Dictionary<string, string?>
+            {
+                ["OpenId:TenantResolution:StrategyCode"] = OpenIdConstants
+                    .TenantStrategyCodes
+                    .DynamicByPath,
+                ["OpenId:TenantResolution:DynamicByPath:IssuerTemplate"] =
+                    "http://localhost/{tenantId}",
+                ["SecretProtection:OwnerRootKeys:Providers:0"] = "aws-kms",
+                ["Cell:CloudRegions:0"] = "eu-west-1",
+            },
+            ControlPlaneTenantId
+        );
 
     #endregion
 }
