@@ -73,7 +73,7 @@ public class LocalAccountLifecycleTests
         CancellationToken cancellationToken
     )
     {
-        using var scope = factory.Services.CreateScope();
+        using var scope = factory.CreateTenantScope();
         var storeManagerFactory = scope.ServiceProvider.GetRequiredService<IStoreManagerFactory>();
         await using var storeManager = await storeManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<IFederatedPrincipalStore>();
@@ -190,7 +190,7 @@ public class LocalAccountLifecycleTests
         CancellationToken cancellationToken
     )
     {
-        using var scope = factory.Services.CreateScope();
+        using var scope = factory.CreateTenantScope();
         var storeManagerFactory = scope.ServiceProvider.GetRequiredService<IStoreManagerFactory>();
         await using var storeManager = await storeManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<ILocalAccountStore>();
@@ -207,7 +207,7 @@ public class LocalAccountLifecycleTests
         CancellationToken cancellationToken
     )
     {
-        using var scope = factory.Services.CreateScope();
+        using var scope = factory.CreateTenantScope();
         var storeManagerFactory = scope.ServiceProvider.GetRequiredService<IStoreManagerFactory>();
         await using var storeManager = await storeManagerFactory.CreateAsync(cancellationToken);
         var identity = await storeManager

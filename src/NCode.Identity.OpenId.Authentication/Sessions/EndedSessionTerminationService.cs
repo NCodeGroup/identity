@@ -193,6 +193,9 @@ internal sealed class EndedSessionTerminationService(
     {
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
 
+        // The sessions belong to this tenant, so reading and terminating them runs under its scope.
+        using var tenantScope = AmbientTenantAccessor.BeginScope(tenantId);
+
         OpenIdContext openIdContext;
         try
         {

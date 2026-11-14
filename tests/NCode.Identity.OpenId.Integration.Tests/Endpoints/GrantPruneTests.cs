@@ -53,7 +53,7 @@ public class GrantPruneTests
         CancellationToken cancellationToken
     )
     {
-        using var scope = services.CreateScope();
+        using var scope = new TenantServiceScope(services, HostApplicationFactory.TenantId);
         var storeManagerFactory = scope.ServiceProvider.GetRequiredService<IStoreManagerFactory>();
         await using var storeManager = await storeManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<IGrantStore>();
@@ -71,7 +71,7 @@ public class GrantPruneTests
         CancellationToken cancellationToken
     )
     {
-        using var scope = services.CreateScope();
+        using var scope = new TenantServiceScope(services, HostApplicationFactory.TenantId);
         var storeManagerFactory = scope.ServiceProvider.GetRequiredService<IStoreManagerFactory>();
         await using var storeManager = await storeManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<IGrantStore>();

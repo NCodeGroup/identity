@@ -130,6 +130,16 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
     public IReadOnlyDictionary<string, object>? PersistedPlatformSettings { get; set; }
 
     /// <summary>
+    /// Creates a service scope whose ambient tenant scope is set to <paramref name="tenantId"/>, or to the host's
+    /// static tenant when it is <see langword="null"/>, so a test reads and writes that tenant's rows as a request to
+    /// it does.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the tenant to scope tenant-bound data access to.</param>
+    /// <returns>An <see cref="IServiceScope"/> that ends the tenant scope when disposed.</returns>
+    public IServiceScope CreateTenantScope(string? tenantId = null) =>
+        new TenantServiceScope(Services, tenantId ?? TenantId);
+
+    /// <summary>
     /// Sends a first request to the tenant, which forces the static tenant provider to persist the tenant entity that
     /// the stores require as a foreign key.
     /// </summary>
@@ -161,7 +171,7 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
             }
         );
 
-        using var scope = Services.CreateScope();
+        using var scope = CreateTenantScope();
         var storeManagerFactory = scope.ServiceProvider.GetRequiredService<IStoreManagerFactory>();
         await using var storeManager = await storeManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<IClientStore>();
@@ -196,7 +206,7 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
             ["token_endpoint_auth_method"] = OpenIdProtocol.ClientAuthenticationMethods.None,
         };
 
-        using var scope = Services.CreateScope();
+        using var scope = CreateTenantScope();
         await AddClientAsync(
             scope.ServiceProvider,
             clientId,
@@ -230,7 +240,7 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
                 .PrivateKeyJwt,
         };
 
-        using var scope = Services.CreateScope();
+        using var scope = CreateTenantScope();
         await AddClientAsync(
             scope.ServiceProvider,
             clientId,
@@ -255,7 +265,7 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
 
         var principalId = $"pid-{Guid.NewGuid():N}";
 
-        using var scope = Services.CreateScope();
+        using var scope = CreateTenantScope();
         var storeManagerFactory = scope.ServiceProvider.GetRequiredService<IStoreManagerFactory>();
         await using var storeManager = await storeManagerFactory.CreateAsync(cancellationToken);
 
@@ -422,7 +432,7 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
         CancellationToken cancellationToken
     )
     {
-        using var scope = Services.CreateScope();
+        using var scope = CreateTenantScope();
         var storeManagerFactory = scope.ServiceProvider.GetRequiredService<IStoreManagerFactory>();
         await using var storeManager = await storeManagerFactory.CreateAsync(cancellationToken);
         var secrets = await storeManager
@@ -461,7 +471,7 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
         CancellationToken cancellationToken
     )
     {
-        using var scope = Services.CreateScope();
+        using var scope = CreateTenantScope();
         var storeManagerFactory = scope.ServiceProvider.GetRequiredService<IStoreManagerFactory>();
         await using var storeManager = await storeManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<IClientStore>();
@@ -514,7 +524,7 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
         CancellationToken cancellationToken
     )
     {
-        using var scope = Services.CreateScope();
+        using var scope = CreateTenantScope();
         var storeManagerFactory = scope.ServiceProvider.GetRequiredService<IStoreManagerFactory>();
         await using var storeManager = await storeManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<IClientStore>();
@@ -575,7 +585,7 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
     {
         await EnsureTenantPersistedAsync(cancellationToken);
 
-        using var scope = Services.CreateScope();
+        using var scope = CreateTenantScope();
         var serviceProvider = scope.ServiceProvider;
 
         // Persist the given client_secret through the same shared-secret primitives production uses (ADR-1391),
@@ -617,7 +627,7 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
     {
         await EnsureTenantPersistedAsync(cancellationToken);
 
-        using var scope = Services.CreateScope();
+        using var scope = CreateTenantScope();
         var serviceProvider = scope.ServiceProvider;
 
         var persistedSecret = CreateCertificateSecret(serviceProvider, clientId, certificate);
@@ -655,7 +665,7 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
     {
         await EnsureTenantPersistedAsync(cancellationToken);
 
-        using var scope = Services.CreateScope();
+        using var scope = CreateTenantScope();
         var serviceProvider = scope.ServiceProvider;
 
         var persistedSecret = CreateCertificateSecret(serviceProvider, clientId, certificate);
@@ -760,7 +770,7 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
 
         var settingsJson = System.Text.Json.JsonSerializer.SerializeToElement(settings);
 
-        using var scope = Services.CreateScope();
+        using var scope = CreateTenantScope();
         var storeManagerFactory = scope.ServiceProvider.GetRequiredService<IStoreManagerFactory>();
         await using var storeManager = await storeManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<IClientStore>();
@@ -810,7 +820,7 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
     {
         await EnsureTenantPersistedAsync(cancellationToken);
 
-        using var scope = Services.CreateScope();
+        using var scope = CreateTenantScope();
         var serviceProvider = scope.ServiceProvider;
 
         var certificateBytes = certificate.Export(X509ContentType.Cert);
@@ -903,7 +913,7 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
         if (grantTypes.Count > 0)
             settings["grant_types_supported"] = grantTypes;
 
-        using var scope = Services.CreateScope();
+        using var scope = CreateTenantScope();
         await AddClientAsync(
             scope.ServiceProvider,
             clientId,
@@ -952,7 +962,7 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
     {
         await EnsureTenantPersistedAsync(cancellationToken);
 
-        using var scope = Services.CreateScope();
+        using var scope = CreateTenantScope();
         var serviceProvider = scope.ServiceProvider;
 
         var persistedSecret = await CreateSharedSecretAsync(
@@ -1019,7 +1029,7 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
 
         var settingsJson = System.Text.Json.JsonSerializer.SerializeToElement(settings);
 
-        using var scope = Services.CreateScope();
+        using var scope = CreateTenantScope();
         var storeManagerFactory = scope.ServiceProvider.GetRequiredService<IStoreManagerFactory>();
         await using var storeManager = await storeManagerFactory.CreateAsync(cancellationToken);
         var resourceServerStore = storeManager.GetStore<IResourceServerStore>();
@@ -1073,7 +1083,7 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
         CancellationToken cancellationToken
     )
     {
-        using var scope = Services.CreateScope();
+        using var scope = CreateTenantScope();
         var serviceProvider = scope.ServiceProvider;
 
         var storeManagerFactory = serviceProvider.GetRequiredService<IStoreManagerFactory>();
@@ -1140,7 +1150,7 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
     {
         await EnsureTenantPersistedAsync(cancellationToken);
 
-        using var scope = Services.CreateScope();
+        using var scope = CreateTenantScope();
         var serviceProvider = scope.ServiceProvider;
 
         var localAccountId = Guid.NewGuid().ToString("N");
@@ -1183,7 +1193,7 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
         CancellationToken cancellationToken
     )
     {
-        using var scope = Services.CreateScope();
+        using var scope = CreateTenantScope();
         var serviceProvider = scope.ServiceProvider;
 
         var storeManagerFactory = serviceProvider.GetRequiredService<IStoreManagerFactory>();
@@ -1215,7 +1225,7 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
         CancellationToken cancellationToken
     )
     {
-        using var scope = Services.CreateScope();
+        using var scope = CreateTenantScope();
         var serviceProvider = scope.ServiceProvider;
 
         var storeManagerFactory = serviceProvider.GetRequiredService<IStoreManagerFactory>();

@@ -169,6 +169,10 @@ public sealed class EndedSessionTerminationServiceTests : BaseTests
         params (string SessionId, bool Terminated)[] sessions
     )
     {
+        MockAmbientTenantAccessor
+            .Setup(x => x.BeginScope(tenantId))
+            .Returns(Mock.Of<IDisposable>())
+            .Verifiable(Times.Once);
         MockOpenIdContextFactory
             .Setup(x =>
                 x.CreateForBackgroundAsync(
@@ -230,6 +234,10 @@ public sealed class EndedSessionTerminationServiceTests : BaseTests
         SetupLease(acquired: true);
         SetupStores();
         SetupPage(cursor: null, nextCursor: null, CreateGrant("t1", "s1"), CreateGrant("t2", "s3"));
+        MockAmbientTenantAccessor
+            .Setup(x => x.BeginScope("t1"))
+            .Returns(Mock.Of<IDisposable>())
+            .Verifiable(Times.Once);
         MockOpenIdContextFactory
             .Setup(x =>
                 x.CreateForBackgroundAsync(
@@ -280,6 +288,10 @@ public sealed class EndedSessionTerminationServiceTests : BaseTests
         SetupStores();
         SetupPage(cursor: null, nextCursor: null, [CreateGrant("t1", "s1")], cancellationToken);
         var mockContext = CreateContext();
+        MockAmbientTenantAccessor
+            .Setup(x => x.BeginScope("t1"))
+            .Returns(Mock.Of<IDisposable>())
+            .Verifiable(Times.Once);
         MockOpenIdContextFactory
             .Setup(x =>
                 x.CreateForBackgroundAsync(It.IsAny<IServiceProvider>(), "t1", cancellationToken)
