@@ -51,6 +51,8 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
     private Mock<IAuthorizationService> MockAuthorizationService { get; }
     private Mock<ITeamValidator> MockTeamValidator { get; }
     private Mock<ITeamDirectory> MockTeamDirectory { get; }
+    private Mock<IOwnerRootKeyManager> MockOwnerRootKeyManager { get; }
+    private Mock<ICellDirectory> MockCellDirectory { get; }
     private Mock<ICryptoService> MockCryptoService { get; }
     private Mock<ISettingSerializer> MockSettingSerializer { get; }
     private Mock<ISettingScopeCollectionProvider> MockSettingScopeCollectionProvider { get; }
@@ -71,6 +73,8 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
         MockAuthorizationService = MockRepository.Create<IAuthorizationService>();
         MockTeamValidator = MockRepository.Create<ITeamValidator>();
         MockTeamDirectory = MockRepository.Create<ITeamDirectory>();
+        MockOwnerRootKeyManager = MockRepository.Create<IOwnerRootKeyManager>();
+        MockCellDirectory = MockRepository.Create<ICellDirectory>();
         MockCryptoService = MockRepository.Create<ICryptoService>();
         MockSettingSerializer = MockRepository.Create<ISettingSerializer>();
         MockSettingScopeCollectionProvider =
@@ -91,6 +95,8 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
             MockAuthorizationService.Object,
             MockTeamValidator.Object,
             MockTeamDirectory.Object,
+            MockOwnerRootKeyManager.Object,
+            MockCellDirectory.Object,
             TimeProvider.System,
             MockCryptoService.Object,
             MockSettingSerializer.Object,

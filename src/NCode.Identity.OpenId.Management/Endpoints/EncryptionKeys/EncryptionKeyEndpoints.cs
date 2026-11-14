@@ -124,7 +124,7 @@ internal static class EncryptionKeyEndpoints
         CancellationToken cancellationToken
     )
     {
-        var errors = ValidateRequest(ownerRootKeyManager, request);
+        var errors = ValidateRootKeyRequest(ownerRootKeyManager, request);
         if (errors.Count > 0)
             return TypedResults.ValidationProblem(errors);
 
@@ -281,7 +281,13 @@ internal static class EncryptionKeyEndpoints
         return TypedResults.Ok(ToResource(rootKey));
     }
 
-    private static Dictionary<string, string[]> ValidateRequest(
+    /// <summary>
+    /// Checks the key wrapper, the key reference and the access identity of a root key request field by field.
+    /// </summary>
+    /// <param name="ownerRootKeyManager">The <see cref="IOwnerRootKeyManager"/> that decides which key wrappers and references are acceptable.</param>
+    /// <param name="request">The <see cref="EncryptionRootKeyRequest"/> to check.</param>
+    /// <returns>The errors keyed by field, which is empty when the request is valid.</returns>
+    internal static Dictionary<string, string[]> ValidateRootKeyRequest(
         IOwnerRootKeyManager ownerRootKeyManager,
         EncryptionRootKeyRequest request
     )

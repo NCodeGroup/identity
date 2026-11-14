@@ -21,7 +21,9 @@ using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts;
+using NCode.Identity.OpenId.Management.Contracts.EncryptionKeys;
 using NCode.Identity.OpenId.Management.Contracts.Teams;
+using NCode.Identity.OpenId.Management.Endpoints.EncryptionKeys;
 using NCode.Identity.OpenId.Management.Logging;
 using NCode.Identity.OpenId.Persistence;
 using NCode.Identity.OpenId.Persistence.DataContracts;
@@ -30,6 +32,7 @@ using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Teams;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Registration.AspNetCore;
+using NCode.Identity.Secrets.Persistence.Protection;
 using NCode.Identity.Settings;
 using NCode.Mediator;
 using SystemTextJsonPatch;
@@ -62,6 +65,11 @@ GET    api/teams/{teamId}/admins
 POST   api/teams/{teamId}/admins
 DELETE api/teams/{teamId}/admins/{principalId}
 
+GET    api/teams/{teamId}/encryption-keys/root-keys
+PUT    api/teams/{teamId}/encryption-keys/root-keys/{region}
+DELETE api/teams/{teamId}/encryption-keys/root-keys/{region}
+POST   api/teams/{teamId}/encryption-keys/root-keys/{region}/validate
+
 */
 
 /// <summary>
@@ -75,6 +83,8 @@ internal class TeamApiEndpointHandler(
     IAuthorizationService authorizationService,
     ITeamValidator teamValidator,
     ITeamDirectory teamDirectory,
+    IOwnerRootKeyManager ownerRootKeyManager,
+    ICellDirectory cellDirectory,
     TimeProvider timeProvider,
     ICryptoService cryptoService,
     ISettingSerializer settingSerializer,
@@ -104,6 +114,8 @@ internal class TeamApiEndpointHandler(
     protected override IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private ITeamValidator TeamValidator { get; } = teamValidator;
     private ITeamDirectory TeamDirectory { get; } = teamDirectory;
+    private IOwnerRootKeyManager OwnerRootKeyManager { get; } = ownerRootKeyManager;
+    private ICellDirectory CellDirectory { get; } = cellDirectory;
     private TimeProvider TimeProvider { get; } = timeProvider;
     private ISettingSerializer SettingSerializer { get; } = settingSerializer;
 
@@ -288,6 +300,41 @@ internal class TeamApiEndpointHandler(
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status412PreconditionFailed);
+
+        teams
+            .MapGet("/{teamId}/encryption-keys/root-keys", ListRootKeysAsync)
+            .Produces<TeamRootKeyResource[]>()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+        teams
+            .MapPut("/{teamId}/encryption-keys/root-keys/{region}", SetRootKeyAsync)
+            .Produces<TeamRootKeyResource>()
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+        teams
+            .MapDelete("/{teamId}/encryption-keys/root-keys/{region}", RemoveRootKeyAsync)
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces<EncryptionRootKeyResource>(StatusCodes.Status202Accepted)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+        teams
+            .MapPost("/{teamId}/encryption-keys/root-keys/{region}/validate", ValidateRootKeyAsync)
+            .Produces<EncryptionRootKeyResource>()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict);
     }
 
     private static string GetControlPlaneTenantId(HttpContext httpContext) =>
@@ -1551,6 +1598,363 @@ internal class TeamApiEndpointHandler(
             principalId,
             cancellationToken
         );
+    }
+
+    /// <summary>
+    /// Lists the root keys that a team brings, one per region.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="teamId">The identifier of the team.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <response code="200">The team's root keys, ordered by region.</response>
+    /// <response code="404">The team does not exist.</response>
+    // See ADR-1414.
+    [EndpointName("api/teams/encryption-keys/root-keys/list")]
+    internal virtual async ValueTask<IResult> ListRootKeysAsync(
+        HttpContext httpContext,
+        [FromRoute] string teamId,
+        CancellationToken cancellationToken
+    )
+    {
+        var authorizationFailure = await GetAuthorizationFailureAsync(
+            httpContext,
+            GetTeamNode(httpContext, teamId),
+            Operations.Read,
+            cancellationToken
+        );
+        if (authorizationFailure is not null)
+        {
+            return authorizationFailure;
+        }
+
+        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+        var store = storeManager.GetStore<ITeamStore>();
+
+        var team = await store.GetOrDefaultAsync(teamId, cancellationToken);
+        if (team is null)
+        {
+            return ManagementProblems.ResourceNotFound();
+        }
+
+        return TypedResults.Ok(
+            team.RootKeys.OrderBy(pair => pair.Key, StringComparer.Ordinal)
+                .Select(pair => ToTeamRootKeyResource(pair.Key, pair.Value))
+                .ToArray()
+        );
+    }
+
+    /// <summary>
+    /// Sets or changes the root key that a team brings in one region. The cell in that region wraps the master keys of
+    /// the team and of its tenants under the key. When the region is this cell's own, the key is probed and applied
+    /// here before the team's document is published.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="teamId">The identifier of the team.</param>
+    /// <param name="region">The region whose cell uses the key.</param>
+    /// <param name="request">The key wrapper, the reference to the key and the access identity.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <response code="200">The root key as stored for the region.</response>
+    /// <response code="400">The key wrapper is not allowed, the key reference or the access identity is malformed, no cell runs in the region, or a registered policy refuses the team.</response>
+    /// <response code="404">The team does not exist.</response>
+    /// <response code="409">The last rotation of the team's master key is younger than twice the master key refresh interval (the response carries Retry-After and the problem's retryAfterSeconds).</response>
+    /// <response code="422">The key could not wrap and unwrap a probe.</response>
+    // See ADR-1414.
+    [EndpointName("api/teams/encryption-keys/root-keys/set")]
+    internal virtual async ValueTask<IResult> SetRootKeyAsync(
+        HttpContext httpContext,
+        [FromRoute] string teamId,
+        [FromRoute] string region,
+        [FromBody] EncryptionRootKeyRequest request,
+        CancellationToken cancellationToken
+    )
+    {
+        var authorizationFailure = await GetAuthorizationFailureAsync(
+            httpContext,
+            GetTeamNode(httpContext, teamId),
+            Operations.Update,
+            cancellationToken
+        );
+        if (authorizationFailure is not null)
+        {
+            return authorizationFailure;
+        }
+
+        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+        var store = storeManager.GetStore<ITeamStore>();
+
+        var team = await store.GetOrDefaultAsync(teamId, cancellationToken);
+        if (team is null)
+        {
+            return ManagementProblems.ResourceNotFound();
+        }
+
+        var owner = GetTeamOwner(team);
+        if (!OwnerRootKeyManager.CanBringRootKey(owner, out var notAllowed))
+        {
+            return EncryptionKeyEndpoints.RootKeyNotAllowed(notAllowed);
+        }
+
+        var errors = EncryptionKeyEndpoints.ValidateRootKeyRequest(OwnerRootKeyManager, request);
+        if (errors.Count > 0)
+        {
+            return TypedResults.ValidationProblem(errors);
+        }
+
+        IReadOnlyList<CellDescriptor> cells;
+        try
+        {
+            cells = await CellDirectory.ListAsync(cancellationToken);
+        }
+        catch (DirectoryUnavailableException)
+        {
+            return DirectoryUnavailableProblem(httpContext);
+        }
+
+        if (!cells.Any(cell => string.Equals(cell.Region, region, StringComparison.Ordinal)))
+        {
+            return TypedResults.ValidationProblem(
+                new Dictionary<string, string[]>(StringComparer.Ordinal)
+                {
+                    ["region"] = [$"No cell runs in the region '{region}'."],
+                }
+            );
+        }
+
+        // The cell of another region applies the key from the published team document, so only this cell's own region
+        // is probed and applied here.
+        if (IsOwnRegion(region))
+        {
+            var applied = await EncryptionKeyEndpoints.SetRootKeyAsync(
+                OwnerRootKeyManager,
+                ManagementAuditRecorder,
+                httpContext,
+                owner,
+                request,
+                cancellationToken
+            );
+            if (applied is not Ok<EncryptionRootKeyChangeResource>)
+            {
+                return applied;
+            }
+        }
+
+        var rootKey = new OwnerRootKeyRequest(request.Provider, request.KeyReference)
+        {
+            AccessIdentity = request.AccessIdentity,
+        };
+        var rootKeys = new Dictionary<string, OwnerRootKeyRequest>(
+            team.RootKeys,
+            StringComparer.Ordinal
+        )
+        {
+            [region] = rootKey,
+        };
+        var resource = ToTeamRootKeyResource(region, rootKey);
+
+        var publishFailure = await ChangeRootKeysAsync(
+            httpContext,
+            storeManager,
+            store,
+            team,
+            rootKeys,
+            ToResourceValues(resource),
+            cancellationToken
+        );
+        if (publishFailure is not null)
+        {
+            return DirectoryUnavailableProblem(httpContext);
+        }
+
+        return TypedResults.Ok(resource);
+    }
+
+    /// <summary>
+    /// Removes the root key that a team brings in one region. When the region is this cell's own, the master keys move
+    /// back under the next key up the team's chain before the team's document is published.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="teamId">The identifier of the team.</param>
+    /// <param name="region">The region whose cell used the key.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <response code="202">Master keys remain under the team's key in this cell's region; the removal is retried in the background.</response>
+    /// <response code="204">The team brings no root key for the region.</response>
+    /// <response code="404">The team does not exist.</response>
+    // See ADR-1414.
+    [EndpointName("api/teams/encryption-keys/root-keys/remove")]
+    internal virtual async ValueTask<IResult> RemoveRootKeyAsync(
+        HttpContext httpContext,
+        [FromRoute] string teamId,
+        [FromRoute] string region,
+        CancellationToken cancellationToken
+    )
+    {
+        var authorizationFailure = await GetAuthorizationFailureAsync(
+            httpContext,
+            GetTeamNode(httpContext, teamId),
+            Operations.Update,
+            cancellationToken
+        );
+        if (authorizationFailure is not null)
+        {
+            return authorizationFailure;
+        }
+
+        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+        var store = storeManager.GetStore<ITeamStore>();
+
+        var team = await store.GetOrDefaultAsync(teamId, cancellationToken);
+        if (team is null)
+        {
+            return ManagementProblems.ResourceNotFound();
+        }
+
+        IResult? removal = null;
+        if (IsOwnRegion(region))
+        {
+            removal = await EncryptionKeyEndpoints.RemoveRootKeyAsync(
+                OwnerRootKeyManager,
+                ManagementAuditRecorder,
+                httpContext,
+                GetTeamOwner(team),
+                cancellationToken
+            );
+        }
+
+        if (team.RootKeys.TryGetValue(region, out var rootKey))
+        {
+            var rootKeys = new Dictionary<string, OwnerRootKeyRequest>(
+                team.RootKeys,
+                StringComparer.Ordinal
+            );
+            rootKeys.Remove(region);
+
+            var publishFailure = await ChangeRootKeysAsync(
+                httpContext,
+                storeManager,
+                store,
+                team,
+                rootKeys,
+                ToResourceValues(ToTeamRootKeyResource(region, rootKey)),
+                cancellationToken
+            );
+            if (publishFailure is not null)
+            {
+                return DirectoryUnavailableProblem(httpContext);
+            }
+        }
+
+        return removal ?? TypedResults.NoContent();
+    }
+
+    /// <summary>
+    /// Probes the root key that a team brings in this cell's region and answers with its state. The cell in another
+    /// region probes its key when it applies the team's document.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="teamId">The identifier of the team.</param>
+    /// <param name="region">The region whose cell uses the key.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <response code="200">The root key and the result of the probe.</response>
+    /// <response code="404">The team does not exist or has no root key in this cell's region.</response>
+    /// <response code="409">The region is not this cell's: the cell in that region validates the key when it applies it.</response>
+    // See ADR-1414.
+    [EndpointName("api/teams/encryption-keys/root-keys/validate")]
+    internal virtual async ValueTask<IResult> ValidateRootKeyAsync(
+        HttpContext httpContext,
+        [FromRoute] string teamId,
+        [FromRoute] string region,
+        CancellationToken cancellationToken
+    )
+    {
+        var authorizationFailure = await GetAuthorizationFailureAsync(
+            httpContext,
+            GetTeamNode(httpContext, teamId),
+            Operations.Update,
+            cancellationToken
+        );
+        if (authorizationFailure is not null)
+        {
+            return authorizationFailure;
+        }
+
+        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+        var store = storeManager.GetStore<ITeamStore>();
+
+        var team = await store.GetOrDefaultAsync(teamId, cancellationToken);
+        if (team is null)
+        {
+            return ManagementProblems.ResourceNotFound();
+        }
+
+        if (!IsOwnRegion(region))
+        {
+            return TypedResults.Problem(
+                detail: $"The cell in the region '{region}' validates the key when it applies it.",
+                statusCode: StatusCodes.Status409Conflict
+            );
+        }
+
+        return await EncryptionKeyEndpoints.ValidateRootKeyAsync(
+            OwnerRootKeyManager,
+            ManagementAuditRecorder,
+            httpContext,
+            GetTeamOwner(team),
+            cancellationToken
+        );
+    }
+
+    private bool IsOwnRegion(string region) =>
+        string.Equals(region, CellOptions.Region, StringComparison.Ordinal);
+
+    private static SecretOwner GetTeamOwner(PersistedTeam team) =>
+        new SecretOwner(SecretOwnerTypes.Team, team.TeamId).Normalize();
+
+    private static TeamRootKeyResource ToTeamRootKeyResource(
+        string region,
+        OwnerRootKeyRequest rootKey
+    ) =>
+        new()
+        {
+            Region = region,
+            Provider = rootKey.KeyWrapperName,
+            KeyReference = rootKey.KeyReference,
+            AccessIdentity = rootKey.AccessIdentity,
+        };
+
+    // Writes the team's root keys, publishes the team's document, audits the change and announces it, in the order of
+    // a settings update. A directory that cannot be reached leaves the saved keys unpublished, which the caller reports.
+    private async ValueTask<DirectoryUnavailableException?> ChangeRootKeysAsync(
+        HttpContext httpContext,
+        IStoreManager storeManager,
+        ITeamStore store,
+        PersistedTeam team,
+        IReadOnlyDictionary<string, OwnerRootKeyRequest> rootKeys,
+        JsonElement resourceValues,
+        CancellationToken cancellationToken
+    )
+    {
+        team.RootKeys = rootKeys;
+
+        await store.UpdateRootKeysAsync(team, cancellationToken);
+        await storeManager.SaveChangesAsync(cancellationToken);
+
+        var publishFailure = await TryPublishAsync(team, cancellationToken);
+
+        await ManagementAuditRecorder.RecordTeamChangedAsync(
+            httpContext,
+            team.TeamId,
+            ResourceChangeTypes.Updated,
+            resourceValues
+        );
+
+        await NotifyTeamChangedAsync(
+            httpContext,
+            team.TeamId,
+            settingsChanged: false,
+            cancellationToken
+        );
+
+        return publishFailure;
     }
 
     // Describes the owners of a team: the role is granted and revoked with 'Update' at the team's node.
