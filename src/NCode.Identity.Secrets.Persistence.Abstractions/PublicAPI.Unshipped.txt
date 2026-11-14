@@ -1,5 +1,6 @@
 #nullable enable
 const NCode.Identity.Secrets.Persistence.DataContracts.PersistedSecret.ResourceTypePrefix = "secret" -> string!
+const NCode.Identity.Secrets.Persistence.Protection.SecretOwnerTypes.Team = "team" -> string!
 const NCode.Identity.Secrets.Persistence.SecretMaxLengths.Algorithm = 100 -> int
 const NCode.Identity.Secrets.Persistence.SecretMaxLengths.EncodedValue = 8000 -> int
 const NCode.Identity.Secrets.Persistence.SecretMaxLengths.KeyId = 300 -> int
@@ -116,6 +117,8 @@ NCode.Identity.Secrets.Persistence.GeneratedSecret.Secret.get -> NCode.Identity.
 NCode.Identity.Secrets.Persistence.GeneratedSecret.Secret.init -> void
 NCode.Identity.Secrets.Persistence.GeneratedSecret.SecretMaterial.get -> string?
 NCode.Identity.Secrets.Persistence.GeneratedSecret.SecretMaterial.init -> void
+NCode.Identity.Secrets.Persistence.Protection.ISecretOwnerParentResolver
+NCode.Identity.Secrets.Persistence.Protection.ISecretOwnerParentResolver.GetAncestorsAsync(NCode.Identity.Secrets.Persistence.Protection.SecretOwner owner, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.Secrets.Persistence.Protection.SecretOwner>!>
 NCode.Identity.Secrets.Persistence.SharedSecretRequest
 NCode.Identity.Secrets.Persistence.SharedSecretRequest.Algorithm.get -> string?
 NCode.Identity.Secrets.Persistence.SharedSecretRequest.Algorithm.init -> void

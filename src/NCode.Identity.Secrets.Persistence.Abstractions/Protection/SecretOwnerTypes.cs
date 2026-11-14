@@ -21,4 +21,9 @@ public static class SecretOwnerTypes
     /// Contains the owner type for secrets that belong to a single tenant.
     /// </summary>
     public const string Tenant = "tenant";
+
+    /// <summary>
+    /// Contains the owner type for a team, which can bring a root key that wraps the master keys of its tenants.
+    /// </summary>
+    public const string Team = "team";
 }
