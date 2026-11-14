@@ -57,6 +57,7 @@ export {
   type TenantPromotionDialogProps,
   type TenantPromotionDialogReport,
   type TenantPromotionDialogRequest,
+  type TenantPromotionDialogTenant,
 } from './components/TenantPromotionDialog.js';
 export {
   TeamFormDialog,

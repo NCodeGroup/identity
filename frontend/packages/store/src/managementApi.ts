@@ -61,6 +61,7 @@ import {
   type TeamRootKeysResource,
   type TeamUsageResource,
   type TenantAddressResource,
+  type TenantConfigurationDocument,
   type TenantPromotionResource,
   type TenantResource,
   type TenantUsageResource,
@@ -312,6 +313,17 @@ export const managementApi = createApi({
         { type: 'Tenant', id: platformTag(tenantId) },
       ],
     }),
+    // The configuration a tenant exports for promotion (settings, clients, client grants and resource servers, never
+    // secrets), read from the tenant's own cell. It is never cached beyond its subscriber, so a promotion always
+    // carries the configuration as it is when asked.
+    getTenantConfiguration: build.query<
+      TenantConfigurationDocument,
+      WithCell<{ tenantId: string }>
+    >({
+      query: ({ tenantId, cell }) =>
+        inCell(cell, `api/tenants/${encodeURIComponent(tenantId)}/configuration`),
+      keepUnusedDataFor: 0,
+    }),
     // A preview of the address an existing tenant has, or would have with a proposed issuer or alias. It
     // is never cached beyond its subscriber, so it always reflects the tenants that exist when it is asked.
     getTenantAddress: build.query<
@@ -420,13 +432,15 @@ export const managementApi = createApi({
         { type: 'Caller', id: callerTag },
       ],
     }),
+    // A promotion runs in the target tenant's cell; the body names its source, a tenant of that cell or an
+    // exported configuration.
     previewTenantPromotion: build.mutation<
       TenantPromotionResource,
-      WithCell<{ teamId: string; body: PromoteTenantRequest }>
+      WithCell<{ tenantId: string; body: PromoteTenantRequest }>
     >({
-      query: ({ teamId, body, cell }) =>
+      query: ({ tenantId, body, cell }) =>
         inCell(cell, {
-          url: `api/teams/${encodeURIComponent(teamId)}/promotions/preview`,
+          url: `api/tenants/${encodeURIComponent(tenantId)}/promotions/preview`,
           method: 'POST',
           body,
         }),
@@ -435,16 +449,15 @@ export const managementApi = createApi({
     // target's own tags and, for every client and resource server it reports, the item and its settings.
     promoteTenant: build.mutation<
       TenantPromotionResource,
-      WithCell<{ teamId: string; body: PromoteTenantRequest }>
+      WithCell<{ tenantId: string; body: PromoteTenantRequest }>
     >({
-      query: ({ teamId, body, cell }) =>
+      query: ({ tenantId, body, cell }) =>
         inCell(cell, {
-          url: `api/teams/${encodeURIComponent(teamId)}/promotions`,
+          url: `api/tenants/${encodeURIComponent(tenantId)}/promotions`,
           method: 'POST',
           body,
         }),
-      invalidatesTags: (result, _error, { body }) => {
-        const tenantId = body.targetTenantId;
+      invalidatesTags: (result, _error, { tenantId }) => {
         const tags: { type: 'Tenant' | 'Client' | 'ResourceServer' | 'Settings'; id: string }[] = [
           { type: 'Tenant', id: platformTag(tenantId) },
           { type: 'Settings', id: ownerTagId({ kind: 'tenant', tenantId }) },
@@ -1034,6 +1047,7 @@ export const {
   useListTenantsQuery,
   useGetTenantQuery,
   useGetTenantAddressQuery,
+  useLazyGetTenantConfigurationQuery,
   useGetNewTenantAddressQuery,
   useListCellsQuery,
   useListTeamsQuery,

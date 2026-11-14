@@ -704,8 +704,8 @@ describe('TenantsPage (promotion)', () => {
   };
 
   function chooseTenants() {
-    fireEvent.change(screen.getByTestId('promotion-source'), { target: { value: 'acme-dev' } });
     fireEvent.change(screen.getByTestId('promotion-target'), { target: { value: 'globex-dev' } });
+    fireEvent.change(screen.getByTestId('promotion-source'), { target: { value: 'acme-dev' } });
   }
 
   it('enables Promote only when the team has two tenants', async () => {
@@ -718,7 +718,7 @@ describe('TenantsPage (promotion)', () => {
 
   it('previews a promotion between two tenants of the team', async () => {
     const calls = installFetch((url, method) => {
-      if (url.endsWith('/api/teams/acme/promotions/preview') && method === 'POST') {
+      if (url.endsWith('/api/tenants/globex-dev/promotions/preview') && method === 'POST') {
         return jsonResponse(report);
       }
       if (url.endsWith('/api/teams/acme/tenants')) {
@@ -737,20 +737,19 @@ describe('TenantsPage (promotion)', () => {
 
     expect(await screen.findByTestId('promotion-changes')).toHaveTextContent('web');
     const post = calls.find((c) => c.method === 'POST');
-    expect(post?.url).toBe('https://api.test/api/teams/acme/promotions/preview');
+    expect(post?.url).toBe('https://api.test/api/tenants/globex-dev/promotions/preview');
     expect(JSON.parse(post?.body ?? '{}')).toEqual({
       sourceTenantId: 'acme-dev',
-      targetTenantId: 'globex-dev',
       environmentSettings: [],
     });
   });
 
   it('promotes after a preview and reports the promotion as applied', async () => {
     const calls = installFetch((url, method) => {
-      if (url.endsWith('/api/teams/acme/promotions/preview') && method === 'POST') {
+      if (url.endsWith('/api/tenants/globex-dev/promotions/preview') && method === 'POST') {
         return jsonResponse(report);
       }
-      if (url.endsWith('/api/teams/acme/promotions') && method === 'POST') {
+      if (url.endsWith('/api/tenants/globex-dev/promotions') && method === 'POST') {
         return jsonResponse({ ...report, isApplied: true });
       }
       if (url.endsWith('/api/teams/acme/tenants')) {
@@ -771,14 +770,15 @@ describe('TenantsPage (promotion)', () => {
     expect(await screen.findByTestId('promotion-applied')).toHaveTextContent('Promoted.');
     expect(
       calls.some(
-        (c) => c.method === 'POST' && c.url === 'https://api.test/api/teams/acme/promotions',
+        (c) =>
+          c.method === 'POST' && c.url === 'https://api.test/api/tenants/globex-dev/promotions',
       ),
     ).toBe(true);
   });
 
   it('shows the detail of a refusal naming a limit', async () => {
     installFetch((url, method) => {
-      if (url.endsWith('/api/teams/acme/promotions/preview') && method === 'POST') {
+      if (url.endsWith('/api/tenants/globex-dev/promotions/preview') && method === 'POST') {
         return jsonResponse({ detail: 'Changing the limit max_clients needs authority.' }, 403);
       }
       if (url.endsWith('/api/teams/acme/tenants')) {
@@ -801,10 +801,10 @@ describe('TenantsPage (promotion)', () => {
 
   it('lists the errors of a promotion that cannot be applied', async () => {
     installFetch((url, method) => {
-      if (url.endsWith('/api/teams/acme/promotions/preview') && method === 'POST') {
+      if (url.endsWith('/api/tenants/globex-dev/promotions/preview') && method === 'POST') {
         return jsonResponse(report);
       }
-      if (url.endsWith('/api/teams/acme/promotions') && method === 'POST') {
+      if (url.endsWith('/api/tenants/globex-dev/promotions') && method === 'POST') {
         return jsonResponse(
           {
             detail: 'The promotion cannot be applied; preview it to see why.',
@@ -848,10 +848,10 @@ describe('TenantsPage (promotion)', () => {
 
   it('lists only the promotion errors that carry a detail', async () => {
     installFetch((url, method) => {
-      if (url.endsWith('/api/teams/acme/promotions/preview') && method === 'POST') {
+      if (url.endsWith('/api/tenants/globex-dev/promotions/preview') && method === 'POST') {
         return jsonResponse(report);
       }
-      if (url.endsWith('/api/teams/acme/promotions') && method === 'POST') {
+      if (url.endsWith('/api/tenants/globex-dev/promotions') && method === 'POST') {
         return jsonResponse(
           {
             detail: 'The promotion cannot be applied; preview it to see why.',
@@ -882,5 +882,154 @@ describe('TenantsPage (promotion)', () => {
     expect(await screen.findByTestId('promotion-error')).toHaveTextContent(
       /^The promotion cannot be applied; preview it to see why\. client api: It is host managed\.$/,
     );
+  });
+});
+
+describe('TenantsPage (promotion across cells)', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const euCells = [
+    { name: 'eu-1', region: 'eu-west', kind: 'shared', isControlPlane: true },
+    { name: 'eu-2', region: 'eu-west', kind: 'shared', isControlPlane: false },
+    { name: 'us-1', region: 'us-east', kind: 'shared', isControlPlane: false },
+  ];
+  const staging = { ...acme, tenantId: 'acme-staging', displayName: 'Acme staging' };
+  const configuration = {
+    sourceTenantId: 'acme-dev',
+    region: 'eu-west',
+    settings: {},
+    clients: [],
+    clientGrants: [],
+    resourceServers: [],
+  };
+  const report = {
+    teamId: 'acme',
+    sourceTenantId: 'acme-dev',
+    targetTenantId: 'acme-staging',
+    isApplied: false,
+    changes: [],
+    notes: [],
+    errors: [],
+  };
+  const config: BffRuntimeConfig = { ...runtime, cells: ['eu-1', 'eu-2', 'us-1'] };
+
+  /** `eu-1` holds acme-dev and acme-staging, `eu-2` holds globex-dev and `us-1` holds acme-us. */
+  function installCells() {
+    return installFetch((url, method) => {
+      if (url.endsWith('/api/cells')) {
+        return jsonResponse(euCells);
+      }
+      if (url.endsWith('/cells/eu-1/api/teams/acme/tenants')) {
+        return jsonResponse({ items: [acme, staging] });
+      }
+      if (url.endsWith('/cells/eu-2/api/teams/acme/tenants')) {
+        return jsonResponse({ items: [globex] });
+      }
+      if (url.endsWith('/cells/us-1/api/teams/acme/tenants')) {
+        return jsonResponse({ items: [{ ...acme, tenantId: 'acme-us', displayName: 'Acme US' }] });
+      }
+      if (url.endsWith('/cells/eu-1/api/tenants/acme-dev/configuration') && method === 'GET') {
+        return jsonResponse(configuration);
+      }
+      if (url.endsWith('/promotions/preview') && method === 'POST') {
+        return jsonResponse(report);
+      }
+      throw new Error(`Unexpected ${method} ${url}`);
+    });
+  }
+
+  async function openPromotion(target: string, source: string) {
+    renderPage(vi.fn(), undefined, config);
+    expect(await screen.findByTestId('tenant-row-acme-us')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId('tenant-cell-acme-us')).toHaveTextContent('us-1us-east'),
+    );
+    fireEvent.click(screen.getByTestId('promote-tenant'));
+    fireEvent.change(screen.getByTestId('promotion-target'), { target: { value: target } });
+    fireEvent.change(screen.getByTestId('promotion-source'), { target: { value: source } });
+  }
+
+  it("sends the source tenant's id to the target's cell when both live in one cell", async () => {
+    const calls = installCells();
+
+    await openPromotion('acme-staging', 'acme-dev');
+    fireEvent.click(screen.getByTestId('promotion-preview'));
+
+    await waitFor(() => expect(screen.getByTestId('promotion-preview')).toBeEnabled());
+    const post = calls.find((c) => c.method === 'POST');
+    expect(post?.url).toBe(
+      'https://api.test/cells/eu-1/api/tenants/acme-staging/promotions/preview',
+    );
+    expect(JSON.parse(post?.body ?? '{}')).toEqual({
+      sourceTenantId: 'acme-dev',
+      environmentSettings: [],
+    });
+    expect(calls.some((c) => c.url.endsWith('/configuration'))).toBe(false);
+  });
+
+  it("fetches the source's configuration from its cell and sends it inline to the target's cell", async () => {
+    const calls = installCells();
+
+    await openPromotion('globex-dev', 'acme-dev');
+    fireEvent.click(screen.getByTestId('promotion-preview'));
+
+    await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true));
+    const get = calls.find((c) => c.url.endsWith('/configuration'));
+    expect(get?.url).toBe('https://api.test/cells/eu-1/api/tenants/acme-dev/configuration');
+    const post = calls.find((c) => c.method === 'POST');
+    expect(post?.url).toBe('https://api.test/cells/eu-2/api/tenants/globex-dev/promotions/preview');
+    expect(JSON.parse(post?.body ?? '{}')).toEqual({
+      source: configuration,
+      environmentSettings: [],
+    });
+  });
+
+  it('shows the failure of the source cell when its configuration cannot be fetched', async () => {
+    const calls = installFetch((url, method) => {
+      if (url.endsWith('/configuration')) {
+        return jsonResponse({ title: 'Bad Gateway', detail: 'The cell eu-1 did not answer.' }, 502);
+      }
+      if (url.endsWith('/api/cells')) {
+        return jsonResponse(euCells);
+      }
+      if (url.endsWith('/cells/eu-1/api/teams/acme/tenants')) {
+        return jsonResponse({ items: [acme] });
+      }
+      if (url.endsWith('/cells/eu-2/api/teams/acme/tenants')) {
+        return jsonResponse({ items: [globex] });
+      }
+      if (url.endsWith('/cells/us-1/api/teams/acme/tenants')) {
+        return jsonResponse({ items: [{ ...acme, tenantId: 'acme-us', displayName: 'Acme US' }] });
+      }
+      throw new Error(`Unexpected ${method} ${url}`);
+    });
+
+    await openPromotion('globex-dev', 'acme-dev');
+    fireEvent.click(screen.getByTestId('promotion-preview'));
+
+    expect(await screen.findByTestId('promotion-error')).toHaveTextContent(
+      'The cell eu-1 did not answer.',
+    );
+    expect(calls.some((c) => c.method === 'POST')).toBe(false);
+  });
+
+  it('offers as sources only the tenants of the target region', async () => {
+    installCells();
+
+    renderPage(vi.fn(), undefined, config);
+    expect(await screen.findByTestId('tenant-row-acme-us')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId('tenant-cell-acme-us')).toHaveTextContent('us-1us-east'),
+    );
+    fireEvent.click(screen.getByTestId('promote-tenant'));
+    fireEvent.change(screen.getByTestId('promotion-target'), { target: { value: 'globex-dev' } });
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: /source tenant/i }));
+
+    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'acme-dev (eu-1)',
+      'acme-staging (eu-1)',
+    ]);
   });
 });

@@ -115,13 +115,61 @@ export type TenantPromotionEnvironmentSettings = {
   readonly settings: Readonly<Record<string, unknown>>;
 };
 
+/** Mirror of `TenantConfigurationScope`: a scope of an exported resource server. */
+export type TenantConfigurationScope = {
+  readonly value: string;
+  readonly description?: string | null;
+  readonly isSystem: boolean;
+};
+
+/** Mirror of `TenantConfigurationResourceServer`: a resource server of an exported tenant, with its scopes. */
+export type TenantConfigurationResourceServer = {
+  readonly resourceServerId: string;
+  readonly identifier: string;
+  readonly name: string;
+  readonly isSystem: boolean;
+  readonly isDisabled: boolean;
+  readonly settings: Readonly<Record<string, unknown>>;
+  readonly scopes: readonly TenantConfigurationScope[];
+};
+
+/** Mirror of `TenantConfigurationClient`: a client of an exported tenant; it carries no secrets. */
+export type TenantConfigurationClient = {
+  readonly clientId: string;
+  readonly isDisabled: boolean;
+  readonly resourceServerId?: string | null;
+  readonly settings: Readonly<Record<string, unknown>>;
+};
+
+/** Mirror of `TenantConfigurationClientGrant`: the scopes a client may request from a resource server. */
+export type TenantConfigurationClientGrant = {
+  readonly clientId: string;
+  readonly resourceServerId: string;
+  readonly scopes: readonly string[];
+};
+
 /**
- * Mirror of `PromoteTenantRequest`: the configuration of one tenant of a team promoted into another tenant of the
- * same team. `environmentSettings` supplies values that belong to the target's environment.
+ * Mirror of `TenantConfigurationDocument`: the configuration of one tenant (settings, clients, client grants and
+ * resource servers, never secrets), stamped with the region of the cell that exported it.
+ */
+export type TenantConfigurationDocument = {
+  readonly sourceTenantId: string;
+  readonly region: string;
+  readonly settings: Readonly<Record<string, unknown>>;
+  readonly clients: readonly TenantConfigurationClient[];
+  readonly clientGrants: readonly TenantConfigurationClientGrant[];
+  readonly resourceServers: readonly TenantConfigurationResourceServer[];
+};
+
+/**
+ * Mirror of `PromoteTenantRequest`: the configuration promoted into the tenant whose route carries the request. The
+ * source is either `sourceTenantId`, a tenant of the same cell, or `source`, a configuration exported from another
+ * cell of the region; a request names one of them. `environmentSettings` supplies values that belong to the
+ * target's environment.
  */
 export type PromoteTenantRequest = {
-  readonly sourceTenantId: string;
-  readonly targetTenantId: string;
+  readonly sourceTenantId?: string;
+  readonly source?: TenantConfigurationDocument;
   readonly environmentSettings: readonly TenantPromotionEnvironmentSettings[];
 };
 

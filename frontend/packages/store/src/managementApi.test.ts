@@ -201,7 +201,6 @@ describe('managementApi tenant promotion', () => {
 
   const promotionRequest = {
     sourceTenantId: 'acme-dev',
-    targetTenantId: 'acme-prod',
     environmentSettings: [
       {
         resourceType: 'client',
@@ -211,7 +210,7 @@ describe('managementApi tenant promotion', () => {
     ],
   };
 
-  it('previewTenantPromotion POSTs the request body to the team preview route', async () => {
+  it('previewTenantPromotion POSTs the request body to the target tenant preview route', async () => {
     const report = {
       teamId: 'acme',
       sourceTenantId: 'acme-dev',
@@ -226,19 +225,19 @@ describe('managementApi tenant promotion', () => {
 
     const result = await store.dispatch(
       managementApi.endpoints.previewTenantPromotion.initiate({
-        teamId: 'acme',
+        tenantId: 'acme-prod',
         body: promotionRequest,
       }),
     );
 
     expect('data' in result && result.data).toEqual(report);
     expect(captured).toHaveLength(1);
-    expect(captured[0]?.url).toBe('https://api.test/api/teams/acme/promotions/preview');
+    expect(captured[0]?.url).toBe('https://api.test/api/tenants/acme-prod/promotions/preview');
     expect(captured[0]?.method).toBe('POST');
     expect(JSON.parse(captured[0]?.body ?? '{}')).toEqual(promotionRequest);
   });
 
-  it('promoteTenant POSTs the request body to the team promotions route', async () => {
+  it('promoteTenant POSTs the request body to the target tenant promotions route', async () => {
     const captured = mockFetch(
       jsonResponse({
         teamId: 'acme',
@@ -253,12 +252,15 @@ describe('managementApi tenant promotion', () => {
     const store = createStore();
 
     const result = await store.dispatch(
-      managementApi.endpoints.promoteTenant.initiate({ teamId: 'acme', body: promotionRequest }),
+      managementApi.endpoints.promoteTenant.initiate({
+        tenantId: 'acme-prod',
+        body: promotionRequest,
+      }),
     );
 
     expect('data' in result && result.data?.isApplied).toBe(true);
     expect(captured).toHaveLength(1);
-    expect(captured[0]?.url).toBe('https://api.test/api/teams/acme/promotions');
+    expect(captured[0]?.url).toBe('https://api.test/api/tenants/acme-prod/promotions');
     expect(captured[0]?.method).toBe('POST');
     expect(JSON.parse(captured[0]?.body ?? '{}')).toEqual(promotionRequest);
   });
@@ -301,7 +303,10 @@ describe('managementApi tenant promotion', () => {
     );
 
     await store.dispatch(
-      managementApi.endpoints.promoteTenant.initiate({ teamId: 'acme', body: promotionRequest }),
+      managementApi.endpoints.promoteTenant.initiate({
+        tenantId: 'acme-prod',
+        body: promotionRequest,
+      }),
     );
     await settle(store);
 
@@ -1724,8 +1729,8 @@ const invalidationCases: readonly InvalidationCase[] = [
     mutate: (s) =>
       s.dispatch(
         managementApi.endpoints.previewTenantPromotion.initiate({
-          teamId: 'acme',
-          body: { sourceTenantId: 'acme-dev', targetTenantId: 'acme', environmentSettings: [] },
+          tenantId: 'acme',
+          body: { sourceTenantId: 'acme-dev', environmentSettings: [] },
         }),
       ),
     refetches: [],
@@ -1735,8 +1740,8 @@ const invalidationCases: readonly InvalidationCase[] = [
     mutate: (s) =>
       s.dispatch(
         managementApi.endpoints.promoteTenant.initiate({
-          teamId: 'acme',
-          body: { sourceTenantId: 'acme-dev', targetTenantId: 'acme', environmentSettings: [] },
+          tenantId: 'acme',
+          body: { sourceTenantId: 'acme-dev', environmentSettings: [] },
         }),
       ),
     refetches: ['tenants', 'tenant:acme', 'clients', 'resourceServers'],
@@ -2396,30 +2401,51 @@ describe('managementApi across cells', () => {
     const store = createStore();
     const body = {
       sourceTenantId: 'acme-dev',
-      targetTenantId: 'acme-prod',
       environmentSettings: [],
     };
 
     await store.dispatch(
       managementApi.endpoints.previewTenantPromotion.initiate({
-        teamId: 'acme',
+        tenantId: 'acme-prod',
         body,
         cell: 'eu-1',
       }),
     );
     await store.dispatch(
-      managementApi.endpoints.previewTenantPromotion.initiate({ teamId: 'acme', body }),
+      managementApi.endpoints.previewTenantPromotion.initiate({ tenantId: 'acme-prod', body }),
     );
     await store.dispatch(
-      managementApi.endpoints.promoteTenant.initiate({ teamId: 'acme', body, cell: 'eu-1' }),
+      managementApi.endpoints.promoteTenant.initiate({ tenantId: 'acme-prod', body, cell: 'eu-1' }),
     );
-    await store.dispatch(managementApi.endpoints.promoteTenant.initiate({ teamId: 'acme', body }));
+    await store.dispatch(
+      managementApi.endpoints.promoteTenant.initiate({ tenantId: 'acme-prod', body }),
+    );
 
     expect(captured.map((request) => request.url)).toEqual([
-      'https://api.test/cells/eu-1/api/teams/acme/promotions/preview',
-      'https://api.test/api/teams/acme/promotions/preview',
-      'https://api.test/cells/eu-1/api/teams/acme/promotions',
-      'https://api.test/api/teams/acme/promotions',
+      'https://api.test/cells/eu-1/api/tenants/acme-prod/promotions/preview',
+      'https://api.test/api/tenants/acme-prod/promotions/preview',
+      'https://api.test/cells/eu-1/api/tenants/acme-prod/promotions',
+      'https://api.test/api/tenants/acme-prod/promotions',
+    ]);
+  });
+
+  it('getTenantConfiguration sends a call with a cell to the cell forwarder and one without to the control plane', async () => {
+    const captured = mockFetch(jsonResponse({ sourceTenantId: 'acme-dev', region: 'eu' }));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.getTenantConfiguration.initiate({
+        tenantId: 'acme-dev',
+        cell: 'eu-1',
+      }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.getTenantConfiguration.initiate({ tenantId: 'acme-dev' }),
+    );
+
+    expect(captured.map((request) => `${request.method} ${request.url}`)).toEqual([
+      'GET https://api.test/cells/eu-1/api/tenants/acme-dev/configuration',
+      'GET https://api.test/api/tenants/acme-dev/configuration',
     ]);
   });
 

@@ -19,6 +19,7 @@ import {
   type TenantAddressInput,
   type TenantCellOption,
   type TenantFormValues,
+  type TenantPromotionDialogRequest,
   type TenantRow,
 } from '@ncode/ui';
 import type { PromoteTenantRequest, TenantPromotionResource, TenantResource } from '@ncode/api';
@@ -29,6 +30,7 @@ import {
   useDeleteTenantMutation,
   useGetNewTenantAddressQuery,
   useGetTenantAddressQuery,
+  useLazyGetTenantConfigurationQuery,
   useListCellsQuery,
   useListTenantsQuery,
   usePreviewTenantPromotionMutation,
@@ -155,6 +157,8 @@ export function TenantsPage({
   const [previewPromotion, { isLoading: isPreviewingPromotion }] =
     usePreviewTenantPromotionMutation();
   const [promoteTenant, { isLoading: isPromoting }] = usePromoteTenantMutation();
+  const [getTenantConfiguration, { isFetching: isFetchingConfiguration }] =
+    useLazyGetTenantConfigurationQuery();
 
   const [dialog, setDialog] = useState<DialogState>(closed);
   const [formError, setFormError] = useState<string>();
@@ -320,19 +324,51 @@ export function TenantsPage({
     }
   };
 
-  const handlePreviewPromotion = async (body: PromoteTenantRequest) => {
+  /**
+   * The body of a promotion: within one cell the source is named, otherwise its configuration is exported from its
+   * own cell and carried inline, because the target's cell cannot read a tenant of another cell.
+   */
+  const promotionBody = async (
+    request: TenantPromotionDialogRequest,
+  ): Promise<PromoteTenantRequest> => {
+    const { sourceTenantId, sourceCell, targetCell, environmentSettings } = request;
+    if (sourceCell === targetCell) {
+      return { sourceTenantId, environmentSettings };
+    }
+    const source = await getTenantConfiguration({
+      tenantId: sourceTenantId,
+      ...(sourceCell !== undefined && { cell: sourceCell }),
+    }).unwrap();
+    return { source, environmentSettings };
+  };
+
+  const handlePreviewPromotion = async (request: TenantPromotionDialogRequest) => {
     setPromotionError(undefined);
     try {
-      setPromotionReport(await previewPromotion({ teamId, body }).unwrap());
+      const body = await promotionBody(request);
+      setPromotionReport(
+        await previewPromotion({
+          tenantId: request.targetTenantId,
+          body,
+          ...(request.targetCell !== undefined && { cell: request.targetCell }),
+        }).unwrap(),
+      );
     } catch (previewError) {
       setPromotionError(promotionErrorMessage(previewError as ApiError));
     }
   };
 
-  const handlePromote = async (body: PromoteTenantRequest) => {
+  const handlePromote = async (request: TenantPromotionDialogRequest) => {
     setPromotionError(undefined);
     try {
-      setPromotionReport(await promoteTenant({ teamId, body }).unwrap());
+      const body = await promotionBody(request);
+      setPromotionReport(
+        await promoteTenant({
+          tenantId: request.targetTenantId,
+          body,
+          ...(request.targetCell !== undefined && { cell: request.targetCell }),
+        }).unwrap(),
+      );
     } catch (promoteError) {
       setPromotionError(promotionErrorMessage(promoteError as ApiError));
     }
@@ -417,9 +453,12 @@ export function TenantsPage({
 
       <TenantPromotionDialog
         open={dialog.kind === 'promote'}
-        tenantIds={tenants.map((tenant) => tenant.tenantId)}
+        tenants={tenants.map((tenant) => ({
+          tenantId: tenant.tenantId,
+          ...(tenant.cell !== undefined && { cell: tenant.cell, region: regionOf(tenant.cell) }),
+        }))}
         report={promotionReport}
-        isBusy={isPreviewingPromotion || isPromoting}
+        isBusy={isPreviewingPromotion || isPromoting || isFetchingConfiguration}
         error={promotionError}
         onPreview={handlePreviewPromotion}
         onPromote={handlePromote}

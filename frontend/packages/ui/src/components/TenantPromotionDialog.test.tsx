@@ -4,9 +4,15 @@ import {
   TenantPromotionDialog,
   type TenantPromotionDialogProps,
   type TenantPromotionDialogReport,
+  type TenantPromotionDialogTenant,
 } from './TenantPromotionDialog.js';
 
-const tenantIds = ['dev', 'staging', 'prod'];
+const tenants: readonly TenantPromotionDialogTenant[] = [
+  { tenantId: 'dev', cell: 'eu-1', region: 'eu' },
+  { tenantId: 'staging', cell: 'eu-1', region: 'eu' },
+  { tenantId: 'prod', cell: 'eu-2', region: 'eu' },
+  { tenantId: 'us-prod', cell: 'us-1', region: 'us' },
+];
 
 const baseReport: TenantPromotionDialogReport = {
   sourceTenantId: 'dev',
@@ -23,7 +29,7 @@ const baseReport: TenantPromotionDialogReport = {
 function renderDialog(overrides: Partial<TenantPromotionDialogProps> = {}) {
   const props: TenantPromotionDialogProps = {
     open: true,
-    tenantIds,
+    tenants,
     onPreview: vi.fn(),
     onPromote: vi.fn(),
     onCancel: vi.fn(),
@@ -34,8 +40,8 @@ function renderDialog(overrides: Partial<TenantPromotionDialogProps> = {}) {
 }
 
 function choose(source: string, target: string) {
-  fireEvent.change(screen.getByTestId('promotion-source'), { target: { value: source } });
   fireEvent.change(screen.getByTestId('promotion-target'), { target: { value: target } });
+  fireEvent.change(screen.getByTestId('promotion-source'), { target: { value: source } });
 }
 
 describe('TenantPromotionDialog', () => {
@@ -52,8 +58,36 @@ describe('TenantPromotionDialog', () => {
     expect(screen.getByTestId('promotion-promote')).toBeDisabled();
   });
 
-  it('previews the chosen pair', () => {
+  it('previews the chosen pair with the cell of each tenant', () => {
     const { props } = renderDialog();
+    choose('dev', 'staging');
+    fireEvent.click(screen.getByTestId('promotion-preview'));
+    expect(props.onPreview).toHaveBeenCalledWith({
+      sourceTenantId: 'dev',
+      targetTenantId: 'staging',
+      sourceCell: 'eu-1',
+      targetCell: 'eu-1',
+      environmentSettings: [],
+    });
+  });
+
+  it('carries the source cell and the target cell of a pair in different cells', () => {
+    const { props } = renderDialog();
+    choose('dev', 'prod');
+    fireEvent.click(screen.getByTestId('promotion-preview'));
+    expect(props.onPreview).toHaveBeenCalledWith({
+      sourceTenantId: 'dev',
+      targetTenantId: 'prod',
+      sourceCell: 'eu-1',
+      targetCell: 'eu-2',
+      environmentSettings: [],
+    });
+  });
+
+  it('carries no cell for tenants that have none', () => {
+    const { props } = renderDialog({
+      tenants: [{ tenantId: 'dev' }, { tenantId: 'staging' }],
+    });
     choose('dev', 'staging');
     fireEvent.click(screen.getByTestId('promotion-preview'));
     expect(props.onPreview).toHaveBeenCalledWith({
@@ -61,6 +95,26 @@ describe('TenantPromotionDialog', () => {
       targetTenantId: 'staging',
       environmentSettings: [],
     });
+  });
+
+  it('offers as sources only the tenants of the target region, the target excluded', () => {
+    renderDialog();
+    expect(screen.getByTestId('promotion-source')).toBeDisabled();
+
+    fireEvent.change(screen.getByTestId('promotion-target'), { target: { value: 'staging' } });
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: /source tenant/i }));
+    const options = screen.getAllByRole('option').map((option) => option.textContent);
+    expect(options).toEqual(['dev (eu-1)', 'prod (eu-2)']);
+  });
+
+  it('forgets a source that is not in the region of a newly chosen target', () => {
+    renderDialog();
+    choose('dev', 'staging');
+    expect(screen.getByTestId('promotion-source')).toHaveValue('dev');
+
+    fireEvent.change(screen.getByTestId('promotion-target'), { target: { value: 'us-prod' } });
+    expect(screen.getByTestId('promotion-source')).toHaveValue('');
+    expect(screen.getByTestId('promotion-preview')).toBeDisabled();
   });
 
   it('lists the changes and enables Promote for a clean preview of the chosen pair', () => {
@@ -78,6 +132,8 @@ describe('TenantPromotionDialog', () => {
     expect(props.onPromote).toHaveBeenCalledWith({
       sourceTenantId: 'dev',
       targetTenantId: 'staging',
+      sourceCell: 'eu-1',
+      targetCell: 'eu-1',
       environmentSettings: [],
     });
   });
@@ -174,6 +230,8 @@ describe('TenantPromotionDialog', () => {
     expect(props.onPromote).toHaveBeenCalledWith({
       sourceTenantId: 'dev',
       targetTenantId: 'staging',
+      sourceCell: 'eu-1',
+      targetCell: 'eu-1',
       environmentSettings: [
         {
           resourceType: 'client',

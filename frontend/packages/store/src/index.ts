@@ -21,6 +21,7 @@ export {
   useListCallerTenantsQuery,
   useGetTenantQuery,
   useGetTenantAddressQuery,
+  useLazyGetTenantConfigurationQuery,
   useGetNewTenantAddressQuery,
   useListClientsQuery,
   useListResourceServersQuery,
