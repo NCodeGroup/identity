@@ -5,8 +5,10 @@ using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -24,6 +26,7 @@ using NCode.Identity.OpenId.Management.Contracts.Secrets;
 using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Management.Endpoints.Clients;
 using NCode.Identity.OpenId.Management.Endpoints.Secrets;
+using NCode.Identity.OpenId.Management.Promotions;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Settings;
@@ -74,6 +77,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     private Mock<IResourceOwnershipService> MockResourceOwnershipService { get; }
     private Mock<IRemoteSecretDestroyer> MockRemoteSecretDestroyer { get; }
     private Mock<ITenantDirectory> MockTenantDirectory { get; }
+    private Mock<ITenantConfigurationExporter> MockTenantConfigurationExporter { get; }
     private CellOptions CellOptions { get; } =
         new()
         {
@@ -113,6 +117,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         MockResourceOwnershipService = MockRepository.Create<IResourceOwnershipService>();
         MockRemoteSecretDestroyer = MockRepository.Create<IRemoteSecretDestroyer>();
         MockTenantDirectory = MockRepository.Create<ITenantDirectory>();
+        MockTenantConfigurationExporter = MockRepository.Create<ITenantConfigurationExporter>();
 
         MockManagementAuditRecorder = MockRepository.Create<IManagementAuditRecorder>();
 
@@ -142,6 +147,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
             MockRemoteSecretDestroyer.Object,
             MockTenantDirectory.Object,
             Options.Create(CellOptions),
+            MockTenantConfigurationExporter.Object,
             MockManagementAuditRecorder.Object,
             NullLogger<TenantApiEndpointHandler>.Instance
         );
@@ -1260,6 +1266,164 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         var problem = Assert.IsType<ProblemHttpResult>(result);
 
         Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
+    }
+
+    #endregion
+
+    #region GetConfigurationAsync Tests
+
+    private static TenantConfigurationDocument CreateConfigurationDocument() =>
+        new()
+        {
+            SourceTenantId = TenantId,
+            Region = "us",
+            Settings = JsonSerializer.SerializeToElement(new { }),
+            Clients = [],
+            ClientGrants = [],
+            ResourceServers = [],
+        };
+
+    [Fact]
+    public async Task GetConfigurationAsync_WhenAuthorizedAndTheTenantExists_ReturnsTheDocument()
+    {
+        var document = CreateConfigurationDocument();
+        SetupAuthorization(AuthorizationResult.Success());
+        MockTenantConfigurationExporter
+            .Setup(x => x.ExportAsync(TenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(document)
+            .Verifiable();
+
+        var result = await Handler.GetConfigurationAsync(
+            CreateHttpContext(authenticated: true),
+            TenantId,
+            CancellationToken.None
+        );
+
+        var json = Assert.IsType<JsonHttpResult<TenantConfigurationDocument>>(result);
+        Assert.Same(document, json.Value);
+    }
+
+    [Fact]
+    public async Task GetConfigurationAsync_WhenTheTenantDoesNotExist_ReturnsNotFound()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        MockTenantConfigurationExporter
+            .Setup(x => x.ExportAsync(TenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((TenantConfigurationDocument?)null)
+            .Verifiable();
+
+        var result = await Handler.GetConfigurationAsync(
+            CreateHttpContext(authenticated: true),
+            TenantId,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetConfigurationAsync_WhenForbidden_ReturnsForbiddenWithoutExporting()
+    {
+        SetupAuthorization(AuthorizationResult.Failed());
+
+        var result = await Handler.GetConfigurationAsync(
+            CreateHttpContext(authenticated: true),
+            TenantId,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetConfigurationAsync_Always_RequestsReadOnTheTenantNode()
+    {
+        object? authorizedResource = null;
+        IEnumerable<IAuthorizationRequirement>? requirements = null;
+        MockAuthorizationService
+            .Setup(x =>
+                x.AuthorizeAsync(
+                    It.IsAny<ClaimsPrincipal>(),
+                    It.IsAny<object?>(),
+                    It.IsAny<IEnumerable<IAuthorizationRequirement>>()
+                )
+            )
+            .Callback(
+                (
+                    ClaimsPrincipal _,
+                    object? resource,
+                    IEnumerable<IAuthorizationRequirement> value
+                ) =>
+                {
+                    authorizedResource = resource;
+                    requirements = value;
+                }
+            )
+            .ReturnsAsync(AuthorizationResult.Success())
+            .Verifiable();
+        MockTenantConfigurationExporter
+            .Setup(x => x.ExportAsync(TenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateConfigurationDocument())
+            .Verifiable();
+
+        await Handler.GetConfigurationAsync(
+            CreateHttpContext(authenticated: true),
+            TenantId,
+            CancellationToken.None
+        );
+
+        var node = Assert.IsType<ResourceNode>(authorizedResource);
+        Assert.Equal(
+            (TenantId, ResourceNodeTypes.Tenant, TenantId),
+            (node.TenantId, node.ResourceType, node.ResourceId)
+        );
+        Assert.Same(Operations.Read, Assert.Single(requirements!));
+    }
+
+    [Fact]
+    public async Task Map_OnTheControlPlane_DeclaresAndDescribesTheConfigurationRoute()
+    {
+        CellOptions.IsControlPlane = true;
+
+        Assert.Equal(
+            [401, 403, 404],
+            await EndpointProblemMetadata.ReadStatusCodesAsync(
+                Handler,
+                "GET",
+                "/tenants/{tenantId}/configuration",
+                CancellationToken.None
+            )
+        );
+        Assert.Empty(
+            await EndpointProblemMetadata.ReadUndescribedStatusCodesAsync(
+                Handler,
+                "GET",
+                "/tenants/{tenantId}/configuration",
+                CancellationToken.None
+            )
+        );
+    }
+
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public void Map_WhenTheCellIsOrIsNotTheControlPlane_MapsTheConfigurationRouteOnlyOnTheControlPlane(
+        bool isControlPlane,
+        bool isMapped
+    )
+    {
+        CellOptions.IsControlPlane = isControlPlane;
+        var app = WebApplication.CreateSlimBuilder().Build();
+
+        Handler.Map(app);
+
+        var routes = ((IEndpointRouteBuilder)app)
+            .DataSources.SelectMany(dataSource => dataSource.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Select(endpoint => endpoint.RoutePattern.RawText);
+        Assert.Equal(isMapped, routes.Contains("/tenants/{tenantId}/configuration"));
     }
 
     #endregion

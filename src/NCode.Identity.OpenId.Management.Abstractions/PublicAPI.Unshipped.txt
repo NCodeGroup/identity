@@ -163,6 +163,62 @@ NCode.Identity.OpenId.Management.Contracts.Secrets.RotateSecretRequest.RotatedEx
 NCode.Identity.OpenId.Management.Contracts.Secrets.RotateSecretRequest.RotatedExpiresWhen.init -> void
 NCode.Identity.OpenId.Management.Contracts.Secrets.SecretResource.KeyId.get -> string!
 NCode.Identity.OpenId.Management.Contracts.Secrets.SecretResource.KeyId.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClient
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClient.ClientId.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClient.ClientId.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClient.IsDisabled.get -> bool
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClient.IsDisabled.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClient.ResourceServerId.get -> string?
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClient.ResourceServerId.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClient.Settings.get -> System.Text.Json.JsonElement
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClient.Settings.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClient.TenantConfigurationClient() -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClientGrant
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClientGrant.ClientId.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClientGrant.ClientId.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClientGrant.ResourceServerId.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClientGrant.ResourceServerId.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClientGrant.Scopes.get -> System.Collections.Generic.List<string!>!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClientGrant.Scopes.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClientGrant.TenantConfigurationClientGrant() -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationDocument
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationDocument.ClientGrants.get -> System.Collections.Generic.List<NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClientGrant!>!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationDocument.ClientGrants.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationDocument.Clients.get -> System.Collections.Generic.List<NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationClient!>!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationDocument.Clients.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationDocument.Region.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationDocument.Region.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationDocument.ResourceServers.get -> System.Collections.Generic.List<NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationResourceServer!>!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationDocument.ResourceServers.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationDocument.Settings.get -> System.Text.Json.JsonElement
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationDocument.Settings.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationDocument.SourceTenantId.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationDocument.SourceTenantId.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationDocument.TenantConfigurationDocument() -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationResourceServer
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationResourceServer.Identifier.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationResourceServer.Identifier.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationResourceServer.IsDisabled.get -> bool
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationResourceServer.IsDisabled.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationResourceServer.IsSystem.get -> bool
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationResourceServer.IsSystem.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationResourceServer.Name.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationResourceServer.Name.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationResourceServer.ResourceServerId.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationResourceServer.ResourceServerId.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationResourceServer.Scopes.get -> System.Collections.Generic.List<NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationScope!>!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationResourceServer.Scopes.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationResourceServer.Settings.get -> System.Text.Json.JsonElement
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationResourceServer.Settings.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationResourceServer.TenantConfigurationResourceServer() -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationScope
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationScope.Description.get -> string?
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationScope.Description.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationScope.IsSystem.get -> bool
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationScope.IsSystem.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationScope.TenantConfigurationScope() -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationScope.Value.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantConfigurationScope.Value.init -> void
 NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority
 NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority.ControlPlaneAuthority() -> void
 NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority.IsActingClient.get -> bool

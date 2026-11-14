@@ -27,6 +27,7 @@ using NCode.Identity.OpenId.Management.Endpoints.Clients;
 using NCode.Identity.OpenId.Management.Endpoints.EncryptionKeys;
 using NCode.Identity.OpenId.Management.Endpoints.Secrets;
 using NCode.Identity.OpenId.Management.Logging;
+using NCode.Identity.OpenId.Management.Promotions;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Settings;
@@ -56,6 +57,8 @@ GET   api/tenants/{tenantId}/settings/limits
 PATCH api/tenants/{tenantId}/settings
 GET   api/tenants/{tenantId}/effective-settings
 
+GET   api/tenants/{tenantId}/configuration
+
 GET    api/tenants/{tenantId}/secrets
 POST   api/tenants/{tenantId}/secrets
 GET    api/tenants/{tenantId}/secrets/{secretId}
@@ -80,7 +83,8 @@ DELETE api/tenants/{tenantId}/admins/{principalId}
 */
 
 /// <summary>
-/// Provides the API endpoints for managing an OpenID Tenant, including its settings and secrets.
+/// Provides the API endpoints for managing an OpenID Tenant, including its settings and secrets. The route that
+/// exports a tenant's configuration document is mapped only on the control-plane cell, as the promotion routes are.
 /// </summary>
 internal class TenantApiEndpointHandler(
     IStoreManagerFactory storeManagerFactory,
@@ -105,6 +109,7 @@ internal class TenantApiEndpointHandler(
     IRemoteSecretDestroyer remoteSecretDestroyer,
     ITenantDirectory tenantDirectory,
     IOptions<CellOptions> cellOptions,
+    ITenantConfigurationExporter tenantConfigurationExporter,
     IManagementAuditRecorder managementAuditRecorder,
     ILogger<TenantApiEndpointHandler> logger
 ) : BaseOwnableApiEndpointHandler, IEndpointProvider
@@ -133,6 +138,8 @@ internal class TenantApiEndpointHandler(
     private IRemoteSecretDestroyer RemoteSecretDestroyer { get; } = remoteSecretDestroyer;
     private ITenantDirectory TenantDirectory { get; } = tenantDirectory;
     private CellOptions CellOptions { get; } = cellOptions.Value;
+    private ITenantConfigurationExporter TenantConfigurationExporter { get; } =
+        tenantConfigurationExporter;
 
     /// <inheritdoc />
     protected override IManagementAuditRecorder ManagementAuditRecorder { get; } =
@@ -272,6 +279,17 @@ internal class TenantApiEndpointHandler(
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound);
+
+        // A configuration document feeds promotion, which the control-plane cell serves, so no other cell maps the route.
+        if (CellOptions.IsControlPlane)
+        {
+            tenants
+                .MapGet("/{tenantId}/configuration", GetConfigurationAsync)
+                .Produces<TenantConfigurationDocument>()
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
+                .ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status404NotFound);
+        }
 
         tenants
             .MapGet("/{tenantId}/secrets", GetSecretsAsync)
@@ -1698,6 +1716,36 @@ internal class TenantApiEndpointHandler(
                 );
                 return ToTenantEffectiveSettingsResource(tenantId, effectiveSettings);
             },
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Exports a tenant's configuration document: its settings, clients, client grants and resource servers, stamped
+    /// with the region of the cell and holding no secret. A promotion into a tenant of the same region reads it in
+    /// place of the source tenant. The caller needs <see cref="Operations.Read"/> at the tenant, as a promotion needs it
+    /// at its source tenant.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <response code="200">The tenant's configuration document.</response>
+    /// <response code="403">The caller lacks the authority to read the tenant.</response>
+    /// <response code="404">The tenant does not exist.</response>
+    // See ADR-1425.
+    [EndpointName("api/tenants/configuration/get")]
+    internal virtual async ValueTask<IResult> GetConfigurationAsync(
+        HttpContext httpContext,
+        [FromRoute] string tenantId,
+        CancellationToken cancellationToken
+    )
+    {
+        return await ProcessGetAsync(
+            httpContext,
+            GetTenantNode(tenantId),
+            Operations.Read,
+            token => TenantConfigurationExporter.ExportAsync(tenantId, token),
+            document => document,
             cancellationToken
         );
     }
