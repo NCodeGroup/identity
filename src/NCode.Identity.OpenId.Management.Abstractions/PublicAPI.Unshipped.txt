@@ -1359,6 +1359,18 @@ NCode.Identity.OpenId.Management.Contracts.Tenants.TenantExportResource
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantExportResource.Package.get -> string!
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantExportResource.Package.init -> void
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantExportResource.TenantExportResource() -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantImportRequest
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantImportRequest.Kid.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantImportRequest.Kid.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantImportRequest.Package.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantImportRequest.Package.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantImportRequest.TenantImportRequest() -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantImportResource
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantImportResource.SourceCell.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantImportResource.SourceCell.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantImportResource.TenantId.get -> string!
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantImportResource.TenantId.init -> void
+NCode.Identity.OpenId.Management.Contracts.Tenants.TenantImportResource.TenantImportResource() -> void
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantTransferKeyResource
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantTransferKeyResource.Jwk.get -> System.Text.Json.JsonElement
 NCode.Identity.OpenId.Management.Contracts.Tenants.TenantTransferKeyResource.Jwk.init -> void
