@@ -27,13 +27,14 @@ type TeamTabProps = {
 };
 
 /**
- * Container: one team's tenants, child teams, machine clients, settings, access, encryption keys, or usage surface, as the `surface`
- * prop names. The address bar selects the surface (ADR-1255), so this page holds no tab state. Wires the team's
- * tenant list to {@link TenantsPage}, its child team list to {@link TeamsPage}, the team's machine clients to
- * {@link MachineClientsPage}, the owner-generic {@link OwnerSettingsTab} to the team, lists and manages the team's
- * administrators and owners through {@link OwnerAccessTab}, manages the team's root key per region through
- * {@link TeamEncryptionKeysTab}, and shows the usage ledger of the team's tenants and of
- * its descendant teams' tenants (ADR-1199, ADR-1426) through {@link TeamUsageTable}.
+ * Container: one team's tenants, child teams, machine clients, settings, access, encryption keys,
+ * or usage surface, as the `surface` prop names. The address bar selects the surface (ADR-1255), so
+ * this page holds no tab state. Wires the team's tenant list to {@link TenantsPage}, its child team
+ * list to {@link TeamsPage}, the team's machine clients to {@link MachineClientsPage}, the
+ * owner-generic {@link OwnerSettingsTab} to the team, lists and manages the team's administrators
+ * and owners through {@link OwnerAccessTab}, manages the team's root key per region through
+ * {@link TeamEncryptionKeysTab}, and shows the usage ledger of the team's tenants and of its
+ * descendant teams' tenants (ADR-1199, ADR-1426) through {@link TeamUsageTable}.
  */
 export function TeamDetailPage({ teamId, surface, onOpenTenant, onOpenTeam }: TeamDetailPageProps) {
   return (
@@ -58,8 +59,9 @@ export function TeamDetailPage({ teamId, surface, onOpenTenant, onOpenTeam }: Te
 }
 
 /**
- * The team's usage ledger for a range of UTC days. An empty bound is left to the server, which defaults the range to
- * the last 30 days and refuses one longer than 366 days; the effective range is echoed back and shown.
+ * The team's usage ledger for a range of UTC days. An empty bound is left to the server, which
+ * defaults the range to the last 30 days and refuses one longer than 366 days; the effective range
+ * is echoed back and shown.
  */
 function TeamUsageTab({ teamId }: TeamTabProps) {
   const [from, setFrom] = useState('');
