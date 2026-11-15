@@ -12,9 +12,10 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework;
 /// constructor receives the registered contributors via dependency injection.
 /// </summary>
 /// <remarks>
-/// Implementations must be registered as <b>stateless singletons</b>: the model is built once and cached, and the
-/// context is pooled, so a contributor must hold no per-instance or per-request state and must configure the model
-/// deterministically.
+/// Implementations must be registered as <b>stateless singletons</b>: the model is built once, cached and shared by
+/// every context the context factory creates, so a contributor must hold no per-instance or per-request state, must
+/// configure the model deterministically, and reads the ambient tenant only through the context's query filter
+/// expression.
 /// </remarks>
 [PublicAPI]
 public interface IOpenIdModelContributor

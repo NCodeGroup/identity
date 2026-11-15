@@ -25,7 +25,8 @@ public class OpenIdDbContext(
 {
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
 
-    // Stateless singletons (the model is built once and cached, and this context is pooled).
+    // Stateless singletons: the model is built once and cached, and the context factory (AddDbContextFactory)
+    // creates a context per use.
     private IEnumerable<IOpenIdModelContributor> ModelContributors { get; } = modelContributors;
 
     /// <summary>
