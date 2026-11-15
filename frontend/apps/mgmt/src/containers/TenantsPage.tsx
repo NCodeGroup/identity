@@ -123,7 +123,8 @@ export function TenantsPage({
   const tenants = data?.items ?? [];
   const unavailableCells = data?.unavailableCells ?? [];
 
-  // The console forwards to the cells its bootstrap names; the platform's cell list supplies each one's region.
+  // The console forwards to the cells its bootstrap names; the platform's cell list supplies each
+  // one's region.
   const runtime = useAppSelector((state) => state.config.runtime);
   const cellNames = runtime?.kind === 'bff' ? (runtime.cells ?? []) : [];
   const platformCells = useListCellsQuery(undefined, { skip: cellNames.length === 0 }).data ?? [];
@@ -323,8 +324,9 @@ export function TenantsPage({
   };
 
   /**
-   * The body of a promotion: within one cell the source is named, otherwise its configuration is exported from its
-   * own cell and carried inline, because the target's cell cannot read a tenant of another cell.
+   * The body of a promotion: within one cell the source is named, otherwise its configuration is
+   * exported from its own cell and carried inline, because the target's cell cannot read a tenant
+   * of another cell.
    */
   const promotionBody = async (
     request: TenantPromotionDialogRequest,
@@ -421,7 +423,8 @@ export function TenantsPage({
           tenants={visibleTenants}
           showCell={cellNames.length > 0}
           onSelect={(tenantId) => {
-            // The tenant opens in its own cell, which the list carries; a tenant without one opens in the control plane.
+            // The tenant opens in its own cell, which the list carries; a tenant without one opens
+            // in the control plane.
             const cell = tenants.find((tenant) => tenant.tenantId === tenantId)?.cell;
             if (cell === undefined) {
               onOpenTenant(tenantId);

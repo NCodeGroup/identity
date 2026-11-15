@@ -46,8 +46,8 @@ type TenantTabProps = {
  * owner-generic {@link OwnerSecretsTab}/{@link OwnerSettingsTab}, the {@link OwnerEncryptionKeysTab} and the
  * {@link OwnerAccessTab} (the tenant's administrators and owners) to the tenant, and shows the tenant's usage ledger
  * (ADR-1199) through {@link TenantUsageTable}. The tenant id comes from the active scope, so the boundary stays
- * structural (a tenant administrator can never address another tenant). A platform administrator also gets the
- * {@link TenantMoveAction}.
+ * structural (a tenant administrator can never address another tenant). A platform administrator
+ * also gets the {@link TenantMoveAction}.
  */
 export function TenantDetailPage({ tenantId, surface }: TenantDetailPageProps) {
   const owner = { kind: 'tenant', tenantId } as const;
@@ -77,10 +77,10 @@ export function TenantDetailPage({ tenantId, surface }: TenantDetailPageProps) {
 }
 
 /**
- * The Move action of a tenant: shown to a platform administrator (the export and the release are authorized at the
- * platform node) when the tenant lives in a named cell, and enabled only while the tenant is disabled. The cells the
- * dialog offers come from the platform's cells, by the region of the tenant's own cell; the four calls of the move
- * each address the cell they concern.
+ * The Move action of a tenant: shown to a platform administrator (the export and the release are
+ * authorized at the platform node) when the tenant lives in a named cell, and enabled only while
+ * the tenant is disabled. The cells the dialog offers come from the platform's cells, by the
+ * region of the tenant's own cell; the four calls of the move each address the cell they concern.
  */
 function TenantMoveAction({ tenantId }: TenantTabProps) {
   const cell = useTenantCell();
@@ -100,7 +100,8 @@ function TenantMoveAction({ tenantId }: TenantTabProps) {
 
   const isDisabled = tenant.data?.isDisabled === true;
 
-  // Each call rejects with an Error that carries the server's reason, which the dialog shows against its stage.
+  // Each call rejects with an Error that carries the server's reason, which the dialog shows
+  // against its stage.
   const run = async <T,>(call: { unwrap: () => Promise<T> }): Promise<T> => {
     try {
       return await call.unwrap();

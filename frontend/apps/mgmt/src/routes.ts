@@ -6,12 +6,15 @@ import { PLATFORM_SCOPE, teamScope, tenantScope, type ManagementScope } from '@n
  *
  * - `/home` — the caller's home: the places it holds authority (ADR-1465);
  * - `/teams`, `/clients`, `/settings`, `/encryption-keys` — the platform scope's surfaces;
- * - `/teams/{teamId}/{surface}` — a team scope's surfaces (`tenants`, `teams`, `clients`, `settings`, `access`,
- *   `encryption-keys` and `usage`), the team id percent-encoded as one segment;
+ * - `/teams/{teamId}/{surface}` — a team scope's surfaces (`tenants`, `teams`, `clients`,
+ *   `settings`, `access`, `encryption-keys` and `usage`), the team id percent-encoded as one
+ *   segment;
  * - `/tenants/{tenantId}/{surface}` — a tenant scope's surfaces (`clients`, `resource-servers`, `grants`, `secrets`,
- *   `encryption-keys`, `settings`, `access` and `usage`), the tenant id percent-encoded as one segment (ADR-1255);
- * - `/cells/{cell}/tenants/{tenantId}/{surface}` — the same tenant surfaces of a tenant that lives in a named cell,
- *   the cell percent-encoded as one segment; a tenant path without a cell addresses the control plane.
+ *   `encryption-keys`, `settings`, `access` and `usage`), the tenant id percent-encoded as one
+ *   segment (ADR-1255);
+ * - `/cells/{cell}/tenants/{tenantId}/{surface}` — the same tenant surfaces of a tenant that lives
+ *   in a named cell, the cell percent-encoded as one segment; a tenant path without a cell
+ *   addresses the control plane.
  *
  * This module is UI-free so the route grammar is unit-tested; `navigation.ts` binds it to the browser history.
  */
@@ -96,8 +99,8 @@ export function teamRoute(
 }
 
 /**
- * Builds the route of a tenant surface in `cell` (the control plane without one), rejecting an empty/blank tenant id
- * and a blank cell.
+ * Builds the route of a tenant surface in `cell` (the control plane without one), rejecting an
+ * empty/blank tenant id and a blank cell.
  */
 export function tenantRoute(
   tenantId: string,
@@ -210,7 +213,10 @@ export function parseRoute(pathname: string): ConsoleRoute | null {
   return null;
 }
 
-/** Parses the segments of a tenant path (`tenants`, the id and an optional surface) in the given cell, if any. */
+/**
+ * Parses the segments of a tenant path (`tenants`, the id and an optional surface) in the given
+ * cell, if any.
+ */
 function parseTenantRoute(
   segments: readonly string[],
   cell?: string,

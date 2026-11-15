@@ -1,7 +1,8 @@
 import { createContext, use, type ReactNode } from 'react';
 
-// The cell of the tenant route the console shows. A tenant lives in one cell, and every call its containers make
-// addresses that cell; a platform or team route names no cell, so its calls reach the control plane.
+// The cell of the tenant route the console shows. A tenant lives in one cell, and every call its
+// containers make addresses that cell; a platform or team route names no cell, so its calls reach
+// the control plane.
 const TenantCellContext = createContext<string | undefined>(undefined);
 
 export type TenantCellProviderProps = {
@@ -15,7 +16,10 @@ export function TenantCellProvider({ cell, children }: TenantCellProviderProps) 
   return <TenantCellContext value={cell}>{children}</TenantCellContext>;
 }
 
-/** The cell of the tenant route being shown; `undefined` outside one, so a call reaches the control plane. */
+/**
+ * The cell of the tenant route being shown; `undefined` outside one, so a call reaches the control
+ * plane.
+ */
 export function useTenantCell(): string | undefined {
   return use(TenantCellContext);
 }

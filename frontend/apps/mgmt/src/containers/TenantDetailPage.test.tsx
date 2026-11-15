@@ -421,7 +421,10 @@ describe('TenantDetailPage', () => {
       { name: 'us-1', region: 'us', kind: 'shared', isControlPlane: false },
     ];
 
-    /** Stubs the console's reads and the four calls of a move; `failing` is the URL suffix of a call that fails. */
+    /**
+     * Stubs the console's reads and the four calls of a move; `failing` is the URL suffix of a call
+     * that fails.
+     */
     function installMoveFetch(options: {
       readonly isPlatformAdministrator?: boolean;
       readonly isDisabled?: boolean;

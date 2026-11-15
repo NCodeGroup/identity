@@ -1,8 +1,8 @@
 import { apiErrorMessage, type ApiError } from '@ncode/store';
 
 /**
- * The message of a failed root key request: the validation messages of a rejected field, else the server's problem
- * detail or title (such as the failure of the probe that validates the key).
+ * The message of a failed root key request: the validation messages of a rejected field, else the
+ * server's problem detail or title (such as the failure of the probe that validates the key).
  */
 export function rootKeyErrorMessage(failure: unknown): string {
   const data = (failure as { data?: unknown } | undefined)?.data;

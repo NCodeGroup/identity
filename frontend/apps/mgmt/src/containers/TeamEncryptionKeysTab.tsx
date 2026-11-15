@@ -33,9 +33,9 @@ type TeamRegionRootKeySectionProps = {
 };
 
 /**
- * The root key a team brings for one region (ADR-1414): "Set root key" in a dialog that shows the server's error,
- * "Validate" and a confirmed "Remove". Validate and remove say what they did in a notice. The API returns no key
- * material, and neither does this view.
+ * The root key a team brings for one region (ADR-1414): "Set root key" in a dialog that shows the
+ * server's error, "Validate" and a confirmed "Remove". Validate and remove say what they did in a
+ * notice. The API returns no key material, and neither does this view.
  */
 function TeamRegionRootKeySection({
   teamId,
@@ -173,10 +173,10 @@ function TeamRegionRootKeySection({
 }
 
 /**
- * Container: the root keys of a team per region (ADR-1414). One row per distinct region of the platform's cells, sorted
- * by region, each showing that region's key, or saying that the deployment's root key wraps the team's keys there. A
- * region's key is set, validated and removed for that region only. The API returns no key material, and neither does
- * this view.
+ * Container: the root keys of a team per region (ADR-1414). One row per distinct region of the
+ * platform's cells, sorted by region, each showing that region's key, or saying that the
+ * deployment's root key wraps the team's keys there. A region's key is set, validated and removed
+ * for that region only. The API returns no key material, and neither does this view.
  */
 export function TeamEncryptionKeysTab({ teamId }: TeamEncryptionKeysTabProps) {
   const cells = useListCellsQuery();
