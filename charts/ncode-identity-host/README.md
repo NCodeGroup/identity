@@ -195,13 +195,19 @@ and pre-upgrade Job that applies its migrations, and requires:
   (`DirectoryServer__ControlPlaneCell`);
 - `directory.allowedHosts`, the host names the directory answers to, such as the host of `directory.url`; `*` is
   refused;
-- `directory.database.existingSecret`, a Secret holding the directory's own Npgsql connection string under
-  `directory.database.connectionStringKey` (default `connection-string`), which is a database of its own, never the
-  cell's (`ConnectionStrings__directory`);
+- `directory.database.existingSecret`, a Secret holding the Npgsql connection string the directory's replicas use under
+  `directory.database.connectionStringKey` (default `connection-string`), to a database of its own, never the cell's
+  (`ConnectionStrings__directory`); it logs in as the runtime role, which owns no table;
+- `directory.database.runtimeRole`, that runtime role's name, lower-case letters, digits and underscores, which the
+  migration Job grants data access to the directory's tables (`DirectoryDatabase__RuntimeRole`);
+- `directory.migrations.database.existingSecret`, a Secret holding the connection string of the role that owns the
+  directory's schema under `directory.migrations.database.connectionStringKey` (default `connection-string`), which only
+  the migration Job reads (`ConnectionStrings__directory-migration`);
 - `directory.tls.existingSecret`, a `kubernetes.io/tls` Secret whose certificate names the host of `directory.url`,
   because the directory serves HTTPS only.
 
-`directory.image.*`, `directory.service`, `directory.migrations`, `directory.resources`, `directory.extraEnv`,
+`directory.image.*`, `directory.service`, `directory.migrations.backoffLimit`,
+`directory.migrations.activeDeadlineSeconds`, `directory.migrations.resources`, `directory.resources`, `directory.extraEnv`,
 `directory.extraEnvFrom`, `directory.extraVolumes` and `directory.extraVolumeMounts` tune the directory's Deployment and
 Job. The directory host answers audience `urn:ncode:directory` with scope `directory`.
 

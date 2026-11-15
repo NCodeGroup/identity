@@ -4239,7 +4239,9 @@ Until the first stable release, the [Unreleased] section describes the product a
   pods that own the database with `ncode.io/backup-location`; `telemetry.otlpEndpoint` and the `cell.name` and
   `cell.region` resource attributes tag every pod's OpenTelemetry signals; `directory.url`, `directory.clientId`,
   `directory.keyRing` and `directory.keys` point a cell at the platform's directory; and `directory.enabled` runs the
-  directory host with its own database, `directory.database`, `directory.tls` and pre-install migration Job. The
+  directory host with its own database, `directory.database` (the runtime role's connection and name),
+  `directory.migrations.database` (the schema owner's connection), `directory.tls` and pre-install migration Job, which
+  migrates as the owner and grants the runtime role data access to the directory's tables. The
   `ci/cell-values.yaml` and `ci/directory-values.yaml` releases are linted and rendered by the `Host chart` workflow.
 
 - **A tenant's data carries the cell that wrote it.** `Cell:Name` is stamped on audit records and usage rows, it is the

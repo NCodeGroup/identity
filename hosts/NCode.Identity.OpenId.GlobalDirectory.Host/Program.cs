@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using Microsoft.EntityFrameworkCore;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.Jose;
 using NCode.Identity.Jwt;
@@ -77,21 +76,20 @@ serviceCollection
     .AddOpenIdDirectoryServer(configuration);
 
 // The directory's own Postgres database, and the readiness check that holds the replica out of rotation while it cannot
-// reach the database it serves every request from.
-var connectionString =
-    configuration.GetConnectionString("directory")
-    ?? throw new InvalidOperationException("The connection string 'directory' is required.");
-serviceCollection.AddDirectoryDatabase(connectionString);
+// reach the database it serves every request from. The replicas connect as the runtime role, and the 'migrate' command
+// as the role that owns the schema.
+serviceCollection.AddDirectoryDatabase(
+    DirectoryDatabase.GetConnectionString(configuration, migrate)
+);
 
 await using var app = builder.Build();
 
 // The command runs against the built services, never starts the hosted services or binds a port, and returns its exit
-// code.
+// code. It migrates the schema, then grants the runtime role the data access the replicas need.
 if (migrate)
 {
-    var dbContextFactory = app.Services.GetRequiredService<IDbContextFactory<DirectoryDbContext>>();
-    await using var dbContext = await dbContextFactory.CreateDbContextAsync(CancellationToken.None);
-    await dbContext.Database.MigrateAsync(CancellationToken.None);
+    var runtimeRole = DirectoryDatabase.GetRuntimeRole(configuration);
+    await DirectoryDatabase.MigrateAsync(app.Services, runtimeRole, CancellationToken.None);
     return 0;
 }
 

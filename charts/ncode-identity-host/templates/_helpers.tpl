@@ -1197,6 +1197,18 @@ Refuses a directory the host would refuse, before anything is applied. Rendered 
 {{- if not $directory.database.connectionStringKey }}
 {{- fail "directory.database.connectionStringKey must name the key that holds the connection string in directory.database.existingSecret." }}
 {{- end }}
+{{- if not $directory.database.runtimeRole }}
+{{- fail "directory.database.runtimeRole must name the Postgres role the directory connects as when directory.enabled is true: the migration Job grants it access to the tables." }}
+{{- end }}
+{{- if not (regexMatch "^[a-z_][a-z0-9_]*$" $directory.database.runtimeRole) }}
+{{- fail "directory.database.runtimeRole must be a lower-case Postgres role name of letters, digits and underscores that does not start with a digit." }}
+{{- end }}
+{{- if not $directory.migrations.database.existingSecret }}
+{{- fail "directory.migrations.database.existingSecret must name the Secret holding the connection string of the role that owns the directory's schema when directory.enabled is true." }}
+{{- end }}
+{{- if not $directory.migrations.database.connectionStringKey }}
+{{- fail "directory.migrations.database.connectionStringKey must name the key that holds the connection string in directory.migrations.database.existingSecret." }}
+{{- end }}
 {{- if not $directory.tls.existingSecret }}
 {{- fail "directory.tls.existingSecret must name the Secret holding the directory's serving certificate when directory.enabled is true: the directory serves HTTPS only." }}
 {{- end }}

@@ -105,3 +105,6 @@ NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.State.set -> 
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.TenantId.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.TenantId.set -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.TenantRecord() -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDatabaseGrants
+static NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDatabaseGrants.CreateStatements(Microsoft.EntityFrameworkCore.Metadata.IModel! model, string! runtimeRole) -> System.Collections.Generic.IReadOnlyList<string!>!
+static NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDatabaseGrants.IsValidRole(string! role) -> bool

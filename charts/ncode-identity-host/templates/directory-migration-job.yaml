@@ -45,6 +45,15 @@ spec:
             {{- include "identity-host.containerSecurityContext" . | nindent 12 }}
           env:
             {{- include "identity-host.directory.env" . | trim | nindent 12 }}
+            # The owner's connection, which creates and changes the schema; the shared environment above carries the
+            # runtime role's connection, which the command does not use.
+            - name: ConnectionStrings__directory-migration
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $directory.migrations.database.existingSecret }}
+                  key: {{ $directory.migrations.database.connectionStringKey | quote }}
+            - name: DirectoryDatabase__RuntimeRole
+              value: {{ $directory.database.runtimeRole | quote }}
           {{- with $directory.extraEnvFrom }}
           envFrom:
             {{- toYaml . | nindent 12 }}

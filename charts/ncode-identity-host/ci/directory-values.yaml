@@ -23,6 +23,10 @@ directory:
     - directory.example.com
   database:
     existingSecret: directory-database
+    runtimeRole: ncode_directory_app
+  migrations:
+    database:
+      existingSecret: directory-database-owner
   tls:
     existingSecret: directory-tls
 secretProtection:

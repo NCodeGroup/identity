@@ -107,10 +107,13 @@ directory:
     # When set, the image is pulled by digest and the tag is ignored.
     digest: ""
     pullPolicy: IfNotPresent
-  # The directory's own Postgres database (ConnectionStrings:directory), never the cell's. The Deployment and the
-  # migration Job read the same finished Npgsql connection string, from the key of a Secret the operator created.
-  # Required when enabled.
+  # The directory's own Postgres database (ConnectionStrings:directory), never the cell's, as the runtime role: the
+  # Deployment reads the finished Npgsql connection string from the key of a Secret the operator created. The role must
+  # not own the tables, be a superuser or bypass row-level security. Required when enabled.
   database:
+    # The runtime role's name (DirectoryDatabase:RuntimeRole), lower-case letters, digits and underscores. Required when
+    # enabled. The migration Job grants the role access to the directory's tables after it migrates.
+    runtimeRole: ""
     existingSecret: ""
     connectionStringKey: connection-string
   # A kubernetes.io/tls Secret the operator created, with tls.crt and tls.key, that the directory serves. Its
@@ -121,6 +124,12 @@ directory:
     type: ClusterIP
     port: 443
   migrations:
+    # The owner's connection (ConnectionStrings:directory-migration), the one that creates and changes the directory's
+    # schema and grants the runtime role. Required when enabled. Only the migration Job reads it, so the Deployment
+    # connects without schema rights.
+    database:
+      existingSecret: ""
+      connectionStringKey: connection-string
     backoffLimit: 1
     activeDeadlineSeconds: 600
     resources:
