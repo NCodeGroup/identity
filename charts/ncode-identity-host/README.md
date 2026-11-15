@@ -214,8 +214,9 @@ Job. The directory host answers audience `urn:ncode:directory` with scope `direc
 The directory runs under its own ServiceAccount, without a token mounted, because it never calls the Kubernetes API.
 `directory.serviceAccount` names or creates it: `create` (default `true`) makes it, `name` overrides its name, which is
 the directory's full name, `<release full name>-directory`, when `create` is `true` and `name` is empty, and `default`
-when `create` is `false` and `name` is empty, and `annotations` annotate it. The migration Job runs under the
-namespace's default account.
+when `create` is `false` and `name` is empty, and `annotations` annotate it. The migration Job runs before the chart's own
+account exists on a first install, so it uses the namespace's default account unless `create` is `false`, when it runs
+under the account `name` names.
 
 `backup.location` names where the cell's backups are kept, such as a bucket or a volume snapshot class. When set, the
 host and migration pods carry it as the `ncode.io/backup-location` annotation for the backup tool to read; the chart

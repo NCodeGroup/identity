@@ -125,7 +125,9 @@ directory:
     port: 443
   # The ServiceAccount the directory's pods run under, which mounts no token because the directory never calls the
   # Kubernetes API. create makes it; name is its name, or the directory's full name when create is true and empty, or
-  # 'default' when create is false and empty. The migration Job runs under the namespace's default account.
+  # 'default' when create is false and empty. The migration Job runs before the chart's own account exists on a first
+  # install, so it uses the namespace's default account unless create is false, when it runs under the account name
+  # names.
   serviceAccount:
     create: true
     name: ""

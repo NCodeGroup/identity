@@ -26,7 +26,11 @@ spec:
         app.kubernetes.io/component: directory-migrations
     spec:
       restartPolicy: Never
-      # The migration never calls the Kubernetes API, so the pod uses the namespace's default account.
+      {{- if not .Values.directory.serviceAccount.create }}
+      serviceAccountName: {{ include "identity-host.directory.serviceAccountName" . }}
+      {{- end }}
+      # The migration never calls the Kubernetes API. The chart's own service account does not exist yet when a first
+      # install runs this hook, so the Job uses the namespace's default account unless the operator names one.
       automountServiceAccountToken: false
       {{- with include "identity-host.imagePullSecrets" . }}
       {{- . | trim | nindent 6 }}
