@@ -66,6 +66,17 @@ internal sealed class DefaultCellTokenSource(
         }
     }
 
+    /// <summary>
+    /// Requests a client-credentials access token from the control plane, authenticating the cell with its private key.
+    /// </summary>
+    /// <param name="audience">The resource that the token is for.</param>
+    /// <param name="scope">The scope that the token carries.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The access token and the time at which the cell stops using it, before the token expires.</returns>
+    /// <exception cref="DirectoryUnavailableException">
+    /// The cell is not configured to authenticate, the token endpoint cannot be reached, or the control plane refuses
+    /// the request or answers without an access token.
+    /// </exception>
     private async ValueTask<(string Token, DateTimeOffset ExpiresAt)> RequestTokenAsync(
         string audience,
         string scope,

@@ -92,6 +92,16 @@ internal sealed class RemoteManagementTokenValidator(
             : ManagementTokenValidation.Authenticated(principal);
     }
 
+    /// <summary>
+    /// Validates the DPoP proof that accompanies an access token bound to a key: the request carries exactly one
+    /// proof, the proof is made for the cell's configured management URL and the request's method and path, it is bound
+    /// to the access token and to the key that the token confirms, and it has not been seen within its window.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> of the request that carries the proof.</param>
+    /// <param name="accessToken">The access token that the proof is bound to.</param>
+    /// <param name="thumbprint">The thumbprint of the key that the access token confirms.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns><c>true</c> when the proof is valid and accepted for the first time; otherwise, <c>false</c>.</returns>
     private async ValueTask<bool> IsProofValidAsync(
         HttpContext httpContext,
         string accessToken,
@@ -138,6 +148,11 @@ internal sealed class RemoteManagementTokenValidator(
         );
     }
 
+    /// <summary>
+    /// Gets the thumbprint of the key that an access token confirms.
+    /// </summary>
+    /// <param name="payload">The payload of the access token.</param>
+    /// <returns>The confirmation key thumbprint, or <c>null</c> when the token carries no key binding.</returns>
     private static string? GetConfirmationThumbprint(JsonElement payload)
     {
         if (
@@ -151,6 +166,13 @@ internal sealed class RemoteManagementTokenValidator(
         return null;
     }
 
+    /// <summary>
+    /// Creates the principal of a validated access token from its subject, client identifier and scope claims.
+    /// </summary>
+    /// <param name="payload">The payload of the access token.</param>
+    /// <returns>
+    /// The <see cref="ClaimsPrincipal"/>, or <c>null</c> when the payload has no subject and no client identifier.
+    /// </returns>
     private static ClaimsPrincipal? CreatePrincipal(JsonElement payload)
     {
         var subject = GetString(payload, JoseClaimNames.Payload.Sub);
@@ -173,6 +195,12 @@ internal sealed class RemoteManagementTokenValidator(
         return new ClaimsPrincipal(identity);
     }
 
+    /// <summary>
+    /// Gets a non-empty string property of a JSON object.
+    /// </summary>
+    /// <param name="element">The JSON object to read.</param>
+    /// <param name="name">The name of the property to read.</param>
+    /// <returns>The value, or <c>null</c> when the property is absent, is not a string or is empty.</returns>
     private static string? GetString(JsonElement element, string name)
     {
         if (element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String)
@@ -184,6 +212,14 @@ internal sealed class RemoteManagementTokenValidator(
         return null;
     }
 
+    /// <summary>
+    /// Reads the access token from the <c>Authorization</c> header of a request, under either the Bearer scheme or the
+    /// DPoP scheme.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> of the request.</param>
+    /// <param name="token">The access token, or an empty string when the header carries none.</param>
+    /// <param name="isDPoP"><c>true</c> when the token is sent under the DPoP scheme; otherwise, <c>false</c>.</param>
+    /// <returns><c>true</c> when the header carries a non-empty token; otherwise, <c>false</c>.</returns>
     private static bool TryGetToken(HttpContext httpContext, out string token, out bool isDPoP)
     {
         var authorization = httpContext.Request.Headers.Authorization.ToString();

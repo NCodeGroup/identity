@@ -139,6 +139,13 @@ internal sealed class DirectoryHttpClient(
         }
     }
 
+    /// <summary>
+    /// Creates the base URI of the directory service from its configured URL, with a trailing slash so that relative
+    /// paths append to it.
+    /// </summary>
+    /// <param name="url">The configured URL of the directory service.</param>
+    /// <returns>The absolute base <see cref="Uri"/>.</returns>
+    /// <exception cref="InvalidOperationException">The URL is not set.</exception>
     private static Uri CreateBaseUri(string? url)
     {
         if (string.IsNullOrEmpty(url))
@@ -149,6 +156,16 @@ internal sealed class DirectoryHttpClient(
         return new Uri(url.EndsWith('/') ? url : url + '/', UriKind.Absolute);
     }
 
+    /// <summary>
+    /// Reads the body of a response, up to the largest body that the client accepts.
+    /// </summary>
+    /// <param name="content">The <see cref="HttpContent"/> of the response.</param>
+    /// <param name="uri">The URI that answered, which names the endpoint in an error.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The bytes of the body.</returns>
+    /// <exception cref="DirectoryUnavailableException">
+    /// The body is larger than the largest body that the client accepts.
+    /// </exception>
     private static async ValueTask<byte[]> ReadBodyAsync(
         HttpContent content,
         Uri uri,

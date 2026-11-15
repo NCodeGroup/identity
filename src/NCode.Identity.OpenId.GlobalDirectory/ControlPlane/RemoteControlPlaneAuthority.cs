@@ -73,6 +73,13 @@ internal sealed class RemoteControlPlaneAuthority(
         return authority;
     }
 
+    /// <summary>
+    /// Creates the URI of the control plane's authority endpoint from the control plane's issuer.
+    /// </summary>
+    /// <returns>The absolute URI of the authority endpoint on the control plane's host.</returns>
+    /// <exception cref="DirectoryUnavailableException">
+    /// The cell does not know an absolute issuer of the control plane.
+    /// </exception>
     private Uri CreateAuthorityUri()
     {
         var issuer = CellOptions.ControlPlane.Issuer;
@@ -86,6 +93,13 @@ internal sealed class RemoteControlPlaneAuthority(
         );
     }
 
+    /// <summary>
+    /// Caches an authority under its key. When the cache is full and the key is absent, the expired entries are
+    /// removed, and the whole cache is cleared if none had expired.
+    /// </summary>
+    /// <param name="key">The subject, client identifier and team identifier that the authority answers for.</param>
+    /// <param name="authority">The <see cref="ControlPlaneAuthority"/> to cache.</param>
+    /// <param name="expiresAt">The time at which the cached authority expires.</param>
     private void Store(
         (string Subject, string ClientId, string? TeamId) key,
         ControlPlaneAuthority authority,

@@ -48,10 +48,22 @@ internal sealed class DefaultDirectoryStore(
 
     private TimeProvider TimeProvider { get; } = timeProvider;
 
+    /// <summary>
+    /// Normalizes an identifier or an issuer into the lower-case form that the directory stores and compares, so a
+    /// lookup ignores case.
+    /// </summary>
+    /// <param name="value">The identifier or issuer to normalize.</param>
+    /// <returns>The invariant lower-case form of <paramref name="value"/>.</returns>
     private static string Normalize(string value) => value.ToLowerInvariant();
 
-    // Increments the counter row that numbers the changes and returns the new value. The caller runs in a serializable
-    // transaction, so the writers of changes serialize on the row and the commit order equals the sequence order.
+    /// <summary>
+    /// Increments the counter row that numbers the changes and returns the new value. The caller runs in a
+    /// serializable transaction, so the writers of changes serialize on the row and the commit order equals the
+    /// sequence order.
+    /// </summary>
+    /// <param name="dbContext">The <see cref="DirectoryDbContext"/> whose transaction holds the counter row.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The new value of the counter, which is the sequence number of the change.</returns>
     private static async ValueTask<long> NextSequenceAsync(
         DirectoryDbContext dbContext,
         CancellationToken cancellationToken
@@ -260,6 +272,17 @@ internal sealed class DefaultDirectoryStore(
         await ReleaseCoreAsync(tenantId, callerCell: null, cancellationToken);
     }
 
+    /// <summary>
+    /// Releases the reservation of a tenant in a serializable transaction. A tenant with no record has nothing to
+    /// release, and a tenant that is not in the reserved state keeps its record.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the tenant whose reservation is released.</param>
+    /// <param name="callerCell">The name of the calling cell, or <c>null</c> for the directory's own call.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>
+    /// A forbidden result when the caller's cell does not hold the tenant and is not the control-plane cell; otherwise,
+    /// a done result.
+    /// </returns>
     private async ValueTask<DirectoryTenantWriteResult> ReleaseCoreAsync(
         string tenantId,
         string? callerCell,
@@ -539,6 +562,18 @@ internal sealed class DefaultDirectoryStore(
         await RetireCoreAsync(retirement, callerCell: null, cancellationToken);
     }
 
+    /// <summary>
+    /// Retires a tenant in a serializable transaction. The tenant's record becomes retired and holds no issuer, and
+    /// the issuer that the tenant held, or that the retirement names when the tenant has no record, is recorded as
+    /// retired so that no other tenant takes it.
+    /// </summary>
+    /// <param name="retirement">The <see cref="TenantRetirement"/> that names the tenant to retire.</param>
+    /// <param name="callerCell">The name of the calling cell, or <c>null</c> for the directory's own call.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>
+    /// A forbidden result when the caller's cell does not hold the tenant and is not the control-plane cell; otherwise,
+    /// a done result, including when the tenant is already retired.
+    /// </returns>
     private async ValueTask<DirectoryTenantWriteResult> RetireCoreAsync(
         TenantRetirement retirement,
         string? callerCell,
@@ -629,6 +664,20 @@ internal sealed class DefaultDirectoryStore(
             : ReservationResult.Conflict(result.Detail ?? string.Empty);
     }
 
+    /// <summary>
+    /// Changes the issuer of a tenant in a serializable transaction. The tenant must hold the previous issuer, the new
+    /// issuer must be held by no other tenant and must not belong to a retired holder, and the issuer that the tenant
+    /// gives up is recorded as retired.
+    /// </summary>
+    /// <param name="change">The <see cref="TenantIssuerChange"/> that names the tenant and its issuers.</param>
+    /// <param name="callerCell">The name of the calling cell, or <c>null</c> for the directory's own call.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>
+    /// A forbidden result when the caller's cell does not hold the tenant and is not the control-plane cell; a
+    /// not-found result when the tenant has no record; a conflict result when the tenant is retired, does not hold the
+    /// previous issuer or the new issuer is taken; otherwise, a done result, including when the tenant already holds
+    /// the new issuer.
+    /// </returns>
     private async ValueTask<DirectoryTenantWriteResult> ChangeIssuerCoreAsync(
         TenantIssuerChange change,
         string? callerCell,
@@ -863,6 +912,13 @@ internal sealed class DefaultDirectoryStore(
             : null;
     }
 
+    /// <summary>
+    /// Gets the tenant that retired an issuer.
+    /// </summary>
+    /// <param name="dbContext">The <see cref="DirectoryDbContext"/> to read from.</param>
+    /// <param name="normalizedIssuer">The normalized issuer to look up.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The identifier of the tenant that retired the issuer, or <c>null</c> when no tenant retired it.</returns>
     private static async ValueTask<string?> GetRetiredIssuerHolderCoreAsync(
         DirectoryDbContext dbContext,
         string normalizedIssuer,
@@ -1579,6 +1635,11 @@ internal sealed class DefaultDirectoryStore(
         return record is null ? null : ToDescriptor(record);
     }
 
+    /// <summary>
+    /// Projects a stored cell record into the descriptor that the directory publishes.
+    /// </summary>
+    /// <param name="record">The <see cref="CellRecord"/> to project.</param>
+    /// <returns>The <see cref="CellDescriptor"/> of the cell that <paramref name="record"/> stores.</returns>
     private static CellDescriptor ToDescriptor(CellRecord record) =>
         new()
         {
@@ -1672,6 +1733,15 @@ internal sealed class DefaultDirectoryStore(
             : ReadPlatformDocument(platform.DocumentJson, platform.Sequence);
     }
 
+    /// <summary>
+    /// Reads the platform document from its stored JSON and stamps it with the sequence number of its change.
+    /// </summary>
+    /// <param name="documentJson">The stored JSON of the platform document, or <c>null</c> when none is stored.</param>
+    /// <param name="sequence">The sequence number of the change that stored the document.</param>
+    /// <returns>
+    /// The <see cref="PlatformDocument"/> with its <see cref="PlatformDocument.Sequence"/> set, or <c>null</c> when no
+    /// document is stored or the JSON holds none.
+    /// </returns>
     private static PlatformDocument? ReadPlatformDocument(string? documentJson, long sequence)
     {
         if (documentJson is null)
