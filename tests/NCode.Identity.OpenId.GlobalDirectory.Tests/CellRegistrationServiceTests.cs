@@ -88,7 +88,8 @@ public class CellRegistrationServiceTests : BaseTests
 
         await Service.StartAsync(CancellationToken.None);
 
-        // The first retry waits one second; each advance is harmless once the second attempt has succeeded.
+        // The first retry waits at most one second, whatever its jitter; each advance is harmless once the second
+        // attempt has succeeded.
         using var cts = new CancellationTokenSource(Timeout);
         while (!Service.ExecuteTask!.IsCompleted)
         {
@@ -149,14 +150,35 @@ public class CellRegistrationServiceTests : BaseTests
     [InlineData(7, 60)]
     [InlineData(8, 60)]
     [InlineData(2000, 60)]
-    public void GetDelay_WhenCalled_DoublesFromOneSecondUpToSixtySeconds(
+    public void GetDelay_WithTheLargestJitter_DoublesFromOneSecondUpToSixtySeconds(
         int attempt,
         int expectedSeconds
     )
     {
-        var delay = CellRegistrationService.GetDelay(attempt);
+        var delay = CellRegistrationService.GetDelay(attempt, 0.999);
 
-        Assert.Equal(TimeSpan.FromSeconds(expectedSeconds), delay);
+        Assert.InRange(
+            delay,
+            TimeSpan.FromSeconds(expectedSeconds * 0.999),
+            TimeSpan.FromSeconds(expectedSeconds)
+        );
+    }
+
+    [Theory]
+    [InlineData(1, 0.0)]
+    [InlineData(1, 0.999)]
+    [InlineData(20, 0.0)]
+    [InlineData(20, 0.999)]
+    public void GetDelay_WithAnyJitter_StaysBetweenHalfAndAllOfTheCappedDelay(
+        int attempt,
+        double jitter
+    )
+    {
+        var capped = TimeSpan.FromSeconds(Math.Min(Math.Pow(2, attempt - 1), 60));
+
+        var delay = CellRegistrationService.GetDelay(attempt, jitter);
+
+        Assert.InRange(delay, capped / 2, capped);
     }
 
     #endregion

@@ -11,7 +11,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// <summary>
 /// Registers the cell with the global directory when the host starts, with the <see cref="CellDescriptor"/> built from
 /// <see cref="CellOptions"/>. A directory that cannot be reached throws <see cref="DirectoryUnavailableException"/>,
-/// which is logged and retried with an exponential backoff from one second up to sixty seconds, until the
+/// which is logged and retried with a jittered exponential backoff from one second up to sixty seconds, until the
 /// registration succeeds or the host stops. Any other exception propagates.
 /// </summary>
 internal sealed class CellRegistrationService(
@@ -25,6 +25,20 @@ internal sealed class CellRegistrationService(
     /// The longest delay between two attempts to register the cell.
     /// </summary>
     private static TimeSpan MaxDelay { get; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// Gets the delay that follows a failed attempt: one second doubled for each earlier failure, capped at
+    /// <see cref="MaxDelay"/>, then jittered to lie between half and all of that capped delay, so the cells that
+    /// fail together don't retry together.
+    /// </summary>
+    /// <param name="attempt">The one-based number of the attempt that failed.</param>
+    /// <param name="jitter">A random value in <c>[0, 1)</c> that picks the delay between half and all of the capped
+    /// delay.</param>
+    /// <returns>The <see cref="TimeSpan"/> to wait before the next attempt, never above <see cref="MaxDelay"/>.</returns>
+    internal static TimeSpan GetDelay(int attempt, double jitter) =>
+        TimeSpan.FromSeconds(
+            Math.Min(Math.Pow(2, attempt - 1), MaxDelay.TotalSeconds) * (0.5 + jitter / 2)
+        );
 
     private ICellDirectory CellDirectory { get; } = cellDirectory;
 
@@ -48,8 +62,8 @@ internal sealed class CellRegistrationService(
     }
 
     /// <summary>
-    /// Registers the cell with the directory, retrying <see cref="DirectoryUnavailableException"/> with a capped
-    /// exponential backoff.
+    /// Registers the cell with the directory, retrying <see cref="DirectoryUnavailableException"/> with a capped,
+    /// jittered exponential backoff.
     /// </summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
@@ -73,19 +87,10 @@ internal sealed class CellRegistrationService(
             }
             catch (DirectoryUnavailableException exception)
             {
-                var delay = GetDelay(attempt);
+                var delay = GetDelay(attempt, Random.Shared.NextDouble());
                 Logger.CellRegistrationFailed(exception, attempt, delay);
                 await Task.Delay(delay, TimeProvider, cancellationToken);
             }
         }
     }
-
-    /// <summary>
-    /// Gets the delay that follows a failed attempt: one second doubled for each earlier failure, capped at
-    /// <see cref="MaxDelay"/>.
-    /// </summary>
-    /// <param name="attempt">The one-based number of the attempt that failed.</param>
-    /// <returns>The <see cref="TimeSpan"/> to wait before the next attempt.</returns>
-    internal static TimeSpan GetDelay(int attempt) =>
-        TimeSpan.FromSeconds(Math.Min(Math.Pow(2, attempt - 1), MaxDelay.TotalSeconds));
 }
