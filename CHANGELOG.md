@@ -4186,8 +4186,9 @@ Until the first stable release, the [Unreleased] section describes the product a
   requested `clientId` and its `jwks`. The directory takes platform and team writes only from the control-plane cell
   (`DirectoryServer:ControlPlaneCell`) and authorizes each tenant write against the tenant's stored record in the
   transaction that writes it: the cell that holds the tenant and the control-plane cell write it, and only the
-  control-plane cell retires a tenant the directory has no record of; a cell registers only itself and asks to move a
-  tenant only into itself.
+  control-plane cell retires a tenant the directory has no record of; a cell registers only itself, with a management
+  URL that is an absolute `https` URL (or `http` on a loopback host or in local development) with no user information,
+  query or fragment, and asks to move a tenant only into itself.
 
 - **The control plane serves every cell.** The control-plane cell owns platform and team authority, setup and the team
   root keys; every other cell reaches it through remote adapters that fail closed. `IManagementTokenValidator` validates

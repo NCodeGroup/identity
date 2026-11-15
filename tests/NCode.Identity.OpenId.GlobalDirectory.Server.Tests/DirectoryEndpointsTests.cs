@@ -35,6 +35,10 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     private const string OtherTenantIssuer = "https://op.example/tenant-2";
     private const string TeamId = "team-1";
 
+    private const string InvalidManagementUrlDetail =
+        "The cell's management URL is an absolute https URL, or an http URL on a loopback host or in local "
+        + "development, with no user information, query or fragment.";
+
     private static JsonSerializerOptions WebOptions { get; } = new(JsonSerializerDefaults.Web);
 
     private static string TeamTooLongDetail =>
@@ -1702,6 +1706,46 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         );
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var listResponse = await Client.GetAsync("/directory/v1/cells");
+        Assert.Empty(await ReadAsync<List<CellDescriptor>>(listResponse));
+    }
+
+    [Fact]
+    public async Task RegisterCell_WhenTheManagementUrlIsPlainHttp_AnswersBadRequest()
+    {
+        Authenticate(clientId: "cell-a");
+
+        var response = await Client.PutAsJsonAsync(
+            "/directory/v1/cells/a",
+            CreateCell("a") with
+            {
+                ManagementUrl = "http://a.example/",
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(InvalidManagementUrlDetail, await ReadProblemDetailAsync(response));
+        var listResponse = await Client.GetAsync("/directory/v1/cells");
+        Assert.Empty(await ReadAsync<List<CellDescriptor>>(listResponse));
+    }
+
+    [Fact]
+    public async Task RegisterCell_WhenTheManagementUrlCarriesUserInformation_AnswersBadRequest()
+    {
+        Authenticate(clientId: "cell-a");
+
+        var response = await Client.PutAsJsonAsync(
+            "/directory/v1/cells/a",
+            CreateCell("a") with
+            {
+                ManagementUrl = "https://u@a.example/",
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(InvalidManagementUrlDetail, await ReadProblemDetailAsync(response));
         var listResponse = await Client.GetAsync("/directory/v1/cells");
         Assert.Empty(await ReadAsync<List<CellDescriptor>>(listResponse));
     }

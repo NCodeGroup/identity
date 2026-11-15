@@ -40,6 +40,14 @@ public static class DirectoryEndpoints
     /// </summary>
     private const string TeamRequiredDetail = "The team is required.";
 
+    /// <summary>
+    /// The problem detail that the cell registration route answers with when the management URL is not a service URL
+    /// that <see cref="AbsoluteUri.TryParseServiceUrl"/> accepts.
+    /// </summary>
+    private const string InvalidManagementUrlDetail =
+        "The cell's management URL is an absolute https URL, or an http URL on a loopback host or in local "
+        + "development, with no user information, query or fragment.";
+
     private static string InvalidCellLabelDetail =>
         $"A cell and its region are each 1 to {CellLabelRules.MaxLabelLength} lowercase letters, digits or hyphens that "
         + "start with a letter and end with a letter or digit.";
@@ -784,25 +792,41 @@ public static class DirectoryEndpoints
     /// <param name="descriptor">The cell's name, region, kind and management URL.</param>
     /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
     /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
+    /// <param name="localDevelopmentMode">
+    /// The <see cref="LocalDevelopmentMode"/> that, when enabled, lets a management URL use <c>http</c> on any host.
+    /// </param>
     /// <param name="directory">The <see cref="ICellDirectory"/> that holds the registration.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
     /// <c>200 OK</c> when the cell is registered; <c>400 Bad Request</c> when the kind or the management URL is blank,
-    /// the name or the region is not a <see cref="CellLabelRules"/> label, or the descriptor names a cell other than
-    /// the route's; <c>403 Forbidden</c> when the cell is not the caller or claims to be the control
-    /// plane without being it.
+    /// the management URL is not an absolute <c>https</c> URL (or an <c>http</c> URL on a loopback host or in local
+    /// development) without user information, a query or a fragment, the name or the region is not a
+    /// <see cref="CellLabelRules"/> label, or the descriptor names a cell other than the route's;
+    /// <c>403 Forbidden</c> when the cell is not the caller or claims to be the control plane without being it.
     /// </returns>
     private static async ValueTask<IResult> RegisterCellAsync(
         string name,
         CellDescriptor descriptor,
         HttpContext httpContext,
         IOptions<DirectoryServerOptions> options,
+        LocalDevelopmentMode localDevelopmentMode,
         ICellDirectory directory,
         CancellationToken cancellationToken
     )
     {
         if (IsBlank(descriptor.Kind) || IsBlank(descriptor.ManagementUrl))
             return BadRequest("The cell's kind and its management URL are required.");
+
+        if (
+            !AbsoluteUri.TryParseServiceUrl(
+                descriptor.ManagementUrl,
+                localDevelopmentMode.Enabled,
+                out _
+            )
+        )
+        {
+            return BadRequest(InvalidManagementUrlDetail);
+        }
 
         if (
             !CellLabelRules.IsValidLabel(descriptor.Name)
