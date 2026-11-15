@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Globalization;
 using NCode.Buffers;
 using NCode.Identity.SharedState;
 
@@ -14,16 +13,6 @@ namespace NCode.Identity.Bff.Sessions;
 internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSet indexes)
     : IBffSessionStore
 {
-    /// <summary>
-    /// The format of the UTC day segment of a client's session index member.
-    /// </summary>
-    private const string ClientMemberDayFormat = "yyyy-MM-dd";
-
-    /// <summary>
-    /// The character that separates a client member's day from its client digest.
-    /// </summary>
-    private const char ClientMemberSeparator = ':';
-
     /// <summary>
     /// Encodes a refresh lease's owner token as UTF-8 into sensitive pooled memory that is zeroed when the returned
     /// lease is disposed. The bytes live in <see cref="ReadOnlyMemory{T}"/> because they cross an <c>await</c>.
@@ -44,49 +33,6 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
         metadata.IdleExpiresAt < metadata.AbsoluteExpiresAt
             ? metadata.IdleExpiresAt
             : metadata.AbsoluteExpiresAt;
-
-    /// <summary>
-    /// Gets the member of <see cref="BffStoreKeys.ClientsIndex"/> that lists a client for the UTC day of a session's
-    /// absolute expiry: the day, a colon and the client's digest.
-    /// </summary>
-    /// <param name="client">The client that the session was issued to.</param>
-    /// <param name="absoluteExpiresAt">The absolute expiry of the session.</param>
-    /// <returns>The member.</returns>
-    private static string GetClientMember(
-        BffSessionClient client,
-        DateTimeOffset absoluteExpiresAt
-    ) =>
-        absoluteExpiresAt.UtcDateTime.ToString(ClientMemberDayFormat, CultureInfo.InvariantCulture)
-        + ClientMemberSeparator
-        + BffStoreKeys.ClientDigest(client);
-
-    /// <summary>
-    /// Reads the client digest of a member of <see cref="BffStoreKeys.ClientsIndex"/>.
-    /// </summary>
-    /// <param name="member">The member.</param>
-    /// <param name="digest">The client digest that the member names.</param>
-    /// <returns><see langword="true"/> when the member is well formed; otherwise, <see langword="false"/>.</returns>
-    private static bool TryGetClientDigest(string member, out string digest)
-    {
-        digest = string.Empty;
-
-        var separator = member.IndexOf(ClientMemberSeparator);
-        if (
-            separator != ClientMemberDayFormat.Length
-            || separator == member.Length - 1
-            || !DateOnly.TryParseExact(
-                member.AsSpan(0, separator),
-                ClientMemberDayFormat,
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.None,
-                out _
-            )
-        )
-            return false;
-
-        digest = member[(separator + 1)..];
-        return true;
-    }
 
     private static bool IsStoreFailure(Exception exception, CancellationToken cancellationToken) =>
         exception is not BffStoreUnavailableException
@@ -147,7 +93,7 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
             );
             await indexes.AddMemberAsync(
                 BffStoreKeys.ClientsIndex,
-                GetClientMember(client, metadata.AbsoluteExpiresAt),
+                BffStoreKeys.ClientMember(client, metadata.AbsoluteExpiresAt),
                 BffStoreKeys.ClientMemberExpiresAt(metadata.AbsoluteExpiresAt),
                 cancellationToken
             );
@@ -310,7 +256,10 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
             var digests = new HashSet<string>(StringComparer.Ordinal);
             foreach (var member in members)
             {
-                if (!TryGetClientDigest(member, out var digest) || !digests.Add(digest))
+                if (
+                    !BffStoreKeys.TryParseClientMember(member, out var digest)
+                    || !digests.Add(digest)
+                )
                     continue;
 
                 var indexKey = BffStoreKeys.ClientIndex(digest);

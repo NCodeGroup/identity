@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers.Binary;
+using System.Globalization;
 using System.Security.Cryptography;
 using NCode.Buffers;
 using NCode.Encoders;
@@ -69,6 +70,56 @@ internal static class BffStoreKeys
     // See ADR-1443.
     public static DateTimeOffset ClientMemberExpiresAt(DateTimeOffset absoluteExpiresAt) =>
         new DateTimeOffset(absoluteExpiresAt.UtcDateTime.Date, TimeSpan.Zero).AddDays(1);
+
+    /// <summary>
+    /// The format of the UTC day segment of a client's session index member.
+    /// </summary>
+    private const string ClientMemberDayFormat = "yyyy-MM-dd";
+
+    /// <summary>
+    /// The character that separates a client member's day from its client digest.
+    /// </summary>
+    private const char ClientMemberSeparator = ':';
+
+    /// <summary>
+    /// Gets the member of <see cref="ClientsIndex"/> that lists a client for the UTC day of a session's absolute
+    /// expiry: the day, a colon and the client's digest.
+    /// </summary>
+    /// <param name="client">The client that the session was issued to.</param>
+    /// <param name="absoluteExpiresAt">The absolute expiry of the session.</param>
+    /// <returns>The member.</returns>
+    public static string ClientMember(BffSessionClient client, DateTimeOffset absoluteExpiresAt) =>
+        absoluteExpiresAt.UtcDateTime.ToString(ClientMemberDayFormat, CultureInfo.InvariantCulture)
+        + ClientMemberSeparator
+        + ClientDigest(client);
+
+    /// <summary>
+    /// Reads the client digest of a member of <see cref="ClientsIndex"/>.
+    /// </summary>
+    /// <param name="member">The member.</param>
+    /// <param name="digest">The client digest that the member names.</param>
+    /// <returns><see langword="true"/> when the member is well formed; otherwise, <see langword="false"/>.</returns>
+    public static bool TryParseClientMember(string member, out string digest)
+    {
+        digest = string.Empty;
+
+        var separator = member.IndexOf(ClientMemberSeparator);
+        if (
+            separator != ClientMemberDayFormat.Length
+            || separator == member.Length - 1
+            || !DateOnly.TryParseExact(
+                member.AsSpan(0, separator),
+                ClientMemberDayFormat,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out _
+            )
+        )
+            return false;
+
+        digest = member[(separator + 1)..];
+        return true;
+    }
 
     // Each value is length-prefixed, so a value cannot make a key ambiguous or unbounded.
     private static string Digest(string first, string second)
