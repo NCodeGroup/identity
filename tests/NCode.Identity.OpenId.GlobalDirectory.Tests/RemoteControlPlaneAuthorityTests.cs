@@ -305,6 +305,7 @@ public class RemoteControlPlaneAuthorityTests : BaseTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("not a uri")]
+    [InlineData(" https://cp.example.test")]
     public async Task GetAsync_WhenTheIssuerIsMissingOrInvalid_ThrowsDirectoryUnavailableWithoutCallingTheControlPlane(
         string? issuer
     )

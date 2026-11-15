@@ -17,10 +17,7 @@ internal static class DirectoryEndpoint
     /// <returns><c>true</c> when the URL is allowed; otherwise, <c>false</c>.</returns>
     public static bool IsAllowed(string? value)
     {
-        if (string.IsNullOrEmpty(value) || value.Any(char.IsWhiteSpace))
-            return false;
-
-        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri))
+        if (!AbsoluteUri.TryParse(value, out var uri))
             return false;
 
         if (!string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment))

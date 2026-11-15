@@ -304,6 +304,22 @@ public class RemoteManagementTokenValidatorTests : BaseTests
     }
 
     [Fact]
+    public async Task ValidateAsync_WithBoundTokenAndManagementUrlWithSurroundingWhitespace_ReturnsUnauthenticated()
+    {
+        SetupAccessTokenValidator(CreateValid(CreateBoundPayload()));
+
+        var validation = await CreateValidator(
+                managementUrl: " https://cell-a.example.test/ignored"
+            )
+            .ValidateAsync(
+                CreateHttpContext($"DPoP {AccessToken}", ProofJwt),
+                CancellationToken.None
+            );
+
+        Assert.False(validation.IsAuthenticated);
+    }
+
+    [Fact]
     public async Task ValidateAsync_WithProofTheServiceRejects_ReturnsUnauthenticated()
     {
         SetupAccessTokenValidator(CreateValid(CreateBoundPayload()));

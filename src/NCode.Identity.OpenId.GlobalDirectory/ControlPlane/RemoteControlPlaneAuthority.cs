@@ -76,7 +76,7 @@ internal sealed class RemoteControlPlaneAuthority(
     private Uri CreateAuthorityUri()
     {
         var issuer = CellOptions.ControlPlane.Issuer;
-        if (string.IsNullOrEmpty(issuer) || !Uri.TryCreate(issuer, UriKind.Absolute, out var uri))
+        if (!AbsoluteUri.TryParse(issuer, out var uri))
             throw new DirectoryUnavailableException(
                 "The cell does not know the issuer of the control plane."
             );

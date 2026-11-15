@@ -112,7 +112,7 @@ internal sealed class RemoteManagementTokenValidator(
 
         // The URL comes from the cell's configured management URL, never from the request's Host, so a proof made for
         // one cell does not pass in another.
-        if (!Uri.TryCreate(CellOptions.ManagementUrl, UriKind.Absolute, out var managementUri))
+        if (!AbsoluteUri.TryParse(CellOptions.ManagementUrl, out var managementUri))
             return false;
 
         var parameters = new DPoPProofValidationParameters
