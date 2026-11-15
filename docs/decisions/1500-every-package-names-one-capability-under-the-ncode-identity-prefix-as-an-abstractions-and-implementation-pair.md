@@ -17,7 +17,8 @@ one. Contracts that carry a heavy framework dependency force every consumer of t
 
 Some building blocks serve one technology for every package: JSON values, time periods and ASP.NET Core helpers. Two
 packages that cannot reference each other need a shared home, and shared code that is not in a public package is copied
-into each consumer. Abstractions hold no logic, so a helper with logic does not belong in an `.Abstractions` package.
+into each consumer. Abstractions hold no service logic, so a helper with service logic does not belong in an
+`.Abstractions` package.
 
 ## Decision
 
@@ -29,8 +30,11 @@ any package may reference.**
    sub-namespaces such as `.Options`), test project, `InternalsVisibleTo`, public API files and solution entry. A package
    takes an `NCode.*` name of its own only when a second product consumes it, and then lives in a repository with its
    own versioning.
-2. **Pairs.** A capability's `.Abstractions` package holds contracts and data, with no logic. The implementation shares
-   its namespace, so a pair is one namespace across two assemblies.
+2. **Pairs.** A capability's `.Abstractions` package holds contracts and data, and the form rules of the values its
+   contracts carry: pure checks over the BCL and the family's `NCode.Buffers` and `NCode.Base64Url` libraries, such as
+   `TenantIdentifierRules`, `CellLabelRules`, `AbsoluteUri`, `DatabaseRoleNameRules` and the `ExpiringKeys` key shape,
+   so every implementation of a contract applies one rule; it holds no service logic. The implementation shares its
+   namespace, so a pair is one namespace across two assemblies.
 3. **Implementations depend on abstractions.** An implementation references `*.Abstractions`, foundation packages and
    the composition builders `NCode.Identity.Registration` and `NCode.Identity.Registration.AspNetCore`, and
    collaborates with other capabilities through abstractions resolved from DI.

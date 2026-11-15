@@ -50,7 +50,10 @@ tenant is created there instead.**
    `ITenantTransferContributor` strategy collection in `Order`: the core contributor carries the tenant row and its
    settings, its clients with their secrets, its client grants, its resource servers with their scopes and secrets, its
    own secrets and its tenant-level role assignments; the local accounts contributor carries each local account, its
-   claims and its password hash, through `ILocalAccountTransferStore`. Secret values stay as their protected envelopes.
+   claims and its password hash, through `ILocalAccountTransferStore`; `LocalAccountTransferRecord` carries the hash on
+   the public surface because the stores that implement the seam and the contributor that reads it are separate
+   packages, and it is a plain class whose `ToString()` writes none of it. Secret values stay as their protected
+   envelopes.
    `IMasterKeyTransfer` seals the owner's master keys to the same recipient key, with the owner's root key reference
    when the tenant holds its own. The route is authorized with `Operations.Update` at the platform node, writes the
    audit record `tenant.exported` and never logs its response.
