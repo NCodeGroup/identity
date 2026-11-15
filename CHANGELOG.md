@@ -6105,8 +6105,11 @@ Until the first stable release, the [Unreleased] section describes the product a
 - **ASP.NET Core Identity users belong to one tenant.** An `IdentityUser` of the adapter implements `ITenantBoundUser`,
   its `TenantId` is stamped when the store creates it, and a user of another tenant is not found. A
   `TenantLookupNormalizer` prefixes each normalized name and email with `{normalizedTenantId}|`, so a user name is
-  unique per tenant, and it throws when no tenant scope is set. A local account and its claims reference their tenant
-  through a foreign key, and deleting a tenant erases them with it
+  unique per tenant, and it throws when no tenant scope is set. The host's Identity schema sizes `UserName` and `Email`
+  to `AccountMaxLengths.UserName` and `AccountMaxLengths.Email`, and `NormalizedUserName` and `NormalizedEmail` to
+  `AccountMaxLengths.NormalizedUserName` and `AccountMaxLengths.NormalizedEmail`, which add the 64-character tenant
+  prefix. A local account and its claims reference their tenant through a foreign key, and deleting a tenant erases
+  them with it
   ([ADR-1212](docs/decisions/1212-deleting-a-client-resource-server-principal-or-tenant-removes-what-it-owns.md)).
 
 - **The BFF's client index names each client only by a digest.** A member of the `bff:clients` index is the UTC day of

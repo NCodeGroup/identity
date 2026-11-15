@@ -14,7 +14,11 @@ namespace NCode.Identity.OpenId.Accounts.AspNetIdentity;
 /// <remarks>
 /// The normalizer fails closed. It throws outside a tenant scope, an unscoped scope
 /// (<see cref="IAmbientTenantAccessor.IsUnscoped"/>) included, so no lookup or write stores or compares a normalized
-/// name without its tenant.
+/// name without its tenant. The host's Identity schema must size <c>NormalizedUserName</c> to at least
+/// <see cref="AccountMaxLengths.NormalizedUserName"/> characters, <c>NormalizedEmail</c> to at least
+/// <see cref="AccountMaxLengths.NormalizedEmail"/>, and <c>UserName</c> and <c>Email</c> to at least
+/// <see cref="AccountMaxLengths.UserName"/> and <see cref="AccountMaxLengths.Email"/>; the default Entity Framework
+/// Core model of ASP.NET Core Identity sizes all four at 256, which is shorter.
 /// </remarks>
 /// <param name="ambientTenantAccessor">The ambient tenant accessor that supplies the tenant of the current scope.</param>
 internal class TenantLookupNormalizer(IAmbientTenantAccessor ambientTenantAccessor)

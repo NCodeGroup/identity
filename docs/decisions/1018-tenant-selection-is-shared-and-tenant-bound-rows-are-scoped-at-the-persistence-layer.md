@@ -156,8 +156,10 @@ current_setting('app.unscoped', true) = 'on' OR "NormalizedTenantId" = current_s
   delete. Deleting a tenant deletes its accounts, and the accounts are scoped by the same filter and policy.
 - **Identity users.** An ASP.NET Core Identity user is bound to a tenant. `TUser` is `ITenantBoundUser` and exposes
   `TenantId`. `TenantLookupNormalizer` prefixes normalized names and emails with `{normalizedTenantId}|` and throws when
-  no tenant scope is set. The store stamps `TenantId` on create and treats a user of another tenant as not found, so
-  one tenant's `alice` and another's are different users.
+  no tenant scope is set. The host's Identity schema sizes `UserName` and `Email` to `AccountMaxLengths.UserName` and
+  `AccountMaxLengths.Email`, and `NormalizedUserName` and `NormalizedEmail` to `AccountMaxLengths.NormalizedUserName`
+  and `AccountMaxLengths.NormalizedEmail`, which add the 64-character tenant prefix. The store stamps `TenantId` on
+  create and treats a user of another tenant as not found, so one tenant's `alice` and another's are different users.
 - **BFF client members.** A member of the `bff:clients` index is the UTC day of a session's absolute expiry and the
   client's digest, `<yyyy-MM-dd>:<digest>`, so the index names a client only by a digest. Every replica reads the same
   members. Retirement resolves each digest through the plaintext client of a readable session in that client's index,

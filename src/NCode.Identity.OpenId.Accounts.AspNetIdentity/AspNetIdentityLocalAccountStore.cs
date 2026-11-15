@@ -30,10 +30,10 @@ namespace NCode.Identity.OpenId.Accounts.AspNetIdentity;
 /// nothing in an unset scope and throw in an unscoped scope (<see cref="IAmbientTenantAccessor.IsUnscoped"/>).
 /// Lookups by identifier match the identifier in the query over the tenant's users, so they read across tenants only in
 /// an unscoped scope; like listing, they need an ASP.NET Core Identity store that supports querying users.
-/// <see cref="PersistedLocalAccount.TenantId"/> is mapped as empty; the
-/// resource-owner password grant authenticates against the request's tenant. Each operation resolves the scoped
-/// <see cref="UserManager{TUser}"/> from a fresh dependency-injection scope, so this adapter holds no scoped state and
-/// its writes commit immediately (they do not enlist in the OpenID unit of work).
+/// <see cref="PersistedLocalAccount.TenantId"/> is mapped as empty; the resource-owner password grant authenticates
+/// against the request's tenant. Each operation resolves the scoped <see cref="UserManager{TUser}"/> from a fresh
+/// dependency-injection scope, so this adapter holds no scoped state and its writes commit immediately (they do not
+/// enlist in the OpenID unit of work).
 /// </remarks>
 /// <typeparam name="TUser">The ASP.NET Core Identity user type.</typeparam>
 internal sealed class AspNetIdentityLocalAccountStore<TUser>(
