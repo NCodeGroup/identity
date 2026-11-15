@@ -44,6 +44,10 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
     private static JsonSerializerOptions WebOptions { get; } = new(JsonSerializerDefaults.Web);
 
+    private static string CellTooLongDetail =>
+        $"A cell's kind is at most {DirectoryLimits.MaxCellKindLength} characters and its management URL at most "
+        + $"{DirectoryLimits.MaxManagementUrlLength}.";
+
     private static string TeamTooLongDetail =>
         $"A team identifier is at most {DirectoryLimits.MaxIdentifierLength} characters.";
 
@@ -1343,6 +1347,28 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ReleaseTeam_WhenTheTeamIdIsBlank_AnswersBadRequest()
+    {
+        AuthenticateAsControlPlane();
+
+        var response = await Client.PostAsync("/directory/v1/teams/%20/release", content: null);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("The team is required.", await ReadProblemDetailAsync(response));
+    }
+
+    [Fact]
+    public async Task RetireTeam_WhenTheTeamIdIsBlank_AnswersBadRequest()
+    {
+        AuthenticateAsControlPlane();
+
+        var response = await Client.PostAsync("/directory/v1/teams/%20/retire", content: null);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("The team is required.", await ReadProblemDetailAsync(response));
+    }
+
+    [Fact]
     public async Task PublishTeam_ThenGet_AnswersTheDocumentWithItsSequence()
     {
         AuthenticateAsControlPlane();
@@ -1803,6 +1829,47 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         );
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var listResponse = await Client.GetAsync("/directory/v1/cells");
+        Assert.Empty(await ReadAsync<List<CellDescriptor>>(listResponse));
+    }
+
+    [Fact]
+    public async Task RegisterCell_WhenTheKindIsOverMaxLength_AnswersBadRequest()
+    {
+        Authenticate(clientId: "cell-a");
+
+        var response = await Client.PutAsJsonAsync(
+            "/directory/v1/cells/a",
+            CreateCell("a") with
+            {
+                Kind = new string('k', DirectoryLimits.MaxCellKindLength + 1),
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(CellTooLongDetail, await ReadProblemDetailAsync(response));
+        var listResponse = await Client.GetAsync("/directory/v1/cells");
+        Assert.Empty(await ReadAsync<List<CellDescriptor>>(listResponse));
+    }
+
+    [Fact]
+    public async Task RegisterCell_WhenTheManagementUrlIsOverMaxLength_AnswersBadRequest()
+    {
+        Authenticate(clientId: "cell-a");
+
+        var response = await Client.PutAsJsonAsync(
+            "/directory/v1/cells/a",
+            CreateCell("a") with
+            {
+                ManagementUrl =
+                    "https://a.example/" + new string('p', DirectoryLimits.MaxManagementUrlLength),
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(CellTooLongDetail, await ReadProblemDetailAsync(response));
         var listResponse = await Client.GetAsync("/directory/v1/cells");
         Assert.Empty(await ReadAsync<List<CellDescriptor>>(listResponse));
     }

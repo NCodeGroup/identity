@@ -60,8 +60,9 @@ intercepts keys in memory, no root key provider is a default, and no development
     ([ADR-1447](1447-each-host-composes-forwarded-header-trust-and-strict-transport-security-from-one-general-package.md)).
   - Setup is served over plain HTTP, only from a loopback remote address. A null remote address is not loopback
     ([ADR-1512](1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md)).
-  - The management console accepts a wildcard or empty `AllowedHosts`, and BFF and console validation accept `http`
-    URLs.
+  - The management console and the global directory accept a wildcard or empty `AllowedHosts`; BFF and console
+    validation accept `http` URLs; and a cell's management URL may be an `http` URL on any host, in the cell's
+    validation and in the directory's cell registration.
   - The Data Protection key-ring gate revokes a key it cannot decrypt
     ([ADR-1247](1247-the-platform-master-key-protects-the-data-protection-ring-and-an-unreadable-key-stops-the-host.md)).
   - The local-root-key warning is not logged.

@@ -29,4 +29,14 @@ internal static class DirectoryLimits
     /// <see cref="MaxIdentifierLength"/> characters, each followed by a slash, after a leading slash.
     /// </summary>
     public const int MaxTeamPathLength = MaxTeamDepth * (MaxIdentifierLength + 1) + 1;
+
+    /// <summary>
+    /// The most characters a cell's kind holds.
+    /// </summary>
+    public const int MaxCellKindLength = 32;
+
+    /// <summary>
+    /// The most characters a cell's management URL holds.
+    /// </summary>
+    public const int MaxManagementUrlLength = 2000;
 }

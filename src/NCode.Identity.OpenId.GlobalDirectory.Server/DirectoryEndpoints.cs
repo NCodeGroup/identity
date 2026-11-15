@@ -37,6 +37,11 @@ public static class DirectoryEndpoints
         "Only the cell that holds a tenant, or the control-plane cell, writes it.";
 
     /// <summary>
+    /// The problem detail that a tenant route answers with when the tenant identifier is blank.
+    /// </summary>
+    private const string TenantRequiredDetail = "The tenant is required.";
+
+    /// <summary>
     /// The problem detail that a team route answers with when the team identifier is blank.
     /// </summary>
     private const string TeamRequiredDetail = "The team is required.";
@@ -55,6 +60,14 @@ public static class DirectoryEndpoints
         "The cell's management URL is an absolute https URL, or an http URL in local development, with no user "
         + "information, query or fragment.";
 
+    /// <summary>
+    /// Gets the problem detail that the cell registration route answers with when the kind or the management URL is
+    /// longer than the directory stores.
+    /// </summary>
+    private static string CellTooLongDetail =>
+        $"A cell's kind is at most {DirectoryLimits.MaxCellKindLength} characters and its management URL at most "
+        + $"{DirectoryLimits.MaxManagementUrlLength}.";
+
     private static string InvalidCellLabelDetail =>
         $"A cell and its region are each 1 to {CellLabelRules.MaxLabelLength} lowercase letters, digits or hyphens that "
         + "start with a letter and end with a letter or digit.";
@@ -64,7 +77,8 @@ public static class DirectoryEndpoints
         + $"{DirectoryLimits.MaxIssuerLength}.";
 
     /// <summary>
-    /// The problem detail that a team route answers with when a team identifier is longer than the directory stores.
+    /// Gets the problem detail that a team route answers with when a team identifier is longer than the directory
+    /// stores.
     /// </summary>
     private static string TeamTooLongDetail =>
         $"A team identifier is at most {DirectoryLimits.MaxIdentifierLength} characters.";
@@ -408,7 +422,7 @@ public static class DirectoryEndpoints
     )
     {
         if (IsBlank(retirement.TenantId))
-            return BadRequest("The tenant is required.");
+            return BadRequest(TenantRequiredDetail);
 
         if (
             IsOverLong(retirement.TenantId, DirectoryLimits.MaxIdentifierLength)
@@ -444,7 +458,7 @@ public static class DirectoryEndpoints
     )
     {
         if (IsBlank(change.TenantId))
-            return BadRequest("The tenant is required.");
+            return BadRequest(TenantRequiredDetail);
 
         if (
             IsOverLong(change.TenantId, DirectoryLimits.MaxIdentifierLength)
@@ -551,11 +565,8 @@ public static class DirectoryEndpoints
         CancellationToken cancellationToken
     )
     {
-        if (IsBlank(teamId))
-            return BadRequest(TeamRequiredDetail);
-
-        if (IsOverLong(teamId, DirectoryLimits.MaxIdentifierLength))
-            return BadRequest(TeamTooLongDetail);
+        if (ValidateTeamId(teamId) is { } invalid)
+            return invalid;
 
         if (ForbidUnlessControlPlane(httpContext, options.Value) is { } forbidden)
             return forbidden;
@@ -631,11 +642,8 @@ public static class DirectoryEndpoints
         CancellationToken cancellationToken
     )
     {
-        if (IsBlank(teamId))
-            return BadRequest(TeamRequiredDetail);
-
-        if (IsOverLong(teamId, DirectoryLimits.MaxIdentifierLength))
-            return BadRequest(TeamTooLongDetail);
+        if (ValidateTeamId(teamId) is { } invalid)
+            return invalid;
 
         if (ForbidUnlessControlPlane(httpContext, options.Value) is { } forbidden)
             return forbidden;
@@ -664,11 +672,8 @@ public static class DirectoryEndpoints
         CancellationToken cancellationToken
     )
     {
-        if (IsBlank(teamId))
-            return BadRequest(TeamRequiredDetail);
-
-        if (IsOverLong(teamId, DirectoryLimits.MaxIdentifierLength))
-            return BadRequest(TeamTooLongDetail);
+        if (ValidateTeamId(teamId) is { } invalid)
+            return invalid;
 
         if (ForbidUnlessControlPlane(httpContext, options.Value) is { } forbidden)
             return forbidden;
@@ -812,8 +817,8 @@ public static class DirectoryEndpoints
     /// <param name="directory">The <see cref="ICellDirectory"/> that holds the registration.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the cell is registered; <c>400 Bad Request</c> when the kind or the management URL is blank,
-    /// the management URL is not an absolute <c>https</c> URL (or an <c>http</c> URL in local development)
+    /// <c>200 OK</c> when the cell is registered; <c>400 Bad Request</c> when the kind or the management URL is blank
+    /// or longer than the directory stores, the management URL is not an absolute <c>https</c> URL (or an <c>http</c> URL in local development)
     /// without user information, a query or a fragment, the name or the region is not a
     /// <see cref="CellLabelRules"/> label, or the descriptor names a cell other than the route's;
     /// <c>403 Forbidden</c> when the cell is not the caller or claims to be the control plane without being it.
@@ -830,6 +835,12 @@ public static class DirectoryEndpoints
     {
         if (IsBlank(descriptor.Kind) || IsBlank(descriptor.ManagementUrl))
             return BadRequest("The cell's kind and its management URL are required.");
+
+        if (
+            IsOverLong(descriptor.Kind, DirectoryLimits.MaxCellKindLength)
+            || IsOverLong(descriptor.ManagementUrl, DirectoryLimits.MaxManagementUrlLength)
+        )
+            return BadRequest(CellTooLongDetail);
 
         var isManagementUrl = localDevelopmentMode.Enabled
             ? AbsoluteUri.TryParseAnyHttpServiceUrl(descriptor.ManagementUrl, out _)
@@ -946,6 +957,23 @@ public static class DirectoryEndpoints
         DirectoryCaller.IsControlPlane(httpContext.User, options)
             ? null
             : Forbidden("Only the control-plane cell writes the platform and the teams.");
+
+    /// <summary>
+    /// Refuses a team identifier from a route that is blank or longer than the directory stores.
+    /// </summary>
+    /// <param name="teamId">The team identifier from the route.</param>
+    /// <returns>
+    /// <c>null</c> when the team identifier is acceptable; otherwise the <c>400 Bad Request</c> problem.
+    /// </returns>
+    private static IResult? ValidateTeamId(string teamId)
+    {
+        if (IsBlank(teamId))
+            return BadRequest(TeamRequiredDetail);
+
+        return IsOverLong(teamId, DirectoryLimits.MaxIdentifierLength)
+            ? BadRequest(TeamTooLongDetail)
+            : null;
+    }
 
     /// <summary>
     /// Builds a <c>403 Forbidden</c> problem document.

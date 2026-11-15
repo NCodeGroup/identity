@@ -58,6 +58,26 @@ public class DirectoryLimitsTests
 
     #endregion
 
+    #region MaxCellKindLength Tests
+
+    [Fact]
+    public void MaxCellKindLength_Always_IsThirtyTwo()
+    {
+        Assert.Equal(32, DirectoryLimits.MaxCellKindLength);
+    }
+
+    #endregion
+
+    #region MaxManagementUrlLength Tests
+
+    [Fact]
+    public void MaxManagementUrlLength_Always_IsTwoThousand()
+    {
+        Assert.Equal(2000, DirectoryLimits.MaxManagementUrlLength);
+    }
+
+    #endregion
+
     #region DirectoryDbContext Tests
 
     [Fact]

@@ -19,9 +19,7 @@ public sealed class DirectoryDbContext(DbContextOptions<DirectoryDbContext> opti
     // The same bounds as the cell's own identifiers: a tenant or team identifier is at most
     // DirectoryLimits.MaxIdentifierLength characters, an issuer at most DirectoryLimits.MaxIssuerLength, and a cell
     // name and a region at most CellLabelRules.MaxLabelLength.
-    private const int MaxKindLength = 32;
     private const int MaxStateLength = 16;
-    private const int MaxUrlLength = 2000;
 
     /// <summary>
     /// Gets the cells that registered themselves.
@@ -73,8 +71,10 @@ public sealed class DirectoryDbContext(DbContextOptions<DirectoryDbContext> opti
             builder.HasKey(entity => entity.Name);
             builder.Property(entity => entity.Name).HasMaxLength(CellLabelRules.MaxLabelLength);
             builder.Property(entity => entity.Region).HasMaxLength(CellLabelRules.MaxLabelLength);
-            builder.Property(entity => entity.Kind).HasMaxLength(MaxKindLength);
-            builder.Property(entity => entity.ManagementUrl).HasMaxLength(MaxUrlLength);
+            builder.Property(entity => entity.Kind).HasMaxLength(DirectoryLimits.MaxCellKindLength);
+            builder
+                .Property(entity => entity.ManagementUrl)
+                .HasMaxLength(DirectoryLimits.MaxManagementUrlLength);
         });
 
         modelBuilder.Entity<TenantRecord>(builder =>
