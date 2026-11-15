@@ -1,4 +1,5 @@
-import type { CallerResource, TeamResource, TenantResource } from '@ncode/api';
+import type { CallerResource, TeamResource } from '@ncode/api';
+import type { CellTenantResource } from '@ncode/store';
 import { HOME_ROUTE, platformRoute, teamRoute, tenantRoute, type ConsoleRoute } from './routes.js';
 
 /**
@@ -24,7 +25,7 @@ export type ScopeExit = {
 export function toCallerAccess(
   caller: CallerResource,
   teams: readonly TeamResource[],
-  tenants: readonly (TenantResource & { readonly cell?: string })[],
+  tenants: readonly CellTenantResource[],
 ): CallerAccess {
   return {
     isPlatformAdministrator: caller.isPlatformAdministrator,

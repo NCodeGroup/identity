@@ -22,7 +22,7 @@ import {
   type TenantPromotionDialogRequest,
   type TenantRow,
 } from '@ncode/ui';
-import type { PromoteTenantRequest, TenantPromotionResource, TenantResource } from '@ncode/api';
+import type { PromoteTenantRequest, TenantPromotionResource } from '@ncode/api';
 import {
   apiErrorMessage,
   useAppSelector,
@@ -37,6 +37,7 @@ import {
   usePromoteTenantMutation,
   useUpdateTenantMutation,
   type ApiError,
+  type CellTenantResource,
 } from '@ncode/store';
 
 export type TenantsPageProps = {
@@ -50,14 +51,12 @@ export type TenantsPageProps = {
   readonly addressPreviewDelayMs?: number;
 };
 
-type TenantListing = TenantResource & { readonly cell?: string };
-
 type DialogState =
   | { readonly kind: 'none' }
   | { readonly kind: 'create' }
   | { readonly kind: 'promote' }
-  | { readonly kind: 'edit'; readonly tenant: TenantListing }
-  | { readonly kind: 'delete'; readonly tenant: TenantListing };
+  | { readonly kind: 'edit'; readonly tenant: CellTenantResource }
+  | { readonly kind: 'delete'; readonly tenant: CellTenantResource };
 
 const closed: DialogState = { kind: 'none' };
 

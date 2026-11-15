@@ -83,4 +83,5 @@ export {
   useRemoveRoleAssignmentMutation,
   useListChildTeamsQuery,
   useCreateChildTeamMutation,
+  type CellTenantResource,
 } from './managementApi.js';

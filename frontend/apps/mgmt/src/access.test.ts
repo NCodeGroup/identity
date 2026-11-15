@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { CallerResource, TeamResource, TenantResource } from '@ncode/api';
+import type { CallerResource, TeamResource } from '@ncode/api';
+import type { CellTenantResource } from '@ncode/store';
 import {
   permittedRoute,
   soleDestination,
@@ -21,9 +22,7 @@ describe('toCallerAccess', () => {
       assignments: [],
     };
     const teams = [{ teamId: 'acme' }, { teamId: 'beta' }] as TeamResource[];
-    const tenants = [{ tenantId: 'web' }, { tenantId: 'api', cell: 'eu' }] as (TenantResource & {
-      cell?: string;
-    })[];
+    const tenants = [{ tenantId: 'web' }, { tenantId: 'api', cell: 'eu' }] as CellTenantResource[];
 
     expect(toCallerAccess(caller, teams, tenants)).toEqual({
       isPlatformAdministrator: false,
