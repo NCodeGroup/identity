@@ -95,6 +95,24 @@ public class DirectoryClientOptionsValidatorTests : BaseTests
     }
 
     [Theory]
+    [InlineData("directory")]
+    [InlineData("cell-")]
+    [InlineData("cell-A")]
+    [InlineData("other-a")]
+    public void Validate_WhenClientIdIsNotACellClientId_FailsNamingTheValue(string clientId)
+    {
+        var options = CreateOptions();
+        options.ClientId = clientId;
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        var failure = Assert.Single(result.Failures);
+        Assert.Contains("Directory:ClientId", failure);
+        Assert.Contains(clientId, failure);
+    }
+
+    [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]

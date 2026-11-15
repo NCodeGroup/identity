@@ -36,6 +36,20 @@ internal sealed class DirectoryClientOptionsValidator : IValidateOptions<Directo
                 $"{Prefix}:{nameof(DirectoryClientOptions.ClientId)} '{options.ClientId}' must name the machine client of the cell."
             );
         }
+        else if (
+            !options.ClientId.StartsWith(
+                GlobalDirectoryProtocol.CellClientIdPrefix,
+                StringComparison.Ordinal
+            )
+            || !CellLabelRules.IsValidLabel(
+                options.ClientId[GlobalDirectoryProtocol.CellClientIdPrefix.Length..]
+            )
+        )
+        {
+            failures.Add(
+                $"{Prefix}:{nameof(DirectoryClientOptions.ClientId)} '{options.ClientId}' must be '{GlobalDirectoryProtocol.CellClientIdPrefix}' followed by the cell's name, a lower-case DNS label."
+            );
+        }
 
         if (string.IsNullOrWhiteSpace(options.KeyRing))
         {
