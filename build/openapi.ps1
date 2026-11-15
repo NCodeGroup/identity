@@ -38,12 +38,15 @@ $hostProject = Join-Path $hostDirectory 'NCode.Identity.OpenId.Host.csproj'
 $documentPath = Join-Path $repositoryRoot 'artifacts' 'openapi' 'v1.json'
 
 if (-not $NoBuild) {
+    # -m:2 caps the build at two parallel nodes, so it shares the machine with other builds (repository.instructions.md).
     & dotnet build $hostProject -c $Configuration -m:2 --nologo
     if ($LASTEXITCODE -ne 0) { throw "dotnet build failed with exit code $LASTEXITCODE." }
 }
 
 $environment = [ordered]@{
     'ASPNETCORE_ENVIRONMENT'                         = 'Staging'
+    # A placeholder that only satisfies the host's startup validation; the document names no server, so it never
+    # carries this issuer.
     'OpenId__TenantResolution__StaticSingle__Issuer' = 'https://identity.example'
     'SecretProtection__RootKeyProvider'              = 'ephemeral'
     'LocalDevelopment__Enabled'                      = 'true'
