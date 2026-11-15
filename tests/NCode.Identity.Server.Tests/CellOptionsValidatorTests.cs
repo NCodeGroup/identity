@@ -165,6 +165,23 @@ public sealed class CellOptionsValidatorTests
     }
 
     [Fact]
+    public void Validate_WhenTheIssuerCarriesUserInformation_Fails()
+    {
+        const string issuer = "https://user@auth.example";
+        var options = CreateOptions();
+        options.IsControlPlane = false;
+        options.ControlPlane.Issuer = issuer;
+
+        var result = CreateValidator().Validate(name: null, options);
+
+        Assert.True(result.Failed);
+        Assert.Equal(
+            $"Cell:ControlPlane:Issuer '{issuer}' must be an absolute https URL, or an http URL on a loopback host, with no user information, query or fragment.",
+            result.FailureMessage
+        );
+    }
+
+    [Fact]
     public void Validate_WhenTheCellIsTheControlPlane_IgnoresTheIssuer()
     {
         var options = CreateOptions();
@@ -202,7 +219,9 @@ public sealed class CellOptionsValidatorTests
     [InlineData("/management")]
     [InlineData("ftp://eu-1.example/")]
     [InlineData("http://eu-1.example/")]
-    public void Validate_WhenTheManagementUrlIsNotAbsoluteHttps_Fails(string managementUrl)
+    public void Validate_WhenTheManagementUrlIsNotAbsoluteHttpsOrLoopbackHttp_Fails(
+        string managementUrl
+    )
     {
         var options = CreateOptions();
         options.ManagementUrl = managementUrl;
@@ -210,14 +229,31 @@ public sealed class CellOptionsValidatorTests
         var result = CreateValidator().Validate(name: null, options);
 
         Assert.True(result.Failed);
-        Assert.Contains("Cell:ManagementUrl", result.FailureMessage, StringComparison.Ordinal);
+        Assert.Equal(
+            $"Cell:ManagementUrl '{managementUrl}' must be an absolute https URL, or an http URL on a loopback host, with no user information, query or fragment.",
+            result.FailureMessage
+        );
+    }
+
+    [Theory]
+    [InlineData("http://localhost:5000/")]
+    [InlineData("http://127.0.0.1:5000/")]
+    [InlineData("http://[::1]:5000/")]
+    public void Validate_WhenTheManagementUrlIsHttpOnALoopbackHost_Succeeds(string managementUrl)
+    {
+        var options = CreateOptions();
+        options.ManagementUrl = managementUrl;
+
+        var result = CreateValidator().Validate(name: null, options);
+
+        Assert.True(result.Succeeded);
     }
 
     [Fact]
-    public void Validate_WhenTheManagementUrlIsHttpInLocalDevelopment_Succeeds()
+    public void Validate_WhenTheManagementUrlIsHttpOnAnyHostInLocalDevelopment_Succeeds()
     {
         var options = CreateOptions();
-        options.ManagementUrl = "http://localhost:5000/";
+        options.ManagementUrl = "http://eu-1.example/";
 
         var result = CreateValidator(localDevelopment: true).Validate(name: null, options);
 
@@ -227,13 +263,34 @@ public sealed class CellOptionsValidatorTests
     [Fact]
     public void Validate_WhenTheManagementUrlIsNotHttpOrHttpsInLocalDevelopment_Fails()
     {
+        const string managementUrl = "ftp://localhost/";
         var options = CreateOptions();
-        options.ManagementUrl = "ftp://localhost/";
+        options.ManagementUrl = managementUrl;
 
         var result = CreateValidator(localDevelopment: true).Validate(name: null, options);
 
         Assert.True(result.Failed);
-        Assert.Contains("Cell:ManagementUrl", result.FailureMessage, StringComparison.Ordinal);
+        Assert.Equal(
+            $"Cell:ManagementUrl '{managementUrl}' must be an absolute http or https URL with no user information, query or fragment.",
+            result.FailureMessage
+        );
+    }
+
+    [Theory]
+    [InlineData("https://eu-1.example/?a=b")]
+    [InlineData("https://eu-1.example/?")]
+    public void Validate_WhenTheManagementUrlHasAQuery_Fails(string managementUrl)
+    {
+        var options = CreateOptions();
+        options.ManagementUrl = managementUrl;
+
+        var result = CreateValidator().Validate(name: null, options);
+
+        Assert.True(result.Failed);
+        Assert.Equal(
+            $"Cell:ManagementUrl '{managementUrl}' must be an absolute https URL, or an http URL on a loopback host, with no user information, query or fragment.",
+            result.FailureMessage
+        );
     }
 
     [Fact]

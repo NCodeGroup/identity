@@ -3,16 +3,19 @@
 
 using Microsoft.Extensions.Options;
 using NCode.Identity.AspNetCore;
+using NCode.Identity.OpenId;
 using NCode.Identity.OpenId.GlobalDirectory;
 
 namespace NCode.Identity.Server.Cells;
 
 /// <summary>
 /// Validates <see cref="CellOptions"/>: a cell names itself and its region with lowercase labels, names its kind, points
-/// a cell that is not the control plane at the control plane's issuer, and reaches its management API over <c>https</c>
-/// (or <c>http</c> in local development).
+/// a cell that is not the control plane at the control plane's issuer, and reaches its management API over
+/// <c>https</c>, or over <c>http</c> on a loopback host or, in local development, on any host.
 /// </summary>
-/// <param name="localDevelopmentMode">The mode that decides whether a management URL may use <c>http</c>.</param>
+/// <param name="localDevelopmentMode">
+/// The mode that decides whether a management URL may use <c>http</c> on any host.
+/// </param>
 internal sealed class CellOptionsValidator(LocalDevelopmentMode localDevelopmentMode)
     : IValidateOptions<CellOptions>
 {
@@ -45,10 +48,10 @@ internal sealed class CellOptionsValidator(LocalDevelopmentMode localDevelopment
                         + "is not the control plane accepts platform and team management tokens from its issuer."
                 );
             }
-            else if (!IsAllowedIssuer(issuer))
+            else if (!AbsoluteUri.TryParseServiceUrl(issuer, allowAnyHttp: false, out _))
             {
                 failures.Add(
-                    $"{issuerKey} '{issuer}' must be an absolute https URL, or an http URL on a loopback host, with no query or fragment."
+                    $"{issuerKey} '{issuer}' must be an absolute https URL, or an http URL on a loopback host, with no user information, query or fragment."
                 );
             }
         }
@@ -60,28 +63,13 @@ internal sealed class CellOptionsValidator(LocalDevelopmentMode localDevelopment
             : ValidateOptionsResult.Fail(failures);
     }
 
-    private static bool IsAllowedIssuer(string issuer)
-    {
-        if (issuer.Any(char.IsWhiteSpace))
-            return false;
-
-        if (!Uri.TryCreate(issuer, UriKind.Absolute, out var uri))
-            return false;
-
-        if (!string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment))
-            return false;
-
-        return uri.Scheme == Uri.UriSchemeHttps
-            || (uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback);
-    }
-
     private static void ValidateLabel(string? value, string key, List<string> failures)
     {
         if (!CellLabelRules.IsValidLabel(value))
         {
             failures.Add(
                 $"{key} '{value}' must start with a lowercase letter, end with a lowercase letter or digit, and "
-                    + "hold only lowercase letters, digits and hyphens, at most 31 characters."
+                    + $"hold only lowercase letters, digits and hyphens, at most {CellLabelRules.MaxLabelLength} characters."
             );
         }
     }
@@ -91,23 +79,14 @@ internal sealed class CellOptionsValidator(LocalDevelopmentMode localDevelopment
         if (string.IsNullOrEmpty(managementUrl))
             return;
 
+        if (AbsoluteUri.TryParseServiceUrl(managementUrl, LocalDevelopmentMode.Enabled, out _))
+            return;
+
         var key = $"{Prefix}:{nameof(CellOptions.ManagementUrl)}";
-        if (!Uri.TryCreate(managementUrl, UriKind.Absolute, out var uri))
-        {
-            failures.Add($"{key} '{managementUrl}' must be an absolute URL.");
-            return;
-        }
-
-        if (uri.Scheme == Uri.UriSchemeHttps)
-            return;
-
-        if (uri.Scheme == Uri.UriSchemeHttp && LocalDevelopmentMode.Enabled)
-            return;
-
         failures.Add(
             LocalDevelopmentMode.Enabled
-                ? $"{key} '{managementUrl}' must be an absolute http or https URL."
-                : $"{key} '{managementUrl}' must be an absolute https URL."
+                ? $"{key} '{managementUrl}' must be an absolute http or https URL with no user information, query or fragment."
+                : $"{key} '{managementUrl}' must be an absolute https URL, or an http URL on a loopback host, with no user information, query or fragment."
         );
     }
 }

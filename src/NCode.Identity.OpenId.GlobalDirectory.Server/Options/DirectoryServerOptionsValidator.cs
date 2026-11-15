@@ -58,27 +58,12 @@ internal sealed class DirectoryServerOptionsValidator : IValidateOptions<Directo
 
     /// <summary>
     /// Determines whether an issuer is one the directory accepts: at most <see cref="DirectoryLimits.MaxIssuerLength"/>
-    /// characters with no whitespace, an absolute URI with no user information, query or fragment, and either the
-    /// <c>https</c> scheme or the <c>http</c> scheme on a loopback host.
+    /// characters, and a service URL, which is an absolute <c>https</c> URL, or an <c>http</c> URL on a loopback host,
+    /// written with its authority and with no whitespace, user information, query or fragment.
     /// </summary>
     /// <param name="issuer">The configured issuer to check.</param>
     /// <returns><c>true</c> when the directory accepts the issuer; otherwise, <c>false</c>.</returns>
-    private static bool IsAllowedIssuer(string issuer)
-    {
-        if (issuer.Length > DirectoryLimits.MaxIssuerLength || issuer.Any(char.IsWhiteSpace))
-            return false;
-
-        if (!AbsoluteUri.TryParse(issuer, out var uri))
-            return false;
-
-        if (
-            !string.IsNullOrEmpty(uri.UserInfo)
-            || !string.IsNullOrEmpty(uri.Query)
-            || !string.IsNullOrEmpty(uri.Fragment)
-        )
-            return false;
-
-        return uri.Scheme == Uri.UriSchemeHttps
-            || (uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback);
-    }
+    private static bool IsAllowedIssuer(string issuer) =>
+        issuer.Length <= DirectoryLimits.MaxIssuerLength
+        && AbsoluteUri.TryParseServiceUrl(issuer, allowAnyHttp: false, out _);
 }
