@@ -14,13 +14,14 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 
 /// <summary>
 /// Maps the global directory API under <c>/directory/v1/</c>: the tenant, team, platform and cell routes that the
-/// remote adapters of <c>NCode.Identity.OpenId.GlobalDirectory</c> call. Every route runs behind
-/// <see cref="DirectoryAuthenticationEndpointFilter"/>, its bodies are confidential so HTTP logging never writes
-/// them, and its failures are RFC 9457 problem documents. Every write is bound to the calling cell: the platform and
-/// team writes need the control-plane cell (<see cref="DirectoryServerOptions.ControlPlaneCell"/>), and a tenant write
-/// needs the cell that holds the tenant.
+/// remote adapters of <c>NCode.Identity.OpenId.GlobalDirectory</c> call. Every route requires a bearer access token
+/// for the audience <see cref="GlobalDirectoryProtocol.DirectoryAudience"/> with the scope
+/// <see cref="GlobalDirectoryProtocol.DirectoryScope"/>, checked before the route runs, its bodies are confidential so
+/// HTTP logging never writes them, and its failures are RFC 9457 problem documents. Every write is bound to the
+/// calling cell: the platform and team writes need the control-plane cell
+/// (<see cref="DirectoryServerOptions.ControlPlaneCell"/>), and a tenant write needs the cell that holds the tenant.
 /// </summary>
-// See ADR-1411.
+// See ADR-1411. DirectoryAuthenticationEndpointFilter checks the token.
 [PublicAPI]
 public static class DirectoryEndpoints
 {
