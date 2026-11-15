@@ -32,9 +32,10 @@ internal static class DirectoryDatabase
     public const string MigrationConnectionStringName = "directory-migration";
 
     /// <summary>
-    /// The configuration key that names the runtime role the <c>migrate</c> command grants data access to.
+    /// The name of the configuration section that holds the runtime role the <c>migrate</c> command grants data access
+    /// to, <c>DirectoryDatabase</c>.
     /// </summary>
-    public const string RuntimeRoleKey = "DirectoryDatabase:RuntimeRole";
+    public const string SectionName = "DirectoryDatabase";
 
     /// <summary>
     /// The assembly that owns the EF Core migrations for the <see cref="DirectoryDbContext"/>. The directory server
@@ -69,23 +70,29 @@ internal static class DirectoryDatabase
     /// <param name="configuration">The host's configuration.</param>
     /// <returns>The trimmed role name.</returns>
     /// <exception cref="InvalidOperationException">
-    /// The role is missing, empty or not a valid role name. The message names the key and never holds the value.
+    /// The section holds a key that is not one of the <see cref="DirectoryDatabaseSettings"/> properties, or the role
+    /// is missing, empty or not a valid role name. The message names the key and never holds the value.
     /// </exception>
     public static string GetRuntimeRole(IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var role = configuration[RuntimeRoleKey]?.Trim();
+        var settings = new DirectoryDatabaseSettings();
+        configuration.GetSection(SectionName).BindStrictly(settings);
+
+        var key = $"{SectionName}:{nameof(DirectoryDatabaseSettings.RuntimeRole)}";
+
+        var role = settings.RuntimeRole?.Trim();
         if (string.IsNullOrEmpty(role))
             throw new InvalidOperationException(
-                $"The runtime role is not configured; set '{RuntimeRoleKey}' to the name of the database role the "
+                $"The runtime role is not configured; set '{key}' to the name of the database role the "
                     + "directory's replicas connect as."
             );
 
         return DirectoryDatabaseGrants.IsValidRole(role)
             ? role
             : throw new InvalidOperationException(
-                $"The '{RuntimeRoleKey}' value is not a valid role name; it must match ^[a-z_][a-z0-9_]*$."
+                $"The '{key}' value is not a valid role name; it must match ^[a-z_][a-z0-9_]*$."
             );
     }
 
