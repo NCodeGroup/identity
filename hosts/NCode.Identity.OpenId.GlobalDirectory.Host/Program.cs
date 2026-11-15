@@ -8,7 +8,6 @@ using NCode.Identity.Jwt;
 using NCode.Identity.OpenId.Client;
 using NCode.Identity.OpenId.GlobalDirectory.Host;
 using NCode.Identity.OpenId.GlobalDirectory.Server;
-using NCode.Identity.Registration;
 using NCode.Identity.Secrets;
 using NCode.Identity.Server;
 using NCode.Identity.SharedState;
@@ -77,24 +76,12 @@ serviceCollection
     .AddOpenIdClientLibrary()
     .AddOpenIdDirectoryServer(configuration);
 
-// The directory's own Postgres database. The migrations live in this assembly, so the context names it.
+// The directory's own Postgres database, and the readiness check that holds the replica out of rotation while it cannot
+// reach the database it serves every request from.
 var connectionString =
     configuration.GetConnectionString("directory")
     ?? throw new InvalidOperationException("The connection string 'directory' is required.");
-serviceCollection.AddDbContextFactory<DirectoryDbContext>(dbOptions =>
-    dbOptions.UseNpgsql(
-        connectionString,
-        npgsql =>
-            npgsql.MigrationsAssembly(
-                typeof(DirectoryDbContextDesignTimeFactory).Assembly.GetName().Name
-            )
-    )
-);
-
-// The replica is ready only while it can reach the database it serves every request from.
-serviceCollection
-    .AddHealthChecks()
-    .AddDbContextCheck<DirectoryDbContext>("directory", tags: [HealthCheckTags.Readiness]);
+serviceCollection.AddDirectoryDatabase(connectionString);
 
 await using var app = builder.Build();
 

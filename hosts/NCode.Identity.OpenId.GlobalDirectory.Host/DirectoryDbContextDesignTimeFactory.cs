@@ -22,13 +22,7 @@ internal sealed class DirectoryDbContextDesignTimeFactory
     public DirectoryDbContext CreateDbContext(string[] args)
     {
         var optionsBuilder = new DbContextOptionsBuilder<DirectoryDbContext>();
-        optionsBuilder.UseNpgsql(
-            DesignTimeConnectionString,
-            npgsql =>
-                npgsql.MigrationsAssembly(
-                    typeof(DirectoryDbContextDesignTimeFactory).Assembly.GetName().Name
-                )
-        );
+        optionsBuilder.UseDirectoryNpgsql(DesignTimeConnectionString);
 
         return new DirectoryDbContext(optionsBuilder.Options);
     }
