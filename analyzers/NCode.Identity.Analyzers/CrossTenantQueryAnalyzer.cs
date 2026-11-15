@@ -23,14 +23,29 @@ public sealed class CrossTenantQueryAnalyzer : DiagnosticAnalyzer
     /// </summary>
     public const string DiagnosticId = "NCID0004";
 
+    /// <summary>
+    /// The name of the method whose invocation the analyzer inspects.
+    /// </summary>
     private const string MethodName = "IgnoreQueryFilters";
 
+    /// <summary>
+    /// The namespace that declares the method whose invocation the analyzer inspects.
+    /// </summary>
     private const string MethodNamespace = "Microsoft.EntityFrameworkCore";
 
+    /// <summary>
+    /// The text that an explaining comment starts with.
+    /// </summary>
     private const string CommentPrefix = "// Cross-tenant:";
 
+    /// <summary>
+    /// The suffixes of the assembly names that the analyzer skips.
+    /// </summary>
     private static string[] SkippedAssemblySuffixes { get; } = [".Tests", ".TestSupport"];
 
+    /// <summary>
+    /// The descriptor of the diagnostic that reports an unexplained <c>IgnoreQueryFilters()</c> call.
+    /// </summary>
     private static DiagnosticDescriptor Rule { get; } =
         new(
             DiagnosticId,
@@ -54,6 +69,10 @@ public sealed class CrossTenantQueryAnalyzer : DiagnosticAnalyzer
         context.RegisterCompilationStartAction(OnCompilationStart);
     }
 
+    /// <summary>
+    /// Registers the invocation analysis unless the compilation's assembly is one of the skipped assemblies.
+    /// </summary>
+    /// <param name="context">The context of the compilation that starts.</param>
     private static void OnCompilationStart(CompilationStartAnalysisContext context)
     {
         var assemblyName = context.Compilation.AssemblyName;
@@ -71,6 +90,10 @@ public sealed class CrossTenantQueryAnalyzer : DiagnosticAnalyzer
         context.RegisterOperationAction(AnalyzeInvocation, OperationKind.Invocation);
     }
 
+    /// <summary>
+    /// Reports a diagnostic when the invocation calls <c>IgnoreQueryFilters()</c> without an explaining comment.
+    /// </summary>
+    /// <param name="context">The context of the invocation to analyze.</param>
     private static void AnalyzeInvocation(OperationAnalysisContext context)
     {
         var invocation = (IInvocationOperation)context.Operation;
@@ -99,6 +122,14 @@ public sealed class CrossTenantQueryAnalyzer : DiagnosticAnalyzer
         context.ReportDiagnostic(Diagnostic.Create(Rule, nameToken.GetLocation()));
     }
 
+    /// <summary>
+    /// Determines whether a <c>// Cross-tenant: &lt;why&gt;</c> comment leads the line of the method name, on the line
+    /// directly above the first token of that line.
+    /// </summary>
+    /// <param name="nameToken">The token that names the called method.</param>
+    /// <returns>
+    /// <see langword="true" /> when the call carries an explaining comment; otherwise, <see langword="false" />.
+    /// </returns>
     private static bool IsExplained(SyntaxToken nameToken)
     {
         var tree = nameToken.SyntaxTree;
@@ -137,6 +168,11 @@ public sealed class CrossTenantQueryAnalyzer : DiagnosticAnalyzer
         return commentLine.LineNumber == nameLine.LineNumber - 1;
     }
 
+    /// <summary>
+    /// Finds the position of the first non-whitespace character of a line.
+    /// </summary>
+    /// <param name="line">The line of source text to inspect.</param>
+    /// <returns>The position of the first non-whitespace character of the line.</returns>
     private static int FirstNonWhitespacePosition(TextLine line)
     {
         var text = line.ToString();
