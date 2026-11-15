@@ -30,8 +30,6 @@ internal class CellApiEndpointHandler(
     IOptions<CellOptions> cellOptions
 ) : IEndpointProvider
 {
-    private const int DirectoryRetrySeconds = 5;
-
     private ICellDirectory CellDirectory { get; } = cellDirectory;
     private CellOptions CellOptions { get; } = cellOptions.Value;
 
@@ -103,7 +101,7 @@ internal class CellApiEndpointHandler(
     private static ProblemHttpResult DirectoryUnavailableProblem(HttpContext httpContext) =>
         RetryAfterProblem.Create(
             httpContext,
-            TimeSpan.FromSeconds(DirectoryRetrySeconds),
+            TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds),
             new ProblemDetails
             {
                 Status = StatusCodes.Status503ServiceUnavailable,

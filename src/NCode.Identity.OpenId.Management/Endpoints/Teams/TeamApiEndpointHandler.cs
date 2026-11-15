@@ -108,8 +108,6 @@ internal class TeamApiEndpointHandler(
     /// </summary>
     internal const int DefaultUsageDays = 30;
 
-    private const int DirectoryRetrySeconds = 5;
-
     /// <inheritdoc />
     protected override IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private ITeamValidator TeamValidator { get; } = teamValidator;
@@ -697,7 +695,7 @@ internal class TeamApiEndpointHandler(
     private static ProblemHttpResult DirectoryUnavailableProblem(HttpContext httpContext) =>
         RetryAfterProblem.Create(
             httpContext,
-            TimeSpan.FromSeconds(DirectoryRetrySeconds),
+            TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds),
             new ProblemDetails
             {
                 Status = StatusCodes.Status503ServiceUnavailable,

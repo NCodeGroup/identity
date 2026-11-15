@@ -60,8 +60,6 @@ internal class TenantImportApiEndpointHandler(
     IOptions<CellOptions> cellOptions
 ) : BaseApiEndpointHandler, IEndpointProvider
 {
-    private const int DirectoryRetrySeconds = 5;
-
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private ITenantTransferKeyService TenantTransferKeyService { get; } = tenantTransferKeyService;
     private IReadOnlyList<ITenantTransferContributor> TenantTransferContributors { get; } =
@@ -587,7 +585,7 @@ internal class TenantImportApiEndpointHandler(
     private static ProblemHttpResult DirectoryUnavailableProblem(HttpContext httpContext) =>
         RetryAfterProblem.Create(
             httpContext,
-            TimeSpan.FromSeconds(DirectoryRetrySeconds),
+            TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds),
             new ProblemDetails
             {
                 Status = StatusCodes.Status503ServiceUnavailable,

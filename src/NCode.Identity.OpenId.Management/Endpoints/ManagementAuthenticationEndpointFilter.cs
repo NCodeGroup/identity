@@ -83,7 +83,7 @@ internal sealed class ManagementAuthenticationEndpointFilter(
         {
             return RetryAfterProblem.Create(
                 httpContext,
-                TimeSpan.FromSeconds(5),
+                TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds),
                 new ProblemDetails
                 {
                     Status = StatusCodes.Status503ServiceUnavailable,

@@ -3623,7 +3623,10 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status503ServiceUnavailable, problem.StatusCode);
-        Assert.Equal("5", httpContext.Response.Headers.RetryAfter.ToString());
+        Assert.Equal(
+            $"{GlobalDirectoryProtocol.UnavailableRetryAfterSeconds}",
+            httpContext.Response.Headers.RetryAfter.ToString()
+        );
         Assert.Equal(["save", "retire", "announce", "destroy"], Events);
         Assert.NotNull(destroyed);
         Assert.Same(first, Assert.Single(destroyed));
@@ -3988,7 +3991,10 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status503ServiceUnavailable, problem.StatusCode);
-        Assert.Equal("5", httpContext.Response.Headers.RetryAfter.ToString());
+        Assert.Equal(
+            $"{GlobalDirectoryProtocol.UnavailableRetryAfterSeconds}",
+            httpContext.Response.Headers.RetryAfter.ToString()
+        );
     }
 
     [Fact]
@@ -4677,7 +4683,10 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status503ServiceUnavailable, problem.StatusCode);
-        Assert.Equal("5", httpContext.Response.Headers.RetryAfter.ToString());
+        Assert.Equal(
+            $"{GlobalDirectoryProtocol.UnavailableRetryAfterSeconds}",
+            httpContext.Response.Headers.RetryAfter.ToString()
+        );
     }
 
     [Fact]

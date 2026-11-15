@@ -301,7 +301,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         Assert.NotNull(response.Headers.RetryAfter);
         Assert.Equal(
-            TimeSpan.FromSeconds(GlobalDirectoryProtocol.IssuerUnavailableRetryAfterSeconds),
+            TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds),
             response.Headers.RetryAfter.Delta
         );
     }

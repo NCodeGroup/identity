@@ -215,7 +215,10 @@ public class RemoteManagementTokenValidatorTests : BaseTests
 
         Assert.False(validation.IsAuthenticated);
         Assert.True(validation.IsUnavailable);
-        Assert.Equal(TimeSpan.FromSeconds(5), validation.RetryAfter);
+        Assert.Equal(
+            TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds),
+            validation.RetryAfter
+        );
     }
 
     [Fact]

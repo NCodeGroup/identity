@@ -256,7 +256,10 @@ public sealed class ManagementAuthenticationEndpointFilterTests : IDisposable
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status503ServiceUnavailable, problem.StatusCode);
-        Assert.Equal("5", HttpContext.Response.Headers.RetryAfter.ToString());
+        Assert.Equal(
+            $"{GlobalDirectoryProtocol.UnavailableRetryAfterSeconds}",
+            HttpContext.Response.Headers.RetryAfter.ToString()
+        );
     }
 
     #endregion

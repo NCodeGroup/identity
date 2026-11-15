@@ -74,8 +74,6 @@ internal class PlatformApiEndpointHandler(
     // The number of teams read per page when a settings write is checked against every team's tenants' clients.
     private const int TeamPageSize = 100;
 
-    private const int DirectoryRetrySeconds = 5;
-
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private ISettingSerializer SettingSerializer { get; } = settingSerializer;
 
@@ -590,7 +588,7 @@ internal class PlatformApiEndpointHandler(
     private static ProblemHttpResult DirectoryUnavailableProblem(HttpContext httpContext) =>
         RetryAfterProblem.Create(
             httpContext,
-            TimeSpan.FromSeconds(DirectoryRetrySeconds),
+            TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds),
             new ProblemDetails
             {
                 Status = StatusCodes.Status503ServiceUnavailable,

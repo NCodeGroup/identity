@@ -162,7 +162,7 @@ internal sealed class RemoteManagementTokenValidator(
 
         if (result.IsUnavailable)
             return ManagementTokenValidation.Unavailable(
-                TimeSpan.FromSeconds(GlobalDirectoryProtocol.IssuerUnavailableRetryAfterSeconds)
+                TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds)
             );
 
         if (!result.IsValid || result.Payload.ValueKind != JsonValueKind.Object)

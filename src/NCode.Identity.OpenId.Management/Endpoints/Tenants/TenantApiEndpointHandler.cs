@@ -157,12 +157,6 @@ internal class TenantApiEndpointHandler(
     internal const int MaxUsageDays = 366;
 
     /// <summary>
-    /// Gets the seconds that a response asks of a caller whose request needs the global directory while it cannot be
-    /// reached.
-    /// </summary>
-    private const int DirectoryRetrySeconds = 5;
-
-    /// <summary>
     /// Gets how many days before the last day a read of a tenant's usage starts when it names no first day.
     /// </summary>
     internal const int DefaultUsageDays = 30;
@@ -1049,7 +1043,7 @@ internal class TenantApiEndpointHandler(
     private static ProblemHttpResult DirectoryUnavailableProblem(HttpContext httpContext) =>
         RetryAfterProblem.Create(
             httpContext,
-            TimeSpan.FromSeconds(DirectoryRetrySeconds),
+            TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds),
             new ProblemDetails
             {
                 Status = StatusCodes.Status503ServiceUnavailable,

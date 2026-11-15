@@ -188,7 +188,7 @@ internal sealed class DirectoryAuthenticationEndpointFilter(
         if (result.IsUnavailable)
         {
             httpContext.Response.Headers.RetryAfter =
-                GlobalDirectoryProtocol.IssuerUnavailableRetryAfterSeconds.ToString(
+                GlobalDirectoryProtocol.UnavailableRetryAfterSeconds.ToString(
                     CultureInfo.InvariantCulture
                 );
             return Results.Problem(

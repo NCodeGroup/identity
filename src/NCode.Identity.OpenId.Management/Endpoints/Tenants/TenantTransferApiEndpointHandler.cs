@@ -67,8 +67,6 @@ internal class TenantTransferApiEndpointHandler(
     TimeProvider timeProvider
 ) : BaseApiEndpointHandler, IEndpointProvider
 {
-    private const int DirectoryRetrySeconds = 5;
-
     /// <summary>
     /// The identifier that the recipient key is imported under.
     /// </summary>
@@ -180,7 +178,7 @@ internal class TenantTransferApiEndpointHandler(
         {
             return RetryAfterProblem.Create(
                 httpContext,
-                TimeSpan.FromSeconds(DirectoryRetrySeconds),
+                TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds),
                 new ProblemDetails
                 {
                     Status = StatusCodes.Status503ServiceUnavailable,
@@ -302,7 +300,7 @@ internal class TenantTransferApiEndpointHandler(
         {
             return RetryAfterProblem.Create(
                 httpContext,
-                TimeSpan.FromSeconds(DirectoryRetrySeconds),
+                TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds),
                 new ProblemDetails
                 {
                     Status = StatusCodes.Status503ServiceUnavailable,
