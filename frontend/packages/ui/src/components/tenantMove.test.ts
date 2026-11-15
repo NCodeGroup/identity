@@ -1,0 +1,181 @@
+import { describe, expect, it, vi } from 'vitest';
+import { createTenantMove, tenantMoveStageCount, type TenantMoveOperations } from './tenantMove.js';
+
+const jwk = { kty: 'EC', crv: 'P-256' };
+const target = { tenantId: 'acme', sourceCell: 'eu-1', targetCell: 'eu-2' };
+
+function createOperations(calls: string[] = []): TenantMoveOperations {
+  return {
+    createTransferKey: vi.fn(async (cell: string) => {
+      calls.push(`transfer-key ${cell}`);
+      return { kid: 'k-1', jwk };
+    }),
+    exportTenant: vi.fn(async (cell: string, tenantId: string) => {
+      calls.push(`export ${cell} ${tenantId}`);
+      return 'sealed';
+    }),
+    importTenant: vi.fn(async (cell: string) => {
+      calls.push(`import ${cell}`);
+    }),
+    releaseMovedTenant: vi.fn(async (cell: string, tenantId: string) => {
+      calls.push(`release ${cell} ${tenantId}`);
+    }),
+  };
+}
+
+/** Fails on its first call and succeeds after, so a retry of the stage finishes it. */
+function failOnce<T>(calls: string[], name: string, result: T): () => Promise<T> {
+  let failed = false;
+  return async () => {
+    if (!failed) {
+      failed = true;
+      calls.push(`${name} failed`);
+      throw new Error(`${name} is unavailable.`);
+    }
+    calls.push(`${name} retried`);
+    return result;
+  };
+}
+
+describe('createTenantMove', () => {
+  it('runs the four stages in order and reports each completed stage', async () => {
+    const calls: string[] = [];
+    const operations = createOperations(calls);
+    const completed: number[] = [];
+
+    const failure = await createTenantMove(operations, target).run(0, (count) =>
+      completed.push(count),
+    );
+
+    expect(failure).toBeUndefined();
+    expect(calls).toEqual([
+      'transfer-key eu-2',
+      'export eu-1 acme',
+      'import eu-2',
+      'release eu-1 acme',
+    ]);
+    expect(completed).toEqual([1, 2, 3, tenantMoveStageCount]);
+    expect(operations.exportTenant).toHaveBeenCalledWith('eu-1', 'acme', jwk);
+    expect(operations.importTenant).toHaveBeenCalledWith('eu-2', 'k-1', 'sealed');
+  });
+
+  it('reports the transfer key stage as failed and stops', async () => {
+    const calls: string[] = [];
+    const operations: TenantMoveOperations = {
+      ...createOperations(calls),
+      createTransferKey: vi.fn(async () => {
+        throw new Error('Unavailable.');
+      }),
+    };
+
+    const failure = await createTenantMove(operations, target).run(0);
+
+    expect(failure).toEqual({ stage: 0, message: 'Unavailable.' });
+    expect(calls).toEqual([]);
+  });
+
+  it('reports the message of a value that is not an Error', async () => {
+    const operations: TenantMoveOperations = {
+      ...createOperations(),
+      createTransferKey: vi.fn(() => Promise.reject('refused')),
+    };
+
+    const failure = await createTenantMove(operations, target).run(0);
+
+    expect(failure).toEqual({ stage: 0, message: 'refused' });
+  });
+
+  it('resumes at the export and skips the transfer key', async () => {
+    const calls: string[] = [];
+    const operations: TenantMoveOperations = {
+      ...createOperations(calls),
+      exportTenant: vi.fn(failOnce(calls, 'export', 'sealed')),
+    };
+    const move = createTenantMove(operations, target);
+    const first = await move.run(0);
+    calls.length = 0;
+
+    const second = await move.run(first?.stage ?? -1);
+
+    expect(first).toEqual({ stage: 1, message: 'export is unavailable.' });
+    expect(second).toBeUndefined();
+    expect(calls).toEqual(['export retried', 'import eu-2', 'release eu-1 acme']);
+    expect(operations.createTransferKey).toHaveBeenCalledTimes(1);
+    expect(operations.importTenant).toHaveBeenCalledWith('eu-2', 'k-1', 'sealed');
+  });
+
+  it('resumes at the import and reuses the transfer key and the package', async () => {
+    const calls: string[] = [];
+    const operations: TenantMoveOperations = {
+      ...createOperations(calls),
+      importTenant: vi.fn(failOnce(calls, 'import', undefined)),
+    };
+    const move = createTenantMove(operations, target);
+    const first = await move.run(0);
+    calls.length = 0;
+
+    const second = await move.run(first?.stage ?? -1);
+
+    expect(first).toEqual({ stage: 2, message: 'import is unavailable.' });
+    expect(second).toBeUndefined();
+    expect(calls).toEqual(['import retried', 'release eu-1 acme']);
+    expect(operations.createTransferKey).toHaveBeenCalledTimes(1);
+    expect(operations.exportTenant).toHaveBeenCalledTimes(1);
+    expect(operations.importTenant).toHaveBeenLastCalledWith('eu-2', 'k-1', 'sealed');
+  });
+
+  it('resumes at the release and runs only the release', async () => {
+    const calls: string[] = [];
+    const operations: TenantMoveOperations = {
+      ...createOperations(calls),
+      releaseMovedTenant: vi.fn(failOnce(calls, 'release', undefined)),
+    };
+    const move = createTenantMove(operations, target);
+    const first = await move.run(0);
+    calls.length = 0;
+    const completed: number[] = [];
+
+    const second = await move.run(first?.stage ?? -1, (count) => completed.push(count));
+
+    expect(first).toEqual({ stage: 3, message: 'release is unavailable.' });
+    expect(second).toBeUndefined();
+    expect(calls).toEqual(['release retried']);
+    expect(completed).toEqual([tenantMoveStageCount]);
+    expect(operations.createTransferKey).toHaveBeenCalledTimes(1);
+    expect(operations.exportTenant).toHaveBeenCalledTimes(1);
+    expect(operations.importTenant).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports the failed stage again when the retry fails again', async () => {
+    const operations: TenantMoveOperations = {
+      ...createOperations(),
+      releaseMovedTenant: vi.fn(async () => {
+        throw new Error('Still unavailable.');
+      }),
+    };
+    const move = createTenantMove(operations, target);
+    await move.run(0);
+
+    const failure = await move.run(3);
+
+    expect(failure).toEqual({ stage: 3, message: 'Still unavailable.' });
+  });
+
+  it('fails the stage that needs a transfer key when the run starts after it', async () => {
+    const operations = createOperations();
+
+    const failure = await createTenantMove(operations, target).run(1);
+
+    expect(failure).toEqual({ stage: 1, message: 'The transfer key was not issued.' });
+    expect(operations.exportTenant).not.toHaveBeenCalled();
+  });
+
+  it('fails the import when the run starts after an export that never ran', async () => {
+    const operations = createOperations();
+
+    const failure = await createTenantMove(operations, target).run(2);
+
+    expect(failure).toEqual({ stage: 2, message: 'The sealed package was not exported.' });
+    expect(operations.importTenant).not.toHaveBeenCalled();
+  });
+});

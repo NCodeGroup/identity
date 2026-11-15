@@ -210,6 +210,68 @@ describe('TenantMoveDialog', () => {
     expect(screen.queryByTestId('move-done')).not.toBeInTheDocument();
   });
 
+  it('retries from the release after the release fails and completes the move', async () => {
+    const calls: string[] = [];
+    let releases = 0;
+    const operations: TenantMoveDialogOperations = {
+      ...createOperations(calls),
+      releaseMovedTenant: vi.fn(async (cell: string, tenantId: string) => {
+        releases += 1;
+        calls.push(`release ${cell} ${tenantId}`);
+        if (releases === 1) {
+          throw new Error('The cell is unavailable.');
+        }
+      }),
+    };
+    renderDialog({ operations });
+    choose('eu-2');
+    fireEvent.click(screen.getByTestId('move-confirm'));
+    await screen.findByTestId('move-failure');
+    expect(screen.getByTestId('move-confirm')).toBeDisabled();
+    calls.length = 0;
+
+    fireEvent.click(screen.getByTestId('move-retry'));
+
+    expect(await screen.findByTestId('move-done')).toHaveTextContent('Moved to eu-2.');
+    expect(calls).toEqual(['release eu-1 acme']);
+    expect(operations.createTransferKey).toHaveBeenCalledTimes(1);
+    expect(operations.exportTenant).toHaveBeenCalledTimes(1);
+    expect(operations.importTenant).toHaveBeenCalledTimes(1);
+    expect(operations.releaseMovedTenant).toHaveBeenCalledTimes(2);
+    expect(screen.queryByTestId('move-failure')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('move-retry')).not.toBeInTheDocument();
+    expect(screen.getByTestId('move-stage-release')).toHaveTextContent('done');
+  });
+
+  it('keeps the failure and Retry when the retry fails again', async () => {
+    const operations: TenantMoveDialogOperations = {
+      ...createOperations(),
+      importTenant: vi.fn(async () => {
+        throw new Error('The cell is unavailable.');
+      }),
+    };
+    renderDialog({ operations });
+    choose('eu-2');
+    fireEvent.click(screen.getByTestId('move-confirm'));
+    await screen.findByTestId('move-failure');
+
+    fireEvent.click(screen.getByTestId('move-retry'));
+
+    await waitFor(() => expect(operations.importTenant).toHaveBeenCalledTimes(2));
+    expect(await screen.findByTestId('move-failure')).toHaveTextContent(
+      'Import the tenant into eu-2 failed: The cell is unavailable.',
+    );
+    expect(screen.getByTestId('move-retry')).toBeEnabled();
+    expect(operations.exportTenant).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows no Retry before a failure', () => {
+    renderDialog();
+    choose('eu-2');
+
+    expect(screen.queryByTestId('move-retry')).not.toBeInTheDocument();
+  });
+
   it('closes through Close after a failure', async () => {
     const operations: TenantMoveDialogOperations = {
       ...createOperations(),

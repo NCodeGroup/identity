@@ -12,6 +12,13 @@ import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import {
+  createTenantMove,
+  type TenantMove,
+  type TenantMoveFailure,
+  type TenantMoveOperations,
+  type TenantMoveTransferKey,
+} from './tenantMove.js';
 
 /** A cell of the platform and the region it serves (decoupled from the API contract). */
 export type TenantMoveDialogCell = {
@@ -20,29 +27,13 @@ export type TenantMoveDialogCell = {
 };
 
 /** The transfer key a receiving cell issues: its `kid` and its public JSON Web Key (decoupled from the API contract). */
-export type TenantMoveDialogTransferKey = {
-  readonly kid: string;
-  readonly jwk: Readonly<Record<string, unknown>>;
-};
+export type TenantMoveDialogTransferKey = TenantMoveTransferKey;
 
 /**
  * The four calls of a move, each addressed to the cell it concerns (decoupled from the API contract). Each rejects
  * with an `Error` whose message says why it failed.
  */
-export type TenantMoveDialogOperations = {
-  /** Asks `cell`, the receiving cell, for a one-time transfer key. */
-  readonly createTransferKey: (cell: string) => Promise<TenantMoveDialogTransferKey>;
-  /** Exports the disabled tenant from `cell`, the tenant's own cell, sealed to `jwk`; resolves with the package. */
-  readonly exportTenant: (
-    cell: string,
-    tenantId: string,
-    jwk: Readonly<Record<string, unknown>>,
-  ) => Promise<string>;
-  /** Imports `sealedPackage` into `cell`, the receiving cell, with the transfer key named `kid`. */
-  readonly importTenant: (cell: string, kid: string, sealedPackage: string) => Promise<void>;
-  /** Releases what `cell`, the tenant's own cell, still holds of the tenant that moved. */
-  readonly releaseMovedTenant: (cell: string, tenantId: string) => Promise<void>;
-};
+export type TenantMoveDialogOperations = TenantMoveOperations;
 
 export type TenantMoveDialogProps = {
   readonly open: boolean;
@@ -72,22 +63,13 @@ function stagesOf(sourceCell: string, targetCell: string): readonly Stage[] {
 
 const releaseStage = 3;
 
-type Failure = {
-  /** The index of the stage that failed. */
-  readonly stage: number;
-  readonly message: string;
-};
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 /**
  * Move dialog for a disabled tenant: pick another cell of the tenant's region, then run the four stages of a move in
  * order (a transfer key from the receiving cell, the export from the tenant's cell, the import into the receiving
  * cell and the release at the tenant's cell), showing each stage. A failure stops the run and names the failed stage
- * and what remains. The chosen cell and the progress are local because the dialog runs the sequence itself; the
- * calls are the container's to supply, so this package holds no store.
+ * and what remains; Retry resumes from the failed stage, so the stages that finished do not run again. The chosen
+ * cell and the progress are local because the dialog runs the sequence itself; the calls are the container's to
+ * supply, so this package holds no store.
  */
 export function TenantMoveDialog({
   open,
@@ -100,7 +82,8 @@ export function TenantMoveDialog({
   const [targetCell, setTargetCell] = useState('');
   const [completed, setCompleted] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
-  const [failure, setFailure] = useState<Failure>();
+  const [failure, setFailure] = useState<TenantMoveFailure>();
+  const moveRef = useRef<TenantMove | undefined>(undefined);
   const wasOpenRef = useRef(open);
 
   // Reset only on the rising edge of `open`, so a re-render while open never discards the progress.
@@ -110,6 +93,7 @@ export function TenantMoveDialog({
       setCompleted(0);
       setIsRunning(false);
       setFailure(undefined);
+      moveRef.current = undefined;
     }
     wasOpenRef.current = open;
   }, [open]);
@@ -126,33 +110,36 @@ export function TenantMoveDialog({
   const hasStarted = isRunning || completed > 0 || failure !== undefined;
   const isMoved = completed === stages.length && stages.length > 0;
 
+  /** Runs the move from `fromStage`: 0 for a fresh move, the failed stage for a retry. */
+  const runFrom = async (move: TenantMove, fromStage: number) => {
+    setIsRunning(true);
+    setFailure(undefined);
+    try {
+      setFailure(await move.run(fromStage, setCompleted));
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
   const handleMove = async () => {
     if (target === undefined) {
       return;
     }
-    setIsRunning(true);
-    setFailure(undefined);
+    const move = createTenantMove(operations, {
+      tenantId,
+      sourceCell,
+      targetCell: target.name,
+    });
+    moveRef.current = move;
     setCompleted(0);
-    // `completed` counts the stages that finished, so it is also the index of the stage that runs next.
-    let completedStages = 0;
-    try {
-      const key = await operations.createTransferKey(target.name);
-      completedStages = 1;
-      setCompleted(completedStages);
-      const sealedPackage = await operations.exportTenant(sourceCell, tenantId, key.jwk);
-      completedStages = 2;
-      setCompleted(completedStages);
-      await operations.importTenant(target.name, key.kid, sealedPackage);
-      completedStages = 3;
-      setCompleted(completedStages);
-      await operations.releaseMovedTenant(sourceCell, tenantId);
-      completedStages = 4;
-      setCompleted(completedStages);
-    } catch (error) {
-      setFailure({ stage: completedStages, message: errorMessage(error) });
-    } finally {
-      setIsRunning(false);
+    await runFrom(move, 0);
+  };
+
+  const handleRetry = async () => {
+    if (moveRef.current === undefined || failure === undefined) {
+      return;
     }
+    await runFrom(moveRef.current, failure.stage);
   };
 
   const failedStage = failure === undefined ? undefined : stages[failure.stage];
@@ -239,6 +226,18 @@ export function TenantMoveDialog({
             <Button onClick={onClose} disabled={isRunning} data-testid="move-cancel">
               {failure === undefined ? 'Cancel' : 'Close'}
             </Button>
+            {failure !== undefined && (
+              <Button
+                variant="contained"
+                onClick={() => {
+                  void handleRetry();
+                }}
+                disabled={isRunning}
+                data-testid="move-retry"
+              >
+                Retry
+              </Button>
+            )}
             <Button
               variant="contained"
               onClick={() => {
