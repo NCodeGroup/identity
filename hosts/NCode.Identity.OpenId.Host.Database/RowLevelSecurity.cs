@@ -10,7 +10,7 @@ namespace NCode.Identity.OpenId.Host.Database;
 
 /// <summary>
 /// Generates the Postgres row-level security and grant statements for the host database from the EF Core model, so the
-/// database enforces the tenant scope that the global query filter applies in the application (ADR-1018).
+/// database enforces the tenant scope that the global query filter applies in the application.
 /// </summary>
 /// <remarks>
 /// Every table of an <see cref="ISupportTenantEntity"/> gets <c>ENABLE</c> and <c>FORCE ROW LEVEL SECURITY</c> and one
@@ -19,6 +19,7 @@ namespace NCode.Identity.OpenId.Host.Database;
 /// table name, so the same model always yields the same statements. They are idempotent: a policy is dropped before it
 /// is created.
 /// </remarks>
+// See ADR-1018.
 [PublicAPI]
 public static class RowLevelSecurity
 {
