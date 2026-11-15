@@ -558,7 +558,7 @@ internal sealed class DefaultDirectoryStore(
     /// <param name="dbContext">The <see cref="DirectoryDbContext"/> to read from.</param>
     /// <param name="normalizedTeamId">The normalized identifier of the team that would hold the new tenant.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The conflict detail when a team of the lineage is full; otherwise, <c>null</c>.</returns>
+    /// <returns>The conflict detail when a team of the lineage is full or a <c>max_tenants</c> setting cannot be read; otherwise, <c>null</c>.</returns>
     // See ADR-1411.
     // See ADR-1426.
     private static async ValueTask<string?> FindTeamAtLimitAsync(
@@ -571,13 +571,16 @@ internal sealed class DefaultDirectoryStore(
             .Platforms.AsNoTracking()
             .Select(entity => entity.DocumentJson)
             .SingleOrDefaultAsync(cancellationToken);
-        var platformLimit = ReadMaxTenants(
-            platformJson is null
-                ? null
-                : JsonSerializer
-                    .Deserialize<PlatformDocument>(platformJson, JsonOptions)
-                    ?.SettingsJson
-        );
+        if (
+            !TryReadMaxTenants<PlatformDocument>(
+                platformJson,
+                document => document.SettingsJson,
+                out var platformLimit
+            )
+        )
+        {
+            return "The platform has a max_tenants setting the directory cannot read.";
+        }
 
         var visited = new HashSet<string>(StringComparer.Ordinal);
         string? nextTeamId = normalizedTeamId;
@@ -602,13 +605,17 @@ internal sealed class DefaultDirectoryStore(
             nextTeamId = team.NormalizedParentTeamId;
 
             // A team's limit is the lesser of the platform's and its own; unset means unlimited.
-            var ownLimit = ReadMaxTenants(
-                team.DocumentJson is null
-                    ? null
-                    : JsonSerializer
-                        .Deserialize<TeamDocument>(team.DocumentJson, JsonOptions)
-                        ?.SettingsJson
-            );
+            if (
+                !TryReadMaxTenants<TeamDocument>(
+                    team.DocumentJson,
+                    document => document.SettingsJson,
+                    out var ownLimit
+                )
+            )
+            {
+                return $"The team '{team.TeamId}' has a max_tenants setting the directory cannot read.";
+            }
+
             var effectiveLimit = ownLimit is { } own
                 ? platformLimit is { } platform
                     ? Math.Min(platform, own)
@@ -667,33 +674,59 @@ internal sealed class DefaultDirectoryStore(
         return subtree;
     }
 
-    private static int? ReadMaxTenants(string? settingsJson)
+    /// <summary>
+    /// Reads the <c>max_tenants</c> setting of a platform or team document.
+    /// </summary>
+    /// <param name="documentJson">The stored document, or <c>null</c> when there is none.</param>
+    /// <param name="getSettingsJson">Gets the settings JSON object of the deserialized document.</param>
+    /// <param name="maxTenants">The limit, or <c>null</c> when the document has no <c>max_tenants</c> setting.</param>
+    /// <returns><c>true</c> when the setting is absent or a non-negative integer; otherwise, <c>false</c> because the document or the setting cannot be read.</returns>
+    private static bool TryReadMaxTenants<TDocument>(
+        string? documentJson,
+        Func<TDocument, string?> getSettingsJson,
+        out int? maxTenants
+    )
     {
-        if (string.IsNullOrEmpty(settingsJson))
+        maxTenants = null;
+        if (string.IsNullOrEmpty(documentJson))
         {
-            return null;
+            return true;
         }
 
-        Dictionary<string, JsonElement>? settings;
         try
         {
-            settings = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(
+            var document = JsonSerializer.Deserialize<TDocument>(documentJson, JsonOptions);
+            var settingsJson = document is null ? null : getSettingsJson(document);
+            if (string.IsNullOrEmpty(settingsJson))
+            {
+                return true;
+            }
+
+            var settings = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(
                 settingsJson,
                 JsonOptions
             );
+            if (settings is null || !settings.TryGetValue(MaxTenantsSettingName, out var element))
+            {
+                return true;
+            }
+
+            if (
+                element.ValueKind != JsonValueKind.Number
+                || !element.TryGetInt32(out var limit)
+                || limit < 0
+            )
+            {
+                return false;
+            }
+
+            maxTenants = limit;
+            return true;
         }
         catch (JsonException)
         {
-            return null;
+            return false;
         }
-
-        return
-            settings is not null
-            && settings.TryGetValue(MaxTenantsSettingName, out var element)
-            && element.ValueKind == JsonValueKind.Number
-            && element.TryGetInt32(out var maxTenants)
-            ? maxTenants
-            : null;
     }
 
     #endregion

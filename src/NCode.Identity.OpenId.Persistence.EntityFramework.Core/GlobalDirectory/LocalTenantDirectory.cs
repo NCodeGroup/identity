@@ -369,7 +369,7 @@ internal sealed class LocalTenantDirectory(
     /// <param name="dbContext">The <see cref="OpenIdDbContext"/> to read from.</param>
     /// <param name="teamId">The identifier of the team that would hold the new tenant.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The conflict detail when a team of the lineage is full; otherwise, <c>null</c>.</returns>
+    /// <returns>The conflict detail when a team of the lineage is full or a <c>max_tenants</c> setting cannot be read; otherwise, <c>null</c>.</returns>
     // See ADR-1411.
     // See ADR-1426.
     private static async ValueTask<string?> FindTeamAtLimitAsync(
@@ -395,11 +395,15 @@ internal sealed class LocalTenantDirectory(
             .Platforms.AsNoTracking()
             .Select(entity => new { entity.SettingsJson })
             .SingleOrDefaultAsync(cancellationToken);
-        int? platformLimit =
+        int? platformLimit = null;
+        if (
             platformSettings is not null
-            && TryGetMaxTenants(platformSettings.SettingsJson, out var platformMaxTenants)
-                ? platformMaxTenants
-                : null;
+            && !TryReadMaxTenants(platformSettings.SettingsJson, out platformLimit)
+        )
+        {
+            return "The platform has a max_tenants setting the directory cannot read.";
+        }
+
         var lineage = await dbContext
             .Teams.AsNoTracking()
             .Where(entity => normalizedLineageIds.Contains(entity.NormalizedTeamId))
@@ -413,11 +417,16 @@ internal sealed class LocalTenantDirectory(
 
         foreach (var team in lineage.OrderByDescending(entity => entity.Path.Length))
         {
+            if (!TryReadMaxTenants(team.SettingsJson, out var ownLimit))
+            {
+                return $"The team '{team.TeamId}' has a max_tenants setting the directory cannot read.";
+            }
+
             // A team's limit is the lesser of the platform's and its own; unset means unlimited.
-            var effectiveLimit = TryGetMaxTenants(team.SettingsJson, out var ownLimit)
+            var effectiveLimit = ownLimit is { } own
                 ? platformLimit is { } platformMax
-                    ? Math.Min(platformMax, ownLimit)
-                    : ownLimit
+                    ? Math.Min(platformMax, own)
+                    : own
                 : platformLimit;
             if (effectiveLimit is not { } maxTenants)
             {
@@ -437,11 +446,40 @@ internal sealed class LocalTenantDirectory(
         return null;
     }
 
-    private static bool TryGetMaxTenants(JsonElement settings, out int maxTenants)
+    /// <summary>
+    /// Reads the <c>max_tenants</c> setting of a settings document.
+    /// </summary>
+    /// <param name="settings">The settings document.</param>
+    /// <param name="maxTenants">The limit, or <c>null</c> when the document has no <c>max_tenants</c> setting.</param>
+    /// <returns><c>true</c> when the setting is absent or a non-negative integer; otherwise, <c>false</c> because the setting cannot be read.</returns>
+    private static bool TryReadMaxTenants(JsonElement settings, out int? maxTenants)
     {
-        maxTenants = 0;
-        return settings.ValueKind == JsonValueKind.Object
-            && settings.TryGetProperty(MaxTenantsSettingName, out var limitElement)
-            && limitElement.TryGetInt32(out maxTenants);
+        maxTenants = null;
+        if (settings.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
+        {
+            return true;
+        }
+
+        if (settings.ValueKind != JsonValueKind.Object)
+        {
+            return false;
+        }
+
+        if (!settings.TryGetProperty(MaxTenantsSettingName, out var limitElement))
+        {
+            return true;
+        }
+
+        if (
+            limitElement.ValueKind != JsonValueKind.Number
+            || !limitElement.TryGetInt32(out var limit)
+            || limit < 0
+        )
+        {
+            return false;
+        }
+
+        maxTenants = limit;
+        return true;
     }
 }

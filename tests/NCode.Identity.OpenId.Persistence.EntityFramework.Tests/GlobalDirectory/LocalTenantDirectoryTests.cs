@@ -381,6 +381,47 @@ public sealed class LocalTenantDirectoryTests : IDisposable
     }
 
     [Fact]
+    public async Task ReserveAsync_WhenTheTeamLimitIsUnreadable_ReturnsConflict()
+    {
+        SetupUnscoped();
+        var team = SeedTeamWithLimit(TeamId, maxTenants: null);
+        team.SettingsJson = JsonSerializer.SerializeToElement(
+            new Dictionary<string, object> { ["max_tenants"] = "3" }
+        );
+        DbContext.SaveChanges();
+
+        var result = await Directory.ReserveAsync(
+            CreateReservation(issuer: FreeIssuer, teamId: TeamId),
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsReserved);
+        Assert.Equal(
+            "The team 'platform' has a max_tenants setting the directory cannot read.",
+            result.ConflictDetail
+        );
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenThePlatformLimitIsNegative_ReturnsConflict()
+    {
+        SetupUnscoped();
+        SeedPlatformWithLimit(-1);
+        SeedTeamWithLimit(TeamId, maxTenants: null);
+
+        var result = await Directory.ReserveAsync(
+            CreateReservation(issuer: FreeIssuer, teamId: TeamId),
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsReserved);
+        Assert.Equal(
+            "The platform has a max_tenants setting the directory cannot read.",
+            result.ConflictDetail
+        );
+    }
+
+    [Fact]
     public async Task ReserveAsync_WhenTheTeamIsUnknown_IsReserved()
     {
         SetupUnscoped();

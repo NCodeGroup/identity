@@ -298,7 +298,7 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
     public async Task ReserveAsync_WhenThePlatformDocumentHasNoLimit_ReservesWithoutLimit()
     {
         await Platform.PublishAsync(
-            new PlatformDocument { SettingsJson = "not json" },
+            new PlatformDocument { SettingsJson = "{}" },
             CancellationToken.None
         );
         await PublishTeamAsync("team-1");
@@ -307,6 +307,46 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
         var result = await ReserveAsync(OtherTenantId, OtherIssuer, "team-1");
 
         Assert.True(result.IsReserved);
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenTheTeamLimitIsUnreadable_ReturnsConflict()
+    {
+        await Teams.PublishAsync(
+            new TeamDocument
+            {
+                TeamId = "team-1",
+                DisplayName = "team-1",
+                SettingsJson = """{"max_tenants":"3"}""",
+            },
+            CancellationToken.None
+        );
+
+        var result = await ReserveAsync(TenantId, Issuer, "team-1");
+
+        Assert.False(result.IsReserved);
+        Assert.Equal(
+            "The team 'team-1' has a max_tenants setting the directory cannot read.",
+            result.ConflictDetail
+        );
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenThePlatformLimitIsNegative_ReturnsConflict()
+    {
+        await Platform.PublishAsync(
+            new PlatformDocument { SettingsJson = """{"max_tenants":-1}""" },
+            CancellationToken.None
+        );
+        await PublishTeamAsync("team-1");
+
+        var result = await ReserveAsync(TenantId, Issuer, "team-1");
+
+        Assert.False(result.IsReserved);
+        Assert.Equal(
+            "The platform has a max_tenants setting the directory cannot read.",
+            result.ConflictDetail
+        );
     }
 
     #endregion

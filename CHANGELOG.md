@@ -6394,3 +6394,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   [ADR-1474](docs/decisions/1474-a-remote-key-provider-is-described-by-data-and-reads-signs-and-decrypts-by-key-identifier.md),
   [ADR-1478](docs/decisions/1478-a-background-job-destroys-the-key-management-service-keys-that-no-stored-secret-names.md),
   [ADR-1479](docs/decisions/1479-a-protocol-clients-and-a-bffs-keys-can-be-held-in-a-key-management-service.md)).
+
+- **The directory and a cell refuse a reservation whose limit they cannot read.** A team or platform `max_tenants`
+  setting that is malformed, not a JSON number, negative or out of range is not read as "no limit": the global directory
+  and a cell's local directory answer the reservation with a conflict that names the platform or the team.
