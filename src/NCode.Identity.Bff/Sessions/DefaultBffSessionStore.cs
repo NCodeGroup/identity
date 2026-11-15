@@ -14,6 +14,11 @@ namespace NCode.Identity.Bff.Sessions;
 internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSet indexes)
     : IBffSessionStore
 {
+    /// <summary>
+    /// The format of the UTC day segment of a client's session index member.
+    /// </summary>
+    private const string ClientMemberDayFormat = "yyyy-MM-dd";
+
     /// <inheritdoc />
     public async ValueTask<bool> TryCreateAsync(
         BffSessionRecord record,
@@ -385,8 +390,6 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
         metadata.IdleExpiresAt < metadata.AbsoluteExpiresAt
             ? metadata.IdleExpiresAt
             : metadata.AbsoluteExpiresAt;
-
-    private const string ClientMemberDayFormat = "yyyy-MM-dd";
 
     /// <summary>
     /// Gets the member of <see cref="BffStoreKeys.ClientsIndex"/> that lists a client for the UTC day of a session's
