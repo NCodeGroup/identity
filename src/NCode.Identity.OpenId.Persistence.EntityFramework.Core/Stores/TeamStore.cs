@@ -596,6 +596,7 @@ internal class TeamStore(
         teamEntity.ParentTeam = parent;
         teamEntity.Path = path;
         teamEntity.DisplayName = persistedTeam.DisplayName;
+        teamEntity.IsDisabled = persistedTeam.IsDisabled;
         teamEntity.DirectorySequence = persistedTeam.DirectorySequence;
 
         var rootKeysJson = WriteRootKeys(persistedTeam.RootKeys);

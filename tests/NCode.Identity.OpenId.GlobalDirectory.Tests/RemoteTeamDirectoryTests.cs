@@ -43,6 +43,7 @@ public class RemoteTeamDirectoryTests : RemoteDirectoryTestBase
         {
             TeamId = "team-2",
             DisplayName = "Team 2",
+            IsDisabled = false,
             ParentTeamId = "team-1",
         };
 
@@ -67,6 +68,7 @@ public class RemoteTeamDirectoryTests : RemoteDirectoryTestBase
         {
             TeamId = "team-2",
             DisplayName = "Team 2",
+            IsDisabled = false,
             ParentTeamId = "team-1",
         };
         var handler = StubHttpMessageHandler.Respond(
@@ -94,7 +96,12 @@ public class RemoteTeamDirectoryTests : RemoteDirectoryTestBase
             {
                 Sequence = 1,
                 TeamId = "team-1",
-                Document = new TeamDocument { TeamId = "team-1", DisplayName = "Team 1" },
+                Document = new TeamDocument
+                {
+                    TeamId = "team-1",
+                    DisplayName = "Team 1",
+                    IsDisabled = false,
+                },
             },
             new()
             {

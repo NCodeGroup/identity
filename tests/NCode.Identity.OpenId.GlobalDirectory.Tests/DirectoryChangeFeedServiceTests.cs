@@ -134,6 +134,7 @@ public class DirectoryChangeFeedServiceTests : BaseTests
         {
             TeamId = teamId,
             DisplayName = teamId,
+            IsDisabled = false,
             Sequence = sequence,
         };
 

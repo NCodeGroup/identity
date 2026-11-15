@@ -652,6 +652,7 @@ internal class TeamApiEndpointHandler(
         {
             TeamId = team.TeamId,
             DisplayName = team.DisplayName,
+            IsDisabled = team.IsDisabled,
             SettingsJson = team.Settings.Value.GetRawText(),
             ParentTeamId = team.ParentTeamId,
             RootKeys = team.RootKeys.ToImmutableDictionary(

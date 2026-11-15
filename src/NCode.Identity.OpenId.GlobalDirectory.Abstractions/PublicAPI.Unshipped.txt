@@ -98,6 +98,8 @@ NCode.Identity.OpenId.GlobalDirectory.ReservationResult.IsReserved.get -> bool
 NCode.Identity.OpenId.GlobalDirectory.TeamDocument
 NCode.Identity.OpenId.GlobalDirectory.TeamDocument.DisplayName.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.TeamDocument.DisplayName.init -> void
+NCode.Identity.OpenId.GlobalDirectory.TeamDocument.IsDisabled.get -> bool
+NCode.Identity.OpenId.GlobalDirectory.TeamDocument.IsDisabled.init -> void
 NCode.Identity.OpenId.GlobalDirectory.TeamDocument.ParentTeamId.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.TeamDocument.ParentTeamId.init -> void
 NCode.Identity.OpenId.GlobalDirectory.TeamDocument.RootKeys.get -> System.Collections.Immutable.ImmutableDictionary<string!, NCode.Identity.OpenId.GlobalDirectory.TeamRootKeyReference!>!

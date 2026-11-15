@@ -55,7 +55,7 @@ internal sealed class DefaultTeamDocumentApplier(
         {
             TeamId = document.TeamId,
             ParentTeamId = document.ParentTeamId,
-            IsDisabled = false,
+            IsDisabled = document.IsDisabled,
             DisplayName = document.DisplayName,
             DirectorySequence = document.Sequence,
             RootKeys = document.RootKeys.ToDictionary(

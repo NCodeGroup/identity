@@ -157,6 +157,7 @@ internal sealed class LocalTeamDirectory(
             {
                 entity.TeamId,
                 entity.DisplayName,
+                entity.IsDisabled,
                 entity.SettingsJson,
                 entity.RootKeysJson,
                 ParentTeamId = entity.ParentTeam == null ? null : entity.ParentTeam.TeamId,
@@ -175,6 +176,7 @@ internal sealed class LocalTeamDirectory(
         {
             TeamId = team.TeamId,
             DisplayName = team.DisplayName,
+            IsDisabled = team.IsDisabled,
             ParentTeamId = team.ParentTeamId,
             SettingsJson = team.SettingsJson.GetRawText(),
             RootKeys = rootKeys.ToImmutableDictionary(

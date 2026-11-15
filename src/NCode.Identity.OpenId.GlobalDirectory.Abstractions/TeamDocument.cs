@@ -25,6 +25,11 @@ public sealed record TeamDocument
     public required string DisplayName { get; init; }
 
     /// <summary>
+    /// Gets a value indicating whether the team is disabled, so that its tenants answer as disabled in every cell.
+    /// </summary>
+    public required bool IsDisabled { get; init; }
+
+    /// <summary>
     /// Gets the identifier of the parent team, or <c>null</c> for a top-level team.
     /// </summary>
     public string? ParentTeamId { get; init; }

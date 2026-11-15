@@ -80,6 +80,7 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
         {
             TeamId = "team-1",
             DisplayName = "Team 1",
+            IsDisabled = false,
             ParentTeamId = "team-0",
             SettingsJson = SettingsWithLimit(3),
             RootKeys = ImmutableDictionary<string, TeamRootKeyReference>
@@ -121,7 +122,12 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
         await PublishTeamAsync("team-2");
 
         await Teams.PublishAsync(
-            new TeamDocument { TeamId = "team-1", DisplayName = "Renamed" },
+            new TeamDocument
+            {
+                TeamId = "team-1",
+                DisplayName = "Renamed",
+                IsDisabled = false,
+            },
             CancellationToken.None
         );
 

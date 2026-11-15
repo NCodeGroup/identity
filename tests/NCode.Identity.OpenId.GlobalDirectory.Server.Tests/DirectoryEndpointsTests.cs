@@ -943,7 +943,12 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
         var publishResponse = await Client.PutAsJsonAsync(
             $"/directory/v1/teams/{TeamId}/document",
-            new TeamDocument { TeamId = TeamId, DisplayName = "Team One" },
+            new TeamDocument
+            {
+                TeamId = TeamId,
+                DisplayName = "Team One",
+                IsDisabled = false,
+            },
             WebOptions
         );
         var getResponse = await Client.GetAsync($"/directory/v1/teams/{TeamId}/document");
@@ -961,7 +966,12 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
         var response = await Client.PutAsJsonAsync(
             $"/directory/v1/teams/{TeamId}/document",
-            new TeamDocument { TeamId = "team-2", DisplayName = "Team Two" },
+            new TeamDocument
+            {
+                TeamId = "team-2",
+                DisplayName = "Team Two",
+                IsDisabled = false,
+            },
             WebOptions
         );
 
@@ -1035,7 +1045,12 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
         var response = await Client.PutAsJsonAsync(
             $"/directory/v1/teams/{TeamId}/document",
-            new TeamDocument { TeamId = TeamId, DisplayName = "Team One" },
+            new TeamDocument
+            {
+                TeamId = TeamId,
+                DisplayName = "Team One",
+                IsDisabled = false,
+            },
             WebOptions
         );
 
@@ -1087,7 +1102,12 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         await Client.PostAsync($"/directory/v1/teams/{TeamId}/reserve", content: null);
         await Client.PutAsJsonAsync(
             $"/directory/v1/teams/{TeamId}/document",
-            new TeamDocument { TeamId = TeamId, DisplayName = "Team One" },
+            new TeamDocument
+            {
+                TeamId = TeamId,
+                DisplayName = "Team One",
+                IsDisabled = false,
+            },
             WebOptions
         );
         await Client.PutAsJsonAsync(

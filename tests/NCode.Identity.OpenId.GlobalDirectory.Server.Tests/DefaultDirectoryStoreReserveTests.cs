@@ -346,6 +346,7 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
             {
                 TeamId = "team-1",
                 DisplayName = "team-1",
+                IsDisabled = false,
                 SettingsJson = """{"max_tenants":"3"}""",
             },
             CancellationToken.None

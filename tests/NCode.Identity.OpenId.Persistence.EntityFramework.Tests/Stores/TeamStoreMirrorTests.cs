@@ -47,7 +47,8 @@ public sealed class TeamStoreMirrorTests : IDisposable
         long sequence,
         string displayName = "Team",
         string settingsJson = "{}",
-        IReadOnlyDictionary<string, OwnerRootKeyRequest>? rootKeys = null
+        IReadOnlyDictionary<string, OwnerRootKeyRequest>? rootKeys = null,
+        bool isDisabled = false
     )
     {
         var team = new PersistedTeamBuilder
@@ -55,6 +56,7 @@ public sealed class TeamStoreMirrorTests : IDisposable
             TeamId = teamId,
             ParentTeamId = parentTeamId,
             DisplayName = displayName,
+            IsDisabled = isDisabled,
             Settings = JsonElement.Parse(settingsJson),
         }.Build();
         team.DirectorySequence = sequence;
@@ -169,6 +171,31 @@ public sealed class TeamStoreMirrorTests : IDisposable
         Assert.NotNull(team);
         Assert.Equal("After", team.DisplayName);
         Assert.Equal(2, team.DirectorySequence);
+    }
+
+    [Fact]
+    public async Task MirrorAsync_WhenTheDocumentIsDisabledOverAnEnabledTeam_DisablesTheTeam()
+    {
+        await MirrorAsync(CreateTeam("acme", null, sequence: 1));
+
+        var isApplied = await MirrorAsync(CreateTeam("acme", null, sequence: 2, isDisabled: true));
+
+        Assert.True(isApplied);
+        var team = await Store.GetOrDefaultAsync("acme", CancellationToken.None);
+        Assert.NotNull(team);
+        Assert.True(team.IsDisabled);
+    }
+
+    [Fact]
+    public async Task MirrorAsync_WhenTheDocumentIsEnabledOverADisabledTeam_EnablesTheTeam()
+    {
+        await MirrorAsync(CreateTeam("acme", null, sequence: 1, isDisabled: true));
+
+        await MirrorAsync(CreateTeam("acme", null, sequence: 2));
+
+        var team = await Store.GetOrDefaultAsync("acme", CancellationToken.None);
+        Assert.NotNull(team);
+        Assert.False(team.IsDisabled);
     }
 
     [Theory]

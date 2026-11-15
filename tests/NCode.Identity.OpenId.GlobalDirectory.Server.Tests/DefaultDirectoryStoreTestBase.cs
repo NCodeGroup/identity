@@ -132,6 +132,7 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
             {
                 TeamId = teamId,
                 DisplayName = teamId,
+                IsDisabled = false,
                 ParentTeamId = parentTeamId,
                 SettingsJson = SettingsWithLimit(maxTenants),
             },

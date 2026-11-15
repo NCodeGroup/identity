@@ -175,6 +175,29 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
     }
 
     [Fact]
+    public async Task ApplyAsync_WhenTheDocumentIsDisabled_MirrorsTheTeamAsDisabled()
+    {
+        SetupUnscoped();
+        SetupStoreManager();
+        SetupStoredSettings("""{"flag":true}""");
+        PersistedTeam? mirrored = null;
+        MockTeamStore
+            .Setup(x => x.MirrorAsync(It.IsAny<PersistedTeam>(), It.IsAny<CancellationToken>()))
+            .Callback<PersistedTeam, CancellationToken>((team, _) => mirrored = team)
+            .ReturnsAsync(true)
+            .Verifiable();
+        SetupSave(It.IsAny<CancellationToken>());
+        SetupCommand(settingsChanged: false, It.IsAny<CancellationToken>());
+        SetupRootKey(current: null);
+        var document = CreateDocument("""{"flag":true}""", sequence: 8) with { IsDisabled = true };
+
+        await Applier.ApplyAsync(document, CancellationToken.None);
+
+        Assert.NotNull(mirrored);
+        Assert.True(mirrored.IsDisabled);
+    }
+
+    [Fact]
     public async Task ApplyAsync_WhenTheSequenceIsStale_DoesNotSaveOrSendTheCommand()
     {
         SetupUnscoped();
@@ -582,6 +605,7 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
         {
             TeamId = TeamId,
             DisplayName = "Acme",
+            IsDisabled = false,
             SettingsJson = settingsJson,
             Sequence = sequence,
         };

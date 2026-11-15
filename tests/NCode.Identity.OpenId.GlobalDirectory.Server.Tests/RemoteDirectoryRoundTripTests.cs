@@ -197,6 +197,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
         {
             TeamId = teamId,
             DisplayName = $"Team {teamId}",
+            IsDisabled = false,
             ParentTeamId = parentTeamId,
             SettingsJson = settingsJson,
             RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty.Add(

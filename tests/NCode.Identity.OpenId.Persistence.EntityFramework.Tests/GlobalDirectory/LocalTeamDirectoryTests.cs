@@ -123,7 +123,12 @@ public sealed class LocalTeamDirectoryTests : IDisposable
     public async Task PublishAsync_WhenCalled_WritesNothing()
     {
         await Directory.PublishAsync(
-            new TeamDocument { TeamId = TeamId, DisplayName = "Platform" },
+            new TeamDocument
+            {
+                TeamId = TeamId,
+                DisplayName = "Platform",
+                IsDisabled = false,
+            },
             CancellationToken.None
         );
 
