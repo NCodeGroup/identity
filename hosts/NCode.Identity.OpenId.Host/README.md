@@ -20,7 +20,8 @@ The AppHost:
 - runs the **migration worker** (`NCode.Identity.OpenId.Host.MigrationService`), which applies the Npgsql
   migrations for both contexts and then exits — a migration failure shows up as a **failed dashboard resource** that
   holds back the `api`, instead of crashing it;
-- starts this `api` host, which receives the `openiddb` connection string via Aspire service discovery.
+- starts this `api` host, which assembles its connection from the runtime role's `OpenIdDatabase` parts that the
+  AppHost hands it.
 
 A container runtime (Docker Desktop or Podman) must be running when you launch the AppHost.
 

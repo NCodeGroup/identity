@@ -43,7 +43,7 @@ var adminPassword = DevelopmentSecretFile.ReadText(adminPasswordPath);
 
 // The OP hosts open the dev database as a runtime role that owns no table and cannot bypass row-level security
 // (ADR-1018), so its password is a per-machine development secret too. The file's text is URL-safe Base64, so it embeds
-// in the role statement and in the hosts' connection string without quoting.
+// in the role statement without quoting, and the hosts quote it in the connection they assemble.
 var runtimeRolePasswordPath = DevelopmentSecretFile.Ensure(
     developmentSecretsDirectory,
     "runtime-role-password"
@@ -86,12 +86,6 @@ var postgres = builder
     .WithRuntimeRole(runtimeRolePassword);
 var openIdDb = postgres.AddDatabase(LocalDatabase.DatabaseName);
 
-// The hosts' connection string: the Postgres endpoint with the runtime role's credentials.
-var runtimeConnectionString = LocalDatabase.RuntimeConnectionString(
-    postgres.Resource.PrimaryEndpoint,
-    runtimeRolePassword
-);
-
 // The shared state every OP replica must see — DPoP nonces and the single-use records of DPoP proofs and client
 // assertions (ADR-1164) — lives in Valkey, as in a multi-replica deployment, so local development exercises the same
 // adapter. It is a cache, not a system of record, so it has no data volume: a restart only clears records that expire
@@ -115,15 +109,16 @@ var migrations = builder
 // and the developer CORS origins all assume those ports. WithHttpHealthCheck gates dependents on the app being HEALTHY
 // (its /health/ready returns 200 once Kestrel is listening and the database answers), not merely "process started", which is what deterministically
 // removes the UI-before-API race.
-// ConnectionStrings__openiddb is the runtime role's connection string, not the owner's; WaitForCompletion holds the
-// api until migrations succeed and have granted the role its access. WithReference(valkey) injects the 'valkey'
-// connection string.
+// The host gets the runtime role's connection parts (the OpenIdDatabase__ variables); the owner's connection string
+// reaches only the migrations resource, and the host refuses both forms at once. WaitForCompletion holds the api until
+// migrations succeed and have granted the role its access. WithReference(valkey) injects the 'valkey' connection
+// string.
 // The SecretProtection__ variables select the `local` root key provider and point it at the development root key file.
 // The BootstrapAdmin__ and DeveloperInteractiveSeed__ variables hand it the per-machine development credentials.
 var api = builder
     .AddProject<Projects.NCode_Identity_OpenId_Host>("api")
     .WithHttpHealthCheck("/health/ready")
-    .WithEnvironment("ConnectionStrings__openiddb", runtimeConnectionString)
+    .WithRuntimeDatabase(postgres.Resource.PrimaryEndpoint, runtimeRolePassword)
     .WithReference(valkey)
     .WithEnvironment("SecretProtection__RootKeyProvider", "local")
     .WithEnvironment("SecretProtection__RootKeyProviders__Local__KeyPath", rootKeyPath)
@@ -153,7 +148,7 @@ var conformanceApi = builder
         launchProfileName: "ConformanceAspire"
     )
     .WithHttpHealthCheck("/health/ready")
-    .WithEnvironment("ConnectionStrings__openiddb", runtimeConnectionString)
+    .WithRuntimeDatabase(postgres.Resource.PrimaryEndpoint, runtimeRolePassword)
     .WithReference(valkey)
     .WithEnvironment("SecretProtection__RootKeyProvider", "local")
     .WithEnvironment("SecretProtection__RootKeyProviders__Local__KeyPath", rootKeyPath)

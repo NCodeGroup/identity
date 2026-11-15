@@ -77,8 +77,8 @@ characters it holds.**
 - The `cluster` job of the `Host chart` workflow creates a Secret of the shape an operator writes for the owner and one
   for the runtime role, creates the role in the kind Postgres, and installs the kind release with the parts form, so the
   form is proven against a real database and the migration Job.
-- The Aspire AppHost supplies `ConnectionStrings:openiddb`, which the host resolves as the finished-string form: the
-  owner's to the migration worker and the runtime role's to the hosts.
+- The Aspire AppHost supplies the owner's finished `ConnectionStrings:openiddb` to the migration worker and the runtime
+  role's `OpenIdDatabase` parts to the hosts, so each host assembles its connection with the password quoted.
 
 ## References
 

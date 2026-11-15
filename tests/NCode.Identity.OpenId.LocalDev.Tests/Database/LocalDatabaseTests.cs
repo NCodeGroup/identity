@@ -101,6 +101,43 @@ public class LocalDatabaseTests
 
     #endregion
 
+    #region RuntimeDatabaseParts Tests
+
+    [Fact]
+    public void RuntimeDatabaseParts_WhenValid_NamesTheDatabaseRoleAndPassword()
+    {
+        var parts = LocalDatabase.RuntimeDatabaseParts(Password);
+
+        Assert.Equal(3, parts.Count);
+        Assert.Equal("openiddb", parts["OpenIdDatabase__Name"]);
+        Assert.Equal("ncode_identity_app", parts["OpenIdDatabase__Username"]);
+        Assert.Equal(Password, parts["OpenIdDatabase__Password"]);
+    }
+
+    [Theory]
+    [InlineData("pass'word")]
+    [InlineData("pass\"word")]
+    [InlineData("pass word")]
+    [InlineData("pass+word")]
+    [InlineData("pass/word")]
+    [InlineData("pass=")]
+    [InlineData("pass$$word")]
+    [InlineData("")]
+    public void RuntimeDatabaseParts_WhenPasswordIsInvalid_Throws(string password)
+    {
+        var exception = Assert.Throws<ArgumentException>(() =>
+            LocalDatabase.RuntimeDatabaseParts(password)
+        );
+
+        Assert.Equal("password", exception.ParamName);
+        if (password.Length > 0)
+        {
+            Assert.DoesNotContain(password, exception.Message);
+        }
+    }
+
+    #endregion
+
     private static int CountOccurrences(string text, string value)
     {
         var count = 0;

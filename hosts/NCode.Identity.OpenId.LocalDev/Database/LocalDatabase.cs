@@ -2,18 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Text.RegularExpressions;
+using NCode.Identity.Persistence;
 using Npgsql;
 
 namespace NCode.Identity.OpenId.LocalDev.Database;
 
 /// <summary>
-/// Creates the Postgres role that the reference OP hosts run as in local development, and builds the connection string
-/// that carries its credentials.
+/// Creates the Postgres role that the reference OP hosts run as in local development, and names the connection parts
+/// that carry its credentials.
 /// </summary>
 /// <remarks>
 /// The migration worker connects as the schema owner and grants the runtime role its data access after it migrates, so
 /// the hosts never own the tables that row-level security protects. The role's password is a per-machine development
-/// secret in URL-safe Base64, so it embeds in a statement and in a connection string without quoting.
+/// secret in URL-safe Base64, so it embeds in a statement without quoting; the hosts quote it themselves when they
+/// assemble their connection.
 /// </remarks>
 // See ADR-1018, ADR-1073 and ADR-1370.
 internal static partial class LocalDatabase
@@ -27,6 +29,12 @@ internal static partial class LocalDatabase
     /// The name of the database that the runtime connection opens, <c>openiddb</c>.
     /// </summary>
     internal const string DatabaseName = "openiddb";
+
+    /// <summary>
+    /// The name of the configuration section whose parts the hosts assemble their Postgres connection from.
+    /// </summary>
+    // See ADR-1509.
+    internal const string ConnectionPartsSection = "OpenIdDatabase";
 
     /// <summary>
     /// Creates the statement that makes the runtime role exist with its login attributes and password.
@@ -57,23 +65,22 @@ internal static partial class LocalDatabase
     }
 
     /// <summary>
-    /// Creates the connection string that the hosts use to open the dev database as the runtime role.
+    /// Gets the connection parts, as environment variables, that name the dev database, the runtime role and its
+    /// password.
     /// </summary>
-    /// <param name="endpoint">The endpoint of the Postgres server.</param>
     /// <param name="password">The role's password; it is URL-safe Base64 (<c>A-Z a-z 0-9 - _</c>).</param>
-    /// <returns>The connection string, resolved once the endpoint is allocated.</returns>
+    /// <returns>The value of each environment variable, keyed by its name.</returns>
     /// <exception cref="ArgumentException">The password is not valid.</exception>
-    internal static ReferenceExpression RuntimeConnectionString(
-        EndpointReference endpoint,
-        string password
-    )
+    internal static IReadOnlyDictionary<string, string> RuntimeDatabaseParts(string password)
     {
-        ArgumentNullException.ThrowIfNull(endpoint);
         ThrowIfInvalid(RuntimeRole, password);
 
-        return ReferenceExpression.Create(
-            $"Host={endpoint.Property(EndpointProperty.Host)};Port={endpoint.Property(EndpointProperty.Port)};Database={DatabaseName};Username={RuntimeRole};Password={password}"
-        );
+        return new Dictionary<string, string>(3, StringComparer.Ordinal)
+        {
+            [$"{ConnectionPartsSection}__Name"] = DatabaseName,
+            [$"{ConnectionPartsSection}__Username"] = RuntimeRole,
+            [$"{ConnectionPartsSection}__Password"] = password,
+        };
     }
 
     /// <summary>
@@ -117,10 +124,10 @@ internal static partial class LocalDatabase
         ArgumentNullException.ThrowIfNull(runtimeRole);
         ArgumentNullException.ThrowIfNull(password);
 
-        if (!RuntimeRolePattern().IsMatch(runtimeRole))
+        if (!DatabaseRoleNameRules.IsValid(runtimeRole))
         {
             throw new ArgumentException(
-                "The runtime role must match ^[a-z_][a-z0-9_]*$.",
+                $"The runtime role must match {DatabaseRoleNameRules.Pattern}.",
                 nameof(runtimeRole)
             );
         }
@@ -133,9 +140,6 @@ internal static partial class LocalDatabase
             );
         }
     }
-
-    [GeneratedRegex(@"^[a-z_][a-z0-9_]*\z", RegexOptions.CultureInvariant)]
-    private static partial Regex RuntimeRolePattern();
 
     [GeneratedRegex(@"^[A-Za-z0-9_-]+\z", RegexOptions.CultureInvariant)]
     private static partial Regex PasswordPattern();

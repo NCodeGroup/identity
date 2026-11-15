@@ -177,7 +177,8 @@ identityServer.AddDevelopmentEnvironment(configuration);
 serviceCollection.AddDatabaseDeveloperPageExceptionFilter();
 
 // The dev database is Postgres, orchestrated by the Aspire AppHost (ADR-1073): the AppHost provisions the container
-// and injects the 'openiddb' connection string (or an operator's Secret supplies the 'OpenIdDatabase' parts, ADR-1509),
+// and hands this host the runtime role's 'OpenIdDatabase' parts and the migration worker the owner's 'openiddb'
+// connection string (an operator's Secret supplies the parts too, ADR-1509),
 // and a dedicated migration worker applies the schema before this host starts — so the api never bootstraps the
 // database itself. The developer data-protection key ring is persisted in the same database, so one purge resets the
 // OpenID data, the seeded signing key, the tenants' master keys, and the ring together. Stored secrets are encrypted
