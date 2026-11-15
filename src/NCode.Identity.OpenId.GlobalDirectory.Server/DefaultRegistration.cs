@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.Client;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Options;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
@@ -28,7 +29,9 @@ public static class DefaultRegistration
         /// serves, and binds <see cref="DirectoryServerOptions"/> strictly from the <c>DirectoryServer</c> section,
         /// which must name the issuer and is validated when the host starts. The host registers the
         /// <see cref="Microsoft.EntityFrameworkCore.IDbContextFactory{TContext}"/> of <see cref="DirectoryDbContext"/>
-        /// and the OpenID client library, whose <c>IIssuerAccessTokenValidator</c> validates the bearer tokens.
+        /// and the OpenID client library, whose <c>IIssuerAccessTokenValidator</c> validates the bearer tokens. The
+        /// host's <c>AllowedHosts</c> is validated when the host starts: it must list the deployment's host names and
+        /// not be empty or contain <c>*</c>, unless <c>LocalDevelopment:Enabled</c> is true.
         /// </summary>
         /// <param name="configuration">The <see cref="IConfiguration"/> holding the <c>DirectoryServer</c> section.</param>
         /// <returns>The same <see cref="IServiceBuilder{T}"/> so that calls can be chained.</returns>
@@ -40,6 +43,8 @@ public static class DefaultRegistration
             ArgumentNullException.ThrowIfNull(configuration);
 
             var serviceCollection = builder.ServiceCollection;
+
+            serviceCollection.AddHostFilteringValidation(configuration);
 
             var section = configuration.GetSection(DirectoryServerOptions.SectionName);
             serviceCollection

@@ -57,7 +57,11 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
         builder.Configuration.AddInMemoryCollection(
-            new Dictionary<string, string?> { ["DirectoryServer:Issuer"] = ServerIssuer }
+            new Dictionary<string, string?>
+            {
+                ["DirectoryServer:Issuer"] = ServerIssuer,
+                ["AllowedHosts"] = "localhost",
+            }
         );
         builder.Services.AddDbContextFactory<DirectoryDbContext>(options =>
             options.UseSqlite(Connection)

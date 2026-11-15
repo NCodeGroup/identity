@@ -124,7 +124,6 @@ public class DefaultRegistrationTests : BaseTests
             serviceCollection,
             x =>
                 x.ServiceType == typeof(IValidateOptions<HostFilteringOptions>)
-                && x.ImplementationType == typeof(ManagementConsoleHostFilteringValidator)
                 && x.Lifetime == ServiceLifetime.Singleton
         );
     }

@@ -169,3 +169,6 @@ NCode.Identity.AspNetCore.Options.LocalDevelopmentOptions
 NCode.Identity.AspNetCore.Options.LocalDevelopmentOptions.Enabled.get -> bool
 NCode.Identity.AspNetCore.Options.LocalDevelopmentOptions.Enabled.init -> void
 NCode.Identity.AspNetCore.Options.LocalDevelopmentOptions.LocalDevelopmentOptions() -> void
+NCode.Identity.AspNetCore.HostFilteringRegistration
+NCode.Identity.AspNetCore.HostFilteringRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!)
+NCode.Identity.AspNetCore.HostFilteringRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).AddHostFilteringValidation(Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

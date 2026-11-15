@@ -3,16 +3,15 @@
 
 using Microsoft.AspNetCore.HostFiltering;
 using Microsoft.Extensions.Options;
-using NCode.Identity.AspNetCore;
 
-namespace NCode.Identity.ManagementConsole.Options;
+namespace NCode.Identity.AspNetCore.Options;
 
 /// <summary>
 /// Validates <see cref="HostFilteringOptions"/> when the host starts, so a deployment that accepts any <c>Host</c>
-/// header stops at startup instead of serving the console for a host name it does not own. A host configured for
-/// local development (<c>LocalDevelopment:Enabled</c>) may accept any host.
+/// header stops at startup instead of serving a host name it does not own. A host configured for local development
+/// (<c>LocalDevelopment:Enabled</c>) may accept any host.
 /// </summary>
-internal sealed class ManagementConsoleHostFilteringValidator(LocalDevelopmentMode localDevelopment)
+internal sealed class HostFilteringOptionsValidator(LocalDevelopmentMode localDevelopment)
     : IValidateOptions<HostFilteringOptions>
 {
     private const string Wildcard = "*";

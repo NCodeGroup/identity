@@ -2,13 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Microsoft.AspNetCore.HostFiltering;
-using NCode.Identity.AspNetCore;
-using NCode.Identity.ManagementConsole.Options;
+using NCode.Identity.AspNetCore.Options;
 using Xunit;
 
-namespace NCode.Identity.ManagementConsole.Tests.Options;
+namespace NCode.Identity.AspNetCore.Tests.Options;
 
-public class ManagementConsoleHostFilteringValidatorTests : BaseTests
+public class HostFilteringOptionsValidatorTests : BaseTests
 {
     private static HostFilteringOptions CreateOptions(params string[] hosts)
     {
@@ -21,9 +20,8 @@ public class ManagementConsoleHostFilteringValidatorTests : BaseTests
         return options;
     }
 
-    private static ManagementConsoleHostFilteringValidator CreateValidator(
-        bool localDevelopment = false
-    ) => new(new LocalDevelopmentMode(localDevelopment));
+    private static HostFilteringOptionsValidator CreateValidator(bool localDevelopment = false) =>
+        new(new LocalDevelopmentMode(localDevelopment));
 
     #region Validate Tests
 
