@@ -28,7 +28,8 @@ namespace NCode.Identity.OpenId.Accounts.AspNetIdentity;
 /// ambient tenant scope and fails when no tenant scope is set. Every lookup treats a user of another tenant as not
 /// found, inside a tenant scope. Lookups by user name, and credential verification, need a tenant scope: they find
 /// nothing in an unset scope and throw in an unscoped scope (<see cref="IAmbientTenantAccessor.IsUnscoped"/>).
-/// Lookups by identifier read across tenants only in an unscoped scope.
+/// Lookups by identifier match the identifier in the query over the tenant's users, so they read across tenants only in
+/// an unscoped scope; like listing, they need an ASP.NET Core Identity store that supports querying users.
 /// <see cref="PersistedLocalAccount.TenantId"/> is mapped as empty; the
 /// resource-owner password grant authenticates against the request's tenant. Each operation resolves the scoped
 /// <see cref="UserManager{TUser}"/> from a fresh dependency-injection scope, so this adapter holds no scoped state and
@@ -115,11 +116,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
 
-        var user = await GetRequiredUserAsync(
-            userManager,
-            account.LocalAccountId,
-            cancellationToken
-        );
+        var user = GetRequiredUser(userManager, account.LocalAccountId);
 
         // SetUserNameAsync/SetEmailAsync also refresh the normalized lookup columns; setting the properties directly
         // would leave those stale. SetEmailAsync resets the confirmed flag, so the confirmation is applied after it.
@@ -154,7 +151,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         var passwordStore = GetPasswordStore(scope.ServiceProvider);
         var passwordHasher = GetPasswordHasher(userManager);
 
-        var user = await GetRequiredUserAsync(userManager, localAccountId, cancellationToken);
+        var user = GetRequiredUser(userManager, localAccountId);
 
         var submitted = DecodePassword(password);
         await SetPasswordHashAsync(
@@ -250,7 +247,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
 
-        var user = await FindByIdAsync(userManager, localAccountId, cancellationToken);
+        var user = FindById(userManager, localAccountId);
         return user is null ? null : await MapAsync(userManager, user, cancellationToken);
     }
 
@@ -310,7 +307,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
 
-        var user = await FindByIdAsync(userManager, localAccountId, cancellationToken);
+        var user = FindById(userManager, localAccountId);
         if (user is null)
         {
             return;
@@ -329,7 +326,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
 
-        var user = await GetRequiredUserAsync(userManager, localAccountId, cancellationToken);
+        var user = GetRequiredUser(userManager, localAccountId);
 
         var existing = await userManager.GetClaimsAsync(user);
         if (existing.Count > 0)
@@ -552,12 +549,8 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         );
     }
 
-    private async ValueTask<TUser> GetRequiredUserAsync(
-        UserManager<TUser> userManager,
-        string localAccountId,
-        CancellationToken cancellationToken
-    ) =>
-        await FindByIdAsync(userManager, localAccountId, cancellationToken)
+    private TUser GetRequiredUser(UserManager<TUser> userManager, string localAccountId) =>
+        FindById(userManager, localAccountId)
         ?? throw new InvalidOperationException(
             $"A local account with '{localAccountId}' was not found."
         );
@@ -571,24 +564,6 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         ?? throw new InvalidOperationException(
             "A local account cannot be created without a tenant scope. Open a tenant scope with IAmbientTenantAccessor.BeginScope."
         );
-
-    // A user of another tenant is not found inside a tenant scope; an unscoped scope reads across tenants, and an unset
-    // scope finds nothing.
-    private TUser? FilterByTenant(TUser? user)
-    {
-        if (user is null)
-        {
-            return null;
-        }
-
-        var tenantId = GetCurrentTenantId();
-        if (tenantId is null)
-        {
-            return AmbientTenantAccessor.IsUnscoped ? user : null;
-        }
-
-        return string.Equals(user.TenantId, tenantId, StringComparison.Ordinal) ? user : null;
-    }
 
     // The users of the ambient tenant; an unscoped scope reads every tenant's users, and an unset scope reads none.
     private IQueryable<TUser> GetTenantUsers(UserManager<TUser> userManager)
@@ -611,11 +586,10 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             : userManager.Users.Where(_ => false);
     }
 
-    private async ValueTask<TUser?> FindByIdAsync(
-        UserManager<TUser> userManager,
-        string localAccountId,
-        CancellationToken cancellationToken
-    ) => FilterByTenant(await userManager.FindByIdAsync(localAccountId));
+    // The identifier is matched in the query over the tenant's users, so a user of another tenant is never read. The
+    // query stays synchronous because this package does not reference EF Core.
+    private TUser? FindById(UserManager<TUser> userManager, string localAccountId) =>
+        GetTenantUsers(userManager).FirstOrDefault(user => user.Id == localAccountId);
 
     // A user name is unique only within a tenant, so a lookup by name needs a tenant scope: an unset scope finds
     // nothing, and an unscoped scope is rejected.
