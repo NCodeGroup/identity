@@ -17,6 +17,50 @@ namespace NCode.Identity.OpenId.Client.KeyRings;
 internal sealed class ClientKeyRingsOptionsValidator(IHostEnvironment environment)
     : IValidateOptions<ClientKeyRingsOptions>
 {
+    /// <summary>
+    /// Checks one remote key of a key ring: it has an id, its provider is a valid remote key provider name, its key
+    /// id, algorithm and secret type are not blank, and its key size is positive. Each failure is named
+    /// <c>{keyRingKey}:RemoteKeys:{id}</c>.
+    /// </summary>
+    /// <param name="keyRingKey">The configuration path of the key ring that holds the remote key.</param>
+    /// <param name="id">The id of the remote key within the key ring.</param>
+    /// <param name="remoteKey">The options of the remote key, or <c>null</c> when its section is empty.</param>
+    /// <param name="failures">The list that collects every failure found.</param>
+    private static void ValidateRemoteKey(
+        string keyRingKey,
+        string id,
+        ClientRemoteKeyOptions? remoteKey,
+        List<string> failures
+    )
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            failures.Add($"{keyRingKey}:RemoteKeys has a key without an id.");
+            return;
+        }
+
+        var key = $"{keyRingKey}:RemoteKeys:{id}";
+
+        if (!RemoteKeyReference.IsValidProviderName(remoteKey?.Provider))
+        {
+            failures.Add(
+                $"{key}:Provider must name a remote key provider: lowercase letters and digits in groups separated by single hyphens."
+            );
+        }
+
+        if (string.IsNullOrWhiteSpace(remoteKey?.KeyId))
+            failures.Add($"{key}:KeyId must not be blank.");
+
+        if (string.IsNullOrWhiteSpace(remoteKey?.Algorithm))
+            failures.Add($"{key}:Algorithm must not be blank.");
+
+        if (string.IsNullOrWhiteSpace(remoteKey?.SecretType))
+            failures.Add($"{key}:SecretType must not be blank.");
+
+        if (remoteKey is null || remoteKey.KeySizeBits <= 0)
+            failures.Add($"{key}:KeySizeBits must be positive.");
+    }
+
     private IHostEnvironment Environment { get; } = environment;
 
     /// <inheritdoc />
@@ -32,6 +76,15 @@ internal sealed class ClientKeyRingsOptionsValidator(IHostEnvironment environmen
             : ValidateOptionsResult.Fail(failures);
     }
 
+    /// <summary>
+    /// Checks every configured key ring, in ordinal order of its name: the section is set, each key ring has a name
+    /// and lists at least one PEM file or remote key, each PEM path is not blank and names a file that exists under
+    /// <see cref="IHostEnvironment.ContentRootPath"/>, each remote key is valid, and no two keys of a key ring share
+    /// an id. A PEM file's id is its file name without its extension.
+    /// </summary>
+    /// <param name="sectionPath">The configuration path of the key rings section, which prefixes every failure.</param>
+    /// <param name="keyRings">The configured key rings by name, or <c>null</c> when the section is not set.</param>
+    /// <param name="failures">The list that collects every failure found.</param>
     private void ValidateKeyRings(
         string sectionPath,
         Dictionary<string, ClientKeyRingOptions>? keyRings,
@@ -96,40 +149,5 @@ internal sealed class ClientKeyRingsOptionsValidator(IHostEnvironment environmen
             foreach (var id in duplicateIds)
                 failures.Add($"{keyRingKey} holds more than one key with the id '{id}'.");
         }
-    }
-
-    private static void ValidateRemoteKey(
-        string keyRingKey,
-        string id,
-        ClientRemoteKeyOptions? remoteKey,
-        List<string> failures
-    )
-    {
-        if (string.IsNullOrWhiteSpace(id))
-        {
-            failures.Add($"{keyRingKey}:RemoteKeys has a key without an id.");
-            return;
-        }
-
-        var key = $"{keyRingKey}:RemoteKeys:{id}";
-
-        if (!RemoteKeyReference.IsValidProviderName(remoteKey?.Provider))
-        {
-            failures.Add(
-                $"{key}:Provider must name a remote key provider: lowercase letters and digits in groups separated by single hyphens."
-            );
-        }
-
-        if (string.IsNullOrWhiteSpace(remoteKey?.KeyId))
-            failures.Add($"{key}:KeyId must not be blank.");
-
-        if (string.IsNullOrWhiteSpace(remoteKey?.Algorithm))
-            failures.Add($"{key}:Algorithm must not be blank.");
-
-        if (string.IsNullOrWhiteSpace(remoteKey?.SecretType))
-            failures.Add($"{key}:SecretType must not be blank.");
-
-        if (remoteKey is null || remoteKey.KeySizeBits <= 0)
-            failures.Add($"{key}:KeySizeBits must be positive.");
     }
 }
