@@ -4,7 +4,6 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NCode.Identity.OpenId.Host.Database.Logging;
-using Npgsql;
 
 namespace NCode.Identity.OpenId.Host.Database;
 
@@ -13,32 +12,19 @@ namespace NCode.Identity.OpenId.Host.Database;
 /// row-level security (see <see cref="RuntimeRolePosture"/>). Under the deployment posture a violation stops the
 /// host; under <c>LocalDevelopment:Enabled</c> it logs one warning and the host starts.
 /// </summary>
-/// <param name="connectionString">The connection string the host's runtime role connects with.</param>
+/// <param name="reader">The reader of the posture of the role the host connects as.</param>
 /// <param name="localDevelopment">
 /// Whether the host runs as a local inner-loop host (<c>LocalDevelopment:Enabled</c>), which warns instead of
 /// refusing to start.
 /// </param>
 /// <param name="logger">The logger that receives the warning.</param>
 // See ADR-1370.
-public sealed class RuntimeRolePostureCheck(
-    string connectionString,
+internal class RuntimeRolePostureCheck(
+    IRuntimeRolePostureReader reader,
     bool localDevelopment,
     ILogger<RuntimeRolePostureCheck> logger
 ) : IHostedService
 {
-    private const string PostureQuery = """
-        SELECT
-            r.rolsuper,
-            r.rolbypassrls,
-            EXISTS (
-                SELECT 1
-                FROM pg_tables t
-                WHERE t.tableowner = current_user AND t.schemaname = current_schema()
-            )
-        FROM pg_roles r
-        WHERE r.rolname = current_user
-        """;
-
     /// <inheritdoc />
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -74,13 +60,8 @@ public sealed class RuntimeRolePostureCheck(
         CancellationToken cancellationToken
     )
     {
-        await using var connection = new NpgsqlConnection(connectionString);
-        await connection.OpenAsync(cancellationToken);
-
-        await using var command = new NpgsqlCommand(PostureQuery, connection);
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-
-        if (!await reader.ReadAsync(cancellationToken))
+        var row = await reader.ReadAsync(cancellationToken);
+        if (row is not { } posture)
         {
             throw new InvalidOperationException(
                 "The runtime database role was not found in pg_roles, so its row-level security posture cannot be judged."
@@ -88,9 +69,9 @@ public sealed class RuntimeRolePostureCheck(
         }
 
         return RuntimeRolePosture.Evaluate(
-            isSuperuser: reader.GetBoolean(0),
-            bypassesRls: reader.GetBoolean(1),
-            ownsTenantTables: reader.GetBoolean(2)
+            isSuperuser: posture.IsSuperuser,
+            bypassesRls: posture.BypassesRls,
+            ownsTenantTables: posture.OwnsTenantTables
         );
     }
 }

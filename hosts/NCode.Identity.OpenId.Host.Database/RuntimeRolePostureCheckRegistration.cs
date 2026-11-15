@@ -8,7 +8,8 @@ using Microsoft.Extensions.Logging;
 namespace NCode.Identity.OpenId.Host.Database;
 
 /// <summary>
-/// Registers the <see cref="RuntimeRolePostureCheck"/> with an <see cref="IServiceCollection"/>.
+/// Registers the startup check that refuses to start the host when the role it connects as is not subject to
+/// row-level security with an <see cref="IServiceCollection"/>.
 /// </summary>
 [PublicAPI]
 public static class RuntimeRolePostureCheckRegistration
@@ -16,8 +17,8 @@ public static class RuntimeRolePostureCheckRegistration
     extension(IServiceCollection serviceCollection)
     {
         /// <summary>
-        /// Registers the <see cref="RuntimeRolePostureCheck"/>, which refuses to start the host when the role it
-        /// connects as is not subject to row-level security.
+        /// Registers the startup check that refuses to start the host when the role it connects as is not subject to
+        /// row-level security.
         /// </summary>
         /// <param name="connectionString">The Postgres connection string of the host's runtime role.</param>
         /// <param name="localDevelopment">
@@ -34,7 +35,7 @@ public static class RuntimeRolePostureCheckRegistration
 
             return serviceCollection.AddHostedService(
                 serviceProvider => new RuntimeRolePostureCheck(
-                    connectionString,
+                    new NpgsqlRuntimeRolePostureReader(connectionString),
                     localDevelopment,
                     serviceProvider.GetRequiredService<ILogger<RuntimeRolePostureCheck>>()
                 )

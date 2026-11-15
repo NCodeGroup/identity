@@ -3,7 +3,7 @@
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Hosting;
 using NCode.Identity.OpenId.Host.Database.EndToEnd.Tests.Infrastructure;
 using NCode.Identity.OpenId.Persistence.EntityFramework;
 using NCode.Identity.OpenId.Persistence.Tenants;
@@ -123,16 +123,12 @@ public sealed class RowLevelSecurityEndToEndTests(PostgresFixture fixture)
     [Fact]
     public async Task RuntimeRole_OwnerConnection_IsRefusedByPostureCheck()
     {
-        var runtimeCheck = new RuntimeRolePostureCheck(
-            fixture.RuntimeConnectionString,
-            localDevelopment: false,
-            NullLogger<RuntimeRolePostureCheck>.Instance
+        await using var runtimeProvider = CreatePostureCheckProvider(
+            fixture.RuntimeConnectionString
         );
-        var ownerCheck = new RuntimeRolePostureCheck(
-            fixture.OwnerConnectionString,
-            localDevelopment: false,
-            NullLogger<RuntimeRolePostureCheck>.Instance
-        );
+        await using var ownerProvider = CreatePostureCheckProvider(fixture.OwnerConnectionString);
+        var runtimeCheck = Assert.Single(runtimeProvider.GetServices<IHostedService>());
+        var ownerCheck = Assert.Single(ownerProvider.GetServices<IHostedService>());
 
         var runtimeException = await Record.ExceptionAsync(() =>
             runtimeCheck.StartAsync(CancellationToken.None)
@@ -145,6 +141,12 @@ public sealed class RowLevelSecurityEndToEndTests(PostgresFixture fixture)
     }
 
     #endregion
+
+    private static ServiceProvider CreatePostureCheckProvider(string connectionString) =>
+        new ServiceCollection()
+            .AddLogging()
+            .AddRuntimeRolePostureCheck(connectionString, localDevelopment: false)
+            .BuildServiceProvider();
 
     private OpenIdDbContext CreateContext(IAmbientTenantAccessor accessor)
     {
