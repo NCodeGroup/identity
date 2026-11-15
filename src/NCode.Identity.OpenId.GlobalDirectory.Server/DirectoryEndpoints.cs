@@ -39,6 +39,10 @@ public static class DirectoryEndpoints
         $"A cell and its region are each 1 to {CellLabelRules.MaxLabelLength} lowercase letters, digits or hyphens that "
         + "start with a letter and end with a letter or digit.";
 
+    private static string TooLongDetail =>
+        $"A tenant identifier is at most {DirectoryLimits.MaxIdentifierLength} characters, and an issuer at most "
+        + $"{DirectoryLimits.MaxIssuerLength}.";
+
     /// <param name="endpoints">The <see cref="IEndpointRouteBuilder"/> to map the routes on.</param>
     extension(IEndpointRouteBuilder endpoints)
     {
@@ -95,9 +99,9 @@ public static class DirectoryEndpoints
             .ProducesProblem(StatusCodes.Status409Conflict);
         group
             .MapPost("{tenantId}/move", MoveTenantAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status403Forbidden)
-            .ProducesProblem(StatusCodes.Status409Conflict)
-            .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
+            .ProducesProblem(StatusCodes.Status409Conflict);
         group
             .MapPost("{tenantId}/move-offers", OfferTenantMoveAsync)
             .ProducesProblem(StatusCodes.Status400BadRequest)
@@ -204,8 +208,10 @@ public static class DirectoryEndpoints
     /// <param name="directory">The <see cref="ITenantDirectory"/> that holds the reservation.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the tenant is reserved; <c>400 Bad Request</c> when a field is blank; <c>403 Forbidden</c>
-    /// when the cell is not the caller; <c>409 Conflict</c> when the identifier or the issuer is taken.
+    /// <c>200 OK</c> when the tenant is reserved; <c>400 Bad Request</c> when a field is blank, the cell is not a
+    /// <see cref="CellLabelRules"/> label, or the tenant or its issuer is longer than the directory stores;
+    /// <c>403 Forbidden</c> when the cell is not the caller; <c>409 Conflict</c> when the identifier or the issuer is
+    /// taken.
     /// </returns>
     private static async ValueTask<IResult> ReserveTenantAsync(
         TenantReservation reservation,
@@ -223,6 +229,15 @@ public static class DirectoryEndpoints
             return BadRequest("The tenant, its issuer and its cell are required.");
         }
 
+        if (!CellLabelRules.IsValidLabel(reservation.Cell))
+            return BadRequest(InvalidCellLabelDetail);
+
+        if (
+            IsOverLong(reservation.TenantId, DirectoryLimits.MaxIdentifierLength)
+            || IsOverLong(reservation.Issuer, DirectoryLimits.MaxIssuerLength)
+        )
+            return BadRequest(TooLongDetail);
+
         // A cell reserves a tenant only for itself.
         if (!IsCaller(httpContext, reservation.Cell))
             return Forbidden("A cell reserves a tenant only for itself.");
@@ -239,9 +254,9 @@ public static class DirectoryEndpoints
     /// <param name="directory">The <see cref="ITenantDirectory"/> that holds the placement.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the tenant is placed; <c>400 Bad Request</c> when the tenant or its issuer is blank or the
-    /// cell or its region is not a <see cref="CellLabelRules"/> label; <c>403 Forbidden</c>
-    /// when the cell is not the caller; <c>409 Conflict</c> when the identifier or the issuer belongs to another
+    /// <c>200 OK</c> when the tenant is placed; <c>400 Bad Request</c> when the tenant or its issuer is blank or longer
+    /// than the directory stores, or the cell or its region is not a <see cref="CellLabelRules"/> label;
+    /// <c>403 Forbidden</c> when the cell is not the caller; <c>409 Conflict</c> when the identifier or the issuer belongs to another
     /// tenant.
     /// </returns>
     private static async ValueTask<IResult> PlaceTenantAsync(
@@ -253,6 +268,12 @@ public static class DirectoryEndpoints
     {
         if (IsBlank(placement.TenantId) || IsBlank(placement.Issuer))
             return BadRequest("The tenant and its issuer are required.");
+
+        if (
+            IsOverLong(placement.TenantId, DirectoryLimits.MaxIdentifierLength)
+            || IsOverLong(placement.Issuer, DirectoryLimits.MaxIssuerLength)
+        )
+            return BadRequest(TooLongDetail);
 
         if (
             !CellLabelRules.IsValidLabel(placement.Cell)
@@ -304,8 +325,9 @@ public static class DirectoryEndpoints
     /// <param name="directory">The <see cref="ITenantDirectory"/> that holds the placement.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the tenant is moved; <c>422 Unprocessable Entity</c> when a cell is blank; <c>403 Forbidden</c>
-    /// when the target cell is not the caller; <c>409 Conflict</c> when the directory refuses the move.
+    /// <c>200 OK</c> when the tenant is moved; <c>400 Bad Request</c> when a cell is missing or is not a
+    /// <see cref="CellLabelRules"/> label; <c>403 Forbidden</c> when the target cell is not the caller;
+    /// <c>409 Conflict</c> when the directory refuses the move.
     /// </returns>
     private static async ValueTask<IResult> MoveTenantAsync(
         string tenantId,
@@ -316,21 +338,15 @@ public static class DirectoryEndpoints
         CancellationToken cancellationToken
     )
     {
-        if (IsBlank(fromCell) || IsBlank(toCell))
-            return UnprocessableEntity("The source cell and the target cell are required.");
+        if (!CellLabelRules.IsValidLabel(fromCell) || !CellLabelRules.IsValidLabel(toCell))
+            return BadRequest(InvalidCellLabelDetail);
 
         // The target cell asks for the move: the machine client that calls is `cell-{toCell}`.
         if (!IsCaller(httpContext, toCell))
             return Forbidden("Only the target cell moves a tenant to itself.");
 
         var result = await directory.MoveAsync(tenantId, fromCell, toCell, cancellationToken);
-        return result.IsMoved
-            ? Results.Ok()
-            : Results.Problem(
-                title: "Conflict",
-                detail: result.ConflictDetail,
-                statusCode: StatusCodes.Status409Conflict
-            );
+        return result.IsMoved ? Results.Ok() : Conflict(result.ConflictDetail);
     }
 
     /// <summary>
@@ -342,7 +358,8 @@ public static class DirectoryEndpoints
     /// <param name="directory">The <see cref="ITenantDirectory"/> that holds the placement and the offer.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>204 No Content</c> when the offer is recorded; <c>400 Bad Request</c> when the target cell is blank;
+    /// <c>204 No Content</c> when the offer is recorded; <c>400 Bad Request</c> when the target cell is missing or is
+    /// not a <see cref="CellLabelRules"/> label;
     /// <c>403 Forbidden</c> when the tenant has no placement or the caller does not hold it; <c>409 Conflict</c> when
     /// the directory refuses the offer.
     /// </returns>
@@ -354,8 +371,8 @@ public static class DirectoryEndpoints
         CancellationToken cancellationToken
     )
     {
-        if (IsBlank(request.ToCell))
-            return BadRequest("The target cell is required.");
+        if (!CellLabelRules.IsValidLabel(request.ToCell))
+            return BadRequest(InvalidCellLabelDetail);
 
         // The cell that holds the tenant offers it: the machine client that calls is `cell-{cell}`.
         var placement = await directory.GetPlacementOrDefaultAsync(tenantId, cancellationToken);
@@ -368,13 +385,7 @@ public static class DirectoryEndpoints
             request.ToCell,
             cancellationToken
         );
-        return result.IsOffered
-            ? Results.NoContent()
-            : Results.Problem(
-                title: "Conflict",
-                detail: result.ConflictDetail,
-                statusCode: StatusCodes.Status409Conflict
-            );
+        return result.IsOffered ? Results.NoContent() : Conflict(result.ConflictDetail);
     }
 
     /// <summary>
@@ -385,8 +396,9 @@ public static class DirectoryEndpoints
     /// <param name="writer">The <see cref="IDirectoryTenantWriter"/> that applies the write for the calling cell.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the tenant is retired; <c>400 Bad Request</c> when the tenant is blank; <c>403 Forbidden</c>
-    /// when the caller is not a cell; otherwise the problem document of the write outcome.
+    /// <c>200 OK</c> when the tenant is retired; <c>400 Bad Request</c> when the tenant is blank, or the tenant or its
+    /// issuer is longer than the directory stores; <c>403 Forbidden</c> when the caller is not a cell; otherwise the
+    /// problem document of the write outcome.
     /// </returns>
     private static async ValueTask<IResult> RetireTenantAsync(
         TenantRetirement retirement,
@@ -397,6 +409,12 @@ public static class DirectoryEndpoints
     {
         if (IsBlank(retirement.TenantId))
             return BadRequest("The tenant is required.");
+
+        if (
+            IsOverLong(retirement.TenantId, DirectoryLimits.MaxIdentifierLength)
+            || IsOverLong(retirement.Issuer, DirectoryLimits.MaxIssuerLength)
+        )
+            return BadRequest(TooLongDetail);
 
         if (DirectoryCaller.GetCell(httpContext.User) is not { } callerCell)
             return Forbidden(TenantWriteForbiddenDetail);
@@ -413,8 +431,9 @@ public static class DirectoryEndpoints
     /// <param name="writer">The <see cref="IDirectoryTenantWriter"/> that applies the write for the calling cell.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the issuer is changed; <c>400 Bad Request</c> when the tenant is blank; <c>403 Forbidden</c>
-    /// when the caller is not a cell; otherwise the problem document of the write outcome, such as <c>404 Not Found</c>
+    /// <c>200 OK</c> when the issuer is changed; <c>400 Bad Request</c> when the tenant is blank, or the tenant, the
+    /// issuer or the previous issuer is longer than the directory stores; <c>403 Forbidden</c> when the caller is not a
+    /// cell; otherwise the problem document of the write outcome, such as <c>404 Not Found</c>
     /// for an unknown tenant.
     /// </returns>
     private static async ValueTask<IResult> ChangeTenantIssuerAsync(
@@ -426,6 +445,13 @@ public static class DirectoryEndpoints
     {
         if (IsBlank(change.TenantId))
             return BadRequest("The tenant is required.");
+
+        if (
+            IsOverLong(change.TenantId, DirectoryLimits.MaxIdentifierLength)
+            || IsOverLong(change.Issuer, DirectoryLimits.MaxIssuerLength)
+            || IsOverLong(change.PreviousIssuer, DirectoryLimits.MaxIssuerLength)
+        )
+            return BadRequest(TooLongDetail);
 
         if (DirectoryCaller.GetCell(httpContext.User) is not { } callerCell)
             return Forbidden(TenantWriteForbiddenDetail);
@@ -836,6 +862,17 @@ public static class DirectoryEndpoints
         string.IsNullOrWhiteSpace(value);
 
     /// <summary>
+    /// Determines whether a request value is longer than the directory stores.
+    /// </summary>
+    /// <param name="value">The value to test.</param>
+    /// <param name="maxLength">The most characters the directory stores for the value.</param>
+    /// <returns>
+    /// <c>true</c> when the value is present and longer than <paramref name="maxLength"/>; otherwise <c>false</c>.
+    /// </returns>
+    private static bool IsOverLong(string? value, int maxLength) =>
+        value is not null && value.Length > maxLength;
+
+    /// <summary>
     /// Determines whether the authenticated caller is a given cell.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated caller.</param>
@@ -881,7 +918,7 @@ public static class DirectoryEndpoints
     /// </summary>
     /// <param name="detail">The explanation for the caller.</param>
     /// <returns>The <see cref="IResult"/> that writes the problem document.</returns>
-    private static IResult NotFound(string detail) =>
+    private static IResult NotFound(string? detail) =>
         Results.Problem(
             title: "Not Found",
             detail: detail,
@@ -901,15 +938,15 @@ public static class DirectoryEndpoints
         );
 
     /// <summary>
-    /// Builds a <c>422 Unprocessable Entity</c> problem document.
+    /// Builds a <c>409 Conflict</c> problem document.
     /// </summary>
     /// <param name="detail">The explanation for the caller.</param>
     /// <returns>The <see cref="IResult"/> that writes the problem document.</returns>
-    private static IResult UnprocessableEntity(string detail) =>
+    private static IResult Conflict(string? detail) =>
         Results.Problem(
-            title: "Unprocessable Entity",
+            title: "Conflict",
             detail: detail,
-            statusCode: StatusCodes.Status422UnprocessableEntity
+            statusCode: StatusCodes.Status409Conflict
         );
 
     /// <summary>
@@ -921,13 +958,7 @@ public static class DirectoryEndpoints
     /// conflict detail.
     /// </returns>
     private static IResult ToResult(ReservationResult result) =>
-        result.IsReserved
-            ? Results.Ok()
-            : Results.Problem(
-                title: "Conflict",
-                detail: result.ConflictDetail,
-                statusCode: StatusCodes.Status409Conflict
-            );
+        result.IsReserved ? Results.Ok() : Conflict(result.ConflictDetail);
 
     /// <summary>
     /// Converts the outcome of a tenant write to its response.
@@ -944,15 +975,7 @@ public static class DirectoryEndpoints
             DirectoryTenantWriteOutcome.Forbidden => Forbidden(
                 result.Detail ?? TenantWriteForbiddenDetail
             ),
-            DirectoryTenantWriteOutcome.NotFound => Results.Problem(
-                title: "Not Found",
-                detail: result.Detail,
-                statusCode: StatusCodes.Status404NotFound
-            ),
-            _ => Results.Problem(
-                title: "Conflict",
-                detail: result.Detail,
-                statusCode: StatusCodes.Status409Conflict
-            ),
+            DirectoryTenantWriteOutcome.NotFound => NotFound(result.Detail),
+            _ => Conflict(result.Detail),
         };
 }

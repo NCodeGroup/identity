@@ -315,6 +315,45 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ReserveTenant_WhenTheCellIsNotACellLabel_AnswersBadRequest()
+    {
+        Authenticate();
+
+        var response = await Client.PostAsJsonAsync(
+            "/directory/v1/tenants/reserve",
+            new TenantReservation
+            {
+                TenantId = TenantId,
+                Issuer = TenantIssuer,
+                Cell = "Cell-A",
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var reserveResponse = await ReserveTenantAsync(TenantId, TenantIssuer);
+        Assert.Equal(HttpStatusCode.OK, reserveResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task ReserveTenant_WhenTheTenantIdIsOverMaxLength_AnswersBadRequest()
+    {
+        Authenticate();
+        var tenantId = new string('t', DirectoryLimits.MaxIdentifierLength + 1);
+
+        var response = await ReserveTenantAsync(tenantId, TenantIssuer);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains(
+            $"at most {DirectoryLimits.MaxIdentifierLength} characters",
+            await ReadProblemDetailAsync(response),
+            StringComparison.Ordinal
+        );
+        var reserveResponse = await ReserveTenantAsync(TenantId, TenantIssuer);
+        Assert.Equal(HttpStatusCode.OK, reserveResponse.StatusCode);
+    }
+
+    [Fact]
     public async Task PlaceTenant_WhenTheRegionIsNotACellLabel_Returns400()
     {
         Authenticate();
@@ -334,6 +373,35 @@ public class DirectoryEndpointsTests : IAsyncLifetime
                 Issuer = TenantIssuer,
                 Cell = CellName,
                 Region = "West-Europe",
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var getResponse = await Client.GetAsync($"/directory/v1/tenants/{TenantId}");
+        Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task PlaceTenant_WhenTheIssuerIsOverMaxLength_AnswersBadRequest()
+    {
+        Authenticate();
+        var cellResponse = await Client.PutAsJsonAsync(
+            $"/directory/v1/cells/{CellName}",
+            CreateCell(CellName),
+            WebOptions
+        );
+        Assert.Equal(HttpStatusCode.OK, cellResponse.StatusCode);
+        await ReserveTenantAsync(TenantId, TenantIssuer);
+
+        var response = await Client.PostAsJsonAsync(
+            "/directory/v1/tenants/place",
+            new TenantPlacement
+            {
+                TenantId = TenantId,
+                Issuer = "https://op.example/" + new string('i', DirectoryLimits.MaxIssuerLength),
+                Cell = CellName,
+                Region = "region-a",
             },
             WebOptions
         );
@@ -520,6 +588,45 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         );
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task RetireTenant_WhenTheTenantIdIsOverMaxLength_AnswersBadRequest()
+    {
+        Authenticate();
+        var tenantId = new string('t', DirectoryLimits.MaxIdentifierLength + 1);
+
+        var response = await RetireTenantAsync(tenantId);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var issuerResponse = await Client.GetAsync(
+            $"/directory/v1/tenants/retired-issuers?issuer={Uri.EscapeDataString(TenantIssuer)}"
+        );
+        Assert.Equal(HttpStatusCode.NotFound, issuerResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task ChangeIssuer_WhenTheIssuerIsOverMaxLength_AnswersBadRequest()
+    {
+        Authenticate();
+        await ReserveTenantAsync(TenantId, TenantIssuer);
+
+        var response = await Client.PostAsJsonAsync(
+            "/directory/v1/tenants/change-issuer",
+            new TenantIssuerChange
+            {
+                TenantId = TenantId,
+                PreviousIssuer = TenantIssuer,
+                Issuer = "https://op.example/" + new string('i', DirectoryLimits.MaxIssuerLength),
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var issuerResponse = await Client.GetAsync(
+            $"/directory/v1/tenants/retired-issuers?issuer={Uri.EscapeDataString(TenantIssuer)}"
+        );
+        Assert.Equal(HttpStatusCode.NotFound, issuerResponse.StatusCode);
     }
 
     #endregion
@@ -966,7 +1073,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task MoveTenant_WithoutTheCells_AnswersUnprocessableEntity()
+    public async Task MoveTenant_WithoutTheCells_AnswersBadRequest()
     {
         Authenticate(clientId: "cell-b");
 
@@ -975,7 +1082,22 @@ public class DirectoryEndpointsTests : IAsyncLifetime
             content: null
         );
 
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task MoveTenant_WhenACellIsNotACellLabel_AnswersBadRequest()
+    {
+        await SeedPlacedTenantAsync("region-a");
+        Authenticate(clientId: "cell-b");
+
+        var response = await Client.PostAsync(
+            $"/directory/v1/tenants/{TenantId}/move?fromCell=A&toCell=b",
+            content: null
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("a", await GetPlacedCellAsync());
     }
 
     [Fact]
@@ -1052,6 +1174,21 @@ public class DirectoryEndpointsTests : IAsyncLifetime
             "Only the cell that holds a tenant offers it to another cell.",
             await ReadProblemDetailAsync(response)
         );
+    }
+
+    [Fact]
+    public async Task OfferMove_WhenTheTargetCellIsNotACellLabel_AnswersBadRequest()
+    {
+        await SeedPlacedTenantAsync("region-a");
+        Authenticate(clientId: "cell-a");
+
+        var response = await Client.PostAsJsonAsync(
+            $"/directory/v1/tenants/{TenantId}/move-offers",
+            new TenantMoveOfferRequest { ToCell = "B" },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
@@ -1550,6 +1687,26 @@ public class DirectoryEndpointsTests : IAsyncLifetime
                 $"{endpoint.DisplayName} does not declare 415."
             );
         }
+    }
+
+    [Fact]
+    public void MapDirectoryEndpoints_MoveRoute_DeclaresBadRequestAndNotUnprocessableEntity()
+    {
+        var app = App ?? throw new InvalidOperationException();
+        var dataSource = app.Services.GetRequiredService<EndpointDataSource>();
+
+        var moveEndpoint = Assert.Single(
+            dataSource.Endpoints.OfType<RouteEndpoint>(),
+            endpoint =>
+                endpoint.RoutePattern.RawText?.EndsWith("/move", StringComparison.Ordinal) == true
+        );
+        var statusCodes = moveEndpoint
+            .Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>()
+            .Select(metadata => metadata.StatusCode)
+            .ToHashSet();
+
+        Assert.Contains(StatusCodes.Status400BadRequest, statusCodes);
+        Assert.DoesNotContain(StatusCodes.Status422UnprocessableEntity, statusCodes);
     }
 
     #endregion
