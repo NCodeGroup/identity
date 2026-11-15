@@ -9,7 +9,3 @@ NCode.Identity.OpenId.Accounts.AspNetIdentity.NormalizingPasswordHasher<TUser>
 NCode.Identity.OpenId.Accounts.AspNetIdentity.NormalizingPasswordHasher<TUser>.NormalizingPasswordHasher(Microsoft.AspNetCore.Identity.IPasswordHasher<TUser!>! innerHasher) -> void
 NCode.Identity.OpenId.Accounts.AspNetIdentity.NormalizingPasswordHasher<TUser>.HashPassword(TUser! user, string! password) -> string!
 NCode.Identity.OpenId.Accounts.AspNetIdentity.NormalizingPasswordHasher<TUser>.VerifyHashedPassword(TUser! user, string! hashedPassword, string! providedPassword) -> Microsoft.AspNetCore.Identity.PasswordVerificationResult
-NCode.Identity.OpenId.Accounts.AspNetIdentity.TenantLookupNormalizer
-NCode.Identity.OpenId.Accounts.AspNetIdentity.TenantLookupNormalizer.NormalizeEmail(string? email) -> string?
-NCode.Identity.OpenId.Accounts.AspNetIdentity.TenantLookupNormalizer.NormalizeName(string? name) -> string?
-NCode.Identity.OpenId.Accounts.AspNetIdentity.TenantLookupNormalizer.TenantLookupNormalizer(NCode.Identity.OpenId.Persistence.Tenants.IAmbientTenantAccessor! ambientTenantAccessor) -> void

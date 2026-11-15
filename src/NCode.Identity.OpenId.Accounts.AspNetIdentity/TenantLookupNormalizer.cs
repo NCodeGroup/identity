@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using JetBrains.Annotations;
 using Microsoft.AspNetCore.Identity;
 using NCode.Identity.OpenId.Persistence.Tenants;
 
@@ -18,8 +17,7 @@ namespace NCode.Identity.OpenId.Accounts.AspNetIdentity;
 /// name without its tenant.
 /// </remarks>
 /// <param name="ambientTenantAccessor">The ambient tenant accessor that supplies the tenant of the current scope.</param>
-[PublicAPI]
-public sealed class TenantLookupNormalizer(IAmbientTenantAccessor ambientTenantAccessor)
+internal class TenantLookupNormalizer(IAmbientTenantAccessor ambientTenantAccessor)
     : ILookupNormalizer
 {
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
@@ -30,6 +28,19 @@ public sealed class TenantLookupNormalizer(IAmbientTenantAccessor ambientTenantA
     /// <inheritdoc />
     public string? NormalizeEmail(string? email) => Normalize(email);
 
+    /// <summary>
+    /// Normalizes <paramref name="value"/> to its NFC, upper-case invariant form and prefixes it with the ambient
+    /// tenant's lower-case invariant identifier and a <c>|</c> separator.
+    /// </summary>
+    /// <param name="value">The user name or email to normalize, or <see langword="null"/>.</param>
+    /// <returns>
+    /// The tenant-prefixed normalized value (<c>{normalizedTenantId}|{value}</c>), or <see langword="null"/> when
+    /// <paramref name="value"/> is <see langword="null"/>.
+    /// </returns>
+    /// <exception cref="InvalidOperationException">
+    /// <paramref name="value"/> is not <see langword="null"/> and the ambient tenant accessor has no tenant, which is
+    /// the case outside a tenant scope and inside an unscoped scope.
+    /// </exception>
     private string? Normalize(string? value)
     {
         if (value is null)

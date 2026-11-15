@@ -101,9 +101,9 @@ public static class DefaultRegistration
         /// stores. It wraps the host's <c>IPasswordHasher&lt;TUser&gt;</c> registration, made before or after this call,
         /// in <see cref="NormalizingPasswordHasher{TUser}"/>, so the adapter and the host's own ASP.NET Core Identity
         /// pages hash and verify a password's NFC form; a hasher that the host registers after this call must be wrapped
-        /// by the host. It also registers <see cref="TenantLookupNormalizer"/> as the <see cref="ILookupNormalizer"/>,
-        /// so a user name and an email are unique per tenant, and the user type implements
-        /// <see cref="ITenantBoundUser"/>.
+        /// by the host. It also registers an <see cref="ILookupNormalizer"/> that prefixes each normalized user name and
+        /// email with the ambient tenant's normalized identifier, so a user name and an email are unique per tenant, and
+        /// the user type implements <see cref="ITenantBoundUser"/>.
         /// </summary>
         /// <typeparam name="TUser">The ASP.NET Core Identity user type.</typeparam>
         /// <returns>The <see cref="IServiceBuilder{T}"/> proving a local-account store is registered.</returns>
