@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Globalization;
 using NCode.Buffers;
 using NCode.Identity.SharedState;
 
@@ -10,11 +11,8 @@ namespace NCode.Identity.Bff.Sessions;
 /// The default <see cref="IBffSessionStore"/>, which keeps sessions, login transactions and refresh leases in the
 /// shared-state sets that every replica sees.
 /// </summary>
-internal class DefaultBffSessionStore(
-    IExpiringValueSet values,
-    IExpiringIndexSet indexes,
-    IBffClientMemberProtector clientMembers
-) : IBffSessionStore
+internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSet indexes)
+    : IBffSessionStore
 {
     /// <inheritdoc />
     public async ValueTask<bool> TryCreateAsync(
@@ -65,7 +63,7 @@ internal class DefaultBffSessionStore(
             );
             await indexes.AddMemberAsync(
                 BffStoreKeys.ClientsIndex,
-                clientMembers.Protect(client, metadata.AbsoluteExpiresAt),
+                GetClientMember(client, metadata.AbsoluteExpiresAt),
                 BffStoreKeys.ClientMemberExpiresAt(metadata.AbsoluteExpiresAt),
                 cancellationToken
             );
@@ -224,23 +222,23 @@ internal class DefaultBffSessionStore(
                 cancellationToken
             );
 
-            var clients = new List<BffSessionClient>(members.Count);
+            var clients = new List<BffSessionClient>();
+            var digests = new HashSet<string>(StringComparer.Ordinal);
             foreach (var member in members)
             {
-                if (clientMembers.TryUnprotect(member, out var client))
-                {
-                    clients.Add(client);
+                if (!TryGetClientDigest(member, out var digest) || !digests.Add(digest))
                     continue;
-                }
 
-                await indexes.RemoveMemberAsync(
-                    BffStoreKeys.ClientsIndex,
-                    member,
-                    cancellationToken
-                );
+                var indexKey = BffStoreKeys.ClientIndex(digest);
+                var storeKeys = await indexes.GetMembersAsync(indexKey, cancellationToken);
+                if (
+                    await TryResolveClientAsync(storeKeys, cancellationToken) is { } client
+                    && BffStoreKeys.ClientIndex(client) == indexKey
+                )
+                    clients.Add(client);
             }
 
-            return clients.Distinct().ToList();
+            return clients;
         }
         catch (Exception exception) when (IsStoreFailure(exception, cancellationToken))
         {
@@ -387,6 +385,71 @@ internal class DefaultBffSessionStore(
         metadata.IdleExpiresAt < metadata.AbsoluteExpiresAt
             ? metadata.IdleExpiresAt
             : metadata.AbsoluteExpiresAt;
+
+    private const string ClientMemberDayFormat = "yyyy-MM-dd";
+
+    /// <summary>
+    /// Gets the member of <see cref="BffStoreKeys.ClientsIndex"/> that lists a client for the UTC day of a session's
+    /// absolute expiry: the day, a colon and the client's digest.
+    /// </summary>
+    /// <param name="client">The client that the session was issued to.</param>
+    /// <param name="absoluteExpiresAt">The absolute expiry of the session.</param>
+    /// <returns>The member.</returns>
+    private static string GetClientMember(
+        BffSessionClient client,
+        DateTimeOffset absoluteExpiresAt
+    ) =>
+        absoluteExpiresAt.UtcDateTime.ToString(ClientMemberDayFormat, CultureInfo.InvariantCulture)
+        + ":"
+        + BffStoreKeys.ClientDigest(client);
+
+    /// <summary>
+    /// Reads the client digest of a member of <see cref="BffStoreKeys.ClientsIndex"/>.
+    /// </summary>
+    /// <param name="member">The member.</param>
+    /// <param name="digest">The client digest that the member names.</param>
+    /// <returns><see langword="true"/> when the member is well formed; otherwise, <see langword="false"/>.</returns>
+    private static bool TryGetClientDigest(string member, out string digest)
+    {
+        digest = string.Empty;
+
+        var separator = member.IndexOf(':');
+        if (
+            separator != ClientMemberDayFormat.Length
+            || separator == member.Length - 1
+            || !DateOnly.TryParseExact(
+                member.AsSpan(0, separator),
+                ClientMemberDayFormat,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out _
+            )
+        )
+            return false;
+
+        digest = member[(separator + 1)..];
+        return true;
+    }
+
+    /// <summary>
+    /// Reads the client from the first session record that can be read among the members of a client's index.
+    /// </summary>
+    /// <param name="storeKeys">The store keys of the sessions in the client's index.</param>
+    /// <param name="cancellationToken">A token that cancels the reads.</param>
+    /// <returns>The client of the first readable record; otherwise, <see langword="null"/>.</returns>
+    private async ValueTask<BffSessionClient?> TryResolveClientAsync(
+        IReadOnlyList<string> storeKeys,
+        CancellationToken cancellationToken
+    )
+    {
+        foreach (var storeKey in storeKeys)
+        {
+            if (await GetAsync(storeKey, cancellationToken) is { } record)
+                return record.Metadata.Client;
+        }
+
+        return null;
+    }
 
     private static bool IsStoreFailure(Exception exception, CancellationToken cancellationToken) =>
         exception is not BffStoreUnavailableException

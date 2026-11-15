@@ -35,10 +35,11 @@ client; and a background pass on one replica ends every stored session whose fro
 3. **The store indexes sessions by client.** `IBffSessionStore.FindClientsAsync` lists the distinct clients
    (`BffSessionClient`: frontend, authority and client id) that have stored sessions, and `FindByClientAsync` lists the
    store keys of one client's sessions; a store adapter implements both. The default store keeps one `bff:client:`
-   index per client, keyed by digests of the length-prefixed values, and one `bff:clients` index whose members name a
-   client and the UTC day of its sessions' absolute expiry. Each member is protected with `IDataProtector`, one per
-   replica, client and day, and expires at the end of its day, so adding a session never shortens how long its client
-   stays listed, and an unreadable member is skipped and removed.
+   index per client, keyed by digests of the length-prefixed values, and one `bff:clients` index whose members are the
+   UTC day of its sessions' absolute expiry and the client's digest. Every replica reads the same members, a member
+   names a client only by its digest, and each member expires at the end of its day, so adding a session never
+   shortens how long its client stays listed. Retirement resolves each digest through the plaintext client of a
+   readable session in that client's index, and a member it cannot resolve is skipped and expires on its own.
 4. **A pass reconciles the store with the set.** `BffSessionRetirementService` runs `BffSessionRetirement` when the
    host starts and after every change of the set. For each stored client whose frontend is gone, or is configured as
    another client, the pass takes the store lease `retire:<frontend>` for `Bff:SessionRetirement:LeaseDuration` (five

@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 using NCode.Identity.Bff.Login;
@@ -32,13 +31,7 @@ public class BffLoginTransactionServiceTests : IAsyncLifetime
         var values = Provider.GetRequiredService<IExpiringValueSet>();
         var indexes = Provider.GetRequiredService<IExpiringIndexSet>();
         Service = new BffLoginTransactionService(
-            BffTestTelemetry.Instrument(
-                new DefaultBffSessionStore(
-                    values,
-                    indexes,
-                    new DefaultBffClientMemberProtector(new EphemeralDataProtectionProvider())
-                )
-            )
+            BffTestTelemetry.Instrument(new DefaultBffSessionStore(values, indexes))
         );
     }
 

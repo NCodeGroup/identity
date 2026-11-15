@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
@@ -263,13 +262,7 @@ public class BffLoginHandlerTests : BaseTests
         var values = provider.GetRequiredService<IExpiringValueSet>();
         var indexes = provider.GetRequiredService<IExpiringIndexSet>();
         var transactionService = new BffLoginTransactionService(
-            BffTestTelemetry.Instrument(
-                new DefaultBffSessionStore(
-                    values,
-                    indexes,
-                    new DefaultBffClientMemberProtector(new EphemeralDataProtectionProvider())
-                )
-            )
+            BffTestTelemetry.Instrument(new DefaultBffSessionStore(values, indexes))
         );
 
         var httpContext = CreateHttpContext("?returnUrl=/app");

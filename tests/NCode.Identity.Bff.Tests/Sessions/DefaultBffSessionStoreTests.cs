@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using Microsoft.AspNetCore.DataProtection;
 using Moq;
 using NCode.Buffers;
 using NCode.Identity.Bff.Sessions;
@@ -19,29 +18,31 @@ public class DefaultBffSessionStoreTests : BaseTests
 
     private Mock<IExpiringValueSet> MockValues { get; }
     private Mock<IExpiringIndexSet> MockIndexes { get; }
-    private DefaultBffClientMemberProtector ClientMembers { get; } =
-        new(new EphemeralDataProtectionProvider());
     private DefaultBffSessionStore Store { get; }
 
     public DefaultBffSessionStoreTests()
     {
         MockValues = CreateStrictMock<IExpiringValueSet>();
         MockIndexes = CreateStrictMock<IExpiringIndexSet>();
-        Store = new DefaultBffSessionStore(MockValues.Object, MockIndexes.Object, ClientMembers);
+        Store = new DefaultBffSessionStore(MockValues.Object, MockIndexes.Object);
     }
 
-    private static BffSessionMetadata CreateMetadata(string? sessionId = "sid-1") =>
+    private static BffSessionMetadata CreateMetadata(
+        string? sessionId = "sid-1",
+        BffSessionClient? client = null,
+        DateTimeOffset? absoluteExpiresAt = null
+    ) =>
         new()
         {
-            Frontend = "default",
-            Authority = "https://op.example",
-            ClientId = "client-1",
+            Frontend = client?.Frontend ?? "default",
+            Authority = client?.Authority ?? "https://op.example",
+            ClientId = client?.ClientId ?? "client-1",
             Issuer = "https://op.example",
             Subject = "sub-1",
             SessionId = sessionId,
             CreatedAt = new DateTimeOffset(2026, 1, 2, 3, 0, 0, TimeSpan.Zero),
             LastAccessedAt = new DateTimeOffset(2026, 1, 2, 3, 0, 0, TimeSpan.Zero),
-            AbsoluteExpiresAt = Absolute,
+            AbsoluteExpiresAt = absoluteExpiresAt ?? Absolute,
             IdleExpiresAt = Idle,
         };
 
@@ -50,6 +51,28 @@ public class DefaultBffSessionStoreTests : BaseTests
 
     private static BffSessionClient CreateClient() =>
         new("default", "https://op.example", "client-1");
+
+    private static ExpiringValue CreateStoredValue(BffSessionClient client)
+    {
+        using var lease = BffSessionRecordSerializer.Serialize(
+            CreateMetadata(client: client),
+            new byte[] { 1 },
+            out var value
+        );
+        return new ExpiringValue(value.ToArray(), 1);
+    }
+
+    private void SetupReadableClient(BffSessionClient client, string storeKey)
+    {
+        MockIndexes
+            .Setup(x => x.GetMembersAsync(BffStoreKeys.ClientIndex(client), CancellationToken.None))
+            .ReturnsAsync([storeKey])
+            .Verifiable(Times.Once);
+        MockValues
+            .Setup(x => x.GetAsync("bff:session:" + storeKey, CancellationToken.None))
+            .ReturnsAsync(CreateStoredValue(client))
+            .Verifiable(Times.Once);
+    }
 
     private void SetupClientIndexAdds()
     {
@@ -69,7 +92,7 @@ public class DefaultBffSessionStoreTests : BaseTests
             .Setup(x =>
                 x.AddMemberAsync(
                     BffStoreKeys.ClientsIndex,
-                    ClientMembers.Protect(client, Absolute),
+                    "2026-01-02:" + BffStoreKeys.ClientDigest(client),
                     new DateTimeOffset(2026, 1, 3, 0, 0, 0, TimeSpan.Zero),
                     CancellationToken.None
                 )
@@ -142,6 +165,58 @@ public class DefaultBffSessionStoreTests : BaseTests
         SetupClientIndexAdds();
 
         await Store.TryCreateAsync(CreateRecord(), CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task TryCreateAsync_WhenCalled_AddsTheClientDigestMemberToTheClientsIndex()
+    {
+        var client = CreateClient();
+        var absolute = new DateTimeOffset(2026, 1, 2, 23, 30, 0, TimeSpan.FromHours(-5));
+        var metadata = CreateMetadata(null, absoluteExpiresAt: absolute);
+        var record = new BffSessionRecord(StoreKey, 1, metadata, new byte[] { 1, 2, 3 });
+        var subIndex = BffStoreKeys.SubjectIndex(metadata.Issuer, metadata.Subject);
+
+        MockValues
+            .Setup(x =>
+                x.TryAddAsync(
+                    "bff:session:" + StoreKey,
+                    It.IsAny<ReadOnlyMemory<byte>>(),
+                    Idle,
+                    CancellationToken.None
+                )
+            )
+            .ReturnsAsync(true)
+            .Verifiable();
+        MockIndexes
+            .Setup(x => x.AddMemberAsync(subIndex, StoreKey, absolute, CancellationToken.None))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockIndexes
+            .Setup(x =>
+                x.AddMemberAsync(
+                    BffStoreKeys.ClientIndex(client),
+                    StoreKey,
+                    absolute,
+                    CancellationToken.None
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockIndexes
+            .Setup(x =>
+                x.AddMemberAsync(
+                    BffStoreKeys.ClientsIndex,
+                    "2026-01-03:" + BffStoreKeys.ClientDigest(client),
+                    new DateTimeOffset(2026, 1, 4, 0, 0, 0, TimeSpan.Zero),
+                    CancellationToken.None
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
+
+        var result = await Store.TryCreateAsync(record, CancellationToken.None);
+
+        Assert.True(result);
     }
 
     [Fact]
@@ -485,45 +560,100 @@ public class DefaultBffSessionStoreTests : BaseTests
     }
 
     [Fact]
-    public async Task FindClientsAsync_TwoDaysOfOneClient_ReturnsTheClientOnce()
+    public async Task FindClientsAsync_WhenMembersShareADigest_ReturnsTheClientOnce()
     {
         var client = CreateClient();
         var other = new BffSessionClient("other", "https://op.example", "client-2");
+        var clientDigest = BffStoreKeys.ClientDigest(client);
+        var otherDigest = BffStoreKeys.ClientDigest(other);
         IReadOnlyList<string> members =
         [
-            ClientMembers.Protect(client, Absolute),
-            ClientMembers.Protect(client, Absolute.AddDays(1)),
-            ClientMembers.Protect(other, Absolute),
+            "2026-01-02:" + clientDigest,
+            "2026-01-03:" + clientDigest,
+            "2026-01-02:" + otherDigest,
         ];
         MockIndexes
             .Setup(x => x.GetMembersAsync(BffStoreKeys.ClientsIndex, CancellationToken.None))
             .ReturnsAsync(members)
-            .Verifiable();
+            .Verifiable(Times.Once);
+        SetupReadableClient(client, "store-1");
+        SetupReadableClient(other, "store-2");
 
         var result = await Store.FindClientsAsync(CancellationToken.None);
 
         Assert.Equal([client, other], result);
+        MockIndexes.Verify(
+            x => x.GetMembersAsync(BffStoreKeys.ClientIndex(client), CancellationToken.None),
+            Times.Once
+        );
     }
 
     [Fact]
-    public async Task FindClientsAsync_UnreadableMember_RemovesItAndReturnsTheOthers()
+    public async Task FindClientsAsync_MemberWithoutReadableRecord_SkipsItWithoutRemoving()
     {
         var client = CreateClient();
-        IReadOnlyList<string> members = ["malformed", ClientMembers.Protect(client, Absolute)];
+        var unreadable = new BffSessionClient("other", "https://op.example", "client-2");
+        var unreadableDigest = BffStoreKeys.ClientDigest(unreadable);
+        IReadOnlyList<string> members =
+        [
+            "malformed",
+            "2026-01-02:",
+            "not-a-day:" + unreadableDigest,
+            "2026-01-02:" + unreadableDigest,
+            "2026-01-02:" + BffStoreKeys.ClientDigest(client),
+        ];
         MockIndexes
             .Setup(x => x.GetMembersAsync(BffStoreKeys.ClientsIndex, CancellationToken.None))
             .ReturnsAsync(members)
             .Verifiable(Times.Once);
         MockIndexes
             .Setup(x =>
-                x.RemoveMemberAsync(BffStoreKeys.ClientsIndex, "malformed", CancellationToken.None)
+                x.GetMembersAsync(BffStoreKeys.ClientIndex(unreadable), CancellationToken.None)
             )
-            .Returns(ValueTask.CompletedTask)
+            .ReturnsAsync(["gone"])
             .Verifiable(Times.Once);
+        MockValues
+            .Setup(x => x.GetAsync("bff:session:gone", CancellationToken.None))
+            .ReturnsAsync((ExpiringValue?)null)
+            .Verifiable(Times.Once);
+        SetupReadableClient(client, "store-1");
 
         var result = await Store.FindClientsAsync(CancellationToken.None);
 
         Assert.Equal([client], result);
+        MockIndexes.Verify(
+            x =>
+                x.RemoveMemberAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Never
+        );
+    }
+
+    [Fact]
+    public async Task FindClientsAsync_RecordOfAnotherClient_SkipsTheDigest()
+    {
+        var client = CreateClient();
+        var other = new BffSessionClient("other", "https://op.example", "client-2");
+        IReadOnlyList<string> members = ["2026-01-02:" + BffStoreKeys.ClientDigest(client)];
+        MockIndexes
+            .Setup(x => x.GetMembersAsync(BffStoreKeys.ClientsIndex, CancellationToken.None))
+            .ReturnsAsync(members)
+            .Verifiable(Times.Once);
+        MockIndexes
+            .Setup(x => x.GetMembersAsync(BffStoreKeys.ClientIndex(client), CancellationToken.None))
+            .ReturnsAsync(["store-1"])
+            .Verifiable(Times.Once);
+        MockValues
+            .Setup(x => x.GetAsync("bff:session:store-1", CancellationToken.None))
+            .ReturnsAsync(CreateStoredValue(other))
+            .Verifiable(Times.Once);
+
+        var result = await Store.FindClientsAsync(CancellationToken.None);
+
+        Assert.Empty(result);
     }
 
     [Fact]

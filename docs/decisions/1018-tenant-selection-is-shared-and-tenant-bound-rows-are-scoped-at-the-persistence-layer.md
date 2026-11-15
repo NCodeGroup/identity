@@ -158,11 +158,10 @@ current_setting('app.unscoped', true) = 'on' OR "NormalizedTenantId" = current_s
   `TenantId`. `TenantLookupNormalizer` prefixes normalized names and emails with `{normalizedTenantId}|` and throws when
   no tenant scope is set. The store stamps `TenantId` on create and treats a user of another tenant as not found, so
   one tenant's `alice` and another's are different users.
-- **BFF client members.** The members of the `bff:clients` index are protected with `IDataProtector` under the purpose
-  `NCode.Identity.Bff.ClientMembers`, through `IBffClientMemberProtector` (`DefaultBffClientMemberProtector`). An
-  unreadable member is skipped and pruned. `IDataProtector` output is randomized, so the protector caches the
-  protected member per client and UTC day of absolute expiry and drops the entries of earlier days; the index holds at
-  most one member per replica, client and day.
+- **BFF client members.** A member of the `bff:clients` index is the UTC day of a session's absolute expiry and the
+  client's digest, `<yyyy-MM-dd>:<digest>`, so the index names a client only by a digest. Every replica reads the same
+  members. Retirement resolves each digest through the plaintext client of a readable session in that client's index,
+  and an unresolvable member expires on its own.
 
 ## Options considered
 
@@ -202,7 +201,7 @@ current_setting('app.unscoped', true) = 'on' OR "NormalizedTenantId" = current_s
   refuses a runtime role that bypasses row-level security under the deployment posture.
 - Each pooled connection carries the ambient state of its current command, set by `TenantSessionInterceptor`.
 - A tenant's Identity users and local accounts are isolated like every other tenant child, and the `bff:clients`
-  members are unreadable without the data-protection keys.
+  members name each client only by a digest.
 
 ## References
 

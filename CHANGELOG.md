@@ -6091,10 +6091,10 @@ Until the first stable release, the [Unreleased] section describes the product a
   through a foreign key, and deleting a tenant erases them with it
   ([ADR-1212](docs/decisions/1212-deleting-a-client-resource-server-principal-or-tenant-removes-what-it-owns.md)).
 
-- **The BFF's client index holds only protected members.** Each member of the `bff:clients` index is protected with an
-  `IDataProtector` under the purpose `NCode.Identity.Bff.ClientMembers` (`IBffClientMemberProtector`), so the key space
-  of a shared Valkey names no client; a member a replica cannot read is skipped and pruned, and the protector caches
-  one member per client and UTC day of absolute expiry so the index holds one member per replica, client and day.
+- **The BFF's client index names each client only by a digest.** A member of the `bff:clients` index is the UTC day of
+  a session's absolute expiry and the client's digest, so the key space of a shared Valkey names no client. Every
+  replica reads the same members; retirement resolves each digest through the plaintext client of a readable session in
+  that client's index, and a member it cannot resolve expires on its own.
 
 - **Only a cell's own machine client reaches the directory and the control plane.** The directory and control-plane
   endpoints accept a bearer token for the audience `urn:ncode:directory` or `urn:ncode:control-plane` with the matching

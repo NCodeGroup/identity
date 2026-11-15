@@ -48,8 +48,19 @@ internal static class BffStoreKeys
     /// <summary>
     /// Gets the key of the index of the sessions of a client.
     /// </summary>
-    public static string ClientIndex(BffSessionClient client) =>
-        "bff:client:" + Digest(client.Frontend, Digest(client.Authority, client.ClientId));
+    public static string ClientIndex(BffSessionClient client) => ClientIndex(ClientDigest(client));
+
+    /// <summary>
+    /// Gets the key of the index of the sessions of the client that a digest names.
+    /// </summary>
+    public static string ClientIndex(string clientDigest) => "bff:client:" + clientDigest;
+
+    /// <summary>
+    /// Gets the digest that names a client in the keys and in the members of <see cref="ClientsIndex"/>, so that the
+    /// shared state never holds a client's frontend, authority or client identifier in the clear.
+    /// </summary>
+    public static string ClientDigest(BffSessionClient client) =>
+        Digest(client.Frontend, Digest(client.Authority, client.ClientId));
 
     /// <summary>
     /// Gets the instant at which the member of <see cref="ClientsIndex"/> for a session's absolute expiry expires:

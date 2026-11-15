@@ -114,11 +114,6 @@ public static class DefaultRegistration
                 ServiceDescriptor.Singleton<MatcherPolicy, BffFrontendMatcherPolicy>()
             );
 
-            serviceCollection.AddDataProtection();
-            serviceCollection.TryAddSingleton<
-                IBffClientMemberProtector,
-                DefaultBffClientMemberProtector
-            >();
             serviceCollection.TryAddSingleton<IBffSessionStore, DefaultBffSessionStore>();
             serviceCollection.TryAddSingleton<BffInstrumentedSessionStore>();
             serviceCollection.TryAddSingleton<BffSessionRetirement>();
