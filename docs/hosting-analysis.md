@@ -330,6 +330,9 @@ A platform is a global directory over independent cells.
 - **Two database roles.** The host connects as a runtime role that cannot bypass the row-level security on tenant-bound
   tables, and the migrations connect as the schema owner. The two are separate secrets and the chart has no fallback
   from one to the other (`database.*`, `database.runtimeRole`, `migrations.database.*`).
+- **A tenant moves between cells of one region** through an encrypted export and import, with its identifier and issuer
+  unchanged ([ADR-1514](decisions/1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md)).
+  The [tenant move runbook](tenant-move.md) lists the stages, what moves and the DNS record of the tenant's hostname.
 - **Valkey is shared by prefix.** Every Valkey key a cell writes starts with `ncode-identity:{cell}:`, so cells that
   share one Valkey keep to their own keys.
 - **The chart** deploys one cell per release. `cell.name`, `cell.region`, `cell.kind`, `cell.cloudRegions`,
