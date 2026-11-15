@@ -36,6 +36,17 @@ public class DefaultRegistrationTests : BaseTests
             x.ServiceType == typeof(TService) && x.ImplementationType == typeof(TImplementation)
         );
 
+    private static bool IsRegisteredKeyed<TService, TImplementation>(
+        IEnumerable<ServiceDescriptor> serviceCollection,
+        object key
+    ) =>
+        serviceCollection.Any(x =>
+            x.ServiceType == typeof(TService)
+            && x.IsKeyedService
+            && Equals(x.ServiceKey, key)
+            && x.KeyedImplementationType == typeof(TImplementation)
+        );
+
     #region AddOpenIdDirectoryClient Tests
 
     [Fact]
@@ -48,45 +59,56 @@ public class DefaultRegistrationTests : BaseTests
         Assert.Empty(serviceCollection);
     }
 
-    [Fact]
-    public void AddOpenIdDirectoryClient_UrlOnControlPlane_RegistersNoRemoteManagementTokenValidator()
+    [Theory]
+    [InlineData("true")]
+    [InlineData("false")]
+    public void AddOpenIdDirectoryClient_Url_RegistersKeyedRemoteControlPlaneAdapters(
+        string isControlPlane
+    )
     {
         var serviceCollection = Register(
             CreateConfiguration(
                 ("Directory:Url", "https://directory.example"),
-                ("Cell:IsControlPlane", "true")
+                ("Cell:IsControlPlane", isControlPlane)
             )
         );
 
         Assert.True(IsRegistered<ITenantDirectory, RemoteTenantDirectory>(serviceCollection));
-        Assert.DoesNotContain(
-            serviceCollection,
-            x => x.ServiceType == typeof(IManagementTokenValidator)
+        Assert.True(
+            IsRegisteredKeyed<IManagementTokenValidator, RemoteManagementTokenValidator>(
+                serviceCollection,
+                ControlPlaneServiceKeys.Remote
+            )
         );
-        Assert.DoesNotContain(
-            serviceCollection,
-            x => x.ServiceType == typeof(IControlPlaneAuthority)
+        Assert.True(
+            IsRegisteredKeyed<IControlPlaneAuthority, RemoteControlPlaneAuthority>(
+                serviceCollection,
+                ControlPlaneServiceKeys.Remote
+            )
         );
     }
 
-    [Fact]
-    public void AddOpenIdDirectoryClient_UrlOnCell_RegistersRemoteManagementTokenValidator()
+    [Theory]
+    [InlineData("true")]
+    [InlineData("false")]
+    public void AddOpenIdDirectoryClient_Url_RegistersNoUnkeyedControlPlaneAdapters(
+        string isControlPlane
+    )
     {
         var serviceCollection = Register(
             CreateConfiguration(
                 ("Directory:Url", "https://directory.example"),
-                ("Cell:IsControlPlane", "false")
+                ("Cell:IsControlPlane", isControlPlane)
             )
         );
 
-        Assert.True(IsRegistered<ITenantDirectory, RemoteTenantDirectory>(serviceCollection));
-        Assert.True(
-            IsRegistered<IManagementTokenValidator, RemoteManagementTokenValidator>(
-                serviceCollection
-            )
+        Assert.DoesNotContain(
+            serviceCollection,
+            x => x.ServiceType == typeof(IManagementTokenValidator) && !x.IsKeyedService
         );
-        Assert.True(
-            IsRegistered<IControlPlaneAuthority, RemoteControlPlaneAuthority>(serviceCollection)
+        Assert.DoesNotContain(
+            serviceCollection,
+            x => x.ServiceType == typeof(IControlPlaneAuthority) && !x.IsKeyedService
         );
     }
 

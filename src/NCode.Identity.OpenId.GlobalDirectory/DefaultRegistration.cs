@@ -38,12 +38,14 @@ public static class DefaultRegistration
         /// hosted service that follows the directory's change feed: every <see cref="DirectoryClientOptions.PollInterval"/>
         /// one replica of a cell that is not the control plane mirrors the published team and platform documents into the
         /// cell.
-        /// A cell that is not the control plane (<see cref="CellOptions.IsControlPlane"/> is <c>false</c>) also
-        /// registers the <see cref="IManagementTokenValidator"/> that validates management tokens against
+        /// A cell that is not the control plane (<see cref="CellOptions.IsControlPlane"/> is <c>false</c>) uses the
+        /// <see cref="IManagementTokenValidator"/> that validates management tokens against
         /// <c>Cell:ControlPlane:Issuer</c> and the <see cref="IControlPlaneAuthority"/> that asks the control-plane cell's
         /// <c>control-plane/v1/authority</c> endpoint for the roles of a caller, with a token for the audience
-        /// <c>urn:ncode:control-plane</c> from the same <see cref="ICellTokenSource"/>. Both replace the local adapters
-        /// whichever registration runs first.
+        /// <c>urn:ncode:control-plane</c> from the same <see cref="ICellTokenSource"/>. This registration adds both as
+        /// keyed singletons under <see cref="ControlPlaneServiceKeys.Remote"/> on every cell and reads no <c>Cell</c>
+        /// setting; the management library resolves them for a cell that is not the control plane and resolves its
+        /// local adapters for the control-plane cell.
         /// </summary>
         /// <param name="configuration">The <see cref="IConfiguration"/> holding the <c>Directory</c> section.</param>
         /// <returns>The same <see cref="IServiceBuilder{T}"/> so that calls can be chained.</returns>
@@ -94,26 +96,18 @@ public static class DefaultRegistration
                 ServiceDescriptor.Singleton<ICellDirectory, RemoteCellDirectory>()
             );
 
-            // The control-plane cell validates management tokens with its local adapter; every other cell validates
-            // them against the control plane's issuer. Replace makes the remote adapter win over the local adapter's
-            // TryAdd whichever registration runs first.
-            var cell = new CellOptions();
-            configuration.GetSection(CellOptions.SectionName).BindStrictly(cell);
-            if (!cell.IsControlPlane)
-            {
-                serviceCollection.Replace(
-                    ServiceDescriptor.Singleton<
-                        IManagementTokenValidator,
-                        RemoteManagementTokenValidator
-                    >()
-                );
-                serviceCollection.Replace(
-                    ServiceDescriptor.Singleton<
-                        IControlPlaneAuthority,
-                        RemoteControlPlaneAuthority
-                    >()
-                );
-            }
+            // Every cell registers the remote management adapters under the key that Management's registration looks
+            // up. Management chooses between the local and the remote adapter from the cell's options at resolution, so
+            // this registration never reads the Cell section: the control-plane cell keeps its local adapters, and every
+            // other cell validates management tokens against the control plane's issuer.
+            serviceCollection.TryAddKeyedSingleton<
+                IManagementTokenValidator,
+                RemoteManagementTokenValidator
+            >(ControlPlaneServiceKeys.Remote);
+            serviceCollection.TryAddKeyedSingleton<
+                IControlPlaneAuthority,
+                RemoteControlPlaneAuthority
+            >(ControlPlaneServiceKeys.Remote);
 
             // The start check refuses an unusable control-plane issuer before the cell registers with the directory.
             serviceCollection.TryAddEnumerable(

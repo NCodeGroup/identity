@@ -5,6 +5,8 @@ using JetBrains.Annotations;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.ControlPlane;
@@ -26,11 +28,31 @@ namespace NCode.Identity.OpenId.Management;
 [PublicAPI]
 public static class DefaultRegistration
 {
+    // Picks the adapter of a control-plane port: the local adapter on the control-plane cell, otherwise the remote
+    // adapter registered under ControlPlaneServiceKeys.Remote, otherwise the local adapter.
+    private static TService ResolveControlPlaneAdapter<TService, TLocal>(
+        IServiceProvider serviceProvider
+    )
+        where TService : class
+        where TLocal : class, TService
+    {
+        var cell = serviceProvider.GetRequiredService<IOptions<CellOptions>>().Value;
+        if (cell.IsControlPlane)
+            return serviceProvider.GetRequiredService<TLocal>();
+
+        return serviceProvider.GetKeyedService<TService>(ControlPlaneServiceKeys.Remote)
+            ?? serviceProvider.GetRequiredService<TLocal>();
+    }
+
     /// <param name="builder">The <see cref="OpenIdCoreLibrary"/> builder this library extends.</param>
     extension(IServiceBuilder<OpenIdCoreLibrary> builder)
     {
         /// <summary>
-        /// Registers the OpenID management library, its authorization handlers, and API endpoints.
+        /// Registers the OpenID management library, its authorization handlers, and API endpoints. The
+        /// <see cref="IManagementTokenValidator"/> and <see cref="IControlPlaneAuthority"/> a host resolves are the local
+        /// adapters on the control-plane cell (<see cref="CellOptions.IsControlPlane"/>), and otherwise the remote
+        /// adapters registered under <see cref="ControlPlaneServiceKeys.Remote"/>, falling back to the local adapters
+        /// when none is registered.
         /// </summary>
         /// <returns>An <see cref="IServiceBuilder{TLibrary}"/> for the registered <see cref="OpenIdManagementLibrary"/>.</returns>
         [PublicAPI]
@@ -69,16 +91,25 @@ public static class DefaultRegistration
                 DefaultAuthorityChainResolver
             >();
 
-            // Validates the management access token of a request. A cell's directory client registers its own adapter
-            // first when the control plane is another cell.
-            serviceCollection.TryAddSingleton<
-                IManagementTokenValidator,
-                LocalManagementTokenValidator
-            >();
+            // Validates the management access token of a request. The control-plane cell uses the local adapter; every
+            // other cell uses the remote adapter that a directory client registers under
+            // ControlPlaneServiceKeys.Remote, and falls back to the local adapter without one.
+            serviceCollection.TryAddSingleton<LocalManagementTokenValidator>();
+            serviceCollection.TryAddSingleton<IManagementTokenValidator>(serviceProvider =>
+                ResolveControlPlaneAdapter<
+                    IManagementTokenValidator,
+                    LocalManagementTokenValidator
+                >(serviceProvider)
+            );
 
-            // Answers the platform and team roles of a caller. A cell's directory client registers its own adapter
-            // first when the control plane is another cell.
-            serviceCollection.TryAddSingleton<IControlPlaneAuthority, LocalControlPlaneAuthority>();
+            // Answers the platform and team roles of a caller, from the local adapter or the remote adapter on the
+            // same terms as the token validator.
+            serviceCollection.TryAddSingleton<LocalControlPlaneAuthority>();
+            serviceCollection.TryAddSingleton<IControlPlaneAuthority>(serviceProvider =>
+                ResolveControlPlaneAdapter<IControlPlaneAuthority, LocalControlPlaneAuthority>(
+                    serviceProvider
+                )
+            );
 
             serviceCollection.TryAddSingleton<
                 IManagementTenantEnvironmentResolver,

@@ -325,6 +325,8 @@ NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthorityRequest.Subje
 NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthorityRequest.Subject.init -> void
 NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthorityRequest.TeamId.get -> string?
 NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthorityRequest.TeamId.init -> void
+NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneServiceKeys
+const NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneServiceKeys.Remote = "remote" -> string!
 NCode.Identity.OpenId.Management.ControlPlane.IControlPlaneAuthority
 NCode.Identity.OpenId.Management.ControlPlane.IControlPlaneAuthority.GetAsync(NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthorityRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Management.ControlPlane.ControlPlaneAuthority!>
 NCode.Identity.OpenId.Management.ControlPlane.IManagementTokenValidator
