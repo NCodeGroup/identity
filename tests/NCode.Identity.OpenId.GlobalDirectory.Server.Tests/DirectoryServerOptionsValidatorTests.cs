@@ -10,7 +10,16 @@ public class DirectoryServerOptionsValidatorTests
 {
     private const string ControlPlaneCell = "control";
 
+    private const string DisallowedIssuerMessage =
+        "DirectoryServer:Issuer must be an absolute https URL (or http on a loopback host) of at most 1000 characters with no user information, query or fragment.";
+
     private static DirectoryServerOptionsValidator CreateValidator() => new();
+
+    private static string CreateIssuerOfLength(int length)
+    {
+        const string prefix = "https://auth.example/";
+        return prefix + new string('a', length - prefix.Length);
+    }
 
     #region Validate Tests
 
@@ -72,7 +81,7 @@ public class DirectoryServerOptionsValidatorTests
     [InlineData("https://auth.example/?x=1")]
     [InlineData("https://auth.example/#section")]
     [InlineData("ftp://auth.example")]
-    public void Validate_DisallowedIssuer_FailsNamingTheValue(string issuer)
+    public void Validate_DisallowedIssuer_FailsNamingTheKeyAndRule(string issuer)
     {
         var options = new DirectoryServerOptions
         {
@@ -84,9 +93,71 @@ public class DirectoryServerOptionsValidatorTests
 
         Assert.True(result.Failed);
         var failure = Assert.Single(result.Failures);
+        Assert.Equal(DisallowedIssuerMessage, failure);
+    }
+
+    [Fact]
+    public void Validate_IssuerWithUserInformation_FailsWithoutEchoingIt()
+    {
+        var options = new DirectoryServerOptions
+        {
+            Issuer = "https://user:secret@auth.example",
+            ControlPlaneCell = ControlPlaneCell,
+        };
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        var failure = Assert.Single(result.Failures);
+        Assert.Equal(DisallowedIssuerMessage, failure);
+        Assert.DoesNotContain("secret", failure, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Validate_IssuerOverMaxLength_Fails()
+    {
+        var options = new DirectoryServerOptions
+        {
+            Issuer = CreateIssuerOfLength(DirectoryLimits.MaxIssuerLength + 1),
+            ControlPlaneCell = ControlPlaneCell,
+        };
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        var failure = Assert.Single(result.Failures);
+        Assert.Equal(DisallowedIssuerMessage, failure);
+    }
+
+    [Fact]
+    public void Validate_IssuerAtMaxLength_Succeeds()
+    {
+        var options = new DirectoryServerOptions
+        {
+            Issuer = CreateIssuerOfLength(DirectoryLimits.MaxIssuerLength),
+            ControlPlaneCell = ControlPlaneCell,
+        };
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public void Validate_SeveralFaults_ReportsEveryFailure()
+    {
+        var options = new DirectoryServerOptions
+        {
+            Issuer = "ftp://auth.example",
+            ControlPlaneCell = null,
+        };
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
         Assert.Equal(
-            $"DirectoryServer:Issuer '{issuer}' must be an absolute https URL, or an http URL on a loopback host, with no query or fragment.",
-            failure
+            [DisallowedIssuerMessage, "DirectoryServer:ControlPlaneCell is required."],
+            result.Failures
         );
     }
 

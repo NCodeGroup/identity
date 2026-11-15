@@ -22,7 +22,6 @@ public sealed class DirectoryDbContext(DbContextOptions<DirectoryDbContext> opti
     // A team path holds up to eight identifiers (TeamPaths.MaxDepth in the cell's persistence package), each followed
     // by '/', after a leading '/'.
     private const int MaxTeamPathLength = 8 * (MaxIdentifierLength + 1) + 1;
-    private const int MaxIssuerLength = 1000;
     private const int MaxCellNameLength = 32;
     private const int MaxRegionLength = 64;
     private const int MaxKindLength = 32;
@@ -80,8 +79,10 @@ public sealed class DirectoryDbContext(DbContextOptions<DirectoryDbContext> opti
             builder.HasIndex(entity => entity.NormalizedTeamId);
             builder.Property(entity => entity.TenantId).HasMaxLength(MaxIdentifierLength);
             builder.Property(entity => entity.NormalizedTenantId).HasMaxLength(MaxIdentifierLength);
-            builder.Property(entity => entity.Issuer).HasMaxLength(MaxIssuerLength);
-            builder.Property(entity => entity.NormalizedIssuer).HasMaxLength(MaxIssuerLength);
+            builder.Property(entity => entity.Issuer).HasMaxLength(DirectoryLimits.MaxIssuerLength);
+            builder
+                .Property(entity => entity.NormalizedIssuer)
+                .HasMaxLength(DirectoryLimits.MaxIssuerLength);
             builder.Property(entity => entity.NormalizedTeamId).HasMaxLength(MaxIdentifierLength);
             builder.Property(entity => entity.Cell).HasMaxLength(MaxCellNameLength);
             builder.Property(entity => entity.State).HasMaxLength(MaxStateLength);
@@ -109,8 +110,10 @@ public sealed class DirectoryDbContext(DbContextOptions<DirectoryDbContext> opti
         modelBuilder.Entity<RetiredIssuerRecord>(builder =>
         {
             builder.HasIndex(entity => entity.NormalizedIssuer).IsUnique();
-            builder.Property(entity => entity.Issuer).HasMaxLength(MaxIssuerLength);
-            builder.Property(entity => entity.NormalizedIssuer).HasMaxLength(MaxIssuerLength);
+            builder.Property(entity => entity.Issuer).HasMaxLength(DirectoryLimits.MaxIssuerLength);
+            builder
+                .Property(entity => entity.NormalizedIssuer)
+                .HasMaxLength(DirectoryLimits.MaxIssuerLength);
             builder.Property(entity => entity.TenantId).HasMaxLength(MaxIdentifierLength);
         });
 
