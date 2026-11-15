@@ -51,6 +51,22 @@ public sealed class HostDatabaseRuntimeRoleTests
         Assert.Contains(Key, exception.Message);
     }
 
+    [Fact]
+    public void Resolve_UnknownKeyInSection_Throws()
+    {
+        var configuration = CreateConfiguration(
+            (Key, "ncode_identity_app"),
+            ("HostDatabase:RuntimRole", "other")
+        );
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            HostDatabaseRuntimeRole.Resolve(configuration)
+        );
+
+        Assert.Contains("HostDatabase", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("RuntimRole", exception.Message, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
