@@ -709,6 +709,8 @@ jobs:
           helm template release "$CHART" --values "$base" > /dev/null
           refuse --set directory.clientId=
           refuse --set directory.keyRing=
+          refuse --set directory.keyRing=cell:client
+          refuse --set directory.keyRing=cell__client
           refuse --set directory.keys.pemSecret=
           # A remote key replaces the PEM key, so the key's id never collides with the key ring's PEM key.
           refuse --set directory.keys.pemSecret= --set "$key.provider=aws-kms" \
