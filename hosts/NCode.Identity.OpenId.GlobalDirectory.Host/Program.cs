@@ -15,11 +15,10 @@ using NCode.Identity.SharedState;
 // belong here — put it in the owning package as an extension. See csharp-production.instructions.md §4. The 'migrate'
 // command's dispatch below is the one exception: only the entry point can return an exit code.
 
-// OFFLINE COMMAND: 'migrate' applies the directory's migrations and exits, for a one-off Job that runs this image. The
-// host is built without the command's argument, which a command-line configuration provider would read as
-// configuration.
-var migrate = args is ["migrate"];
-var builder = WebApplication.CreateBuilder(migrate ? [] : args);
+// OFFLINE COMMAND: 'migrate' applies the directory's migrations and exits, for a one-off Job that runs this image. See
+// DirectoryMigrateCommand.
+var migrate = DirectoryMigrateCommand.IsSelected(args);
+var builder = WebApplication.CreateBuilder(DirectoryMigrateCommand.GetHostArguments(args));
 
 var configuration = builder.Configuration;
 var serviceCollection = builder.Services;
@@ -85,13 +84,13 @@ serviceCollection.AddDirectoryDatabase(
 await using var app = builder.Build();
 
 // The command runs against the built services, never starts the hosted services or binds a port, and returns its exit
-// code. It migrates the schema, then grants the runtime role the data access the replicas need.
+// code.
 if (migrate)
-{
-    var runtimeRole = DirectoryDatabase.GetRuntimeRole(configuration);
-    await DirectoryDatabase.MigrateAsync(app.Services, runtimeRole, CancellationToken.None);
-    return 0;
-}
+    return await DirectoryMigrateCommand.RunAsync(
+        app.Services,
+        configuration,
+        CancellationToken.None
+    );
 
 // MUST be the first middleware: it refuses a request whose connection does not carry the reverse proxy's client
 // certificate (except the liveness and readiness probes) before anything else reads it. A no-op unless
