@@ -201,9 +201,9 @@ database:
 # migration must stay compatible with the previous release, which keeps serving until the rollout finishes.
 migrations:
   enabled: true
-  # The owner's connection, the one that creates and changes the schema. Required, in the same two forms as database:
-  # name either existingSecret or parts.existingSecret, never both. Only the migration Job reads it, so the running host
-  # connects without schema rights.
+  # The owner's connection, the one that creates and changes the schema. Required when migrations.enabled is true, in
+  # the same two forms as database: name either existingSecret or parts.existingSecret, never both. Only the migration
+  # Job reads it, so the running host connects without schema rights.
   database:
     existingSecret: ""
     connectionStringKey: ""

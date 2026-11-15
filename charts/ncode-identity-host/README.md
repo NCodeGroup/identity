@@ -240,12 +240,12 @@ Rendering fails, before anything is applied, when:
 - `backendTls.caPublisher.enabled` is `true`, the management console is enabled with a certificate of your own in
   `managementConsole.backendTls.existingSecret`, and `managementConsole.backendTls.caConfigMap` is empty, because the
   console's CA ConfigMap would fall back to the one the publisher writes, which holds only the chart's private CA;
-- neither `database.existingSecret` nor `database.parts.existingSecret` is set, neither
-  `migrations.database.existingSecret` nor `migrations.database.parts.existingSecret` is set, `database.runtimeRole` is
-  empty or is not a lower-case Postgres role name, a connection (`database` or `migrations.database`) sets both
-  forms, a connection's `existingSecret` is set and the key of its connection string, `connectionStringKey`, is empty
-  (a `migrations.database` key falls back to the one under `database`), or a parts Secret leaves `hostKey`,
-  `databaseKey`, `usernameKey` or `passwordKey` empty;
+- neither `database.existingSecret` nor `database.parts.existingSecret` is set; `migrations.enabled` is `true` and
+  neither `migrations.database.existingSecret` nor `migrations.database.parts.existingSecret` is set, or
+  `database.runtimeRole` is empty; `database.runtimeRole` is set and is not a lower-case Postgres role name; a
+  connection (`database` or `migrations.database`) sets both forms, a connection's `existingSecret` is set and the key
+  of its connection string, `connectionStringKey`, is empty (a `migrations.database` key falls back to the one under
+  `database`), or a parts Secret leaves `hostKey`, `databaseKey`, `usernameKey` or `passwordKey` empty;
 - a Valkey connection (`valkey` or `managementConsole.valkey`) sets both `existingSecret` and `parts.existingSecret`,
   sets `existingSecret` and leaves `connectionStringKey` empty, or has a parts Secret that leaves `hostKey` empty. The
   other `parts` keys may be empty, because an empty key leaves that part out;
@@ -1474,10 +1474,11 @@ without a release enabling it.
 ## Database and Valkey
 
 The Postgres database takes two credentials. `database` is the runtime role's connection, which the pods read, and
-`migrations.database` is the schema owner's connection, which only the migration Job reads. Both are required, and
-`migrations.database` never falls back to `database`. `database.runtimeRole` names the runtime role, and the Job grants it
-access to the tables. The runtime role must not own the tables, be a superuser or have `BYPASSRLS`: the host refuses
-to start when it does.
+`migrations.database` is the schema owner's connection, which only the migration Job reads. `database` is always
+required, `migrations.database` is required while `migrations.enabled` is `true`, and `migrations.database` never falls
+back to `database`. `database.runtimeRole` names the runtime role, and the Job grants it access to the tables, so it is
+required while `migrations.enabled` is `true`. The runtime role must not own the tables, be a superuser or have
+`BYPASSRLS`: the host refuses to start when it does.
 
 Each connection takes one of two forms, and a connection never takes both:
 

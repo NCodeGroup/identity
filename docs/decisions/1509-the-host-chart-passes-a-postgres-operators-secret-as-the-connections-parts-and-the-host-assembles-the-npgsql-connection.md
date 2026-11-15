@@ -43,13 +43,14 @@ characters it holds.**
 3. **The chart carries two credentials.** `database` is the connection of the runtime role, which the pods read, and
    `migrations.database` is the connection of the schema owner, which only the migration Job reads. The runtime role
    cannot change the schema, and the migration Job grants it access to the tables, so `database.runtimeRole` names the
-   role and feeds `HostDatabase__RuntimeRole` in the Job. Both connections are required, and the Job never reads
-   `database`. The migration worker applies row-level security under the owner, and the host connects as the runtime
-   role, which does not bypass it.
-4. **The chart refuses an unusable release.** For `database` and for `migrations.database`, it refuses both
-   `existingSecret` and `parts.existingSecret`, a connection that names neither form, and a parts Secret whose host,
-   database, user name or password key is empty. It refuses an empty `database.runtimeRole` and one that is not a
-   lower-case Postgres role name. The migration Job and the server may use different forms.
+   role and feeds `HostDatabase__RuntimeRole` in the Job. `database` is always required, `migrations.database` is
+   required while `migrations.enabled` is true, and the Job never reads `database`. The migration worker applies
+   row-level security under the owner, and the host connects as the runtime role, which does not bypass it.
+4. **The chart refuses an unusable release.** For `database`, and for `migrations.database` while migrations are
+   enabled, it refuses both `existingSecret` and `parts.existingSecret`, a connection that names neither form, and a
+   parts Secret whose host, database, user name or password key is empty. It refuses an empty `database.runtimeRole`
+   while migrations are enabled, and one that is not a lower-case Postgres role name. The migration Job and the server
+   may use different forms.
 5. **A rotation reaches the pods at the next pod start.** A `secretKeyRef` environment variable is read when a
    container starts, so a password the operator rotates reaches the pods when they restart.
 

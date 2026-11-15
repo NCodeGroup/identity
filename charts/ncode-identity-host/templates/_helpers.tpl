@@ -252,11 +252,11 @@ applied. Rendered for its side effect only.
 {{- fail "probes.host must name a concrete host that allowedHosts accepts: the first allowed host is a wildcard." }}
 {{- end }}
 {{- include "identity-host.databaseValidate" (dict "path" "database" "scope" .Values.database "defaults" .Values.database "required" true) }}
-{{- include "identity-host.databaseValidate" (dict "path" "migrations.database" "scope" .Values.migrations.database "defaults" .Values.database "required" true) }}
-{{- if not .Values.database.runtimeRole }}
-{{- fail "database.runtimeRole must name the Postgres role the host connects as: the migration Job grants it access to the tables." }}
+{{- include "identity-host.databaseValidate" (dict "path" "migrations.database" "scope" .Values.migrations.database "defaults" .Values.database "required" .Values.migrations.enabled) }}
+{{- if and .Values.migrations.enabled (not .Values.database.runtimeRole) }}
+{{- fail "database.runtimeRole must name the Postgres role the host connects as when migrations.enabled is true: the migration Job grants it access to the tables." }}
 {{- end }}
-{{- if not (regexMatch "^[a-z_][a-z0-9_]*$" .Values.database.runtimeRole) }}
+{{- if and .Values.database.runtimeRole (not (regexMatch "^[a-z_][a-z0-9_]*$" .Values.database.runtimeRole)) }}
 {{- fail "database.runtimeRole must be a lower-case Postgres role name of letters, digits and underscores that does not start with a digit." }}
 {{- end }}
 {{- include "identity-host.valkeyValidate" (dict "path" "valkey" "scope" .Values.valkey "defaults" .Values.valkey) }}
