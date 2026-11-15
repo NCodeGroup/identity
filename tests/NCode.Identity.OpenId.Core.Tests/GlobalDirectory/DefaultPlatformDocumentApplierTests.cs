@@ -172,6 +172,45 @@ public sealed class DefaultPlatformDocumentApplierTests : BaseTests
         Assert.IsType<InvalidOperationException>(record.Exception);
     }
 
+    [Fact]
+    public async Task ApplyAsync_WhenTheCallersTokenIsCancelledAndTheCommandFails_LogsAndReturns()
+    {
+        using var cts = new CancellationTokenSource();
+        var cancellationToken = cts.Token;
+        SetupUnscoped();
+        SetupStoreManager();
+        MockPlatformStore
+            .Setup(x => x.GetSettingsOrDefaultAsync(cancellationToken))
+            .ReturnsAsync((PersistedPlatformSettings?)null)
+            .Verifiable();
+        SetupMirror(isApplied: true, sequence: 8, cancellationToken);
+        SetupSave(cancellationToken);
+        MockMediator
+            .Setup(x =>
+                x.SendAsync(
+                    It.IsAny<PlatformSettingsChangedCommand>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Callback(() => cts.Cancel())
+            .ThrowsAsync(new InvalidOperationException("The mediator is unavailable."))
+            .Verifiable();
+
+        await Applier.ApplyAsync(
+            new PlatformDocument
+            {
+                Settings = JsonElement.Parse("""{"flag":true}"""),
+                Sequence = 8,
+            },
+            cancellationToken
+        );
+
+        var record = Assert.Single(Logger.Collector.GetSnapshot());
+        Assert.Equal(LogLevel.Warning, record.Level);
+        Assert.Equal(EventIds.DirectoryPlatformChangeNotSent, record.Id.Id);
+        Assert.IsType<InvalidOperationException>(record.Exception);
+    }
+
     #endregion
 
     #region GetAppliedSequenceAsync Tests

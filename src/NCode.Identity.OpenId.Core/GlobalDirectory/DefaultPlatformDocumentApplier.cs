@@ -10,9 +10,7 @@ using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Platform;
-using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
-using NCode.Mediator;
 
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
@@ -79,8 +77,11 @@ internal sealed class DefaultPlatformDocumentApplier(
 
         if (isApplied)
         {
-            await SendAfterCommitAsync(
+            await PostCommitCommandSender.SendAsync(
+                ServiceScopeFactory,
+                TimeProvider,
                 new PlatformSettingsChangedCommand(previousSettings.Clone(), settings.Clone()),
+                exception => Logger.DirectoryPlatformChangeNotSent(exception),
                 cancellationToken
             );
         }
@@ -96,47 +97,5 @@ internal sealed class DefaultPlatformDocumentApplier(
 
         var persistedPlatform = await store.GetOrDefaultAsync(cancellationToken);
         return persistedPlatform?.DirectorySequence ?? 0;
-    }
-
-    /// <summary>
-    /// Sends a platform-settings-changed command that follows the committed platform row. The command runs on its own
-    /// token, bounded by <see cref="PostCommitWork.Timeout"/>, so a slow command cannot hold the feed; a command that
-    /// fails is logged and never fails the committed write, and a caller's cancellation propagates.
-    /// </summary>
-    /// <param name="command">The <see cref="PlatformSettingsChangedCommand"/> to send.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> of the caller, whose cancellation propagates.</param>
-    private async ValueTask SendAfterCommitAsync(
-        PlatformSettingsChangedCommand command,
-        CancellationToken cancellationToken
-    )
-    {
-        try
-        {
-            await PostCommitWork.RunAsync(
-                TimeProvider,
-                static (state, token) => state.Applier.SendAsync(state.Command, token),
-                (Applier: this, Command: command)
-            );
-        }
-        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
-        {
-            Logger.DirectoryPlatformChangeNotSent(exception);
-        }
-    }
-
-    /// <summary>
-    /// Sends a platform-settings-changed command in its own service scope. The mediator is scoped (its handlers' unit
-    /// of work is), and the feed runs outside any request.
-    /// </summary>
-    /// <param name="command">The <see cref="PlatformSettingsChangedCommand"/> to send.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    private async ValueTask SendAsync(
-        PlatformSettingsChangedCommand command,
-        CancellationToken cancellationToken
-    )
-    {
-        await using var scope = ServiceScopeFactory.CreateAsyncScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-        await mediator.SendAsync(command, cancellationToken);
     }
 }

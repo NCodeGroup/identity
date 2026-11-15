@@ -10,10 +10,8 @@ using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Teams;
-using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.Persistence.Protection;
-using NCode.Mediator;
 
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
@@ -112,9 +110,11 @@ internal sealed class DefaultTeamDocumentApplier(
 
         if (isApplied)
         {
-            await SendAfterCommitAsync(
-                document.TeamId,
+            await PostCommitCommandSender.SendAsync(
+                ServiceScopeFactory,
+                TimeProvider,
                 new TeamChangedCommand(document.TeamId, settingsChanged),
+                exception => Logger.DirectoryTeamChangeNotSent(document.TeamId, exception),
                 cancellationToken
             );
 
@@ -386,9 +386,11 @@ internal sealed class DefaultTeamDocumentApplier(
             await storeManager.SaveChangesAsync(cancellationToken);
         }
 
-        await SendAfterCommitAsync(
-            teamId,
+        await PostCommitCommandSender.SendAsync(
+            ServiceScopeFactory,
+            TimeProvider,
             new TeamChangedCommand(teamId, false),
+            exception => Logger.DirectoryTeamChangeNotSent(teamId, exception),
             cancellationToken
         );
 
@@ -405,49 +407,5 @@ internal sealed class DefaultTeamDocumentApplier(
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<ITeamStore>();
         return await store.GetMaxDirectorySequenceAsync(cancellationToken);
-    }
-
-    /// <summary>
-    /// Sends a team-changed command after its write is committed. The command runs on its own bounded token, and a
-    /// failure is logged and never fails the committed write; a caller's cancellation propagates.
-    /// </summary>
-    /// <param name="teamId">The identifier of the team that the command announces.</param>
-    /// <param name="command">The <see cref="TeamChangedCommand"/> to send.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
-    private async ValueTask SendAfterCommitAsync(
-        string teamId,
-        TeamChangedCommand command,
-        CancellationToken cancellationToken
-    )
-    {
-        try
-        {
-            await PostCommitWork.RunAsync(
-                TimeProvider,
-                static (state, token) => state.Applier.SendAsync(state.Command, token),
-                (Applier: this, Command: command)
-            );
-        }
-        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
-        {
-            Logger.DirectoryTeamChangeNotSent(teamId, exception);
-        }
-    }
-
-    /// <summary>
-    /// Sends a team-changed command in its own service scope. The mediator is scoped (its handlers' unit of work is),
-    /// and the feed runs outside any request.
-    /// </summary>
-    /// <param name="command">The <see cref="TeamChangedCommand"/> to send.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    private async ValueTask SendAsync(
-        TeamChangedCommand command,
-        CancellationToken cancellationToken
-    )
-    {
-        await using var scope = ServiceScopeFactory.CreateAsyncScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-        await mediator.SendAsync(command, cancellationToken);
     }
 }
