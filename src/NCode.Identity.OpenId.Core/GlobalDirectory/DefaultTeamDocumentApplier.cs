@@ -10,6 +10,7 @@ using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Teams;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.Persistence.Protection;
 using NCode.Mediator;
@@ -23,7 +24,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// delete a team that something names. The root key that the document holds for the cell's region is mirrored into the
 /// team's owner root key, which rewraps the master keys of the team's tenants in this cell. Reconciling brings the owner
 /// root key of every enabled mirrored team to the reference its row holds for the region, which applies a key that
-/// failed its probe or its rotation cooldown once it can be.
+/// failed its probe or its rotation cooldown once it can be. The team row is committed before the command and the root
+/// key follow, so a command or a root key that fails is logged and never fails the committed write.
 /// </summary>
 // See ADR-1411 and ADR-1416.
 internal sealed class DefaultTeamDocumentApplier(
@@ -32,6 +34,7 @@ internal sealed class DefaultTeamDocumentApplier(
     IServiceScopeFactory serviceScopeFactory,
     IOwnerRootKeyManager ownerRootKeyManager,
     IOptions<CellOptions> cellOptionsAccessor,
+    TimeProvider timeProvider,
     ILogger<DefaultTeamDocumentApplier> logger
 ) : ITeamDocumentApplier
 {
@@ -43,6 +46,7 @@ internal sealed class DefaultTeamDocumentApplier(
     private IServiceScopeFactory ServiceScopeFactory { get; } = serviceScopeFactory;
     private IOwnerRootKeyManager OwnerRootKeyManager { get; } = ownerRootKeyManager;
     private CellOptions CellOptions { get; } = cellOptionsAccessor.Value;
+    private TimeProvider TimeProvider { get; } = timeProvider;
     private ILogger<DefaultTeamDocumentApplier> Logger { get; } = logger;
 
     /// <inheritdoc />
@@ -96,11 +100,14 @@ internal sealed class DefaultTeamDocumentApplier(
 
         if (isApplied)
         {
-            await SendAsync(
+            await SendAfterCommitAsync(
+                document.TeamId,
                 new TeamChangedCommand(document.TeamId, settingsChanged),
                 cancellationToken
             );
 
+            // The mirror stays on the caller's token: the rewrap must not be cut by the post-commit bound, and a mirror
+            // that fails or is cancelled is redone by ReconcileRootKeysAsync on a replica's first pass.
             await MirrorRootKeyAsync(
                 document.TeamId,
                 persistedTeam.RootKeys.GetValueOrDefault(CellOptions.Region),
@@ -145,9 +152,9 @@ internal sealed class DefaultTeamDocumentApplier(
         return await store.GetPageAsync(page, cancellationToken);
     }
 
-    // A key that fails validation is logged and left unapplied, so one team's key never stops another's; the team row
-    // and its command are already applied, and the next document the directory publishes for the team, or the next
-    // reconcile, retries the key.
+    // A key that fails is logged and left unapplied, so one team's key never stops another's; the team row and its
+    // command are already applied, and the next document the directory publishes for the team, or the next reconcile,
+    // retries the key. A caller's cancellation propagates.
     private async ValueTask MirrorRootKeyAsync(
         string teamId,
         OwnerRootKeyRequest? reference,
@@ -191,14 +198,7 @@ internal sealed class DefaultTeamDocumentApplier(
 
             await OwnerRootKeyManager.SetAsync(owner, reference, cancellationToken);
         }
-        catch (Exception exception)
-            when (exception
-                    is ArgumentException
-                        or OwnerRootKeyNotAllowedException
-                        or OwnerRootKeyProbeException
-                        or MasterKeyRotationTooSoonException
-                        or StoreConcurrencyException
-            )
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
             Logger.DirectoryTeamRootKeyNotApplied(teamId, region, exception);
         }
@@ -235,7 +235,11 @@ internal sealed class DefaultTeamDocumentApplier(
             await storeManager.SaveChangesAsync(cancellationToken);
         }
 
-        await SendAsync(new TeamChangedCommand(teamId, false), cancellationToken);
+        await SendAfterCommitAsync(
+            teamId,
+            new TeamChangedCommand(teamId, false),
+            cancellationToken
+        );
     }
 
     /// <inheritdoc />
@@ -246,6 +250,28 @@ internal sealed class DefaultTeamDocumentApplier(
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<ITeamStore>();
         return await store.GetMaxDirectorySequenceAsync(cancellationToken);
+    }
+
+    // The command follows a committed write, so it runs on its own bounded token and a failure is logged and never fails
+    // the write; a caller's cancellation propagates.
+    private async ValueTask SendAfterCommitAsync(
+        string teamId,
+        TeamChangedCommand command,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            await PostCommitWork.RunAsync(
+                TimeProvider,
+                static (state, token) => state.Applier.SendAsync(state.Command, token),
+                (Applier: this, Command: command)
+            );
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            Logger.DirectoryTeamChangeNotSent(teamId, exception);
+        }
     }
 
     // The mediator is scoped (its handlers' unit of work is), and the feed runs outside any request, so the command is

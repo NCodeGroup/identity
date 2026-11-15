@@ -103,4 +103,6 @@ internal static class EventIds
     public const int DirectoryRetiredTeamHasDependents = Base + 46;
 
     public const int DirectoryTeamRootKeyNotApplied = Base + 47;
+
+    public const int DirectoryTeamChangeNotSent = Base + 48;
 }

@@ -60,6 +60,7 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
             ServiceProvider.GetRequiredService<IServiceScopeFactory>(),
             MockOwnerRootKeyManager.Object,
             Options.Create(new CellOptions { Region = Region }),
+            TimeProvider.System,
             Logger
         );
     }
@@ -89,7 +90,7 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
             .Verifiable();
         SetupMirror(isApplied: true, cancellationToken);
         SetupSave(cancellationToken);
-        SetupCommand(settingsChanged: true, cancellationToken);
+        SetupCommand(settingsChanged: true);
         SetupRootKey(current: null, cancellationToken);
 
         await Applier.ApplyAsync(
@@ -106,7 +107,7 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
         SetupStoredSettings("""{"flag": true}""");
         SetupMirror(isApplied: true, It.IsAny<CancellationToken>());
         SetupSave(It.IsAny<CancellationToken>());
-        SetupCommand(settingsChanged: false, It.IsAny<CancellationToken>());
+        SetupCommand(settingsChanged: false);
         SetupRootKey(current: null);
 
         await Applier.ApplyAsync(
@@ -123,7 +124,7 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
         SetupStoredSettings("""{"flag":false}""");
         SetupMirror(isApplied: true, It.IsAny<CancellationToken>());
         SetupSave(It.IsAny<CancellationToken>());
-        SetupCommand(settingsChanged: true, It.IsAny<CancellationToken>());
+        SetupCommand(settingsChanged: true);
         SetupRootKey(current: null);
 
         await Applier.ApplyAsync(
@@ -145,7 +146,7 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
             .ReturnsAsync(true)
             .Verifiable();
         SetupSave(It.IsAny<CancellationToken>());
-        SetupCommand(settingsChanged: false, It.IsAny<CancellationToken>());
+        SetupCommand(settingsChanged: false);
         SetupRootKey(current: CreateRootKeyInfo("aws-kms", "kms://key-a", AccessIdentityA));
         var document = CreateDocument("""{"flag":true}""", sequence: 8) with
         {
@@ -187,7 +188,7 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
             .ReturnsAsync(true)
             .Verifiable();
         SetupSave(It.IsAny<CancellationToken>());
-        SetupCommand(settingsChanged: false, It.IsAny<CancellationToken>());
+        SetupCommand(settingsChanged: false);
         SetupRootKey(current: null);
         var document = CreateDocument("""{"flag":true}""", sequence: 8) with { IsDisabled = true };
 
@@ -322,6 +323,52 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
         Assert.Equal(LogLevel.Warning, record.Level);
         Assert.Equal(EventIds.DirectoryTeamRootKeyNotApplied, record.Id.Id);
         Assert.IsType<OwnerRootKeyProbeException>(record.Exception);
+        Assert.Contains(record.StructuredState ?? [], x => x is { Key: "TeamId", Value: TeamId });
+        Assert.Contains(record.StructuredState ?? [], x => x is { Key: "Region", Value: Region });
+    }
+
+    [Fact]
+    public async Task ApplyAsync_WhenTeamChangedCommandFails_LogsWarningAndStillMirrorsRootKey()
+    {
+        SetupUnscoped();
+        SetupStoreManager();
+        SetupStoredSettings("""{"flag":true}""");
+        SetupMirror(isApplied: true, It.IsAny<CancellationToken>());
+        SetupSave(It.IsAny<CancellationToken>());
+        SetupFailingCommand(new InvalidOperationException("The mediator is unavailable."));
+        SetupRootKey(current: null);
+        SetupSetRootKey("aws-kms", "kms://key-a", AccessIdentityA, It.IsAny<CancellationToken>());
+
+        await Applier.ApplyAsync(
+            CreateRootKeyDocument("kms://key-a", AccessIdentityA),
+            CancellationToken.None
+        );
+
+        var record = Assert.Single(Logger.Collector.GetSnapshot());
+        Assert.Equal(LogLevel.Warning, record.Level);
+        Assert.Equal(EventIds.DirectoryTeamChangeNotSent, record.Id.Id);
+        Assert.IsType<InvalidOperationException>(record.Exception);
+        Assert.Contains(record.StructuredState ?? [], x => x is { Key: "TeamId", Value: TeamId });
+    }
+
+    [Fact]
+    public async Task ApplyAsync_WhenRootKeyMirrorFails_LogsWarningAndReturns()
+    {
+        SetupApplied(It.IsAny<CancellationToken>());
+        MockOwnerRootKeyManager
+            .Setup(x => x.GetAsync(TeamOwner, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("The key service is unavailable."))
+            .Verifiable();
+
+        await Applier.ApplyAsync(
+            CreateRootKeyDocument("kms://key-a", AccessIdentityA),
+            CancellationToken.None
+        );
+
+        var record = Assert.Single(Logger.Collector.GetSnapshot());
+        Assert.Equal(LogLevel.Warning, record.Level);
+        Assert.Equal(EventIds.DirectoryTeamRootKeyNotApplied, record.Id.Id);
+        Assert.IsType<InvalidOperationException>(record.Exception);
         Assert.Contains(record.StructuredState ?? [], x => x is { Key: "TeamId", Value: TeamId });
         Assert.Contains(record.StructuredState ?? [], x => x is { Key: "Region", Value: Region });
     }
@@ -497,6 +544,56 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
         Assert.Contains(record.StructuredState ?? [], x => x is { Key: "TeamId", Value: TeamId });
     }
 
+    [Fact]
+    public async Task ReconcileRootKeysAsync_WhenOneTeamThrows_LogsWarningAndReconcilesNextTeam()
+    {
+        using var cts = new CancellationTokenSource();
+        var cancellationToken = cts.Token;
+        var otherOwner = new SecretOwner(SecretOwnerTypes.Team, "globex").Normalize();
+        SetupUnscoped();
+        SetupStoreManager();
+        SetupTeamPage(
+            cursor: null,
+            nextCursor: null,
+            [CreateRootKeyTeam(TeamId, "kms://key-a"), CreateRootKeyTeam("globex", "kms://key-b")],
+            cancellationToken
+        );
+        MockOwnerRootKeyManager
+            .Setup(x => x.GetAsync(TeamOwner, cancellationToken))
+            .ThrowsAsync(new InvalidOperationException("The key service is unavailable."))
+            .Verifiable();
+        SetupGetRootKey(otherOwner, current: null, cancellationToken);
+        MockOwnerRootKeyManager
+            .Setup(x =>
+                x.SetAsync(
+                    otherOwner,
+                    new OwnerRootKeyRequest("aws-kms", "kms://key-b")
+                    {
+                        AccessIdentity = AccessIdentityA,
+                    },
+                    cancellationToken
+                )
+            )
+            .ReturnsAsync(
+                new OwnerRootKeyChange(
+                    CreateRootKeyInfo("aws-kms", "kms://key-b", AccessIdentityA),
+                    null,
+                    null,
+                    new MasterKeyRewrapResult(0, 0, 0, 0)
+                )
+            )
+            .Verifiable();
+
+        await Applier.ReconcileRootKeysAsync(cancellationToken);
+
+        var record = Assert.Single(Logger.Collector.GetSnapshot());
+        Assert.Equal(LogLevel.Warning, record.Level);
+        Assert.Equal(EventIds.DirectoryTeamRootKeyNotApplied, record.Id.Id);
+        Assert.IsType<InvalidOperationException>(record.Exception);
+        Assert.Contains(record.StructuredState ?? [], x => x is { Key: "TeamId", Value: TeamId });
+        Assert.Contains(record.StructuredState ?? [], x => x is { Key: "Region", Value: Region });
+    }
+
     #endregion
 
     #region RetireAsync Tests
@@ -534,7 +631,7 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
             .ReturnsAsync(true)
             .Verifiable();
         SetupSave(cancellationToken);
-        SetupCommand(settingsChanged: false, cancellationToken);
+        SetupCommand(settingsChanged: false);
 
         await Applier.RetireAsync(TeamId, 9, cancellationToken);
 
@@ -566,7 +663,7 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
         SetupSave(cancellationToken);
-        SetupCommand(settingsChanged: false, cancellationToken);
+        SetupCommand(settingsChanged: false);
 
         await Applier.RetireAsync(TeamId, 9, cancellationToken);
 
@@ -575,6 +672,37 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
         Assert.Equal(EventIds.DirectoryRetiredTeamHasDependents, record.Id.Id);
         Assert.Contains(record.StructuredState ?? [], x => x is { Key: "TeamId", Value: TeamId });
         Assert.Contains(record.StructuredState ?? [], x => x is { Key: "Sequence", Value: "9" });
+    }
+
+    [Fact]
+    public async Task RetireAsync_WhenTeamChangedCommandFails_LogsWarningAndReturns()
+    {
+        using var cts = new CancellationTokenSource();
+        var cancellationToken = cts.Token;
+        SetupUnscoped();
+        SetupStoreManager();
+        MockTeamStore
+            .Setup(x => x.GetOrDefaultAsync(TeamId, cancellationToken))
+            .ReturnsAsync(CreateStoredTeam())
+            .Verifiable();
+        MockTeamStore
+            .Setup(x => x.HasDependentsAsync(TeamId, cancellationToken))
+            .ReturnsAsync(false)
+            .Verifiable();
+        MockTeamStore
+            .Setup(x => x.RemoveAsync(TeamId, cancellationToken))
+            .ReturnsAsync(true)
+            .Verifiable();
+        SetupSave(cancellationToken);
+        SetupFailingCommand(new InvalidOperationException("The mediator is unavailable."));
+
+        await Applier.RetireAsync(TeamId, 9, cancellationToken);
+
+        var record = Assert.Single(Logger.Collector.GetSnapshot());
+        Assert.Equal(LogLevel.Warning, record.Level);
+        Assert.Equal(EventIds.DirectoryTeamChangeNotSent, record.Id.Id);
+        Assert.IsType<InvalidOperationException>(record.Exception);
+        Assert.Contains(record.StructuredState ?? [], x => x is { Key: "TeamId", Value: TeamId });
     }
 
     #endregion
@@ -715,7 +843,7 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
         SetupStoredSettings("""{"flag":true}""");
         SetupMirror(isApplied: true, cancellationToken);
         SetupSave(cancellationToken);
-        SetupCommand(settingsChanged: false, cancellationToken);
+        SetupCommand(settingsChanged: false);
     }
 
     private void SetupRootKey(OwnerRootKeyInfo? current) =>
@@ -805,16 +933,28 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-    private void SetupCommand(bool settingsChanged, CancellationToken cancellationToken) =>
+    // The command follows a committed write, so it runs on its own bounded token, never the caller's.
+    private void SetupCommand(bool settingsChanged) =>
         MockMediator
             .Setup(x =>
                 x.SendAsync(
                     It.Is<TeamChangedCommand>(command =>
                         command.TeamId == TeamId && command.SettingsChanged == settingsChanged
                     ),
-                    cancellationToken
+                    It.IsAny<CancellationToken>()
                 )
             )
             .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+    private void SetupFailingCommand(Exception exception) =>
+        MockMediator
+            .Setup(x =>
+                x.SendAsync(
+                    It.Is<TeamChangedCommand>(command => command.TeamId == TeamId),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ThrowsAsync(exception)
             .Verifiable();
 }

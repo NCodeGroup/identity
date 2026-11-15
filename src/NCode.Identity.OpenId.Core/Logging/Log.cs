@@ -469,4 +469,15 @@ internal static partial class Log
         string region,
         Exception exception
     );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryTeamChangeNotSent,
+        Level = LogLevel.Warning,
+        Message = "The team '{TeamId}' was applied, but sending its team-changed command failed; the team's caches evict it when it next changes"
+    )]
+    internal static partial void DirectoryTeamChangeNotSent(
+        this ILogger logger,
+        string teamId,
+        Exception exception
+    );
 }
