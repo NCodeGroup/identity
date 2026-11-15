@@ -47,12 +47,13 @@ public static class DirectoryEndpoints
     private const string SettingsNotAnObjectDetail = "The document's settings are a JSON object.";
 
     /// <summary>
-    /// The problem detail that the cell registration route answers with when the management URL is not a service URL
-    /// that <see cref="AbsoluteUri.TryParseServiceUrl"/> accepts.
+    /// The problem detail that the cell registration route answers with when the management URL is not one that
+    /// <see cref="AbsoluteUri.TryParseHttpsServiceUrl"/> accepts, or that <see cref="AbsoluteUri.TryParseAnyHttpServiceUrl"/>
+    /// accepts in local development.
     /// </summary>
     private const string InvalidManagementUrlDetail =
-        "The cell's management URL is an absolute https URL, or an http URL on a loopback host or in local "
-        + "development, with no user information, query or fragment.";
+        "The cell's management URL is an absolute https URL, or an http URL in local development, with no user "
+        + "information, query or fragment.";
 
     private static string InvalidCellLabelDetail =>
         $"A cell and its region are each 1 to {CellLabelRules.MaxLabelLength} lowercase letters, digits or hyphens that "
@@ -812,8 +813,8 @@ public static class DirectoryEndpoints
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
     /// <c>200 OK</c> when the cell is registered; <c>400 Bad Request</c> when the kind or the management URL is blank,
-    /// the management URL is not an absolute <c>https</c> URL (or an <c>http</c> URL on a loopback host or in local
-    /// development) without user information, a query or a fragment, the name or the region is not a
+    /// the management URL is not an absolute <c>https</c> URL (or an <c>http</c> URL in local development)
+    /// without user information, a query or a fragment, the name or the region is not a
     /// <see cref="CellLabelRules"/> label, or the descriptor names a cell other than the route's;
     /// <c>403 Forbidden</c> when the cell is not the caller or claims to be the control plane without being it.
     /// </returns>
@@ -822,7 +823,7 @@ public static class DirectoryEndpoints
         CellDescriptor descriptor,
         HttpContext httpContext,
         IOptions<DirectoryServerOptions> options,
-        LocalDevelopmentMode localDevelopmentMode,
+        [FromServices] LocalDevelopmentMode localDevelopmentMode,
         ICellDirectory directory,
         CancellationToken cancellationToken
     )
@@ -830,16 +831,11 @@ public static class DirectoryEndpoints
         if (IsBlank(descriptor.Kind) || IsBlank(descriptor.ManagementUrl))
             return BadRequest("The cell's kind and its management URL are required.");
 
-        if (
-            !AbsoluteUri.TryParseServiceUrl(
-                descriptor.ManagementUrl,
-                localDevelopmentMode.Enabled,
-                out _
-            )
-        )
-        {
+        var isManagementUrl = localDevelopmentMode.Enabled
+            ? AbsoluteUri.TryParseAnyHttpServiceUrl(descriptor.ManagementUrl, out _)
+            : AbsoluteUri.TryParseHttpsServiceUrl(descriptor.ManagementUrl, out _);
+        if (!isManagementUrl)
             return BadRequest(InvalidManagementUrlDetail);
-        }
 
         if (
             !CellLabelRules.IsValidLabel(descriptor.Name)

@@ -58,12 +58,11 @@ internal sealed class DirectoryServerOptionsValidator : IValidateOptions<Directo
 
     /// <summary>
     /// Determines whether an issuer is one the directory accepts: at most <see cref="DirectoryLimits.MaxIssuerLength"/>
-    /// characters, and a service URL, which is an absolute <c>https</c> URL, or an <c>http</c> URL on a loopback host,
-    /// written with its authority and with no whitespace, user information, query or fragment.
+    /// characters, and a service URL that <see cref="AbsoluteUri.TryParseServiceUrl"/> accepts.
     /// </summary>
     /// <param name="issuer">The configured issuer to check.</param>
     /// <returns><c>true</c> when the directory accepts the issuer; otherwise, <c>false</c>.</returns>
     private static bool IsAllowedIssuer(string issuer) =>
         issuer.Length <= DirectoryLimits.MaxIssuerLength
-        && AbsoluteUri.TryParseServiceUrl(issuer, allowAnyHttp: false, out _);
+        && AbsoluteUri.TryParseServiceUrl(issuer, out _);
 }

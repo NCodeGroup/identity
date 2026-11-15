@@ -7,8 +7,8 @@ using Microsoft.Extensions.Options;
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
-/// Stops the host as it starts when <c>Directory:Url</c> is set and <c>Cell:ControlPlane:Issuer</c> is not an allowed
-/// endpoint, so a cell that cannot authenticate to the directory fails at start instead of the first time it reserves
+/// Stops the host as it starts when <c>Directory:Url</c> is set and <c>Cell:ControlPlane:Issuer</c> is not a service
+/// URL, so a cell that cannot authenticate to the directory fails at start instead of the first time it reserves
 /// an identifier. The composition root makes this check because it reads two options types; it runs as a start check
 /// rather than an options validator, because a validator reads no other options.
 /// </summary>
@@ -27,7 +27,7 @@ internal sealed class DirectoryClientStartupCheck(
             return Task.CompletedTask;
 
         var issuer = cellOptions.Value.ControlPlane.Issuer;
-        if (!AbsoluteUri.TryParseServiceUrl(issuer, allowAnyHttp: false, out _))
+        if (!AbsoluteUri.TryParseServiceUrl(issuer, out _))
         {
             throw new InvalidOperationException(
                 $"{CellOptions.SectionName}:{nameof(CellOptions.ControlPlane)}:{nameof(ControlPlaneOptions.Issuer)} '{DirectoryUrls.Describe(issuer)}' must be an absolute https URL, or an http URL on a loopback host, with no user information, query or fragment, when {DirectoryClientOptions.SectionName}:{nameof(DirectoryClientOptions.Url)} is set."

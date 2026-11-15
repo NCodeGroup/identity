@@ -47,6 +47,8 @@ public class DirectoryClientOptionsValidatorTests : BaseTests
     [InlineData("directory")]
     [InlineData("http://directory.example")]
     [InlineData("https://directory.example/?q=1")]
+    [InlineData("https://directory.example/?")]
+    [InlineData("https://@directory.example/")]
     public void Validate_WhenUrlIsNotAllowed_FailsNamingTheValue(string url)
     {
         var options = CreateOptions();

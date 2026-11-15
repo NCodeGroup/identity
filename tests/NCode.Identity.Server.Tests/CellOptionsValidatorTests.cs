@@ -176,7 +176,7 @@ public sealed class CellOptionsValidatorTests
 
         Assert.True(result.Failed);
         Assert.Equal(
-            $"Cell:ControlPlane:Issuer '{issuer}' must be an absolute https URL, or an http URL on a loopback host, with no user information, query or fragment.",
+            "Cell:ControlPlane:Issuer must be an absolute https URL, or an http URL on a loopback host, with no user information, query or fragment.",
             result.FailureMessage
         );
     }
@@ -219,7 +219,9 @@ public sealed class CellOptionsValidatorTests
     [InlineData("/management")]
     [InlineData("ftp://eu-1.example/")]
     [InlineData("http://eu-1.example/")]
-    public void Validate_WhenTheManagementUrlIsNotAbsoluteHttpsOrLoopbackHttp_Fails(
+    [InlineData("http://localhost:5000/")]
+    [InlineData("http://127.0.0.1:5000/")]
+    public void Validate_WhenTheManagementUrlIsNotAbsoluteHttpsOutsideLocalDevelopment_Fails(
         string managementUrl
     )
     {
@@ -230,7 +232,7 @@ public sealed class CellOptionsValidatorTests
 
         Assert.True(result.Failed);
         Assert.Equal(
-            $"Cell:ManagementUrl '{managementUrl}' must be an absolute https URL, or an http URL on a loopback host, with no user information, query or fragment.",
+            "Cell:ManagementUrl must be an absolute https URL with no user information, query or fragment.",
             result.FailureMessage
         );
     }
@@ -239,14 +241,20 @@ public sealed class CellOptionsValidatorTests
     [InlineData("http://localhost:5000/")]
     [InlineData("http://127.0.0.1:5000/")]
     [InlineData("http://[::1]:5000/")]
-    public void Validate_WhenTheManagementUrlIsHttpOnALoopbackHost_Succeeds(string managementUrl)
+    public void Validate_WhenTheManagementUrlIsHttpOnALoopbackHostOutsideLocalDevelopment_Fails(
+        string managementUrl
+    )
     {
         var options = CreateOptions();
         options.ManagementUrl = managementUrl;
 
         var result = CreateValidator().Validate(name: null, options);
 
-        Assert.True(result.Succeeded);
+        Assert.True(result.Failed);
+        Assert.Equal(
+            "Cell:ManagementUrl must be an absolute https URL with no user information, query or fragment.",
+            result.FailureMessage
+        );
     }
 
     [Fact]
@@ -271,7 +279,7 @@ public sealed class CellOptionsValidatorTests
 
         Assert.True(result.Failed);
         Assert.Equal(
-            $"Cell:ManagementUrl '{managementUrl}' must be an absolute http or https URL with no user information, query or fragment.",
+            "Cell:ManagementUrl must be an absolute http or https URL with no user information, query or fragment.",
             result.FailureMessage
         );
     }
@@ -288,8 +296,39 @@ public sealed class CellOptionsValidatorTests
 
         Assert.True(result.Failed);
         Assert.Equal(
-            $"Cell:ManagementUrl '{managementUrl}' must be an absolute https URL, or an http URL on a loopback host, with no user information, query or fragment.",
+            "Cell:ManagementUrl must be an absolute https URL with no user information, query or fragment.",
             result.FailureMessage
+        );
+    }
+
+    [Fact]
+    public void Validate_WhenTheIssuerCarriesAPassword_DoesNotEchoIt()
+    {
+        var options = CreateOptions();
+        options.IsControlPlane = false;
+        options.ControlPlane.Issuer = "https://user:secret@auth.example/";
+
+        var result = CreateValidator().Validate(name: null, options);
+
+        Assert.True(result.Failed);
+        Assert.All(
+            result.Failures ?? [],
+            failure => Assert.DoesNotContain("secret", failure, StringComparison.Ordinal)
+        );
+    }
+
+    [Fact]
+    public void Validate_WhenTheManagementUrlCarriesAPassword_DoesNotEchoIt()
+    {
+        var options = CreateOptions();
+        options.ManagementUrl = "https://user:secret@host.example/";
+
+        var result = CreateValidator().Validate(name: null, options);
+
+        Assert.True(result.Failed);
+        Assert.All(
+            result.Failures ?? [],
+            failure => Assert.DoesNotContain("secret", failure, StringComparison.Ordinal)
         );
     }
 

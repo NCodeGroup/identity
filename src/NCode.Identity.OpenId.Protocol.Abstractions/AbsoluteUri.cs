@@ -11,7 +11,8 @@ namespace NCode.Identity.OpenId;
 /// that names its scheme and contains no whitespace. <see cref="Uri.TryCreate(string, UriKind, out Uri)"/> with
 /// <see cref="UriKind.Absolute"/> also accepts an implicit file path as a <c>file</c> URI — <c>/path</c> on Unix,
 /// <c>C:\path</c> on Windows — and trims surrounding whitespace, so the same text would mean different things on
-/// different platforms; this parser accepts neither.
+/// different platforms; this parser accepts neither. A service URL is written with its authority and judged on the
+/// text as written, because <see cref="Uri"/> reads an empty <c>?</c>, <c>#</c> or <c>@</c> as absent.
 /// </summary>
 [PublicAPI]
 public static class AbsoluteUri
@@ -63,40 +64,103 @@ public static class AbsoluteUri
     }
 
     /// <summary>
-    /// Parses the specified text, as <see cref="TryParse"/> does, as the URL of a service: an absolute
-    /// <c>https</c> URL, or an <c>http</c> URL on a loopback host or, when <paramref name="allowAnyHttp"/> is
-    /// <see langword="true"/>, on any host, written with its authority and with no user information, query or
+    /// Parses the specified text, as <see cref="TryParse"/> does, as the URL of a service: an absolute <c>https</c>
+    /// URL, or an <c>http</c> URL on a loopback host, written with its authority and with no user information, query or
     /// fragment.
     /// </summary>
-    /// <remarks>
-    /// The text as written decides, because <see cref="Uri"/> accepts some other forms as the same URL, such as
-    /// <c>https:\\host</c>, and reports no user information for <c>https://@host/</c>. The text names its scheme
-    /// followed by <c>://</c>, contains no <c>?</c> or <c>#</c>, and has no <c>@</c> in its authority, which ends at
-    /// the first <c>/</c>.
-    /// </remarks>
     /// <param name="value">The text to parse.</param>
-    /// <param name="allowAnyHttp">
-    /// <see langword="true"/> to accept an <c>http</c> URL on any host; <see langword="false"/> to accept one only on
-    /// a loopback host.
-    /// </param>
     /// <param name="uri">When this method returns <see langword="true"/>, the parsed URI.</param>
     /// <returns>
     /// <see langword="true"/> when the text is such a service URL; otherwise, <see langword="false"/>.
     /// </returns>
     public static bool TryParseServiceUrl(
         [NotNullWhen(true)] string? value,
-        bool allowAnyHttp,
         [NotNullWhen(true)] out Uri? uri
     )
     {
         if (
-            TryParse(value, out var parsed)
-            && HasServiceUrlShape(value, parsed.Scheme)
+            TryParseServiceUrlShape(value, out var parsed)
             && (
                 parsed.Scheme == Uri.UriSchemeHttps
-                || (parsed.Scheme == Uri.UriSchemeHttp && (allowAnyHttp || parsed.IsLoopback))
+                || (parsed.Scheme == Uri.UriSchemeHttp && parsed.IsLoopback)
             )
         )
+        {
+            uri = parsed;
+            return true;
+        }
+
+        uri = null;
+        return false;
+    }
+
+    /// <summary>
+    /// Parses the specified text as the URL of a service, as <see cref="TryParseServiceUrl"/> does, that names the
+    /// <c>https</c> scheme.
+    /// </summary>
+    /// <param name="value">The text to parse.</param>
+    /// <param name="uri">When this method returns <see langword="true"/>, the parsed URI.</param>
+    /// <returns>
+    /// <see langword="true"/> when the text is such an <c>https</c> service URL; otherwise, <see langword="false"/>.
+    /// </returns>
+    public static bool TryParseHttpsServiceUrl(
+        [NotNullWhen(true)] string? value,
+        [NotNullWhen(true)] out Uri? uri
+    )
+    {
+        if (TryParseServiceUrlShape(value, out var parsed) && parsed.Scheme == Uri.UriSchemeHttps)
+        {
+            uri = parsed;
+            return true;
+        }
+
+        uri = null;
+        return false;
+    }
+
+    /// <summary>
+    /// Parses the specified text as the URL of a service, as <see cref="TryParseServiceUrl"/> does, that names the
+    /// <c>https</c> scheme or the <c>http</c> scheme on any host.
+    /// </summary>
+    /// <param name="value">The text to parse.</param>
+    /// <param name="uri">When this method returns <see langword="true"/>, the parsed URI.</param>
+    /// <returns>
+    /// <see langword="true"/> when the text is such an <c>https</c> or <c>http</c> service URL; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    public static bool TryParseAnyHttpServiceUrl(
+        [NotNullWhen(true)] string? value,
+        [NotNullWhen(true)] out Uri? uri
+    )
+    {
+        if (
+            TryParseServiceUrlShape(value, out var parsed)
+            && (parsed.Scheme == Uri.UriSchemeHttps || parsed.Scheme == Uri.UriSchemeHttp)
+        )
+        {
+            uri = parsed;
+            return true;
+        }
+
+        uri = null;
+        return false;
+    }
+
+    /// <summary>
+    /// Parses the specified text, as <see cref="TryParse"/> does, and checks that it is written as a service URL.
+    /// </summary>
+    /// <param name="value">The text to parse.</param>
+    /// <param name="uri">When this method returns <see langword="true"/>, the parsed URI.</param>
+    /// <returns>
+    /// <see langword="true"/> when the text is an absolute URI written with its authority and with no user
+    /// information, query or fragment; otherwise, <see langword="false"/>.
+    /// </returns>
+    private static bool TryParseServiceUrlShape(
+        [NotNullWhen(true)] string? value,
+        [NotNullWhen(true)] out Uri? uri
+    )
+    {
+        if (TryParse(value, out var parsed) && HasServiceUrlShape(value, parsed.Scheme))
         {
             uri = parsed;
             return true;

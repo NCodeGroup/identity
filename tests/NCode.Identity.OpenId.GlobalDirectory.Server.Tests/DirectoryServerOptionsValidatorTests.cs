@@ -83,6 +83,9 @@ public class DirectoryServerOptionsValidatorTests
     [InlineData("http://example.com")]
     [InlineData("https://auth.example/?x=1")]
     [InlineData("https://auth.example/#section")]
+    [InlineData("https://auth.example/?")]
+    [InlineData("https://auth.example/#")]
+    [InlineData("https://@auth.example")]
     [InlineData("ftp://auth.example")]
     public void Validate_DisallowedIssuer_FailsNamingTheKeyAndRule(string issuer)
     {

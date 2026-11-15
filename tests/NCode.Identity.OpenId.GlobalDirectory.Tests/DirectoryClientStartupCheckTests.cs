@@ -45,6 +45,8 @@ public class DirectoryClientStartupCheckTests : BaseTests
     [InlineData("")]
     [InlineData("relative")]
     [InlineData("http://issuer.example")]
+    [InlineData("https://issuer.example/#")]
+    [InlineData("https://@issuer.example/")]
     public async Task StartingAsync_DirectoryUrlAndDisallowedIssuer_ThrowsNamingTheValue(
         string issuer
     )

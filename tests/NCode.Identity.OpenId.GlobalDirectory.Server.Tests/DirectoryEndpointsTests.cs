@@ -15,6 +15,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
+using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.Client;
 using NCode.Identity.Registration;
 using Xunit;
@@ -36,8 +37,8 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     private const string TeamId = "team-1";
 
     private const string InvalidManagementUrlDetail =
-        "The cell's management URL is an absolute https URL, or an http URL on a loopback host or in local "
-        + "development, with no user information, query or fragment.";
+        "The cell's management URL is an absolute https URL, or an http URL in local development, with no user "
+        + "information, query or fragment.";
 
     private const string SettingsNotAnObjectDetail = "The document's settings are a JSON object.";
 
@@ -67,6 +68,17 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     {
         Connection.Open();
 
+        var app = await CreateAppAsync(configure: null);
+
+        App = app;
+        ClientOrNull = app.GetTestClient();
+    }
+
+    private async ValueTask<WebApplication> CreateAppAsync(
+        Action<IServiceCollection>? configure,
+        CancellationToken cancellationToken = default
+    )
+    {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
         builder.Configuration.AddInMemoryCollection(
@@ -84,6 +96,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         new ServiceBuilder<OpenIdClientLibrary>(builder.Services).AddOpenIdDirectoryServer(
             builder.Configuration
         );
+        configure?.Invoke(builder.Services);
 
         var app = builder.Build();
         app.MapDirectory();
@@ -91,15 +104,14 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         var dbContextFactory = app.Services.GetRequiredService<
             IDbContextFactory<DirectoryDbContext>
         >();
-        await using (var dbContext = await dbContextFactory.CreateDbContextAsync())
+        await using (var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken))
         {
-            await dbContext.Database.EnsureCreatedAsync();
+            await dbContext.Database.EnsureCreatedAsync(cancellationToken);
         }
 
-        await app.StartAsync();
+        await app.StartAsync(cancellationToken);
 
-        App = app;
-        ClientOrNull = app.GetTestClient();
+        return app;
     }
 
     public async Task DisposeAsync()
@@ -1813,6 +1825,48 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         Assert.Equal(InvalidManagementUrlDetail, await ReadProblemDetailAsync(response));
         var listResponse = await Client.GetAsync("/directory/v1/cells");
         Assert.Empty(await ReadAsync<List<CellDescriptor>>(listResponse));
+    }
+
+    [Fact]
+    public async Task RegisterCell_WhenTheManagementUrlIsHttpOnALoopbackHost_AnswersBadRequest()
+    {
+        Authenticate(clientId: "cell-a");
+
+        var response = await Client.PutAsJsonAsync(
+            "/directory/v1/cells/a",
+            CreateCell("a") with
+            {
+                ManagementUrl = "http://127.0.0.1:8080/",
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(InvalidManagementUrlDetail, await ReadProblemDetailAsync(response));
+        var listResponse = await Client.GetAsync("/directory/v1/cells");
+        Assert.Empty(await ReadAsync<List<CellDescriptor>>(listResponse));
+    }
+
+    [Fact]
+    public async Task RegisterCell_WhenLocalDevelopmentIsOn_RegistersAPlainHttpManagementUrl()
+    {
+        Authenticate(clientId: "cell-a");
+        await using var app = await CreateAppAsync(serviceCollection =>
+            serviceCollection.AddSingleton(new LocalDevelopmentMode(true))
+        );
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token);
+
+        var response = await client.PutAsJsonAsync(
+            "/directory/v1/cells/a",
+            CreateCell("a") with
+            {
+                ManagementUrl = "http://a.example/",
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]

@@ -90,71 +90,124 @@ public class AbsoluteUriTests
     [InlineData("http://localhost/")]
     public void TryParseServiceUrl_WhenTheTextIsAnHttpsOrLoopbackHttpUrl_ReturnsTheUri(string value)
     {
-        var parsed = AbsoluteUri.TryParseServiceUrl(value, allowAnyHttp: false, out var uri);
+        var parsed = AbsoluteUri.TryParseServiceUrl(value, out var uri);
 
         Assert.True(parsed);
         Assert.NotNull(uri);
         Assert.Equal(value, uri.OriginalString);
     }
 
-    [Fact]
-    public void TryParseServiceUrl_WhenTheHostIsNotLoopbackAndAnyHttpIsAllowed_ReturnsTheUri()
+    [Theory]
+    [InlineData("http://directory.example/")]
+    [InlineData("https://user@directory.example/")]
+    [InlineData("https://user:pw@directory.example/")]
+    [InlineData("http://user@localhost/")]
+    [InlineData("https://@directory.example/")]
+    [InlineData("https://directory.example/?a=b")]
+    [InlineData("https://directory.example/?")]
+    [InlineData("https://directory.example/#x")]
+    [InlineData("https://directory.example/#")]
+    [InlineData("https:directory.example")]
+    [InlineData("https:/directory.example")]
+    [InlineData(@"https:\\directory.example")]
+    [InlineData("ftp://directory.example/")]
+    [InlineData("/relative")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void TryParseServiceUrl_WhenTheTextIsNotAServiceUrl_ReturnsFalse(string? value)
     {
-        const string value = "http://directory.example/";
-
-        var parsed = AbsoluteUri.TryParseServiceUrl(value, allowAnyHttp: true, out var uri);
-
-        Assert.True(parsed);
-        Assert.NotNull(uri);
-        Assert.Equal(value, uri.OriginalString);
-    }
-
-    [Fact]
-    public void TryParseServiceUrl_WhenTheHostIsNotLoopbackAndAnyHttpIsNotAllowed_ReturnsFalse()
-    {
-        const string value = "http://directory.example/";
-
-        var parsed = AbsoluteUri.TryParseServiceUrl(value, allowAnyHttp: false, out var uri);
+        var parsed = AbsoluteUri.TryParseServiceUrl(value, out var uri);
 
         Assert.False(parsed);
         Assert.Null(uri);
     }
 
+    #endregion
+
+    #region TryParseHttpsServiceUrl Tests
+
     [Theory]
-    [InlineData("https://user@directory.example/", false)]
-    [InlineData("https://user@directory.example/", true)]
-    [InlineData("http://user@directory.example/", true)]
-    [InlineData("https://user:pw@directory.example/", false)]
-    [InlineData("https://user:pw@directory.example/", true)]
-    [InlineData("https://@directory.example/", false)]
-    [InlineData("https://@directory.example/", true)]
-    [InlineData("https://directory.example/?a=b", false)]
-    [InlineData("https://directory.example/?a=b", true)]
-    [InlineData("https://directory.example/?", false)]
-    [InlineData("https://directory.example/?", true)]
-    [InlineData("https://directory.example/#x", false)]
-    [InlineData("https://directory.example/#x", true)]
-    [InlineData("https://directory.example/#", false)]
-    [InlineData("https://directory.example/#", true)]
-    [InlineData("https:directory.example", false)]
-    [InlineData("https:directory.example", true)]
-    [InlineData("https:/directory.example", false)]
-    [InlineData("https:/directory.example", true)]
-    [InlineData(@"https:\\directory.example", false)]
-    [InlineData(@"https:\\directory.example", true)]
-    [InlineData("ftp://directory.example/", false)]
-    [InlineData("ftp://directory.example/", true)]
-    [InlineData("/relative", false)]
-    [InlineData("/relative", true)]
-    [InlineData("", false)]
-    [InlineData(null, false)]
-    [InlineData(null, true)]
-    public void TryParseServiceUrl_WhenTheTextIsNotAServiceUrl_ReturnsFalse(
-        string? value,
-        bool allowAnyHttp
+    [InlineData("https://directory.example/")]
+    [InlineData("HTTPS://DIRECTORY.EXAMPLE/")]
+    [InlineData("https://directory.example/path@scope")]
+    public void TryParseHttpsServiceUrl_WhenTheTextIsAnHttpsServiceUrl_ReturnsTheUri(string value)
+    {
+        var parsed = AbsoluteUri.TryParseHttpsServiceUrl(value, out var uri);
+
+        Assert.True(parsed);
+        Assert.NotNull(uri);
+        Assert.Equal(value, uri.OriginalString);
+    }
+
+    [Theory]
+    [InlineData("http://directory.example/")]
+    [InlineData("http://localhost/")]
+    [InlineData("http://127.0.0.1:8080/")]
+    [InlineData("https://user@directory.example/")]
+    [InlineData("https://user:pw@directory.example/")]
+    [InlineData("https://@directory.example/")]
+    [InlineData("https://directory.example/?a=b")]
+    [InlineData("https://directory.example/?")]
+    [InlineData("https://directory.example/#x")]
+    [InlineData("https://directory.example/#")]
+    [InlineData("https:directory.example")]
+    [InlineData("https:/directory.example")]
+    [InlineData(@"https:\\directory.example")]
+    [InlineData("ftp://directory.example/")]
+    [InlineData("/relative")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void TryParseHttpsServiceUrl_WhenTheTextIsNotAnHttpsServiceUrl_ReturnsFalse(
+        string? value
     )
     {
-        var parsed = AbsoluteUri.TryParseServiceUrl(value, allowAnyHttp, out var uri);
+        var parsed = AbsoluteUri.TryParseHttpsServiceUrl(value, out var uri);
+
+        Assert.False(parsed);
+        Assert.Null(uri);
+    }
+
+    #endregion
+
+    #region TryParseAnyHttpServiceUrl Tests
+
+    [Theory]
+    [InlineData("https://directory.example/")]
+    [InlineData("HTTPS://DIRECTORY.EXAMPLE/")]
+    [InlineData("http://directory.example/")]
+    [InlineData("http://localhost/")]
+    [InlineData("http://127.0.0.1:8080/")]
+    [InlineData("http://[::1]:8080/")]
+    public void TryParseAnyHttpServiceUrl_WhenTheTextIsAnHttpOrHttpsServiceUrl_ReturnsTheUri(
+        string value
+    )
+    {
+        var parsed = AbsoluteUri.TryParseAnyHttpServiceUrl(value, out var uri);
+
+        Assert.True(parsed);
+        Assert.NotNull(uri);
+        Assert.Equal(value, uri.OriginalString);
+    }
+
+    [Theory]
+    [InlineData("https://user@directory.example/")]
+    [InlineData("http://user@directory.example/")]
+    [InlineData("https://user:pw@directory.example/")]
+    [InlineData("https://@directory.example/")]
+    [InlineData("http://directory.example/?a=b")]
+    [InlineData("https://directory.example/?")]
+    [InlineData("https://directory.example/#x")]
+    [InlineData("https://directory.example/#")]
+    [InlineData("https:directory.example")]
+    [InlineData("https:/directory.example")]
+    [InlineData(@"https:\\directory.example")]
+    [InlineData("ftp://directory.example/")]
+    [InlineData("/relative")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void TryParseAnyHttpServiceUrl_WhenTheTextIsNotAServiceUrl_ReturnsFalse(string? value)
+    {
+        var parsed = AbsoluteUri.TryParseAnyHttpServiceUrl(value, out var uri);
 
         Assert.False(parsed);
         Assert.Null(uri);

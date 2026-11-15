@@ -11,10 +11,11 @@ namespace NCode.Identity.Server.Cells;
 /// <summary>
 /// Validates <see cref="CellOptions"/>: a cell names itself and its region with lowercase labels, names its kind, points
 /// a cell that is not the control plane at the control plane's issuer, and reaches its management API over
-/// <c>https</c>, or over <c>http</c> on a loopback host or, in local development, on any host.
+/// <c>https</c>, or over <c>http</c> in local development. A failure names the key and the rule, never the value,
+/// because a refused URL may carry a password.
 /// </summary>
 /// <param name="localDevelopmentMode">
-/// The mode that decides whether a management URL may use <c>http</c> on any host.
+/// The mode that decides whether a management URL may use <c>http</c>.
 /// </param>
 internal sealed class CellOptionsValidator(LocalDevelopmentMode localDevelopmentMode)
     : IValidateOptions<CellOptions>
@@ -48,10 +49,10 @@ internal sealed class CellOptionsValidator(LocalDevelopmentMode localDevelopment
                         + "is not the control plane accepts platform and team management tokens from its issuer."
                 );
             }
-            else if (!AbsoluteUri.TryParseServiceUrl(issuer, allowAnyHttp: false, out _))
+            else if (!AbsoluteUri.TryParseServiceUrl(issuer, out _))
             {
                 failures.Add(
-                    $"{issuerKey} '{issuer}' must be an absolute https URL, or an http URL on a loopback host, with no user information, query or fragment."
+                    $"{issuerKey} must be an absolute https URL, or an http URL on a loopback host, with no user information, query or fragment."
                 );
             }
         }
@@ -79,14 +80,17 @@ internal sealed class CellOptionsValidator(LocalDevelopmentMode localDevelopment
         if (string.IsNullOrEmpty(managementUrl))
             return;
 
-        if (AbsoluteUri.TryParseServiceUrl(managementUrl, LocalDevelopmentMode.Enabled, out _))
+        var isManagementUrl = LocalDevelopmentMode.Enabled
+            ? AbsoluteUri.TryParseAnyHttpServiceUrl(managementUrl, out _)
+            : AbsoluteUri.TryParseHttpsServiceUrl(managementUrl, out _);
+        if (isManagementUrl)
             return;
 
         var key = $"{Prefix}:{nameof(CellOptions.ManagementUrl)}";
         failures.Add(
             LocalDevelopmentMode.Enabled
-                ? $"{key} '{managementUrl}' must be an absolute http or https URL with no user information, query or fragment."
-                : $"{key} '{managementUrl}' must be an absolute https URL, or an http URL on a loopback host, with no user information, query or fragment."
+                ? $"{key} must be an absolute http or https URL with no user information, query or fragment."
+                : $"{key} must be an absolute https URL with no user information, query or fragment."
         );
     }
 }
