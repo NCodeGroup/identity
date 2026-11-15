@@ -67,7 +67,8 @@ const releaseStage = 3;
  * Move dialog for a disabled tenant: pick another cell of the tenant's region, then run the four stages of a move in
  * order (a transfer key from the receiving cell, the export from the tenant's cell, the import into the receiving
  * cell and the release at the tenant's cell), showing each stage. A failure stops the run and names the failed stage
- * and what remains; Retry resumes from the failed stage, so the stages that finished do not run again. The chosen
+ * and what remains; Retry resumes from the failed stage, so the stages that finished do not run again, except after a
+ * failed import, which spends the transfer key, so Retry then runs from the transfer key. The chosen
  * cell and the progress are local because the dialog runs the sequence itself; the calls are the container's to
  * supply, so this package holds no store.
  */
@@ -110,7 +111,7 @@ export function TenantMoveDialog({
   const hasStarted = isRunning || completed > 0 || failure !== undefined;
   const isMoved = completed === stages.length && stages.length > 0;
 
-  /** Runs the move from `fromStage`: 0 for a fresh move, the failed stage for a retry. */
+  /** Runs the move from `fromStage`: 0 for a fresh move, the failure's `resumeStage` for a retry. */
   const runFrom = async (move: TenantMove, fromStage: number) => {
     setIsRunning(true);
     setFailure(undefined);
@@ -139,7 +140,8 @@ export function TenantMoveDialog({
     if (moveRef.current === undefined || failure === undefined) {
       return;
     }
-    await runFrom(moveRef.current, failure.stage);
+    setCompleted(failure.resumeStage);
+    await runFrom(moveRef.current, failure.resumeStage);
   };
 
   const failedStage = failure === undefined ? undefined : stages[failure.stage];

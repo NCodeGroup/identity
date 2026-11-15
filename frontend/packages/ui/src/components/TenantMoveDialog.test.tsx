@@ -262,7 +262,42 @@ describe('TenantMoveDialog', () => {
       'Import the tenant into eu-2 failed: The cell is unavailable.',
     );
     expect(screen.getByTestId('move-retry')).toBeEnabled();
-    expect(operations.exportTenant).toHaveBeenCalledTimes(1);
+    expect(operations.exportTenant).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries from the transfer key after the import fails and completes the move', async () => {
+    const calls: string[] = [];
+    let imports = 0;
+    const operations: TenantMoveDialogOperations = {
+      ...createOperations(calls),
+      importTenant: vi.fn(async (cell: string) => {
+        imports += 1;
+        calls.push(`import ${cell}`);
+        if (imports === 1) {
+          throw new Error('The cell is unavailable.');
+        }
+      }),
+    };
+    renderDialog({ operations });
+    choose('eu-2');
+    fireEvent.click(screen.getByTestId('move-confirm'));
+    await screen.findByTestId('move-failure');
+    calls.length = 0;
+
+    fireEvent.click(screen.getByTestId('move-retry'));
+
+    expect(await screen.findByTestId('move-done')).toHaveTextContent('Moved to eu-2.');
+    expect(calls).toEqual([
+      'transfer-key eu-2',
+      'export eu-1 acme',
+      'import eu-2',
+      'release eu-1 acme',
+    ]);
+    expect(operations.createTransferKey).toHaveBeenCalledTimes(2);
+    expect(operations.exportTenant).toHaveBeenCalledTimes(2);
+    expect(operations.importTenant).toHaveBeenCalledTimes(2);
+    expect(operations.releaseMovedTenant).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('move-failure')).not.toBeInTheDocument();
   });
 
   it('shows no Retry before a failure', () => {

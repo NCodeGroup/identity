@@ -34,17 +34,22 @@ export type TenantMoveTarget = {
 
 /** The stage that failed and why. */
 export type TenantMoveFailure = {
-  /** The index of the stage that failed; it is also the stage a retry resumes from. */
+  /** The index of the stage that failed. */
   readonly stage: number;
+  /**
+   * The stage a retry runs from: 0 when the import failed, because the import spends the transfer key, and the failed
+   * stage otherwise.
+   */
+  readonly resumeStage: number;
   readonly message: string;
 };
 
 /** A move: runs its stages from a given stage and keeps what one stage hands the next. */
 export type TenantMove = {
   /**
-   * Runs the stages from `fromStage` (0 for a fresh move, the failed stage for a retry), so the stages before it are
-   * skipped. Calls `onStageCompleted` with the number of stages finished after each stage. Resolves with the stage
-   * that failed, or `undefined` when every stage finished.
+   * Runs the stages from `fromStage` (0 for a fresh move, the failure's `resumeStage` for a retry), so the stages
+   * before it are skipped. Calls `onStageCompleted` with the number of stages finished after each stage. Resolves with
+   * the stage that failed, or `undefined` when every stage finished.
    */
   readonly run: (
     fromStage: number,
@@ -108,7 +113,13 @@ export function createTenantMove(
         }
         return undefined;
       } catch (error) {
-        return { stage, message: errorMessage(error) };
+        if (stage === importStage) {
+          // The import spends the transfer key, so a retry asks the receiving cell for another one.
+          transferKey = undefined;
+          sealedPackage = undefined;
+          return { stage, resumeStage: 0, message: errorMessage(error) };
+        }
+        return { stage, resumeStage: stage, message: errorMessage(error) };
       }
     },
   };

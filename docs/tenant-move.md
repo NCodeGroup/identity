@@ -151,9 +151,10 @@ and `tenant.released` in `<source>` and `tenant.imported` in `<target>` ([audit 
 ## Recovering from a failed stage
 
 Each stage is safe to repeat until the release. The console runs the four calls in order, stops at the first failure,
-and names the stage that failed and the stages that remain. It reports a failure before the release as "the tenant has
-not moved and is still at the source", and a failure of the release as "the tenant is imported and the source still
-holds it until it is released".
+and names the stage that failed and the stages that remain. Its Retry runs the move again from the stage that failed,
+or from the transfer key after a failed import, because the import spends it. It reports a failure before the release
+as "the tenant has not moved and is still at the source", and a failure of the release as "the tenant is imported and
+the source still holds it until it is released".
 
 - **Before the import** (stages 1 to 3). Nothing is placed or written in `<target>`. Repeat the stage. The disable is
   idempotent. An export has no effect on the tenant, so repeating it only writes another `tenant.exported` record. A
