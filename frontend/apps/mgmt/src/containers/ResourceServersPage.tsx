@@ -44,8 +44,7 @@ const closed: DialogState = { kind: 'none' };
  */
 export function ResourceServersPage({ tenantId }: ResourceServersPageProps) {
   const cell = useTenantCell();
-  const inCell = cell === undefined ? {} : { cell };
-  const { data, isLoading, error } = useListResourceServersQuery({ tenantId, ...inCell });
+  const { data, isLoading, error } = useListResourceServersQuery({ tenantId, cell });
   const resourceServers = data?.items ?? [];
 
   const [createResourceServer, { isLoading: isCreating }] = useCreateResourceServerMutation();
@@ -111,7 +110,7 @@ export function ResourceServersPage({ tenantId }: ResourceServersPageProps) {
             isDisabled: values.isDisabled,
             settings: {},
           },
-          ...inCell,
+          cell,
         }).unwrap();
       } else if (dialog.kind === 'edit') {
         await updateResourceServer({
@@ -119,7 +118,7 @@ export function ResourceServersPage({ tenantId }: ResourceServersPageProps) {
           resourceServerId: dialog.resourceServer.resourceServerId,
           concurrencyToken: dialog.resourceServer.concurrencyToken,
           fields: { name: values.name, isDisabled: values.isDisabled },
-          ...inCell,
+          cell,
         }).unwrap();
       }
       setDialog(closed);
@@ -137,7 +136,7 @@ export function ResourceServersPage({ tenantId }: ResourceServersPageProps) {
       await deleteResourceServer({
         tenantId,
         resourceServerId: dialog.resourceServer.resourceServerId,
-        ...inCell,
+        cell,
       }).unwrap();
       setDialog(closed);
     } catch (removeError) {

@@ -55,7 +55,6 @@ export function ResourceServerScopesPage({
   const resourceServerId = resourceServer.resourceServerId;
   const scopes = resourceServer.scopes;
   const cell = useTenantCell();
-  const inCell = cell === undefined ? {} : { cell };
 
   const [createScope, { isLoading: isCreating }] = useCreateScopeMutation();
   const [updateScope, { isLoading: isUpdating }] = useUpdateScopeMutation();
@@ -101,7 +100,7 @@ export function ResourceServerScopesPage({
           tenantId,
           resourceServerId,
           body: { value: values.value, description },
-          ...inCell,
+          cell,
         }).unwrap();
       } else if (dialog.kind === 'edit') {
         await updateScope({
@@ -109,7 +108,7 @@ export function ResourceServerScopesPage({
           resourceServerId,
           scopeValue: dialog.scope.value,
           body: { description },
-          ...inCell,
+          cell,
         }).unwrap();
       }
       setDialog(closed);
@@ -128,7 +127,7 @@ export function ResourceServerScopesPage({
         tenantId,
         resourceServerId,
         scopeValue: dialog.scope.value,
-        ...inCell,
+        cell,
       }).unwrap();
       setDialog(closed);
     } catch (removeError) {

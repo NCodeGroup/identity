@@ -89,10 +89,14 @@ describe('OwnerSecretsTab offers the actions each owner supports', () => {
       }),
     );
     await store.dispatch(
-      managementApi.util.upsertQueryData('listSecrets', owner, {
-        concurrencyToken: 'c1',
-        secrets: [symmetricSecret],
-      }),
+      managementApi.util.upsertQueryData(
+        'listSecrets',
+        { ...owner, cell: undefined },
+        {
+          concurrencyToken: 'c1',
+          secrets: [symmetricSecret],
+        },
+      ),
     );
 
     render(

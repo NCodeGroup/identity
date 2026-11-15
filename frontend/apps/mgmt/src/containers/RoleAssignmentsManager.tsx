@@ -30,8 +30,7 @@ export type RoleAssignmentsManagerProps = {
  */
 export function RoleAssignmentsManager({ list, title, description }: RoleAssignmentsManagerProps) {
   const cell = useTenantCell();
-  const inCell = cell === undefined ? {} : { cell };
-  const { data, isLoading, error: loadError } = useListRoleAssignmentsQuery({ ...list, ...inCell });
+  const { data, isLoading, error: loadError } = useListRoleAssignmentsQuery({ ...list, cell });
   const [addRoleAssignment, { isLoading: isGranting }] = useAddRoleAssignmentMutation();
   const [removeRoleAssignment, { isLoading: isRevoking }] = useRemoveRoleAssignmentMutation();
   const [principalId, setPrincipalId] = useState('');
@@ -49,7 +48,7 @@ export function RoleAssignmentsManager({ list, title, description }: RoleAssignm
     }
     setError(undefined);
     try {
-      await addRoleAssignment({ list, principalId: trimmed, ...inCell }).unwrap();
+      await addRoleAssignment({ list, principalId: trimmed, cell }).unwrap();
       setPrincipalId('');
     } catch (grantError) {
       setError(apiErrorMessage(grantError as ApiError));
@@ -62,7 +61,7 @@ export function RoleAssignmentsManager({ list, title, description }: RoleAssignm
     }
     setError(undefined);
     try {
-      await removeRoleAssignment({ list, principalId: revoking, ...inCell }).unwrap();
+      await removeRoleAssignment({ list, principalId: revoking, cell }).unwrap();
     } catch (revokeError) {
       setError(apiErrorMessage(revokeError as ApiError));
     }

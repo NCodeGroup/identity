@@ -31,9 +31,8 @@ export type ClientsPageProps = {
  */
 export function ClientsPage({ tenantId, resourceServerId, embedded = false }: ClientsPageProps) {
   const cell = useTenantCell();
-  const inCell = cell === undefined ? {} : { cell };
   const { data, isLoading, error } = useListClientsQuery(
-    resourceServerId ? { tenantId, resourceServerId, ...inCell } : { tenantId, ...inCell },
+    resourceServerId ? { tenantId, resourceServerId, cell } : { tenantId, cell },
   );
   const clients = data?.items ?? [];
 
@@ -48,7 +47,7 @@ export function ClientsPage({ tenantId, resourceServerId, embedded = false }: Cl
           ...(resourceServerId ? { resourceServerId } : {}),
           settings: {},
         },
-        ...inCell,
+        cell,
       }).unwrap(),
   });
   if (admin.selected) {

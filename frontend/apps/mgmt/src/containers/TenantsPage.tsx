@@ -237,16 +237,14 @@ export function TenantsPage({
     {
       teamId,
       ...previewArgsInput,
-      ...(debouncedAddress?.cell ? { cell: debouncedAddress.cell } : {}),
+      cell: debouncedAddress?.cell ? debouncedAddress.cell : undefined,
     },
     { skip: dialog.kind !== 'create' || !shouldPreview, refetchOnMountOrArgChange: true },
   );
   const existingTenantPreview = useGetTenantAddressQuery(
     {
       ...previewArgsInput,
-      ...(dialog.kind === 'edit' && dialog.tenant.cell !== undefined
-        ? { cell: dialog.tenant.cell }
-        : {}),
+      cell: dialog.kind === 'edit' ? dialog.tenant.cell : undefined,
     },
     {
       skip: dialog.kind !== 'edit' || !shouldPreview,
@@ -277,7 +275,7 @@ export function TenantsPage({
       if (dialog.kind === 'create') {
         await createTenant({
           teamId,
-          ...(values.cell !== undefined && { cell: values.cell }),
+          cell: values.cell,
           body: {
             tenantId: values.tenantId,
             issuer,
@@ -291,7 +289,7 @@ export function TenantsPage({
         await updateTenant({
           teamId,
           tenantId: dialog.tenant.tenantId,
-          ...(dialog.tenant.cell !== undefined && { cell: dialog.tenant.cell }),
+          cell: dialog.tenant.cell,
           concurrencyToken: dialog.tenant.concurrencyToken,
           fields: {
             issuer,
@@ -316,7 +314,7 @@ export function TenantsPage({
       await deleteTenant({
         teamId,
         tenantId: dialog.tenant.tenantId,
-        ...(dialog.tenant.cell !== undefined && { cell: dialog.tenant.cell }),
+        cell: dialog.tenant.cell,
       }).unwrap();
       setDialog(closed);
     } catch (removeError) {
@@ -337,7 +335,7 @@ export function TenantsPage({
     }
     const source = await getTenantConfiguration({
       tenantId: sourceTenantId,
-      ...(sourceCell !== undefined && { cell: sourceCell }),
+      cell: sourceCell,
     }).unwrap();
     return { source, environmentSettings };
   };
@@ -350,7 +348,7 @@ export function TenantsPage({
         await previewPromotion({
           tenantId: request.targetTenantId,
           body,
-          ...(request.targetCell !== undefined && { cell: request.targetCell }),
+          cell: request.targetCell,
         }).unwrap(),
       );
     } catch (previewError) {
@@ -366,7 +364,7 @@ export function TenantsPage({
         await promoteTenant({
           tenantId: request.targetTenantId,
           body,
-          ...(request.targetCell !== undefined && { cell: request.targetCell }),
+          cell: request.targetCell,
         }).unwrap(),
       );
     } catch (promoteError) {

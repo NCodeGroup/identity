@@ -78,10 +78,10 @@ import {
 } from '@ncode/api';
 import { dynamicBaseQuery, type ApiRootState, type CellFetchArgs } from './baseQuery.js';
 
-/** The cell a tenant-scoped call addresses; absent for the control plane. */
-type CellArg = { readonly cell?: string | undefined };
+/** The cell a tenant-scoped call addresses; `undefined` addresses the control plane. */
+type CellArg = { readonly cell: string | undefined };
 
-/** The arguments of a tenant-scoped call: the call's own arguments and the optional cell it addresses. */
+/** The arguments of a tenant-scoped call: the call's own arguments and the cell it addresses. */
 type WithCell<T> = T & CellArg;
 
 /** Addresses a call to `cell`, or to the control plane when there is none. */

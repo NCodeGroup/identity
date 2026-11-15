@@ -24,15 +24,14 @@ export type OwnerSettingsTabProps = {
  */
 export function OwnerSettingsTab({ owner }: OwnerSettingsTabProps) {
   const cell = useTenantCell();
-  const inCell = cell === undefined ? {} : { cell };
-  const ownerInCell = { ...owner, ...inCell };
-  const { data: settings, isLoading, error } = useGetSettingsQuery(ownerInCell);
-  const { data: effective } = useGetEffectiveSettingsQuery(ownerInCell);
+  const ownerWithCell = { ...owner, cell };
+  const { data: settings, isLoading, error } = useGetSettingsQuery(ownerWithCell);
+  const { data: effective } = useGetEffectiveSettingsQuery(ownerWithCell);
   const {
     data: limits,
     isLoading: limitsLoading,
     error: limitsError,
-  } = useGetSettingLimitsQuery(ownerInCell);
+  } = useGetSettingLimitsQuery(ownerWithCell);
   const [updateSettings, { isLoading: isSaving }] = useUpdateSettingsMutation();
   const [issued, setIssued] = useState<CreatedSecretResource | null>(null);
 
@@ -51,7 +50,7 @@ export function OwnerSettingsTab({ owner }: OwnerSettingsTabProps) {
             concurrencyToken,
             original,
             desired,
-            ...inCell,
+            cell,
           }).unwrap();
           setIssued(issuedSecret ?? null);
         }}

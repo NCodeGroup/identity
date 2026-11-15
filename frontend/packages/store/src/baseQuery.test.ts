@@ -125,7 +125,9 @@ describe('dynamicBaseQuery', () => {
       config: { runtime: { ...runtime, apiBaseUrl: 'https://api.test/management' } },
     });
 
-    await store.dispatch(managementApi.endpoints.getTenantUsage.initiate({ tenantId: 'acme' }));
+    await store.dispatch(
+      managementApi.endpoints.getTenantUsage.initiate({ tenantId: 'acme', cell: undefined }),
+    );
 
     expect(captured.map((r) => r.url)).toEqual([
       'https://api.test/management/api/tenants/acme/usage',

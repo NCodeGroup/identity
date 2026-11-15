@@ -87,10 +87,7 @@ function TenantMoveAction({ tenantId }: TenantTabProps) {
   const [isOpen, setIsOpen] = useState(false);
   const caller = useGetCallerQuery();
   const isShown = caller.data?.isPlatformAdministrator === true && cell !== undefined;
-  const tenant = useGetTenantQuery(
-    { tenantId, ...(cell === undefined ? {} : { cell }) },
-    { skip: !isShown },
-  );
+  const tenant = useGetTenantQuery({ tenantId, cell }, { skip: !isShown });
   const cells = useListCellsQuery(undefined, { skip: !isShown });
   const [createTransferKey] = useCreateTransferKeyMutation();
   const [exportTenant] = useExportTenantMutation();
@@ -161,7 +158,7 @@ function TenantUsageTab({ tenantId }: TenantTabProps) {
     tenantId,
     from: from || undefined,
     to: to || undefined,
-    ...(cell === undefined ? {} : { cell }),
+    cell,
   });
 
   return (

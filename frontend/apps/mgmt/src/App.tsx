@@ -102,7 +102,7 @@ export function App() {
   const tenantId = route.kind === 'tenant' ? route.tenantId : undefined;
   const tenantCell = route.kind === 'tenant' ? route.cell : undefined;
   const { currentData: tenant } = useGetTenantQuery(
-    { tenantId: tenantId ?? '', ...(tenantCell === undefined ? {} : { cell: tenantCell }) },
+    { tenantId: tenantId ?? '', cell: tenantCell },
     { skip: tenantId === undefined },
   );
 
