@@ -52,6 +52,12 @@ internal sealed class ManagementConsoleOptionsValidator(LocalDevelopmentMode loc
             );
     }
 
+    /// <summary>
+    /// Determines whether a name is a DNS label: 1 to 63 lowercase letters, digits or hyphens, starting and ending with
+    /// a letter or digit.
+    /// </summary>
+    /// <param name="name">The name to check.</param>
+    /// <returns><see langword="true"/> when the name is a DNS label; otherwise, <see langword="false"/>.</returns>
     private static bool IsDnsLabel(string name)
     {
         if (name.Length is < 1 or > 63 || name[0] == '-' || name[^1] == '-')
