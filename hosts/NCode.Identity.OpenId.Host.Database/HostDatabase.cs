@@ -3,8 +3,6 @@
 
 using JetBrains.Annotations;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using NCode.Identity.OpenId.Persistence.EntityFramework;
 using NCode.Identity.OpenId.Persistence.Tenants;
 
@@ -67,28 +65,6 @@ public static class HostDatabase
                     .MigrationsAssembly(MigrationsAssembly)
                     .MigrationsHistoryTable(DataProtectionHistoryTable)
         );
-
-    /// <summary>
-    /// Registers the <see cref="RuntimeRolePostureCheck"/>, which refuses to start the host when the role it connects
-    /// as is not subject to row-level security.
-    /// </summary>
-    /// <param name="services">The service collection to add to.</param>
-    /// <param name="connectionString">The Postgres connection string of the host's runtime role.</param>
-    /// <param name="localDevelopment">
-    /// Whether the host runs as a local inner-loop host (<c>LocalDevelopment:Enabled</c>), which warns instead of
-    /// refusing to start.
-    /// </param>
-    /// <returns>The same <paramref name="services"/> for chaining.</returns>
-    public static IServiceCollection AddRuntimeRolePostureCheck(
-        this IServiceCollection services,
-        string connectionString,
-        bool localDevelopment
-    ) =>
-        services.AddHostedService(serviceProvider => new RuntimeRolePostureCheck(
-            connectionString,
-            localDevelopment,
-            serviceProvider.GetRequiredService<ILogger<RuntimeRolePostureCheck>>()
-        ));
 
     /// <summary>
     /// An unscoped <see cref="IAmbientTenantAccessor"/> used when a context is constructed outside a request (EF
