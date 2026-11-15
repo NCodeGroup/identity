@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
 {
     [DbContext(typeof(DirectoryDbContext))]
-    [Migration("20261114132853_InitialCreate")]
+    [Migration("20261115045307_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -137,6 +137,11 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
+                    b.Property<string>("NormalizedPath")
+                        .IsRequired()
+                        .HasMaxLength(2409)
+                        .HasColumnType("character varying(2409)");
+
                     b.Property<string>("NormalizedTeamId")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -158,6 +163,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("NormalizedParentTeamId");
+
+                    b.HasIndex("NormalizedPath");
 
                     b.HasIndex("NormalizedTeamId")
                         .IsUnique();

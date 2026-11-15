@@ -45,6 +45,15 @@ public sealed class TeamRecord
     public string? NormalizedParentTeamId { get; set; }
 
     /// <summary>
+    /// Gets or sets the normalized team path: the normalized identifiers of the teams from the top-level team down to
+    /// this team, each followed by <c>/</c>, after a leading <c>/</c> (such as <c>/acme/acme-web/</c>). A team and
+    /// every team beneath it share the team's path as a prefix. The directory sets it when the team is published and
+    /// never changes it afterwards.
+    /// </summary>
+    // See ADR-1426.
+    public required string NormalizedPath { get; set; }
+
+    /// <summary>
     /// Gets or sets the state of the team, one of <see cref="StateReserved"/>, <see cref="StatePublished"/> and
     /// <see cref="StateRetired"/>.
     /// </summary>

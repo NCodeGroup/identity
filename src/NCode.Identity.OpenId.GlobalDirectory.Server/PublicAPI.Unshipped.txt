@@ -72,6 +72,8 @@ NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.Id.get -> long
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.Id.init -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.NormalizedParentTeamId.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.NormalizedParentTeamId.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.NormalizedPath.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.NormalizedPath.set -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.NormalizedTeamId.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.NormalizedTeamId.set -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.Sequence.get -> long

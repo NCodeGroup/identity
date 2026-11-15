@@ -632,6 +632,7 @@ internal sealed class DefaultDirectoryStore(
                 {
                     entity.TeamId,
                     entity.NormalizedParentTeamId,
+                    entity.NormalizedPath,
                     entity.DocumentJson,
                 })
                 .SingleOrDefaultAsync(cancellationToken);
@@ -664,13 +665,14 @@ internal sealed class DefaultDirectoryStore(
                 continue;
             }
 
-            var subtree = await GetSubtreeAsync(dbContext, currentTeamId, cancellationToken);
+            var teamPath = team.NormalizedPath;
             var count = await dbContext
-                .Tenants.Where(entity =>
-                    (
-                        entity.State == TenantRecord.StateReserved
-                        || entity.State == TenantRecord.StatePlaced
-                    ) && subtree.Contains(entity.NormalizedTeamId)
+                .Tenants.Where(tenant =>
+                    tenant.State != TenantRecord.StateRetired
+                    && dbContext.Teams.Any(subtreeTeam =>
+                        subtreeTeam.NormalizedTeamId == tenant.NormalizedTeamId
+                        && subtreeTeam.NormalizedPath.StartsWith(teamPath)
+                    )
                 )
                 .LongCountAsync(cancellationToken);
             if (count >= maxTenants)
@@ -683,33 +685,26 @@ internal sealed class DefaultDirectoryStore(
     }
 
     /// <summary>
-    /// Gets the normalized identifiers of a team and of every team beneath it, found through the parent identifiers of
-    /// the team documents.
+    /// Gets the normalized team path of a team: the path of its parent followed by the team's own normalized identifier
+    /// and <c>/</c>. A team with no parent, or whose parent the directory does not hold, is a top-level team.
     /// </summary>
-    private static async ValueTask<List<string?>> GetSubtreeAsync(
+    // See ADR-1426.
+    private static async ValueTask<string> GetTeamPathAsync(
         DirectoryDbContext dbContext,
         string normalizedTeamId,
+        string? normalizedParentTeamId,
         CancellationToken cancellationToken
     )
     {
-        List<string?> subtree = [normalizedTeamId];
-        var visited = new HashSet<string>(StringComparer.Ordinal) { normalizedTeamId };
-        List<string?> frontier = [normalizedTeamId];
-
-        while (frontier.Count > 0)
-        {
-            var parents = frontier;
-            var children = await dbContext
+        var parentPath = normalizedParentTeamId is null
+            ? null
+            : await dbContext
                 .Teams.AsNoTracking()
-                .Where(entity => parents.Contains(entity.NormalizedParentTeamId))
-                .Select(entity => entity.NormalizedTeamId)
-                .ToListAsync(cancellationToken);
+                .Where(entity => entity.NormalizedTeamId == normalizedParentTeamId)
+                .Select(entity => entity.NormalizedPath)
+                .SingleOrDefaultAsync(cancellationToken);
 
-            frontier = [.. children.Where(visited.Add)];
-            subtree.AddRange(frontier);
-        }
-
-        return subtree;
+        return $"{parentPath ?? "/"}{normalizedTeamId}/";
     }
 
     /// <summary>
@@ -808,6 +803,12 @@ internal sealed class DefaultDirectoryStore(
             {
                 TeamId = teamId,
                 NormalizedTeamId = normalizedTeamId,
+                NormalizedPath = await GetTeamPathAsync(
+                    dbContext,
+                    normalizedTeamId,
+                    null,
+                    cancellationToken
+                ),
                 State = TeamRecord.StateReserved,
             }
         );
@@ -850,21 +851,35 @@ internal sealed class DefaultDirectoryStore(
         dbContext.Changes.Add(change);
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        var normalizedParentTeamId = document.ParentTeamId is { } parentTeamId
+            ? Normalize(parentTeamId)
+            : null;
+
+        // The team path is set when the team is first published and never changes afterwards.
+        var teamPath = team is { State: TeamRecord.StatePublished }
+            ? team.NormalizedPath
+            : await GetTeamPathAsync(
+                dbContext,
+                normalizedTeamId,
+                normalizedParentTeamId,
+                cancellationToken
+            );
+
         if (team is null)
         {
             team = new TeamRecord
             {
                 TeamId = document.TeamId,
                 NormalizedTeamId = normalizedTeamId,
+                NormalizedPath = teamPath,
                 State = TeamRecord.StatePublished,
             };
             dbContext.Teams.Add(team);
         }
 
         team.State = TeamRecord.StatePublished;
-        team.NormalizedParentTeamId = document.ParentTeamId is { } parentTeamId
-            ? Normalize(parentTeamId)
-            : null;
+        team.NormalizedParentTeamId = normalizedParentTeamId;
+        team.NormalizedPath = teamPath;
         team.DocumentJson = documentJson;
         team.Sequence = change.Sequence;
 
@@ -922,6 +937,12 @@ internal sealed class DefaultDirectoryStore(
             {
                 TeamId = teamId,
                 NormalizedTeamId = normalizedTeamId,
+                NormalizedPath = await GetTeamPathAsync(
+                    dbContext,
+                    normalizedTeamId,
+                    null,
+                    cancellationToken
+                ),
                 State = TeamRecord.StateRetired,
             };
             dbContext.Teams.Add(team);

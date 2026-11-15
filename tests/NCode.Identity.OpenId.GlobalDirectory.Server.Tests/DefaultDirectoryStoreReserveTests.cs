@@ -170,6 +170,35 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
     }
 
     [Fact]
+    public async Task ReserveAsync_WhenAGrandchildTeamHoldsTheLimitOfItsGrandparent_CountsItByTheStoredPath()
+    {
+        await PublishTeamAsync("grandparent", maxTenants: 1);
+        await PublishTeamAsync("parent", parentTeamId: "grandparent");
+        await PublishTeamAsync("child", parentTeamId: "parent");
+        Assert.True((await ReserveAsync(TenantId, Issuer, "child")).IsReserved);
+
+        var result = await ReserveAsync(OtherTenantId, OtherIssuer, "grandparent");
+
+        Assert.False(result.IsReserved);
+        Assert.Equal(
+            "The team 'grandparent' holds its maximum of 1 tenants.",
+            result.ConflictDetail
+        );
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenAnUnrelatedTeamSharesAPathPrefixByName_DoesNotCountItsTenants()
+    {
+        await PublishTeamAsync("acme", maxTenants: 1);
+        await PublishTeamAsync("acme-web");
+        Assert.True((await ReserveAsync(TenantId, Issuer, "acme-web")).IsReserved);
+
+        var result = await ReserveAsync(OtherTenantId, OtherIssuer, "acme");
+
+        Assert.True(result.IsReserved);
+    }
+
+    [Fact]
     public async Task ReserveAsync_WhenTheChildAndTheParentAreAtTheirLimits_ReportsTheDeepestTeam()
     {
         await PublishTeamAsync("parent", maxTenants: 1);

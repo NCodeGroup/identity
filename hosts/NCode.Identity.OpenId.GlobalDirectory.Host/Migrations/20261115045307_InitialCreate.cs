@@ -78,6 +78,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
                     TeamId = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
                     NormalizedTeamId = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
                     NormalizedParentTeamId = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: true),
+                    NormalizedPath = table.Column<string>(type: "character varying(2409)", maxLength: 2409, nullable: false),
                     State = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false),
                     DocumentJson = table.Column<string>(type: "text", nullable: true),
                     Sequence = table.Column<long>(type: "bigint", nullable: false)
@@ -118,6 +119,11 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
                 name: "IX_Teams_NormalizedParentTeamId",
                 table: "Teams",
                 column: "NormalizedParentTeamId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Teams_NormalizedPath",
+                table: "Teams",
+                column: "NormalizedPath");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Teams_NormalizedTeamId",
