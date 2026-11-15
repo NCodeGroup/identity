@@ -49,7 +49,7 @@ internal class CoreTenantTransferContributor(
     public string Name => SectionName;
 
     /// <inheritdoc />
-    public int Order => 0;
+    public int Order => TenantTransferOrders.Core;
 
     /// <inheritdoc />
     public async ValueTask<TenantTransferSection> ExportAsync(

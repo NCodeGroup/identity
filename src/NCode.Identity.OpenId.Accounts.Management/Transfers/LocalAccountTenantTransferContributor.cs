@@ -35,7 +35,7 @@ internal class LocalAccountTenantTransferContributor(
     public string Name => SectionName;
 
     /// <inheritdoc />
-    public int Order => 100;
+    public int Order => TenantTransferOrders.LocalAccounts;
 
     /// <inheritdoc />
     public async ValueTask<TenantTransferSection> ExportAsync(
