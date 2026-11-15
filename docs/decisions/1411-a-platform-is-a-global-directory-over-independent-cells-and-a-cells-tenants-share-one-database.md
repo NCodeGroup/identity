@@ -195,6 +195,10 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
 - A tenant never moves between teams, and a customer that reorganizes recreates tenants.
 - The `max_tenants` check can overshoot by one under a race, which is accepted because the row carries no serialized
   counter.
+- The platform does not run a second region of the hosted platform as a reference deployment;
+  [#837](https://github.com/NCodeGroup/identity/issues/837) tracks it.
+- The platform does not manage its fleet of cells; an operator adds, observes and retires cells by hand.
+  [#845](https://github.com/NCodeGroup/identity/issues/845) tracks it.
 
 ## References
 
