@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using JetBrains.Annotations;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
 using NCode.Identity.AspNetCore;
@@ -662,19 +663,19 @@ public static class DirectoryEndpoints
     /// query value is bounded and never rejected.
     /// </summary>
     /// <param name="directory">The <see cref="ITeamDirectory"/> that holds the change feed.</param>
-    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <param name="after">The sequence number after which the listing starts.</param>
     /// <param name="limit">The requested page size.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns><c>200 OK</c> with the changes, which are empty when none follows the sequence number.</returns>
     private static async ValueTask<IResult> ListChangesAsync(
         ITeamDirectory directory,
-        CancellationToken cancellationToken,
-        long after = 0,
-        int limit = DefaultChangesLimit
+        [FromQuery] long? after,
+        [FromQuery] int? limit,
+        CancellationToken cancellationToken
     )
     {
-        var boundedAfter = Math.Max(after, 0);
-        var boundedLimit = Math.Clamp(limit, 1, MaxChangesLimit);
+        var boundedAfter = Math.Max(after ?? 0, 0);
+        var boundedLimit = Math.Clamp(limit ?? DefaultChangesLimit, 1, MaxChangesLimit);
 
         var changes = await directory.ListChangesAsync(
             boundedAfter,
