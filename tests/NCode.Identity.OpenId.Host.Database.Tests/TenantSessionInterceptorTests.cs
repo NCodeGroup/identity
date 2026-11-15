@@ -475,6 +475,78 @@ public sealed class TenantSessionInterceptorTests
         AssertSetConfig(Assert.Single(connection.Executed), "tenant-a", "off");
     }
 
+    [Fact]
+    public void ReaderExecuting_AfterTransactionDisposedWithoutCommit_SendsSetConfigAgain()
+    {
+        var (interceptor, accessor) = CreateInterceptor();
+        accessor.TenantId = "tenant-a";
+        var connection = new FakeConnection();
+        var transaction = new FakeTransaction(connection);
+        interceptor.ReaderExecuting(
+            CreateCommand(connection, transaction),
+            null!,
+            default(InterceptionResult<DbDataReader>)
+        );
+
+        interceptor.ReaderExecuting(
+            CreateCommand(connection),
+            null!,
+            default(InterceptionResult<DbDataReader>)
+        );
+
+        Assert.Equal(2, connection.Executed.Count);
+        AssertSetConfig(connection.Executed[0], "tenant-a", "off");
+        AssertSetConfig(connection.Executed[1], "tenant-a", "off");
+        Assert.Same(transaction, connection.Executed[0].Transaction);
+        Assert.Null(connection.Executed[1].Transaction);
+    }
+
+    [Fact]
+    public void ReaderExecuting_AfterTransactionCommitted_DoesNotSendSetConfigAgain()
+    {
+        var (interceptor, accessor) = CreateInterceptor();
+        accessor.TenantId = "tenant-a";
+        var connection = new FakeConnection();
+        var transaction = new FakeTransaction(connection);
+        interceptor.ReaderExecuting(
+            CreateCommand(connection, transaction),
+            null!,
+            default(InterceptionResult<DbDataReader>)
+        );
+
+        interceptor.TransactionCommitted(transaction, null!);
+        interceptor.ReaderExecuting(
+            CreateCommand(connection),
+            null!,
+            default(InterceptionResult<DbDataReader>)
+        );
+
+        AssertSetConfig(Assert.Single(connection.Executed), "tenant-a", "off");
+    }
+
+    [Fact]
+    public async Task ReaderExecuting_AfterTransactionCommittedAsync_DoesNotSendSetConfigAgain()
+    {
+        var (interceptor, accessor) = CreateInterceptor();
+        accessor.TenantId = "tenant-a";
+        var connection = new FakeConnection();
+        var transaction = new FakeTransaction(connection);
+        interceptor.ReaderExecuting(
+            CreateCommand(connection, transaction),
+            null!,
+            default(InterceptionResult<DbDataReader>)
+        );
+
+        await interceptor.TransactionCommittedAsync(transaction, null!, CancellationToken.None);
+        interceptor.ReaderExecuting(
+            CreateCommand(connection),
+            null!,
+            default(InterceptionResult<DbDataReader>)
+        );
+
+        AssertSetConfig(Assert.Single(connection.Executed), "tenant-a", "off");
+    }
+
     #endregion
 
     #region UseOpenIdNpgsql Tests
