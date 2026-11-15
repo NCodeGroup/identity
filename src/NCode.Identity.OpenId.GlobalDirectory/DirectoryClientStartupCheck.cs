@@ -27,7 +27,7 @@ internal sealed class DirectoryClientStartupCheck(
             return Task.CompletedTask;
 
         var issuer = cellOptions.Value.ControlPlane.Issuer;
-        if (!DirectoryEndpoint.IsAllowed(issuer))
+        if (!AbsoluteUri.TryParseServiceUrl(issuer, allowAnyHttp: false, out _))
         {
             throw new InvalidOperationException(
                 $"{CellOptions.SectionName}:{nameof(CellOptions.ControlPlane)}:{nameof(ControlPlaneOptions.Issuer)} '{DirectoryUrls.Describe(issuer)}' must be an absolute https URL, or an http URL on a loopback host, with no user information, query or fragment, when {DirectoryClientOptions.SectionName}:{nameof(DirectoryClientOptions.Url)} is set."
