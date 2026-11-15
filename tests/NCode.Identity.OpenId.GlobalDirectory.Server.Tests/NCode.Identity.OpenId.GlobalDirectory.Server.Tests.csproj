@@ -29,5 +29,7 @@
     <ItemGroup>
         <ProjectReference Include="..\..\src\NCode.Identity.OpenId.GlobalDirectory\NCode.Identity.OpenId.GlobalDirectory.csproj" />
         <ProjectReference Include="..\..\src\NCode.Identity.OpenId.GlobalDirectory.Server\NCode.Identity.OpenId.GlobalDirectory.Server.csproj" />
+        <ProjectReference Include="..\..\src\NCode.Identity.OpenId.Persistence.Abstractions\NCode.Identity.OpenId.Persistence.Abstractions.csproj" />
+        <ProjectReference Include="..\..\src\NCode.Identity.Persistence.Abstractions\NCode.Identity.Persistence.Abstractions.csproj" />
     </ItemGroup>
 </Project>

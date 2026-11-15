@@ -19,10 +19,6 @@ public sealed class DirectoryDbContext(DbContextOptions<DirectoryDbContext> opti
     // The same bounds as the cell's own identifiers: a tenant or team identifier is at most
     // DirectoryLimits.MaxIdentifierLength characters, an issuer at most DirectoryLimits.MaxIssuerLength, and a cell
     // name and a region at most CellLabelRules.MaxLabelLength.
-    //
-    // A team path holds up to eight identifiers (TeamPaths.MaxDepth in the cell's persistence package), each followed
-    // by '/', after a leading '/'.
-    private const int MaxTeamPathLength = 8 * (DirectoryLimits.MaxIdentifierLength + 1) + 1;
     private const int MaxKindLength = 32;
     private const int MaxStateLength = 16;
     private const int MaxUrlLength = 2000;
@@ -127,7 +123,9 @@ public sealed class DirectoryDbContext(DbContextOptions<DirectoryDbContext> opti
             builder
                 .Property(entity => entity.NormalizedParentTeamId)
                 .HasMaxLength(DirectoryLimits.MaxIdentifierLength);
-            builder.Property(entity => entity.NormalizedPath).HasMaxLength(MaxTeamPathLength);
+            builder
+                .Property(entity => entity.NormalizedPath)
+                .HasMaxLength(DirectoryLimits.MaxTeamPathLength);
             builder.Property(entity => entity.State).HasMaxLength(MaxStateLength);
         });
 
