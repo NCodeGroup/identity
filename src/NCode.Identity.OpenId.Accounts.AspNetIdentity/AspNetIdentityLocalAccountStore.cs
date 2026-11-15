@@ -47,6 +47,10 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
     private IServiceScopeFactory ServiceScopeFactory { get; } = serviceScopeFactory;
     private IStoreProvider StoreProvider { get; } = storeProvider;
     private AspNetIdentityDummyPasswordHash<TUser> DummyPasswordHash { get; } = dummyPasswordHash;
+
+    /// <summary>
+    /// Gets the accessor of the ambient tenant that scopes every lookup and stamps every new user.
+    /// </summary>
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
 
     /// <inheritdoc />
@@ -559,6 +563,14 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         );
     }
 
+    /// <summary>
+    /// Finds a user by identifier within the ambient tenant, and requires that it exists.
+    /// </summary>
+    /// <param name="userManager">The <see cref="UserManager{TUser}"/> whose users are queried.</param>
+    /// <param name="localAccountId">The identifier of the local account to find.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The user.</returns>
+    /// <exception cref="InvalidOperationException">No user of the ambient tenant has the identifier.</exception>
     private async ValueTask<TUser> GetRequiredUserAsync(
         UserManager<TUser> userManager,
         string localAccountId,
@@ -569,17 +581,31 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             $"A local account with '{localAccountId}' was not found."
         );
 
-    // The tenant the store stamps and compares is the lower-invariant form of the ambient tenant, which is the form
-    // TenantLookupNormalizer prefixes lookups with.
+    /// <summary>
+    /// Gets the tenant that the store stamps and compares, which is the lower-invariant form of the ambient tenant and
+    /// the form that <c>TenantLookupNormalizer</c> prefixes lookups with.
+    /// </summary>
+    /// <returns>The lower-invariant form of the ambient tenant, or <c>null</c> when no tenant scope is set.</returns>
     private string? GetCurrentTenantId() => AmbientTenantAccessor.TenantId?.ToLowerInvariant();
 
+    /// <summary>
+    /// Gets the ambient tenant that the store stamps on a new user, which a local account cannot be created without.
+    /// </summary>
+    /// <returns>The lower-invariant form of the ambient tenant.</returns>
+    /// <exception cref="InvalidOperationException">No tenant scope is set.</exception>
     private string GetRequiredTenantId() =>
         GetCurrentTenantId()
         ?? throw new InvalidOperationException(
             "A local account cannot be created without a tenant scope. Open a tenant scope with IAmbientTenantAccessor.BeginScope."
         );
 
-    // The users of the ambient tenant; an unscoped scope reads every tenant's users, and an unset scope reads none.
+    /// <summary>
+    /// Gets the users of the ambient tenant. An unscoped scope reads every tenant's users, and an unset scope reads
+    /// none.
+    /// </summary>
+    /// <param name="userManager">The <see cref="UserManager{TUser}"/> whose users are queried.</param>
+    /// <returns>The query over the users that the ambient scope can read, which is empty in an unset scope.</returns>
+    /// <exception cref="NotSupportedException">The store does not support querying users.</exception>
     private IQueryable<TUser> GetTenantUsers(UserManager<TUser> userManager)
     {
         if (!userManager.SupportsQueryableUsers)
@@ -600,9 +626,17 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             : userManager.Users.Where(_ => false);
     }
 
-    // The identifier is matched in the query over the tenant's users, so a user of another tenant is never read. The
-    // query is read asynchronously when the provider offers IAsyncEnumerable<TUser> (this package does not reference EF
-    // Core), and synchronously for an in-memory store.
+    /// <summary>
+    /// Finds a user by identifier. The identifier is matched in the query over the tenant's users, so a user of another
+    /// tenant is never read.
+    /// </summary>
+    /// <param name="userManager">The <see cref="UserManager{TUser}"/> whose users are queried.</param>
+    /// <param name="localAccountId">The identifier of the user to find.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>
+    /// The user, or <c>null</c> when no user of the ambient tenant has the identifier or the scope is unset.
+    /// </returns>
+    /// <exception cref="NotSupportedException">The store does not support querying users.</exception>
     private ValueTask<TUser?> FindByIdAsync(
         UserManager<TUser> userManager,
         string localAccountId,
@@ -613,6 +647,13 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             cancellationToken
         );
 
+    /// <summary>
+    /// Reads the first user of a query, asynchronously when the provider offers <see cref="IAsyncEnumerable{T}"/> (this
+    /// package does not reference EF Core) and synchronously for an in-memory store.
+    /// </summary>
+    /// <param name="query">The query to read.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The first user that the query yields, or <c>null</c> when it yields none.</returns>
     private static async ValueTask<TUser?> FirstOrDefaultAsync(
         IQueryable<TUser> query,
         CancellationToken cancellationToken
@@ -632,6 +673,13 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         return null;
     }
 
+    /// <summary>
+    /// Reads a query into a list, asynchronously when the provider offers <see cref="IAsyncEnumerable{T}"/> and
+    /// synchronously otherwise.
+    /// </summary>
+    /// <param name="query">The query to read.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The users that the query yields, which is an empty list when it yields none.</returns>
     private static async ValueTask<List<TUser>> ToListAsync(
         IQueryable<TUser> query,
         CancellationToken cancellationToken
@@ -651,8 +699,17 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         return users;
     }
 
-    // A user name is unique only within a tenant, so a lookup by name needs a tenant scope: an unset scope finds
-    // nothing, and an unscoped scope is rejected.
+    /// <summary>
+    /// Finds a user by user name inside the ambient tenant scope. A user name is unique only within a tenant, so an
+    /// unset scope finds nothing, and an unscoped scope is rejected.
+    /// </summary>
+    /// <param name="userManager">The <see cref="UserManager{TUser}"/> to look the user up with.</param>
+    /// <param name="userName">The user name to find.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>
+    /// The user, or <c>null</c> when no scope is set or the user name belongs to no user of the ambient tenant.
+    /// </returns>
+    /// <exception cref="InvalidOperationException">The ambient scope is unscoped.</exception>
     private async ValueTask<TUser?> FindByNameAsync(
         UserManager<TUser> userManager,
         string userName,
