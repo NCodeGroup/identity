@@ -72,7 +72,10 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
    once per platform, in the control-plane cell only.
 5. **A team spans cells.** The control-plane cell owns teams and publishes each team document to the directory. Every
    other cell mirrors team documents into its team rows from the directory's change feed and evicts the caches the
-   change touches, so the settings cascade resolves the same way in every cell. A tenant never moves between teams.
+   change touches, so the settings cascade resolves the same way in every cell. A tenant never moves between teams. The
+   directory numbers its changes from a counter row that each change-writing transaction increments, so the writers
+   serialize on the row, the commit order equals the sequence order, and a reader that has seen a sequence never misses
+   a smaller one.
 6. **Tenant scoping fails closed inside a cell.** The ambient tenant has three states: unset, a tenant, and unscoped
    with a stated reason. The global query filter matches a tenant-bound row only when the scope is unscoped or names the
    row's tenant, so a query with no scope matches nothing, and every caller that reads across tenants opens an explicit,
@@ -105,7 +108,8 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
     ([ADR-1150](1150-vocabularies-are-open-unless-provably-closed.md)).
 13. **The tenant limit.** `max_tenants` applies to the team scope, is not discoverable, and merges with `Min`. The
     directory enforces it when it reserves a tenant identifier, and a creation past it answers `409`. The ceiling is
-    never serialized on the team row, so two creations that race may overshoot it by one.
+    never serialized on the team row, so two creations that race may overshoot it by one. Teams' normalized paths use
+    the `C` collation, so the index on them serves the subtree prefix match that counts a team's tenants.
 14. **Authority runs platform, team, tenant, leaf.** `TeamAdmin` at a team creates its tenants and manages everything
     beneath it; `Owner` never creates. Granting or revoking `TeamAdmin` is `Operations.Create` at the team node, so an
     `Owner` can neither mint nor revoke it. `GlobalAdmin` acts across the platform. Platform, team and tenant nodes

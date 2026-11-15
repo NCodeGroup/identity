@@ -54,10 +54,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
             modelBuilder.Entity("NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord", b =>
                 {
                     b.Property<long>("Sequence")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Sequence"));
 
                     b.Property<string>("DocumentJson")
                         .HasColumnType("text");
@@ -69,6 +66,19 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
                     b.HasKey("Sequence");
 
                     b.ToTable("Changes");
+                });
+
+            modelBuilder.Entity("NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectorySequenceRecord", b =>
+                {
+                    b.Property<long>("Id")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("LastSequence")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Sequences");
                 });
 
             modelBuilder.Entity("NCode.Identity.OpenId.GlobalDirectory.Server.Entities.PlatformRecord", b =>
@@ -137,7 +147,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
                     b.Property<string>("NormalizedPath")
                         .IsRequired()
                         .HasMaxLength(2409)
-                        .HasColumnType("character varying(2409)");
+                        .HasColumnType("character varying(2409)")
+                        .UseCollation("C");
 
                     b.Property<string>("NormalizedTeamId")
                         .IsRequired()

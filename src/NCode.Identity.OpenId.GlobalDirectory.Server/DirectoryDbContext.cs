@@ -58,6 +58,11 @@ public sealed class DirectoryDbContext(DbContextOptions<DirectoryDbContext> opti
     /// </summary>
     public DbSet<DirectoryChangeRecord> Changes => Set<DirectoryChangeRecord>();
 
+    /// <summary>
+    /// Gets the counter that numbers the changes, which holds one row once the directory writes its first change.
+    /// </summary>
+    public DbSet<DirectorySequenceRecord> Sequences => Set<DirectorySequenceRecord>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -120,8 +125,13 @@ public sealed class DirectoryDbContext(DbContextOptions<DirectoryDbContext> opti
         modelBuilder.Entity<DirectoryChangeRecord>(builder =>
         {
             builder.HasKey(entity => entity.Sequence);
-            builder.Property(entity => entity.Sequence).ValueGeneratedOnAdd();
+            builder.Property(entity => entity.Sequence).ValueGeneratedNever();
             builder.Property(entity => entity.TeamId).HasMaxLength(MaxIdentifierLength);
+        });
+
+        modelBuilder.Entity<DirectorySequenceRecord>(builder =>
+        {
+            builder.Property(entity => entity.Id).ValueGeneratedNever();
         });
     }
 }

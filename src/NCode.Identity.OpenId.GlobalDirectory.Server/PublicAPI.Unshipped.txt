@@ -1,5 +1,6 @@
 #nullable enable
 const NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.SectionName = "DirectoryServer" -> string!
+const NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectorySequenceRecord.SingletonId = 1 -> long
 const NCode.Identity.OpenId.GlobalDirectory.Server.Entities.PlatformRecord.SingletonId = 1 -> long
 const NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.StatePublished = "published" -> string!
 const NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.StateReserved = "reserved" -> string!
@@ -16,6 +17,7 @@ NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.Changes.get -> M
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.DirectoryDbContext(Microsoft.EntityFrameworkCore.DbContextOptions<NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext!>! options) -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.Platforms.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.PlatformRecord!>!
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.RetiredIssuers.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.RetiredIssuerRecord!>!
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.Sequences.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectorySequenceRecord!>!
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.Teams.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord!>!
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.Tenants.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord!>!
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryEndpoints
@@ -47,6 +49,12 @@ NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord.Sequ
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord.Sequence.init -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord.TeamId.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord.TeamId.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectorySequenceRecord
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectorySequenceRecord.DirectorySequenceRecord() -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectorySequenceRecord.Id.get -> long
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectorySequenceRecord.Id.init -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectorySequenceRecord.LastSequence.get -> long
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectorySequenceRecord.LastSequence.set -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.PlatformRecord
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.PlatformRecord.DocumentJson.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.PlatformRecord.DocumentJson.set -> void

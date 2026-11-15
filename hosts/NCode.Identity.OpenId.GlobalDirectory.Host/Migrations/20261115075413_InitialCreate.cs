@@ -31,8 +31,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
                 name: "Changes",
                 columns: table => new
                 {
-                    Sequence = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Sequence = table.Column<long>(type: "bigint", nullable: false),
                     TeamId = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: true),
                     DocumentJson = table.Column<string>(type: "text", nullable: true)
                 },
@@ -70,6 +69,18 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "Sequences",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false),
+                    LastSequence = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Sequences", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Teams",
                 columns: table => new
                 {
@@ -78,7 +89,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
                     TeamId = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
                     NormalizedTeamId = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
                     NormalizedParentTeamId = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: true),
-                    NormalizedPath = table.Column<string>(type: "character varying(2409)", maxLength: 2409, nullable: false),
+                    NormalizedPath = table.Column<string>(type: "character varying(2409)", maxLength: 2409, nullable: false, collation: "C"),
                     State = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false),
                     DocumentJson = table.Column<string>(type: "text", nullable: true),
                     Sequence = table.Column<long>(type: "bigint", nullable: false)
@@ -163,6 +174,9 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
 
             migrationBuilder.DropTable(
                 name: "RetiredIssuers");
+
+            migrationBuilder.DropTable(
+                name: "Sequences");
 
             migrationBuilder.DropTable(
                 name: "Teams");

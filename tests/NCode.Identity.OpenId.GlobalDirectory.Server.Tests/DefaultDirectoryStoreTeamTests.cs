@@ -246,6 +246,26 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
     }
 
     [Fact]
+    public async Task ListChangesAsync_WhenPublishesARetireAndAPlatformPublishInterleave_ReturnsContiguousSequences()
+    {
+        await PublishTeamAsync("team-1");
+        await PublishTeamAsync("team-2");
+        await Teams.RetireAsync("team-1", CancellationToken.None);
+        await PublishPlatformAsync(maxTenants: 4);
+        await PublishTeamAsync("team-2", maxTenants: 2);
+        await PublishPlatformAsync(maxTenants: 5);
+        await PublishTeamAsync("team-3");
+
+        var changes = await Teams.ListChangesAsync(0, 10, CancellationToken.None);
+
+        Assert.Equal([1L, 2L, 3L, 4L, 5L, 6L, 7L], changes.Select(change => change.Sequence));
+        Assert.Equal(
+            ["team-1", "team-2", "team-1", null, "team-2", null, "team-3"],
+            changes.Select(change => change.TeamId)
+        );
+    }
+
+    [Fact]
     public async Task ListChangesAsync_WhenAfterIsSet_ReturnsOnlyLaterChanges()
     {
         await PublishTeamAsync("team-1");

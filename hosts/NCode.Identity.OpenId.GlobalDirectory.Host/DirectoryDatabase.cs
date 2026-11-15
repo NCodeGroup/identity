@@ -121,12 +121,20 @@ internal static class DirectoryDatabase
             runtimeRole
         );
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(
-            cancellationToken
-        );
-        foreach (var statement in statements)
-            await dbContext.Database.ExecuteSqlRawAsync(statement, cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+        await dbContext
+            .Database.CreateExecutionStrategy()
+            .ExecuteAsync(
+                async token =>
+                {
+                    await using var transaction = await dbContext.Database.BeginTransactionAsync(
+                        token
+                    );
+                    foreach (var statement in statements)
+                        await dbContext.Database.ExecuteSqlRawAsync(statement, token);
+                    await transaction.CommitAsync(token);
+                },
+                cancellationToken
+            );
     }
 
     extension(DbContextOptionsBuilder builder)
@@ -141,10 +149,16 @@ internal static class DirectoryDatabase
         {
             ArgumentNullException.ThrowIfNull(builder);
 
-            return builder.UseNpgsql(
-                connectionString,
-                npgsql => npgsql.MigrationsAssembly(MigrationsAssembly)
-            );
+            return builder
+                .UseNpgsql(
+                    connectionString,
+                    npgsql =>
+                    {
+                        npgsql.MigrationsAssembly(MigrationsAssembly);
+                        npgsql.EnableRetryOnFailure();
+                    }
+                )
+                .ReplaceService<IModelCustomizer, DirectoryNpgsqlModelCustomizer>();
         }
     }
 
