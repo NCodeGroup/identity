@@ -6,6 +6,7 @@ const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.ControlPlane
 const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.ControlPlaneScope = "control-plane" -> string!
 const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.DirectoryAudience = "urn:ncode:directory" -> string!
 const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.DirectoryScope = "directory" -> string!
+const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.IssuerUnavailableRetryAfterSeconds = 5 -> int
 NCode.Identity.OpenId.GlobalDirectory.CellDescriptor
 NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.IsControlPlane.get -> bool
 NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.IsControlPlane.init -> void

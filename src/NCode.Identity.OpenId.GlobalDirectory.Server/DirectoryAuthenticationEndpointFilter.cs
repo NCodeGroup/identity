@@ -35,7 +35,6 @@ internal sealed class DirectoryAuthenticationEndpointFilter(
     private const string ScopeClaimType = "scope";
     private const string BearerPrefix = "Bearer ";
     private const string AuthenticationType = "DirectoryBearer";
-    private const int RetryAfterSeconds = 5;
 
     /// <summary>
     /// Builds the <c>401 Unauthorized</c> problem document of a request that lacks a valid access token with the
@@ -188,9 +187,10 @@ internal sealed class DirectoryAuthenticationEndpointFilter(
 
         if (result.IsUnavailable)
         {
-            httpContext.Response.Headers.RetryAfter = RetryAfterSeconds.ToString(
-                CultureInfo.InvariantCulture
-            );
+            httpContext.Response.Headers.RetryAfter =
+                GlobalDirectoryProtocol.IssuerUnavailableRetryAfterSeconds.ToString(
+                    CultureInfo.InvariantCulture
+                );
             return Results.Problem(
                 title: "Service Unavailable",
                 detail: "The issuer of the directory's access tokens is unavailable. Retry the request.",

@@ -32,7 +32,6 @@ internal sealed class RemoteManagementTokenValidator(
     private const string AuthenticationType = "ControlPlaneBearer";
     private const string ConfirmationKeyThumbprint = "jkt";
     private const string ReplayKeyPrefix = "dpop-jti:";
-    private const int RetryAfterSeconds = 5;
     private const int ProofLifetimeSeconds = 60;
 
     private static TimeSpan ProofLifetime { get; } = TimeSpan.FromSeconds(ProofLifetimeSeconds);
@@ -157,7 +156,9 @@ internal sealed class RemoteManagementTokenValidator(
         );
 
         if (result.IsUnavailable)
-            return ManagementTokenValidation.Unavailable(TimeSpan.FromSeconds(RetryAfterSeconds));
+            return ManagementTokenValidation.Unavailable(
+                TimeSpan.FromSeconds(GlobalDirectoryProtocol.IssuerUnavailableRetryAfterSeconds)
+            );
 
         if (!result.IsValid || result.Payload.ValueKind != JsonValueKind.Object)
             return ManagementTokenValidation.Unauthenticated;

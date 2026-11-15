@@ -7,7 +7,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
 /// Contains the audiences, scopes and client identifier prefix that the global directory API and the control plane
-/// authority API share between the cells that call them and the control-plane cell that serves them.
+/// authority API share between the cells that call them and the control-plane cell that serves them, and the wait
+/// that a route asks of its caller when the control-plane issuer cannot be reached.
 /// </summary>
 [PublicAPI]
 public static class GlobalDirectoryProtocol
@@ -38,4 +39,10 @@ public static class GlobalDirectoryProtocol
     /// Contains the prefix of the machine client identifier of a cell: 'cell-{name}'.
     /// </summary>
     public const string CellClientIdPrefix = "cell-";
+
+    /// <summary>
+    /// The seconds a directory route or a cell's management route asks the caller to wait when the control-plane
+    /// issuer that validates its access token cannot be reached.
+    /// </summary>
+    public const int IssuerUnavailableRetryAfterSeconds = 5;
 }
