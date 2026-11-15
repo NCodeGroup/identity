@@ -17,13 +17,18 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// document into the platform row, then sends a <see cref="PlatformSettingsChangedCommand"/> that carries the settings
 /// before and after, so caches evict the settings.
 /// </summary>
-// See ADR-1169 and ADR-1412.
+// See ADR-1411, ADR-1169 and ADR-1412.
 internal sealed class DefaultPlatformDocumentApplier(
     IStoreManagerFactory storeManagerFactory,
     IServiceScopeFactory serviceScopeFactory,
     IAmbientTenantAccessor ambientTenantAccessor
 ) : IPlatformDocumentApplier
 {
+    /// <summary>
+    /// The reason that the applier gives when it opens an unscoped ambient tenant scope to read and write the platform.
+    /// </summary>
+    private const string UnscopedReason = "directory platform mirror";
+
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IServiceScopeFactory ServiceScopeFactory { get; } = serviceScopeFactory;
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
@@ -34,7 +39,7 @@ internal sealed class DefaultPlatformDocumentApplier(
         CancellationToken cancellationToken
     )
     {
-        using var _ = AmbientTenantAccessor.BeginUnscoped("directory platform mirror");
+        using var _ = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
 
         var settings = JsonElement.Parse(document.SettingsJson);
         var persistedSettings = new PersistedPlatformSettings
@@ -75,7 +80,7 @@ internal sealed class DefaultPlatformDocumentApplier(
     /// <inheritdoc />
     public async ValueTask<long> GetAppliedSequenceAsync(CancellationToken cancellationToken)
     {
-        using var _ = AmbientTenantAccessor.BeginUnscoped("directory platform mirror");
+        using var _ = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<IPlatformStore>();
@@ -84,8 +89,12 @@ internal sealed class DefaultPlatformDocumentApplier(
         return persistedPlatform?.DirectorySequence ?? 0;
     }
 
-    // The mediator is scoped (its handlers' unit of work is), and the feed runs outside any request, so the command is
-    // sent in its own scope.
+    /// <summary>
+    /// Sends a platform-settings-changed command in its own service scope. The mediator is scoped (its handlers' unit
+    /// of work is), and the feed runs outside any request.
+    /// </summary>
+    /// <param name="command">The <see cref="PlatformSettingsChangedCommand"/> to send.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     private async ValueTask SendAsync(
         PlatformSettingsChangedCommand command,
         CancellationToken cancellationToken

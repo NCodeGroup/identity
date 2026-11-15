@@ -11,7 +11,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// </summary>
 /// <param name="KeyWrapperName">The name of the key wrapper.</param>
 /// <param name="KeyReference">The reference to the key.</param>
-// See ADR-1411.
+// See ADR-1411 and ADR-1414.
 [PublicAPI]
 public sealed record TeamRootKeyReference(string KeyWrapperName, string KeyReference)
 {
