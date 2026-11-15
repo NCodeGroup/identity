@@ -91,6 +91,22 @@ public sealed class TenantSessionInterceptorTests
     }
 
     [Fact]
+    public void NonQueryExecuting_MixedCaseTenantScope_SendsLowerInvariantTenantAndOff()
+    {
+        var (interceptor, accessor) = CreateInterceptor();
+        accessor.TenantId = "Tenant-A";
+        var connection = new FakeConnection();
+
+        interceptor.NonQueryExecuting(
+            CreateCommand(connection),
+            null!,
+            default(InterceptionResult<int>)
+        );
+
+        AssertSetConfig(Assert.Single(connection.Executed), "tenant-a", "off");
+    }
+
+    [Fact]
     public void NonQueryExecuting_AnyScope_ReturnsTheResultUnchanged()
     {
         var (interceptor, _) = CreateInterceptor();

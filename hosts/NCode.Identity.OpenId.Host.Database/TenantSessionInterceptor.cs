@@ -202,10 +202,12 @@ public sealed class TenantSessionInterceptor(IAmbientTenantAccessor ambientTenan
             AppliedTransactions.AddOrUpdate(transaction, connection);
     }
 
+    // The tenant is sent in its lower-invariant form, the form NormalizedTenantId stores, so row-level security and
+    // the EF Core global query filter match the same rows for a mixed-case route tenant.
     private (string Tenant, string Unscoped) GetAmbientState() =>
         ambientTenantAccessor.IsUnscoped
             ? (string.Empty, UnscopedOn)
-            : (ambientTenantAccessor.TenantId ?? string.Empty, UnscopedOff);
+            : (ambientTenantAccessor.TenantId?.ToLowerInvariant() ?? string.Empty, UnscopedOff);
 
     private bool TryGetPendingState(
         DbCommand command,
