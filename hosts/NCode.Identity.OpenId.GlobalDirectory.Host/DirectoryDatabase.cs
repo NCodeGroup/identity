@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using NCode.Identity.OpenId.GlobalDirectory.Server;
+using NCode.Identity.Persistence;
 using NCode.Identity.Registration;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Host;
@@ -82,18 +83,11 @@ internal static class DirectoryDatabase
 
         var key = $"{SectionName}:{nameof(DirectoryDatabaseSettings.RuntimeRole)}";
 
-        var role = settings.RuntimeRole?.Trim();
-        if (string.IsNullOrEmpty(role))
-            throw new InvalidOperationException(
-                $"The runtime role is not configured; set '{key}' to the name of the database role the "
-                    + "directory's replicas connect as."
-            );
-
-        return DirectoryDatabaseGrants.IsValidRole(role)
-            ? role
-            : throw new InvalidOperationException(
-                $"The '{key}' value is not a valid role name; it must match ^[a-z_][a-z0-9_]*$."
-            );
+        return DatabaseRoleNameRules.RequireRuntimeRole(
+            settings.RuntimeRole,
+            key,
+            "the directory's replicas connect as"
+        );
     }
 
     /// <summary>

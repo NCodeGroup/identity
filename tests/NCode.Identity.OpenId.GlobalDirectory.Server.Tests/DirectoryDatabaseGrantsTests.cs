@@ -23,31 +23,6 @@ public class DirectoryDatabaseGrantsTests
         return dbContext.GetService<IDesignTimeModel>().Model;
     }
 
-    #region IsValidRole Tests
-
-    [Theory]
-    [InlineData("ncode_directory_app")]
-    [InlineData("_role")]
-    [InlineData("role1")]
-    public void IsValidRole_LowerCaseIdentifier_ReturnsTrue(string role)
-    {
-        Assert.True(DirectoryDatabaseGrants.IsValidRole(role));
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData("Upper")]
-    [InlineData("1role")]
-    [InlineData("a b")]
-    [InlineData("a\"b")]
-    [InlineData("role\n")]
-    public void IsValidRole_InvalidName_ReturnsFalse(string role)
-    {
-        Assert.False(DirectoryDatabaseGrants.IsValidRole(role));
-    }
-
-    #endregion
-
     #region CreateStatements Tests
 
     [Fact]

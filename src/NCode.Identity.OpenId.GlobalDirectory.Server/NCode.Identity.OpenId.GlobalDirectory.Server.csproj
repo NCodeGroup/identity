@@ -21,6 +21,7 @@
         <ProjectReference Include="..\NCode.Identity.AspNetCore\NCode.Identity.AspNetCore.csproj" />
         <ProjectReference Include="..\NCode.Identity.OpenId.Client.Abstractions\NCode.Identity.OpenId.Client.Abstractions.csproj" />
         <ProjectReference Include="..\NCode.Identity.OpenId.GlobalDirectory.Abstractions\NCode.Identity.OpenId.GlobalDirectory.Abstractions.csproj" />
+        <ProjectReference Include="..\NCode.Identity.Persistence.Abstractions\NCode.Identity.Persistence.Abstractions.csproj" />
     </ItemGroup>
 
     <ItemGroup>

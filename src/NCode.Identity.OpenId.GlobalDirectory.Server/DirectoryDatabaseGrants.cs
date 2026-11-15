@@ -1,10 +1,10 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Text.RegularExpressions;
 using JetBrains.Annotations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
+using NCode.Identity.Persistence;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 
@@ -14,21 +14,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 /// replicas connect as the runtime role, which owns nothing and can only read and write rows.
 /// </summary>
 [PublicAPI]
-public static partial class DirectoryDatabaseGrants
+public static class DirectoryDatabaseGrants
 {
-    /// <summary>
-    /// Determines whether <paramref name="role"/> is a valid runtime role name: it matches <c>^[a-z_][a-z0-9_]*$</c>,
-    /// so it is safe to quote as an identifier in a statement.
-    /// </summary>
-    /// <param name="role">The role name to judge.</param>
-    /// <returns><see langword="true"/> when the name is valid; otherwise, <see langword="false"/>.</returns>
-    public static bool IsValidRole(string role)
-    {
-        ArgumentNullException.ThrowIfNull(role);
-
-        return RolePattern().IsMatch(role);
-    }
-
     /// <summary>
     /// Creates the statements that grant <paramref name="runtimeRole"/> the data access it needs on
     /// <paramref name="model"/>: <c>USAGE</c> on every schema the model names, <c>SELECT</c>, <c>INSERT</c>,
@@ -39,16 +26,16 @@ public static partial class DirectoryDatabaseGrants
     /// <param name="runtimeRole">The name of the database role the directory's replicas connect as.</param>
     /// <returns>The statements to run, in order, each as one command.</returns>
     /// <exception cref="ArgumentException">
-    /// <paramref name="runtimeRole"/> does not match <c>^[a-z_][a-z0-9_]*$</c>.
+    /// <paramref name="runtimeRole"/> is not a valid role name according to <see cref="DatabaseRoleNameRules"/>.
     /// </exception>
     public static IReadOnlyList<string> CreateStatements(IModel model, string runtimeRole)
     {
         ArgumentNullException.ThrowIfNull(model);
         ArgumentNullException.ThrowIfNull(runtimeRole);
 
-        if (!IsValidRole(runtimeRole))
+        if (!DatabaseRoleNameRules.IsValid(runtimeRole))
             throw new ArgumentException(
-                $"The runtime role '{runtimeRole}' must match ^[a-z_][a-z0-9_]*$.",
+                $"The runtime role '{runtimeRole}' must match {DatabaseRoleNameRules.Pattern}.",
                 nameof(runtimeRole)
             );
 
@@ -104,7 +91,4 @@ public static partial class DirectoryDatabaseGrants
 
     private static string Quote(string identifier) =>
         "\"" + identifier.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
-
-    [GeneratedRegex(@"^[a-z_][a-z0-9_]*\z", RegexOptions.CultureInvariant)]
-    private static partial Regex RolePattern();
 }
