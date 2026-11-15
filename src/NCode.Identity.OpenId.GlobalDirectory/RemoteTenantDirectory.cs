@@ -131,6 +131,11 @@ internal sealed class RemoteTenantDirectory(DirectoryHttpClient client) : ITenan
             cancellationToken
         );
 
+        if (response.IsNotFound)
+            return ReservationResult.Conflict(
+                response.ReadProblemDetail("The directory has no record of the tenant.")
+            );
+
         return ToReservationResult(response, "change the issuer of a tenant");
     }
 

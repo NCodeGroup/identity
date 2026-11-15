@@ -12,6 +12,9 @@ public class RemoteTenantDirectoryTests : RemoteDirectoryTestBase
     private const string ConflictBody =
         """{"type":"about:blank","title":"Conflict","status":409,"detail":"The issuer is held by another tenant."}""";
 
+    private const string NotFoundBody =
+        """{"type":"about:blank","title":"Not Found","status":404,"detail":"The directory has no record of tenant 'acme'."}""";
+
     private static TenantReservation Reservation { get; } =
         new()
         {
@@ -164,6 +167,18 @@ public class RemoteTenantDirectoryTests : RemoteDirectoryTestBase
 
         Assert.False(result.IsReserved);
         Assert.Equal("The issuer is held by another tenant.", result.ConflictDetail);
+    }
+
+    [Fact]
+    public async Task ChangeIssuerAsync_WhenDirectoryAnswersNotFound_ReturnsConflictWithTheProblemDetail()
+    {
+        var handler = StubHttpMessageHandler.Respond(HttpStatusCode.NotFound, NotFoundBody);
+        var directory = new RemoteTenantDirectory(CreateClient(handler));
+
+        var result = await directory.ChangeIssuerAsync(IssuerChange, CancellationToken.None);
+
+        Assert.False(result.IsReserved);
+        Assert.Equal("The directory has no record of tenant 'acme'.", result.ConflictDetail);
     }
 
     [Fact]
