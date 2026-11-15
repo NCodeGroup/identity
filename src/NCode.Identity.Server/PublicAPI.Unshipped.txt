@@ -207,10 +207,6 @@ static NCode.Identity.Server.DeploymentSafetyRegistration.FindViolations(Microso
 NCode.Identity.Server.DevelopmentEnvironmentRegistration
 NCode.Identity.Server.DevelopmentEnvironmentRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Server.IdentityServer>!)
 NCode.Identity.Server.DevelopmentEnvironmentRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Server.IdentityServer>!).AddDevelopmentEnvironment(Microsoft.Extensions.Configuration.IConfiguration! configuration) -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Server.IdentityServer>!
-NCode.Identity.Server.TelemetryRegistration
-NCode.Identity.Server.TelemetryRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!)
-NCode.Identity.Server.TelemetryRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).AddOpenTelemetryMetrics(Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-const NCode.Identity.Server.TelemetryRegistration.OtlpEndpointConfigurationKey = "OTEL_EXPORTER_OTLP_ENDPOINT" -> string!
 const NCode.Identity.Server.SecretProtection.SecretProtectionCommandLine.CommandName = "secret-protection" -> string!
 const NCode.Identity.Server.SecretProtection.SecretProtectionCommandLine.DryRunOption = "--dry-run" -> string!
 const NCode.Identity.Server.SecretProtection.SecretProtectionCommandLine.OwnerOption = "--owner" -> string!

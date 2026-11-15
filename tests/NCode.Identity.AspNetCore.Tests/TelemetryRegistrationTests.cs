@@ -10,7 +10,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using Xunit;
 
-namespace NCode.Identity.Server.Tests.Telemetry;
+namespace NCode.Identity.AspNetCore.Tests;
 
 public sealed class TelemetryRegistrationTests
 {

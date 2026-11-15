@@ -148,8 +148,8 @@ series.
 ### 8. Hosts opt in
 
 The library packages depend only on `System.Diagnostics.Metrics`; recording costs nothing until a listener subscribes.
-`NCode.Identity.Server` provides `AddOpenTelemetryMetrics(configuration)`, which the reference host calls, because host
-composition is the server package's job, not `Program.cs`'s. It adds:
+`NCode.Identity.AspNetCore` provides `AddOpenTelemetryMetrics(configuration)`, which the reference host and the
+directory host call, because host composition is a package's job, not `Program.cs`'s. It adds:
 
 - the OpenTelemetry SDK and the family's meters by the `NCode.Identity.*` wildcard;
 - ASP.NET Core's hosting, Kestrel, routing and diagnostics meters, `System.Net.Http` and `System.Runtime`, all of which
