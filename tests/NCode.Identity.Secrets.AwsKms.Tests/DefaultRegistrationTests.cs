@@ -4,6 +4,8 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using NCode.Identity.Jose;
+using NCode.Identity.Jose.Algorithms;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Registration;
 using NCode.Identity.Secrets.AwsKms.Facades;
@@ -76,8 +78,11 @@ public class DefaultRegistrationTests : BaseTests
         );
         var serviceCollection = AddAwsKms(configuration, clientFactory.Object);
 
-        // The persistence library's services need a store factory to be constructed; this test never reads a store.
+        // The persistence library's services need a store factory, a JOSE serializer and an algorithm provider to be
+        // constructed; this test never uses them.
         serviceCollection.AddSingleton(CreateStrictMock<IStoreManagerFactory>().Object);
+        serviceCollection.AddSingleton(CreateStrictMock<IJoseSerializer>().Object);
+        serviceCollection.AddSingleton(CreateStrictMock<IAlgorithmCollectionProvider>().Object);
         serviceCollection
             .AddOptions<SecretProtectionOptions>()
             .Configure(options =>
