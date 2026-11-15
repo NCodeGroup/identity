@@ -314,6 +314,9 @@ internal sealed class DefaultDirectoryStore(
             cancellationToken
         );
 
+        // A retirement that names no issuer retires the issuer the tenant holds, so no other tenant can take it.
+        var issuer = retirement.Issuer ?? tenant?.Issuer;
+
         var now = TimeProvider.GetUtcNow();
         if (tenant is null)
         {
@@ -338,7 +341,7 @@ internal sealed class DefaultDirectoryStore(
             tenant.ModifiedWhen = now;
         }
 
-        if (retirement.Issuer is { } issuer)
+        if (!string.IsNullOrWhiteSpace(issuer))
         {
             await AddRetiredIssuerAsync(dbContext, tenantId, issuer, cancellationToken);
         }

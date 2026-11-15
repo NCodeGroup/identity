@@ -301,6 +301,24 @@ public sealed class DefaultDirectoryStoreTenantTests : DefaultDirectoryStoreTest
         );
     }
 
+    [Fact]
+    public async Task RetireAsync_WithoutAnIssuer_RetiresTheStoredIssuer()
+    {
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+
+        await Tenants.RetireAsync(
+            new TenantRetirement { TenantId = TenantId },
+            CancellationToken.None
+        );
+
+        Assert.Equal(
+            TenantId,
+            await Tenants.GetRetiredIssuerHolderOrDefaultAsync(Issuer, CancellationToken.None)
+        );
+        var result = await ReserveAsync(OtherTenantId, Issuer);
+        Assert.False(result.IsReserved);
+    }
+
     #endregion
 
     #region IsTenantIdRetiredAsync Tests
