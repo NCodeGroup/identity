@@ -740,6 +740,75 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
+    [Fact]
+    public async Task ReleaseTenant_WhenTheTenantHasNoRecordAndTheCallerLacksTheCellPrefix_Returns403()
+    {
+        Authenticate(CellName);
+
+        var response = await ReleaseTenantAsync(TenantId);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task RetireTenant_WhenAnotherCellRetiresAnUnknownTenant_Returns403()
+    {
+        Authenticate(ClientIdOf("b"));
+
+        var response = await RetireTenantAsync(TenantId);
+        AuthenticateAsControlPlane();
+        var idResponse = await Client.GetAsync($"/directory/v1/tenants/retired-ids/{TenantId}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, idResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task RetireTenant_WhenTheControlPlaneRetiresAnUnknownTenant_Returns200()
+    {
+        AuthenticateAsControlPlane();
+
+        var response = await RetireTenantAsync(TenantId);
+        var idResponse = await Client.GetAsync($"/directory/v1/tenants/retired-ids/{TenantId}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, idResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task ChangeIssuer_WhenThePreviousIssuerIsNotTheStoredIssuer_Returns409()
+    {
+        Authenticate();
+        await ReserveTenantAsync(TenantId, TenantIssuer);
+
+        var response = await Client.PostAsJsonAsync(
+            "/directory/v1/tenants/change-issuer",
+            new TenantIssuerChange
+            {
+                TenantId = TenantId,
+                PreviousIssuer = OtherTenantIssuer,
+                Issuer = "https://op.example/tenant-3",
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal(
+            $"The tenant '{TenantId}' does not hold the issuer '{OtherTenantIssuer}'.",
+            await ReadProblemDetailAsync(response)
+        );
+    }
+
+    [Fact]
+    public async Task ChangeIssuer_WhenTheControlPlaneChangesTheIssuerOfAnUnknownTenant_Returns404()
+    {
+        AuthenticateAsControlPlane();
+
+        var response = await ChangeIssuerAsync(TenantId);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     #endregion
 
     #region Move Tenant Tests

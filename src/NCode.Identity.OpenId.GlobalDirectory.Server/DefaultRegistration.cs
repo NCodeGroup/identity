@@ -63,6 +63,9 @@ public static class DefaultRegistration
             serviceCollection.TryAddSingleton<ITenantDirectory>(serviceProvider =>
                 serviceProvider.GetRequiredService<DefaultDirectoryStore>()
             );
+            serviceCollection.TryAddSingleton<IDirectoryTenantWriter>(serviceProvider =>
+                serviceProvider.GetRequiredService<DefaultDirectoryStore>()
+            );
             serviceCollection.TryAddSingleton<ITeamDirectory>(serviceProvider =>
                 serviceProvider.GetRequiredService<DefaultDirectoryStore>()
             );

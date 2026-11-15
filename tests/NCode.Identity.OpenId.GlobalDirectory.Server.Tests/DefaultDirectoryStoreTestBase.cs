@@ -25,6 +25,7 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
     protected const string Issuer = "https://op.example/tenant-1";
     protected const string OtherIssuer = "https://op.example/tenant-2";
     protected const string FreeIssuer = "https://op.example/tenant-3";
+    protected const string ControlPlaneCell = "control";
 
     private SqliteConnection Connection { get; }
     private ServiceProvider Provider { get; }
@@ -51,10 +52,18 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
             dbContext.Database.EnsureCreated();
         }
 
-        Store = new DefaultDirectoryStore(DbContextFactory, TimeProvider);
+        Store = new DefaultDirectoryStore(
+            DbContextFactory,
+            Microsoft.Extensions.Options.Options.Create(
+                new DirectoryServerOptions { ControlPlaneCell = ControlPlaneCell }
+            ),
+            TimeProvider
+        );
     }
 
     protected ITenantDirectory Tenants => Store;
+
+    internal IDirectoryTenantWriter TenantWriter => Store;
 
     protected ITeamDirectory Teams => Store;
 

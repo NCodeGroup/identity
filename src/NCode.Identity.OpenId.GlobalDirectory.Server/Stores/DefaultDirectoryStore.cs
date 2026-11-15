@@ -4,6 +4,7 @@
 using System.Data;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Entities;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
@@ -23,16 +24,22 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
 // See ADR-1411.
 internal sealed class DefaultDirectoryStore(
     IDbContextFactory<DirectoryDbContext> dbContextFactory,
+    IOptions<DirectoryServerOptions> options,
     TimeProvider timeProvider
-) : ITenantDirectory, ITeamDirectory, ICellDirectory, IPlatformDirectory
+) : ITenantDirectory, IDirectoryTenantWriter, ITeamDirectory, ICellDirectory, IPlatformDirectory
 {
     // The name of the 'max_tenants' team and platform setting (OpenIdSettingNames.MaxTenants). The directory does not
     // reference the OpenID abstractions that declare it.
     private const string MaxTenantsSettingName = "max_tenants";
 
+    private const string WriteForbiddenDetail =
+        "Only the cell that holds a tenant, or the control-plane cell, writes it.";
+
     private static JsonSerializerOptions JsonOptions { get; } = new(JsonSerializerDefaults.Web);
 
     private IDbContextFactory<DirectoryDbContext> DbContextFactory { get; } = dbContextFactory;
+
+    private IOptions<DirectoryServerOptions> ServerOptions { get; } = options;
 
     private TimeProvider TimeProvider { get; } = timeProvider;
 
@@ -244,22 +251,58 @@ internal sealed class DefaultDirectoryStore(
         CancellationToken cancellationToken
     )
     {
+        // A write through ITenantDirectory is the directory's own and carries every cell's authority.
+        await ReleaseCoreAsync(tenantId, callerCell: null, cancellationToken);
+    }
+
+    private async ValueTask<DirectoryTenantWriteResult> ReleaseCoreAsync(
+        string tenantId,
+        string? callerCell,
+        CancellationToken cancellationToken
+    )
+    {
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+        return await dbContext
+            .Database.CreateExecutionStrategy()
+            .ExecuteAsync(
+                async _ =>
+                {
+                    // A retried attempt starts from the database, not from the failed attempt's tracked entities.
+                    dbContext.ChangeTracker.Clear();
+                    await using var transaction = await dbContext.Database.BeginTransactionAsync(
+                        IsolationLevel.Serializable,
+                        cancellationToken
+                    );
 
-        var normalizedTenantId = Normalize(tenantId);
-        var tenant = await dbContext.Tenants.SingleOrDefaultAsync(
-            entity =>
-                entity.NormalizedTenantId == normalizedTenantId
-                && entity.State == TenantRecord.StateReserved,
-            cancellationToken
-        );
-        if (tenant is null)
-        {
-            return;
-        }
+                    var normalizedTenantId = Normalize(tenantId);
+                    var tenant = await dbContext.Tenants.SingleOrDefaultAsync(
+                        entity => entity.NormalizedTenantId == normalizedTenantId,
+                        cancellationToken
+                    );
+                    if (tenant is null)
+                    {
+                        // A tenant with no record has nothing to release, whoever asks.
+                        return DirectoryTenantWriteResult.Done();
+                    }
 
-        dbContext.Tenants.Remove(tenant);
-        await dbContext.SaveChangesAsync(cancellationToken);
+                    if (!IsAuthorized(callerCell, tenant.Cell))
+                    {
+                        return DirectoryTenantWriteResult.Forbidden(WriteForbiddenDetail);
+                    }
+
+                    if (tenant.State != TenantRecord.StateReserved)
+                    {
+                        return DirectoryTenantWriteResult.Done();
+                    }
+
+                    dbContext.Tenants.Remove(tenant);
+                    await dbContext.SaveChangesAsync(cancellationToken);
+                    await transaction.CommitAsync(cancellationToken);
+
+                    return DirectoryTenantWriteResult.Done();
+                },
+                cancellationToken
+            );
     }
 
     /// <inheritdoc />
@@ -352,8 +395,18 @@ internal sealed class DefaultDirectoryStore(
         CancellationToken cancellationToken
     )
     {
+        // A write through ITenantDirectory is the directory's own and carries every cell's authority.
+        await RetireCoreAsync(retirement, callerCell: null, cancellationToken);
+    }
+
+    private async ValueTask<DirectoryTenantWriteResult> RetireCoreAsync(
+        TenantRetirement retirement,
+        string? callerCell,
+        CancellationToken cancellationToken
+    )
+    {
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
-        await dbContext
+        return await dbContext
             .Database.CreateExecutionStrategy()
             .ExecuteAsync(
                 async _ =>
@@ -371,13 +424,17 @@ internal sealed class DefaultDirectoryStore(
                         entity => entity.NormalizedTenantId == normalizedTenantId,
                         cancellationToken
                     );
-
-                    // A retirement that names no issuer retires the issuer the tenant holds, so no other tenant can take it.
-                    var issuer = retirement.Issuer ?? tenant?.Issuer;
+                    if (!IsAuthorized(callerCell, tenant?.Cell))
+                    {
+                        return DirectoryTenantWriteResult.Forbidden(WriteForbiddenDetail);
+                    }
 
                     var now = TimeProvider.GetUtcNow();
+                    string? issuer;
                     if (tenant is null)
                     {
+                        // A tenant with no record holds no issuer the directory knows, so the retirement names it.
+                        issuer = retirement.Issuer;
                         dbContext.Tenants.Add(
                             new TenantRecord
                             {
@@ -389,9 +446,15 @@ internal sealed class DefaultDirectoryStore(
                             }
                         );
                     }
-                    else if (tenant.State != TenantRecord.StateRetired)
+                    else if (tenant.State == TenantRecord.StateRetired)
                     {
-                        // A retired record holds no issuer: the issuer is recorded as retired, below.
+                        return DirectoryTenantWriteResult.Done();
+                    }
+                    else
+                    {
+                        // The issuer the tenant holds is retired, so no other tenant can take it, whatever the
+                        // retirement names. A retired record holds no issuer: the issuer is recorded as retired, below.
+                        issuer = tenant.Issuer;
                         tenant.State = TenantRecord.StateRetired;
                         tenant.Issuer = null;
                         tenant.NormalizedIssuer = null;
@@ -406,6 +469,8 @@ internal sealed class DefaultDirectoryStore(
 
                     await dbContext.SaveChangesAsync(cancellationToken);
                     await transaction.CommitAsync(cancellationToken);
+
+                    return DirectoryTenantWriteResult.Done();
                 },
                 cancellationToken
             );
@@ -414,6 +479,19 @@ internal sealed class DefaultDirectoryStore(
     /// <inheritdoc />
     async ValueTask<ReservationResult> ITenantDirectory.ChangeIssuerAsync(
         TenantIssuerChange change,
+        CancellationToken cancellationToken
+    )
+    {
+        // A write through ITenantDirectory is the directory's own and carries every cell's authority.
+        var result = await ChangeIssuerCoreAsync(change, callerCell: null, cancellationToken);
+        return result.Outcome == DirectoryTenantWriteOutcome.Done
+            ? ReservationResult.Reserved()
+            : ReservationResult.Conflict(result.Detail ?? string.Empty);
+    }
+
+    private async ValueTask<DirectoryTenantWriteResult> ChangeIssuerCoreAsync(
+        TenantIssuerChange change,
+        string? callerCell,
         CancellationToken cancellationToken
     )
     {
@@ -432,21 +510,61 @@ internal sealed class DefaultDirectoryStore(
 
                     var tenantId = change.TenantId;
                     var normalizedTenantId = Normalize(tenantId);
+                    var tenant = await dbContext.Tenants.SingleOrDefaultAsync(
+                        entity => entity.NormalizedTenantId == normalizedTenantId,
+                        cancellationToken
+                    );
+                    if (!IsAuthorized(callerCell, tenant?.Cell))
+                    {
+                        return DirectoryTenantWriteResult.Forbidden(WriteForbiddenDetail);
+                    }
+
+                    if (tenant is null)
+                    {
+                        return DirectoryTenantWriteResult.NotFound(
+                            $"The tenant '{tenantId}' has no record."
+                        );
+                    }
+
+                    if (tenant.State == TenantRecord.StateRetired)
+                    {
+                        return DirectoryTenantWriteResult.Conflict(
+                            $"The tenant '{tenantId}' is retired."
+                        );
+                    }
+
+                    var storedIssuer = tenant.NormalizedIssuer;
+                    var newIssuer = change.Issuer is { } issuerValue
+                        ? Normalize(issuerValue)
+                        : null;
+                    if (string.Equals(storedIssuer, newIssuer, StringComparison.Ordinal))
+                    {
+                        // The tenant already holds the new issuer, so a retried change is done.
+                        return DirectoryTenantWriteResult.Done();
+                    }
+
+                    var previousIssuer = change.PreviousIssuer is { } previousValue
+                        ? Normalize(previousValue)
+                        : null;
+                    if (!string.Equals(storedIssuer, previousIssuer, StringComparison.Ordinal))
+                    {
+                        return DirectoryTenantWriteResult.Conflict(
+                            $"The tenant '{tenantId}' does not hold the issuer '{change.PreviousIssuer}'."
+                        );
+                    }
 
                     if (change.Issuer is { } issuer)
                     {
-                        var normalizedIssuer = Normalize(issuer);
-
                         if (
                             await dbContext.Tenants.AnyAsync(
                                 entity =>
-                                    entity.NormalizedIssuer == normalizedIssuer
+                                    entity.NormalizedIssuer == newIssuer
                                     && entity.NormalizedTenantId != normalizedTenantId,
                                 cancellationToken
                             )
                         )
                         {
-                            return ReservationResult.Conflict(
+                            return DirectoryTenantWriteResult.Conflict(
                                 $"Another tenant already has the issuer '{issuer}'."
                             );
                         }
@@ -459,70 +577,49 @@ internal sealed class DefaultDirectoryStore(
                         );
                         if (retiredIssuerDetail is not null)
                         {
-                            return ReservationResult.Conflict(retiredIssuerDetail);
+                            return DirectoryTenantWriteResult.Conflict(retiredIssuerDetail);
                         }
                     }
 
-                    if (
-                        change.PreviousIssuer is { } previousIssuer
-                        && !string.Equals(
-                            previousIssuer,
-                            change.Issuer,
-                            StringComparison.OrdinalIgnoreCase
-                        )
-                    )
+                    if (tenant.Issuer is { } heldIssuer)
                     {
                         await AddRetiredIssuerAsync(
                             dbContext,
                             tenantId,
-                            previousIssuer,
+                            heldIssuer,
                             cancellationToken
                         );
                     }
 
-                    var tenant = await dbContext.Tenants.SingleOrDefaultAsync(
-                        entity => entity.NormalizedTenantId == normalizedTenantId,
-                        cancellationToken
-                    );
-                    if (tenant is not null && tenant.State != TenantRecord.StateRetired)
-                    {
-                        tenant.Issuer = change.Issuer;
-                        tenant.NormalizedIssuer = change.Issuer is { } newIssuer
-                            ? Normalize(newIssuer)
-                            : null;
-                        tenant.ModifiedWhen = TimeProvider.GetUtcNow();
-                    }
+                    tenant.Issuer = change.Issuer;
+                    tenant.NormalizedIssuer = newIssuer;
+                    tenant.ModifiedWhen = TimeProvider.GetUtcNow();
 
                     await dbContext.SaveChangesAsync(cancellationToken);
                     await transaction.CommitAsync(cancellationToken);
 
-                    return ReservationResult.Reserved();
+                    return DirectoryTenantWriteResult.Done();
                 },
                 cancellationToken
             );
     }
 
     /// <summary>
-    /// Gets the name of the cell that holds a tenant, whatever the state of its record: a retired record keeps the cell
-    /// it had.
+    /// Gets whether a cell is authorized to write a tenant: the call is the directory's own, the cell holds the tenant
+    /// or the cell is the control-plane cell. A tenant with no record, or a record that names no cell, is held by no
+    /// cell.
     /// </summary>
-    /// <param name="tenantId">The identifier of the tenant.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The name of the cell; or <c>null</c> when the tenant has no record or its record names no cell.</returns>
-    internal async ValueTask<string?> GetTenantCellOrDefaultAsync(
-        string tenantId,
-        CancellationToken cancellationToken
-    )
-    {
-        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
-
-        var normalizedTenantId = Normalize(tenantId);
-        return await dbContext
-            .Tenants.AsNoTracking()
-            .Where(entity => entity.NormalizedTenantId == normalizedTenantId)
-            .Select(entity => entity.Cell)
-            .SingleOrDefaultAsync(cancellationToken);
-    }
+    /// <param name="callerCell">The name of the cell that makes the call, or <c>null</c> for the directory's own call.</param>
+    /// <param name="storedCell">The name of the cell that the tenant's record names, or <c>null</c>.</param>
+    /// <returns><c>true</c> when the call is authorized; otherwise, <c>false</c>.</returns>
+    private bool IsAuthorized(string? callerCell, string? storedCell) =>
+        callerCell is null
+        || string.Equals(callerCell, storedCell, StringComparison.Ordinal)
+        || string.Equals(
+            callerCell,
+            ServerOptions.Value.ControlPlaneCell,
+            StringComparison.Ordinal
+        );
 
     /// <inheritdoc />
     async ValueTask<TenantPlacement?> ITenantDirectory.GetPlacementOrDefaultAsync(
@@ -849,6 +946,31 @@ internal sealed class DefaultDirectoryStore(
             return false;
         }
     }
+
+    #endregion
+
+    #region IDirectoryTenantWriter
+
+    /// <inheritdoc />
+    async ValueTask<DirectoryTenantWriteResult> IDirectoryTenantWriter.ReleaseAsync(
+        string tenantId,
+        string callerCell,
+        CancellationToken cancellationToken
+    ) => await ReleaseCoreAsync(tenantId, callerCell, cancellationToken);
+
+    /// <inheritdoc />
+    async ValueTask<DirectoryTenantWriteResult> IDirectoryTenantWriter.RetireAsync(
+        TenantRetirement retirement,
+        string callerCell,
+        CancellationToken cancellationToken
+    ) => await RetireCoreAsync(retirement, callerCell, cancellationToken);
+
+    /// <inheritdoc />
+    async ValueTask<DirectoryTenantWriteResult> IDirectoryTenantWriter.ChangeIssuerAsync(
+        TenantIssuerChange change,
+        string callerCell,
+        CancellationToken cancellationToken
+    ) => await ChangeIssuerCoreAsync(change, callerCell, cancellationToken);
 
     #endregion
 

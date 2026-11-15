@@ -50,8 +50,8 @@ public interface ITenantDirectory
 
     /// <summary>
     /// Retires the identifier and issuer of a deleted tenant. A retired identifier is never reissued, and only the
-    /// tenant that held a retired issuer can take it back. The call reads no tenant row, because the tenant is already
-    /// deleted, and retiring what is already retired succeeds.
+    /// tenant that held a retired issuer can take it back. The directory retires the issuer its record of the tenant
+    /// holds, or the issuer the retirement names when it has no record, and retiring what is already retired succeeds.
     /// </summary>
     /// <param name="retirement">The <see cref="TenantRetirement"/> describing the identifier and issuer to retire.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>

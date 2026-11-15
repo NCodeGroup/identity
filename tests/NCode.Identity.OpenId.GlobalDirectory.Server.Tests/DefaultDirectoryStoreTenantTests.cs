@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using NCode.Identity.OpenId.GlobalDirectory.Server.Entities;
+using NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
 using Xunit;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
@@ -35,6 +36,24 @@ public sealed class DefaultDirectoryStoreTenantTests : DefaultDirectoryStoreTest
                 PreviousIssuer = previousIssuer,
                 Issuer = issuer,
             },
+            cancellationToken
+        );
+
+    private ValueTask<DirectoryTenantWriteResult> WriterChangeIssuerAsync(
+        string callerCell,
+        string tenantId,
+        string? previousIssuer,
+        string? issuer,
+        CancellationToken cancellationToken = default
+    ) =>
+        TenantWriter.ChangeIssuerAsync(
+            new TenantIssuerChange
+            {
+                TenantId = tenantId,
+                PreviousIssuer = previousIssuer,
+                Issuer = issuer,
+            },
+            callerCell,
             cancellationToken
         );
 
@@ -223,6 +242,43 @@ public sealed class DefaultDirectoryStoreTenantTests : DefaultDirectoryStoreTest
         Assert.Null(await ReadTenantAsync("unknown"));
     }
 
+    [Fact]
+    public async Task ReleaseAsync_WhenAnotherCellReleasesAnUnknownTenant_IsDoneAndWritesNothing()
+    {
+        var result = await TenantWriter.ReleaseAsync("unknown", "cell-b", CancellationToken.None);
+
+        Assert.Equal(DirectoryTenantWriteOutcome.Done, result.Outcome);
+        Assert.Null(await ReadTenantAsync("unknown"));
+    }
+
+    [Fact]
+    public async Task ReleaseAsync_WhenAnotherCellReleasesAReservedTenant_ForbidsAndKeepsTheRecord()
+    {
+        Assert.True((await ReserveAsync(TenantId, Issuer)).IsReserved);
+
+        var result = await TenantWriter.ReleaseAsync(TenantId, "cell-b", CancellationToken.None);
+
+        Assert.Equal(DirectoryTenantWriteOutcome.Forbidden, result.Outcome);
+        var record = await ReadTenantAsync(TenantId);
+        Assert.NotNull(record);
+        Assert.Equal(TenantRecord.StateReserved, record.State);
+    }
+
+    [Fact]
+    public async Task ReleaseAsync_WhenTheControlPlaneReleasesAReservedTenant_FreesTheIdentifier()
+    {
+        Assert.True((await ReserveAsync(TenantId, Issuer)).IsReserved);
+
+        var result = await TenantWriter.ReleaseAsync(
+            TenantId,
+            ControlPlaneCell,
+            CancellationToken.None
+        );
+
+        Assert.Equal(DirectoryTenantWriteOutcome.Done, result.Outcome);
+        Assert.Null(await ReadTenantAsync(TenantId));
+    }
+
     #endregion
 
     #region RetireAsync Tests
@@ -317,6 +373,77 @@ public sealed class DefaultDirectoryStoreTenantTests : DefaultDirectoryStoreTest
         );
         var result = await ReserveAsync(OtherTenantId, Issuer);
         Assert.False(result.IsReserved);
+    }
+
+    [Fact]
+    public async Task RetireAsync_WhenAnotherCellRetiresAnUnknownTenant_ForbidsAndWritesNothing()
+    {
+        var result = await TenantWriter.RetireAsync(
+            new TenantRetirement { TenantId = TenantId, Issuer = Issuer },
+            "cell-b",
+            CancellationToken.None
+        );
+
+        Assert.Equal(DirectoryTenantWriteOutcome.Forbidden, result.Outcome);
+        Assert.Null(await ReadTenantAsync(TenantId));
+        Assert.Null(
+            await Tenants.GetRetiredIssuerHolderOrDefaultAsync(Issuer, CancellationToken.None)
+        );
+    }
+
+    [Fact]
+    public async Task RetireAsync_WhenTheControlPlaneRetiresAnUnknownTenant_RetiresTheIdentifierAndTheNamedIssuer()
+    {
+        var result = await TenantWriter.RetireAsync(
+            new TenantRetirement { TenantId = TenantId, Issuer = Issuer },
+            ControlPlaneCell,
+            CancellationToken.None
+        );
+
+        Assert.Equal(DirectoryTenantWriteOutcome.Done, result.Outcome);
+        Assert.True(await Tenants.IsTenantIdRetiredAsync(TenantId, CancellationToken.None));
+        Assert.Equal(
+            TenantId,
+            await Tenants.GetRetiredIssuerHolderOrDefaultAsync(Issuer, CancellationToken.None)
+        );
+    }
+
+    [Fact]
+    public async Task RetireAsync_WhenTheHolderNamesAForeignIssuer_RetiresOnlyTheStoredIssuer()
+    {
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+
+        var result = await TenantWriter.RetireAsync(
+            new TenantRetirement { TenantId = TenantId, Issuer = OtherIssuer },
+            CellName,
+            CancellationToken.None
+        );
+
+        Assert.Equal(DirectoryTenantWriteOutcome.Done, result.Outcome);
+        Assert.Equal(
+            TenantId,
+            await Tenants.GetRetiredIssuerHolderOrDefaultAsync(Issuer, CancellationToken.None)
+        );
+        Assert.Null(
+            await Tenants.GetRetiredIssuerHolderOrDefaultAsync(OtherIssuer, CancellationToken.None)
+        );
+    }
+
+    [Fact]
+    public async Task RetireAsync_WhenAnotherCellRetiresAHeldTenant_ForbidsAndKeepsTheRecord()
+    {
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+
+        var result = await TenantWriter.RetireAsync(
+            new TenantRetirement { TenantId = TenantId },
+            "cell-b",
+            CancellationToken.None
+        );
+
+        Assert.Equal(DirectoryTenantWriteOutcome.Forbidden, result.Outcome);
+        var record = await ReadTenantAsync(TenantId);
+        Assert.NotNull(record);
+        Assert.Equal(TenantRecord.StatePlaced, record.State);
     }
 
     #endregion
@@ -465,12 +592,90 @@ public sealed class DefaultDirectoryStoreTenantTests : DefaultDirectoryStoreTest
     }
 
     [Fact]
-    public async Task ChangeIssuerAsync_WhenTheTenantIsUnknown_RetiresThePreviousIssuer()
+    public async Task ChangeIssuerAsync_WhenTheTenantIsUnknown_ReportsNotFoundAndRetiresNothing()
     {
-        var result = await ChangeIssuerAsync(TenantId, Issuer, FreeIssuer);
+        var result = await TenantWriter.ChangeIssuerAsync(
+            new TenantIssuerChange
+            {
+                TenantId = TenantId,
+                PreviousIssuer = Issuer,
+                Issuer = FreeIssuer,
+            },
+            ControlPlaneCell,
+            CancellationToken.None
+        );
 
-        Assert.True(result.IsReserved);
+        Assert.Equal(DirectoryTenantWriteOutcome.NotFound, result.Outcome);
         Assert.Null(await ReadTenantAsync(TenantId));
+        Assert.Null(
+            await Tenants.GetRetiredIssuerHolderOrDefaultAsync(Issuer, CancellationToken.None)
+        );
+    }
+
+    [Fact]
+    public async Task ChangeIssuerAsync_WhenTheTenantIsUnknownAndTheCallerIsAnotherCell_ForbidsAndWritesNothing()
+    {
+        var result = await WriterChangeIssuerAsync("cell-b", TenantId, Issuer, FreeIssuer);
+
+        Assert.Equal(DirectoryTenantWriteOutcome.Forbidden, result.Outcome);
+        Assert.Null(await ReadTenantAsync(TenantId));
+        Assert.Null(
+            await Tenants.GetRetiredIssuerHolderOrDefaultAsync(Issuer, CancellationToken.None)
+        );
+    }
+
+    [Fact]
+    public async Task ChangeIssuerAsync_WhenTheCallerIsACellThatDoesNotHoldTheTenant_Forbids()
+    {
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+
+        var result = await WriterChangeIssuerAsync("cell-b", TenantId, Issuer, FreeIssuer);
+
+        Assert.Equal(DirectoryTenantWriteOutcome.Forbidden, result.Outcome);
+        var record = await ReadTenantAsync(TenantId);
+        Assert.NotNull(record);
+        Assert.Equal(Issuer, record.Issuer);
+        Assert.Null(
+            await Tenants.GetRetiredIssuerHolderOrDefaultAsync(Issuer, CancellationToken.None)
+        );
+    }
+
+    [Fact]
+    public async Task ChangeIssuerAsync_WhenThePreviousIssuerIsNotTheStoredIssuer_ConflictsAndRetiresNothing()
+    {
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+
+        var result = await WriterChangeIssuerAsync(CellName, TenantId, OtherIssuer, FreeIssuer);
+
+        Assert.Equal(DirectoryTenantWriteOutcome.Conflict, result.Outcome);
+        Assert.Equal(
+            $"The tenant '{TenantId}' does not hold the issuer '{OtherIssuer}'.",
+            result.Detail
+        );
+        var record = await ReadTenantAsync(TenantId);
+        Assert.NotNull(record);
+        Assert.Equal(Issuer, record.Issuer);
+        Assert.Null(
+            await Tenants.GetRetiredIssuerHolderOrDefaultAsync(Issuer, CancellationToken.None)
+        );
+        Assert.Null(
+            await Tenants.GetRetiredIssuerHolderOrDefaultAsync(OtherIssuer, CancellationToken.None)
+        );
+    }
+
+    [Fact]
+    public async Task ChangeIssuerAsync_WhenTheChangeIsRetriedAfterItCommitted_IsDone()
+    {
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+        var first = await WriterChangeIssuerAsync(CellName, TenantId, Issuer, FreeIssuer);
+
+        var retry = await WriterChangeIssuerAsync(CellName, TenantId, Issuer, FreeIssuer);
+
+        Assert.Equal(DirectoryTenantWriteOutcome.Done, first.Outcome);
+        Assert.Equal(DirectoryTenantWriteOutcome.Done, retry.Outcome);
+        var record = await ReadTenantAsync(TenantId);
+        Assert.NotNull(record);
+        Assert.Equal(FreeIssuer, record.Issuer);
         Assert.Equal(
             TenantId,
             await Tenants.GetRetiredIssuerHolderOrDefaultAsync(Issuer, CancellationToken.None)
@@ -478,7 +683,7 @@ public sealed class DefaultDirectoryStoreTenantTests : DefaultDirectoryStoreTest
     }
 
     [Fact]
-    public async Task ChangeIssuerAsync_WhenTheTenantIsRetired_KeepsTheRecordWithoutAnIssuer()
+    public async Task ChangeIssuerAsync_WhenTheTenantIsRetired_ConflictsAndKeepsTheRecordWithoutAnIssuer()
     {
         await ReserveAndPlaceAsync(TenantId, Issuer);
         await Tenants.RetireAsync(
@@ -488,7 +693,8 @@ public sealed class DefaultDirectoryStoreTenantTests : DefaultDirectoryStoreTest
 
         var result = await ChangeIssuerAsync(TenantId, previousIssuer: null, FreeIssuer);
 
-        Assert.True(result.IsReserved);
+        Assert.False(result.IsReserved);
+        Assert.Equal($"The tenant '{TenantId}' is retired.", result.ConflictDetail);
         var record = await ReadTenantAsync(TenantId);
         Assert.NotNull(record);
         Assert.Equal(TenantRecord.StateRetired, record.State);

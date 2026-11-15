@@ -30,6 +30,9 @@ public static class DirectoryEndpoints
     private const int DefaultChangesLimit = 100;
     private const int MaxChangesLimit = 1000;
 
+    private const string TenantWriteForbiddenDetail =
+        "Only the cell that holds a tenant, or the control-plane cell, writes it.";
+
     /// <param name="endpoints">The <see cref="IEndpointRouteBuilder"/> to map the routes on.</param>
     extension(IEndpointRouteBuilder endpoints)
     {
@@ -80,6 +83,7 @@ public static class DirectoryEndpoints
         group
             .MapPost("change-issuer", ChangeTenantIssuerAsync)
             .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict);
         group.MapGet("{tenantId}", GetTenantPlacementAsync);
         group.MapGet("retired-ids/{tenantId}", GetRetiredTenantIdAsync);
@@ -175,24 +179,15 @@ public static class DirectoryEndpoints
     private static async ValueTask<IResult> ReleaseTenantAsync(
         string tenantId,
         HttpContext httpContext,
-        IOptions<DirectoryServerOptions> options,
-        DefaultDirectoryStore store,
-        ITenantDirectory directory,
+        IDirectoryTenantWriter writer,
         CancellationToken cancellationToken
     )
     {
-        var forbidden = await AuthorizeTenantWriteAsync(
-            tenantId,
-            httpContext,
-            options.Value,
-            store,
-            cancellationToken
-        );
-        if (forbidden is not null)
-            return forbidden;
+        if (DirectoryCaller.GetCell(httpContext.User) is not { } callerCell)
+            return Forbidden(TenantWriteForbiddenDetail);
 
-        await directory.ReleaseAsync(tenantId, cancellationToken);
-        return Results.Ok();
+        var result = await writer.ReleaseAsync(tenantId, callerCell, cancellationToken);
+        return ToResult(result);
     }
 
     private static async ValueTask<IResult> MoveTenantAsync(
@@ -224,52 +219,34 @@ public static class DirectoryEndpoints
     private static async ValueTask<IResult> RetireTenantAsync(
         TenantRetirement retirement,
         HttpContext httpContext,
-        IOptions<DirectoryServerOptions> options,
-        DefaultDirectoryStore store,
-        ITenantDirectory directory,
+        IDirectoryTenantWriter writer,
         CancellationToken cancellationToken
     )
     {
         if (IsBlank(retirement.TenantId))
             return BadRequest("The tenant is required.");
 
-        var forbidden = await AuthorizeTenantWriteAsync(
-            retirement.TenantId,
-            httpContext,
-            options.Value,
-            store,
-            cancellationToken
-        );
-        if (forbidden is not null)
-            return forbidden;
+        if (DirectoryCaller.GetCell(httpContext.User) is not { } callerCell)
+            return Forbidden(TenantWriteForbiddenDetail);
 
-        await directory.RetireAsync(retirement, cancellationToken);
-        return Results.Ok();
+        var result = await writer.RetireAsync(retirement, callerCell, cancellationToken);
+        return ToResult(result);
     }
 
     private static async ValueTask<IResult> ChangeTenantIssuerAsync(
         TenantIssuerChange change,
         HttpContext httpContext,
-        IOptions<DirectoryServerOptions> options,
-        DefaultDirectoryStore store,
-        ITenantDirectory directory,
+        IDirectoryTenantWriter writer,
         CancellationToken cancellationToken
     )
     {
         if (IsBlank(change.TenantId))
             return BadRequest("The tenant is required.");
 
-        var forbidden = await AuthorizeTenantWriteAsync(
-            change.TenantId,
-            httpContext,
-            options.Value,
-            store,
-            cancellationToken
-        );
-        if (forbidden is not null)
-            return forbidden;
+        if (DirectoryCaller.GetCell(httpContext.User) is not { } callerCell)
+            return Forbidden(TenantWriteForbiddenDetail);
 
-        var result = await directory.ChangeIssuerAsync(change, cancellationToken);
+        var result = await writer.ChangeIssuerAsync(change, callerCell, cancellationToken);
         return ToResult(result);
     }
 
@@ -526,34 +503,6 @@ public static class DirectoryEndpoints
             ? null
             : Forbidden("Only the control-plane cell writes the platform and the teams.");
 
-    /// <summary>
-    /// Authorizes a write to a tenant that the cell holding it, or the control-plane cell, makes. A tenant with no
-    /// record, or a record that names no cell, is open to every cell, so that a retried call reaches the store, which
-    /// decides.
-    /// </summary>
-    private static async ValueTask<IResult?> AuthorizeTenantWriteAsync(
-        string tenantId,
-        HttpContext httpContext,
-        DirectoryServerOptions options,
-        DefaultDirectoryStore store,
-        CancellationToken cancellationToken
-    )
-    {
-        var storedCell = await store.GetTenantCellOrDefaultAsync(tenantId, cancellationToken);
-        if (
-            storedCell is null
-            || IsCaller(httpContext, storedCell)
-            || DirectoryCaller.IsControlPlane(httpContext.User, options)
-        )
-        {
-            return null;
-        }
-
-        return Forbidden(
-            "Only the cell that holds a tenant, or the control-plane cell, writes it."
-        );
-    }
-
     private static IResult Forbidden(string detail) =>
         Results.Problem(
             title: "Forbidden",
@@ -583,4 +532,23 @@ public static class DirectoryEndpoints
                 detail: result.ConflictDetail,
                 statusCode: StatusCodes.Status409Conflict
             );
+
+    private static IResult ToResult(DirectoryTenantWriteResult result) =>
+        result.Outcome switch
+        {
+            DirectoryTenantWriteOutcome.Done => Results.Ok(),
+            DirectoryTenantWriteOutcome.Forbidden => Forbidden(
+                result.Detail ?? TenantWriteForbiddenDetail
+            ),
+            DirectoryTenantWriteOutcome.NotFound => Results.Problem(
+                title: "Not Found",
+                detail: result.Detail,
+                statusCode: StatusCodes.Status404NotFound
+            ),
+            _ => Results.Problem(
+                title: "Conflict",
+                detail: result.Detail,
+                statusCode: StatusCodes.Status409Conflict
+            ),
+        };
 }
