@@ -19,6 +19,85 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
     /// </summary>
     private const string ClientMemberDayFormat = "yyyy-MM-dd";
 
+    /// <summary>
+    /// The character that separates a client member's day from its client digest.
+    /// </summary>
+    private const char ClientMemberSeparator = ':';
+
+    /// <summary>
+    /// Encodes a refresh lease's owner token as UTF-8 into sensitive pooled memory that is zeroed when the returned
+    /// lease is disposed. The bytes live in <see cref="ReadOnlyMemory{T}"/> because they cross an <c>await</c>.
+    /// </summary>
+    /// <param name="owner">The owner token to encode.</param>
+    /// <param name="bytes">The owner token's UTF-8 bytes.</param>
+    /// <returns>The lease that returns the memory to the pool.</returns>
+    private static IDisposable RentOwnerBytes(string owner, out ReadOnlyMemory<byte> bytes)
+    {
+        var byteCount = SecureEncoding.UTF8.GetByteCount(owner);
+        var lease = BufferFactory.Rent(byteCount, isSensitive: true, out Memory<byte> buffer);
+        SecureEncoding.UTF8.GetBytes(owner, buffer.Span);
+        bytes = buffer;
+        return lease;
+    }
+
+    private static DateTimeOffset GetExpiresWhen(BffSessionMetadata metadata) =>
+        metadata.IdleExpiresAt < metadata.AbsoluteExpiresAt
+            ? metadata.IdleExpiresAt
+            : metadata.AbsoluteExpiresAt;
+
+    /// <summary>
+    /// Gets the member of <see cref="BffStoreKeys.ClientsIndex"/> that lists a client for the UTC day of a session's
+    /// absolute expiry: the day, a colon and the client's digest.
+    /// </summary>
+    /// <param name="client">The client that the session was issued to.</param>
+    /// <param name="absoluteExpiresAt">The absolute expiry of the session.</param>
+    /// <returns>The member.</returns>
+    private static string GetClientMember(
+        BffSessionClient client,
+        DateTimeOffset absoluteExpiresAt
+    ) =>
+        absoluteExpiresAt.UtcDateTime.ToString(ClientMemberDayFormat, CultureInfo.InvariantCulture)
+        + ClientMemberSeparator
+        + BffStoreKeys.ClientDigest(client);
+
+    /// <summary>
+    /// Reads the client digest of a member of <see cref="BffStoreKeys.ClientsIndex"/>.
+    /// </summary>
+    /// <param name="member">The member.</param>
+    /// <param name="digest">The client digest that the member names.</param>
+    /// <returns><see langword="true"/> when the member is well formed; otherwise, <see langword="false"/>.</returns>
+    private static bool TryGetClientDigest(string member, out string digest)
+    {
+        digest = string.Empty;
+
+        var separator = member.IndexOf(ClientMemberSeparator);
+        if (
+            separator != ClientMemberDayFormat.Length
+            || separator == member.Length - 1
+            || !DateOnly.TryParseExact(
+                member.AsSpan(0, separator),
+                ClientMemberDayFormat,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out _
+            )
+        )
+            return false;
+
+        digest = member[(separator + 1)..];
+        return true;
+    }
+
+    private static bool IsStoreFailure(Exception exception, CancellationToken cancellationToken) =>
+        exception is not BffStoreUnavailableException
+        && (
+            exception is not OperationCanceledException
+            || !cancellationToken.IsCancellationRequested
+        );
+
+    private static BffStoreUnavailableException Unavailable(Exception exception) =>
+        new("The BFF session store is unavailable.", exception);
+
     /// <inheritdoc />
     public async ValueTask<bool> TryCreateAsync(
         BffSessionRecord record,
@@ -371,70 +450,6 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
     }
 
     /// <summary>
-    /// Encodes a refresh lease's owner token as UTF-8 into sensitive pooled memory that is zeroed when the returned
-    /// lease is disposed. The bytes live in <see cref="ReadOnlyMemory{T}"/> because they cross an <c>await</c>.
-    /// </summary>
-    /// <param name="owner">The owner token to encode.</param>
-    /// <param name="bytes">The owner token's UTF-8 bytes.</param>
-    /// <returns>The lease that returns the memory to the pool.</returns>
-    private static IDisposable RentOwnerBytes(string owner, out ReadOnlyMemory<byte> bytes)
-    {
-        var byteCount = SecureEncoding.UTF8.GetByteCount(owner);
-        var lease = BufferFactory.Rent(byteCount, isSensitive: true, out Memory<byte> buffer);
-        SecureEncoding.UTF8.GetBytes(owner, buffer.Span);
-        bytes = buffer;
-        return lease;
-    }
-
-    private static DateTimeOffset GetExpiresWhen(BffSessionMetadata metadata) =>
-        metadata.IdleExpiresAt < metadata.AbsoluteExpiresAt
-            ? metadata.IdleExpiresAt
-            : metadata.AbsoluteExpiresAt;
-
-    /// <summary>
-    /// Gets the member of <see cref="BffStoreKeys.ClientsIndex"/> that lists a client for the UTC day of a session's
-    /// absolute expiry: the day, a colon and the client's digest.
-    /// </summary>
-    /// <param name="client">The client that the session was issued to.</param>
-    /// <param name="absoluteExpiresAt">The absolute expiry of the session.</param>
-    /// <returns>The member.</returns>
-    private static string GetClientMember(
-        BffSessionClient client,
-        DateTimeOffset absoluteExpiresAt
-    ) =>
-        absoluteExpiresAt.UtcDateTime.ToString(ClientMemberDayFormat, CultureInfo.InvariantCulture)
-        + ":"
-        + BffStoreKeys.ClientDigest(client);
-
-    /// <summary>
-    /// Reads the client digest of a member of <see cref="BffStoreKeys.ClientsIndex"/>.
-    /// </summary>
-    /// <param name="member">The member.</param>
-    /// <param name="digest">The client digest that the member names.</param>
-    /// <returns><see langword="true"/> when the member is well formed; otherwise, <see langword="false"/>.</returns>
-    private static bool TryGetClientDigest(string member, out string digest)
-    {
-        digest = string.Empty;
-
-        var separator = member.IndexOf(':');
-        if (
-            separator != ClientMemberDayFormat.Length
-            || separator == member.Length - 1
-            || !DateOnly.TryParseExact(
-                member.AsSpan(0, separator),
-                ClientMemberDayFormat,
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.None,
-                out _
-            )
-        )
-            return false;
-
-        digest = member[(separator + 1)..];
-        return true;
-    }
-
-    /// <summary>
     /// Reads the client from the first session record that can be read among the members of a client's index.
     /// </summary>
     /// <param name="storeKeys">The store keys of the sessions in the client's index.</param>
@@ -453,14 +468,4 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
 
         return null;
     }
-
-    private static bool IsStoreFailure(Exception exception, CancellationToken cancellationToken) =>
-        exception is not BffStoreUnavailableException
-        && (
-            exception is not OperationCanceledException
-            || !cancellationToken.IsCancellationRequested
-        );
-
-    private static BffStoreUnavailableException Unavailable(Exception exception) =>
-        new("The BFF session store is unavailable.", exception);
 }
