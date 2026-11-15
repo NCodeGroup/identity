@@ -503,6 +503,19 @@ describe('TenantDetailPage', () => {
       expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual(['eu-2']);
     });
 
+    it('closes the move dialog without a call when cancelled', async () => {
+      const calls = installMoveFetch({});
+      renderPage('secrets', 'eu-1');
+
+      await waitFor(() => expect(screen.getByTestId('move-tenant')).toBeEnabled());
+      fireEvent.click(screen.getByTestId('move-tenant'));
+      await waitFor(() => expect(screen.getByTestId('move-target')).toBeEnabled());
+      fireEvent.click(screen.getByTestId('move-cancel'));
+
+      await waitFor(() => expect(screen.queryByTestId('move-confirm')).not.toBeInTheDocument());
+      expect(moves(calls)).toEqual([]);
+    });
+
     it('reports the failed stage and what remains', async () => {
       const calls = installMoveFetch({ failing: '/cells/eu-1/api/tenants/acme/export' });
       renderPage('secrets', 'eu-1');
