@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
 using NCode.Buffers;
 using NCode.Identity.Cryptography;
+using NCode.Identity.Events.Audit;
 using NCode.Identity.Jose;
 using NCode.Identity.Jose.Exceptions;
 using NCode.Identity.OpenId.GlobalDirectory;
@@ -58,11 +59,6 @@ internal class TenantImportApiEndpointHandler(
     IOptions<CellOptions> cellOptions
 ) : BaseApiEndpointHandler, IEndpointProvider
 {
-    /// <summary>
-    /// The change type of the audit record that an import writes, which makes the event <c>tenant.imported</c>.
-    /// </summary>
-    internal const string ImportedChangeType = "imported";
-
     // The members of the package that the export writes. The export's payload is
     // { region, tenantId, sections: [{ name, json }], masterKeys }.
     private const string RegionMember = "region";
@@ -328,7 +324,7 @@ internal class TenantImportApiEndpointHandler(
             httpContext,
             teamId,
             tenantId,
-            ImportedChangeType,
+            ResourceChangeTypes.Imported,
             JsonSerializer.SerializeToElement(
                 new Dictionary<string, string> { ["sourceCell"] = sourceCell }
             )

@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
 using NCode.Buffers;
 using NCode.Identity.Cryptography;
+using NCode.Identity.Events.Audit;
 using NCode.Identity.Jose;
 using NCode.Identity.Jose.Algorithms;
 using NCode.Identity.Jose.Credentials;
@@ -64,16 +65,6 @@ internal class TenantTransferApiEndpointHandler(
     TimeProvider timeProvider
 ) : BaseApiEndpointHandler, IEndpointProvider
 {
-    /// <summary>
-    /// The change type of the audit record that an export writes, which makes the event <c>tenant.exported</c>.
-    /// </summary>
-    internal const string ExportedChangeType = "exported";
-
-    /// <summary>
-    /// The change type of the audit record that a release writes, which makes the event <c>tenant.released</c>.
-    /// </summary>
-    internal const string ReleasedChangeType = "released";
-
     private const int DirectoryRetrySeconds = 5;
 
     /// <summary>
@@ -215,7 +206,7 @@ internal class TenantTransferApiEndpointHandler(
             httpContext,
             tenant.TeamId,
             tenantId,
-            ReleasedChangeType,
+            ResourceChangeTypes.Released,
             JsonSerializer.SerializeToElement(
                 new Dictionary<string, string> { ["targetCell"] = placement.Cell }
             )
@@ -306,7 +297,7 @@ internal class TenantTransferApiEndpointHandler(
             httpContext,
             tenant.TeamId,
             tenantId,
-            ExportedChangeType,
+            ResourceChangeTypes.Exported,
             resourceValues: null
         );
 

@@ -387,9 +387,11 @@ session-termination seam.
 #### Resource-change events
 
 A resource-change event is named `<resource_type>.<change_type>`, where `change_type` is `created`, `updated`,
-`deleted`, `settings.updated` or `promoted`. `details.change_type` repeats the change type, and
-`details.resource_values` is a non-sensitive snapshot of the resource, never secret material. A promotion records each
-change it writes, then `tenant.promoted` on the target tenant, whose `resource_values` is the promotion's report.
+`deleted`, `settings.updated`, `promoted`, `exported`, `imported` or `released`. `details.change_type` repeats the
+change type, and `details.resource_values` is a non-sensitive snapshot of the resource, never secret material. A
+promotion records each change it writes, then `tenant.promoted` on the target tenant, whose `resource_values` is the
+promotion's report. An export and a release are recorded in the source cell and an import in the target cell, each as
+`tenant.<change_type>` with the other cell named in `resource_values`.
 
 | Event name prefix (`resource_type`) | Owning resource listed second                                                  |
 | ----------------------------------- | ------------------------------------------------------------------------------ |
