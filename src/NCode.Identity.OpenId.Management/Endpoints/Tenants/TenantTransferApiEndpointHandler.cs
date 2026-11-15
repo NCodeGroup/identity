@@ -199,7 +199,7 @@ internal class TenantTransferApiEndpointHandler(
             await TenantTransferContributors[index].RemoveAsync(tenantId, cancellationToken);
         }
 
-        await tenantStore.RemoveMovedAsync(tenantId, cancellationToken);
+        await tenantStore.RemoveFromCellAsync(tenantId, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
 
         await ManagementAuditRecorder.RecordTenantChangedAsync(

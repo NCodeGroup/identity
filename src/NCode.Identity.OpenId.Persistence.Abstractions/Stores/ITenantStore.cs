@@ -328,8 +328,9 @@ public interface ITenantStore : IStore<PersistedTenant>
     ValueTask<bool> RemoveAsync(string tenantId, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Removes every row that an OpenId Tenant owns in this cell, because the tenant lives on in another cell. It
-    /// neither checks the tenant's dependents nor retires its identifier or its issuer.
+    /// Removes every row that an OpenId Tenant owns in this cell, for a tenant that lives on in another cell or whose
+    /// import or creation failed before the directory placed it here. It neither checks the tenant's dependents nor
+    /// retires its identifier or its issuer.
     /// </summary>
     /// <remarks>
     /// The removal covers the same rows as <see cref="RemoveAsync"/>: the tenant's secrets, its resource servers with
@@ -341,7 +342,7 @@ public interface ITenantStore : IStore<PersistedTenant>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c>
     /// if the tenant was removed; otherwise <c>false</c> when no matching tenant existed.</returns>
     // See ADR-1514.
-    ValueTask<bool> RemoveMovedAsync(string tenantId, CancellationToken cancellationToken);
+    ValueTask<bool> RemoveFromCellAsync(string tenantId, CancellationToken cancellationToken);
 
     /// <summary>
     /// Determines whether an OpenId Tenant still has dependents (its clients, or the resource servers created in it)

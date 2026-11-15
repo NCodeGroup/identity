@@ -403,7 +403,7 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
         }
 
         MockTenantStore
-            .Setup(x => x.RemoveMovedAsync(TenantId, It.IsAny<CancellationToken>()))
+            .Setup(x => x.RemoveFromCellAsync(TenantId, It.IsAny<CancellationToken>()))
             .Returns(() =>
             {
                 Calls.Add("remove-tenant");

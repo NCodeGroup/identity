@@ -804,7 +804,7 @@ internal class TenantStore(
     }
 
     /// <inheritdoc />
-    public async ValueTask<bool> RemoveMovedAsync(
+    public async ValueTask<bool> RemoveFromCellAsync(
         string tenantId,
         CancellationToken cancellationToken
     )

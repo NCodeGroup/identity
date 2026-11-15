@@ -439,7 +439,9 @@ internal class TenantImportApiEndpointHandler(
         }
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
-        await storeManager.GetStore<ITenantStore>().RemoveMovedAsync(tenantId, cancellationToken);
+        await storeManager
+            .GetStore<ITenantStore>()
+            .RemoveFromCellAsync(tenantId, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
     }
 

@@ -926,8 +926,8 @@ internal class TenantApiEndpointHandler(
 
     /// <summary>
     /// Creates a tenant through the directory as a saga: reserves the tenant's identifier and issuer, inserts the
-    /// tenant, then places it in this cell. The reservation is released when the creation fails before the tenant is
-    /// placed.
+    /// tenant, then places it in this cell. A creation that fails before the tenant is placed removes the inserted
+    /// tenant, then releases the reservation, so the directory never frees an identifier whose row still exists.
     /// </summary>
     /// <param name="tenant">The <see cref="PersistedTenant"/> to create.</param>
     /// <param name="storeManager">The <see cref="IStoreManager"/> that inserts the tenant.</param>
@@ -964,6 +964,7 @@ internal class TenantApiEndpointHandler(
             );
         }
 
+        var isInserted = false;
         var isPlaced = false;
         try
         {
@@ -974,6 +975,7 @@ internal class TenantApiEndpointHandler(
             // owning tenant from the database rather than the change tracker — the same reason the provisioner commits a
             // tenant before seeding it.
             await storeManager.SaveChangesAsync(cancellationToken);
+            isInserted = true;
 
             var placementResult = await TenantDirectory.PlaceAsync(
                 new TenantPlacement
@@ -1002,12 +1004,40 @@ internal class TenantApiEndpointHandler(
         {
             if (!isPlaced)
             {
-                // The release compensates a creation that failed, so it runs even when the request was canceled.
-                await TenantDirectory.ReleaseAsync(tenant.TenantId, CancellationToken.None);
+                if (isInserted)
+                {
+                    try
+                    {
+                        await RemoveCreatedTenantAsync(tenant.TenantId, CancellationToken.None);
+                    }
+                    finally
+                    {
+                        // The release comes after the removal, so the directory never frees an identifier whose row
+                        // still exists.
+                        await TenantDirectory.ReleaseAsync(tenant.TenantId, CancellationToken.None);
+                    }
+                }
+                else
+                {
+                    // The release compensates a creation that failed, so it runs even when the request was canceled.
+                    await TenantDirectory.ReleaseAsync(tenant.TenantId, CancellationToken.None);
+                }
             }
         }
 
         return null;
+    }
+
+    // The removal compensates a creation that failed after its row committed, so it runs on a store manager of its own
+    // even when the request was canceled: the caller passes a token that is never canceled.
+    private async ValueTask RemoveCreatedTenantAsync(
+        string tenantId,
+        CancellationToken cancellationToken
+    )
+    {
+        await using var cleanup = await StoreManagerFactory.CreateAsync(cancellationToken);
+        await cleanup.GetStore<ITenantStore>().RemoveFromCellAsync(tenantId, cancellationToken);
+        await cleanup.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>

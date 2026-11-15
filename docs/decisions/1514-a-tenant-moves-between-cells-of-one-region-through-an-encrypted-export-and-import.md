@@ -78,8 +78,8 @@ tenant is created there instead.**
      target's sweep keeps them and the source's sweep, which lists only keys of its own name, never destroys them.
    - `POST api/tenants/{tenantId}/release-moved` runs at the source cell. It proceeds only when the directory's
      placement names another cell, and answers `503` when the directory is unreachable, never releasing on a guess.
-     It calls each contributor's `RemoveAsync` in reverse `Order`, then `ITenantStore.RemoveMovedAsync`, which deletes
-     the tenant's rows and master keys without checking dependents, destroying a remote key or retiring the
+     It calls each contributor's `RemoveAsync` in reverse `Order`, then `ITenantStore.RemoveFromCellAsync`, which
+     deletes the tenant's rows and master keys without checking dependents, destroying a remote key or retiring the
      identifier or the issuer, because the tenant lives on in its target cell
      ([ADR-1212](1212-deleting-a-client-resource-server-principal-or-tenant-removes-what-it-owns.md)). The audit
      record `tenant.released` names the target cell.

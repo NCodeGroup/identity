@@ -218,7 +218,7 @@ internal class CoreTenantTransferContributor(
     }
 
     /// <inheritdoc />
-    // The rows of a tenant that has moved are removed with the tenant by ITenantStore.RemoveMovedAsync.
+    // The rows of a tenant that has moved are removed with the tenant by ITenantStore.RemoveFromCellAsync.
     public ValueTask RemoveAsync(string tenantId, CancellationToken cancellationToken) =>
         ValueTask.CompletedTask;
 

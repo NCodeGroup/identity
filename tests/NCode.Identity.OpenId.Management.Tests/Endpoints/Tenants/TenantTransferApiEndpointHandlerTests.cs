@@ -414,7 +414,7 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
             .Verifiable();
 
         MockTenantStore
-            .Setup(x => x.RemoveMovedAsync(TenantId, It.IsAny<CancellationToken>()))
+            .Setup(x => x.RemoveFromCellAsync(TenantId, It.IsAny<CancellationToken>()))
             .Returns(() =>
             {
                 calls.Add("remove-tenant");
@@ -803,7 +803,7 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
         MockTenantDirectory.VerifyNoOtherCalls();
         MockMasterKeyTransfer.VerifyNoOtherCalls();
         MockTenantStore.Verify(
-            x => x.RemoveMovedAsync(TenantId, It.IsAny<CancellationToken>()),
+            x => x.RemoveFromCellAsync(TenantId, It.IsAny<CancellationToken>()),
             Times.Once
         );
         MockTenantStore.Verify(

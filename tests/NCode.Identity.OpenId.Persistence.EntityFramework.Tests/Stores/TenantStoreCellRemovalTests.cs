@@ -12,9 +12,9 @@ using NCode.Identity.Secrets.Persistence.Protection;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Stores;
 
-// Validates TenantStore.RemoveMovedAsync against a relational provider that enforces foreign keys (ADR-1514). The
+// Validates TenantStore.RemoveFromCellAsync against a relational provider that enforces foreign keys (ADR-1514). The
 // tenant lives on in another cell, so every row it owns here is removed and nothing is retired.
-public sealed class TenantStoreMovedRemovalTests : IDisposable
+public sealed class TenantStoreCellRemovalTests : IDisposable
 {
     private const string TenantOneId = "tenant-1";
     private const string TenantTwoId = "tenant-2";
@@ -26,7 +26,7 @@ public sealed class TenantStoreMovedRemovalTests : IDisposable
     private ResourceServerStore ResourceServerStore { get; }
     private RoleAssignmentStore RoleAssignmentStore { get; }
 
-    public TenantStoreMovedRemovalTests()
+    public TenantStoreCellRemovalTests()
     {
         Connection = new SqliteConnection("DataSource=:memory:");
         Connection.Open();
@@ -352,10 +352,10 @@ public sealed class TenantStoreMovedRemovalTests : IDisposable
 
     #endregion
 
-    #region RemoveMovedAsync Tests
+    #region RemoveFromCellAsync Tests
 
     [Fact]
-    public async Task RemoveMovedAsync_WhenTheTenantExists_RemovesEveryRowItOwnsAndNoOtherTenantsRows()
+    public async Task RemoveFromCellAsync_WhenTheTenantExists_RemovesEveryRowItOwnsAndNoOtherTenantsRows()
     {
         await SeedFullTenantAsync(TenantOneId, CancellationToken.None);
         await SeedFullTenantAsync(TenantTwoId, CancellationToken.None);
@@ -365,7 +365,7 @@ public sealed class TenantStoreMovedRemovalTests : IDisposable
             await CountRowsAsync(CancellationToken.None)
         );
 
-        var removed = await Store.RemoveMovedAsync(TenantOneId, CancellationToken.None);
+        var removed = await Store.RemoveFromCellAsync(TenantOneId, CancellationToken.None);
         await DbContext.SaveChangesAsync();
         DbContext.ChangeTracker.Clear();
 
@@ -392,7 +392,7 @@ public sealed class TenantStoreMovedRemovalTests : IDisposable
     }
 
     [Fact]
-    public async Task RemoveMovedAsync_WhenTheTenantHasAResourceServer_DoesNotCheckDependents()
+    public async Task RemoveFromCellAsync_WhenTheTenantHasAResourceServer_DoesNotCheckDependents()
     {
         await SeedFullTenantAsync(TenantOneId, CancellationToken.None);
         await ResourceServerStore.AddAsync(
@@ -411,7 +411,7 @@ public sealed class TenantStoreMovedRemovalTests : IDisposable
 
         Assert.True(await Store.HasDependentsAsync(TenantOneId, CancellationToken.None));
 
-        var removed = await Store.RemoveMovedAsync(TenantOneId, CancellationToken.None);
+        var removed = await Store.RemoveFromCellAsync(TenantOneId, CancellationToken.None);
         await DbContext.SaveChangesAsync();
         DbContext.ChangeTracker.Clear();
 
@@ -423,7 +423,7 @@ public sealed class TenantStoreMovedRemovalTests : IDisposable
     }
 
     [Fact]
-    public async Task RemoveMovedAsync_WhenTheTenantHasAnIssuer_WritesNoRetiredRow()
+    public async Task RemoveFromCellAsync_WhenTheTenantHasAnIssuer_WritesNoRetiredRow()
     {
         await Store.AddAsync(
             new PersistedTenantBuilder
@@ -436,7 +436,7 @@ public sealed class TenantStoreMovedRemovalTests : IDisposable
         await DbContext.SaveChangesAsync();
         DbContext.ChangeTracker.Clear();
 
-        var removed = await Store.RemoveMovedAsync(TenantOneId, CancellationToken.None);
+        var removed = await Store.RemoveFromCellAsync(TenantOneId, CancellationToken.None);
         await DbContext.SaveChangesAsync();
         DbContext.ChangeTracker.Clear();
 
@@ -447,12 +447,12 @@ public sealed class TenantStoreMovedRemovalTests : IDisposable
     }
 
     [Fact]
-    public async Task RemoveMovedAsync_WhenTheTenantDoesNotExist_ReturnsFalse()
+    public async Task RemoveFromCellAsync_WhenTheTenantDoesNotExist_ReturnsFalse()
     {
         await SeedFullTenantAsync(TenantTwoId, CancellationToken.None);
         var before = await CountRowsAsync(CancellationToken.None);
 
-        var removed = await Store.RemoveMovedAsync(TenantOneId, CancellationToken.None);
+        var removed = await Store.RemoveFromCellAsync(TenantOneId, CancellationToken.None);
         await DbContext.SaveChangesAsync();
 
         Assert.False(removed);

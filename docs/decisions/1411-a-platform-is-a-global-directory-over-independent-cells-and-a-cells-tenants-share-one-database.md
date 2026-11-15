@@ -58,8 +58,9 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
    identifiers platform-wide and retires them when their owners are deleted, places each tenant in one cell, records the
    cells, and publishes team documents (name, settings and per-region root-key references). It holds identifiers,
    placements, cells and team documents, and nothing about a person. Creating a tenant reserves its identifier,
-   inserts the tenant and then places it, and a failure releases the reservation; creation fails closed with `503` when
-   the directory is unreachable.
+   inserts the tenant and then places it, and a failure after the insert removes the inserted tenant and then releases
+   the reservation, so the directory never frees an identifier whose row still exists; creation fails closed with `503`
+   when the directory is unreachable.
 3. **One cell runs on its own.** The directory is three ports (tenants, teams, cells). A local adapter over the cell's
    own retired-identifier tables is the default and needs no extra service, so a single deployment is a platform of one
    cell. A remote adapter, selected by `Directory:Url`, calls the directory service over HTTP with a client-credentials
