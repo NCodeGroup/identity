@@ -200,12 +200,19 @@ internal sealed class DefaultDirectoryStore(
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
 
         var normalizedTenantId = Normalize(tenantId);
-        await dbContext
-            .Tenants.Where(entity =>
+        var tenant = await dbContext.Tenants.SingleOrDefaultAsync(
+            entity =>
                 entity.NormalizedTenantId == normalizedTenantId
-                && entity.State == TenantRecord.StateReserved
-            )
-            .ExecuteDeleteAsync(cancellationToken);
+                && entity.State == TenantRecord.StateReserved,
+            cancellationToken
+        );
+        if (tenant is null)
+        {
+            return;
+        }
+
+        dbContext.Tenants.Remove(tenant);
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     /// <inheritdoc />
@@ -789,12 +796,19 @@ internal sealed class DefaultDirectoryStore(
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
 
         var normalizedTeamId = Normalize(teamId);
-        await dbContext
-            .Teams.Where(entity =>
+        var team = await dbContext.Teams.SingleOrDefaultAsync(
+            entity =>
                 entity.NormalizedTeamId == normalizedTeamId
-                && entity.State == TeamRecord.StateReserved
-            )
-            .ExecuteDeleteAsync(cancellationToken);
+                && entity.State == TeamRecord.StateReserved,
+            cancellationToken
+        );
+        if (team is null)
+        {
+            return;
+        }
+
+        dbContext.Teams.Remove(team);
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     /// <inheritdoc />
