@@ -125,7 +125,10 @@ result. `RememberFailure(key)` stores `{key}:unavailable` in `IMemoryCache` for 
 
 Each owner (`DefaultClientKeyResolver`, `RevocationRetrievalCache`) keeps what is its own: what counts as a failure, the
 value cache with its key and lifetime, its log entries and its options. It checks its caches before it calls the helper
-and again inside the retrieval. Any further remote fetch that several callers share uses the helper.
+and again inside the retrieval. Any further remote fetch that several callers share uses the helper. The directory
+client's cell token source, in a package that cannot reference the helper, keeps one `Lazy<Task>` per key under the same
+rules: the request runs on its own bounded token, joined callers cancel only their own wait, and a failure is remembered
+against the injected `TimeProvider`.
 
 ### Overrides of project-template ADR-0145
 

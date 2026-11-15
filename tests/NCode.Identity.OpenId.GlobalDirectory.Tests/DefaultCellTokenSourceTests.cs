@@ -19,6 +19,13 @@ public class DefaultCellTokenSourceTests : BaseTests
     private const string ControlPlaneAudience = "urn:ncode:control-plane";
     private const string ControlPlaneScope = "control-plane";
 
+    private static TimeSpan RequestTimeout { get; } = TimeSpan.FromSeconds(10);
+
+    private static TimeSpan FailureCacheDuration { get; } = TimeSpan.FromSeconds(2);
+
+    // Bounds a wait that only a defect can leave open, so that a failing run ends; a passing run never reaches it.
+    private static TimeSpan HangGuard { get; } = TimeSpan.FromSeconds(10);
+
     private FakeTimeProvider TimeProvider { get; } =
         new(new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero));
 
@@ -31,7 +38,15 @@ public class DefaultCellTokenSourceTests : BaseTests
         TokenClientMock = CreateStrictMock<ITokenClient>();
         TokenSource = new DefaultCellTokenSource(
             TokenClientMock.Object,
-            Options.Create(new DirectoryClientOptions { ClientId = ClientId, KeyRing = KeyRing }),
+            Options.Create(
+                new DirectoryClientOptions
+                {
+                    ClientId = ClientId,
+                    KeyRing = KeyRing,
+                    TokenRequestTimeout = RequestTimeout,
+                    TokenFailureCacheDuration = FailureCacheDuration,
+                }
+            ),
             Options.Create(
                 new CellOptions { ControlPlane = new ControlPlaneOptions { Issuer = Issuer } }
             ),
@@ -39,15 +54,7 @@ public class DefaultCellTokenSourceTests : BaseTests
         );
     }
 
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-            TokenSource.Dispose();
-
-        base.Dispose(disposing);
-    }
-
-    private static TokenResult CreateSuccess(string accessToken, int expiresIn) =>
+    private static TokenResult CreateSuccess(string accessToken, int? expiresIn) =>
         new(
             new TokenResponse
             {
@@ -313,6 +320,208 @@ public class DefaultCellTokenSourceTests : BaseTests
                 DirectoryAudience,
                 DirectoryScope,
                 CancellationToken.None
+            )
+        );
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task GetAccessTokenAsync_WhenTheResponseHasNoPositiveExpiresIn_ThrowsDirectoryUnavailable(
+        int? expiresIn
+    )
+    {
+        TokenClientMock
+            .Setup(x =>
+                x.RequestTokenAsync(
+                    It.IsAny<ClientRegistration>(),
+                    It.IsAny<TokenRequest>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(new ValueTask<TokenResult>(CreateSuccess("token-1", expiresIn)))
+            .Verifiable(Times.Once);
+
+        var exception = await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
+            await TokenSource.GetAccessTokenAsync(
+                DirectoryAudience,
+                DirectoryScope,
+                CancellationToken.None
+            )
+        );
+
+        Assert.Contains(DirectoryAudience, exception.Message);
+        Assert.Contains(OpenIdProtocol.Parameters.ExpiresIn, exception.Message);
+    }
+
+    [Fact]
+    public async Task GetAccessTokenAsync_WhenTheFirstCallerCancels_TheSharedRequestCompletesForTheOthers()
+    {
+        var pending = new TaskCompletionSource<TokenResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var requestTokens = new List<CancellationToken>();
+        TokenClientMock
+            .Setup(x =>
+                x.RequestTokenAsync(
+                    It.IsAny<ClientRegistration>(),
+                    It.IsAny<TokenRequest>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(
+                (ClientRegistration _, TokenRequest _, CancellationToken token) =>
+                {
+                    requestTokens.Add(token);
+                    return new ValueTask<TokenResult>(pending.Task.WaitAsync(token));
+                }
+            )
+            .Verifiable(Times.Once);
+        using var firstCaller = new CancellationTokenSource();
+
+        var first = TokenSource
+            .GetAccessTokenAsync(DirectoryAudience, DirectoryScope, firstCaller.Token)
+            .AsTask();
+        var second = TokenSource
+            .GetAccessTokenAsync(DirectoryAudience, DirectoryScope, CancellationToken.None)
+            .AsTask();
+        await firstCaller.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first.WaitAsync(HangGuard));
+        var requestToken = Assert.Single(requestTokens);
+        Assert.NotEqual(firstCaller.Token, requestToken);
+        Assert.False(requestToken.IsCancellationRequested);
+        Assert.False(second.IsCompleted);
+
+        pending.SetResult(CreateSuccess("token-1", 300));
+        Assert.Equal("token-1", await second.WaitAsync(HangGuard));
+    }
+
+    [Fact]
+    public async Task GetAccessTokenAsync_WhenTheRequestOutlastsItsTimeLimit_ThrowsDirectoryUnavailable()
+    {
+        var pending = new TaskCompletionSource<TokenResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        TokenClientMock
+            .Setup(x =>
+                x.RequestTokenAsync(
+                    It.IsAny<ClientRegistration>(),
+                    It.IsAny<TokenRequest>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(
+                (ClientRegistration _, TokenRequest _, CancellationToken token) =>
+                {
+                    token.Register(() => pending.TrySetCanceled(token));
+                    return new ValueTask<TokenResult>(pending.Task);
+                }
+            )
+            .Verifiable(Times.Once);
+
+        var call = TokenSource
+            .GetAccessTokenAsync(DirectoryAudience, DirectoryScope, CancellationToken.None)
+            .AsTask();
+        TimeProvider.Advance(RequestTimeout);
+
+        var exception = await Assert.ThrowsAsync<DirectoryUnavailableException>(() =>
+            call.WaitAsync(HangGuard)
+        );
+        Assert.Contains(DirectoryAudience, exception.Message);
+        await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
+            await TokenSource.GetAccessTokenAsync(
+                DirectoryAudience,
+                DirectoryScope,
+                CancellationToken.None
+            )
+        );
+    }
+
+    [Fact]
+    public async Task GetAccessTokenAsync_WithinTheFailureWindow_ThrowsWithoutRequesting()
+    {
+        var error = new TokenResult(new ProtocolError("invalid_client", 401));
+        TokenClientMock
+            .Setup(x =>
+                x.RequestTokenAsync(
+                    It.IsAny<ClientRegistration>(),
+                    It.IsAny<TokenRequest>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(new ValueTask<TokenResult>(error))
+            .Verifiable(Times.Once);
+
+        await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
+            await TokenSource.GetAccessTokenAsync(
+                DirectoryAudience,
+                DirectoryScope,
+                CancellationToken.None
+            )
+        );
+        TimeProvider.Advance(FailureCacheDuration - TimeSpan.FromMilliseconds(1));
+
+        var exception = await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
+            await TokenSource.GetAccessTokenAsync(
+                DirectoryAudience,
+                DirectoryScope,
+                CancellationToken.None
+            )
+        );
+
+        Assert.Contains("failed moments ago", exception.Message);
+        Assert.Contains(DirectoryAudience, exception.Message);
+    }
+
+    [Fact]
+    public async Task GetAccessTokenAsync_AfterTheFailureWindow_RequestsAgain()
+    {
+        var error = new TokenResult(new ProtocolError("invalid_client", 401));
+        var requests = 0;
+        TokenClientMock
+            .Setup(x =>
+                x.RequestTokenAsync(
+                    It.IsAny<ClientRegistration>(),
+                    It.IsAny<TokenRequest>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(() =>
+                new ValueTask<TokenResult>(++requests == 1 ? error : CreateSuccess("token-2", 300))
+            )
+            .Verifiable(Times.Exactly(2));
+
+        await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
+            await TokenSource.GetAccessTokenAsync(
+                DirectoryAudience,
+                DirectoryScope,
+                CancellationToken.None
+            )
+        );
+        TimeProvider.Advance(FailureCacheDuration);
+
+        var token = await TokenSource.GetAccessTokenAsync(
+            DirectoryAudience,
+            DirectoryScope,
+            CancellationToken.None
+        );
+
+        Assert.Equal("token-2", token);
+    }
+
+    [Fact]
+    public async Task GetAccessTokenAsync_WhenTheCallersTokenIsAlreadyCancelled_SendsNoRequest()
+    {
+        using var cancellation = new CancellationTokenSource();
+        await cancellation.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            await TokenSource.GetAccessTokenAsync(
+                DirectoryAudience,
+                DirectoryScope,
+                cancellation.Token
             )
         );
     }
