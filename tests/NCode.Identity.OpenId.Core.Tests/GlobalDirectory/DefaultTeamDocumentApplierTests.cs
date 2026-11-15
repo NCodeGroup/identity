@@ -400,6 +400,29 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
         Assert.Contains(record.StructuredState ?? [], x => x is { Key: "Region", Value: Region });
     }
 
+    [Fact]
+    public async Task ApplyAsync_WhenTheCallersTokenIsCancelledAndTheRootKeyMirrorFails_LogsAndReturns()
+    {
+        using var cts = new CancellationTokenSource();
+        var cancellationToken = cts.Token;
+        SetupApplied(cancellationToken);
+        MockOwnerRootKeyManager
+            .Setup(x => x.GetAsync(TeamOwner, cancellationToken))
+            .Callback(() => cts.Cancel())
+            .ThrowsAsync(new InvalidOperationException("The key service is unavailable."))
+            .Verifiable();
+
+        await Applier.ApplyAsync(
+            CreateRootKeyDocument("kms://key-a", AccessIdentityA),
+            cancellationToken
+        );
+
+        var record = Assert.Single(Logger.Collector.GetSnapshot());
+        Assert.Equal(LogLevel.Warning, record.Level);
+        Assert.Equal(EventIds.DirectoryTeamRootKeyNotApplied, record.Id.Id);
+        Assert.IsType<InvalidOperationException>(record.Exception);
+    }
+
     #endregion
 
     #region ReconcileRootKeysAsync Tests
@@ -417,11 +440,12 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
             [CreateRootKeyTeam(TeamId, "kms://key-b")],
             cancellationToken
         );
-        SetupGetRootKey(
-            TeamOwner,
-            CreateRootKeyInfo("aws-kms", "kms://key-a", AccessIdentityA),
+        SetupGetManyRootKeys(
+            [TeamId],
+            [CreateRootKeyInfo("aws-kms", "kms://key-a", AccessIdentityA)],
             cancellationToken
         );
+        SetupRootKeyPage(cursor: null, nextCursor: null, [], cancellationToken);
         SetupSetRootKey("aws-kms", "kms://key-b", AccessIdentityA, cancellationToken);
 
         await Applier.ReconcileRootKeysAsync(cancellationToken);
@@ -442,11 +466,12 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
             [CreateRootKeyTeam(TeamId)],
             cancellationToken
         );
-        SetupGetRootKey(
-            TeamOwner,
-            CreateRootKeyInfo("aws-kms", "kms://key-a", AccessIdentityA),
+        SetupGetManyRootKeys(
+            [TeamId],
+            [CreateRootKeyInfo("aws-kms", "kms://key-a", AccessIdentityA)],
             cancellationToken
         );
+        SetupRootKeyPage(cursor: null, nextCursor: null, [], cancellationToken);
         MockOwnerRootKeyManager
             .Setup(x => x.RemoveAsync(TeamOwner, cancellationToken))
             .ReturnsAsync(
@@ -464,7 +489,6 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
     {
         using var cts = new CancellationTokenSource();
         var cancellationToken = cts.Token;
-        var otherOwner = new SecretOwner(SecretOwnerTypes.Team, "globex").Normalize();
         SetupUnscoped();
         SetupStoreManager();
         SetupTeamPage(
@@ -479,12 +503,13 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
             [CreateRootKeyTeam("globex")],
             cancellationToken
         );
-        SetupGetRootKey(
-            TeamOwner,
-            CreateRootKeyInfo("aws-kms", "kms://key-a", AccessIdentityA),
+        SetupGetManyRootKeys(
+            [TeamId],
+            [CreateRootKeyInfo("aws-kms", "kms://key-a", AccessIdentityA)],
             cancellationToken
         );
-        SetupGetRootKey(otherOwner, current: null, cancellationToken);
+        SetupGetManyRootKeys(["globex"], [], cancellationToken);
+        SetupRootKeyPage(cursor: null, nextCursor: null, [], cancellationToken);
 
         await Applier.ReconcileRootKeysAsync(cancellationToken);
 
@@ -504,6 +529,7 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
             [CreateRootKeyTeam(TeamId, "kms://key-b", isDisabled: true)],
             cancellationToken
         );
+        SetupRootKeyPage(cursor: null, nextCursor: null, [], cancellationToken);
 
         await Applier.ReconcileRootKeysAsync(cancellationToken);
 
@@ -524,7 +550,8 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
             [CreateRootKeyTeam(TeamId, "kms://key-a"), CreateRootKeyTeam("globex", "kms://key-b")],
             cancellationToken
         );
-        SetupGetRootKey(TeamOwner, current: null, cancellationToken);
+        SetupGetManyRootKeys([TeamId, "globex"], [], cancellationToken);
+        SetupRootKeyPage(cursor: null, nextCursor: null, [], cancellationToken);
         MockOwnerRootKeyManager
             .Setup(x =>
                 x.SetAsync(
@@ -540,7 +567,6 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
                 new OwnerRootKeyProbeException(TeamOwner, "aws-kms", "kms://key-a", "access denied")
             )
             .Verifiable();
-        SetupGetRootKey(otherOwner, current: null, cancellationToken);
         MockOwnerRootKeyManager
             .Setup(x =>
                 x.SetAsync(
@@ -585,11 +611,21 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
             [CreateRootKeyTeam(TeamId, "kms://key-a"), CreateRootKeyTeam("globex", "kms://key-b")],
             cancellationToken
         );
+        SetupGetManyRootKeys([TeamId, "globex"], [], cancellationToken);
+        SetupRootKeyPage(cursor: null, nextCursor: null, [], cancellationToken);
         MockOwnerRootKeyManager
-            .Setup(x => x.GetAsync(TeamOwner, cancellationToken))
+            .Setup(x =>
+                x.SetAsync(
+                    TeamOwner,
+                    new OwnerRootKeyRequest("aws-kms", "kms://key-a")
+                    {
+                        AccessIdentity = AccessIdentityA,
+                    },
+                    cancellationToken
+                )
+            )
             .ThrowsAsync(new InvalidOperationException("The key service is unavailable."))
             .Verifiable();
-        SetupGetRootKey(otherOwner, current: null, cancellationToken);
         MockOwnerRootKeyManager
             .Setup(x =>
                 x.SetAsync(
@@ -619,6 +655,168 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
         Assert.IsType<InvalidOperationException>(record.Exception);
         Assert.Contains(record.StructuredState ?? [], x => x is { Key: "TeamId", Value: TeamId });
         Assert.Contains(record.StructuredState ?? [], x => x is { Key: "Region", Value: Region });
+    }
+
+    [Fact]
+    public async Task ReconcileRootKeysAsync_WhenAPageHasThreeTeams_ReadsTheirKeysOnce()
+    {
+        using var cts = new CancellationTokenSource();
+        var cancellationToken = cts.Token;
+        string[] teamIds = [TeamId, "globex", "initech"];
+        SetupUnscoped();
+        SetupStoreManager();
+        SetupTeamPage(
+            cursor: null,
+            nextCursor: null,
+            [.. teamIds.Select(id => CreateRootKeyTeam(id, "kms://key-a"))],
+            cancellationToken
+        );
+        SetupGetManyRootKeys(
+            teamIds,
+            [
+                .. teamIds.Select(id =>
+                    CreateRootKeyInfo(
+                        "aws-kms",
+                        "kms://key-a",
+                        AccessIdentityA,
+                        new SecretOwner(SecretOwnerTypes.Team, id).Normalize()
+                    )
+                ),
+            ],
+            cancellationToken
+        );
+        SetupRootKeyPage(cursor: null, nextCursor: null, [], cancellationToken);
+
+        await Applier.ReconcileRootKeysAsync(cancellationToken);
+
+        Assert.Empty(Logger.Collector.GetSnapshot());
+        MockOwnerRootKeyManager.Verify(
+            x =>
+                x.GetManyAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<IReadOnlyCollection<string>>(),
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Once
+        );
+    }
+
+    [Fact]
+    public async Task ReconcileRootKeysAsync_WhenAKeysTeamIsGone_RemovesTheKey()
+    {
+        using var cts = new CancellationTokenSource();
+        var cancellationToken = cts.Token;
+        var goneOwner = new SecretOwner(SecretOwnerTypes.Team, "globex").Normalize();
+        SetupUnscoped();
+        SetupStoreManager();
+        SetupTeamPage(cursor: null, nextCursor: null, [], cancellationToken);
+        SetupRootKeyPage(
+            cursor: null,
+            nextCursor: null,
+            [CreateRootKeyInfo("aws-kms", "kms://key-a", AccessIdentityA, goneOwner)],
+            cancellationToken
+        );
+        SetupExistingTeams(["globex"], [], cancellationToken);
+        SetupRemoveRootKey(goneOwner, cancellationToken);
+
+        await Applier.ReconcileRootKeysAsync(cancellationToken);
+
+        Assert.Empty(Logger.Collector.GetSnapshot());
+    }
+
+    [Fact]
+    public async Task ReconcileRootKeysAsync_WhenAGoneTeamsKeyIsBeingRemoved_LeavesIt()
+    {
+        using var cts = new CancellationTokenSource();
+        var cancellationToken = cts.Token;
+        var goneOwner = new SecretOwner(SecretOwnerTypes.Team, "globex").Normalize();
+        SetupUnscoped();
+        SetupStoreManager();
+        SetupTeamPage(cursor: null, nextCursor: null, [], cancellationToken);
+        SetupRootKeyPage(
+            cursor: null,
+            nextCursor: null,
+            [
+                CreateRootKeyInfo("aws-kms", "kms://key-a", AccessIdentityA, goneOwner) with
+                {
+                    State = OwnerRootKeyStates.Removing,
+                },
+            ],
+            cancellationToken
+        );
+        SetupExistingTeams(["globex"], [], cancellationToken);
+
+        // Strict mocks: no RemoveAsync is set up, so a removal would fail the test.
+        await Applier.ReconcileRootKeysAsync(cancellationToken);
+
+        Assert.Empty(Logger.Collector.GetSnapshot());
+    }
+
+    [Fact]
+    public async Task ReconcileRootKeysAsync_WhenRemovingAGoneTeamsKeyFails_LogsAWarningAndRemovesTheNextKey()
+    {
+        using var cts = new CancellationTokenSource();
+        var cancellationToken = cts.Token;
+        var firstOwner = new SecretOwner(SecretOwnerTypes.Team, "globex").Normalize();
+        var secondOwner = new SecretOwner(SecretOwnerTypes.Team, "initech").Normalize();
+        SetupUnscoped();
+        SetupStoreManager();
+        SetupTeamPage(cursor: null, nextCursor: null, [], cancellationToken);
+        SetupRootKeyPage(
+            cursor: null,
+            nextCursor: null,
+            [
+                CreateRootKeyInfo("aws-kms", "kms://key-a", AccessIdentityA, firstOwner),
+                CreateRootKeyInfo("aws-kms", "kms://key-b", AccessIdentityA, secondOwner),
+            ],
+            cancellationToken
+        );
+        SetupExistingTeams(["globex", "initech"], [], cancellationToken);
+        MockOwnerRootKeyManager
+            .Setup(x => x.RemoveAsync(firstOwner, cancellationToken))
+            .ThrowsAsync(new InvalidOperationException("The key service is unavailable."))
+            .Verifiable();
+        SetupRemoveRootKey(secondOwner, cancellationToken);
+
+        await Applier.ReconcileRootKeysAsync(cancellationToken);
+
+        var record = Assert.Single(Logger.Collector.GetSnapshot());
+        Assert.Equal(LogLevel.Warning, record.Level);
+        Assert.Equal(EventIds.DirectoryTeamRootKeyNotApplied, record.Id.Id);
+        Assert.IsType<InvalidOperationException>(record.Exception);
+        Assert.Contains(record.StructuredState ?? [], x => x is { Key: "TeamId", Value: "globex" });
+        Assert.Contains(record.StructuredState ?? [], x => x is { Key: "Region", Value: Region });
+    }
+
+    [Fact]
+    public async Task ReconcileRootKeysAsync_WhenTheBatchReadFails_Propagates()
+    {
+        using var cts = new CancellationTokenSource();
+        var cancellationToken = cts.Token;
+        SetupUnscoped();
+        SetupStoreManager();
+        SetupTeamPage(
+            cursor: null,
+            nextCursor: null,
+            [CreateRootKeyTeam(TeamId, "kms://key-a")],
+            cancellationToken
+        );
+        MockOwnerRootKeyManager
+            .Setup(x =>
+                x.GetManyAsync(
+                    SecretOwnerTypes.Team,
+                    It.IsAny<IReadOnlyCollection<string>>(),
+                    cancellationToken
+                )
+            )
+            .ThrowsAsync(new InvalidOperationException("The key service is unavailable."))
+            .Verifiable();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Applier.ReconcileRootKeysAsync(cancellationToken)
+        );
+
+        Assert.Empty(Logger.Collector.GetSnapshot());
     }
 
     #endregion
@@ -823,10 +1021,11 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
     private static OwnerRootKeyInfo CreateRootKeyInfo(
         string keyWrapperName,
         string keyReference,
-        string? accessIdentity
+        string? accessIdentity,
+        SecretOwner? owner = null
     ) =>
         new(
-            TeamOwner,
+            owner ?? TeamOwner,
             keyWrapperName,
             keyReference,
             OwnerRootKeyStates.Active,
@@ -876,6 +1075,67 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
                 x.GetPageAsync(It.Is<PageRequest>(page => page.Cursor == cursor), cancellationToken)
             )
             .ReturnsAsync(new PagedResult<PersistedTeam> { Items = teams, NextCursor = nextCursor })
+            .Verifiable();
+
+    private void SetupGetManyRootKeys(
+        string[] teamIds,
+        OwnerRootKeyInfo[] keys,
+        CancellationToken cancellationToken
+    ) =>
+        MockOwnerRootKeyManager
+            .Setup(x =>
+                x.GetManyAsync(
+                    SecretOwnerTypes.Team,
+                    It.Is<IReadOnlyCollection<string>>(ids => ids.SequenceEqual(teamIds)),
+                    cancellationToken
+                )
+            )
+            .ReturnsAsync((IReadOnlyList<OwnerRootKeyInfo>)keys)
+            .Verifiable();
+
+    private void SetupRootKeyPage(
+        string? cursor,
+        string? nextCursor,
+        OwnerRootKeyInfo[] keys,
+        CancellationToken cancellationToken
+    ) =>
+        MockOwnerRootKeyManager
+            .Setup(x =>
+                x.GetPageAsync(
+                    SecretOwnerTypes.Team,
+                    It.Is<PageRequest>(page => page.Cursor == cursor),
+                    cancellationToken
+                )
+            )
+            .ReturnsAsync(
+                new PagedResult<OwnerRootKeyInfo> { Items = keys, NextCursor = nextCursor }
+            )
+            .Verifiable();
+
+    private void SetupExistingTeams(
+        string[] teamIds,
+        string[] existingTeamIds,
+        CancellationToken cancellationToken
+    ) =>
+        MockTeamStore
+            .Setup(x =>
+                x.GetConcurrencyTokensAsync(
+                    It.Is<IReadOnlyCollection<string>>(ids => ids.SequenceEqual(teamIds)),
+                    cancellationToken
+                )
+            )
+            .ReturnsAsync(
+                (IReadOnlyDictionary<string, string>)
+                    existingTeamIds.ToDictionary(id => id, _ => "token-1")
+            )
+            .Verifiable();
+
+    private void SetupRemoveRootKey(SecretOwner owner, CancellationToken cancellationToken) =>
+        MockOwnerRootKeyManager
+            .Setup(x => x.RemoveAsync(owner, cancellationToken))
+            .ReturnsAsync(
+                new OwnerRootKeyRemoval(null, true, new MasterKeyRewrapResult(0, 0, 0, 0))
+            )
             .Verifiable();
 
     private void SetupGetRootKey(
