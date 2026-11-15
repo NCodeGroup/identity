@@ -141,22 +141,16 @@ public class DirectoryClientOptionsValidatorTests : BaseTests
     }
 
     [Fact]
-    public void Validate_WhenPollIntervalIsOneMillisecond_FailsNamingTheValue()
-    {
-        AssertPollIntervalFails(TimeSpan.FromMilliseconds(1));
-    }
-
-    [Fact]
     public void Validate_WhenPollIntervalExceedsTheTimerMaximum_FailsNamingTheValue()
     {
         AssertPollIntervalFails(TimerPeriod.MaxValue + TimeSpan.FromMilliseconds(1));
     }
 
     [Fact]
-    public void Validate_WhenPollIntervalIsTwiceTheTimerMinimum_Succeeds()
+    public void Validate_WhenPollIntervalIsTheTimerMinimum_Succeeds()
     {
         var options = CreateOptions();
-        options.PollInterval = TimerPeriod.MinValue * 2;
+        options.PollInterval = TimerPeriod.MinValue;
 
         var result = CreateValidator().Validate(null, options);
 

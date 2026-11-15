@@ -58,14 +58,10 @@ internal sealed class DirectoryClientOptionsValidator : IValidateOptions<Directo
             );
         }
 
-        // The change feed waits half the interval with a timer, so the half must be a valid timer period too.
-        if (
-            !TimerPeriod.IsValid(options.PollInterval)
-            || !TimerPeriod.IsValid(options.PollInterval / 2)
-        )
+        if (!TimerPeriod.IsValid(options.PollInterval))
         {
             failures.Add(
-                $"{Prefix}:{nameof(DirectoryClientOptions.PollInterval)} '{options.PollInterval}' must be a time span from {TimerPeriod.MinValue * 2} to {TimerPeriod.MaxValue}."
+                $"{Prefix}:{nameof(DirectoryClientOptions.PollInterval)} '{options.PollInterval}' must be a time span from {TimerPeriod.MinValue} to {TimerPeriod.MaxValue}."
             );
         }
 

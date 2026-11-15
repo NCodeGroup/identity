@@ -39,7 +39,8 @@ public sealed class DirectoryClientOptions
 
     /// <summary>
     /// Gets or sets how often a cell that is not the control plane polls the directory's change feed to mirror the
-    /// team and platform documents. It must be positive. The default is 30 seconds.
+    /// team and platform documents. It is the period of the change feed's timer, from 1 millisecond to about 49.7
+    /// days. The default is 30 seconds.
     /// </summary>
     public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(30);
 }
