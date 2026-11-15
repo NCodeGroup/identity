@@ -4,6 +4,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Logging;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -49,7 +50,7 @@ internal sealed class DefaultPlatformDocumentApplier(
     {
         using var _ = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
 
-        var settings = JsonElement.Parse(document.SettingsJson);
+        var settings = document.Settings;
         var persistedSettings = new PersistedPlatformSettings
         {
             ConcurrencyToken = string.Empty,
@@ -63,7 +64,7 @@ internal sealed class DefaultPlatformDocumentApplier(
             var store = storeManager.GetStore<IPlatformStore>();
 
             var storedSettings = await store.GetSettingsOrDefaultAsync(cancellationToken);
-            previousSettings = storedSettings?.Value ?? JsonElement.Parse("{}");
+            previousSettings = storedSettings?.Value ?? JsonElements.EmptyObject;
 
             isApplied = await store.MirrorSettingsAsync(
                 persistedSettings,

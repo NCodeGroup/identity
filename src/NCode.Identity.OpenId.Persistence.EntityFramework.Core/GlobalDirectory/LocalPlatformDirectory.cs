@@ -46,6 +46,6 @@ internal sealed class LocalPlatformDirectory(
             return null;
         }
 
-        return new PlatformDocument { SettingsJson = settings.SettingsJson.GetRawText() };
+        return new PlatformDocument { Settings = settings.SettingsJson.Clone() };
     }
 }

@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
 using JetBrains.Annotations;
+using NCode.Identity.Json;
 
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
@@ -14,9 +16,9 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 public sealed record PlatformDocument
 {
     /// <summary>
-    /// Gets the platform's settings as a JSON object.
+    /// Gets the platform's settings, a JSON object.
     /// </summary>
-    public string SettingsJson { get; init; } = "{}";
+    public JsonElement Settings { get; init; } = JsonElements.EmptyObject;
 
     /// <summary>
     /// Gets the sequence number of the directory change that published this document, or <c>0</c> for a document that

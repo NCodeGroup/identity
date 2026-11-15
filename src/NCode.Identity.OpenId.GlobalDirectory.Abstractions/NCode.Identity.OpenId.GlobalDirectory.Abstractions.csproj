@@ -7,6 +7,10 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\NCode.Identity.Json\NCode.Identity.Json.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
         <PackageReference Include="JetBrains.Annotations" />
     </ItemGroup>
 </Project>

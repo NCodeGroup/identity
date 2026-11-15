@@ -5,6 +5,7 @@ using System.Data;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Entities;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
@@ -996,7 +997,7 @@ internal sealed class DefaultDirectoryStore(
         if (
             !TryReadMaxTenants<PlatformDocument>(
                 platformJson,
-                document => document.SettingsJson,
+                document => document.Settings,
                 out var platformLimit
             )
         )
@@ -1035,7 +1036,7 @@ internal sealed class DefaultDirectoryStore(
             if (
                 !TryReadMaxTenants<TeamDocument>(
                     team.DocumentJson,
-                    document => document.SettingsJson,
+                    document => document.Settings,
                     out var ownLimit
                 )
             )
@@ -1146,12 +1147,12 @@ internal sealed class DefaultDirectoryStore(
     /// Reads the <c>max_tenants</c> setting of a platform or team document.
     /// </summary>
     /// <param name="documentJson">The stored document, or <c>null</c> when there is none.</param>
-    /// <param name="getSettingsJson">Gets the settings JSON object of the deserialized document.</param>
+    /// <param name="getSettings">Gets the settings object of the deserialized document.</param>
     /// <param name="maxTenants">The limit, or <c>null</c> when the document has no <c>max_tenants</c> setting.</param>
     /// <returns><c>true</c> when the setting is absent or a non-negative integer; otherwise, <c>false</c> because the document or the setting cannot be read.</returns>
     private static bool TryReadMaxTenants<TDocument>(
         string? documentJson,
-        Func<TDocument, string?> getSettingsJson,
+        Func<TDocument, JsonElement> getSettings,
         out int? maxTenants
     )
     {
@@ -1164,17 +1165,24 @@ internal sealed class DefaultDirectoryStore(
         try
         {
             var document = JsonSerializer.Deserialize<TDocument>(documentJson, JsonOptions);
-            var settingsJson = document is null ? null : getSettingsJson(document);
-            if (string.IsNullOrEmpty(settingsJson))
+            if (document is null)
             {
                 return true;
             }
 
-            var settings = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(
-                settingsJson,
-                JsonOptions
-            );
-            if (settings is null || !settings.TryGetValue(MaxTenantsSettingName, out var element))
+            var settings = getSettings(document);
+            if (settings.IsNullOrUndefined())
+            {
+                return true;
+            }
+
+            // A settings value that is not an object can name no limit, so it is unreadable, never unlimited.
+            if (settings.ValueKind != JsonValueKind.Object)
+            {
+                return false;
+            }
+
+            if (!settings.TryGetProperty(MaxTenantsSettingName, out var element))
             {
                 return true;
             }

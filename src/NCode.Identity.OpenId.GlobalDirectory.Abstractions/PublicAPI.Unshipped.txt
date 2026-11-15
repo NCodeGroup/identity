@@ -95,8 +95,8 @@ NCode.Identity.OpenId.GlobalDirectory.MoveResult.IsMoved.get -> bool
 NCode.Identity.OpenId.GlobalDirectory.PlatformDocument
 NCode.Identity.OpenId.GlobalDirectory.PlatformDocument.Sequence.get -> long
 NCode.Identity.OpenId.GlobalDirectory.PlatformDocument.Sequence.init -> void
-NCode.Identity.OpenId.GlobalDirectory.PlatformDocument.SettingsJson.get -> string!
-NCode.Identity.OpenId.GlobalDirectory.PlatformDocument.SettingsJson.init -> void
+NCode.Identity.OpenId.GlobalDirectory.PlatformDocument.Settings.get -> System.Text.Json.JsonElement
+NCode.Identity.OpenId.GlobalDirectory.PlatformDocument.Settings.init -> void
 NCode.Identity.OpenId.GlobalDirectory.ReservationResult
 NCode.Identity.OpenId.GlobalDirectory.ReservationResult.ConflictDetail.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.ReservationResult.IsReserved.get -> bool
@@ -111,8 +111,8 @@ NCode.Identity.OpenId.GlobalDirectory.TeamDocument.RootKeys.get -> System.Collec
 NCode.Identity.OpenId.GlobalDirectory.TeamDocument.RootKeys.init -> void
 NCode.Identity.OpenId.GlobalDirectory.TeamDocument.Sequence.get -> long
 NCode.Identity.OpenId.GlobalDirectory.TeamDocument.Sequence.init -> void
-NCode.Identity.OpenId.GlobalDirectory.TeamDocument.SettingsJson.get -> string!
-NCode.Identity.OpenId.GlobalDirectory.TeamDocument.SettingsJson.init -> void
+NCode.Identity.OpenId.GlobalDirectory.TeamDocument.Settings.get -> System.Text.Json.JsonElement
+NCode.Identity.OpenId.GlobalDirectory.TeamDocument.Settings.init -> void
 NCode.Identity.OpenId.GlobalDirectory.TeamDocument.TeamId.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.TeamDocument.TeamId.init -> void
 NCode.Identity.OpenId.GlobalDirectory.TeamRootKeyReference

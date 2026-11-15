@@ -178,7 +178,7 @@ internal sealed class LocalTeamDirectory(
             DisplayName = team.DisplayName,
             IsDisabled = team.IsDisabled,
             ParentTeamId = team.ParentTeamId,
-            SettingsJson = team.SettingsJson.GetRawText(),
+            Settings = team.SettingsJson.Clone(),
             RootKeys = rootKeys.ToImmutableDictionary(
                 pair => pair.Key,
                 pair => new TeamRootKeyReference(pair.Value.KeyWrapperName, pair.Value.KeyReference)

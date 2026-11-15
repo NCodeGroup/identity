@@ -62,7 +62,7 @@ internal sealed class DefaultTeamDocumentApplier(
     {
         using var _ = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
 
-        var settings = JsonElement.Parse(document.SettingsJson);
+        var settings = document.Settings;
         var persistedTeam = new PersistedTeam
         {
             TeamId = document.TeamId,

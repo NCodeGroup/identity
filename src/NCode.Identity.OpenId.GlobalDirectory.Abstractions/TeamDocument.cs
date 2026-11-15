@@ -3,7 +3,9 @@
 
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
 using JetBrains.Annotations;
+using NCode.Identity.Json;
 
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
@@ -35,9 +37,9 @@ public sealed record TeamDocument
     public string? ParentTeamId { get; init; }
 
     /// <summary>
-    /// Gets the team's settings as a JSON object.
+    /// Gets the team's settings, a JSON object.
     /// </summary>
-    public string SettingsJson { get; init; } = "{}";
+    public JsonElement Settings { get; init; } = JsonElements.EmptyObject;
 
     /// <summary>
     /// Gets the team's root keys, keyed by region.

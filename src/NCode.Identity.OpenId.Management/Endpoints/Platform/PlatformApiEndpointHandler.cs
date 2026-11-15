@@ -570,7 +570,7 @@ internal class PlatformApiEndpointHandler(
         try
         {
             await PlatformDirectory.PublishAsync(
-                new PlatformDocument { SettingsJson = settings.GetRawText() },
+                new PlatformDocument { Settings = settings.Clone() },
                 cancellationToken
             );
             return null;
