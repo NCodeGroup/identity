@@ -266,6 +266,18 @@ applied. Rendered for its side effect only.
 {{- if and .Values.directory.url (not .Values.directory.keyRing) }}
 {{- fail "directory.keyRing must name the key ring that signs the cell's client assertions when directory.url is set." }}
 {{- end }}
+{{- if and (not .Values.directory.url) .Values.directory.clientId }}
+{{- fail "directory.clientId is set and directory.url is empty: set directory.url, or clear directory.clientId." }}
+{{- end }}
+{{- if and (not .Values.directory.url) .Values.directory.keyRing }}
+{{- fail "directory.keyRing is set and directory.url is empty: set directory.url, or clear directory.keyRing." }}
+{{- end }}
+{{- if and (not .Values.directory.url) .Values.directory.keys.pemSecret }}
+{{- fail "directory.keys.pemSecret is set and directory.url is empty: set directory.url, or clear directory.keys.pemSecret." }}
+{{- end }}
+{{- if and (not .Values.directory.url) .Values.directory.keys.remoteKeys }}
+{{- fail "directory.keys.remoteKeys is set and directory.url is empty: set directory.url, or clear directory.keys.remoteKeys." }}
+{{- end }}
 {{- if and .Values.directory.url .Values.directory.keyRing }}
 {{- $directoryKeys := .Values.directory.keys }}
 {{- if and (not $directoryKeys.pemSecret) (not $directoryKeys.remoteKeys) }}

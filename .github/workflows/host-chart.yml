@@ -160,6 +160,11 @@ jobs:
           refuse --set backendTls.clientCertificate.commonName=
           refuse --set 'backendTls.clientCertificate.commonName=a b'
           refuse --set backendTls.clientCertificate.required=yes
+          # The directory client's values need directory.url: without it the cell keeps the local adapters and ignores them.
+          refuse --set directory.clientId=cell-a
+          refuse --set directory.keyRing=cell-client
+          refuse --set directory.keys.pemSecret=cell-client-key
+          refuse --set directory.keys.remoteKeys.cell-client.provider=aws-kms
           # The chart cannot know the CA behind a serving Secret of the operator's, so the controller's Secret is required.
           refuse_console() {
             if helm template release "$CHART" --values "$CHART/ci/management-console-values.yaml" "$@" > /dev/null 2>&1; then
@@ -749,6 +754,17 @@ jobs:
           refuse --set directory.migrations.database.existingSecret=
           refuse --set directory.migrations.database.connectionStringKey=
           refuse --set directory.tls.existingSecret=
+
+      - name: Run the directory's migration Job under the operator's ServiceAccount
+        run: |
+          # The hook runs before the chart's own account exists on a first install, so it names the account only when the
+          # operator brings one.
+          if ! helm template release "$CHART" --values "$CHART/ci/directory-values.yaml" \
+            --set directory.serviceAccount.create=false --set directory.serviceAccount.name=directory-sa \
+            --show-only templates/directory-migration-job.yaml | grep -q 'serviceAccountName: directory-sa'; then
+            echo "::error::The directory's migration Job does not name the operator's ServiceAccount."
+            exit 1
+          fi
 
       - name: Render the directory
         run: |
