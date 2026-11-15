@@ -409,6 +409,24 @@
             }
           }
         },
+        "serviceAccount": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "create": {
+              "type": "boolean",
+              "description": "Creates the directory's ServiceAccount."
+            },
+            "name": {
+              "type": "string",
+              "description": "The directory's ServiceAccount; empty uses the directory's full name when create is true and 'default' otherwise."
+            },
+            "annotations": {
+              "type": "object",
+              "description": "Annotations for the directory's ServiceAccount."
+            }
+          }
+        },
         "migrations": {
           "type": "object",
           "additionalProperties": false,

@@ -1140,6 +1140,17 @@ app.kubernetes.io/component: directory
 {{- end }}
 
 {{/*
+The name of the directory's ServiceAccount.
+*/}}
+{{- define "identity-host.directory.serviceAccountName" -}}
+{{- if .Values.directory.serviceAccount.create }}
+{{- default (include "identity-host.directory.fullname" .) .Values.directory.serviceAccount.name }}
+{{- else }}
+{{- default "default" .Values.directory.serviceAccount.name }}
+{{- end }}
+{{- end }}
+
+{{/*
 The directory's container image: the digest when one is set, else the tag, which defaults to the chart's appVersion.
 */}}
 {{- define "identity-host.directory.image" -}}

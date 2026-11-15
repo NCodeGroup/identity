@@ -23,7 +23,8 @@ spec:
       labels:
         {{- include "identity-host.directory.labels" . | nindent 8 }}
     spec:
-      # The directory never calls the Kubernetes API, so the pod uses the namespace's default account.
+      # The directory never calls the Kubernetes API, so its own account mounts no token.
+      serviceAccountName: {{ include "identity-host.directory.serviceAccountName" . }}
       automountServiceAccountToken: false
       {{- with include "identity-host.imagePullSecrets" . }}
       {{- . | trim | nindent 6 }}

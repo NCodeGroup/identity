@@ -123,6 +123,13 @@ directory:
   service:
     type: ClusterIP
     port: 443
+  # The ServiceAccount the directory's pods run under, which mounts no token because the directory never calls the
+  # Kubernetes API. create makes it; name is its name, or the directory's full name when create is true and empty, or
+  # 'default' when create is false and empty. The migration Job runs under the namespace's default account.
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
   migrations:
     # The owner's connection (ConnectionStrings:directory-migration), the one that creates and changes the directory's
     # schema and grants the runtime role. Required when enabled. Only the migration Job reads it, so the Deployment

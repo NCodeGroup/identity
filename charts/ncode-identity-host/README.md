@@ -211,6 +211,12 @@ and pre-upgrade Job that applies its migrations, and requires:
 `directory.extraEnvFrom`, `directory.extraVolumes` and `directory.extraVolumeMounts` tune the directory's Deployment and
 Job. The directory host answers audience `urn:ncode:directory` with scope `directory`.
 
+The directory runs under its own ServiceAccount, without a token mounted, because it never calls the Kubernetes API.
+`directory.serviceAccount` names or creates it: `create` (default `true`) makes it, `name` overrides its name, which is
+the directory's full name, `<release full name>-directory`, when `create` is `true` and `name` is empty, and `default`
+when `create` is `false` and `name` is empty, and `annotations` annotate it. The migration Job runs under the
+namespace's default account.
+
 `backup.location` names where the cell's backups are kept, such as a bucket or a volume snapshot class. When set, the
 host and migration pods carry it as the `ncode.io/backup-location` annotation for the backup tool to read; the chart
 starts no backup itself. `telemetry.otlpEndpoint` sets `OTEL_EXPORTER_OTLP_ENDPOINT` on every pod, and every pod carries
