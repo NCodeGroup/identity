@@ -6151,9 +6151,11 @@ Until the first stable release, the [Unreleased] section describes the product a
 - **DPoP nonces and the DPoP-proof and client-assertion replay records live in the shared-state port, scoped by
   tenant.** They are recorded in `IExpiringKeySet` under keys that name the tenant and digest the request-supplied
   values, so tenants sharing a store never collide and a crafted `jti` cannot make a key ambiguous or unbounded; if the
-  store is unreachable, these checks fail closed. `IDPoPProofReplayCache.TryRecordAsync` and
-  `IClientAssertionReplayCache.TryRecordAsync` take the request's `OpenIdContext` as their first parameter. The server
-  registers no `IDistributedCache`, so a host that resolves one registers its own
+  store is unreachable, these checks fail closed. The keys are built by `ExpiringKeys.Create` in
+  `NCode.Identity.SharedState.Abstractions`, which a cell's management DPoP replay records use too, scoped by the
+  cell's name. `IDPoPProofReplayCache.TryRecordAsync` and `IClientAssertionReplayCache.TryRecordAsync` take the
+  request's `OpenIdContext` as their first parameter. The server registers no `IDistributedCache`, so a host that
+  resolves one registers its own
   ([ADR-1164](docs/decisions/1164-replicas-share-expiring-keys-values-and-indexes-through-ports-with-in-process-and-valkey-adapters.md)).
 
 - **Session creation and termination are audited and logged.** `IAuditEventRecorder.RecordSessionCreatedAsync` and

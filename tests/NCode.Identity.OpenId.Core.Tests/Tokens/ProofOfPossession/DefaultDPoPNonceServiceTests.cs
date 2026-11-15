@@ -3,7 +3,6 @@
 
 using Microsoft.Extensions.Time.Testing;
 using Moq;
-using NCode.Identity.OpenId.Authentication.SharedState;
 using NCode.Identity.OpenId.Authentication.Tokens.ProofOfPossession;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Tenants;

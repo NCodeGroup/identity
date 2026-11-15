@@ -18,6 +18,8 @@ NCode.Identity.SharedState.ExpiringCounterIncrement.ReferenceKey.get -> string?
 NCode.Identity.SharedState.ExpiringCounterIncrement.ReferenceKey.init -> void
 NCode.Identity.SharedState.ExpiringCounterIncrement.ReferenceWeight.get -> double
 NCode.Identity.SharedState.ExpiringCounterIncrement.ReferenceWeight.init -> void
+NCode.Identity.SharedState.ExpiringKeys
+static NCode.Identity.SharedState.ExpiringKeys.Create(string! purpose, string! tenantId, params System.ReadOnlySpan<string!> components) -> string!
 NCode.Identity.SharedState.ExpiringValue
 NCode.Identity.SharedState.ExpiringValue.ExpiringValue() -> void
 NCode.Identity.SharedState.ExpiringValue.ExpiringValue(System.ReadOnlyMemory<byte> Value, long Version) -> void

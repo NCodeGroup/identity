@@ -4,7 +4,6 @@
 using System.Text;
 using Microsoft.Extensions.Logging;
 using NCode.Identity.OpenId.Authentication.Logging;
-using NCode.Identity.OpenId.Authentication.SharedState;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.SharedState;

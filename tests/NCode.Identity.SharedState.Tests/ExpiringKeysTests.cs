@@ -6,10 +6,9 @@ using System.Security.Cryptography;
 using System.Text;
 using NCode.Buffers;
 using NCode.Encoders;
-using NCode.Identity.OpenId.Authentication.SharedState;
 using Xunit;
 
-namespace NCode.Identity.OpenId.Core.Tests.SharedState;
+namespace NCode.Identity.SharedState.Tests;
 
 public sealed class ExpiringKeysTests
 {
