@@ -56,6 +56,10 @@ seams, facades, and `InternalsVisibleTo` wiring that make code mockable — live
 - 👁 **Prefer the size-specific xUnit assertions** — template [Assertions](csharp-tests.instructions.md#assertions).
 - 👁 **Compare an `ImmutableArray<T>` by its elements** — template
   [Assertions](csharp-tests.instructions.md#assertions).
+- 👁 **Compare a record that holds a `JsonElement` member by member.** A record's generated equality compares a
+  `JsonElement` by reference, so `Assert.Equal` of two records with equal settings fails unless both hold the same
+  element. Assert `JsonElement.DeepEquals(expected.Settings, actual.Settings)` for the element and `Assert.Equal` for
+  each other member (`RemotePlatformDirectoryTests`); a compact expected text compares with `GetRawText()`.
 - 👁 **Assert on the exception type the contract guarantees** — template
   [Assertions](csharp-tests.instructions.md#assertions). Signing with a public-only RSA key raises
   `CryptographicException` on Windows and a derived `Interop+Crypto+OpenSslCryptographicException` on OpenSSL-backed

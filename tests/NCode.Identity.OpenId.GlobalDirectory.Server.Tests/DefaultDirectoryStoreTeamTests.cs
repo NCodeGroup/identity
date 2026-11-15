@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Collections.Immutable;
+using System.Text.Json;
 using Xunit;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
@@ -82,7 +83,7 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
             DisplayName = "Team 1",
             IsDisabled = false,
             ParentTeamId = "team-0",
-            SettingsJson = SettingsWithLimit(3),
+            Settings = JsonElement.Parse(SettingsWithLimit(3)),
             RootKeys = ImmutableDictionary<string, TeamRootKeyReference>
                 .Empty.Add(
                     "region-a",
@@ -102,7 +103,7 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
         Assert.Equal("team-1", stored.TeamId);
         Assert.Equal("Team 1", stored.DisplayName);
         Assert.Equal("team-0", stored.ParentTeamId);
-        Assert.Equal(SettingsWithLimit(3), stored.SettingsJson);
+        Assert.Equal(SettingsWithLimit(3), stored.Settings.GetRawText());
         Assert.Equal(["region-a", "region-b"], stored.RootKeys.Keys.Order(StringComparer.Ordinal));
         var regionA = stored.RootKeys["region-a"];
         Assert.Equal("aws-kms", regionA.KeyWrapperName);
@@ -187,7 +188,7 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
         Assert.Equal([2L, 3L], changes.Select(change => change.Sequence));
         Assert.Equal("team-2", changes[0].TeamId);
         Assert.Equal("TEAM-1", changes[1].TeamId);
-        Assert.Equal(SettingsWithLimit(2), changes[1].Document?.SettingsJson);
+        Assert.Equal(SettingsWithLimit(2), changes[1].Document?.Settings.GetRawText());
     }
 
     #endregion
@@ -294,7 +295,7 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
         Assert.Null(changes[1].Document);
         Assert.NotNull(changes[1].Platform);
         Assert.Equal(3, changes[1].Platform?.Sequence);
-        Assert.Equal(SettingsWithLimit(4), changes[1].Platform?.SettingsJson);
+        Assert.Equal(SettingsWithLimit(4), changes[1].Platform?.Settings.GetRawText());
 
         Assert.Equal(4, changes[2].Sequence);
         Assert.Equal("team-2", changes[2].TeamId);
@@ -318,8 +319,8 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
         Assert.Equal([3L, 5L, 6L, 7L], changes.Select(change => change.Sequence));
         Assert.Equal(["team-1", "team-2", null, "team-3"], changes.Select(change => change.TeamId));
         Assert.Null(changes[0].Document);
-        Assert.Equal(SettingsWithLimit(2), changes[1].Document?.SettingsJson);
-        Assert.Equal(SettingsWithLimit(5), changes[2].Platform?.SettingsJson);
+        Assert.Equal(SettingsWithLimit(2), changes[1].Document?.Settings.GetRawText());
+        Assert.Equal(SettingsWithLimit(5), changes[2].Platform?.Settings.GetRawText());
     }
 
     [Fact]

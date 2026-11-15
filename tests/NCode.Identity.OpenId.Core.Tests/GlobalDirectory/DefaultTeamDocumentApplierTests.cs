@@ -801,7 +801,7 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
             TeamId = TeamId,
             DisplayName = "Acme",
             IsDisabled = false,
-            SettingsJson = settingsJson,
+            Settings = JsonElement.Parse(settingsJson),
             Sequence = sequence,
         };
 

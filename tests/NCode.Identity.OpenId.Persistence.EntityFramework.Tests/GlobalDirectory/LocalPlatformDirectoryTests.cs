@@ -79,7 +79,7 @@ public sealed class LocalPlatformDirectoryTests : IDisposable
     public async Task PublishAsync_WhenCalled_WritesNothing()
     {
         await Directory.PublishAsync(
-            new PlatformDocument { SettingsJson = """{"max_tenants":3}""" },
+            new PlatformDocument { Settings = JsonElement.Parse("""{"max_tenants":3}""") },
             CancellationToken.None
         );
 
@@ -100,7 +100,7 @@ public sealed class LocalPlatformDirectoryTests : IDisposable
         var document = await Directory.GetOrDefaultAsync(CancellationToken.None);
 
         Assert.NotNull(document);
-        Assert.Equal("""{"max_tenants":3}""", document.SettingsJson);
+        Assert.Equal("""{"max_tenants":3}""", document.Settings.GetRawText());
         Assert.Equal(0, document.Sequence);
     }
 

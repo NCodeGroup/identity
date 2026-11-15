@@ -82,7 +82,11 @@ public sealed class DefaultPlatformDocumentApplierTests : BaseTests
         SetupCommand("{}", """{"flag":true}""");
 
         await Applier.ApplyAsync(
-            new PlatformDocument { SettingsJson = """{"flag":true}""", Sequence = 5 },
+            new PlatformDocument
+            {
+                Settings = JsonElement.Parse("""{"flag":true}"""),
+                Sequence = 5,
+            },
             cancellationToken
         );
     }
@@ -107,7 +111,11 @@ public sealed class DefaultPlatformDocumentApplierTests : BaseTests
         SetupCommand("""{"flag":false}""", """{"flag":true}""");
 
         await Applier.ApplyAsync(
-            new PlatformDocument { SettingsJson = """{"flag":true}""", Sequence = 6 },
+            new PlatformDocument
+            {
+                Settings = JsonElement.Parse("""{"flag":true}"""),
+                Sequence = 6,
+            },
             CancellationToken.None
         );
     }
@@ -125,7 +133,11 @@ public sealed class DefaultPlatformDocumentApplierTests : BaseTests
 
         // Strict mocks: neither a save nor a command is set up, so either would fail the test.
         await Applier.ApplyAsync(
-            new PlatformDocument { SettingsJson = """{"flag":true}""", Sequence = 2 },
+            new PlatformDocument
+            {
+                Settings = JsonElement.Parse("""{"flag":true}"""),
+                Sequence = 2,
+            },
             CancellationToken.None
         );
     }
@@ -146,7 +158,11 @@ public sealed class DefaultPlatformDocumentApplierTests : BaseTests
         SetupFailingCommand(new InvalidOperationException("The mediator is unavailable."));
 
         await Applier.ApplyAsync(
-            new PlatformDocument { SettingsJson = """{"flag":true}""", Sequence = 7 },
+            new PlatformDocument
+            {
+                Settings = JsonElement.Parse("""{"flag":true}"""),
+                Sequence = 7,
+            },
             cancellationToken
         );
 

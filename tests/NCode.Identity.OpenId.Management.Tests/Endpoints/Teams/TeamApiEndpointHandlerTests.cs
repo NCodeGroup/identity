@@ -1223,7 +1223,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
         Assert.NotNull(published);
         Assert.Equal(TeamId, published.TeamId);
         Assert.Equal("Team One", published.DisplayName);
-        Assert.Equal("{}", published.SettingsJson);
+        Assert.Equal("{}", published.Settings.GetRawText());
         Assert.Null(published.ParentTeamId);
         Assert.Empty(published.RootKeys);
     }
@@ -1743,7 +1743,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
         Assert.NotNull(published);
         Assert.Equal(TeamId, published.TeamId);
         Assert.Equal("Renamed Team", published.DisplayName);
-        Assert.Equal(team.Settings.Value.GetRawText(), published.SettingsJson);
+        Assert.True(JsonElement.DeepEquals(team.Settings.Value, published.Settings));
     }
 
     [Fact]
@@ -2452,8 +2452,8 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
         Assert.NotNull(published);
         Assert.Equal(TeamId, published.TeamId);
         Assert.Equal("Team One", published.DisplayName);
-        Assert.Equal(settings.Value.GetRawText(), published.SettingsJson);
-        Assert.Contains("\"foo\"", published.SettingsJson);
+        Assert.True(JsonElement.DeepEquals(settings.Value, published.Settings));
+        Assert.True(published.Settings.TryGetProperty("foo", out _));
     }
 
     [Fact]

@@ -108,7 +108,7 @@ public class RemoteTeamDirectoryTests : RemoteDirectoryTestBase
                 Sequence = 2,
                 Platform = new PlatformDocument
                 {
-                    SettingsJson = """{"max_tenants":5}""",
+                    Settings = JsonElement.Parse("""{"max_tenants":5}"""),
                     Sequence = 2,
                 },
             },
@@ -123,7 +123,12 @@ public class RemoteTeamDirectoryTests : RemoteDirectoryTestBase
         Assert.Null(result[0].Platform);
         Assert.Null(result[1].TeamId);
         Assert.Null(result[1].Document);
-        Assert.Equal(changes[1].Platform, result[1].Platform);
+        var expectedPlatform = changes[1].Platform;
+        var platform = result[1].Platform;
+        Assert.NotNull(expectedPlatform);
+        Assert.NotNull(platform);
+        Assert.True(JsonElement.DeepEquals(expectedPlatform.Settings, platform.Settings));
+        Assert.Equal(expectedPlatform.Sequence, platform.Sequence);
     }
 
     #endregion

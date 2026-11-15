@@ -263,7 +263,7 @@ public sealed class LocalTeamDirectoryTests : IDisposable
         Assert.NotNull(document);
         Assert.Equal(TeamId, document.TeamId);
         Assert.Equal("Platform team", document.DisplayName);
-        Assert.Equal("""{"max_tenants":3}""", document.SettingsJson);
+        Assert.Equal("""{"max_tenants":3}""", document.Settings.GetRawText());
         Assert.Empty(document.RootKeys);
         Assert.Equal(0, document.Sequence);
     }

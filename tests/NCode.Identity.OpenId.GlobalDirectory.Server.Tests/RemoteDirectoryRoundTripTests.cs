@@ -199,7 +199,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
             DisplayName = $"Team {teamId}",
             IsDisabled = false,
             ParentTeamId = parentTeamId,
-            SettingsJson = settingsJson,
+            Settings = JsonElement.Parse(settingsJson),
             RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty.Add(
                 "default",
                 new TeamRootKeyReference("aws-kms", "key-reference")
@@ -472,7 +472,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
         Assert.Equal("team-1", document.TeamId);
         Assert.Equal("Team team-1", document.DisplayName);
         Assert.Null(document.ParentTeamId);
-        Assert.Equal(SettingsWithLimit(3), document.SettingsJson);
+        Assert.Equal(SettingsWithLimit(3), document.Settings.GetRawText());
         var rootKey = document.RootKeys["default"];
         Assert.Equal("aws-kms", rootKey.KeyWrapperName);
         Assert.Equal("key-reference", rootKey.KeyReference);
@@ -509,13 +509,13 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
         Assert.Null(await Platform.GetOrDefaultAsync(CancellationToken.None));
 
         await Platform.PublishAsync(
-            new PlatformDocument { SettingsJson = SettingsWithLimit(5) },
+            new PlatformDocument { Settings = JsonElement.Parse(SettingsWithLimit(5)) },
             CancellationToken.None
         );
 
         var document = await Platform.GetOrDefaultAsync(CancellationToken.None);
         Assert.NotNull(document);
-        Assert.Equal(SettingsWithLimit(5), document.SettingsJson);
+        Assert.Equal(SettingsWithLimit(5), document.Settings.GetRawText());
         Assert.Equal(1, document.Sequence);
     }
 
@@ -527,7 +527,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
     public async Task ReserveAsync_WhenThePlatformIsAtItsLimit_ConflictsWithTheTeamLimitText()
     {
         await Platform.PublishAsync(
-            new PlatformDocument { SettingsJson = SettingsWithLimit(1) },
+            new PlatformDocument { Settings = JsonElement.Parse(SettingsWithLimit(1)) },
             CancellationToken.None
         );
         await Teams.PublishAsync(CreateTeam("team-1"), CancellationToken.None);
@@ -588,7 +588,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
         await Teams.PublishAsync(CreateTeam("team-1"), CancellationToken.None);
         await Teams.PublishAsync(CreateTeam("team-2"), CancellationToken.None);
         await Platform.PublishAsync(
-            new PlatformDocument { SettingsJson = SettingsWithLimit(5) },
+            new PlatformDocument { Settings = JsonElement.Parse(SettingsWithLimit(5)) },
             CancellationToken.None
         );
         await Teams.RetireAsync("team-2", CancellationToken.None);
@@ -610,7 +610,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
         Assert.Null(platformChange.TeamId);
         Assert.Null(platformChange.Document);
         Assert.NotNull(platformChange.Platform);
-        Assert.Equal(SettingsWithLimit(5), platformChange.Platform.SettingsJson);
+        Assert.Equal(SettingsWithLimit(5), platformChange.Platform.Settings.GetRawText());
         Assert.True(platformChange.Sequence > teamChange.Sequence);
         var retirement = Assert.Single(secondPage);
         Assert.Equal("team-2", retirement.TeamId);

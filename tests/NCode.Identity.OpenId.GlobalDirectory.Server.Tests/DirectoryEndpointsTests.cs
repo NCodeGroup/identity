@@ -39,6 +39,8 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         "The cell's management URL is an absolute https URL, or an http URL on a loopback host or in local "
         + "development, with no user information, query or fragment.";
 
+    private const string SettingsNotAnObjectDetail = "The document's settings are a JSON object.";
+
     private static JsonSerializerOptions WebOptions { get; } = new(JsonSerializerDefaults.Web);
 
     private static string TeamTooLongDetail =>
@@ -1413,6 +1415,35 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         Assert.Equal(TeamTooLongDetail, await ReadProblemDetailAsync(response));
     }
 
+    [Theory]
+    [InlineData("[1]")]
+    [InlineData("null")]
+    [InlineData("\"{}\"")]
+    [InlineData("5")]
+    public async Task PublishTeam_WhenTheSettingsAreNotAnObject_AnswersBadRequest(
+        string settingsJson
+    )
+    {
+        AuthenticateAsControlPlane();
+
+        var response = await Client.PutAsJsonAsync(
+            $"/directory/v1/teams/{TeamId}/document",
+            new TeamDocument
+            {
+                TeamId = TeamId,
+                DisplayName = "Team One",
+                IsDisabled = false,
+                Settings = JsonElement.Parse(settingsJson),
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(SettingsNotAnObjectDetail, await ReadProblemDetailAsync(response));
+        var getResponse = await Client.GetAsync($"/directory/v1/teams/{TeamId}/document");
+        Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
+    }
+
     [Fact]
     public async Task GetTeamDocument_WhenNotPublished_AnswersNotFound()
     {
@@ -1589,7 +1620,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         );
         await Client.PutAsJsonAsync(
             "/directory/v1/platform/document",
-            new PlatformDocument { SettingsJson = "{\"max_tenants\":5}" },
+            new PlatformDocument { Settings = JsonElement.Parse("""{"max_tenants":5}""") },
             WebOptions
         );
 
@@ -1632,15 +1663,38 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
         var publishResponse = await Client.PutAsJsonAsync(
             "/directory/v1/platform/document",
-            new PlatformDocument { SettingsJson = "{\"max_tenants\":5}" },
+            new PlatformDocument { Settings = JsonElement.Parse("""{"max_tenants":5}""") },
             WebOptions
         );
         var getResponse = await Client.GetAsync("/directory/v1/platform/document");
 
         Assert.Equal(HttpStatusCode.OK, publishResponse.StatusCode);
         var document = await ReadAsync<PlatformDocument>(getResponse);
-        Assert.Equal("{\"max_tenants\":5}", document.SettingsJson);
+        Assert.Equal("""{"max_tenants":5}""", document.Settings.GetRawText());
         Assert.True(document.Sequence > 0);
+    }
+
+    [Theory]
+    [InlineData("[1]")]
+    [InlineData("null")]
+    [InlineData("\"{}\"")]
+    [InlineData("5")]
+    public async Task PublishPlatformDocument_WhenTheSettingsAreNotAnObject_AnswersBadRequest(
+        string settingsJson
+    )
+    {
+        AuthenticateAsControlPlane();
+
+        var response = await Client.PutAsJsonAsync(
+            "/directory/v1/platform/document",
+            new PlatformDocument { Settings = JsonElement.Parse(settingsJson) },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(SettingsNotAnObjectDetail, await ReadProblemDetailAsync(response));
+        var getResponse = await Client.GetAsync("/directory/v1/platform/document");
+        Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
     }
 
     [Fact]
@@ -1650,7 +1704,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
         var response = await Client.PutAsJsonAsync(
             "/directory/v1/platform/document",
-            new PlatformDocument { SettingsJson = "{\"max_tenants\":5}" },
+            new PlatformDocument { Settings = JsonElement.Parse("""{"max_tenants":5}""") },
             WebOptions
         );
 

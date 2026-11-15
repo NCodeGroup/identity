@@ -143,7 +143,7 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
                 DisplayName = teamId,
                 IsDisabled = false,
                 ParentTeamId = parentTeamId,
-                SettingsJson = SettingsWithLimit(maxTenants),
+                Settings = JsonElement.Parse(SettingsWithLimit(maxTenants)),
             },
             cancellationToken
         );
@@ -153,7 +153,7 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
         CancellationToken cancellationToken = default
     ) =>
         Platform.PublishAsync(
-            new PlatformDocument { SettingsJson = SettingsWithLimit(maxTenants) },
+            new PlatformDocument { Settings = JsonElement.Parse(SettingsWithLimit(maxTenants)) },
             cancellationToken
         );
 

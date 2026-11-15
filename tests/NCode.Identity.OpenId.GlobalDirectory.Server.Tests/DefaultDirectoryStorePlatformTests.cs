@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Text.Json;
 using Xunit;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
@@ -25,13 +26,17 @@ public sealed class DefaultDirectoryStorePlatformTests : DefaultDirectoryStoreTe
     public async Task PublishAsync_WhenNothingIsPublished_StoresTheDocumentWithItsSequence()
     {
         await Platform.PublishAsync(
-            new PlatformDocument { SettingsJson = SettingsWithLimit(7), Sequence = 99 },
+            new PlatformDocument
+            {
+                Settings = JsonElement.Parse(SettingsWithLimit(7)),
+                Sequence = 99,
+            },
             CancellationToken.None
         );
 
         var document = await Platform.GetOrDefaultAsync(CancellationToken.None);
         Assert.NotNull(document);
-        Assert.Equal(SettingsWithLimit(7), document.SettingsJson);
+        Assert.Equal(SettingsWithLimit(7), document.Settings.GetRawText());
         Assert.Equal(1, document.Sequence);
     }
 
@@ -45,7 +50,7 @@ public sealed class DefaultDirectoryStorePlatformTests : DefaultDirectoryStoreTe
 
         var document = await Platform.GetOrDefaultAsync(CancellationToken.None);
         Assert.NotNull(document);
-        Assert.Equal(SettingsWithLimit(2), document.SettingsJson);
+        Assert.Equal(SettingsWithLimit(2), document.Settings.GetRawText());
         Assert.Equal(3, document.Sequence);
         Assert.Equal(1, await CountPlatformRowsAsync());
     }
@@ -63,7 +68,7 @@ public sealed class DefaultDirectoryStorePlatformTests : DefaultDirectoryStoreTe
         Assert.Equal("team-1", changes[0].TeamId);
         Assert.NotNull(changes[0].Document);
         Assert.Null(changes[1].TeamId);
-        Assert.Equal(SettingsWithLimit(2), changes[1].Platform?.SettingsJson);
+        Assert.Equal(SettingsWithLimit(2), changes[1].Platform?.Settings.GetRawText());
     }
 
     #endregion

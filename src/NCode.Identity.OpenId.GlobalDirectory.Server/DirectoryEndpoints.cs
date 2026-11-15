@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
 using JetBrains.Annotations;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -39,6 +40,11 @@ public static class DirectoryEndpoints
     /// The problem detail that a team route answers with when the team identifier is blank.
     /// </summary>
     private const string TeamRequiredDetail = "The team is required.";
+
+    /// <summary>
+    /// The problem detail that a publish route answers with when the document's settings are not a JSON object.
+    /// </summary>
+    private const string SettingsNotAnObjectDetail = "The document's settings are a JSON object.";
 
     /// <summary>
     /// The problem detail that the cell registration route answers with when the management URL is not a service URL
@@ -569,7 +575,8 @@ public static class DirectoryEndpoints
     /// <returns>
     /// <c>200 OK</c> when the document is published; <c>403 Forbidden</c> when the caller is not the control-plane
     /// cell; <c>400 Bad Request</c> when the document lacks its team or display name, names a team or a parent team
-    /// longer than the directory stores, or names a team other than the route's.
+    /// longer than the directory stores, names a team other than the route's, or holds settings that are not a JSON
+    /// object.
     /// </returns>
     private static async ValueTask<IResult> PublishTeamAsync(
         string teamId,
@@ -594,6 +601,9 @@ public static class DirectoryEndpoints
 
         if (!string.Equals(teamId, document.TeamId, StringComparison.OrdinalIgnoreCase))
             return BadRequest("The team of the document is not the team of the route.");
+
+        if (document.Settings.ValueKind != JsonValueKind.Object)
+            return BadRequest(SettingsNotAnObjectDetail);
 
         await directory.PublishAsync(document, cancellationToken);
         return Results.Ok();
@@ -745,8 +755,8 @@ public static class DirectoryEndpoints
     /// <param name="directory">The <see cref="IPlatformDirectory"/> that holds the document.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the document is published, or <c>403 Forbidden</c> when the caller is not the control-plane
-    /// cell.
+    /// <c>200 OK</c> when the document is published; <c>403 Forbidden</c> when the caller is not the control-plane
+    /// cell; or <c>400 Bad Request</c> when the document holds settings that are not a JSON object.
     /// </returns>
     private static async ValueTask<IResult> PublishPlatformAsync(
         PlatformDocument document,
@@ -758,6 +768,9 @@ public static class DirectoryEndpoints
     {
         if (ForbidUnlessControlPlane(httpContext, options.Value) is { } forbidden)
             return forbidden;
+
+        if (document.Settings.ValueKind != JsonValueKind.Object)
+            return BadRequest(SettingsNotAnObjectDetail);
 
         await directory.PublishAsync(document, cancellationToken);
         return Results.Ok();

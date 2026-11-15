@@ -202,7 +202,7 @@ public class DirectoryChangeFeedServiceTests : BaseTests
     [Fact]
     public async Task RunAsync_WhenTheChangeIsAPlatformChange_AppliesThePlatformDocument()
     {
-        var platform = new PlatformDocument { SettingsJson = "{}", Sequence = 4 };
+        var platform = new PlatformDocument { Sequence = 4 };
 
         SetupLease(true);
         SetupAppliedSequences(teamSequence: 0, platformSequence: 3);

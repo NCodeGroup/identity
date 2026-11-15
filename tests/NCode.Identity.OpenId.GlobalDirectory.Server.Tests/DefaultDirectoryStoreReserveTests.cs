@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Text.Json;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Entities;
 using Xunit;
 
@@ -328,10 +329,7 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
     [Fact]
     public async Task ReserveAsync_WhenThePlatformDocumentHasNoLimit_ReservesWithoutLimit()
     {
-        await Platform.PublishAsync(
-            new PlatformDocument { SettingsJson = "{}" },
-            CancellationToken.None
-        );
+        await Platform.PublishAsync(new PlatformDocument(), CancellationToken.None);
         await PublishTeamAsync("team-1");
         Assert.True((await ReserveAsync(TenantId, Issuer, "team-1")).IsReserved);
 
@@ -349,7 +347,7 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
                 TeamId = "team-1",
                 DisplayName = "team-1",
                 IsDisabled = false,
-                SettingsJson = """{"max_tenants":"3"}""",
+                Settings = JsonElement.Parse("""{"max_tenants":"3"}"""),
             },
             CancellationToken.None
         );
@@ -367,7 +365,7 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
     public async Task ReserveAsync_WhenThePlatformLimitIsNegative_ReturnsConflict()
     {
         await Platform.PublishAsync(
-            new PlatformDocument { SettingsJson = """{"max_tenants":-1}""" },
+            new PlatformDocument { Settings = JsonElement.Parse("""{"max_tenants":-1}""") },
             CancellationToken.None
         );
         await PublishTeamAsync("team-1");
@@ -379,6 +377,66 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
             "The platform has a max_tenants setting the directory cannot read.",
             result.ConflictDetail
         );
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenTheTeamSettingsAreNotAnObject_ReturnsConflict()
+    {
+        await Teams.PublishAsync(
+            new TeamDocument
+            {
+                TeamId = "team-1",
+                DisplayName = "team-1",
+                IsDisabled = false,
+                Settings = JsonElement.Parse("[1]"),
+            },
+            CancellationToken.None
+        );
+
+        var result = await ReserveAsync(TenantId, Issuer, "team-1");
+
+        Assert.False(result.IsReserved);
+        Assert.Equal(
+            "The team 'team-1' has a max_tenants setting the directory cannot read.",
+            result.ConflictDetail
+        );
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenThePlatformSettingsAreNotAnObject_ReturnsConflict()
+    {
+        await Platform.PublishAsync(
+            new PlatformDocument { Settings = JsonElement.Parse("[1]") },
+            CancellationToken.None
+        );
+        await PublishTeamAsync("team-1");
+
+        var result = await ReserveAsync(TenantId, Issuer, "team-1");
+
+        Assert.False(result.IsReserved);
+        Assert.Equal(
+            "The platform has a max_tenants setting the directory cannot read.",
+            result.ConflictDetail
+        );
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenTheTeamSettingsAreNull_ReservesWithoutLimit()
+    {
+        await Teams.PublishAsync(
+            new TeamDocument
+            {
+                TeamId = "team-1",
+                DisplayName = "team-1",
+                IsDisabled = false,
+                Settings = JsonElement.Parse("null"),
+            },
+            CancellationToken.None
+        );
+
+        var result = await ReserveAsync(TenantId, Issuer, "team-1");
+
+        Assert.True(result.IsReserved);
     }
 
     #endregion

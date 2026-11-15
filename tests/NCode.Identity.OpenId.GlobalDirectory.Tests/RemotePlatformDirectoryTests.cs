@@ -21,7 +21,10 @@ public class RemotePlatformDirectoryTests : RemoteDirectoryTestBase
     {
         var handler = StubHttpMessageHandler.Respond(HttpStatusCode.NoContent);
         var directory = new RemotePlatformDirectory(CreateClient(handler));
-        var document = new PlatformDocument { SettingsJson = """{"max_tenants":5}""" };
+        var document = new PlatformDocument
+        {
+            Settings = JsonElement.Parse("""{"max_tenants":5}"""),
+        };
 
         await directory.PublishAsync(document, CancellationToken.None);
 
@@ -30,10 +33,10 @@ public class RemotePlatformDirectoryTests : RemoteDirectoryTestBase
         Assert.Equal(PlatformDocumentUrl, request.RequestUri?.AbsoluteUri);
         Assert.Equal($"Bearer {AccessToken}", request.Authorization);
         Assert.NotNull(request.Body);
-        Assert.Equal(
-            document,
-            JsonSerializer.Deserialize<PlatformDocument>(request.Body, WireOptions)
-        );
+        var sent = JsonSerializer.Deserialize<PlatformDocument>(request.Body, WireOptions);
+        Assert.NotNull(sent);
+        Assert.True(JsonElement.DeepEquals(document.Settings, sent.Settings));
+        Assert.Equal(document.Sequence, sent.Sequence);
     }
 
     [Fact]
@@ -67,7 +70,7 @@ public class RemotePlatformDirectoryTests : RemoteDirectoryTestBase
     {
         var expected = new PlatformDocument
         {
-            SettingsJson = """{"max_tenants":5}""",
+            Settings = JsonElement.Parse("""{"max_tenants":5}"""),
             Sequence = 7,
         };
         var handler = StubHttpMessageHandler.Respond(
@@ -78,7 +81,9 @@ public class RemotePlatformDirectoryTests : RemoteDirectoryTestBase
 
         var result = await directory.GetOrDefaultAsync(CancellationToken.None);
 
-        Assert.Equal(expected, result);
+        Assert.NotNull(result);
+        Assert.True(JsonElement.DeepEquals(expected.Settings, result.Settings));
+        Assert.Equal(expected.Sequence, result.Sequence);
         var request = Assert.Single(handler.Requests);
         Assert.Equal(HttpMethod.Get, request.Method);
         Assert.Equal(PlatformDocumentUrl, request.RequestUri?.AbsoluteUri);

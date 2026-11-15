@@ -1327,7 +1327,7 @@ public sealed class PlatformApiEndpointHandlerTests : IDisposable
 
         Assert.IsType<NoContent>(result);
         Assert.NotNull(published);
-        Assert.Equal("""{"foo":"bar"}""", published.SettingsJson);
+        Assert.Equal("""{"foo":"bar"}""", published.Settings.GetRawText());
         Assert.Equal(0, published.Sequence);
     }
 
