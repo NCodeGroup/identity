@@ -74,7 +74,13 @@ carries nothing else; a brand domain carries the site, docs, status page and ope
    - **Residency.** A tenant's data, keys and sessions stay in its cell's region
      ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)),
      and its regional hostname resolves to a cell of that region. A tenant created in another region is a new tenant
-     with a new issuer; a tenant never crosses regions.
+     with a new issuer; a tenant never crosses regions. A cell's operational data stays in the region too: its
+     backups, logs, metrics and traces are written in the cell's region
+     ([ADR-1134](1134-the-platform-and-the-host-follow-written-cloud-native-operating-principles.md) point 14).
+     **Support access** to a tenant's data goes through its cell's management API, in that cell's region; interactive
+     access to a cell is break-glass only and audited (ADR-1134 point 1), and that audit record stays in the region.
+     Every **subprocessor** that processes a cell's data runs in that cell's region, and the customer-visible
+     subprocessor list names each one per region.
    - **Explicit records.** A tenant of a dedicated cell, and a tenant that changes cell within its region, keep their
      issuer through an explicit DNS record for its hostname (#755). Custom domains are a separate decision (#756).
 3. **The brand domain is `ncodeid.com`.** It carries the site and docs (apex and `www.`), `status.ncodeid.com`
