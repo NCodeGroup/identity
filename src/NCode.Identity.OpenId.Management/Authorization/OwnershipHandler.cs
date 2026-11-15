@@ -60,11 +60,14 @@ internal sealed class OwnershipHandler(
             resource as IResourceNode
             ?? ResourceNode.For(resource.TenantId, ResourceNodeTypes.Tenant, resource.TenantId);
 
-        var openIdContext = HttpContextAccessor.HttpContext?.GetOpenIdContextOrDefault();
-        if (openIdContext is null)
+        var httpContext = HttpContextAccessor.HttpContext;
+        var openIdContext = httpContext?.GetOpenIdContextOrDefault();
+        if (httpContext is null || openIdContext is null)
         {
             return;
         }
+
+        var cancellationToken = httpContext.RequestAborted;
 
         // Creating a resource is authority at the parent node, which is the node passed here (ADR-1417, ADR-1411).
         var isCreate =
@@ -86,12 +89,10 @@ internal sealed class OwnershipHandler(
             openIdContext.Tenant.TenantId
         );
 
-        await using var storeManager = await StoreManagerFactory.CreateAsync(
-            CancellationToken.None
-        );
+        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
 
         string? principalId = null;
-        var teamIds = await GetTeamIdsAsync(node, storeManager, CancellationToken.None);
+        var teamIds = await GetTeamIdsAsync(node, storeManager, cancellationToken);
         foreach (var teamId in teamIds)
         {
             var authority = await ControlPlaneAuthority.GetAsync(
@@ -101,7 +102,7 @@ internal sealed class OwnershipHandler(
                     ClientId = clientId,
                     TeamId = teamId,
                 },
-                CancellationToken.None
+                cancellationToken
             );
 
             if (string.IsNullOrEmpty(authority.PrincipalId))
@@ -132,11 +133,11 @@ internal sealed class OwnershipHandler(
         var ancestorNodes = await AuthorityChainResolver.GetAncestorNodesAsync(
             node,
             storeManager,
-            CancellationToken.None
+            cancellationToken
         );
 
         var store = storeManager.GetStore<IRoleAssignmentStore>();
-        var assignments = await store.GetByPrincipalAsync(principalId, CancellationToken.None);
+        var assignments = await store.GetByPrincipalAsync(principalId, cancellationToken);
 
         foreach (var assignment in assignments)
         {

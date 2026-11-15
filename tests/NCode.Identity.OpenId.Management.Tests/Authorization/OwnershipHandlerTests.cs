@@ -21,7 +21,14 @@ public class OwnershipHandlerTests : IDisposable
 {
     private MockRepository MockRepository { get; } = new(MockBehavior.Strict);
 
-    public void Dispose() => MockRepository.Verify();
+    // The token of the request being authorized.
+    private CancellationTokenSource RequestAbortedSource { get; } = new();
+
+    public void Dispose()
+    {
+        MockRepository.Verify();
+        RequestAbortedSource.Dispose();
+    }
 
     internal const string TeamId = "team-1";
     private const string TenantId = "tenant-1";
@@ -190,7 +197,7 @@ public class OwnershipHandlerTests : IDisposable
             .Returns(Mock.Of<OpenIdTenant>(tenant => tenant.TenantId == TenantId));
         var feature = MockRepository.Create<IOpenIdContextFeature>();
         feature.Setup(x => x.OpenIdContext).Returns(openIdContext.Object).Verifiable();
-        var httpContext = new DefaultHttpContext();
+        var httpContext = new DefaultHttpContext { RequestAborted = RequestAbortedSource.Token };
         httpContext.Features.Set(feature.Object);
         accessor.Setup(x => x.HttpContext).Returns(httpContext).Verifiable();
     }
@@ -224,7 +231,7 @@ public class OwnershipHandlerTests : IDisposable
                     It.Is<ControlPlaneAuthorityRequest>(request =>
                         request.Subject == Subject && request.ClientId == CallerClientId
                     ),
-                    It.IsAny<CancellationToken>()
+                    RequestAbortedSource.Token
                 )
             )
             .ReturnsAsync(

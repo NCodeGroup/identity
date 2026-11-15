@@ -3,6 +3,7 @@
 
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using NCode.Identity.Jose;
 using NCode.Identity.OpenId.Management.ControlPlane;
 
@@ -16,10 +17,16 @@ namespace NCode.Identity.OpenId.Management.Authorization;
 /// caller without either claim is not an administrator.
 /// </summary>
 // See ADR-1044 and ADR-1417.
-internal sealed class GlobalAdminHandler(IControlPlaneAuthority controlPlaneAuthority)
-    : AuthorizationHandler<IAuthorizationRequirement>
+internal sealed class GlobalAdminHandler(
+    IControlPlaneAuthority controlPlaneAuthority,
+    IHttpContextAccessor httpContextAccessor
+) : AuthorizationHandler<IAuthorizationRequirement>
 {
     private IControlPlaneAuthority ControlPlaneAuthority { get; } = controlPlaneAuthority;
+
+    // ASP.NET Core authorization handlers are invoked by the framework without the request's cancellation token in
+    // hand, so the token is read from the request being authorized.
+    private IHttpContextAccessor HttpContextAccessor { get; } = httpContextAccessor;
 
     /// <inheritdoc />
     protected override async Task HandleRequirementAsync(
@@ -36,7 +43,7 @@ internal sealed class GlobalAdminHandler(IControlPlaneAuthority controlPlaneAuth
 
         var authority = await ControlPlaneAuthority.GetAsync(
             new ControlPlaneAuthorityRequest { Subject = subject, ClientId = clientId },
-            CancellationToken.None
+            HttpContextAccessor.HttpContext?.RequestAborted ?? CancellationToken.None
         );
 
         if (authority.IsGlobalAdmin)

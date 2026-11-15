@@ -3,6 +3,7 @@
 
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.ControlPlane;
@@ -16,7 +17,14 @@ public class GlobalAdminHandlerTests : IDisposable
 
     private MockRepository MockRepository { get; } = new(MockBehavior.Strict);
 
-    public void Dispose() => MockRepository.Verify();
+    // The token of the request being authorized.
+    private CancellationTokenSource RequestAbortedSource { get; } = new();
+
+    public void Dispose()
+    {
+        MockRepository.Verify();
+        RequestAbortedSource.Dispose();
+    }
 
     private sealed class TestRequirement : IAuthorizationRequirement;
 
@@ -40,7 +48,7 @@ public class GlobalAdminHandlerTests : IDisposable
                         && request.ClientId == ClientId
                         && request.TeamId == null
                     ),
-                    It.IsAny<CancellationToken>()
+                    RequestAbortedSource.Token
                 )
             )
             .Returns(() => ValueTask.FromResult(answer()))
@@ -48,19 +56,24 @@ public class GlobalAdminHandlerTests : IDisposable
         return authority;
     }
 
-    private static async ValueTask<bool> HandleAsync(
+    private async ValueTask<bool> HandleAsync(
         IControlPlaneAuthority authority,
         ClaimsPrincipal user,
         CancellationToken cancellationToken
     )
     {
+        var accessor = MockRepository.Create<IHttpContextAccessor>();
+        accessor
+            .Setup(x => x.HttpContext)
+            .Returns(new DefaultHttpContext { RequestAborted = cancellationToken });
+
         var context = new AuthorizationHandlerContext(
             [new TestRequirement()],
             user,
             resource: null
         );
 
-        await new GlobalAdminHandler(authority).HandleAsync(context);
+        await new GlobalAdminHandler(authority, accessor.Object).HandleAsync(context);
 
         return context.HasSucceeded;
     }
@@ -81,9 +94,28 @@ public class GlobalAdminHandlerTests : IDisposable
             Times.Once()
         );
 
-        var succeeded = await HandleAsync(authority.Object, CreateCaller(), CancellationToken.None);
+        var succeeded = await HandleAsync(
+            authority.Object,
+            CreateCaller(),
+            RequestAbortedSource.Token
+        );
 
         Assert.True(succeeded);
+    }
+
+    [Fact]
+    public async Task HandleRequirementAsync_WithARequest_PassesTheRequestAbortedToken()
+    {
+        await RequestAbortedSource.CancelAsync();
+        var authority = SetupAuthority(() => ControlPlaneAuthority.None, Times.Once());
+
+        var succeeded = await HandleAsync(
+            authority.Object,
+            CreateCaller(),
+            RequestAbortedSource.Token
+        );
+
+        Assert.False(succeeded);
     }
 
     [Fact]
@@ -99,7 +131,11 @@ public class GlobalAdminHandlerTests : IDisposable
             Times.Once()
         );
 
-        var succeeded = await HandleAsync(authority.Object, CreateCaller(), CancellationToken.None);
+        var succeeded = await HandleAsync(
+            authority.Object,
+            CreateCaller(),
+            RequestAbortedSource.Token
+        );
 
         Assert.False(succeeded);
     }
@@ -109,7 +145,11 @@ public class GlobalAdminHandlerTests : IDisposable
     {
         var authority = SetupAuthority(() => ControlPlaneAuthority.None, Times.Once());
 
-        var succeeded = await HandleAsync(authority.Object, CreateCaller(), CancellationToken.None);
+        var succeeded = await HandleAsync(
+            authority.Object,
+            CreateCaller(),
+            RequestAbortedSource.Token
+        );
 
         Assert.False(succeeded);
     }
@@ -124,7 +164,7 @@ public class GlobalAdminHandlerTests : IDisposable
             new Claim(ClaimTypes.Role, BuiltInRoles.GlobalAdmin)
         );
 
-        var succeeded = await HandleAsync(authority.Object, user, CancellationToken.None);
+        var succeeded = await HandleAsync(authority.Object, user, RequestAbortedSource.Token);
 
         Assert.False(succeeded);
     }
@@ -137,7 +177,7 @@ public class GlobalAdminHandlerTests : IDisposable
         var succeeded = await HandleAsync(
             authority.Object,
             CreateUser(new Claim("client_id", ClientId)),
-            CancellationToken.None
+            RequestAbortedSource.Token
         );
 
         Assert.False(succeeded);
@@ -151,7 +191,7 @@ public class GlobalAdminHandlerTests : IDisposable
         var succeeded = await HandleAsync(
             authority.Object,
             CreateUser(new Claim("sub", Subject)),
-            CancellationToken.None
+            RequestAbortedSource.Token
         );
 
         Assert.False(succeeded);
@@ -166,7 +206,7 @@ public class GlobalAdminHandlerTests : IDisposable
         );
 
         await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
-            await HandleAsync(authority.Object, CreateCaller(), CancellationToken.None)
+            await HandleAsync(authority.Object, CreateCaller(), RequestAbortedSource.Token)
         );
     }
 
