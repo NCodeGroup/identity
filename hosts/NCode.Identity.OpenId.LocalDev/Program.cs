@@ -80,24 +80,11 @@ var conformanceSeedEnvironment = ConformanceSeedSecrets.GetEnvironment(developme
 // idempotently when the server is ready, before any resource that waits for `postgres` starts, so it exists when the
 // migration worker grants it access. The database keeps Aspire's default creation script, which runs as one command
 // where CREATE DATABASE cannot run beside other statements.
-var postgres = builder.AddPostgres("postgres").WithDataVolume("ncode-identity-openiddb-data");
+var postgres = builder
+    .AddPostgres("postgres")
+    .WithDataVolume("ncode-identity-openiddb-data")
+    .WithRuntimeRole(runtimeRolePassword);
 var openIdDb = postgres.AddDatabase(LocalDatabase.DatabaseName);
-
-builder.Eventing.Subscribe<ResourceReadyEvent>(
-    postgres.Resource,
-    async (_, cancellationToken) =>
-    {
-        var serverConnectionString =
-            await postgres.Resource.ConnectionStringExpression.GetValueAsync(cancellationToken)
-            ?? throw new InvalidOperationException("The Postgres server has no connection string.");
-
-        await LocalDatabase.EnsureRoleAsync(
-            serverConnectionString,
-            runtimeRolePassword,
-            cancellationToken
-        );
-    }
-);
 
 // The hosts' connection string: the Postgres endpoint with the runtime role's credentials.
 var runtimeConnectionString = LocalDatabase.RuntimeConnectionString(

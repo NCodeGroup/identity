@@ -132,4 +132,36 @@ internal static partial class LocalDatabase
 
     [GeneratedRegex(@"^[A-Za-z0-9_-]+\z", RegexOptions.CultureInvariant)]
     private static partial Regex PasswordPattern();
+
+    extension(IResourceBuilder<PostgresServerResource> postgres)
+    {
+        /// <summary>
+        /// Creates or updates the runtime role when the Postgres server is ready.
+        /// </summary>
+        /// <param name="password">The role's password; it is URL-safe Base64 (<c>A-Z a-z 0-9 - _</c>).</param>
+        /// <returns>The same resource builder, to chain further calls.</returns>
+        internal IResourceBuilder<PostgresServerResource> WithRuntimeRole(string password)
+        {
+            ArgumentNullException.ThrowIfNull(postgres);
+            ArgumentNullException.ThrowIfNull(password);
+
+            postgres.ApplicationBuilder.Eventing.Subscribe<ResourceReadyEvent>(
+                postgres.Resource,
+                async (_, cancellationToken) =>
+                {
+                    var serverConnectionString =
+                        await postgres.Resource.ConnectionStringExpression.GetValueAsync(
+                            cancellationToken
+                        )
+                        ?? throw new InvalidOperationException(
+                            "The Postgres server has no connection string."
+                        );
+
+                    await EnsureRoleAsync(serverConnectionString, password, cancellationToken);
+                }
+            );
+
+            return postgres;
+        }
+    }
 }
