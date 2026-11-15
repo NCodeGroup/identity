@@ -179,21 +179,33 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
             SecretsConcurrencyToken = "secrets-ct",
         }.Build();
 
-    // The package that an export writes: { region, tenantId, sections: [{ name, json }], masterKeys }.
-    private static byte[] CreatePayload(string region = Region, string sectionName = "accounts") =>
-        JsonSerializer.SerializeToUtf8Bytes(
-            new
+    // The package that an export writes: { version, region, tenantId, sections: [{ name, json }], masterKeys }. A null
+    // version leaves the member out.
+    private static byte[] CreatePayload(
+        string region = Region,
+        string sectionName = "accounts",
+        int? version = TenantTransferPackage.FormatVersion
+    )
+    {
+        var payload = new Dictionary<string, object?>
+        {
+            [TenantTransferPackage.RegionMember] = region,
+            [TenantTransferPackage.TenantIdMember] = TenantId,
+            [TenantTransferPackage.SectionsMember] = new object[]
             {
-                region,
-                tenantId = TenantId,
-                sections = new object[]
-                {
-                    new { name = "core", json = new { displayName = "Tenant One" } },
-                    new { name = sectionName, json = new { count = 3 } },
-                },
-                masterKeys = MasterKeysPackage,
-            }
-        );
+                new { name = "core", json = new { displayName = "Tenant One" } },
+                new { name = sectionName, json = new { count = 3 } },
+            },
+            [TenantTransferPackage.MasterKeysMember] = MasterKeysPackage,
+        };
+
+        if (version is { } versionValue)
+        {
+            payload[TenantTransferPackage.VersionMember] = versionValue;
+        }
+
+        return JsonSerializer.SerializeToUtf8Bytes(payload);
+    }
 
     // The cell takes the transfer key, and the serializer decrypts the package to the payload.
     private void SetupPackage(byte[]? payload = null)
@@ -565,6 +577,43 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status422UnprocessableEntity, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task ImportTenantAsync_WhenTheVersionIsAnotherVersion_ReturnsUnprocessableEntityAndImportsNothing()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupPackage(CreatePayload(version: TenantTransferPackage.FormatVersion + 1));
+
+        var result = await Handler.ImportTenantAsync(
+            CreateHttpContext(authenticated: true),
+            CreateRequest(),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status422UnprocessableEntity, problem.StatusCode);
+        Assert.Equal(
+            "The package's format version is not one this cell imports.",
+            problem.ProblemDetails.Detail
+        );
+    }
+
+    [Fact]
+    public async Task ImportTenantAsync_WhenThePackageHasNoVersion_ReturnsUnprocessableEntityAndImportsNothing()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupPackage(CreatePayload(version: null));
+
+        var result = await Handler.ImportTenantAsync(
+            CreateHttpContext(authenticated: true),
+            CreateRequest(),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status422UnprocessableEntity, problem.StatusCode);
+        Assert.Equal("The package is malformed.", problem.ProblemDetails.Detail);
     }
 
     [Fact]

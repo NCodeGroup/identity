@@ -41,12 +41,12 @@ POST api/tenants/{tenantId}/release-moved
 
 /// <summary>
 /// Provides the API endpoints that move a disabled tenant out of the cell that holds it. The export is one compact
-/// <c>JWE</c> to a recipient key that the receiving cell published: it carries the cell's region, the tenant's
-/// identifier, the section of every <see cref="ITenantTransferContributor"/> in order, and the tenant's master keys
-/// sealed to the same key. The tenant must be disabled so that nothing changes while it moves. The release removes
-/// the tenant's rows from this cell once the global directory places the tenant in another cell; it destroys no
-/// remote key and retires nothing. The caller needs the update operation on the platform node. The export's response
-/// is never logged.
+/// <c>JWE</c> to a recipient key that the receiving cell published: it carries the package's format version, the cell's
+/// region, the tenant's identifier, the section of every <see cref="ITenantTransferContributor"/> in order, and the
+/// tenant's master keys sealed to the same key. The tenant must be disabled so that nothing changes while it moves. The
+/// release removes the tenant's rows from this cell once the global directory places the tenant in another cell; it
+/// destroys no remote key and retires nothing. The caller needs the update operation on the platform node. The
+/// export's response is never logged.
 /// </summary>
 // See ADR-1514.
 internal class TenantTransferApiEndpointHandler(
@@ -349,8 +349,8 @@ internal class TenantTransferApiEndpointHandler(
         return key;
     }
 
-    // Seals the export to the recipient key as a compact JWE: the cell's region, the tenant's identifier, each section
-    // in order, and the master keys that were already sealed to the same key.
+    // Seals the export to the recipient key as a compact JWE: the package's format version, the cell's region, the
+    // tenant's identifier, each section in order, and the master keys that were already sealed to the same key.
     private async ValueTask<string> EncodePackageAsync(
         string tenantId,
         IReadOnlyList<TenantTransferSection> sections,
@@ -363,21 +363,25 @@ internal class TenantTransferApiEndpointHandler(
         using (var writer = new Utf8JsonWriter(payload))
         {
             writer.WriteStartObject();
-            writer.WriteString("region", CellOptions.Region);
-            writer.WriteString("tenantId", tenantId);
+            writer.WriteNumber(
+                TenantTransferPackage.VersionMember,
+                TenantTransferPackage.FormatVersion
+            );
+            writer.WriteString(TenantTransferPackage.RegionMember, CellOptions.Region);
+            writer.WriteString(TenantTransferPackage.TenantIdMember, tenantId);
 
-            writer.WriteStartArray("sections");
+            writer.WriteStartArray(TenantTransferPackage.SectionsMember);
             foreach (var section in sections)
             {
                 writer.WriteStartObject();
-                writer.WriteString("name", section.Name);
-                writer.WritePropertyName("json");
+                writer.WriteString(TenantTransferPackage.SectionNameMember, section.Name);
+                writer.WritePropertyName(TenantTransferPackage.SectionJsonMember);
                 section.Json.WriteTo(writer);
                 writer.WriteEndObject();
             }
             writer.WriteEndArray();
 
-            writer.WriteString("masterKeys", masterKeys);
+            writer.WriteString(TenantTransferPackage.MasterKeysMember, masterKeys);
             writer.WriteEndObject();
             writer.Flush();
         }

@@ -533,6 +533,7 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
         Assert.Equal(["core", "accounts"], calls);
 
         var root = JsonElement.Parse(Encoder.Payload);
+        Assert.Equal(TenantTransferPackage.FormatVersion, root.GetProperty("version").GetInt32());
         Assert.Equal(Region, root.GetProperty("region").GetString());
         Assert.Equal(TenantId, root.GetProperty("tenantId").GetString());
         Assert.Equal(MasterKeysPackage, root.GetProperty("masterKeys").GetString());

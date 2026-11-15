@@ -44,24 +44,25 @@ tenant is created there instead.**
    set for one hour, and returns the public JWK. `POST api/tenant-imports/transfer-keys` serves it. Taking the key
    returns it once and removes it, so a package is opened at most once, and an expired or taken key is gone.
 3. **The source exports the tenant's graph.** `POST api/tenants/{tenantId}/export` takes the transfer key's public JWK
-   and answers one compact JWE to it (`ECDH-ES+A256KW`, `A256GCM`) of the tenant's region, its identifier, its sections
-   and its master keys. The sections come from the `ITenantTransferContributor` strategy collection in `Order`: the
-   core contributor carries the tenant row and its settings, its clients with their secrets, its client grants, its
-   resource servers with their scopes and secrets, its own secrets and its tenant-level role assignments; the local
-   accounts contributor carries each local account, its claims and its password hash, through
-   `ILocalAccountTransferStore`. Secret values stay as their protected envelopes. `IMasterKeyTransfer` seals the
-   owner's master keys to the same recipient key, with the owner's root key reference when the tenant holds its own.
-   The route is authorized with `Operations.Update` at the platform node, writes the audit record `tenant.exported`
-   and never logs its response.
-4. **The target imports the graph and rewraps the master key under its root.** `POST api/tenant-imports` takes the
-   `kid` and the package, takes the private key once (`422` when it is gone), and answers `422` when the package's
-   region is not the target's `Cell:Region` and `409` when the directory places the tenant in the cell. A tenant that
-   the cell holds while the directory places it in another cell is the residue of an import that stopped before its
-   move, and the import removes those rows before it imports. It imports every section in `Order`, each committing on
-   its own, then the master keys, which `IMasterKeyTransfer` stores under the target's nearest root key, the tenant's
-   own when it carries one. When any part fails, it removes every section it imported and tags the remote keys back to
-   the source cell before it answers. The tenant stays disabled, and the audit record `tenant.imported` names the
-   source cell.
+   and answers one compact JWE to it (`ECDH-ES+A256KW`, `A256GCM`) of the package's format version, the tenant's region,
+   its identifier, its sections and its master keys. The package carries a format version, a cell imports only its own
+   format version, and a section's shape changes only with a new format version. The sections come from the
+   `ITenantTransferContributor` strategy collection in `Order`: the core contributor carries the tenant row and its
+   settings, its clients with their secrets, its client grants, its resource servers with their scopes and secrets, its
+   own secrets and its tenant-level role assignments; the local accounts contributor carries each local account, its
+   claims and its password hash, through `ILocalAccountTransferStore`. Secret values stay as their protected envelopes.
+   `IMasterKeyTransfer` seals the owner's master keys to the same recipient key, with the owner's root key reference
+   when the tenant holds its own. The route is authorized with `Operations.Update` at the platform node, writes the
+   audit record `tenant.exported` and never logs its response.
+4. **The target imports the graph and rewraps the master key under its root.** `POST api/tenant-imports` takes the `kid`
+   and the package, takes the private key once (`422` when it is gone), and answers `422` when the package's format
+   version is not the target's or its region is not the target's `Cell:Region`, and `409` when the directory places the
+   tenant in the cell. A tenant that the cell holds while the directory places it in another cell is the residue of an
+   import that stopped before its move, and the import removes those rows before it imports. It imports every section in
+   `Order`, each committing on its own, then the master keys, which `IMasterKeyTransfer` stores under the target's
+   nearest root key, the tenant's own when it carries one. When any part fails, it removes every section it imported and
+   tags the remote keys back to the source cell before it answers. The tenant stays disabled, and the audit record
+   `tenant.imported` names the source cell.
 5. **Some records travel and others do not.** The package carries the tenant's configuration, its secrets, its local
    accounts and its master keys. Grants, consents, sessions, federated principals and identities are dropped, so each
    person signs in again, and the dropped rows hold only what a sign-in recreates. Audit and usage records stay in the

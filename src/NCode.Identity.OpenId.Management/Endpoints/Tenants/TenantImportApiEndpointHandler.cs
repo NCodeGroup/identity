@@ -59,15 +59,6 @@ internal class TenantImportApiEndpointHandler(
     IOptions<CellOptions> cellOptions
 ) : BaseApiEndpointHandler, IEndpointProvider
 {
-    // The members of the package that the export writes. The export's payload is
-    // { region, tenantId, sections: [{ name, json }], masterKeys }.
-    private const string RegionMember = "region";
-    private const string TenantIdMember = "tenantId";
-    private const string SectionsMember = "sections";
-    private const string SectionNameMember = "name";
-    private const string SectionJsonMember = "json";
-    private const string MasterKeysMember = "masterKeys";
-
     private const int DirectoryRetrySeconds = 5;
 
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
@@ -152,7 +143,7 @@ internal class TenantImportApiEndpointHandler(
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="200">The tenant is imported and placed in this cell.</response>
     /// <response code="409">The directory places the tenant in this cell or in no cell, or refuses the move. Nothing the import wrote remains.</response>
-    /// <response code="422">The transfer key is unknown, expired or already used, the package does not decrypt with it or is malformed, or its region is not this cell's region.</response>
+    /// <response code="422">The transfer key is unknown, expired or already used, the package does not decrypt with it or is malformed, its format version is not one this cell imports, or its region is not this cell's region.</response>
     /// <response code="503">The global directory is unavailable. Nothing the import wrote remains.</response>
     [EndpointName("api/tenant-imports/create")]
     internal virtual async ValueTask<IResult> ImportTenantAsync(
@@ -192,6 +183,7 @@ internal class TenantImportApiEndpointHandler(
         if (
             !TryReadPackage(
                 root,
+                out var version,
                 out var region,
                 out var tenantId,
                 out var masterKeys,
@@ -200,6 +192,11 @@ internal class TenantImportApiEndpointHandler(
         )
         {
             return Unprocessable("The package is malformed.");
+        }
+
+        if (version != TenantTransferPackage.FormatVersion)
+        {
+            return Unprocessable("The package's format version is not one this cell imports.");
         }
 
         if (region != CellOptions.Region)
@@ -482,16 +479,18 @@ internal class TenantImportApiEndpointHandler(
         }
     }
 
-    // Reads the payload that the export writes. The tenant identifier, the region and the master keys are required
-    // strings, and each section has a distinct name and a JSON value.
+    // Reads the payload that the export writes. The format version is a required number, the tenant identifier, the
+    // region and the master keys are required strings, and each section has a distinct name and a JSON value.
     private static bool TryReadPackage(
         JsonElement root,
+        out int version,
         [NotNullWhen(true)] out string? region,
         [NotNullWhen(true)] out string? tenantId,
         [NotNullWhen(true)] out string? masterKeys,
         [NotNullWhen(true)] out Dictionary<string, JsonElement>? sections
     )
     {
+        version = 0;
         region = null;
         tenantId = null;
         masterKeys = null;
@@ -499,10 +498,11 @@ internal class TenantImportApiEndpointHandler(
 
         if (
             root.ValueKind != JsonValueKind.Object
-            || !TryReadString(root, RegionMember, out var regionValue)
-            || !TryReadString(root, TenantIdMember, out var tenantIdValue)
-            || !TryReadString(root, MasterKeysMember, out var masterKeysValue)
-            || !root.TryGetProperty(SectionsMember, out var sectionsElement)
+            || !TryReadInt32(root, TenantTransferPackage.VersionMember, out var versionValue)
+            || !TryReadString(root, TenantTransferPackage.RegionMember, out var regionValue)
+            || !TryReadString(root, TenantTransferPackage.TenantIdMember, out var tenantIdValue)
+            || !TryReadString(root, TenantTransferPackage.MasterKeysMember, out var masterKeysValue)
+            || !root.TryGetProperty(TenantTransferPackage.SectionsMember, out var sectionsElement)
             || sectionsElement.ValueKind != JsonValueKind.Array
         )
         {
@@ -514,8 +514,15 @@ internal class TenantImportApiEndpointHandler(
         {
             if (
                 sectionElement.ValueKind != JsonValueKind.Object
-                || !TryReadString(sectionElement, SectionNameMember, out var name)
-                || !sectionElement.TryGetProperty(SectionJsonMember, out var json)
+                || !TryReadString(
+                    sectionElement,
+                    TenantTransferPackage.SectionNameMember,
+                    out var name
+                )
+                || !sectionElement.TryGetProperty(
+                    TenantTransferPackage.SectionJsonMember,
+                    out var json
+                )
                 || !sectionsValue.TryAdd(name, json)
             )
             {
@@ -523,11 +530,20 @@ internal class TenantImportApiEndpointHandler(
             }
         }
 
+        version = versionValue;
         region = regionValue;
         tenantId = tenantIdValue;
         masterKeys = masterKeysValue;
         sections = sectionsValue;
         return true;
+    }
+
+    private static bool TryReadInt32(JsonElement element, string propertyName, out int value)
+    {
+        value = 0;
+        return element.TryGetProperty(propertyName, out var property)
+            && property.ValueKind == JsonValueKind.Number
+            && property.TryGetInt32(out value);
     }
 
     private static bool TryReadString(
