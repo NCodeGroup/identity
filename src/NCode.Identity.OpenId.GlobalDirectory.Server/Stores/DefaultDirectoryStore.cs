@@ -87,21 +87,15 @@ internal sealed class DefaultDirectoryStore(
             );
         }
 
-        var formerHolder = await GetRetiredIssuerHolderCoreAsync(
+        var retiredIssuerDetail = await FindRetiredIssuerConflictAsync(
             dbContext,
-            normalizedIssuer,
+            tenantId,
+            reservation.Issuer,
             cancellationToken
         );
-        if (
-            formerHolder is not null
-            && !string.Equals(formerHolder, tenantId, StringComparison.OrdinalIgnoreCase)
-        )
+        if (retiredIssuerDetail is not null)
         {
-            // Relying parties that trusted a retired issuer would accept another tenant's tokens under it, so only the
-            // tenant that gave it up can take it back.
-            return ReservationResult.Conflict(
-                $"The issuer '{reservation.Issuer}' belonged to another tenant and is never reissued."
-            );
+            return ReservationResult.Conflict(retiredIssuerDetail);
         }
 
         string? normalizedTeamId = null;
@@ -383,21 +377,15 @@ internal sealed class DefaultDirectoryStore(
                 );
             }
 
-            var formerHolder = await GetRetiredIssuerHolderCoreAsync(
+            var retiredIssuerDetail = await FindRetiredIssuerConflictAsync(
                 dbContext,
-                normalizedIssuer,
+                tenantId,
+                issuer,
                 cancellationToken
             );
-            if (
-                formerHolder is not null
-                && !string.Equals(formerHolder, tenantId, StringComparison.OrdinalIgnoreCase)
-            )
+            if (retiredIssuerDetail is not null)
             {
-                // Relying parties that trusted a retired issuer would accept another tenant's tokens under it, so only
-                // the tenant that gave it up can take it back.
-                return ReservationResult.Conflict(
-                    $"The issuer '{issuer}' belonged to another tenant and is never reissued."
-                );
+                return ReservationResult.Conflict(retiredIssuerDetail);
             }
         }
 
@@ -498,6 +486,34 @@ internal sealed class DefaultDirectoryStore(
             Normalize(issuer),
             cancellationToken
         );
+    }
+
+    /// <summary>
+    /// Finds whether an issuer is retired by a tenant other than the specified one. Relying parties that trusted a
+    /// retired issuer would accept another tenant's tokens under it, so only the tenant that gave it up can take it back.
+    /// </summary>
+    /// <param name="dbContext">The <see cref="DirectoryDbContext"/> to read from.</param>
+    /// <param name="tenantId">The identifier of the tenant that would hold the issuer.</param>
+    /// <param name="issuer">The issuer that the tenant would hold.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The conflict detail when another tenant retired the issuer; otherwise, <c>null</c>.</returns>
+    private static async ValueTask<string?> FindRetiredIssuerConflictAsync(
+        DirectoryDbContext dbContext,
+        string tenantId,
+        string issuer,
+        CancellationToken cancellationToken
+    )
+    {
+        var formerHolder = await GetRetiredIssuerHolderCoreAsync(
+            dbContext,
+            Normalize(issuer),
+            cancellationToken
+        );
+        return
+            formerHolder is not null
+            && !string.Equals(formerHolder, tenantId, StringComparison.OrdinalIgnoreCase)
+            ? $"The issuer '{issuer}' belonged to another tenant and is never reissued."
+            : null;
     }
 
     private static async ValueTask<string?> GetRetiredIssuerHolderCoreAsync(
