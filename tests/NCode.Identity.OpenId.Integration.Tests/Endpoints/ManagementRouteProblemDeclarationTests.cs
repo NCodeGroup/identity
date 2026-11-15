@@ -20,7 +20,7 @@ public class ManagementRouteProblemDeclarationTests
     #region Helpers
 
     private static string[] AuthenticatedCallerNames { get; } =
-    ["api/capabilities/get", "api/me/get", "api/me/teams/list", "api/me/tenants/list"];
+    ["api/capabilities/get", "api/cells/list", "api/me/get", "api/me/teams/list", "api/me/tenants/list"];
 
     private static List<RouteEndpoint> GetManagementEndpoints(HostApplicationFactory factory) =>
         factory
