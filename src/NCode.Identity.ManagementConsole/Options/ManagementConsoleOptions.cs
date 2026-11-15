@@ -20,10 +20,9 @@ public sealed class ManagementConsoleOptions
 
     /// <summary>
     /// Gets or sets the management API URL of each cell, keyed by the cell's name, which has the form
-    /// <c>CellLabelRules</c> describes: 1 to 31 lowercase letters, digits or hyphens that starts with a letter and ends
-    /// with a letter or digit. Each URL has the same shape as <see cref="ManagementApiUrl"/>, <c>/api</c> on the
-    /// cell's origin. The console forwards the browser's calls for a cell to its URL. The configuration key is
-    /// <c>ManagementConsole:Cells</c>.
+    /// <see cref="NCode.Identity.OpenId.GlobalDirectory.CellLabelRules"/> describes. Each URL has the same shape as
+    /// <see cref="ManagementApiUrl"/>, <c>/api</c> on the cell's origin. The console forwards the browser's calls for a
+    /// cell to its URL. The configuration key is <c>ManagementConsole:Cells</c>.
     /// </summary>
     public Dictionary<string, string> Cells { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
