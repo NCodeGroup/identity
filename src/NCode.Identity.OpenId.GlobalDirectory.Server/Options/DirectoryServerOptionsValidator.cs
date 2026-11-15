@@ -56,6 +56,13 @@ internal sealed class DirectoryServerOptionsValidator : IValidateOptions<Directo
             : ValidateOptionsResult.Success;
     }
 
+    /// <summary>
+    /// Determines whether an issuer is one the directory accepts: at most <see cref="DirectoryLimits.MaxIssuerLength"/>
+    /// characters with no whitespace, an absolute URI with no user information, query or fragment, and either the
+    /// <c>https</c> scheme or the <c>http</c> scheme on a loopback host.
+    /// </summary>
+    /// <param name="issuer">The configured issuer to check.</param>
+    /// <returns><c>true</c> when the directory accepts the issuer; otherwise, <c>false</c>.</returns>
     private static bool IsAllowedIssuer(string issuer)
     {
         if (issuer.Length > DirectoryLimits.MaxIssuerLength || issuer.Any(char.IsWhiteSpace))
