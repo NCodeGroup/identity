@@ -3,6 +3,7 @@
 
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Mime;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.Client;
@@ -23,6 +24,8 @@ internal sealed class DirectoryHttpClient(
     IOptions<DirectoryClientOptions> options
 )
 {
+    private const int ReadChunkBytes = 4096;
+
     private IHttpClientFactory HttpClientFactory { get; } = httpClientFactory;
 
     private ICellTokenSource TokenSource { get; } = tokenSource;
@@ -88,13 +91,15 @@ internal sealed class DirectoryHttpClient(
 
         using var request = new HttpRequestMessage(method, uri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        request.Headers.Accept.Add(
+            new MediaTypeWithQualityHeaderValue(MediaTypeNames.Application.Json)
+        );
         if (cellRequest.Body is { } body)
         {
             var content = new ByteArrayContent(
                 JsonSerializer.SerializeToUtf8Bytes(body, body.GetType(), DirectoryJson.Options)
             );
-            content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+            content.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Json);
             request.Content = content;
         }
 
@@ -179,7 +184,7 @@ internal sealed class DirectoryHttpClient(
 
         await using var stream = await content.ReadAsStreamAsync(cancellationToken);
         using var buffer = new MemoryStream();
-        var chunk = new byte[4096];
+        var chunk = new byte[ReadChunkBytes];
         while (true)
         {
             var read = await stream.ReadAsync(chunk, cancellationToken);
