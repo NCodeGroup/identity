@@ -38,6 +38,11 @@ internal sealed class DefaultTeamDocumentApplier(
     ILogger<DefaultTeamDocumentApplier> logger
 ) : ITeamDocumentApplier
 {
+    /// <summary>
+    /// The reason that the applier gives when it opens an unscoped ambient tenant scope to read and write teams.
+    /// </summary>
+    private const string UnscopedReason = "directory team mirror";
+
     // The teams are read in pages, so the reconcile never holds every team at once.
     private const int TeamPageSize = 100;
 
@@ -52,7 +57,7 @@ internal sealed class DefaultTeamDocumentApplier(
     /// <inheritdoc />
     public async ValueTask ApplyAsync(TeamDocument document, CancellationToken cancellationToken)
     {
-        using var _ = AmbientTenantAccessor.BeginUnscoped("directory team mirror");
+        using var _ = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
 
         var settings = JsonElement.Parse(document.SettingsJson);
         var persistedTeam = new PersistedTeam
@@ -119,7 +124,7 @@ internal sealed class DefaultTeamDocumentApplier(
     /// <inheritdoc />
     public async ValueTask ReconcileRootKeysAsync(CancellationToken cancellationToken)
     {
-        using var _ = AmbientTenantAccessor.BeginUnscoped("directory team mirror");
+        using var _ = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
 
         var region = CellOptions.Region;
         var page = new PageRequest { Limit = TeamPageSize };
@@ -142,6 +147,12 @@ internal sealed class DefaultTeamDocumentApplier(
         } while (page.Cursor is not null);
     }
 
+    /// <summary>
+    /// Reads one page of the teams stored in this cell.
+    /// </summary>
+    /// <param name="page">The <see cref="PageRequest"/> that names the page to read.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="PagedResult{T}"/> of the teams on the page, with the cursor of the next page.</returns>
     private async ValueTask<PagedResult<PersistedTeam>> GetTeamPageAsync(
         PageRequest page,
         CancellationToken cancellationToken
@@ -152,9 +163,16 @@ internal sealed class DefaultTeamDocumentApplier(
         return await store.GetPageAsync(page, cancellationToken);
     }
 
-    // A key that fails is logged and left unapplied, so one team's key never stops another's; the team row and its
-    // command are already applied, and the next document the directory publishes for the team, or the next reconcile,
-    // retries the key. A caller's cancellation propagates.
+    /// <summary>
+    /// Brings the owner root key of a team to the reference that the team's document holds for the cell's region: it
+    /// removes the key when the document holds none, sets it when it differs from the key in place, and leaves it
+    /// when it is the same. A key that fails is logged and left unapplied, so one team's key never stops another's;
+    /// the team row and its command are already applied, and the next document the directory publishes for the team,
+    /// or the next reconcile, retries the key. A caller's cancellation propagates.
+    /// </summary>
+    /// <param name="teamId">The identifier of the team whose owner root key is mirrored.</param>
+    /// <param name="reference">The root key reference for the region, or <c>null</c> when the team has none.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     private async ValueTask MirrorRootKeyAsync(
         string teamId,
         OwnerRootKeyRequest? reference,
@@ -211,7 +229,7 @@ internal sealed class DefaultTeamDocumentApplier(
         CancellationToken cancellationToken
     )
     {
-        using var _ = AmbientTenantAccessor.BeginUnscoped("directory team mirror");
+        using var _ = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
 
         await using (var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken))
         {
@@ -245,7 +263,7 @@ internal sealed class DefaultTeamDocumentApplier(
     /// <inheritdoc />
     public async ValueTask<long> GetAppliedSequenceAsync(CancellationToken cancellationToken)
     {
-        using var _ = AmbientTenantAccessor.BeginUnscoped("directory team mirror");
+        using var _ = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<ITeamStore>();
@@ -274,8 +292,12 @@ internal sealed class DefaultTeamDocumentApplier(
         }
     }
 
-    // The mediator is scoped (its handlers' unit of work is), and the feed runs outside any request, so the command is
-    // sent in its own scope.
+    /// <summary>
+    /// Sends a team-changed command in its own service scope. The mediator is scoped (its handlers' unit of work is),
+    /// and the feed runs outside any request.
+    /// </summary>
+    /// <param name="command">The <see cref="TeamChangedCommand"/> to send.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     private async ValueTask SendAsync(
         TeamChangedCommand command,
         CancellationToken cancellationToken

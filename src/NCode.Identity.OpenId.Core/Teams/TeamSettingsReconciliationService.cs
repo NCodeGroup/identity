@@ -42,6 +42,12 @@ internal sealed class TeamSettingsReconciliationService(
     ILogger<TeamSettingsReconciliationService> logger
 ) : BackgroundService
 {
+    /// <summary>
+    /// The reason that the service gives when it opens an unscoped ambient tenant scope to reconcile teams and the
+    /// tenants beneath them.
+    /// </summary>
+    private const string UnscopedReason = "team settings reconciliation";
+
     // The teams are read in pages, so the pass never holds every team at once.
     private const int TeamPageSize = 100;
 
@@ -159,7 +165,7 @@ internal sealed class TeamSettingsReconciliationService(
     )
     {
         // The pass reconciles teams and the tenants beneath them, outside any request.
-        using var unscoped = AmbientTenantAccessor.BeginUnscoped("team settings reconciliation");
+        using var unscoped = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
 
         if (request.EveryTeam)
             await ReconcileEveryTeamAsync(stoppingToken);
@@ -173,7 +179,7 @@ internal sealed class TeamSettingsReconciliationService(
         RetryDeadline = null;
 
         // The retry reconciles teams and the tenants beneath them, outside any request.
-        using var unscoped = AmbientTenantAccessor.BeginUnscoped("team settings reconciliation");
+        using var unscoped = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
 
         if (EveryTeamUnsettled)
             await ReconcileEveryTeamAsync(stoppingToken);
