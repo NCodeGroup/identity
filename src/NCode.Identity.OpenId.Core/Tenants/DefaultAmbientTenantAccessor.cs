@@ -12,9 +12,7 @@ namespace NCode.Identity.OpenId.Tenants;
 /// </summary>
 internal sealed class DefaultAmbientTenantAccessor : IAmbientTenantAccessor
 {
-    private sealed record ScopeState(string? TenantId, bool IsUnscoped, string? Reason);
-
-    private AsyncLocal<ScopeState?> AmbientState { get; } = new();
+    private AsyncLocal<AmbientTenantScopeState?> AmbientState { get; } = new();
 
     /// <inheritdoc />
     public bool IsScoped => AmbientState.Value?.TenantId is not null;
@@ -34,7 +32,7 @@ internal sealed class DefaultAmbientTenantAccessor : IAmbientTenantAccessor
     {
         ArgumentNullException.ThrowIfNull(tenantId);
 
-        return Begin(new ScopeState(tenantId, IsUnscoped: false, Reason: null));
+        return Begin(new AmbientTenantScopeState(tenantId, IsUnscoped: false, Reason: null));
     }
 
     /// <inheritdoc />
@@ -42,28 +40,13 @@ internal sealed class DefaultAmbientTenantAccessor : IAmbientTenantAccessor
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
 
-        return Begin(new ScopeState(TenantId: null, IsUnscoped: true, reason));
+        return Begin(new AmbientTenantScopeState(TenantId: null, IsUnscoped: true, reason));
     }
 
-    private Scope Begin(ScopeState state)
+    private AmbientTenantScope Begin(AmbientTenantScopeState state)
     {
         var previous = AmbientState.Value;
         AmbientState.Value = state;
-        return new Scope(this, previous);
-    }
-
-    private sealed class Scope(DefaultAmbientTenantAccessor owner, ScopeState? previous)
-        : IDisposable
-    {
-        private bool Disposed { get; set; }
-
-        public void Dispose()
-        {
-            if (Disposed)
-                return;
-
-            Disposed = true;
-            owner.AmbientState.Value = previous;
-        }
+        return new AmbientTenantScope(AmbientState, previous);
     }
 }
