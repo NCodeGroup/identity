@@ -4,6 +4,7 @@
 using Microsoft.Extensions.Options;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId;
+using NCode.Identity.OpenId.GlobalDirectory;
 
 namespace NCode.Identity.ManagementConsole.Options;
 
@@ -52,30 +53,6 @@ internal sealed class ManagementConsoleOptionsValidator(LocalDevelopmentMode loc
             );
     }
 
-    /// <summary>
-    /// Determines whether a name is a DNS label: 1 to 63 lowercase letters, digits or hyphens, starting and ending with
-    /// a letter or digit.
-    /// </summary>
-    /// <param name="name">The name to check.</param>
-    /// <returns><see langword="true"/> when the name is a DNS label; otherwise, <see langword="false"/>.</returns>
-    private static bool IsDnsLabel(string name)
-    {
-        if (name.Length is < 1 or > 63 || name[0] == '-' || name[^1] == '-')
-        {
-            return false;
-        }
-
-        foreach (var c in name)
-        {
-            if (c is not ((>= 'a' and <= 'z') or (>= '0' and <= '9') or '-'))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     /// <inheritdoc />
     public ValidateOptionsResult Validate(string? name, ManagementConsoleOptions options)
     {
@@ -107,10 +84,10 @@ internal sealed class ManagementConsoleOptionsValidator(LocalDevelopmentMode loc
         {
             var cellKey = $"{Key}:Cells:{cellName}";
 
-            if (!IsDnsLabel(cellName))
+            if (!CellLabelRules.IsValidLabel(cellName))
             {
                 failures.Add(
-                    $"{cellKey} must be named with a DNS label of 1 to 63 lower-case letters, digits and hyphens, without a leading or trailing hyphen; the name is '{cellName}'."
+                    $"{cellKey} must be named with a cell name of 1 to 31 lower-case letters, digits and hyphens that starts with a letter and ends with a letter or digit; the name is '{cellName}'."
                 );
             }
 

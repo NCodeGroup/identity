@@ -273,8 +273,9 @@ public class ManagementConsoleOptionsValidatorTests : BaseTests
     [InlineData("-eu")]
     [InlineData("eu-")]
     [InlineData("eu.1")]
-    [InlineData("0123456789012345678901234567890123456789012345678901234567890123")]
-    public void Validate_WhenACellNameIsNotADnsLabel_FailsWithTheEntrysKey(string name)
+    [InlineData("1eu")]
+    [InlineData("abcdefghijklmnopqrstuvwxyzabcdef")]
+    public void Validate_WhenACellNameIsNotACellLabel_FailsWithTheEntrysKey(string name)
     {
         var options = CreateValidOptions();
         options.Cells[name] = "https://eu-1.example.com/api";
@@ -283,16 +284,16 @@ public class ManagementConsoleOptionsValidatorTests : BaseTests
 
         Assert.True(result.Failed);
         Assert.Contains(
-            $"ManagementConsole:Cells:{name} must be named with a DNS label",
+            $"ManagementConsole:Cells:{name} must be named with a cell name",
             result.Failures?.Single() ?? string.Empty
         );
     }
 
     [Fact]
-    public void Validate_WhenACellNameHasSixtyThreeCharacters_Succeeds()
+    public void Validate_WhenACellNameHasThirtyOneCharacters_Succeeds()
     {
         var options = CreateValidOptions();
-        options.Cells[new string('a', 63)] = "https://eu-1.example.com/api";
+        options.Cells[new string('a', 31)] = "https://eu-1.example.com/api";
 
         var result = CreateValidator().Validate(null, options);
 
