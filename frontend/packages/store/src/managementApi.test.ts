@@ -7,7 +7,7 @@ import type {
   RoleList,
   SecretOwner,
 } from '@ncode/api';
-import type { BffRuntimeConfig } from '@ncode/config';
+import type { BffRuntimeConfig, OpenIdRuntimeConfig } from '@ncode/config';
 import { createAppStore, type AppStore } from './store.js';
 import { managementApi } from './managementApi.js';
 
@@ -2543,6 +2543,45 @@ describe('managementApi across cells', () => {
 
     expect(fetches.calls).toEqual(['GET /api/teams/acme/tenants']);
     expect(result.data).toEqual({ items: [tenant('a')], unavailableCells: [] });
+  });
+
+  it('listTenants refuses a surface its BFF does not serve without calling a cell', async () => {
+    const openIdRuntime: OpenIdRuntimeConfig = {
+      kind: 'openid',
+      apiBaseUrl: 'https://api.test/',
+      issuer: 'https://issuer.test/',
+      authorizationEndpoint: 'https://issuer.test/authorize',
+      tokenEndpoint: 'https://issuer.test/token',
+      scopes: [],
+      features: {},
+    };
+    const fetches = routeFetch(() => jsonResponse({ items: [tenant('a')] }));
+    const store = createAppStore({ config: { runtime: openIdRuntime } });
+
+    const result = await store.dispatch(
+      managementApi.endpoints.listTenants.initiate({ teamId: 'acme' }),
+    );
+
+    expect(fetches.calls).toEqual([]);
+    expect(result.error).toMatchObject({ status: 'CUSTOM_ERROR' });
+  });
+
+  it('importTenant leaves the tenant it failed to import cached', async () => {
+    const fetches = routeFetch((method, path) =>
+      method === 'GET' && path === '/api/tenants/acme-dev'
+        ? jsonResponse({ tenantId: 'acme-dev' })
+        : new Response(null, { status: 500 }),
+    );
+    const store = createStore();
+    await store.dispatch(managementApi.endpoints.getTenant.initiate({ tenantId: 'acme-dev' }));
+
+    const result = await store.dispatch(
+      managementApi.endpoints.importTenant.initiate({ cell: 'eu-2', kid: 'k-1', package: 'jwe' }),
+    );
+    await settle(store);
+
+    expect(result).toHaveProperty('error');
+    expect(fetches.count('GET', '/api/tenants/acme-dev')).toBe(1);
   });
 
   it('listTenants merges the tenants of every cell, each tagged with its cell', async () => {
