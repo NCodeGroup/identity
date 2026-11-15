@@ -48,11 +48,12 @@ public sealed class OwnerRootKeyStoreTests : IDisposable
         string ownerId,
         string state = OwnerRootKeyStates.Active,
         DateTimeOffset? validatedWhen = null,
-        DateTimeOffset? failedWhen = null
+        DateTimeOffset? failedWhen = null,
+        string ownerType = SecretOwnerTypes.Tenant
     ) =>
         new()
         {
-            OwnerType = SecretOwnerTypes.Tenant,
+            OwnerType = ownerType,
             OwnerId = ownerId,
             KeyWrapperName = "aws-kms",
             KeyReference = $"arn:aws:kms:us-west-2:111122223333:key/{ownerId}",
@@ -87,6 +88,28 @@ public sealed class OwnerRootKeyStoreTests : IDisposable
         using var scope = Provider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
         return await CreateStore(context).FindAsync(owner, cancellationToken);
+    }
+
+    private async ValueTask<IReadOnlyList<PersistedOwnerRootKey>> FindManyAsync(
+        string ownerType,
+        IReadOnlyList<string> ownerIds,
+        CancellationToken cancellationToken
+    )
+    {
+        using var scope = Provider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
+        return await CreateStore(context).FindManyAsync(ownerType, ownerIds, cancellationToken);
+    }
+
+    private async ValueTask<PagedResult<PersistedOwnerRootKey>> GetOwnerTypePageAsync(
+        string ownerType,
+        PageRequest page,
+        CancellationToken cancellationToken
+    )
+    {
+        using var scope = Provider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
+        return await CreateStore(context).GetOwnerTypePageAsync(ownerType, page, cancellationToken);
     }
 
     #endregion
@@ -144,6 +167,72 @@ public sealed class OwnerRootKeyStoreTests : IDisposable
 
         await Assert.ThrowsAnyAsync<DbUpdateException>(async () =>
             await AddAsync([CreateRootKey("TENANT-ONE")], CancellationToken.None)
+        );
+    }
+
+    #endregion
+
+    #region FindManyAsync Tests
+
+    [Fact]
+    public async Task FindManyAsync_WhenSomeOwnersHaveKeys_ReturnsThoseKeys()
+    {
+        await AddAsync(
+            [
+                CreateRootKey("Team-One", ownerType: SecretOwnerTypes.Team),
+                CreateRootKey("team-two", ownerType: SecretOwnerTypes.Team),
+                CreateRootKey("team-three", ownerType: SecretOwnerTypes.Team),
+                CreateRootKey("team-two"),
+            ],
+            CancellationToken.None
+        );
+
+        var actual = await FindManyAsync(
+            SecretOwnerTypes.Team,
+            ["TEAM-ONE", "team-two", "team-four"],
+            CancellationToken.None
+        );
+
+        Assert.Equal(["Team-One", "team-two"], actual.Select(key => key.OwnerId));
+        Assert.All(actual, key => Assert.Equal(SecretOwnerTypes.Team, key.OwnerType));
+    }
+
+    #endregion
+
+    #region GetOwnerTypePageAsync Tests
+
+    [Fact]
+    public async Task GetOwnerTypePageAsync_WhenKeysSpanTwoPages_ReturnsEachOnce()
+    {
+        await AddAsync(
+            [
+                CreateRootKey("team-a", ownerType: SecretOwnerTypes.Team),
+                CreateRootKey("tenant-a"),
+                CreateRootKey("team-b", ownerType: SecretOwnerTypes.Team),
+                CreateRootKey("tenant-b"),
+                CreateRootKey("team-c", ownerType: SecretOwnerTypes.Team),
+            ],
+            CancellationToken.None
+        );
+
+        var first = await GetOwnerTypePageAsync(
+            SecretOwnerTypes.Team,
+            new PageRequest { Limit = 2 },
+            CancellationToken.None
+        );
+        var second = await GetOwnerTypePageAsync(
+            SecretOwnerTypes.Team,
+            new PageRequest { Limit = 2, Cursor = first.NextCursor },
+            CancellationToken.None
+        );
+
+        Assert.Equal(2, first.Items.Count);
+        Assert.NotNull(first.NextCursor);
+        Assert.Single(second.Items);
+        Assert.Null(second.NextCursor);
+        Assert.Equal(
+            ["team-a", "team-b", "team-c"],
+            first.Items.Concat(second.Items).Select(key => key.OwnerId).Order()
         );
     }
 

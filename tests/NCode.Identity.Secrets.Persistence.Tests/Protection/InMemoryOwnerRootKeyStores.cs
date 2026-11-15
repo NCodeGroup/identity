@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Globalization;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.Persistence.DataContracts;
 
@@ -162,12 +163,54 @@ public sealed class InMemoryOwnerRootKeyStores : IStoreManagerFactory
             return ValueTask.FromResult(stored is null ? null : Copy(stored));
         }
 
+        public ValueTask<IReadOnlyList<PersistedOwnerRootKey>> FindManyAsync(
+            string ownerType,
+            IReadOnlyCollection<string> ownerIds,
+            CancellationToken cancellationToken
+        ) =>
+            ValueTask.FromResult<IReadOnlyList<PersistedOwnerRootKey>>([
+                .. owner
+                    .RootKeyList.Where(row =>
+                        string.Equals(row.OwnerType, ownerType, StringComparison.OrdinalIgnoreCase)
+                        && ownerIds.Contains(row.OwnerId, StringComparer.OrdinalIgnoreCase)
+                    )
+                    .Select(Copy),
+            ]);
+
         public ValueTask<PagedResult<PersistedOwnerRootKey>> GetDuePageAsync(
             DateTimeOffset validatedBefore,
             DateTimeOffset retryBefore,
             PageRequest page,
             CancellationToken cancellationToken
         ) => throw new NotSupportedException();
+
+        // The cursor is the number of rows of the owner type that the earlier pages held.
+        public ValueTask<PagedResult<PersistedOwnerRootKey>> GetOwnerTypePageAsync(
+            string ownerType,
+            PageRequest page,
+            CancellationToken cancellationToken
+        )
+        {
+            var rows = owner
+                .RootKeyList.Where(row =>
+                    string.Equals(row.OwnerType, ownerType, StringComparison.OrdinalIgnoreCase)
+                )
+                .ToList();
+            var skip = page.Cursor is null
+                ? 0
+                : int.Parse(page.Cursor, CultureInfo.InvariantCulture);
+            var items = rows.Skip(skip).Take(page.Limit).Select(Copy).ToList();
+            var next = skip + items.Count;
+
+            return ValueTask.FromResult(
+                new PagedResult<PersistedOwnerRootKey>
+                {
+                    Items = items,
+                    NextCursor =
+                        next < rows.Count ? next.ToString(CultureInfo.InvariantCulture) : null,
+                }
+            );
+        }
 
         public ValueTask<bool> RemoveAsync(
             PersistedOwnerRootKey item,
