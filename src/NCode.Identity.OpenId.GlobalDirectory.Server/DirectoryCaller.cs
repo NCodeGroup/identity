@@ -45,7 +45,10 @@ internal static class DirectoryCaller
     /// </summary>
     /// <param name="user">The <see cref="ClaimsPrincipal"/> of the request.</param>
     /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
-    /// <returns><c>true</c> when the caller is the cell that <see cref="DirectoryServerOptions.ControlPlaneCell"/> names; otherwise, <c>false</c>.</returns>
+    /// <returns>
+    /// <c>true</c> when the caller is the cell that <see cref="DirectoryServerOptions.ControlPlaneCell"/> names;
+    /// otherwise, <c>false</c>.
+    /// </returns>
     public static bool IsControlPlane(ClaimsPrincipal user, DirectoryServerOptions options) =>
         GetCell(user) is { } cell
         && string.Equals(cell, options.ControlPlaneCell, StringComparison.Ordinal);

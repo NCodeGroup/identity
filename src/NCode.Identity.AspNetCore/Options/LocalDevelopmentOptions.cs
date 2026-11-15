@@ -18,9 +18,8 @@ namespace NCode.Identity.AspNetCore.Options;
 /// Turning it on permits only these relaxations: skipping the deployment gate and the transport check, sending no
 /// <c>Strict-Transport-Security</c> header, redirecting HTTP to HTTPS, serving setup over plain HTTP from a loopback
 /// remote address, a wildcard or empty <c>AllowedHosts</c> for the management console and the global directory,
-/// <c>http</c> URLs in BFF and
-/// console validation, revoking key-ring keys that cannot be decrypted, no local-root-key warning, and the
-/// bootstrap-token OpenAPI example and API-reference secret pre-fill.
+/// <c>http</c> URLs in BFF and console validation, <c>http</c> cell management URLs, revoking key-ring keys that cannot
+/// be decrypted, no local-root-key warning, and the bootstrap-token OpenAPI example and API-reference secret pre-fill.
 /// </para>
 /// </remarks>
 [PublicAPI]
