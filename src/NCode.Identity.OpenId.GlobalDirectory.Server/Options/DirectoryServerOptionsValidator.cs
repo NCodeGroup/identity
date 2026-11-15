@@ -51,7 +51,7 @@ internal sealed class DirectoryServerOptionsValidator : IValidateOptions<Directo
         if (issuer.Length > DirectoryLimits.MaxIssuerLength || issuer.Any(char.IsWhiteSpace))
             return false;
 
-        if (!Uri.TryCreate(issuer, UriKind.Absolute, out var uri))
+        if (!AbsoluteUri.TryParse(issuer, out var uri))
             return false;
 
         if (

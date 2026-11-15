@@ -96,6 +96,24 @@ public class DirectoryServerOptionsValidatorTests
         Assert.Equal(DisallowedIssuerMessage, failure);
     }
 
+    [Theory]
+    [InlineData("/directory")]
+    [InlineData("directory.example.com/path")]
+    public void Validate_WhenTheIssuerHasNoSchemeOfItsOwn_Fails(string issuer)
+    {
+        var options = new DirectoryServerOptions
+        {
+            Issuer = issuer,
+            ControlPlaneCell = ControlPlaneCell,
+        };
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        var failure = Assert.Single(result.Failures);
+        Assert.Equal(DisallowedIssuerMessage, failure);
+    }
+
     [Fact]
     public void Validate_IssuerWithUserInformation_FailsWithoutEchoingIt()
     {
