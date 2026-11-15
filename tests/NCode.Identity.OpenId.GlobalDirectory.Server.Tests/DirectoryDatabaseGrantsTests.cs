@@ -65,6 +65,7 @@ public class DirectoryDatabaseGrantsTests
             "GRANT SELECT, INSERT, UPDATE, DELETE ON \"RetiredIssuers\" TO \"ncode_directory_app\"",
             "GRANT SELECT, INSERT, UPDATE, DELETE ON \"Sequences\" TO \"ncode_directory_app\"",
             "GRANT SELECT, INSERT, UPDATE, DELETE ON \"Teams\" TO \"ncode_directory_app\"",
+            "GRANT SELECT, INSERT, UPDATE, DELETE ON \"TenantMoveOffers\" TO \"ncode_directory_app\"",
             "GRANT SELECT, INSERT, UPDATE, DELETE ON \"Tenants\" TO \"ncode_directory_app\"",
         ];
         Assert.Equal(expected, statements);

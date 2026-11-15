@@ -17,7 +17,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 /// remote adapters of <c>NCode.Identity.OpenId.GlobalDirectory</c> call. Every route requires a bearer access token
 /// for the audience <see cref="GlobalDirectoryProtocol.DirectoryAudience"/> with the scope
 /// <see cref="GlobalDirectoryProtocol.DirectoryScope"/>, checked before the route runs, its bodies are confidential so
-/// HTTP logging never writes them, and its failures are RFC 9457 problem documents. Every write is bound to the
+/// HTTP logging never writes them, and every failure, a lookup that finds nothing included, is an RFC 9457 problem
+/// document: a missing resource is a <c>404 Not Found</c> problem, never an empty body. Every write is bound to the
 /// calling cell: the platform and team writes need the control-plane cell
 /// (<see cref="DirectoryServerOptions.ControlPlaneCell"/>), and a tenant write needs the cell that holds the tenant.
 /// </summary>
@@ -62,6 +63,12 @@ public static class DirectoryEndpoints
         }
     }
 
+    /// <summary>
+    /// Maps the tenant routes: reserving, placing, releasing, moving, retiring and changing the issuer of a tenant,
+    /// and reading a placement, a retired identifier or a retired issuer. Each route declares the problem documents
+    /// that it can answer.
+    /// </summary>
+    /// <param name="group">The <see cref="RouteGroupBuilder"/> of <c>/directory/v1/tenants</c>.</param>
     private static void MapTenants(RouteGroupBuilder group)
     {
         group
@@ -78,7 +85,9 @@ public static class DirectoryEndpoints
             .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
         group
             .MapPost("{tenantId}/release", ReleaseTenantAsync)
-            .ProducesProblem(StatusCodes.Status403Forbidden);
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict);
         group
             .MapPost("{tenantId}/move", MoveTenantAsync)
             .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -94,6 +103,8 @@ public static class DirectoryEndpoints
             .MapPost("retire", RetireTenantAsync)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
         group
             .MapPost("change-issuer", ChangeTenantIssuerAsync)
@@ -114,6 +125,11 @@ public static class DirectoryEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound);
     }
 
+    /// <summary>
+    /// Maps the team routes: reserving, publishing, releasing and retiring a team, reading a team document or a
+    /// retired identifier, and listing the change feed. Each route declares the problem documents that it can answer.
+    /// </summary>
+    /// <param name="group">The <see cref="RouteGroupBuilder"/> of <c>/directory/v1/teams</c>.</param>
     private static void MapTeams(RouteGroupBuilder group)
     {
         group
@@ -140,6 +156,11 @@ public static class DirectoryEndpoints
         group.MapGet("changes", ListChangesAsync).ProducesProblem(StatusCodes.Status400BadRequest);
     }
 
+    /// <summary>
+    /// Maps the platform routes: publishing the platform document and reading it. Each route declares the problem
+    /// documents that it can answer.
+    /// </summary>
+    /// <param name="group">The <see cref="RouteGroupBuilder"/> of <c>/directory/v1/platform</c>.</param>
     private static void MapPlatform(RouteGroupBuilder group)
     {
         group
@@ -152,6 +173,11 @@ public static class DirectoryEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound);
     }
 
+    /// <summary>
+    /// Maps the cell routes: registering a cell, listing the cells and reading one cell. Each route declares the
+    /// problem documents that it can answer.
+    /// </summary>
+    /// <param name="group">The <see cref="RouteGroupBuilder"/> of <c>/directory/v1/cells</c>.</param>
     private static void MapCells(RouteGroupBuilder group)
     {
         group
@@ -165,6 +191,17 @@ public static class DirectoryEndpoints
 
     #region Tenants
 
+    /// <summary>
+    /// Reserves a tenant identifier and its issuer for the calling cell. A cell reserves a tenant only for itself.
+    /// </summary>
+    /// <param name="reservation">The tenant, its issuer and its cell.</param>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
+    /// <param name="directory">The <see cref="ITenantDirectory"/> that holds the reservation.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// <c>200 OK</c> when the tenant is reserved; <c>400 Bad Request</c> when a field is blank; <c>403 Forbidden</c>
+    /// when the cell is not the caller; <c>409 Conflict</c> when the identifier or the issuer is taken.
+    /// </returns>
     private static async ValueTask<IResult> ReserveTenantAsync(
         TenantReservation reservation,
         HttpContext httpContext,
@@ -189,6 +226,18 @@ public static class DirectoryEndpoints
         return ToResult(result);
     }
 
+    /// <summary>
+    /// Places a tenant in the calling cell and records the cell's region. A cell places a tenant only in itself.
+    /// </summary>
+    /// <param name="placement">The tenant, its issuer, its cell and its region.</param>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
+    /// <param name="directory">The <see cref="ITenantDirectory"/> that holds the placement.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// <c>200 OK</c> when the tenant is placed; <c>400 Bad Request</c> when a field is blank; <c>403 Forbidden</c>
+    /// when the cell is not the caller; <c>409 Conflict</c> when the identifier or the issuer belongs to another
+    /// tenant.
+    /// </returns>
     private static async ValueTask<IResult> PlaceTenantAsync(
         TenantPlacement placement,
         HttpContext httpContext,
@@ -214,6 +263,17 @@ public static class DirectoryEndpoints
         return ToResult(result);
     }
 
+    /// <summary>
+    /// Releases the reservation of a tenant that never became active, so its identifier and issuer are free again.
+    /// </summary>
+    /// <param name="tenantId">The tenant identifier from the route.</param>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
+    /// <param name="writer">The <see cref="IDirectoryTenantWriter"/> that applies the write for the calling cell.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// <c>200 OK</c> when the reservation is released; otherwise the problem document of the write outcome, and
+    /// <c>403 Forbidden</c> when the caller is not a cell.
+    /// </returns>
     private static async ValueTask<IResult> ReleaseTenantAsync(
         string tenantId,
         HttpContext httpContext,
@@ -228,6 +288,20 @@ public static class DirectoryEndpoints
         return ToResult(result);
     }
 
+    /// <summary>
+    /// Moves a tenant from its source cell to the calling cell. Only the target cell, which is the caller, moves a
+    /// tenant to itself.
+    /// </summary>
+    /// <param name="tenantId">The tenant identifier from the route.</param>
+    /// <param name="fromCell">The cell that holds the tenant.</param>
+    /// <param name="toCell">The cell that receives the tenant.</param>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
+    /// <param name="directory">The <see cref="ITenantDirectory"/> that holds the placement.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// <c>200 OK</c> when the tenant is moved; <c>422 Unprocessable Entity</c> when a cell is blank; <c>403 Forbidden</c>
+    /// when the target cell is not the caller; <c>409 Conflict</c> when the directory refuses the move.
+    /// </returns>
     private static async ValueTask<IResult> MoveTenantAsync(
         string tenantId,
         string? fromCell,
@@ -254,6 +328,19 @@ public static class DirectoryEndpoints
             );
     }
 
+    /// <summary>
+    /// Offers a tenant to another cell. Only the cell that holds the tenant offers it.
+    /// </summary>
+    /// <param name="tenantId">The tenant identifier from the route.</param>
+    /// <param name="request">The cell that receives the offer.</param>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
+    /// <param name="directory">The <see cref="ITenantDirectory"/> that holds the placement and the offer.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// <c>204 No Content</c> when the offer is recorded; <c>400 Bad Request</c> when the target cell is blank;
+    /// <c>403 Forbidden</c> when the tenant has no placement or the caller does not hold it; <c>409 Conflict</c> when
+    /// the directory refuses the offer.
+    /// </returns>
     private static async ValueTask<IResult> OfferTenantMoveAsync(
         string tenantId,
         TenantMoveOfferRequest request,
@@ -285,6 +372,17 @@ public static class DirectoryEndpoints
             );
     }
 
+    /// <summary>
+    /// Retires a tenant, so its identifier and issuer are never reused.
+    /// </summary>
+    /// <param name="retirement">The tenant to retire.</param>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
+    /// <param name="writer">The <see cref="IDirectoryTenantWriter"/> that applies the write for the calling cell.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// <c>200 OK</c> when the tenant is retired; <c>400 Bad Request</c> when the tenant is blank; <c>403 Forbidden</c>
+    /// when the caller is not a cell; otherwise the problem document of the write outcome.
+    /// </returns>
     private static async ValueTask<IResult> RetireTenantAsync(
         TenantRetirement retirement,
         HttpContext httpContext,
@@ -302,6 +400,18 @@ public static class DirectoryEndpoints
         return ToResult(result);
     }
 
+    /// <summary>
+    /// Changes the issuer of a tenant and retires the previous issuer.
+    /// </summary>
+    /// <param name="change">The tenant and its new issuer.</param>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
+    /// <param name="writer">The <see cref="IDirectoryTenantWriter"/> that applies the write for the calling cell.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// <c>200 OK</c> when the issuer is changed; <c>400 Bad Request</c> when the tenant is blank; <c>403 Forbidden</c>
+    /// when the caller is not a cell; otherwise the problem document of the write outcome, such as <c>404 Not Found</c>
+    /// for an unknown tenant.
+    /// </returns>
     private static async ValueTask<IResult> ChangeTenantIssuerAsync(
         TenantIssuerChange change,
         HttpContext httpContext,
@@ -319,6 +429,13 @@ public static class DirectoryEndpoints
         return ToResult(result);
     }
 
+    /// <summary>
+    /// Reads the placement of a tenant: its cell, its region and its issuer.
+    /// </summary>
+    /// <param name="tenantId">The tenant identifier from the route.</param>
+    /// <param name="directory">The <see cref="ITenantDirectory"/> that holds the placement.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns><c>200 OK</c> with the placement, or a <c>404 Not Found</c> problem when the tenant has none.</returns>
     private static async ValueTask<IResult> GetTenantPlacementAsync(
         string tenantId,
         ITenantDirectory directory,
@@ -331,6 +448,13 @@ public static class DirectoryEndpoints
             : Results.Ok(placement);
     }
 
+    /// <summary>
+    /// Tells whether a tenant identifier is retired.
+    /// </summary>
+    /// <param name="tenantId">The tenant identifier from the route.</param>
+    /// <param name="directory">The <see cref="ITenantDirectory"/> that holds the retired identifiers.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns><c>200 OK</c> when the identifier is retired, or a <c>404 Not Found</c> problem when it is not.</returns>
     private static async ValueTask<IResult> GetRetiredTenantIdAsync(
         string tenantId,
         ITenantDirectory directory,
@@ -343,6 +467,16 @@ public static class DirectoryEndpoints
             : NotFound($"The directory holds no retired tenant '{tenantId}'.");
     }
 
+    /// <summary>
+    /// Reads the tenant that retired an issuer.
+    /// </summary>
+    /// <param name="issuer">The issuer from the query string.</param>
+    /// <param name="directory">The <see cref="ITenantDirectory"/> that holds the retired issuers.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// <c>200 OK</c> with the holder of the retired issuer; <c>400 Bad Request</c> when the issuer is blank; or a
+    /// <c>404 Not Found</c> problem when the issuer is not retired.
+    /// </returns>
     private static async ValueTask<IResult> GetRetiredIssuerAsync(
         string? issuer,
         ITenantDirectory directory,
@@ -365,6 +499,18 @@ public static class DirectoryEndpoints
 
     #region Teams
 
+    /// <summary>
+    /// Reserves a team identifier. Only the control-plane cell reserves a team.
+    /// </summary>
+    /// <param name="teamId">The team identifier from the route.</param>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
+    /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
+    /// <param name="directory">The <see cref="ITeamDirectory"/> that holds the reservation.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// <c>200 OK</c> when the team is reserved; <c>403 Forbidden</c> when the caller is not the control-plane cell;
+    /// <c>409 Conflict</c> when the identifier is taken.
+    /// </returns>
     private static async ValueTask<IResult> ReserveTeamAsync(
         string teamId,
         HttpContext httpContext,
@@ -380,6 +526,19 @@ public static class DirectoryEndpoints
         return ToResult(result);
     }
 
+    /// <summary>
+    /// Publishes the document of a team. Only the control-plane cell publishes a team.
+    /// </summary>
+    /// <param name="teamId">The team identifier from the route.</param>
+    /// <param name="document">The team document to publish.</param>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
+    /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
+    /// <param name="directory">The <see cref="ITeamDirectory"/> that holds the document.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// <c>200 OK</c> when the document is published; <c>403 Forbidden</c> when the caller is not the control-plane cell;
+    /// <c>400 Bad Request</c> when the document lacks its team or display name, or names a team other than the route's.
+    /// </returns>
     private static async ValueTask<IResult> PublishTeamAsync(
         string teamId,
         TeamDocument document,
@@ -402,6 +561,18 @@ public static class DirectoryEndpoints
         return Results.Ok();
     }
 
+    /// <summary>
+    /// Releases the reservation of a team, so its identifier is free again. Only the control-plane cell releases a
+    /// team.
+    /// </summary>
+    /// <param name="teamId">The team identifier from the route.</param>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
+    /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
+    /// <param name="directory">The <see cref="ITeamDirectory"/> that holds the reservation.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// <c>200 OK</c> when the team is released, or <c>403 Forbidden</c> when the caller is not the control-plane cell.
+    /// </returns>
     private static async ValueTask<IResult> ReleaseTeamAsync(
         string teamId,
         HttpContext httpContext,
@@ -417,6 +588,17 @@ public static class DirectoryEndpoints
         return Results.Ok();
     }
 
+    /// <summary>
+    /// Retires a team, so its identifier is never reused. Only the control-plane cell retires a team.
+    /// </summary>
+    /// <param name="teamId">The team identifier from the route.</param>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
+    /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
+    /// <param name="directory">The <see cref="ITeamDirectory"/> that holds the retired identifiers.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// <c>200 OK</c> when the team is retired, or <c>403 Forbidden</c> when the caller is not the control-plane cell.
+    /// </returns>
     private static async ValueTask<IResult> RetireTeamAsync(
         string teamId,
         HttpContext httpContext,
@@ -432,6 +614,13 @@ public static class DirectoryEndpoints
         return Results.Ok();
     }
 
+    /// <summary>
+    /// Tells whether a team identifier is retired.
+    /// </summary>
+    /// <param name="teamId">The team identifier from the route.</param>
+    /// <param name="directory">The <see cref="ITeamDirectory"/> that holds the retired identifiers.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns><c>200 OK</c> when the identifier is retired, or a <c>404 Not Found</c> problem when it is not.</returns>
     private static async ValueTask<IResult> GetRetiredTeamIdAsync(
         string teamId,
         ITeamDirectory directory,
@@ -444,6 +633,13 @@ public static class DirectoryEndpoints
             : NotFound($"The directory holds no retired team '{teamId}'.");
     }
 
+    /// <summary>
+    /// Reads the published document of a team.
+    /// </summary>
+    /// <param name="teamId">The team identifier from the route.</param>
+    /// <param name="directory">The <see cref="ITeamDirectory"/> that holds the document.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns><c>200 OK</c> with the document, or a <c>404 Not Found</c> problem when the team has none.</returns>
     private static async ValueTask<IResult> GetTeamDocumentAsync(
         string teamId,
         ITeamDirectory directory,
@@ -456,6 +652,16 @@ public static class DirectoryEndpoints
             : Results.Ok(document);
     }
 
+    /// <summary>
+    /// Lists the entries of the team change feed that follow a sequence number, in sequence order. The sequence number
+    /// is raised to zero and the page size is clamped to a range of one to the maximum page size, so an out-of-range
+    /// query value is bounded and never rejected.
+    /// </summary>
+    /// <param name="directory">The <see cref="ITeamDirectory"/> that holds the change feed.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <param name="after">The sequence number after which the listing starts.</param>
+    /// <param name="limit">The requested page size.</param>
+    /// <returns><c>200 OK</c> with the changes, which are empty when none follows the sequence number.</returns>
     private static async ValueTask<IResult> ListChangesAsync(
         ITeamDirectory directory,
         CancellationToken cancellationToken,
@@ -478,6 +684,18 @@ public static class DirectoryEndpoints
 
     #region Platform
 
+    /// <summary>
+    /// Publishes the platform document. Only the control-plane cell publishes the platform.
+    /// </summary>
+    /// <param name="document">The platform document to publish.</param>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
+    /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
+    /// <param name="directory">The <see cref="IPlatformDirectory"/> that holds the document.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// <c>200 OK</c> when the document is published, or <c>403 Forbidden</c> when the caller is not the control-plane
+    /// cell.
+    /// </returns>
     private static async ValueTask<IResult> PublishPlatformAsync(
         PlatformDocument document,
         HttpContext httpContext,
@@ -493,6 +711,12 @@ public static class DirectoryEndpoints
         return Results.Ok();
     }
 
+    /// <summary>
+    /// Reads the published platform document.
+    /// </summary>
+    /// <param name="directory">The <see cref="IPlatformDirectory"/> that holds the document.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns><c>200 OK</c> with the document, or a <c>404 Not Found</c> problem when none is published.</returns>
     private static async ValueTask<IResult> GetPlatformDocumentAsync(
         IPlatformDirectory directory,
         CancellationToken cancellationToken
@@ -508,6 +732,21 @@ public static class DirectoryEndpoints
 
     #region Cells
 
+    /// <summary>
+    /// Registers a cell with the directory. A cell registers only itself, and only the control-plane cell registers
+    /// itself as the control plane.
+    /// </summary>
+    /// <param name="name">The cell name from the route.</param>
+    /// <param name="descriptor">The cell's name, region, kind and management URL.</param>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
+    /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
+    /// <param name="directory">The <see cref="ICellDirectory"/> that holds the registration.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// <c>200 OK</c> when the cell is registered; <c>400 Bad Request</c> when a field is blank or the descriptor names a
+    /// cell other than the route's; <c>403 Forbidden</c> when the cell is not the caller or claims to be the control
+    /// plane without being it.
+    /// </returns>
     private static async ValueTask<IResult> RegisterCellAsync(
         string name,
         CellDescriptor descriptor,
@@ -549,6 +788,12 @@ public static class DirectoryEndpoints
         return Results.Ok();
     }
 
+    /// <summary>
+    /// Lists every registered cell.
+    /// </summary>
+    /// <param name="directory">The <see cref="ICellDirectory"/> that holds the registrations.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns><c>200 OK</c> with the cells, which are empty when none is registered.</returns>
     private static async ValueTask<IResult> ListCellsAsync(
         ICellDirectory directory,
         CancellationToken cancellationToken
@@ -558,6 +803,13 @@ public static class DirectoryEndpoints
         return Results.Ok(cells);
     }
 
+    /// <summary>
+    /// Reads one registered cell.
+    /// </summary>
+    /// <param name="name">The cell name from the route.</param>
+    /// <param name="directory">The <see cref="ICellDirectory"/> that holds the registrations.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns><c>200 OK</c> with the cell, or a <c>404 Not Found</c> problem when it is not registered.</returns>
     private static async ValueTask<IResult> GetCellAsync(
         string name,
         ICellDirectory directory,
@@ -570,12 +822,35 @@ public static class DirectoryEndpoints
 
     #endregion
 
+    /// <summary>
+    /// Determines whether a request value is missing.
+    /// </summary>
+    /// <param name="value">The value to test.</param>
+    /// <returns><c>true</c> when the value is <c>null</c>, empty or white space; otherwise <c>false</c>.</returns>
     private static bool IsBlank([NotNullWhen(false)] string? value) =>
         string.IsNullOrWhiteSpace(value);
 
+    /// <summary>
+    /// Determines whether the authenticated caller is a given cell.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated caller.</param>
+    /// <param name="cell">The name of the cell to compare with the caller's.</param>
+    /// <returns>
+    /// <c>true</c> when the caller's machine client names the cell, compared case-sensitively; otherwise <c>false</c>,
+    /// including when the caller is not a cell.
+    /// </returns>
     private static bool IsCaller(HttpContext httpContext, string cell) =>
         string.Equals(DirectoryCaller.GetCell(httpContext.User), cell, StringComparison.Ordinal);
 
+    /// <summary>
+    /// Refuses a write that only the control-plane cell makes, such as a platform or team write.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated caller.</param>
+    /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
+    /// <returns>
+    /// <c>null</c> when the caller is the control-plane cell and the write proceeds; otherwise the
+    /// <c>403 Forbidden</c> problem.
+    /// </returns>
     private static IResult? ForbidUnlessControlPlane(
         HttpContext httpContext,
         DirectoryServerOptions options
@@ -584,6 +859,11 @@ public static class DirectoryEndpoints
             ? null
             : Forbidden("Only the control-plane cell writes the platform and the teams.");
 
+    /// <summary>
+    /// Builds a <c>403 Forbidden</c> problem document.
+    /// </summary>
+    /// <param name="detail">The explanation for the caller.</param>
+    /// <returns>The <see cref="IResult"/> that writes the problem document.</returns>
     private static IResult Forbidden(string detail) =>
         Results.Problem(
             title: "Forbidden",
@@ -591,6 +871,11 @@ public static class DirectoryEndpoints
             statusCode: StatusCodes.Status403Forbidden
         );
 
+    /// <summary>
+    /// Builds a <c>404 Not Found</c> problem document for a lookup that finds nothing.
+    /// </summary>
+    /// <param name="detail">The explanation for the caller.</param>
+    /// <returns>The <see cref="IResult"/> that writes the problem document.</returns>
     private static IResult NotFound(string detail) =>
         Results.Problem(
             title: "Not Found",
@@ -598,6 +883,11 @@ public static class DirectoryEndpoints
             statusCode: StatusCodes.Status404NotFound
         );
 
+    /// <summary>
+    /// Builds a <c>400 Bad Request</c> problem document.
+    /// </summary>
+    /// <param name="detail">The explanation for the caller.</param>
+    /// <returns>The <see cref="IResult"/> that writes the problem document.</returns>
     private static IResult BadRequest(string detail) =>
         Results.Problem(
             title: "Bad Request",
@@ -605,6 +895,11 @@ public static class DirectoryEndpoints
             statusCode: StatusCodes.Status400BadRequest
         );
 
+    /// <summary>
+    /// Builds a <c>422 Unprocessable Entity</c> problem document.
+    /// </summary>
+    /// <param name="detail">The explanation for the caller.</param>
+    /// <returns>The <see cref="IResult"/> that writes the problem document.</returns>
     private static IResult UnprocessableEntity(string detail) =>
         Results.Problem(
             title: "Unprocessable Entity",
@@ -612,6 +907,14 @@ public static class DirectoryEndpoints
             statusCode: StatusCodes.Status422UnprocessableEntity
         );
 
+    /// <summary>
+    /// Converts the outcome of a reservation to its response.
+    /// </summary>
+    /// <param name="result">The <see cref="ReservationResult"/> of the directory.</param>
+    /// <returns>
+    /// <c>200 OK</c> when the reservation is made; otherwise the <c>409 Conflict</c> problem that carries the
+    /// conflict detail.
+    /// </returns>
     private static IResult ToResult(ReservationResult result) =>
         result.IsReserved
             ? Results.Ok()
@@ -621,6 +924,14 @@ public static class DirectoryEndpoints
                 statusCode: StatusCodes.Status409Conflict
             );
 
+    /// <summary>
+    /// Converts the outcome of a tenant write to its response.
+    /// </summary>
+    /// <param name="result">The <see cref="DirectoryTenantWriteResult"/> of the tenant writer.</param>
+    /// <returns>
+    /// <c>200 OK</c> when the write is done; the <c>403 Forbidden</c> problem when the calling cell does not hold the
+    /// tenant; the <c>404 Not Found</c> problem when the tenant is unknown; otherwise the <c>409 Conflict</c> problem.
+    /// </returns>
     private static IResult ToResult(DirectoryTenantWriteResult result) =>
         result.Outcome switch
         {

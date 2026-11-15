@@ -102,6 +102,13 @@ internal sealed class DirectoryAuthenticationEndpointFilter(
         return await next(context);
     }
 
+    /// <summary>
+    /// Builds the <c>401 Unauthorized</c> problem document of a request that lacks a valid access token with the
+    /// directory scope, and sets the <c>WWW-Authenticate: Bearer</c> response header that tells the caller how to
+    /// authenticate.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> whose response receives the header.</param>
+    /// <returns>The <see cref="IResult"/> that writes the problem document.</returns>
     private static IResult Unauthorized(HttpContext httpContext)
     {
         httpContext.Response.Headers.WWWAuthenticate = "Bearer";
@@ -112,6 +119,15 @@ internal sealed class DirectoryAuthenticationEndpointFilter(
         );
     }
 
+    /// <summary>
+    /// Reads the bearer access token from the <c>Authorization</c> request header. The <c>Bearer</c> scheme name is
+    /// matched without regard to case.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> whose request carries the header.</param>
+    /// <param name="token">The trimmed access token when the method returns <c>true</c>; otherwise empty.</param>
+    /// <returns>
+    /// <c>true</c> when the header uses the <c>Bearer</c> scheme and holds a non-empty token; otherwise <c>false</c>.
+    /// </returns>
     private static bool TryGetBearerToken(HttpContext httpContext, out string token)
     {
         var authorization = httpContext.Request.Headers.Authorization.ToString();
@@ -125,6 +141,16 @@ internal sealed class DirectoryAuthenticationEndpointFilter(
         return false;
     }
 
+    /// <summary>
+    /// Determines whether the <c>scope</c> claim of an access token grants
+    /// <see cref="GlobalDirectoryProtocol.DirectoryScope"/>. The claim is read as a space-delimited string or as an
+    /// array of strings, and the scope is compared case-sensitively.
+    /// </summary>
+    /// <param name="payload">The claims of the validated access token.</param>
+    /// <returns>
+    /// <c>true</c> when the claim is a string or an array that names the directory scope; otherwise <c>false</c>,
+    /// including when the claim is missing or has any other shape.
+    /// </returns>
     private static bool HasScope(JsonElement payload)
     {
         if (!payload.TryGetProperty(ScopeClaimType, out var scope))
@@ -171,6 +197,14 @@ internal sealed class DirectoryAuthenticationEndpointFilter(
         }
     }
 
+    /// <summary>
+    /// Reads the <c>client_id</c> claim, which names the machine client that the access token was issued to.
+    /// </summary>
+    /// <param name="payload">The claims of the validated access token.</param>
+    /// <param name="clientId">The client identifier when the method returns <c>true</c>; otherwise empty.</param>
+    /// <returns>
+    /// <c>true</c> when the claim is a non-empty string; otherwise <c>false</c>, including when the claim is missing.
+    /// </returns>
     private static bool TryGetClientId(JsonElement payload, out string clientId)
     {
         if (
