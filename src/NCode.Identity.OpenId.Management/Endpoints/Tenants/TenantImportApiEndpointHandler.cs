@@ -41,7 +41,8 @@ POST api/tenant-imports/transfer-keys
 /// Provides the API endpoints that a cell publishes to receive a tenant. One issues a one-time transfer key whose
 /// public half seals the tenant's export. The other imports the export: it takes the transfer key, decrypts the
 /// package, imports every section and the master keys, retags the remote keys that the imported secrets reference to
-/// this cell, and moves the tenant's placement in the global directory to this cell. The tenant stays disabled. Every
+/// this cell, and moves the tenant's placement in the global directory to this cell. A package names the cell it is
+/// offered to, and only that cell imports it. The tenant stays disabled. Every
 /// cell maps the routes, and the caller needs the update operation on the platform node.
 /// </summary>
 // See ADR-1514.
@@ -143,7 +144,7 @@ internal class TenantImportApiEndpointHandler(
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="200">The tenant is imported and placed in this cell.</response>
     /// <response code="409">The directory places the tenant in this cell or in no cell, or refuses the move. Nothing the import wrote remains.</response>
-    /// <response code="422">The transfer key is unknown, expired or already used, the package does not decrypt with it or is malformed, its format version is not one this cell imports, or its region is not this cell's region.</response>
+    /// <response code="422">The transfer key is unknown, expired or already used, the package does not decrypt with it or is malformed, its format version is not one this cell imports, its region is not this cell's region, or it is offered to another cell.</response>
     /// <response code="503">The global directory is unavailable. Nothing the import wrote remains.</response>
     [EndpointName("api/tenant-imports/create")]
     internal virtual async ValueTask<IResult> ImportTenantAsync(
@@ -185,6 +186,7 @@ internal class TenantImportApiEndpointHandler(
                 root,
                 out var version,
                 out var region,
+                out var targetCell,
                 out var tenantId,
                 out var masterKeys,
                 out var sections
@@ -203,6 +205,13 @@ internal class TenantImportApiEndpointHandler(
         {
             return Unprocessable(
                 $"The package is from region '{region}', and this cell is in region '{CellOptions.Region}'."
+            );
+        }
+
+        if (targetCell != CellOptions.Name)
+        {
+            return Unprocessable(
+                $"The package is offered to the cell '{targetCell}', and this cell is '{CellOptions.Name}'."
             );
         }
 
@@ -481,12 +490,14 @@ internal class TenantImportApiEndpointHandler(
         }
     }
 
-    // Reads the payload that the export writes. The format version is a required number, the tenant identifier, the
-    // region and the master keys are required strings, and each section has a distinct name and a JSON value.
+    // Reads the payload that the export writes. The format version is a required number, the region, the target cell,
+    // the tenant identifier and the master keys are required strings, and each section has a distinct name and a JSON
+    // value.
     private static bool TryReadPackage(
         JsonElement root,
         out int version,
         [NotNullWhen(true)] out string? region,
+        [NotNullWhen(true)] out string? targetCell,
         [NotNullWhen(true)] out string? tenantId,
         [NotNullWhen(true)] out string? masterKeys,
         [NotNullWhen(true)] out Dictionary<string, JsonElement>? sections
@@ -494,6 +505,7 @@ internal class TenantImportApiEndpointHandler(
     {
         version = 0;
         region = null;
+        targetCell = null;
         tenantId = null;
         masterKeys = null;
         sections = null;
@@ -502,6 +514,7 @@ internal class TenantImportApiEndpointHandler(
             root.ValueKind != JsonValueKind.Object
             || !TryReadInt32(root, TenantTransferPackage.VersionMember, out var versionValue)
             || !TryReadString(root, TenantTransferPackage.RegionMember, out var regionValue)
+            || !TryReadString(root, TenantTransferPackage.TargetCellMember, out var targetCellValue)
             || !TryReadString(root, TenantTransferPackage.TenantIdMember, out var tenantIdValue)
             || !TryReadString(root, TenantTransferPackage.MasterKeysMember, out var masterKeysValue)
             || !root.TryGetProperty(TenantTransferPackage.SectionsMember, out var sectionsElement)
@@ -534,6 +547,7 @@ internal class TenantImportApiEndpointHandler(
 
         version = versionValue;
         region = regionValue;
+        targetCell = targetCellValue;
         tenantId = tenantIdValue;
         masterKeys = masterKeysValue;
         sections = sectionsValue;

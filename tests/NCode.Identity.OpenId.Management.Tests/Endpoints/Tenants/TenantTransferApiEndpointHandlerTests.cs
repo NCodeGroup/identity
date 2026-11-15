@@ -132,9 +132,10 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
         return httpContext;
     }
 
-    private static TenantExportRequest CreateRequest() =>
+    private static TenantExportRequest CreateRequest(string targetCell = TargetCell) =>
         new()
         {
+            TargetCell = targetCell,
             Jwk = JsonSerializer.SerializeToElement(
                 new
                 {
@@ -374,6 +375,14 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
+    private void SetupOffer(MoveOfferResult result) =>
+        MockTenantDirectory
+            .Setup(x =>
+                x.OfferMoveAsync(TenantId, CellName, TargetCell, It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(result)
+            .Verifiable();
+
     private void SetupPlacement(string? cell) =>
         MockTenantDirectory
             .Setup(x => x.GetPlacementOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()))
@@ -516,6 +525,7 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
         SetupImportAccepted();
         var recipient = SetupRecipientKey();
         SetupStore(CreateTenant(isDisabled: true));
+        SetupOffer(MoveOfferResult.Offered());
         var calls = SetupContributors();
         SetupMasterKeys(recipient);
         SetupEncoder(recipient);
@@ -535,6 +545,7 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
         var root = JsonElement.Parse(Encoder.Payload);
         Assert.Equal(TenantTransferPackage.FormatVersion, root.GetProperty("version").GetInt32());
         Assert.Equal(Region, root.GetProperty("region").GetString());
+        Assert.Equal(TargetCell, root.GetProperty("targetCell").GetString());
         Assert.Equal(TenantId, root.GetProperty("tenantId").GetString());
         Assert.Equal(MasterKeysPackage, root.GetProperty("masterKeys").GetString());
 
@@ -547,6 +558,75 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
         );
         Assert.Equal("accounts", sections[1].GetProperty("name").GetString());
         Assert.Equal(3, sections[1].GetProperty("json").GetProperty("count").GetInt32());
+    }
+
+    [Fact]
+    public async Task ExportTenantAsync_WhenTheDirectoryRefusesTheOffer_ReturnsConflictAndExportsNothing()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupImportAccepted();
+        SetupRecipientKey();
+        SetupStore(CreateTenant(isDisabled: true));
+        SetupOffer(MoveOfferResult.Conflict("The cells are in different regions."));
+
+        var result = await Handler.ExportTenantAsync(
+            CreateHttpContext(),
+            TenantId,
+            CreateRequest(),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+        Assert.Equal("The cells are in different regions.", problem.ProblemDetails.Detail);
+    }
+
+    [Fact]
+    public async Task ExportTenantAsync_WhenTheDirectoryIsUnavailable_ReturnsServiceUnavailableAndExportsNothing()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupImportAccepted();
+        SetupRecipientKey();
+        SetupStore(CreateTenant(isDisabled: true));
+        MockTenantDirectory
+            .Setup(x =>
+                x.OfferMoveAsync(TenantId, CellName, TargetCell, It.IsAny<CancellationToken>())
+            )
+            .Throws(new DirectoryUnavailableException("The directory is unreachable."))
+            .Verifiable();
+        var httpContext = CreateHttpContext();
+
+        var result = await Handler.ExportTenantAsync(
+            httpContext,
+            TenantId,
+            CreateRequest(),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, problem.StatusCode);
+        Assert.True(httpContext.Response.Headers.ContainsKey("Retry-After"));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("Cell-B")]
+    [InlineData("-cell")]
+    public async Task ExportTenantAsync_WhenTheTargetCellIsNotAValidName_ReturnsUnprocessableEntity(
+        string targetCell
+    )
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+
+        var result = await Handler.ExportTenantAsync(
+            CreateHttpContext(),
+            TenantId,
+            CreateRequest(targetCell),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status422UnprocessableEntity, problem.StatusCode);
     }
 
     [Fact]
@@ -643,7 +723,11 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
         var result = await Handler.ExportTenantAsync(
             CreateHttpContext(),
             TenantId,
-            new TenantExportRequest { Jwk = JsonSerializer.SerializeToElement("not-a-key") },
+            new TenantExportRequest
+            {
+                TargetCell = TargetCell,
+                Jwk = JsonSerializer.SerializeToElement("not-a-key"),
+            },
             CancellationToken.None
         );
 
@@ -836,7 +920,7 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
     public async Task Map_Always_DeclaresAndDescribesEveryProblemTheRouteAnswers()
     {
         Assert.Equal(
-            new[] { 400, 401, 403, 404, 409, 415, 422 },
+            new[] { 400, 401, 403, 404, 409, 415, 422, 503 },
             await EndpointProblemMetadata.ReadStatusCodesAsync(
                 Handler,
                 "POST",

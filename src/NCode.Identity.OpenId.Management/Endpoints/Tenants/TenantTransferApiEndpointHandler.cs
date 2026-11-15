@@ -42,8 +42,10 @@ POST api/tenants/{tenantId}/release-moved
 /// <summary>
 /// Provides the API endpoints that move a disabled tenant out of the cell that holds it. The export is one compact
 /// <c>JWE</c> to a recipient key that the receiving cell published: it carries the package's format version, the cell's
-/// region, the tenant's identifier, the section of every <see cref="ITenantTransferContributor"/> in order, and the
-/// tenant's master keys sealed to the same key. The tenant must be disabled so that nothing changes while it moves. The
+/// region, the name of the target cell, the tenant's identifier, the section of every
+/// <see cref="ITenantTransferContributor"/> in order, and the tenant's master keys sealed to the same key. Before it
+/// seals the package, the export records in the global directory the offer of the tenant to the target cell, which only
+/// that cell's move consumes. The tenant must be disabled so that nothing changes while it moves. The
 /// release removes the tenant's rows from this cell once the global directory places the tenant in another cell; it
 /// destroys no remote key and retires nothing. The caller needs the update operation on the platform node. The
 /// export's response is never logged.
@@ -113,7 +115,8 @@ internal class TenantTransferApiEndpointHandler(
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status415UnsupportedMediaType)
-            .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
 
         tenants
             .MapPost("/{tenantId}/release-moved", ReleaseMovedTenantAsync)
@@ -220,12 +223,13 @@ internal class TenantTransferApiEndpointHandler(
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
     /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
-    /// <param name="request">The <see cref="TenantExportRequest"/> that carries the recipient's public key.</param>
+    /// <param name="request">The <see cref="TenantExportRequest"/> that carries the recipient's public key and the target cell.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <response code="200">The export, a compact <c>JWE</c> to the recipient key.</response>
+    /// <response code="200">The export, a compact <c>JWE</c> to the recipient key, which names the target cell.</response>
     /// <response code="404">The tenant does not exist.</response>
-    /// <response code="409">The tenant is not disabled.</response>
-    /// <response code="422">The recipient key is refused, or it is not an elliptic curve key on <c>P-256</c> for encryption.</response>
+    /// <response code="409">The tenant is not disabled, or the directory refuses to record the offer of the tenant to the target cell.</response>
+    /// <response code="422">The target cell is not a valid cell name, the recipient key is refused, or it is not an elliptic curve key on <c>P-256</c> for encryption.</response>
+    /// <response code="503">The global directory is unavailable; nothing is exported.</response>
     [EndpointName("api/tenants/export/create")]
     internal virtual async ValueTask<IResult> ExportTenantAsync(
         HttpContext httpContext,
@@ -244,6 +248,14 @@ internal class TenantTransferApiEndpointHandler(
         if (authorizationFailure is not null)
         {
             return authorizationFailure;
+        }
+
+        if (!CellLabelRules.IsValidLabel(request.TargetCell))
+        {
+            return TypedResults.Problem(
+                detail: "The target cell must be a valid cell name.",
+                statusCode: StatusCodes.Status422UnprocessableEntity
+            );
         }
 
         var recipient = ReadRecipientOrDefault(request, out var recipientRefusal);
@@ -273,6 +285,40 @@ internal class TenantTransferApiEndpointHandler(
             );
         }
 
+        // The offer is the directory's record that this cell lets the tenant go to the target cell, and the move
+        // consumes it. It is recorded before the package is sealed, so no package exists for a move that the directory
+        // refuses.
+        MoveOfferResult offer;
+        try
+        {
+            offer = await TenantDirectory.OfferMoveAsync(
+                tenantId,
+                CellOptions.Name,
+                request.TargetCell,
+                cancellationToken
+            );
+        }
+        catch (DirectoryUnavailableException)
+        {
+            return RetryAfterProblem.Create(
+                httpContext,
+                TimeSpan.FromSeconds(DirectoryRetrySeconds),
+                new ProblemDetails
+                {
+                    Status = StatusCodes.Status503ServiceUnavailable,
+                    Detail = "The global directory is unavailable. Retry the request.",
+                }
+            );
+        }
+
+        if (!offer.IsOffered)
+        {
+            return TypedResults.Problem(
+                detail: offer.ConflictDetail,
+                statusCode: StatusCodes.Status409Conflict
+            );
+        }
+
         var sections = new List<TenantTransferSection>(TenantTransferContributors.Count);
         foreach (var contributor in TenantTransferContributors)
         {
@@ -287,6 +333,7 @@ internal class TenantTransferApiEndpointHandler(
 
         var package = await EncodePackageAsync(
             tenantId,
+            request.TargetCell,
             sections,
             masterKeys,
             recipient,
@@ -350,9 +397,11 @@ internal class TenantTransferApiEndpointHandler(
     }
 
     // Seals the export to the recipient key as a compact JWE: the package's format version, the cell's region, the
-    // tenant's identifier, each section in order, and the master keys that were already sealed to the same key.
+    // cell that the package is offered to, the tenant's identifier, each section in order, and the master keys that
+    // were already sealed to the same key.
     private async ValueTask<string> EncodePackageAsync(
         string tenantId,
+        string targetCell,
         IReadOnlyList<TenantTransferSection> sections,
         string masterKeys,
         SecretKey recipient,
@@ -368,6 +417,7 @@ internal class TenantTransferApiEndpointHandler(
                 TenantTransferPackage.FormatVersion
             );
             writer.WriteString(TenantTransferPackage.RegionMember, CellOptions.Region);
+            writer.WriteString(TenantTransferPackage.TargetCellMember, targetCell);
             writer.WriteString(TenantTransferPackage.TenantIdMember, tenantId);
 
             writer.WriteStartArray(TenantTransferPackage.SectionsMember);

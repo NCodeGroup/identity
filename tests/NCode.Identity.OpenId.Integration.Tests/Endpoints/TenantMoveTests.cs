@@ -30,6 +30,7 @@ public class TenantMoveTests
     private const string CellA = "cell-a";
     private const string CellB = "cell-b";
     private const string CellC = "cell-c";
+    private const string CellD = "cell-d";
     private const string RegionEurope = "eu";
     private const string RegionAmerica = "us";
 
@@ -66,7 +67,12 @@ public class TenantMoveTests
 
         await SetDisabledAsync(administratorA, isDisabled: true, CancellationToken.None);
         var transferKey = await CreateTransferKeyAsync(administratorB, CancellationToken.None);
-        var package = await ExportAsync(administratorA, transferKey.Jwk, CancellationToken.None);
+        var package = await ExportAsync(
+            administratorA,
+            transferKey.Jwk,
+            CellB,
+            CancellationToken.None
+        );
 
         using var importResponse = await administratorB.PostAsJsonAsync(
             "/api/tenant-imports",
@@ -124,7 +130,49 @@ public class TenantMoveTests
     }
 
     [Fact]
-    public async Task Import_WhenTheReceivingCellIsInAnotherRegion_ReturnsUnprocessableEntity()
+    public async Task Import_WhenTheReceivingCellIsNotTheTargetCell_ReturnsUnprocessableEntity()
+    {
+        using var provider = new TestRemoteKeyProvider();
+        var directory = CreateDirectory();
+        using var cellA = new CellApplicationFactory(provider, directory, CellA, RegionEurope);
+        using var cellB = new CellApplicationFactory(provider, directory, CellB, RegionEurope);
+        using var cellD = new CellApplicationFactory(provider, directory, CellD, RegionEurope);
+        using var administratorA = await cellA.CreateAdministratorClientAsync(
+            CancellationToken.None
+        );
+        using var administratorD = await cellD.CreateAdministratorClientAsync(
+            CancellationToken.None
+        );
+
+        await CreateTenantAsync(administratorA, CancellationToken.None);
+        await SetDisabledAsync(administratorA, isDisabled: true, CancellationToken.None);
+        var transferKey = await CreateTransferKeyAsync(administratorD, CancellationToken.None);
+        var package = await ExportAsync(
+            administratorA,
+            transferKey.Jwk,
+            CellB,
+            CancellationToken.None
+        );
+
+        using var importResponse = await administratorD.PostAsJsonAsync(
+            "/api/tenant-imports",
+            new { kid = transferKey.Kid, package },
+            CancellationToken.None
+        );
+
+        var importBody = await importResponse.Content.ReadAsStringAsync();
+        Assert.True(importResponse.StatusCode == HttpStatusCode.UnprocessableEntity, importBody);
+        Assert.False(await HasTenantRowAsync(cellD, CancellationToken.None));
+        var placement = await directory.GetPlacementOrDefaultAsync(
+            TenantId,
+            CancellationToken.None
+        );
+        Assert.NotNull(placement);
+        Assert.Equal(CellA, placement.Cell);
+    }
+
+    [Fact]
+    public async Task Export_WhenTheTargetCellIsInAnotherRegion_ReturnsConflict()
     {
         using var provider = new TestRemoteKeyProvider();
         var directory = CreateDirectory();
@@ -140,17 +188,15 @@ public class TenantMoveTests
         await CreateTenantAsync(administratorA, CancellationToken.None);
         await SetDisabledAsync(administratorA, isDisabled: true, CancellationToken.None);
         var transferKey = await CreateTransferKeyAsync(administratorC, CancellationToken.None);
-        var package = await ExportAsync(administratorA, transferKey.Jwk, CancellationToken.None);
 
-        using var importResponse = await administratorC.PostAsJsonAsync(
-            "/api/tenant-imports",
-            new { kid = transferKey.Kid, package },
+        using var exportResponse = await administratorA.PostAsJsonAsync(
+            $"/api/tenants/{TenantId}/export",
+            new { jwk = transferKey.Jwk, targetCell = CellC },
             CancellationToken.None
         );
 
-        var importBody = await importResponse.Content.ReadAsStringAsync();
-        Assert.True(importResponse.StatusCode == HttpStatusCode.UnprocessableEntity, importBody);
-        Assert.False(await HasTenantRowAsync(cellC, CancellationToken.None));
+        var exportBody = await exportResponse.Content.ReadAsStringAsync();
+        Assert.True(exportResponse.StatusCode == HttpStatusCode.Conflict, exportBody);
         var placement = await directory.GetPlacementOrDefaultAsync(
             TenantId,
             CancellationToken.None
@@ -170,6 +216,7 @@ public class TenantMoveTests
                 [CellA] = RegionEurope,
                 [CellB] = RegionEurope,
                 [CellC] = RegionAmerica,
+                [CellD] = RegionEurope,
             }
         );
 
@@ -300,12 +347,13 @@ public class TenantMoveTests
     private static async ValueTask<string> ExportAsync(
         HttpClient administrator,
         JsonElement jwk,
+        string targetCell,
         CancellationToken cancellationToken
     )
     {
         using var response = await administrator.PostAsJsonAsync(
             $"/api/tenants/{TenantId}/export",
-            new { jwk },
+            new { jwk, targetCell },
             cancellationToken
         );
         var body = await response.Content.ReadAsStringAsync(cancellationToken);

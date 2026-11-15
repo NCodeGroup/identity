@@ -21,4 +21,11 @@ public sealed class TenantExportRequest
     /// the export.
     /// </summary>
     public required JsonElement Jwk { get; init; }
+
+    /// <summary>
+    /// Gets the name of the cell that receives the tenant. The exporting cell offers the tenant to it in the global
+    /// directory and writes the name into the package, so only that cell imports the package. The name must be a valid
+    /// cell label.
+    /// </summary>
+    public required string TargetCell { get; init; }
 }

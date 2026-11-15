@@ -9,14 +9,20 @@ namespace NCode.Identity.OpenId.Integration.Tests.Infrastructure;
 /// An <see cref="ITenantDirectory"/> over a dictionary, which hosts that stand for different cells of one region
 /// share, so a tenant that one cell placed is placed in the directory every other cell asks. It follows the rules of
 /// the global directory: identifiers and issuers compare without regard to case, a retired identifier is never
-/// reissued, only the tenant that gave up an issuer takes it back, and <see cref="MoveAsync"/> moves a placed tenant
-/// between two registered cells of one region.
+/// reissued, only the tenant that gave up an issuer takes it back, <see cref="OfferMoveAsync"/> records the offer of a
+/// placed tenant to another registered cell of its region, and <see cref="MoveAsync"/> moves the tenant only on that
+/// unexpired offer.
 /// </summary>
 public sealed class InMemoryTenantDirectory : ITenantDirectory
 {
+    // The lifetime of a move offer, which equals the lifetime of the transfer key that the target cell issues.
+    private const int MoveOfferLifetimeHours = 1;
+
     private Lock Gate { get; } = new();
 
     private Dictionary<string, string> CellRegions { get; }
+
+    private Dictionary<string, Offer> Offers { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     private Dictionary<string, Entry> Tenants { get; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -232,7 +238,64 @@ public sealed class InMemoryTenantDirectory : ITenantDirectory
         CancellationToken cancellationToken
     )
     {
-        return ValueTask.FromResult(MoveOfferResult.Offered());
+        lock (Gate)
+        {
+            if (!Tenants.TryGetValue(tenantId, out var entry) || !entry.IsPlaced)
+            {
+                return ValueTask.FromResult(
+                    MoveOfferResult.Conflict($"The tenant '{tenantId}' is not placed in a cell.")
+                );
+            }
+
+            if (!string.Equals(entry.Cell, fromCell, StringComparison.Ordinal))
+            {
+                return ValueTask.FromResult(
+                    MoveOfferResult.Conflict(
+                        $"The tenant '{tenantId}' is not placed in the cell '{fromCell}'."
+                    )
+                );
+            }
+
+            if (string.Equals(fromCell, toCell, StringComparison.Ordinal))
+            {
+                return ValueTask.FromResult(
+                    MoveOfferResult.Conflict(
+                        $"The tenant '{tenantId}' is already placed in the cell '{toCell}'."
+                    )
+                );
+            }
+
+            if (!CellRegions.TryGetValue(fromCell, out var fromRegion))
+            {
+                return ValueTask.FromResult(
+                    MoveOfferResult.Conflict($"The cell '{fromCell}' is not registered.")
+                );
+            }
+
+            if (!CellRegions.TryGetValue(toCell, out var toRegion))
+            {
+                return ValueTask.FromResult(
+                    MoveOfferResult.Conflict($"The cell '{toCell}' is not registered.")
+                );
+            }
+
+            if (!string.Equals(fromRegion, toRegion, StringComparison.Ordinal))
+            {
+                return ValueTask.FromResult(
+                    MoveOfferResult.Conflict(
+                        $"The cells '{fromCell}' and '{toCell}' are in different regions, and a tenant moves only within its region."
+                    )
+                );
+            }
+
+            Offers[tenantId] = new Offer
+            {
+                FromCell = fromCell,
+                ToCell = toCell,
+                ExpiresWhen = TimeProvider.System.GetUtcNow().AddHours(MoveOfferLifetimeHours),
+            };
+            return ValueTask.FromResult(MoveOfferResult.Offered());
+        }
     }
 
     /// <inheritdoc />
@@ -293,7 +356,30 @@ public sealed class InMemoryTenantDirectory : ITenantDirectory
                 );
             }
 
+            if (
+                !Offers.TryGetValue(tenantId, out var offer)
+                || !string.Equals(offer.FromCell, fromCell, StringComparison.Ordinal)
+                || !string.Equals(offer.ToCell, toCell, StringComparison.Ordinal)
+            )
+            {
+                return ValueTask.FromResult(
+                    MoveResult.Conflict(
+                        $"The cell '{fromCell}' has not offered the tenant '{tenantId}' to the cell '{toCell}'."
+                    )
+                );
+            }
+
+            if (offer.ExpiresWhen <= TimeProvider.System.GetUtcNow())
+            {
+                return ValueTask.FromResult(
+                    MoveResult.Conflict(
+                        $"The offer of the tenant '{tenantId}' to the cell '{toCell}' has expired."
+                    )
+                );
+            }
+
             entry.Cell = toCell;
+            Offers.Remove(tenantId);
             return ValueTask.FromResult(MoveResult.Moved());
         }
     }
@@ -366,5 +452,14 @@ public sealed class InMemoryTenantDirectory : ITenantDirectory
         public string? Cell { get; set; }
 
         public bool IsPlaced { get; set; }
+    }
+
+    private sealed class Offer
+    {
+        public required string FromCell { get; init; }
+
+        public required string ToCell { get; init; }
+
+        public required DateTimeOffset ExpiresWhen { get; init; }
     }
 }

@@ -179,12 +179,13 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
             SecretsConcurrencyToken = "secrets-ct",
         }.Build();
 
-    // The package that an export writes: { version, region, tenantId, sections: [{ name, json }], masterKeys }. A null
-    // version leaves the member out.
+    // The package that an export writes: { version, region, targetCell, tenantId, sections: [{ name, json }],
+    // masterKeys }. A null version or target cell leaves the member out.
     private static byte[] CreatePayload(
         string region = Region,
         string sectionName = "accounts",
-        int? version = TenantTransferPackage.FormatVersion
+        int? version = TenantTransferPackage.FormatVersion,
+        string? targetCell = CellName
     )
     {
         var payload = new Dictionary<string, object?>
@@ -202,6 +203,11 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
         if (version is { } versionValue)
         {
             payload[TenantTransferPackage.VersionMember] = versionValue;
+        }
+
+        if (targetCell is not null)
+        {
+            payload[TenantTransferPackage.TargetCellMember] = targetCell;
         }
 
         return JsonSerializer.SerializeToUtf8Bytes(payload);
@@ -630,6 +636,43 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status422UnprocessableEntity, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task ImportTenantAsync_WhenThePackageIsOfferedToAnotherCell_ReturnsUnprocessableEntityAndImportsNothing()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupPackage(CreatePayload(targetCell: "cell-c"));
+
+        var result = await Handler.ImportTenantAsync(
+            CreateHttpContext(authenticated: true),
+            CreateRequest(),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status422UnprocessableEntity, problem.StatusCode);
+        Assert.Equal(
+            $"The package is offered to the cell 'cell-c', and this cell is '{CellName}'.",
+            problem.ProblemDetails.Detail
+        );
+    }
+
+    [Fact]
+    public async Task ImportTenantAsync_WhenThePackageNamesNoTargetCell_ReturnsUnprocessableEntityAndImportsNothing()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupPackage(CreatePayload(targetCell: null));
+
+        var result = await Handler.ImportTenantAsync(
+            CreateHttpContext(authenticated: true),
+            CreateRequest(),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status422UnprocessableEntity, problem.StatusCode);
+        Assert.Equal("The package is malformed.", problem.ProblemDetails.Detail);
     }
 
     [Fact]
