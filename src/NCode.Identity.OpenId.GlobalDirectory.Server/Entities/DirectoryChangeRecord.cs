@@ -23,5 +23,9 @@ public sealed class DirectoryChangeRecord
     /// <summary>
     /// Gets or sets the JSON of the published document, or <c>null</c> for a team retire.
     /// </summary>
+    /// <remarks>
+    /// The text is the published document as the store wrote it, and nothing reads its members as JSON, so the column
+    /// keeps it as text.
+    /// </remarks>
     public string? DocumentJson { get; set; }
 }

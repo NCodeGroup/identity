@@ -22,6 +22,11 @@ public sealed class PlatformRecord
     /// <summary>
     /// Gets or sets the JSON of the published platform document.
     /// </summary>
+    /// <remarks>
+    /// The store serializes the whole <c>PlatformDocument</c> into this text and deserializes it whole, and
+    /// nothing reads its members as JSON, so the column keeps the text the store wrote; a <c>JsonElement</c> would
+    /// parse every row that is loaded, including the loads that never read the document.
+    /// </remarks>
     public required string DocumentJson { get; set; }
 
     /// <summary>

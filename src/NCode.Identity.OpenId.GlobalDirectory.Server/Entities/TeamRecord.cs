@@ -62,6 +62,11 @@ public sealed class TeamRecord
     /// <summary>
     /// Gets or sets the JSON of the published team document, or <c>null</c> when none is published.
     /// </summary>
+    /// <remarks>
+    /// The store serializes the whole <c>TeamDocument</c> into this text and deserializes it whole, and
+    /// nothing reads its members as JSON, so the column keeps the text the store wrote; a <c>JsonElement</c> would
+    /// parse every row that is loaded, including the loads that never read the document.
+    /// </remarks>
     public string? DocumentJson { get; set; }
 
     /// <summary>
