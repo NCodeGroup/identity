@@ -1,6 +1,8 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using NCode.Identity.OpenId.Tenants;
+
 namespace NCode.Identity.OpenId.Accounts.AspNetIdentity;
 
 public sealed class TenantLookupNormalizerTests
@@ -77,6 +79,20 @@ public sealed class TenantLookupNormalizerTests
         Assert.Null(normalized);
     }
 
+    [Fact]
+    public void NormalizeName_WhenTheTenantAndTheNameAreTheLongest_FitsNormalizedUserName()
+    {
+        var tenant = new string('t', 63);
+        Assert.True(TenantIdentifierRules.IsValidTenantId(tenant));
+        Assert.False(TenantIdentifierRules.IsValidTenantId(tenant + "t"));
+        using var scope = Accessor.BeginScope(tenant);
+
+        var normalized = Normalizer.NormalizeName(new string('a', AccountMaxLengths.UserName));
+
+        Assert.NotNull(normalized);
+        Assert.Equal(AccountMaxLengths.NormalizedUserName, normalized.Length);
+    }
+
     #endregion
 
     #region NormalizeEmail Tests
@@ -118,6 +134,20 @@ public sealed class TenantLookupNormalizerTests
         var normalized = Normalizer.NormalizeEmail("alice@example.com");
 
         Assert.Equal("tenant-a|ALICE@EXAMPLE.COM", normalized);
+    }
+
+    [Fact]
+    public void NormalizeEmail_WhenTheTenantAndTheEmailAreTheLongest_FitsNormalizedEmail()
+    {
+        var tenant = new string('t', 63);
+        Assert.True(TenantIdentifierRules.IsValidTenantId(tenant));
+        Assert.False(TenantIdentifierRules.IsValidTenantId(tenant + "t"));
+        using var scope = Accessor.BeginScope(tenant);
+
+        var normalized = Normalizer.NormalizeEmail(new string('a', AccountMaxLengths.Email));
+
+        Assert.NotNull(normalized);
+        Assert.Equal(AccountMaxLengths.NormalizedEmail, normalized.Length);
     }
 
     #endregion

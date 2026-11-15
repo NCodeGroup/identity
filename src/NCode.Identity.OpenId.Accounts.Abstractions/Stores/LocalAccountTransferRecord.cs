@@ -34,7 +34,7 @@ public sealed class LocalAccountTransferRecord
     /// <summary>
     /// Gets the normalized username as the exporting store holds it.
     /// </summary>
-    [MaxLength(AccountMaxLengths.UserName)]
+    [MaxLength(AccountMaxLengths.NormalizedUserName)]
     public required string NormalizedUserName { get; init; }
 
     /// <summary>
@@ -46,7 +46,7 @@ public sealed class LocalAccountTransferRecord
     /// <summary>
     /// Gets the normalized email address as the exporting store holds it, or <c>null</c> when none is recorded.
     /// </summary>
-    [MaxLength(AccountMaxLengths.Email)]
+    [MaxLength(AccountMaxLengths.NormalizedEmail)]
     public required string? NormalizedEmail { get; init; }
 
     /// <summary>
