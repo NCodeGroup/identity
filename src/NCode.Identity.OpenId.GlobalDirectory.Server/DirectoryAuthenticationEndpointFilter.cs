@@ -6,6 +6,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
+using NCode.Identity.Jose;
 using NCode.Identity.OpenId.Client;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
@@ -16,8 +17,9 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 /// <see cref="GlobalDirectoryProtocol.DirectoryAudience"/>, and requires the scope
 /// <see cref="GlobalDirectoryProtocol.DirectoryScope"/>. A request that lacks a valid token with the scope
 /// is answered <c>401 Unauthorized</c>, and a request whose issuer cannot be reached is answered
-/// <c>503 Service Unavailable</c> with a <c>Retry-After</c>, never allowed. A request that passes carries a principal
-/// whose <c>client_id</c> claim names the calling machine client.
+/// <c>503 Service Unavailable</c> with a <c>Retry-After</c>, never allowed. A token bound to a key (one that carries a
+/// <c>cnf</c> claim) is answered <c>401 Unauthorized</c>, because the directory checks no proof of possession. A
+/// request that passes carries a principal whose <c>client_id</c> claim names the calling machine client.
 /// </summary>
 // See ADR-1411.
 internal sealed class DirectoryAuthenticationEndpointFilter(
@@ -208,6 +210,11 @@ internal sealed class DirectoryAuthenticationEndpointFilter(
         {
             return Unauthorized(httpContext);
         }
+
+        // The directory accepts unbound bearer tokens only: it checks no proof of possession, so a bound token is
+        // refused.
+        if (payload.TryGetProperty(JoseClaimNames.Payload.Cnf, out _))
+            return Unauthorized(httpContext);
 
         var identity = new ClaimsIdentity(
             [

@@ -236,6 +236,33 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Request_WithAKeyBoundToken_AnswersUnauthorized()
+    {
+        var payload = JsonElement.Parse(
+            JsonSerializer.Serialize(
+                new
+                {
+                    client_id = ClientIdOf(CellName),
+                    scope = DirectoryScope,
+                    cnf = new { jkt = "x" },
+                }
+            )
+        );
+        ValidatorMock
+            .Setup(x =>
+                x.ValidateAsync(ServerIssuer, Audience, Token, It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(new IssuerAccessTokenResult(payload, ServerIssuer))
+            .Verifiable();
+        Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token);
+
+        var response = await Client.GetAsync("/directory/v1/cells");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Contains("Bearer", response.Headers.WwwAuthenticate.ToString());
+    }
+
+    [Fact]
     public async Task Request_WhenTheIssuerIsUnavailable_AnswersServiceUnavailableWithRetryAfter()
     {
         ValidatorMock

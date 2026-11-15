@@ -4179,16 +4179,16 @@ Until the first stable release, the [Unreleased] section describes the product a
   `DirectoryDbContext`, and `hosts/NCode.Identity.OpenId.GlobalDirectory.Host` is the deployable, with its own Postgres
   database, migrations and image (`directory-image.yml`). The change feed holds each team's and the platform's latest
   change, each carrying the whole document or the retire, so it stays bounded by the number of teams and a cell reading
-  from the start reads every current document. The host accepts bearer tokens of the control-plane cell's issuer
-  (`DirectoryServer:Issuer`) for the audience `urn:ncode:directory` and the scope `directory`. Each cell authenticates
-  as the machine client `cell-{name}` of the control-plane cell's root tenant (`private_key_jwt`; `Directory:ClientId`
-  and `Directory:KeyRing`, whose keys `KeyRings:{name}` holds), which `POST /api/platform/clients` registers with a
-  requested `clientId` and its `jwks`. The directory takes platform and team writes only from the control-plane cell
-  (`DirectoryServer:ControlPlaneCell`) and authorizes each tenant write against the tenant's stored record in the
-  transaction that writes it: the cell that holds the tenant and the control-plane cell write it, and only the
-  control-plane cell retires a tenant the directory has no record of; a cell registers only itself, with a management
-  URL that is an absolute `https` URL (or `http` on a loopback host or in local development) with no user information,
-  query or fragment, and asks to move a tenant only into itself.
+  from the start reads every current document. The host accepts unbound bearer tokens of the control-plane cell's issuer
+  (`DirectoryServer:Issuer`) for the audience `urn:ncode:directory` and the scope `directory`, and refuses a token that
+  carries a `cnf` claim. Each cell authenticates as the machine client `cell-{name}` of the control-plane cell's root
+  tenant (`private_key_jwt`; `Directory:ClientId` and `Directory:KeyRing`, whose keys `KeyRings:{name}` holds), which
+  `POST /api/platform/clients` registers with a requested `clientId` and its `jwks`. The directory takes platform and
+  team writes only from the control-plane cell (`DirectoryServer:ControlPlaneCell`) and authorizes each tenant write
+  against the tenant's stored record in the transaction that writes it: the cell that holds the tenant and the
+  control-plane cell write it, and only the control-plane cell retires a tenant the directory has no record of; a cell
+  registers only itself, with a management URL that is an absolute `https` URL (or `http` on a loopback host or in local
+  development) with no user information, query or fragment, and asks to move a tenant only into itself.
 
 - **The control plane serves every cell.** The control-plane cell owns platform and team authority, setup and the team
   root keys; every other cell reaches it through remote adapters that fail closed. `IManagementTokenValidator` validates
@@ -6109,9 +6109,10 @@ Until the first stable release, the [Unreleased] section describes the product a
 
 - **Only a cell's own machine client reaches the directory and the control plane.** The directory and control-plane
   endpoints accept a bearer token for the audience `urn:ncode:directory` or `urn:ncode:control-plane` with the matching
-  scope from the control-plane issuer, and register or move a cell only for the client `cell-{name}` of that cell, so
-  one cell cannot register, move a tenant into or speak for another. A remote adapter that cannot reach the directory,
-  the control plane or the key set answers `503`, never allow, empty or valid.
+  scope from the control-plane issuer, the directory endpoints only when the token carries no `cnf` claim, and register
+  or move a cell only for the client `cell-{name}` of that cell, so one cell cannot register, move a tenant into or
+  speak for another. A remote adapter that cannot reach the directory, the control plane or the key set answers `503`,
+  never allow, empty or valid.
 
 - **KMS keys are refused outside the cell's cloud regions.** The host sets the AWS KMS adapter's `AllowedRegions` and
   the Google Cloud KMS adapter's `AllowedLocations` from `Cell:CloudRegions`, and each adapter's options validator

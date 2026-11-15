@@ -67,7 +67,8 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
 3. **One cell runs on its own.** The directory is three ports (tenants, teams, cells). A local adapter over the cell's
    own retired-identifier tables is the default and needs no extra service, so a single deployment is a platform of one
    cell. A remote adapter, selected by `Directory:Url`, calls the directory service over HTTP with a client-credentials
-   token and fails closed.
+   token and fails closed. The directory accepts the cells' unbound bearer tokens only and answers `401` to a token that
+   carries a `cnf` claim, because it checks no proof of possession.
 4. **The control plane lives in one control-plane cell.** The platform and team authority, platform and team settings,
    setup and the team root keys are held by the cell that sets `Cell:IsControlPlane`. Every other cell reaches the
    control plane through remote adapters that validate management tokens against its issuer and ask its authority
