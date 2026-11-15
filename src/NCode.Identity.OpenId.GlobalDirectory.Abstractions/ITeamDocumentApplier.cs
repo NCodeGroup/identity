@@ -13,8 +13,9 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 public interface ITeamDocumentApplier
 {
     /// <summary>
-    /// Applies a published team document: it inserts or updates the team's row, and announces the change so caches
-    /// evict the team. A document whose sequence the row already carries or exceeds changes nothing.
+    /// Applies a published team document: it inserts or updates the team's row, announces the change so caches evict
+    /// the team, and mirrors the root key the document holds for the cell's region into the team's owner root key,
+    /// unless the team is disabled. A document whose sequence the row already carries or exceeds changes nothing.
     /// </summary>
     /// <param name="document">The <see cref="TeamDocument"/> to apply.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
@@ -23,7 +24,8 @@ public interface ITeamDocumentApplier
 
     /// <summary>
     /// Applies the retirement of a team: it removes the team's row, or disables it when tenants or teams still name it,
-    /// and announces the change so caches evict the team. A team without a row changes nothing.
+    /// and announces the change so caches evict the team. A removed team's owner root key is removed, and a disabled
+    /// team keeps it. A team without a row changes nothing.
     /// </summary>
     /// <param name="teamId">The identifier of the retired team.</param>
     /// <param name="sequence">The sequence of the directory change that retired the team.</param>

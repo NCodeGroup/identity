@@ -22,10 +22,13 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// into the team's row, or removes the row of a retired team, then sends a <see cref="TeamChangedCommand"/> so caches
 /// evict the team. A team that tenants or teams still name is disabled instead of removed, because the cell refuses to
 /// delete a team that something names. The root key that the document holds for the cell's region is mirrored into the
-/// team's owner root key, which rewraps the master keys of the team's tenants in this cell. Reconciling brings the owner
-/// root key of every enabled mirrored team to the reference its row holds for the region, which applies a key that
-/// failed its probe or its rotation cooldown once it can be. The team row is committed before the command and the root
-/// key follow, so a command or a root key that fails is logged and never fails the committed write.
+/// team's owner root key, which rewraps the master keys of the team's tenants in this cell, unless the team is
+/// disabled: a disabled team keeps the owner root key it has, and the document that enables it again mirrors its key.
+/// A removed team's owner root key is removed, and a team disabled because something names it keeps its key.
+/// Reconciling brings the owner root key of every enabled mirrored team to the reference its row holds for the region,
+/// which applies a key that failed its probe or its rotation cooldown once it can be. The team row is committed before
+/// the command and the root key follow, so a command or a root key that fails is logged and never fails the committed
+/// write.
 /// </summary>
 // See ADR-1411 and ADR-1416.
 internal sealed class DefaultTeamDocumentApplier(
@@ -110,6 +113,10 @@ internal sealed class DefaultTeamDocumentApplier(
                 new TeamChangedCommand(document.TeamId, settingsChanged),
                 cancellationToken
             );
+
+            // A disabled team keeps its owner root key, as ReconcileRootKeysAsync leaves it.
+            if (document.IsDisabled)
+                return;
 
             // The mirror stays on the caller's token: the rewrap must not be cut by the post-commit bound, and a mirror
             // that fails or is cancelled is redone by ReconcileRootKeysAsync on a replica's first pass.
@@ -231,6 +238,7 @@ internal sealed class DefaultTeamDocumentApplier(
     {
         using var _ = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
 
+        var isRemoved = false;
         await using (var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken))
         {
             var store = storeManager.GetStore<ITeamStore>();
@@ -248,6 +256,7 @@ internal sealed class DefaultTeamDocumentApplier(
             else
             {
                 await store.RemoveAsync(teamId, cancellationToken);
+                isRemoved = true;
             }
 
             await storeManager.SaveChangesAsync(cancellationToken);
@@ -258,6 +267,10 @@ internal sealed class DefaultTeamDocumentApplier(
             new TeamChangedCommand(teamId, false),
             cancellationToken
         );
+
+        // A removed team's owner root key goes with it; a team disabled because something names it keeps its key.
+        if (isRemoved)
+            await MirrorRootKeyAsync(teamId, null, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -270,8 +283,14 @@ internal sealed class DefaultTeamDocumentApplier(
         return await store.GetMaxDirectorySequenceAsync(cancellationToken);
     }
 
-    // The command follows a committed write, so it runs on its own bounded token and a failure is logged and never fails
-    // the write; a caller's cancellation propagates.
+    /// <summary>
+    /// Sends a team-changed command after its write is committed. The command runs on its own bounded token, and a
+    /// failure is logged and never fails the committed write; a caller's cancellation propagates.
+    /// </summary>
+    /// <param name="teamId">The identifier of the team that the command announces.</param>
+    /// <param name="command">The <see cref="TeamChangedCommand"/> to send.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     private async ValueTask SendAfterCommitAsync(
         string teamId,
         TeamChangedCommand command,
