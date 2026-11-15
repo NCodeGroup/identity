@@ -8,6 +8,7 @@ using NCode.Identity.AspNetCore;
 using NCode.Identity.Jose;
 using NCode.Identity.OpenId.Authentication.Tokens.Commands;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Mediator;
 
@@ -84,7 +85,7 @@ public sealed class ControlPlaneAuthenticationEndpointFilterTests : IDisposable
                     It.Is<AuthenticateAccessTokenCommand>(command =>
                         command.AccessToken == "access-token"
                         && command.RequiredAudiences.SequenceEqual(
-                            new[] { OpenIdConstants.SystemResourceServerIdentifiers.ControlPlane }
+                            new[] { GlobalDirectoryProtocol.ControlPlaneAudience }
                         )
                     ),
                     It.IsAny<CancellationToken>()
@@ -198,7 +199,12 @@ public sealed class ControlPlaneAuthenticationEndpointFilterTests : IDisposable
     public async Task InvokeAsync_WhenTheTokenLacksTheScope_Answers403()
     {
         SetupMaterialization();
-        SetupAuthentication(Authenticated(scope: "openid", clientId: "cell-eu1"));
+        SetupAuthentication(
+            Authenticated(
+                scope: "openid",
+                clientId: GlobalDirectoryProtocol.CellClientIdPrefix + "eu1"
+            )
+        );
         HttpContext.Request.Headers.Authorization = "Bearer access-token";
         var context = EndpointFilterInvocationContext.Create(HttpContext);
 
@@ -209,12 +215,14 @@ public sealed class ControlPlaneAuthenticationEndpointFilterTests : IDisposable
 
     [Theory]
     [InlineData("other")]
-    [InlineData("cell-")]
+    [InlineData(GlobalDirectoryProtocol.CellClientIdPrefix)]
     [InlineData(null)]
     public async Task InvokeAsync_WhenTheClientIsNotACell_Answers403(string? clientId)
     {
         SetupMaterialization();
-        SetupAuthentication(Authenticated(scope: "control-plane", clientId: clientId));
+        SetupAuthentication(
+            Authenticated(scope: GlobalDirectoryProtocol.ControlPlaneScope, clientId: clientId)
+        );
         HttpContext.Request.Headers.Authorization = "Bearer access-token";
         var context = EndpointFilterInvocationContext.Create(HttpContext);
 
@@ -224,15 +232,17 @@ public sealed class ControlPlaneAuthenticationEndpointFilterTests : IDisposable
     }
 
     [Theory]
-    [InlineData("Bearer access-token", "control-plane")]
-    [InlineData("DPoP access-token", "openid control-plane")]
+    [InlineData("Bearer access-token", GlobalDirectoryProtocol.ControlPlaneScope)]
+    [InlineData("DPoP access-token", "openid " + GlobalDirectoryProtocol.ControlPlaneScope)]
     public async Task InvokeAsync_WhenTheCellAuthenticatesWithTheScope_RunsTheRouteInAnUnscopedScope(
         string authorization,
         string scope
     )
     {
         SetupMaterialization();
-        SetupAuthentication(Authenticated(scope, clientId: "cell-eu1"));
+        SetupAuthentication(
+            Authenticated(scope, clientId: GlobalDirectoryProtocol.CellClientIdPrefix + "eu1")
+        );
         HttpContext.Request.Headers.Authorization = authorization;
         var context = EndpointFilterInvocationContext.Create(HttpContext);
         var expected = TypedResults.NoContent();

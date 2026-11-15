@@ -9,6 +9,7 @@ using NCode.Identity.AspNetCore;
 using NCode.Identity.Jose;
 using NCode.Identity.OpenId.Authentication.Tokens.Commands;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Mediator;
 
@@ -30,16 +31,6 @@ internal sealed class ControlPlaneAuthenticationEndpointFilter(
 ) : IEndpointFilter
 {
     /// <summary>
-    /// The scope that an access token for the control plane carries.
-    /// </summary>
-    internal const string Scope = "control-plane";
-
-    /// <summary>
-    /// The prefix of the <c>client_id</c> of a cell's machine client.
-    /// </summary>
-    internal const string CellClientIdPrefix = "cell-";
-
-    /// <summary>
     /// The reason that the filter gives the unscoped scope it opens.
     /// </summary>
     internal const string UnscopedReason = "control-plane authority";
@@ -48,7 +39,7 @@ internal sealed class ControlPlaneAuthenticationEndpointFilter(
     private const string DPoPPrefix = "DPoP ";
 
     private static string[] ControlPlaneAudiences { get; } =
-    [OpenIdConstants.SystemResourceServerIdentifiers.ControlPlane];
+    [GlobalDirectoryProtocol.ControlPlaneAudience];
 
     private IOpenIdContextFactory OpenIdContextFactory { get; } = openIdContextFactory;
 
@@ -150,7 +141,13 @@ internal sealed class ControlPlaneAuthenticationEndpointFilter(
         {
             foreach (var candidate in claim.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries))
             {
-                if (string.Equals(candidate, Scope, StringComparison.Ordinal))
+                if (
+                    string.Equals(
+                        candidate,
+                        GlobalDirectoryProtocol.ControlPlaneScope,
+                        StringComparison.Ordinal
+                    )
+                )
                     return true;
             }
         }
@@ -162,7 +159,10 @@ internal sealed class ControlPlaneAuthenticationEndpointFilter(
     {
         var clientId = principal.FindFirst(JoseClaimNames.Payload.ClientId)?.Value;
         return clientId is not null
-            && clientId.Length > CellClientIdPrefix.Length
-            && clientId.StartsWith(CellClientIdPrefix, StringComparison.Ordinal);
+            && clientId.Length > GlobalDirectoryProtocol.CellClientIdPrefix.Length
+            && clientId.StartsWith(
+                GlobalDirectoryProtocol.CellClientIdPrefix,
+                StringComparison.Ordinal
+            );
     }
 }

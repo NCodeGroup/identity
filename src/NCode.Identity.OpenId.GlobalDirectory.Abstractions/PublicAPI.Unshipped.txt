@@ -1,6 +1,11 @@
 const NCode.Identity.OpenId.GlobalDirectory.CellKinds.Dedicated = "dedicated" -> string!
 const NCode.Identity.OpenId.GlobalDirectory.CellKinds.Shared = "shared" -> string!
 const NCode.Identity.OpenId.GlobalDirectory.CellOptions.SectionName = "Cell" -> string!
+const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.CellClientIdPrefix = "cell-" -> string!
+const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.ControlPlaneAudience = "urn:ncode:control-plane" -> string!
+const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.ControlPlaneScope = "control-plane" -> string!
+const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.DirectoryAudience = "urn:ncode:directory" -> string!
+const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.DirectoryScope = "directory" -> string!
 NCode.Identity.OpenId.GlobalDirectory.CellDescriptor
 NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.IsControlPlane.get -> bool
 NCode.Identity.OpenId.GlobalDirectory.CellDescriptor.IsControlPlane.init -> void
@@ -45,6 +50,7 @@ NCode.Identity.OpenId.GlobalDirectory.DirectoryChange.TeamId.init -> void
 NCode.Identity.OpenId.GlobalDirectory.DirectoryUnavailableException
 NCode.Identity.OpenId.GlobalDirectory.DirectoryUnavailableException.DirectoryUnavailableException(string! message) -> void
 NCode.Identity.OpenId.GlobalDirectory.DirectoryUnavailableException.DirectoryUnavailableException(string! message, System.Exception! innerException) -> void
+NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol
 NCode.Identity.OpenId.GlobalDirectory.ICellDirectory
 NCode.Identity.OpenId.GlobalDirectory.ICellDirectory.GetOrDefaultAsync(string! name, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.CellDescriptor?>
 NCode.Identity.OpenId.GlobalDirectory.ICellDirectory.ListAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.CellDescriptor!>!>

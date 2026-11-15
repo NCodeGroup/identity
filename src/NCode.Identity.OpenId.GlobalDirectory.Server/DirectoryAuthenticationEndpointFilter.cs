@@ -13,7 +13,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 /// <summary>
 /// The authentication endpoint filter of the directory API. It validates the bearer access token of a request with
 /// <see cref="IIssuerAccessTokenValidator"/> against <see cref="DirectoryServerOptions.Issuer"/> and the audience
-/// <c>urn:ncode:directory</c>, and requires the <c>directory</c> scope. A request that lacks a valid token with the scope
+/// <see cref="GlobalDirectoryProtocol.DirectoryAudience"/>, and requires the scope
+/// <see cref="GlobalDirectoryProtocol.DirectoryScope"/>. A request that lacks a valid token with the scope
 /// is answered <c>401 Unauthorized</c>, and a request whose issuer cannot be reached is answered
 /// <c>503 Service Unavailable</c> with a <c>Retry-After</c>, never allowed. A request that passes carries a principal
 /// whose <c>client_id</c> claim names the calling machine client.
@@ -24,16 +25,6 @@ internal sealed class DirectoryAuthenticationEndpointFilter(
     IOptions<DirectoryServerOptions> options
 ) : IEndpointFilter
 {
-    /// <summary>
-    /// The audience of an access token for the directory.
-    /// </summary>
-    internal const string Audience = "urn:ncode:directory";
-
-    /// <summary>
-    /// The scope that an access token for the directory carries.
-    /// </summary>
-    internal const string Scope = "directory";
-
     /// <summary>
     /// The claim type of the machine client that the request authenticates as.
     /// </summary>
@@ -69,7 +60,7 @@ internal sealed class DirectoryAuthenticationEndpointFilter(
 
         var result = await Validator.ValidateAsync(
             issuer,
-            Audience,
+            GlobalDirectoryProtocol.DirectoryAudience,
             token,
             httpContext.RequestAborted
         );
@@ -100,7 +91,10 @@ internal sealed class DirectoryAuthenticationEndpointFilter(
         }
 
         var identity = new ClaimsIdentity(
-            [new Claim(ClientIdClaimType, clientId), new Claim(ScopeClaimType, Scope)],
+            [
+                new Claim(ClientIdClaimType, clientId),
+                new Claim(ScopeClaimType, GlobalDirectoryProtocol.DirectoryScope),
+            ],
             AuthenticationType
         );
         httpContext.User = new ClaimsPrincipal(identity);
@@ -142,7 +136,13 @@ internal sealed class DirectoryAuthenticationEndpointFilter(
                 var text = scope.GetString() ?? string.Empty;
                 foreach (var candidate in text.Split(' ', StringSplitOptions.RemoveEmptyEntries))
                 {
-                    if (string.Equals(candidate, Scope, StringComparison.Ordinal))
+                    if (
+                        string.Equals(
+                            candidate,
+                            GlobalDirectoryProtocol.DirectoryScope,
+                            StringComparison.Ordinal
+                        )
+                    )
                         return true;
                 }
 
@@ -153,7 +153,11 @@ internal sealed class DirectoryAuthenticationEndpointFilter(
                 {
                     if (
                         element.ValueKind == JsonValueKind.String
-                        && string.Equals(element.GetString(), Scope, StringComparison.Ordinal)
+                        && string.Equals(
+                            element.GetString(),
+                            GlobalDirectoryProtocol.DirectoryScope,
+                            StringComparison.Ordinal
+                        )
                     )
                     {
                         return true;

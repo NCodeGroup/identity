@@ -24,18 +24,5 @@ public static partial class OpenIdConstants
         /// control-plane (platform, team and tenant provisioning) families are seeded only into the root tenant.
         /// </summary>
         public const string Management = "urn:ncode:management";
-
-        /// <summary>
-        /// Contains the reserved audience identifier for the global directory API: 'urn:ncode:directory'. Its single
-        /// scope is 'directory'. The control-plane cell's root tenant seeds it.
-        /// </summary>
-        public const string Directory = "urn:ncode:directory";
-
-        /// <summary>
-        /// Contains the reserved audience identifier for the control plane API that the other cells call:
-        /// 'urn:ncode:control-plane'. Its single scope is 'control-plane'. The control-plane cell's root tenant seeds
-        /// it.
-        /// </summary>
-        public const string ControlPlane = "urn:ncode:control-plane";
     }
 }

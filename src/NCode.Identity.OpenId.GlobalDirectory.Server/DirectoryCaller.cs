@@ -27,13 +27,16 @@ internal static class DirectoryCaller
         )?.Value;
         if (
             clientId is null
-            || !clientId.StartsWith(DirectoryEndpoints.CellClientIdPrefix, StringComparison.Ordinal)
+            || !clientId.StartsWith(
+                GlobalDirectoryProtocol.CellClientIdPrefix,
+                StringComparison.Ordinal
+            )
         )
         {
             return null;
         }
 
-        var cell = clientId[DirectoryEndpoints.CellClientIdPrefix.Length..];
+        var cell = clientId[GlobalDirectoryProtocol.CellClientIdPrefix.Length..];
         return cell.Length == 0 ? null : cell;
     }
 

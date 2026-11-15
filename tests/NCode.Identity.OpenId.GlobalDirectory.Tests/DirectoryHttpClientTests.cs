@@ -109,8 +109,8 @@ public class DirectoryHttpClientTests : RemoteDirectoryTestBase
         tokenSourceMock
             .Setup(x =>
                 x.GetAccessTokenAsync(
-                    DirectoryClientDefaults.Audience,
-                    DirectoryClientDefaults.Scope,
+                    GlobalDirectoryProtocol.DirectoryAudience,
+                    GlobalDirectoryProtocol.DirectoryScope,
                     It.IsAny<CancellationToken>()
                 )
             )

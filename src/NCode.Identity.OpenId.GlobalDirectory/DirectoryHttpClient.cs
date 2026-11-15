@@ -55,8 +55,8 @@ internal sealed class DirectoryHttpClient(
             new CellApiRequest(
                 method,
                 new Uri(BaseUri, DirectoryClientDefaults.ApiPrefix + path),
-                DirectoryClientDefaults.Audience,
-                DirectoryClientDefaults.Scope
+                GlobalDirectoryProtocol.DirectoryAudience,
+                GlobalDirectoryProtocol.DirectoryScope
             )
             {
                 Body = body,

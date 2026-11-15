@@ -4,34 +4,15 @@
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
-/// Names the audience, the scope and the path prefix of the directory service's API.
+/// Names the path prefix of the directory service's API, the path of the control-plane authority endpoint and the
+/// response size limit.
 /// </summary>
 internal static class DirectoryClientDefaults
 {
     /// <summary>
-    /// The audience of the access token that every directory call presents.
-    /// </summary>
-    internal const string Audience = "urn:ncode:directory";
-
-    /// <summary>
-    /// The scope that the access token carries.
-    /// </summary>
-    internal const string Scope = "directory";
-
-    /// <summary>
     /// The path prefix of the directory API, relative to <see cref="DirectoryClientOptions.Url"/>.
     /// </summary>
     internal const string ApiPrefix = "directory/v1/";
-
-    /// <summary>
-    /// The audience of the access token that every control-plane authority call presents.
-    /// </summary>
-    internal const string ControlPlaneAudience = "urn:ncode:control-plane";
-
-    /// <summary>
-    /// The scope that the control-plane access token carries.
-    /// </summary>
-    internal const string ControlPlaneScope = "control-plane";
 
     /// <summary>
     /// The path of the control-plane authority endpoint, relative to the origin of the control-plane cell's issuer.

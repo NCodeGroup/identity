@@ -26,11 +26,6 @@ public static class DirectoryEndpoints
 {
     private const string RoutePrefix = "directory/v1";
 
-    /// <summary>
-    /// The prefix of the machine client identifier of a cell: <c>cell-{name}</c>.
-    /// </summary>
-    internal const string CellClientIdPrefix = "cell-";
-
     private const int DefaultChangesLimit = 100;
     private const int MaxChangesLimit = 1000;
 

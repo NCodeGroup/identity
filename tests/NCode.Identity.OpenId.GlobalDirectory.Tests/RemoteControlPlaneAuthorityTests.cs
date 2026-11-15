@@ -64,8 +64,8 @@ public class RemoteControlPlaneAuthorityTests : BaseTests
         tokenSourceMock
             .Setup(x =>
                 x.GetAccessTokenAsync(
-                    DirectoryClientDefaults.ControlPlaneAudience,
-                    DirectoryClientDefaults.ControlPlaneScope,
+                    GlobalDirectoryProtocol.ControlPlaneAudience,
+                    GlobalDirectoryProtocol.ControlPlaneScope,
                     It.IsAny<CancellationToken>()
                 )
             )

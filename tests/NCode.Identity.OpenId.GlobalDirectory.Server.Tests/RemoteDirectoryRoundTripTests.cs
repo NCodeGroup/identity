@@ -23,7 +23,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 public class RemoteDirectoryRoundTripTests : IAsyncLifetime
 {
     private const string ServerIssuer = "https://control-plane.example";
-    private const string Audience = "urn:ncode:directory";
+    private const string Audience = GlobalDirectoryProtocol.DirectoryAudience;
     private const string AccessToken = "directory-access-token";
     private const string CellName = "a";
     private const string OtherCellName = "b";
@@ -115,8 +115,8 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
         tokenSourceMock
             .Setup(x =>
                 x.GetAccessTokenAsync(
-                    DirectoryClientDefaults.Audience,
-                    DirectoryClientDefaults.Scope,
+                    GlobalDirectoryProtocol.DirectoryAudience,
+                    GlobalDirectoryProtocol.DirectoryScope,
                     It.IsAny<CancellationToken>()
                 )
             )
@@ -156,7 +156,10 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
                 x.ValidateAsync(ServerIssuer, Audience, AccessToken, It.IsAny<CancellationToken>())
             )
             .ReturnsAsync(
-                CreateValidResult(DirectoryEndpoints.CellClientIdPrefix + cellName, "directory")
+                CreateValidResult(
+                    GlobalDirectoryProtocol.CellClientIdPrefix + cellName,
+                    GlobalDirectoryProtocol.DirectoryScope
+                )
             )
             .Verifiable(Times.AtLeastOnce);
 

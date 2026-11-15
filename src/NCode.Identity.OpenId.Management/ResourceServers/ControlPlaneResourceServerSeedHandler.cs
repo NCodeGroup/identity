@@ -13,9 +13,11 @@ using NCode.Mediator;
 namespace NCode.Identity.OpenId.Management.ResourceServers;
 
 /// <summary>
-/// Seeds the reserved directory (<c>urn:ncode:directory</c>) and control-plane (<c>urn:ncode:control-plane</c>)
+/// Seeds the reserved directory (<see cref="GlobalDirectoryProtocol.DirectoryAudience"/>) and control-plane
+/// (<see cref="GlobalDirectoryProtocol.ControlPlaneAudience"/>)
 /// resource servers into the root tenant of the control-plane cell. Other cells request tokens for these audiences
-/// with the scopes <c>directory</c> and <c>control-plane</c>. The handler seeds nothing in a workload tenant or in a
+/// with the scopes <see cref="GlobalDirectoryProtocol.DirectoryScope"/> and
+/// <see cref="GlobalDirectoryProtocol.ControlPlaneScope"/>. The handler seeds nothing in a workload tenant or in a
 /// cell that is not the control plane. It is idempotent: it creates each resource server only when it is absent.
 /// </summary>
 internal sealed class ControlPlaneResourceServerSeedHandler(
@@ -47,9 +49,9 @@ internal sealed class ControlPlaneResourceServerSeedHandler(
         await SeedAsync(
             store,
             context,
-            OpenIdConstants.SystemResourceServerIdentifiers.Directory,
+            GlobalDirectoryProtocol.DirectoryAudience,
             "Directory",
-            "directory",
+            GlobalDirectoryProtocol.DirectoryScope,
             "Read and write the global directory.",
             cancellationToken
         );
@@ -57,9 +59,9 @@ internal sealed class ControlPlaneResourceServerSeedHandler(
         await SeedAsync(
             store,
             context,
-            OpenIdConstants.SystemResourceServerIdentifiers.ControlPlane,
+            GlobalDirectoryProtocol.ControlPlaneAudience,
             "Control plane",
-            "control-plane",
+            GlobalDirectoryProtocol.ControlPlaneScope,
             "Call the control plane.",
             cancellationToken
         );

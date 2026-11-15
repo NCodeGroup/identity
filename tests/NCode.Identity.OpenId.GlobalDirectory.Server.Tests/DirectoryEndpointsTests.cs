@@ -21,11 +21,11 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 public class DirectoryEndpointsTests : IAsyncLifetime
 {
     private const string ServerIssuer = "https://control-plane.example";
-    private const string Audience = "urn:ncode:directory";
+    private const string Audience = GlobalDirectoryProtocol.DirectoryAudience;
     private const string Token = "directory-access-token";
     private const string CellName = "a";
     private const string ControlPlaneCell = "control";
-    private const string DirectoryScope = "directory";
+    private const string DirectoryScope = GlobalDirectoryProtocol.DirectoryScope;
     private const string TenantId = "tenant-1";
     private const string OtherTenantId = "tenant-2";
     private const string TenantIssuer = "https://op.example/tenant-1";
@@ -108,7 +108,8 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         return new IssuerAccessTokenResult(payload, ServerIssuer);
     }
 
-    private static string ClientIdOf(string cell) => DirectoryEndpoints.CellClientIdPrefix + cell;
+    private static string ClientIdOf(string cell) =>
+        GlobalDirectoryProtocol.CellClientIdPrefix + cell;
 
     private void Authenticate(string? clientId = null, string scope = DirectoryScope)
     {

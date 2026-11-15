@@ -19,8 +19,8 @@ public sealed class ControlPlaneResourceServerSeedHandlerTests : IDisposable
     public void Dispose() => MockRepository.Verify();
 
     private const string TenantId = "tenant-1";
-    private const string DirectoryIdentifier = "urn:ncode:directory";
-    private const string ControlPlaneIdentifier = "urn:ncode:control-plane";
+    private const string DirectoryIdentifier = GlobalDirectoryProtocol.DirectoryAudience;
+    private const string ControlPlaneIdentifier = GlobalDirectoryProtocol.ControlPlaneAudience;
 
     #region Helpers
 
@@ -110,7 +110,7 @@ public sealed class ControlPlaneResourceServerSeedHandlerTests : IDisposable
         var controlPlane = Assert.Single(captured, rs => rs.Identifier == ControlPlaneIdentifier);
         Assert.True(controlPlane.IsSystem);
         var controlPlaneScope = Assert.Single(controlPlane.Scopes);
-        Assert.Equal("control-plane", controlPlaneScope.Value);
+        Assert.Equal(GlobalDirectoryProtocol.ControlPlaneScope, controlPlaneScope.Value);
         Assert.True(controlPlaneScope.IsSystem);
     }
 
