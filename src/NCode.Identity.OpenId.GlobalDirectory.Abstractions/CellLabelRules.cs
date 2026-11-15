@@ -15,8 +15,13 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 [PublicAPI]
 public static partial class CellLabelRules
 {
+    /// <summary>
+    /// The greatest number of characters that a cell's name or region holds.
+    /// </summary>
+    public const int MaxLabelLength = 31;
+
     // A lowercase RFC 1123 host label that starts with a letter. '\z' rather than '$', which also matches before a
-    // trailing newline.
+    // trailing newline. The first and last characters and the up to 29 between them spell MaxLabelLength.
     [GeneratedRegex(@"^[a-z](?:[a-z0-9-]{0,29}[a-z0-9])?\z", RegexOptions.CultureInvariant)]
     private static partial Regex LabelRegex();
 

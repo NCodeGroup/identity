@@ -25,8 +25,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
             modelBuilder.Entity("NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord", b =>
                 {
                     b.Property<string>("Name")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
+                        .HasMaxLength(31)
+                        .HasColumnType("character varying(31)");
 
                     b.Property<bool>("IsControlPlane")
                         .HasColumnType("boolean");
@@ -43,8 +43,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
 
                     b.Property<string>("Region")
                         .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasMaxLength(31)
+                        .HasColumnType("character varying(31)");
 
                     b.HasKey("Name");
 
@@ -196,8 +196,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
 
                     b.Property<string>("FromCell")
                         .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
+                        .HasMaxLength(31)
+                        .HasColumnType("character varying(31)");
 
                     b.Property<string>("NormalizedTenantId")
                         .IsRequired()
@@ -206,8 +206,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
 
                     b.Property<string>("ToCell")
                         .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
+                        .HasMaxLength(31)
+                        .HasColumnType("character varying(31)");
 
                     b.HasKey("Id");
 
@@ -226,8 +226,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
                     b.Property<string>("Cell")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
+                        .HasMaxLength(31)
+                        .HasColumnType("character varying(31)");
 
                     b.Property<DateTimeOffset>("CreatedWhen")
                         .HasColumnType("timestamp with time zone");

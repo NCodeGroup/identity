@@ -315,6 +315,35 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task PlaceTenant_WhenTheRegionIsNotACellLabel_Returns400()
+    {
+        Authenticate();
+        var cellResponse = await Client.PutAsJsonAsync(
+            $"/directory/v1/cells/{CellName}",
+            CreateCell(CellName),
+            WebOptions
+        );
+        Assert.Equal(HttpStatusCode.OK, cellResponse.StatusCode);
+        await ReserveTenantAsync(TenantId, TenantIssuer);
+
+        var response = await Client.PostAsJsonAsync(
+            "/directory/v1/tenants/place",
+            new TenantPlacement
+            {
+                TenantId = TenantId,
+                Issuer = TenantIssuer,
+                Cell = CellName,
+                Region = "West-Europe",
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var getResponse = await Client.GetAsync($"/directory/v1/tenants/{TenantId}");
+        Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
+    }
+
+    [Fact]
     public async Task PlaceTenant_ThenGet_AnswersThePlacementInCamelCase()
     {
         Authenticate();
@@ -1418,6 +1447,25 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         );
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task RegisterCell_WhenTheRegionIsNotACellLabel_AnswersBadRequest()
+    {
+        Authenticate(clientId: "cell-a");
+
+        var response = await Client.PutAsJsonAsync(
+            "/directory/v1/cells/a",
+            CreateCell("a") with
+            {
+                Region = "West-Europe",
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var listResponse = await Client.GetAsync("/directory/v1/cells");
+        Assert.Empty(await ReadAsync<List<CellDescriptor>>(listResponse));
     }
 
     [Fact]

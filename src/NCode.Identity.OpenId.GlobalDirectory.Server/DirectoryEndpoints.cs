@@ -34,6 +34,10 @@ public static class DirectoryEndpoints
     private const string TenantWriteForbiddenDetail =
         "Only the cell that holds a tenant, or the control-plane cell, writes it.";
 
+    private static string InvalidCellLabelDetail =>
+        $"A cell and its region are each 1 to {CellLabelRules.MaxLabelLength} lowercase letters, digits or hyphens that "
+        + "start with a letter and end with a letter or digit.";
+
     /// <param name="endpoints">The <see cref="IEndpointRouteBuilder"/> to map the routes on.</param>
     extension(IEndpointRouteBuilder endpoints)
     {
@@ -234,7 +238,8 @@ public static class DirectoryEndpoints
     /// <param name="directory">The <see cref="ITenantDirectory"/> that holds the placement.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the tenant is placed; <c>400 Bad Request</c> when a field is blank; <c>403 Forbidden</c>
+    /// <c>200 OK</c> when the tenant is placed; <c>400 Bad Request</c> when the tenant or its issuer is blank or the
+    /// cell or its region is not a <see cref="CellLabelRules"/> label; <c>403 Forbidden</c>
     /// when the cell is not the caller; <c>409 Conflict</c> when the identifier or the issuer belongs to another
     /// tenant.
     /// </returns>
@@ -245,15 +250,14 @@ public static class DirectoryEndpoints
         CancellationToken cancellationToken
     )
     {
+        if (IsBlank(placement.TenantId) || IsBlank(placement.Issuer))
+            return BadRequest("The tenant and its issuer are required.");
+
         if (
-            IsBlank(placement.TenantId)
-            || IsBlank(placement.Issuer)
-            || IsBlank(placement.Cell)
-            || IsBlank(placement.Region)
+            !CellLabelRules.IsValidLabel(placement.Cell)
+            || !CellLabelRules.IsValidLabel(placement.Region)
         )
-        {
-            return BadRequest("The tenant, its issuer, its cell and its region are required.");
-        }
+            return BadRequest(InvalidCellLabelDetail);
 
         // A cell places a tenant only in itself.
         if (!IsCaller(httpContext, placement.Cell))
@@ -743,8 +747,9 @@ public static class DirectoryEndpoints
     /// <param name="directory">The <see cref="ICellDirectory"/> that holds the registration.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the cell is registered; <c>400 Bad Request</c> when a field is blank or the descriptor names a
-    /// cell other than the route's; <c>403 Forbidden</c> when the cell is not the caller or claims to be the control
+    /// <c>200 OK</c> when the cell is registered; <c>400 Bad Request</c> when the kind or the management URL is blank,
+    /// the name or the region is not a <see cref="CellLabelRules"/> label, or the descriptor names a cell other than
+    /// the route's; <c>403 Forbidden</c> when the cell is not the caller or claims to be the control
     /// plane without being it.
     /// </returns>
     private static async ValueTask<IResult> RegisterCellAsync(
@@ -756,16 +761,15 @@ public static class DirectoryEndpoints
         CancellationToken cancellationToken
     )
     {
+        if (IsBlank(descriptor.Kind) || IsBlank(descriptor.ManagementUrl))
+            return BadRequest("The cell's kind and its management URL are required.");
+
         if (
-            IsBlank(descriptor.Name)
-            || IsBlank(descriptor.Region)
-            || IsBlank(descriptor.Kind)
-            || IsBlank(descriptor.ManagementUrl)
+            !CellLabelRules.IsValidLabel(descriptor.Name)
+            || !CellLabelRules.IsValidLabel(descriptor.Region)
         )
         {
-            return BadRequest(
-                "The cell, its region, its kind and its management URL are required."
-            );
+            return BadRequest(InvalidCellLabelDetail);
         }
 
         if (!string.Equals(name, descriptor.Name, StringComparison.Ordinal))

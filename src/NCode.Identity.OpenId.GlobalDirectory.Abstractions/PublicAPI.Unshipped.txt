@@ -162,4 +162,5 @@ static NCode.Identity.OpenId.GlobalDirectory.MoveResult.Moved() -> NCode.Identit
 static NCode.Identity.OpenId.GlobalDirectory.ReservationResult.Conflict(string! detail) -> NCode.Identity.OpenId.GlobalDirectory.ReservationResult!
 static NCode.Identity.OpenId.GlobalDirectory.ReservationResult.Reserved() -> NCode.Identity.OpenId.GlobalDirectory.ReservationResult!
 NCode.Identity.OpenId.GlobalDirectory.CellLabelRules
+const NCode.Identity.OpenId.GlobalDirectory.CellLabelRules.MaxLabelLength = 31 -> int
 static NCode.Identity.OpenId.GlobalDirectory.CellLabelRules.IsValidLabel(string? label) -> bool

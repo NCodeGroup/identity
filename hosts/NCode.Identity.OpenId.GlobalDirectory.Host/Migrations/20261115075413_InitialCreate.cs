@@ -16,8 +16,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
                 name: "Cells",
                 columns: table => new
                 {
-                    Name = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
-                    Region = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    Name = table.Column<string>(type: "character varying(31)", maxLength: 31, nullable: false),
+                    Region = table.Column<string>(type: "character varying(31)", maxLength: 31, nullable: false),
                     Kind = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
                     ManagementUrl = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: false),
                     IsControlPlane = table.Column<bool>(type: "boolean", nullable: false)
@@ -106,8 +106,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     NormalizedTenantId = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
-                    FromCell = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
-                    ToCell = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    FromCell = table.Column<string>(type: "character varying(31)", maxLength: 31, nullable: false),
+                    ToCell = table.Column<string>(type: "character varying(31)", maxLength: 31, nullable: false),
                     CreatedWhen = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     ExpiresWhen = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
                 },
@@ -127,7 +127,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
                     Issuer = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
                     NormalizedIssuer = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
                     NormalizedTeamId = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: true),
-                    Cell = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: true),
+                    Cell = table.Column<string>(type: "character varying(31)", maxLength: 31, nullable: true),
                     State = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false),
                     CreatedWhen = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     ModifiedWhen = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)

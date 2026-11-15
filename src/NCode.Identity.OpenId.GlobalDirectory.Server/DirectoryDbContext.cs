@@ -17,14 +17,12 @@ public sealed class DirectoryDbContext(DbContextOptions<DirectoryDbContext> opti
     : DbContext(options)
 {
     // The same bounds as the cell's own identifiers: a tenant or team identifier is at most 300 characters, an issuer at
-    // most 1000 and a cell name at most 32.
+    // most 1000, and a cell name and a region at most CellLabelRules.MaxLabelLength.
     private const int MaxIdentifierLength = 300;
 
     // A team path holds up to eight identifiers (TeamPaths.MaxDepth in the cell's persistence package), each followed
     // by '/', after a leading '/'.
     private const int MaxTeamPathLength = 8 * (MaxIdentifierLength + 1) + 1;
-    private const int MaxCellNameLength = 32;
-    private const int MaxRegionLength = 64;
     private const int MaxKindLength = 32;
     private const int MaxStateLength = 16;
     private const int MaxUrlLength = 2000;
@@ -77,8 +75,8 @@ public sealed class DirectoryDbContext(DbContextOptions<DirectoryDbContext> opti
         modelBuilder.Entity<CellRecord>(builder =>
         {
             builder.HasKey(entity => entity.Name);
-            builder.Property(entity => entity.Name).HasMaxLength(MaxCellNameLength);
-            builder.Property(entity => entity.Region).HasMaxLength(MaxRegionLength);
+            builder.Property(entity => entity.Name).HasMaxLength(CellLabelRules.MaxLabelLength);
+            builder.Property(entity => entity.Region).HasMaxLength(CellLabelRules.MaxLabelLength);
             builder.Property(entity => entity.Kind).HasMaxLength(MaxKindLength);
             builder.Property(entity => entity.ManagementUrl).HasMaxLength(MaxUrlLength);
         });
@@ -95,7 +93,7 @@ public sealed class DirectoryDbContext(DbContextOptions<DirectoryDbContext> opti
                 .Property(entity => entity.NormalizedIssuer)
                 .HasMaxLength(DirectoryLimits.MaxIssuerLength);
             builder.Property(entity => entity.NormalizedTeamId).HasMaxLength(MaxIdentifierLength);
-            builder.Property(entity => entity.Cell).HasMaxLength(MaxCellNameLength);
+            builder.Property(entity => entity.Cell).HasMaxLength(CellLabelRules.MaxLabelLength);
             builder.Property(entity => entity.State).HasMaxLength(MaxStateLength);
         });
 
@@ -103,8 +101,8 @@ public sealed class DirectoryDbContext(DbContextOptions<DirectoryDbContext> opti
         {
             builder.HasIndex(entity => entity.NormalizedTenantId).IsUnique();
             builder.Property(entity => entity.NormalizedTenantId).HasMaxLength(MaxIdentifierLength);
-            builder.Property(entity => entity.FromCell).HasMaxLength(MaxCellNameLength);
-            builder.Property(entity => entity.ToCell).HasMaxLength(MaxCellNameLength);
+            builder.Property(entity => entity.FromCell).HasMaxLength(CellLabelRules.MaxLabelLength);
+            builder.Property(entity => entity.ToCell).HasMaxLength(CellLabelRules.MaxLabelLength);
         });
 
         modelBuilder.Entity<TeamRecord>(builder =>
