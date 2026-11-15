@@ -215,6 +215,10 @@ than inlining the rationale.
   implementation `.csproj` whose `ProjectReference` names a non-`Abstractions` package is a violation. A foundation package
   (`NCode.Identity.Json`, `NCode.Identity.Time`, `NCode.Identity.AspNetCore`) is the exception: any package may
   reference it ([ADR-1500](../../docs/decisions/1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md)).
+- 👁 **An `.Abstractions` package holds contracts, data and the pure form rules of the values its contracts carry**
+  (`TenantIdentifierRules`, `CellLabelRules`, `AbsoluteUri`, `DatabaseRoleNameRules`, `ExpiringKeys`), so every
+  implementation of a contract applies one rule; it holds no service logic and never logs. See
+  [ADR-1500](../../docs/decisions/1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md).
 - 👁 **Mark infrastructure-public types** — template [Public API](csharp.instructions.md#public-api), with the summary
   _"This API supports the NCode.Identity infrastructure and is not intended to be used directly from your code."_
 - ⏳ The public surface is deliberate and tracked by `PublicApiAnalyzers` (`RS0016` / `RS0017` / `RS0024`): a public
@@ -415,7 +419,9 @@ than inlining the rationale.
   ([ADR-1370](../../docs/decisions/1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)).
   An extension binds its own section rather than adding keys to one the server owns. Parse an absolute URI with
   `NCode.Identity.OpenId.AbsoluteUri.TryParse`, which requires its own `scheme:` and no whitespace, never with
-  `Uri.TryCreate` alone, and keep a value compared verbatim, such as a CORS origin, in the form it is compared in. An
+  `Uri.TryCreate` alone. Check a service URL (a directory URL, an issuer, a cell's management URL) with
+  `AbsoluteUri.TryParseServiceUrl`, `TryParseHttpsServiceUrl` or `TryParseAnyHttpServiceUrl`, never with a copy of its
+  checks. Keep a value compared verbatim, such as a CORS origin, in the form it is compared in. An
   options validator refuses an enum value that `Enum.IsDefined` rejects (`InProcessJobDispatcherOptionsValidator`,
   [ADR-1242](../../docs/decisions/1242-deferred-work-runs-through-a-replaceable-job-dispatch-port-with-a-concurrent-in-process-default.md)). See
   [ADR-1137](../../docs/decisions/1137-configuration-binds-strictly-and-every-option-timer-period-and-retention-is-validated-at-startup.md),
@@ -998,8 +1004,8 @@ invariants, the Law of Demeter, and no call nested in another call's arguments. 
 - **Stamp an instant that a JWT or a stored grant carries with `NCode.Identity.Time`'s whole-second helpers.** Use
   `TimeProvider.GetUtcNowWithPrecisionInSeconds()` (or `GetTimestampWithPrecisionInSeconds()` for ticks) and
   `WithPrecisionInSeconds()`, so a stored time equals the `NumericDate` it round-trips through. Reference the
-  the **`NCode.Identity.Time`** foundation package, the home for general time helpers. A helper with a method body never lives
-  in an `*.Abstractions` package. See [ADR-1500](../../docs/decisions/1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md).
+  the **`NCode.Identity.Time`** foundation package, the home for general time helpers. A helper with service logic never
+  lives in an `*.Abstractions` package; the pure form rules of the values a contract carries do. See [ADR-1500](../../docs/decisions/1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md).
 - **Bound a received JWT's lifetime through the lifetime requirement, never with ad-hoc `exp` arithmetic.** Cap a
   client-supplied JWT (assertion, request object) with `ValidateTokenLifeTime(o => o.MaxLifetime = …)`, fed from a
   `Min`-merged `*_max_lifetime` setting; it measures from the earliest asserted `iat`/`nbf` (or now plus skew), so the

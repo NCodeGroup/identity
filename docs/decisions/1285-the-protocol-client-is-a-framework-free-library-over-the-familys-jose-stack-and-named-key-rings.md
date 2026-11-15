@@ -49,7 +49,10 @@ configuration. No package of the client references an ASP.NET Core shared framew
 5. **The endpoint rule.** An authority or endpoint URL is `https`, or `http` only on a loopback host (`Uri.IsLoopback`).
    The check applies to the raw string as well as the parsed `Uri`: the string starts with its scheme, contains no
    whitespace and has no fragment, and an authority also has no query. Loopback `http` reaches only the same machine, and
-   it lets the client run against the in-process OP in tests.
+   it lets the client run against the in-process OP in tests. The directory's URL and the control-plane issuers follow
+   the same scheme rule through `AbsoluteUri.TryParseServiceUrl`, which also refuses user information and judges the
+   text as written; a cell's management URL is `https`, or `http` in local development, through
+   `AbsoluteUri.TryParseHttpsServiceUrl` and `AbsoluteUri.TryParseAnyHttpServiceUrl`.
 6. **Discovery.** The client fetches `<authority without trailing '/'>/.well-known/openid-configuration`. The returned
    `issuer` equals the authority string ordinally (OIDC Discovery §4.3). `token_endpoint` and `jwks_uri` are required, and
    every endpoint member that is present passes the endpoint rule. A violation is an `OpenIdProviderException`.

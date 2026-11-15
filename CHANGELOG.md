@@ -5066,7 +5066,12 @@ Until the first stable release, the [Unreleased] section describes the product a
   that names its own scheme and contains no whitespace, so `/path` is never read as `file:///path` and whitespace is
   never trimmed. Dynamic client registration (`redirect_uris`, `post_logout_redirect_uris`), the redirect URI kinds, the
   URI message parameters, the URI setting rules and every other OpenID URI check parse with it, so a relative URI is
-  refused on every platform.
+  refused on every platform. The URL of a service has one rule too: `AbsoluteUri.TryParseServiceUrl` accepts an `https`
+  URL, or an `http` URL on a loopback host, written with its authority and with no user information, query or fragment,
+  judged on the text as written because `Uri` reads an empty `@` as absent; `TryParseHttpsServiceUrl` and
+  `TryParseAnyHttpServiceUrl` apply it to a cell's management URL, which is `https`, or `http` in local development. The
+  directory client's URL, the control-plane issuer of a cell and of the directory, and a cell's management URL follow
+  it.
 
 - **Discovery publishes only what is marked discoverable.** The discovery endpoint (`/.well-known/openid-configuration`)
   returns only the settings marked `IsDiscoverable` and the endpoints marked discoverable, and no query-string parameter
