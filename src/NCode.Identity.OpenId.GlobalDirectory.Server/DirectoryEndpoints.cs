@@ -35,6 +35,11 @@ public static class DirectoryEndpoints
     private const string TenantWriteForbiddenDetail =
         "Only the cell that holds a tenant, or the control-plane cell, writes it.";
 
+    /// <summary>
+    /// The problem detail that a team route answers with when the team identifier is blank.
+    /// </summary>
+    private const string TeamRequiredDetail = "The team is required.";
+
     private static string InvalidCellLabelDetail =>
         $"A cell and its region are each 1 to {CellLabelRules.MaxLabelLength} lowercase letters, digits or hyphens that "
         + "start with a letter and end with a letter or digit.";
@@ -42,6 +47,12 @@ public static class DirectoryEndpoints
     private static string TooLongDetail =>
         $"A tenant identifier is at most {DirectoryLimits.MaxIdentifierLength} characters, and an issuer at most "
         + $"{DirectoryLimits.MaxIssuerLength}.";
+
+    /// <summary>
+    /// The problem detail that a team route answers with when a team identifier is longer than the directory stores.
+    /// </summary>
+    private static string TeamTooLongDetail =>
+        $"A team identifier is at most {DirectoryLimits.MaxIdentifierLength} characters.";
 
     /// <summary>
     /// Maps the tenant routes: reserving, placing, releasing, moving, retiring and changing the issuer of a tenant,
@@ -114,6 +125,7 @@ public static class DirectoryEndpoints
     {
         group
             .MapPost("{teamId}/reserve", ReserveTeamAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status409Conflict);
         group
@@ -123,9 +135,11 @@ public static class DirectoryEndpoints
             .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
         group
             .MapPost("{teamId}/release", ReleaseTeamAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status403Forbidden);
         group
             .MapPost("{teamId}/retire", RetireTeamAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status403Forbidden);
         group
             .MapGet("{teamId}/retired", GetRetiredTeamIdAsync)
@@ -227,8 +241,8 @@ public static class DirectoryEndpoints
     /// <returns>
     /// <c>200 OK</c> when the tenant is placed; <c>400 Bad Request</c> when the tenant or its issuer is blank or longer
     /// than the directory stores, or the cell or its region is not a <see cref="CellLabelRules"/> label;
-    /// <c>403 Forbidden</c> when the cell is not the caller; <c>409 Conflict</c> when the identifier or the issuer belongs to another
-    /// tenant.
+    /// <c>403 Forbidden</c> when the cell is not the caller; <c>409 Conflict</c> when the identifier or the issuer
+    /// belongs to another tenant.
     /// </returns>
     private static async ValueTask<IResult> PlaceTenantAsync(
         TenantPlacement placement,
@@ -510,8 +524,9 @@ public static class DirectoryEndpoints
     /// <param name="directory">The <see cref="ITeamDirectory"/> that holds the reservation.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the team is reserved; <c>403 Forbidden</c> when the caller is not the control-plane cell;
-    /// <c>409 Conflict</c> when the identifier is taken.
+    /// <c>200 OK</c> when the team is reserved; <c>400 Bad Request</c> when the team is blank or longer than the
+    /// directory stores; <c>403 Forbidden</c> when the caller is not the control-plane cell; <c>409 Conflict</c> when
+    /// the identifier is taken.
     /// </returns>
     private static async ValueTask<IResult> ReserveTeamAsync(
         string teamId,
@@ -521,6 +536,12 @@ public static class DirectoryEndpoints
         CancellationToken cancellationToken
     )
     {
+        if (IsBlank(teamId))
+            return BadRequest(TeamRequiredDetail);
+
+        if (IsOverLong(teamId, DirectoryLimits.MaxIdentifierLength))
+            return BadRequest(TeamTooLongDetail);
+
         if (ForbidUnlessControlPlane(httpContext, options.Value) is { } forbidden)
             return forbidden;
 
@@ -538,8 +559,9 @@ public static class DirectoryEndpoints
     /// <param name="directory">The <see cref="ITeamDirectory"/> that holds the document.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the document is published; <c>403 Forbidden</c> when the caller is not the control-plane cell;
-    /// <c>400 Bad Request</c> when the document lacks its team or display name, or names a team other than the route's.
+    /// <c>200 OK</c> when the document is published; <c>403 Forbidden</c> when the caller is not the control-plane
+    /// cell; <c>400 Bad Request</c> when the document lacks its team or display name, names a team or a parent team
+    /// longer than the directory stores, or names a team other than the route's.
     /// </returns>
     private static async ValueTask<IResult> PublishTeamAsync(
         string teamId,
@@ -555,6 +577,12 @@ public static class DirectoryEndpoints
 
         if (IsBlank(document.TeamId) || IsBlank(document.DisplayName))
             return BadRequest("The team and its display name are required.");
+
+        if (
+            IsOverLong(document.TeamId, DirectoryLimits.MaxIdentifierLength)
+            || IsOverLong(document.ParentTeamId, DirectoryLimits.MaxIdentifierLength)
+        )
+            return BadRequest(TeamTooLongDetail);
 
         if (!string.Equals(teamId, document.TeamId, StringComparison.OrdinalIgnoreCase))
             return BadRequest("The team of the document is not the team of the route.");
@@ -573,7 +601,8 @@ public static class DirectoryEndpoints
     /// <param name="directory">The <see cref="ITeamDirectory"/> that holds the reservation.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the team is released, or <c>403 Forbidden</c> when the caller is not the control-plane cell.
+    /// <c>200 OK</c> when the team is released; <c>400 Bad Request</c> when the team is blank or longer than the
+    /// directory stores; or <c>403 Forbidden</c> when the caller is not the control-plane cell.
     /// </returns>
     private static async ValueTask<IResult> ReleaseTeamAsync(
         string teamId,
@@ -583,6 +612,12 @@ public static class DirectoryEndpoints
         CancellationToken cancellationToken
     )
     {
+        if (IsBlank(teamId))
+            return BadRequest(TeamRequiredDetail);
+
+        if (IsOverLong(teamId, DirectoryLimits.MaxIdentifierLength))
+            return BadRequest(TeamTooLongDetail);
+
         if (ForbidUnlessControlPlane(httpContext, options.Value) is { } forbidden)
             return forbidden;
 
@@ -599,7 +634,8 @@ public static class DirectoryEndpoints
     /// <param name="directory">The <see cref="ITeamDirectory"/> that holds the retired identifiers.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the team is retired, or <c>403 Forbidden</c> when the caller is not the control-plane cell.
+    /// <c>200 OK</c> when the team is retired; <c>400 Bad Request</c> when the team is blank or longer than the
+    /// directory stores; or <c>403 Forbidden</c> when the caller is not the control-plane cell.
     /// </returns>
     private static async ValueTask<IResult> RetireTeamAsync(
         string teamId,
@@ -609,6 +645,12 @@ public static class DirectoryEndpoints
         CancellationToken cancellationToken
     )
     {
+        if (IsBlank(teamId))
+            return BadRequest(TeamRequiredDetail);
+
+        if (IsOverLong(teamId, DirectoryLimits.MaxIdentifierLength))
+            return BadRequest(TeamTooLongDetail);
+
         if (ForbidUnlessControlPlane(httpContext, options.Value) is { } forbidden)
             return forbidden;
 

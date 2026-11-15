@@ -37,6 +37,9 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
     private static JsonSerializerOptions WebOptions { get; } = new(JsonSerializerDefaults.Web);
 
+    private static string TeamTooLongDetail =>
+        $"A team identifier is at most {DirectoryLimits.MaxIdentifierLength} characters.";
+
     private MockRepository Mocks { get; } = new(MockBehavior.Strict);
 
     private Mock<IIssuerAccessTokenValidator> ValidatorMock { get; }
@@ -1265,6 +1268,32 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ReserveTeam_WhenTheTeamIdIsOverMaxLength_AnswersBadRequest()
+    {
+        AuthenticateAsControlPlane();
+        var teamId = new string('t', DirectoryLimits.MaxIdentifierLength + 1);
+
+        var response = await Client.PostAsync(
+            $"/directory/v1/teams/{teamId}/reserve",
+            content: null
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(TeamTooLongDetail, await ReadProblemDetailAsync(response));
+    }
+
+    [Fact]
+    public async Task ReserveTeam_WhenTheTeamIdIsBlank_AnswersBadRequest()
+    {
+        AuthenticateAsControlPlane();
+
+        var response = await Client.PostAsync("/directory/v1/teams/%20/reserve", content: null);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("The team is required.", await ReadProblemDetailAsync(response));
+    }
+
+    [Fact]
     public async Task PublishTeam_ThenGet_AnswersTheDocumentWithItsSequence()
     {
         AuthenticateAsControlPlane();
@@ -1305,6 +1334,48 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         );
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PublishTeam_WhenTheTeamIdIsOverMaxLength_AnswersBadRequest()
+    {
+        AuthenticateAsControlPlane();
+        var teamId = new string('t', DirectoryLimits.MaxIdentifierLength + 1);
+
+        var response = await Client.PutAsJsonAsync(
+            $"/directory/v1/teams/{teamId}/document",
+            new TeamDocument
+            {
+                TeamId = teamId,
+                DisplayName = "Team One",
+                IsDisabled = false,
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(TeamTooLongDetail, await ReadProblemDetailAsync(response));
+    }
+
+    [Fact]
+    public async Task PublishTeam_WhenTheParentTeamIdIsOverMaxLength_AnswersBadRequest()
+    {
+        AuthenticateAsControlPlane();
+
+        var response = await Client.PutAsJsonAsync(
+            $"/directory/v1/teams/{TeamId}/document",
+            new TeamDocument
+            {
+                TeamId = TeamId,
+                DisplayName = "Team One",
+                IsDisabled = false,
+                ParentTeamId = new string('t', DirectoryLimits.MaxIdentifierLength + 1),
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(TeamTooLongDetail, await ReadProblemDetailAsync(response));
     }
 
     [Fact]
@@ -1360,6 +1431,21 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, release.StatusCode);
         Assert.Equal(HttpStatusCode.OK, reserve.StatusCode);
+    }
+
+    [Fact]
+    public async Task ReleaseTeam_WhenTheTeamIdIsOverMaxLength_AnswersBadRequest()
+    {
+        AuthenticateAsControlPlane();
+        var teamId = new string('t', DirectoryLimits.MaxIdentifierLength + 1);
+
+        var response = await Client.PostAsync(
+            $"/directory/v1/teams/{teamId}/release",
+            content: null
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(TeamTooLongDetail, await ReadProblemDetailAsync(response));
     }
 
     [Fact]
@@ -1434,6 +1520,21 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         var retired = await Client.GetAsync($"/directory/v1/teams/{TeamId}/retired");
         Assert.Equal(HttpStatusCode.NotFound, retired.StatusCode);
+    }
+
+    [Fact]
+    public async Task RetireTeam_WhenTheTeamIdIsOverMaxLength_AnswersBadRequest()
+    {
+        AuthenticateAsControlPlane();
+        var teamId = new string('t', DirectoryLimits.MaxIdentifierLength + 1);
+
+        var response = await Client.PostAsync(
+            $"/directory/v1/teams/{teamId}/retire",
+            content: null
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(TeamTooLongDetail, await ReadProblemDetailAsync(response));
     }
 
     [Fact]
