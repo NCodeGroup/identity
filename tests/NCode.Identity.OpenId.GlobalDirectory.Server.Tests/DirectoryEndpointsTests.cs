@@ -13,6 +13,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using NCode.Identity.OpenId.Client;
+using NCode.Identity.Registration;
 using Xunit;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
@@ -62,7 +63,9 @@ public class DirectoryEndpointsTests : IAsyncLifetime
             options.UseSqlite(Connection)
         );
         builder.Services.AddSingleton(ValidatorMock.Object);
-        builder.Services.AddOpenIdDirectoryServer(builder.Configuration);
+        new ServiceBuilder<OpenIdClientLibrary>(builder.Services).AddOpenIdDirectoryServer(
+            builder.Configuration
+        );
 
         var app = builder.Build();
         app.MapDirectory();

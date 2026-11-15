@@ -5,7 +5,11 @@ using JetBrains.Annotations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
+using NCode.Identity.OpenId.Client;
+using NCode.Identity.OpenId.GlobalDirectory.Server.Options;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
+using NCode.Identity.Registration;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 
@@ -15,33 +19,39 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 [PublicAPI]
 public static class DefaultRegistration
 {
-    /// <param name="serviceCollection">The <see cref="IServiceCollection"/> to register the services in.</param>
-    extension(IServiceCollection serviceCollection)
+    /// <param name="builder">The <see cref="IServiceBuilder{T}"/> returned by <c>AddOpenIdClientLibrary</c>.</param>
+    extension(IServiceBuilder<OpenIdClientLibrary> builder)
     {
         /// <summary>
         /// Registers the directory server's store as the <see cref="ITenantDirectory"/>, <see cref="ITeamDirectory"/>,
         /// <see cref="ICellDirectory"/> and <see cref="IPlatformDirectory"/> that <see cref="DirectoryEndpoints"/>
-        /// serves, and binds <see cref="DirectoryServerOptions"/> from the <c>DirectoryServer</c> section, which must
-        /// name the issuer and is validated when the host starts. The host registers the
+        /// serves, and binds <see cref="DirectoryServerOptions"/> strictly from the <c>DirectoryServer</c> section,
+        /// which must name the issuer and is validated when the host starts. The host registers the
         /// <see cref="Microsoft.EntityFrameworkCore.IDbContextFactory{TContext}"/> of <see cref="DirectoryDbContext"/>
-        /// and the <c>IIssuerAccessTokenValidator</c> of the OpenID client library.
+        /// and the OpenID client library, whose <c>IIssuerAccessTokenValidator</c> validates the bearer tokens.
         /// </summary>
         /// <param name="configuration">The <see cref="IConfiguration"/> holding the <c>DirectoryServer</c> section.</param>
-        /// <returns>The same <see cref="IServiceCollection"/> so that calls can be chained.</returns>
-        public IServiceCollection AddOpenIdDirectoryServer(IConfiguration configuration)
+        /// <returns>The same <see cref="IServiceBuilder{T}"/> so that calls can be chained.</returns>
+        public IServiceBuilder<OpenIdClientLibrary> AddOpenIdDirectoryServer(
+            IConfiguration configuration
+        )
         {
-            ArgumentNullException.ThrowIfNull(serviceCollection);
+            ArgumentNullException.ThrowIfNull(builder);
             ArgumentNullException.ThrowIfNull(configuration);
+
+            var serviceCollection = builder.ServiceCollection;
 
             var section = configuration.GetSection(DirectoryServerOptions.SectionName);
             serviceCollection
                 .AddOptions<DirectoryServerOptions>()
-                .Configure(options => section.Bind(options))
-                .Validate(
-                    options => !string.IsNullOrEmpty(options.Issuer),
-                    $"{DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.Issuer)} is required."
-                )
+                .Configure(options => section.BindStrictly(options))
                 .ValidateOnStart();
+            serviceCollection.TryAddEnumerable(
+                ServiceDescriptor.Singleton<
+                    IValidateOptions<DirectoryServerOptions>,
+                    DirectoryServerOptionsValidator
+                >()
+            );
 
             serviceCollection.TryAddSingleton(TimeProvider.System);
             serviceCollection.TryAddSingleton<DefaultDirectoryStore>();
@@ -58,7 +68,7 @@ public static class DefaultRegistration
                 serviceProvider.GetRequiredService<DefaultDirectoryStore>()
             );
 
-            return serviceCollection;
+            return builder;
         }
     }
 }

@@ -8,8 +8,8 @@ const NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.StatePl
 const NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.StateReserved = "reserved" -> string!
 const NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.StateRetired = "retired" -> string!
 NCode.Identity.OpenId.GlobalDirectory.Server.DefaultRegistration
-NCode.Identity.OpenId.GlobalDirectory.Server.DefaultRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!)
-NCode.Identity.OpenId.GlobalDirectory.Server.DefaultRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).AddOpenIdDirectoryServer(Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+NCode.Identity.OpenId.GlobalDirectory.Server.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!)
+NCode.Identity.OpenId.GlobalDirectory.Server.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!).AddOpenIdDirectoryServer(Microsoft.Extensions.Configuration.IConfiguration! configuration) -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.Cells.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord!>!
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.Changes.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord!>!

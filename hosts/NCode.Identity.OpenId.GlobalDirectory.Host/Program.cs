@@ -66,12 +66,16 @@ builder.WebHost.ConfigureKestrel(kestrel =>
 );
 
 // The directory validates a cell's bearer token against the control-plane issuer's discovery document and signing
-// keys, which the OpenID client library resolves. The in-process key set is correct for one replica.
+// keys, which the OpenID client library resolves. The in-process key set is correct for one replica. The directory
+// server registers its store, its endpoints' services and the 'DirectoryServer' options, which must name the issuer,
+// on the client library's builder.
 serviceCollection.AddSharedStateServices().AddInProcessExpiringKeySet();
-serviceCollection.AddSecretsLibrary().AddJoseLibrary().AddJwtLibrary().AddOpenIdClientLibrary();
-
-// The directory's store, its endpoints' services and the 'DirectoryServer' options, which must name the issuer.
-serviceCollection.AddOpenIdDirectoryServer(configuration);
+serviceCollection
+    .AddSecretsLibrary()
+    .AddJoseLibrary()
+    .AddJwtLibrary()
+    .AddOpenIdClientLibrary()
+    .AddOpenIdDirectoryServer(configuration);
 
 // The directory's own Postgres database. The migrations live in this assembly, so the context names it.
 var connectionString =

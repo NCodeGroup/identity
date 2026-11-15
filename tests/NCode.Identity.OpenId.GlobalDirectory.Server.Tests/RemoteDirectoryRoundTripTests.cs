@@ -9,9 +9,9 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using Moq;
 using NCode.Identity.OpenId.Client;
+using NCode.Identity.Registration;
 using Xunit;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
@@ -84,7 +84,9 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
             options.UseSqlite(Connection)
         );
         builder.Services.AddSingleton(ValidatorMock.Object);
-        builder.Services.AddOpenIdDirectoryServer(builder.Configuration);
+        new ServiceBuilder<OpenIdClientLibrary>(builder.Services).AddOpenIdDirectoryServer(
+            builder.Configuration
+        );
 
         var app = builder.Build();
         app.MapDirectory();
@@ -124,7 +126,9 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
         var client = new DirectoryHttpClient(
             factoryMock.Object,
             tokenSourceMock.Object,
-            Options.Create(new DirectoryClientOptions { Url = "http://localhost/" })
+            Microsoft.Extensions.Options.Options.Create(
+                new DirectoryClientOptions { Url = "http://localhost/" }
+            )
         );
 
         TenantsOrNull = new RemoteTenantDirectory(client);
