@@ -18,7 +18,7 @@ import {
   emptyEncryptionRootKeyFormValues,
   type EncryptionRootKeyFormValues,
 } from '@ncode/ui';
-import { rootKeyErrorMessage } from './OwnerEncryptionKeysTab.js';
+import { rootKeyErrorMessage } from '../rootKeyErrorMessage.js';
 
 export type TeamEncryptionKeysTabProps = {
   readonly teamId: string;
