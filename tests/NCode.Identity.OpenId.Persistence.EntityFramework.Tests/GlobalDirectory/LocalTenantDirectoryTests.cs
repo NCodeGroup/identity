@@ -422,7 +422,7 @@ public sealed class LocalTenantDirectoryTests : IDisposable
     }
 
     [Fact]
-    public async Task ReserveAsync_WhenTheTeamIsUnknown_IsReserved()
+    public async Task ReserveAsync_WhenTheTeamIsUnknown_Conflicts()
     {
         SetupUnscoped();
 
@@ -431,7 +431,8 @@ public sealed class LocalTenantDirectoryTests : IDisposable
             CancellationToken.None
         );
 
-        Assert.True(result.IsReserved);
+        Assert.False(result.IsReserved);
+        Assert.Equal("The team 'missing' has no record.", result.ConflictDetail);
     }
 
     #endregion

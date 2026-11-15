@@ -401,7 +401,10 @@ internal sealed class LocalTenantDirectory(
     /// <param name="dbContext">The <see cref="OpenIdDbContext"/> to read from.</param>
     /// <param name="teamId">The identifier of the team that would hold the new tenant.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The conflict detail when a team of the lineage is full or a <c>max_tenants</c> setting cannot be read; otherwise, <c>null</c>.</returns>
+    /// <returns>
+    /// The conflict detail when the team has no record, a team of the lineage is full or a <c>max_tenants</c> setting
+    /// cannot be read; otherwise, <c>null</c>.
+    /// </returns>
     // See ADR-1411.
     // See ADR-1426.
     private static async ValueTask<string?> FindTeamAtLimitAsync(
@@ -418,7 +421,7 @@ internal sealed class LocalTenantDirectory(
             .SingleOrDefaultAsync(cancellationToken);
         if (path is null)
         {
-            return null;
+            return $"The team '{teamId}' has no record.";
         }
 
         List<string> normalizedLineageIds = [.. TeamPaths.Parse(path).Select(Normalize)];

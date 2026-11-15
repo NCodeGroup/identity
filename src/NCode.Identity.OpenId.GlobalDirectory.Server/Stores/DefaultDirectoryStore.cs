@@ -158,7 +158,7 @@ internal sealed class DefaultDirectoryStore(
                         normalizedTeamId = Normalize(teamId);
                         var fullTeamDetail = await FindTeamAtLimitAsync(
                             dbContext,
-                            normalizedTeamId,
+                            teamId,
                             cancellationToken
                         );
                         if (fullTeamDetail is not null)
@@ -975,14 +975,17 @@ internal sealed class DefaultDirectoryStore(
     /// through the parent identifiers of the team documents, deepest team first.
     /// </summary>
     /// <param name="dbContext">The <see cref="DirectoryDbContext"/> to read from.</param>
-    /// <param name="normalizedTeamId">The normalized identifier of the team that would hold the new tenant.</param>
+    /// <param name="teamId">The identifier of the team that would hold the new tenant.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The conflict detail when a team of the lineage is full or a <c>max_tenants</c> setting cannot be read; otherwise, <c>null</c>.</returns>
+    /// <returns>
+    /// The conflict detail when the team has no record, a team of the lineage is full or a <c>max_tenants</c> setting
+    /// cannot be read; otherwise, <c>null</c>. A team above the first whose record is missing ends the walk.
+    /// </returns>
     // See ADR-1411.
     // See ADR-1426.
     private static async ValueTask<string?> FindTeamAtLimitAsync(
         DirectoryDbContext dbContext,
-        string normalizedTeamId,
+        string teamId,
         CancellationToken cancellationToken
     )
     {
@@ -1002,7 +1005,8 @@ internal sealed class DefaultDirectoryStore(
         }
 
         var visited = new HashSet<string>(StringComparer.Ordinal);
-        string? nextTeamId = normalizedTeamId;
+        string? nextTeamId = Normalize(teamId);
+        var isNamedTeam = true;
         while (nextTeamId is not null && visited.Add(nextTeamId))
         {
             var currentTeamId = nextTeamId;
@@ -1019,9 +1023,12 @@ internal sealed class DefaultDirectoryStore(
                 .SingleOrDefaultAsync(cancellationToken);
             if (team is null)
             {
-                break;
+                // A team's row exists from its own reservation until it is released, so a named team without a row
+                // is not known to the directory and its limits cannot be read.
+                return isNamedTeam ? $"The team '{teamId}' has no record." : null;
             }
 
+            isNamedTeam = false;
             nextTeamId = team.NormalizedParentTeamId;
 
             // A team's limit is the lesser of the platform's and its own; unset means unlimited.

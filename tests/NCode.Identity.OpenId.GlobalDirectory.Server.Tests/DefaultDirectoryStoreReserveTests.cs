@@ -13,6 +13,8 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
     [Fact]
     public async Task ReserveAsync_WhenTheIdentifierAndIssuerAreFree_ReservesTheTenant()
     {
+        await PublishTeamAsync("team-1");
+
         var result = await ReserveAsync(TenantId, Issuer, teamId: "team-1");
 
         Assert.True(result.IsReserved);
@@ -302,14 +304,14 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
     }
 
     [Fact]
-    public async Task ReserveAsync_WhenTheTeamIsUnknown_ReservesWithoutLimit()
+    public async Task ReserveAsync_WhenTheTeamIsUnknown_Conflicts()
     {
         await PublishPlatformAsync(maxTenants: 1);
-        Assert.True((await ReserveAsync(TenantId, Issuer, "unknown")).IsReserved);
 
-        var result = await ReserveAsync(OtherTenantId, OtherIssuer, "unknown");
+        var result = await ReserveAsync(TenantId, Issuer, "unknown");
 
-        Assert.True(result.IsReserved);
+        Assert.False(result.IsReserved);
+        Assert.Equal("The team 'unknown' has no record.", result.ConflictDetail);
     }
 
     [Fact]
