@@ -457,7 +457,7 @@ A platform is a global directory over independent cells.
 - **The chart** deploys one cell per release. `cell.name`, `cell.region`, `cell.kind`, `cell.cloudRegions`,
   `cell.managementUrl`, `cell.isControlPlane` and `cell.controlPlaneIssuer` render as the `Cell__*` settings.
   `directory.url`, `directory.clientId`, `directory.keyRing` and `directory.keys.*` give the cell its directory client.
-  `directory.enabled` deploys the directory host as well, with `directory.issuer`, its own database Secret and a
+  `directory.enabled` deploys the directory host as well, with `directory.issuer`, `directory.controlPlaneCell`, its own database Secret and a
   migration Job. `backup.location` annotates the host and migration pods with `ncode.io/backup-location`, and
   `telemetry.otlpEndpoint` sets the OTLP endpoint, with `cell.name` and `cell.region` as resource attributes on every
   pod. The [chart README](../charts/ncode-identity-host/README.md#the-cell) lists every value.

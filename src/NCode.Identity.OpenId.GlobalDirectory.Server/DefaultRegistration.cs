@@ -27,7 +27,7 @@ public static class DefaultRegistration
         /// Registers the directory server's store as the <see cref="ITenantDirectory"/>, <see cref="ITeamDirectory"/>,
         /// <see cref="ICellDirectory"/> and <see cref="IPlatformDirectory"/> that <see cref="DirectoryEndpoints"/>
         /// serves, and binds <see cref="DirectoryServerOptions"/> strictly from the <c>DirectoryServer</c> section,
-        /// which must name the issuer and is validated when the host starts. The host registers the
+        /// which must name the issuer and the control-plane cell and is validated when the host starts. The host registers the
         /// <see cref="Microsoft.EntityFrameworkCore.IDbContextFactory{TContext}"/> of <see cref="DirectoryDbContext"/>
         /// and the OpenID client library, whose <c>IIssuerAccessTokenValidator</c> validates the bearer tokens. The
         /// host's <c>AllowedHosts</c> is validated when the host starts: it must list the deployment's host names and

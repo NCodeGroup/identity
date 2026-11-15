@@ -1158,6 +1158,8 @@ configuration the pods it migrates the database for read.
   value: {{ join ";" $directory.allowedHosts | quote }}
 - name: DirectoryServer__Issuer
   value: {{ $directory.issuer | quote }}
+- name: DirectoryServer__ControlPlaneCell
+  value: {{ $directory.controlPlaneCell | quote }}
 - name: ConnectionStrings__directory
   valueFrom:
     secretKeyRef:
@@ -1185,6 +1187,9 @@ Refuses a directory the host would refuse, before anything is applied. Rendered 
 {{- end }}
 {{- if not $directory.issuer }}
 {{- fail "directory.issuer must be the issuer of the control-plane cell when directory.enabled is true: the directory accepts bearer tokens from it." }}
+{{- end }}
+{{- if not $directory.controlPlaneCell }}
+{{- fail "directory.controlPlaneCell must name the control-plane cell when directory.enabled is true: the directory takes platform and team writes only from it." }}
 {{- end }}
 {{- if not $directory.database.existingSecret }}
 {{- fail "directory.database.existingSecret must name the Secret holding the directory's connection string when directory.enabled is true." }}

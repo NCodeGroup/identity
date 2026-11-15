@@ -68,12 +68,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
     {
         Connection.Open();
 
-        ValidatorMock
-            .Setup(x =>
-                x.ValidateAsync(ServerIssuer, Audience, AccessToken, It.IsAny<CancellationToken>())
-            )
-            .ReturnsAsync(CreateValidResult($"cell-{CellName}", "directory"))
-            .Verifiable(Times.AtLeastOnce);
+        ActAs(CellName);
 
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
@@ -81,6 +76,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
             new Dictionary<string, string?>
             {
                 ["DirectoryServer:Issuer"] = ServerIssuer,
+                ["DirectoryServer:ControlPlaneCell"] = CellName,
                 ["AllowedHosts"] = "localhost",
             }
         );
@@ -150,6 +146,19 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
         await Connection.DisposeAsync();
         Mocks.Verify();
     }
+
+    /// <summary>
+    /// Makes the access token that the remote adapters send authenticate as the machine client of a cell.
+    /// </summary>
+    private void ActAs(string cellName) =>
+        ValidatorMock
+            .Setup(x =>
+                x.ValidateAsync(ServerIssuer, Audience, AccessToken, It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(
+                CreateValidResult(DirectoryEndpoints.CellClientIdPrefix + cellName, "directory")
+            )
+            .Verifiable(Times.AtLeastOnce);
 
     private static IssuerAccessTokenResult CreateValidResult(string clientId, string scope)
     {
@@ -222,6 +231,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
             ).IsReserved
         );
 
+        ActAs(OtherCellName);
         var result = await Tenants.ReserveAsync(
             CreateReservation(TenantId, OtherTenantIssuer, OtherCellName),
             CancellationToken.None
@@ -246,6 +256,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
             ).IsReserved
         );
 
+        ActAs(OtherCellName);
         var result = await Tenants.ReserveAsync(
             CreateReservation(OtherTenantId, TenantIssuer, OtherCellName),
             CancellationToken.None
@@ -315,6 +326,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
 
         await Tenants.ReleaseAsync(TenantId, CancellationToken.None);
 
+        ActAs(OtherCellName);
         var result = await Tenants.ReserveAsync(
             CreateReservation(TenantId, TenantIssuer, OtherCellName),
             CancellationToken.None

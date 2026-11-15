@@ -18,6 +18,7 @@ migrations:
 directory:
   enabled: true
   issuer: https://id.example.com
+  controlPlaneCell: ci-directory
   allowedHosts:
     - directory.example.com
   database:

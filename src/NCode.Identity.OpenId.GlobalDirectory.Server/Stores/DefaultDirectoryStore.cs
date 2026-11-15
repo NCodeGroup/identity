@@ -414,6 +414,28 @@ internal sealed class DefaultDirectoryStore(
         return ReservationResult.Reserved();
     }
 
+    /// <summary>
+    /// Gets the name of the cell that holds a tenant, whatever the state of its record: a retired record keeps the cell
+    /// it had.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the tenant.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The name of the cell; or <c>null</c> when the tenant has no record or its record names no cell.</returns>
+    internal async ValueTask<string?> GetTenantCellOrDefaultAsync(
+        string tenantId,
+        CancellationToken cancellationToken
+    )
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var normalizedTenantId = Normalize(tenantId);
+        return await dbContext
+            .Tenants.AsNoTracking()
+            .Where(entity => entity.NormalizedTenantId == normalizedTenantId)
+            .Select(entity => entity.Cell)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
     /// <inheritdoc />
     async ValueTask<TenantPlacement?> ITenantDirectory.GetPlacementOrDefaultAsync(
         string tenantId,

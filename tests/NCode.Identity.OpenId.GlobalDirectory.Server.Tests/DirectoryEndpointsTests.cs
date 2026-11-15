@@ -23,7 +23,8 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     private const string ServerIssuer = "https://control-plane.example";
     private const string Audience = "urn:ncode:directory";
     private const string Token = "directory-access-token";
-    private const string CellClientId = "cell-a";
+    private const string CellName = "a";
+    private const string ControlPlaneCell = "control";
     private const string DirectoryScope = "directory";
     private const string TenantId = "tenant-1";
     private const string OtherTenantId = "tenant-2";
@@ -60,6 +61,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
             new Dictionary<string, string?>
             {
                 ["DirectoryServer:Issuer"] = ServerIssuer,
+                ["DirectoryServer:ControlPlaneCell"] = ControlPlaneCell,
                 ["AllowedHosts"] = "localhost",
             }
         );
@@ -106,17 +108,22 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         return new IssuerAccessTokenResult(payload, ServerIssuer);
     }
 
-    private void Authenticate(string clientId = CellClientId, string scope = DirectoryScope)
+    private static string ClientIdOf(string cell) => DirectoryEndpoints.CellClientIdPrefix + cell;
+
+    private void Authenticate(string? clientId = null, string scope = DirectoryScope)
     {
+        var effectiveClientId = clientId ?? ClientIdOf(CellName);
         ValidatorMock
             .Setup(x =>
                 x.ValidateAsync(ServerIssuer, Audience, Token, It.IsAny<CancellationToken>())
             )
-            .ReturnsAsync(CreateValidResult(clientId, scope))
+            .ReturnsAsync(CreateValidResult(effectiveClientId, scope))
             .Verifiable();
 
         Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token);
     }
+
+    private void AuthenticateAsControlPlane() => Authenticate(ClientIdOf(ControlPlaneCell));
 
     private static async ValueTask<T> ReadAsync<T>(
         HttpResponseMessage response,
@@ -149,7 +156,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
             {
                 TenantId = tenantId,
                 Issuer = issuer,
-                Cell = CellClientId,
+                Cell = CellName,
             },
             WebOptions,
             cancellationToken
@@ -306,10 +313,10 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task PlaceTenant_ThenGet_AnswersThePlacementInCamelCase()
     {
-        Authenticate(clientId: $"cell-{CellClientId}");
+        Authenticate();
         var cellResponse = await Client.PutAsJsonAsync(
-            $"/directory/v1/cells/{CellClientId}",
-            CreateCell(CellClientId),
+            $"/directory/v1/cells/{CellName}",
+            CreateCell(CellName),
             WebOptions
         );
         Assert.Equal(HttpStatusCode.OK, cellResponse.StatusCode);
@@ -321,7 +328,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
             {
                 TenantId = TenantId,
                 Issuer = TenantIssuer,
-                Cell = CellClientId,
+                Cell = CellName,
                 Region = "region-a",
             },
             WebOptions
@@ -338,10 +345,10 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task PlaceTenant_WhenNotReserved_Returns409()
     {
-        Authenticate(clientId: $"cell-{CellClientId}");
+        Authenticate();
         var cellResponse = await Client.PutAsJsonAsync(
-            $"/directory/v1/cells/{CellClientId}",
-            CreateCell(CellClientId),
+            $"/directory/v1/cells/{CellName}",
+            CreateCell(CellName),
             WebOptions
         );
         Assert.Equal(HttpStatusCode.OK, cellResponse.StatusCode);
@@ -352,7 +359,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
             {
                 TenantId = TenantId,
                 Issuer = TenantIssuer,
-                Cell = CellClientId,
+                Cell = CellName,
                 Region = "region-a",
             },
             WebOptions
@@ -478,6 +485,256 @@ public class DirectoryEndpointsTests : IAsyncLifetime
             },
             WebOptions
         );
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    #endregion
+
+    #region Tenant Write Authorization Tests
+
+    private async ValueTask<HttpResponseMessage> ReleaseTenantAsync(
+        string tenantId,
+        CancellationToken cancellationToken = default
+    ) =>
+        await Client.PostAsync(
+            $"/directory/v1/tenants/{tenantId}/release",
+            content: null,
+            cancellationToken
+        );
+
+    private async ValueTask<HttpResponseMessage> RetireTenantAsync(
+        string tenantId,
+        CancellationToken cancellationToken = default
+    ) =>
+        await Client.PostAsJsonAsync(
+            "/directory/v1/tenants/retire",
+            new TenantRetirement { TenantId = tenantId, Issuer = TenantIssuer },
+            WebOptions,
+            cancellationToken
+        );
+
+    private async ValueTask<HttpResponseMessage> ChangeIssuerAsync(
+        string tenantId,
+        CancellationToken cancellationToken = default
+    ) =>
+        await Client.PostAsJsonAsync(
+            "/directory/v1/tenants/change-issuer",
+            new TenantIssuerChange
+            {
+                TenantId = tenantId,
+                PreviousIssuer = TenantIssuer,
+                Issuer = OtherTenantIssuer,
+            },
+            WebOptions,
+            cancellationToken
+        );
+
+    private async ValueTask AssertTenantIsStillHeldAsync(
+        CancellationToken cancellationToken = default
+    )
+    {
+        Authenticate();
+
+        var response = await ReserveTenantAsync(TenantId, OtherTenantIssuer, cancellationToken);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal(
+            $"Another tenant already has the identifier '{TenantId}'.",
+            await ReadProblemDetailAsync(response, cancellationToken)
+        );
+    }
+
+    [Fact]
+    public async Task ReserveTenant_WhenCalledByAnotherCell_Returns403()
+    {
+        Authenticate(ClientIdOf("b"));
+
+        var response = await ReserveTenantAsync(TenantId, TenantIssuer);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(
+            "A cell reserves a tenant only for itself.",
+            await ReadProblemDetailAsync(response)
+        );
+    }
+
+    [Fact]
+    public async Task ReserveTenant_WhenCalledByTheControlPlaneForAnotherCell_Returns403()
+    {
+        AuthenticateAsControlPlane();
+
+        var response = await ReserveTenantAsync(TenantId, TenantIssuer);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ReserveTenant_WhenTheCallerLacksTheCellPrefix_Returns403()
+    {
+        Authenticate(CellName);
+
+        var response = await ReserveTenantAsync(TenantId, TenantIssuer);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PlaceTenant_WhenCalledByAnotherCell_Returns403()
+    {
+        Authenticate(ClientIdOf("b"));
+
+        var response = await Client.PostAsJsonAsync(
+            "/directory/v1/tenants/place",
+            new TenantPlacement
+            {
+                TenantId = TenantId,
+                Issuer = TenantIssuer,
+                Cell = CellName,
+                Region = "region-a",
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(
+            "A cell places a tenant only in itself.",
+            await ReadProblemDetailAsync(response)
+        );
+    }
+
+    [Fact]
+    public async Task PlaceTenant_WhenCalledByTheControlPlaneForAnotherCell_Returns403()
+    {
+        AuthenticateAsControlPlane();
+
+        var response = await Client.PostAsJsonAsync(
+            "/directory/v1/tenants/place",
+            new TenantPlacement
+            {
+                TenantId = TenantId,
+                Issuer = TenantIssuer,
+                Cell = CellName,
+                Region = "region-a",
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ReleaseTenant_WhenCalledByAnotherCell_Returns403()
+    {
+        Authenticate();
+        await ReserveTenantAsync(TenantId, TenantIssuer);
+        Authenticate(ClientIdOf("b"));
+
+        var response = await ReleaseTenantAsync(TenantId);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        await AssertTenantIsStillHeldAsync();
+    }
+
+    [Fact]
+    public async Task ReleaseTenant_WhenTheCallerLacksTheCellPrefix_Returns403()
+    {
+        Authenticate();
+        await ReserveTenantAsync(TenantId, TenantIssuer);
+        Authenticate(CellName);
+
+        var response = await ReleaseTenantAsync(TenantId);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ReleaseTenant_WhenCalledByTheControlPlane_FreesTheIdentifier()
+    {
+        Authenticate();
+        await ReserveTenantAsync(TenantId, TenantIssuer);
+        AuthenticateAsControlPlane();
+
+        var response = await ReleaseTenantAsync(TenantId);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Authenticate();
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await ReserveTenantAsync(TenantId, TenantIssuer)).StatusCode
+        );
+    }
+
+    [Fact]
+    public async Task ReleaseTenant_WhenTheTenantHasNoRecord_AnswersOk()
+    {
+        Authenticate(ClientIdOf("b"));
+
+        var response = await ReleaseTenantAsync(TenantId);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task RetireTenant_WhenCalledByAnotherCell_Returns403()
+    {
+        Authenticate();
+        await ReserveTenantAsync(TenantId, TenantIssuer);
+        Authenticate(ClientIdOf("b"));
+
+        var response = await RetireTenantAsync(TenantId);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        await AssertTenantIsStillHeldAsync();
+    }
+
+    [Fact]
+    public async Task RetireTenant_WhenCalledByTheControlPlane_AnswersOk()
+    {
+        Authenticate();
+        await ReserveTenantAsync(TenantId, TenantIssuer);
+        AuthenticateAsControlPlane();
+
+        var response = await RetireTenantAsync(TenantId);
+        var idResponse = await Client.GetAsync($"/directory/v1/tenants/retired-ids/{TenantId}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, idResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task RetireTenant_WhenTheRetiredRecordKeepsTheCellAndAnotherCellRetriesIt_Returns403()
+    {
+        Authenticate();
+        await ReserveTenantAsync(TenantId, TenantIssuer);
+        await RetireTenantAsync(TenantId);
+        Authenticate(ClientIdOf("b"));
+
+        var response = await RetireTenantAsync(TenantId);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ChangeIssuer_WhenCalledByAnotherCell_Returns403()
+    {
+        Authenticate();
+        await ReserveTenantAsync(TenantId, TenantIssuer);
+        Authenticate(ClientIdOf("b"));
+
+        var response = await ChangeIssuerAsync(TenantId);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ChangeIssuer_WhenCalledByTheControlPlane_AnswersOk()
+    {
+        Authenticate();
+        await ReserveTenantAsync(TenantId, TenantIssuer);
+        AuthenticateAsControlPlane();
+
+        var response = await ChangeIssuerAsync(TenantId);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
@@ -630,7 +887,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task ReserveTeam_WhenFree_AnswersOk()
     {
-        Authenticate();
+        AuthenticateAsControlPlane();
 
         var response = await Client.PostAsync(
             $"/directory/v1/teams/{TeamId}/reserve",
@@ -643,7 +900,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task ReserveTeam_WhenHeld_AnswersConflictWithTheDetail()
     {
-        Authenticate();
+        AuthenticateAsControlPlane();
         await Client.PostAsync($"/directory/v1/teams/{TeamId}/reserve", content: null);
 
         var response = await Client.PostAsync(
@@ -661,7 +918,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task ReserveTeam_WhenRetired_AnswersConflictWithTheDetail()
     {
-        Authenticate();
+        AuthenticateAsControlPlane();
         await Client.PostAsync($"/directory/v1/teams/{TeamId}/reserve", content: null);
         await Client.PostAsync($"/directory/v1/teams/{TeamId}/retire", content: null);
 
@@ -680,7 +937,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task PublishTeam_ThenGet_AnswersTheDocumentWithItsSequence()
     {
-        Authenticate();
+        AuthenticateAsControlPlane();
         await Client.PostAsync($"/directory/v1/teams/{TeamId}/reserve", content: null);
 
         var publishResponse = await Client.PutAsJsonAsync(
@@ -699,7 +956,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task PublishTeam_WhenTheDocumentIsForAnotherTeam_AnswersBadRequest()
     {
-        Authenticate();
+        AuthenticateAsControlPlane();
 
         var response = await Client.PutAsJsonAsync(
             $"/directory/v1/teams/{TeamId}/document",
@@ -723,7 +980,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task RetiredTeam_BeforeAndAfterRetire_AnswersNotFoundThenOk()
     {
-        Authenticate();
+        AuthenticateAsControlPlane();
         await Client.PostAsync($"/directory/v1/teams/{TeamId}/reserve", content: null);
 
         var before = await Client.GetAsync($"/directory/v1/teams/{TeamId}/retired");
@@ -737,7 +994,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task ReleaseTeam_WhenReserved_FreesTheIdentifier()
     {
-        Authenticate();
+        AuthenticateAsControlPlane();
         await Client.PostAsync($"/directory/v1/teams/{TeamId}/reserve", content: null);
 
         var release = await Client.PostAsync(
@@ -754,9 +1011,78 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ListChanges_WithAfterAndLimit_PagesTheChanges()
+    public async Task ReserveTeam_WhenCalledByAnotherCell_Returns403()
     {
         Authenticate();
+
+        var response = await Client.PostAsync(
+            $"/directory/v1/teams/{TeamId}/reserve",
+            content: null
+        );
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(
+            "Only the control-plane cell writes the platform and the teams.",
+            await ReadProblemDetailAsync(response)
+        );
+    }
+
+    [Fact]
+    public async Task PublishTeam_WhenCalledByAnotherCell_Returns403()
+    {
+        Authenticate();
+
+        var response = await Client.PutAsJsonAsync(
+            $"/directory/v1/teams/{TeamId}/document",
+            new TeamDocument { TeamId = TeamId, DisplayName = "Team One" },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ReleaseTeam_WhenCalledByAnotherCell_Returns403()
+    {
+        AuthenticateAsControlPlane();
+        await Client.PostAsync($"/directory/v1/teams/{TeamId}/reserve", content: null);
+        Authenticate();
+
+        var response = await Client.PostAsync(
+            $"/directory/v1/teams/{TeamId}/release",
+            content: null
+        );
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        AuthenticateAsControlPlane();
+        var reserve = await Client.PostAsync(
+            $"/directory/v1/teams/{TeamId}/reserve",
+            content: null
+        );
+        Assert.Equal(HttpStatusCode.Conflict, reserve.StatusCode);
+    }
+
+    [Fact]
+    public async Task RetireTeam_WhenCalledByAnotherCell_Returns403()
+    {
+        AuthenticateAsControlPlane();
+        await Client.PostAsync($"/directory/v1/teams/{TeamId}/reserve", content: null);
+        Authenticate();
+
+        var response = await Client.PostAsync(
+            $"/directory/v1/teams/{TeamId}/retire",
+            content: null
+        );
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var retired = await Client.GetAsync($"/directory/v1/teams/{TeamId}/retired");
+        Assert.Equal(HttpStatusCode.NotFound, retired.StatusCode);
+    }
+
+    [Fact]
+    public async Task ListChanges_WithAfterAndLimit_PagesTheChanges()
+    {
+        AuthenticateAsControlPlane();
         await Client.PostAsync($"/directory/v1/teams/{TeamId}/reserve", content: null);
         await Client.PutAsJsonAsync(
             $"/directory/v1/teams/{TeamId}/document",
@@ -804,7 +1130,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task PublishPlatformDocument_ThenGet_AnswersTheDocument()
     {
-        Authenticate();
+        AuthenticateAsControlPlane();
 
         var publishResponse = await Client.PutAsJsonAsync(
             "/directory/v1/platform/document",
@@ -817,6 +1143,22 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         var document = await ReadAsync<PlatformDocument>(getResponse);
         Assert.Equal("{\"max_tenants\":5}", document.SettingsJson);
         Assert.True(document.Sequence > 0);
+    }
+
+    [Fact]
+    public async Task PublishPlatformDocument_WhenCalledByAnotherCell_Returns403()
+    {
+        Authenticate();
+
+        var response = await Client.PutAsJsonAsync(
+            "/directory/v1/platform/document",
+            new PlatformDocument { SettingsJson = "{\"max_tenants\":5}" },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var getResponse = await Client.GetAsync("/directory/v1/platform/document");
+        Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
     }
 
     #endregion
@@ -880,6 +1222,46 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         );
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task RegisterCell_WhenAnotherCellClaimsToBeTheControlPlane_AnswersForbidden()
+    {
+        Authenticate();
+
+        var response = await Client.PutAsJsonAsync(
+            $"/directory/v1/cells/{CellName}",
+            CreateCell(CellName) with
+            {
+                IsControlPlane = true,
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(
+            "Only the control-plane cell registers itself as the control plane.",
+            await ReadProblemDetailAsync(response)
+        );
+        var listResponse = await Client.GetAsync("/directory/v1/cells");
+        Assert.Empty(await ReadAsync<List<CellDescriptor>>(listResponse));
+    }
+
+    [Fact]
+    public async Task RegisterCell_WhenTheControlPlaneRegistersItself_AnswersOk()
+    {
+        AuthenticateAsControlPlane();
+
+        var response = await Client.PutAsJsonAsync(
+            $"/directory/v1/cells/{ControlPlaneCell}",
+            CreateCell(ControlPlaneCell) with
+            {
+                IsControlPlane = true,
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]

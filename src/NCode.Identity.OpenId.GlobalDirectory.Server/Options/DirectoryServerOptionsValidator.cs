@@ -8,12 +8,16 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server.Options;
 /// <summary>
 /// Validates <see cref="DirectoryServerOptions"/>: the directory names the issuer of the control-plane cell, and the
 /// issuer is an absolute <c>https</c> URL (or an <c>http</c> URL on a loopback host) with no query or fragment, because
-/// the directory calls the issuer's discovery endpoint to validate a bearer token.
+/// the directory calls the issuer's discovery endpoint to validate a bearer token. The directory also names the
+/// control-plane cell, which alone writes the platform and team documents.
 /// </summary>
 internal sealed class DirectoryServerOptionsValidator : IValidateOptions<DirectoryServerOptions>
 {
     private static string IssuerKey =>
         $"{DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.Issuer)}";
+
+    private static string ControlPlaneCellKey =>
+        $"{DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.ControlPlaneCell)}";
 
     /// <inheritdoc />
     public ValidateOptionsResult Validate(string? name, DirectoryServerOptions options)
@@ -22,11 +26,16 @@ internal sealed class DirectoryServerOptionsValidator : IValidateOptions<Directo
         if (string.IsNullOrWhiteSpace(issuer))
             return ValidateOptionsResult.Fail($"{IssuerKey} is required.");
 
-        return IsAllowedIssuer(issuer)
-            ? ValidateOptionsResult.Success
-            : ValidateOptionsResult.Fail(
+        if (!IsAllowedIssuer(issuer))
+        {
+            return ValidateOptionsResult.Fail(
                 $"{IssuerKey} '{issuer}' must be an absolute https URL, or an http URL on a loopback host, with no query or fragment."
             );
+        }
+
+        return string.IsNullOrWhiteSpace(options.ControlPlaneCell)
+            ? ValidateOptionsResult.Fail($"{ControlPlaneCellKey} is required.")
+            : ValidateOptionsResult.Success;
     }
 
     private static bool IsAllowedIssuer(string issuer)

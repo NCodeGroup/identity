@@ -94,6 +94,9 @@ directory:
   # The issuer of the control-plane cell (DirectoryServer:Issuer), whose bearer tokens the directory accepts. Required
   # when enabled.
   issuer: ""
+  # The name of the control-plane cell (DirectoryServer:ControlPlaneCell), the only cell that writes the platform and the
+  # teams. Required when enabled.
+  controlPlaneCell: ""
   # The host names the directory answers to (AllowedHosts), such as the host of url. The probes send the first. Required
   # when enabled; '*' is refused.
   allowedHosts: []

@@ -8,6 +8,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 
 public class DirectoryServerOptionsValidatorTests
 {
+    private const string ControlPlaneCell = "control";
+
     private static DirectoryServerOptionsValidator CreateValidator() => new();
 
     #region Validate Tests
@@ -17,7 +19,11 @@ public class DirectoryServerOptionsValidatorTests
     [InlineData("https://auth.example/tenants/root")]
     public void Validate_HttpsIssuer_Succeeds(string issuer)
     {
-        var options = new DirectoryServerOptions { Issuer = issuer };
+        var options = new DirectoryServerOptions
+        {
+            Issuer = issuer,
+            ControlPlaneCell = ControlPlaneCell,
+        };
 
         var result = CreateValidator().Validate(null, options);
 
@@ -29,7 +35,11 @@ public class DirectoryServerOptionsValidatorTests
     [InlineData("http://127.0.0.1:5000")]
     public void Validate_LoopbackHttpIssuer_Succeeds(string issuer)
     {
-        var options = new DirectoryServerOptions { Issuer = issuer };
+        var options = new DirectoryServerOptions
+        {
+            Issuer = issuer,
+            ControlPlaneCell = ControlPlaneCell,
+        };
 
         var result = CreateValidator().Validate(null, options);
 
@@ -42,7 +52,11 @@ public class DirectoryServerOptionsValidatorTests
     [InlineData("   ")]
     public void Validate_EmptyIssuer_FailsAsRequired(string? issuer)
     {
-        var options = new DirectoryServerOptions { Issuer = issuer };
+        var options = new DirectoryServerOptions
+        {
+            Issuer = issuer,
+            ControlPlaneCell = ControlPlaneCell,
+        };
 
         var result = CreateValidator().Validate(null, options);
 
@@ -60,7 +74,11 @@ public class DirectoryServerOptionsValidatorTests
     [InlineData("ftp://auth.example")]
     public void Validate_DisallowedIssuer_FailsNamingTheValue(string issuer)
     {
-        var options = new DirectoryServerOptions { Issuer = issuer };
+        var options = new DirectoryServerOptions
+        {
+            Issuer = issuer,
+            ControlPlaneCell = ControlPlaneCell,
+        };
 
         var result = CreateValidator().Validate(null, options);
 
@@ -70,6 +88,25 @@ public class DirectoryServerOptionsValidatorTests
             $"DirectoryServer:Issuer '{issuer}' must be an absolute https URL, or an http URL on a loopback host, with no query or fragment.",
             failure
         );
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Validate_EmptyControlPlaneCell_FailsAsRequired(string? controlPlaneCell)
+    {
+        var options = new DirectoryServerOptions
+        {
+            Issuer = "https://auth.example",
+            ControlPlaneCell = controlPlaneCell,
+        };
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        var failure = Assert.Single(result.Failures);
+        Assert.Equal("DirectoryServer:ControlPlaneCell is required.", failure);
     }
 
     #endregion

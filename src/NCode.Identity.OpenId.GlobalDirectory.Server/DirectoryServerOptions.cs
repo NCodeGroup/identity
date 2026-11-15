@@ -23,4 +23,11 @@ public sealed class DirectoryServerOptions
     /// directory validates a bearer token against this issuer's discovery document and signing keys. It is required.
     /// </summary>
     public string? Issuer { get; set; }
+
+    /// <summary>
+    /// Gets or sets the name of the control-plane cell. Only that cell publishes the platform document, reserves,
+    /// publishes, releases or retires a team, and registers itself as the control plane; it also releases, retires and
+    /// changes the issuer of any tenant. It is required.
+    /// </summary>
+    public string? ControlPlaneCell { get; set; }
 }

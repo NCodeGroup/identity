@@ -191,6 +191,8 @@ and pre-upgrade Job that applies its migrations, and requires:
 
 - `directory.issuer`, the issuer of the control-plane cell, whose bearer tokens the directory accepts
   (`DirectoryServer__Issuer`);
+- `directory.controlPlaneCell`, the name of the control-plane cell, the only cell that writes the platform and the teams
+  (`DirectoryServer__ControlPlaneCell`);
 - `directory.allowedHosts`, the host names the directory answers to, such as the host of `directory.url`; `*` is
   refused;
 - `directory.database.existingSecret`, a Secret holding the directory's own Npgsql connection string under
