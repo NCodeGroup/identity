@@ -55,8 +55,9 @@ tenant is created there instead.**
    and never logs its response.
 4. **The target imports the graph and rewraps the master key under its root.** `POST api/tenant-imports` takes the
    `kid` and the package, takes the private key once (`422` when it is gone), and answers `422` when the package's
-   region is not the target's `Cell:Region` and `409` when the tenant already exists in the cell. In one unit of work
-   it imports every section in `Order`, then the master keys, which `IMasterKeyTransfer` stores under the target's
+   region is not the target's `Cell:Region` and `409` when the directory places the tenant in the cell. A tenant that
+   the cell holds while the directory places it in another cell is the residue of an import that stopped before its
+   move, and the import removes those rows before it imports. In one unit of work it imports every section in `Order`, then the master keys, which `IMasterKeyTransfer` stores under the target's
    nearest root key, the tenant's own when it carries one. The tenant stays disabled, and the audit record
    `tenant.imported` names the source cell.
 5. **Some records travel and others do not.** The package carries the tenant's configuration, its secrets, its local

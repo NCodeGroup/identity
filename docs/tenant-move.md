@@ -82,7 +82,7 @@ The tenant stays disabled in `<target>`. The audit record `tenant.imported` name
 | Status | Meaning                                                                                                                                                                                                                                                                                                         |
 | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `200`  | The tenant is imported and placed in `<target>`.                                                                                                                                                                                                                                                                |
-| `409`  | The tenant already exists in `<target>`; the directory places the tenant in no cell or already in `<target>`; or the directory refuses the move (the tenant is not placed in `<source>`, a cell is not registered, or the cells are in different regions). Nothing the import wrote remains.                       |
+| `409`  | The directory places the tenant in no cell or already in `<target>`; or the directory refuses the move (the tenant is not placed in `<source>`, a cell is not registered, or the cells are in different regions). Nothing the import wrote remains.                                                              |
 | `422`  | The transfer key is unknown, expired or already used; the package does not decrypt with it or is malformed; its region is not `<target>`'s region; it has a section that `<target>` does not import; or the tenant's secrets reference a remote key of a provider that `<target>` does not register.              |
 | `503`  | The directory is unavailable, with a `Retry-After` header. Nothing the import wrote remains.                                                                                                                                                                                                                    |
 
@@ -165,7 +165,9 @@ holds it until it is released".
   and the tenant disabled in `<source>`. The transfer key is taken before the import reads the package, so a failed
   import spends it: fix the cause, then repeat from stage 2 (another transfer key, another export, the import). To abandon the
   move, enable the tenant in `<source>`.
-  - `409` because the tenant exists in `<target>`: an import of it already completed. Release at `<source>` instead.
+  - `409` because the directory places the tenant in `<target>`: an import of it already completed. Release at
+    `<source>` instead. A tenant that `<target>` holds while the directory places it in `<source>` is the residue of an
+    import that stopped before its move, and the next import removes those rows before it imports.
   - `409` from the directory: register both cells in the directory, or choose a `<target>` of the tenant's region.
   - `422` for a region: choose a `<target>` of the package's region.
   - `503`: restore the directory, then repeat from stage 2.

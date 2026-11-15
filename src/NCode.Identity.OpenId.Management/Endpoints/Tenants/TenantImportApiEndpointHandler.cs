@@ -151,7 +151,7 @@ internal class TenantImportApiEndpointHandler(
     /// <param name="request">The <see cref="TenantImportRequest"/> that names the transfer key and carries the package.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="200">The tenant is imported and placed in this cell.</response>
-    /// <response code="409">The tenant already exists in this cell, the directory does not place it in another cell, or the directory refuses the move. Nothing the import wrote remains.</response>
+    /// <response code="409">The directory places the tenant in this cell or in no cell, or refuses the move. Nothing the import wrote remains.</response>
     /// <response code="422">The transfer key is unknown, expired or already used, the package does not decrypt with it or is malformed, or its region is not this cell's region.</response>
     /// <response code="503">The global directory is unavailable. Nothing the import wrote remains.</response>
     [EndpointName("api/tenant-imports/create")]
@@ -217,22 +217,6 @@ internal class TenantImportApiEndpointHandler(
             return Unprocessable("The package has a section that this cell does not import.");
         }
 
-        string teamId;
-        await using (var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken))
-        {
-            var existing = await storeManager
-                .GetStore<ITenantStore>()
-                .GetOrDefaultAsync(tenantId, cancellationToken);
-
-            if (existing is not null)
-            {
-                return TypedResults.Problem(
-                    detail: $"The tenant '{tenantId}' already exists in this cell.",
-                    statusCode: StatusCodes.Status409Conflict
-                );
-            }
-        }
-
         TenantPlacement? placement;
         try
         {
@@ -261,6 +245,26 @@ internal class TenantImportApiEndpointHandler(
                 detail: $"The directory already places the tenant '{tenantId}' in this cell.",
                 statusCode: StatusCodes.Status409Conflict
             );
+        }
+
+        // A tenant row in this cell while the directory places the tenant in another cell is the residue of an import
+        // that stopped before its move: each contributor and the master key transfer commit on their own. The import
+        // removes those rows before it imports. The retag is not undone, because the import that follows retags every
+        // remote key that the package's secrets reference to this cell, and its own rollback tags them back.
+        string teamId;
+        bool exists;
+        await using (var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken))
+        {
+            exists =
+                await storeManager
+                    .GetStore<ITenantStore>()
+                    .GetOrDefaultAsync(tenantId, cancellationToken)
+                    is not null;
+        }
+
+        if (exists)
+        {
+            await RemoveImportedAsync(tenantId, contributors, CancellationToken.None);
         }
 
         // Each contributor and the master key transfer commit on their own, so a failure at any later point removes
@@ -407,9 +411,8 @@ internal class TenantImportApiEndpointHandler(
     }
 
     // Puts the retagged remote keys back under the source cell's tag, so that this cell's sweep does not destroy keys
-    // that the source cell still holds, then removes what the import wrote: each contributor's rows in reverse order,
-    // then the tenant with its master keys. Callers pass a token that is not cancelled, so the cleanup runs to
-    // completion whatever the request's cancellation.
+    // that the source cell still holds, then removes what the import wrote. Callers pass a token that is not
+    // cancelled, so the cleanup runs to completion whatever the request's cancellation.
     private async ValueTask RollbackAsync(
         string tenantId,
         string sourceCell,
@@ -423,6 +426,16 @@ internal class TenantImportApiEndpointHandler(
             await provider.RetagKeyAsync(keyId, sourceCell, cancellationToken);
         }
 
+        await RemoveImportedAsync(tenantId, contributors, cancellationToken);
+    }
+
+    // Removes what an import wrote: each contributor's rows in reverse order, then the tenant with its master keys.
+    private async ValueTask RemoveImportedAsync(
+        string tenantId,
+        List<ITenantTransferContributor> contributors,
+        CancellationToken cancellationToken
+    )
+    {
         for (var index = contributors.Count - 1; index >= 0; index--)
         {
             await contributors[index].RemoveAsync(tenantId, cancellationToken);

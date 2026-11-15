@@ -4225,7 +4225,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   master keys under its own root key and retags the tenant's remote keys with its own name; grants, consents and
   sessions end, audit and usage records stay in the source, and the tenant keeps its identifier and issuer. The
   directory moves the placement only between cells of one region, so a tenant for another region is created in a cell of
-  that region, and the
+  that region, an import repeats over the rows an interrupted import left, and the
   release removes the source's rows without retiring an identifier or destroying a remote key
   ([ADR-1514](docs/decisions/1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md),
   [`docs/tenant-move.md`](docs/tenant-move.md)).

@@ -600,11 +600,11 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task ImportTenantAsync_WhenTheTenantExistsInThisCell_ReturnsConflictAndImportsNothing()
+    public async Task ImportTenantAsync_WhenTheTenantExistsAndTheDirectoryPlacesItInThisCell_ReturnsConflictAndImportsNothing()
     {
         SetupAuthorization(AuthorizationResult.Success());
         SetupPackage();
-        SetupStore(tenantExistsBefore: true);
+        SetupPlacement(cell: CellName);
 
         var result = await Handler.ImportTenantAsync(
             CreateHttpContext(authenticated: true),
@@ -617,11 +617,59 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task ImportTenantAsync_WhenTheTenantExistsAndTheDirectoryPlacesItInAnotherCell_RemovesTheResidueThenImports()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupPackage();
+        SetupStore(tenantExistsBefore: true, readImportedTenant: true);
+        SetupPlacement();
+        SetupRollbackRemovals();
+        SetupContributorImports();
+        SetupMasterKeyImport();
+        SetupProvider();
+        SetupRetag(CellName);
+        SetupMove(MoveResult.Moved());
+        MockManagementAuditRecorder
+            .Setup(x =>
+                x.RecordTenantChangedAsync(
+                    It.IsAny<HttpContext>(),
+                    TeamId,
+                    TenantId,
+                    "imported",
+                    It.IsAny<JsonElement?>()
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+        var result = await Handler.ImportTenantAsync(
+            CreateHttpContext(authenticated: true),
+            CreateRequest(),
+            CancellationToken.None
+        );
+
+        Assert.IsType<Ok<TenantImportResource>>(result);
+        Assert.Equal(
+            [
+                "remove-accounts",
+                "remove-core",
+                "remove-tenant",
+                "save",
+                "import-core",
+                "import-accounts",
+                "import-master-keys",
+                $"retag-{CellName}",
+                "move",
+            ],
+            Calls
+        );
+    }
+
+    [Fact]
     public async Task ImportTenantAsync_WhenTheDirectoryHasNoPlacement_ReturnsConflictAndImportsNothing()
     {
         SetupAuthorization(AuthorizationResult.Success());
         SetupPackage();
-        SetupStore();
         SetupPlacement(cell: null);
 
         var result = await Handler.ImportTenantAsync(
@@ -639,7 +687,6 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
     {
         SetupAuthorization(AuthorizationResult.Success());
         SetupPackage();
-        SetupStore();
         SetupPlacement(cell: CellName);
 
         var result = await Handler.ImportTenantAsync(
@@ -742,7 +789,6 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
     {
         SetupAuthorization(AuthorizationResult.Success());
         SetupPackage();
-        SetupStore();
         MockTenantDirectory
             .Setup(x => x.GetPlacementOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()))
             .Throws(new DirectoryUnavailableException("The directory is unreachable."))
