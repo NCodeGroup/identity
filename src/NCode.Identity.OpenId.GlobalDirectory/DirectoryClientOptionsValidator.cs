@@ -6,14 +6,14 @@ using Microsoft.Extensions.Options;
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
-/// Validates <see cref="DirectoryClientOptions"/> and the control-plane issuer when the host starts, so a cell that
-/// cannot authenticate to the directory stops the host instead of failing the first time it reserves an identifier.
+/// Validates <see cref="DirectoryClientOptions"/> alone when the host starts, so a cell that cannot authenticate to the
+/// directory stops the host instead of failing the first time it reserves an identifier. The control-plane issuer is
+/// checked by <see cref="DirectoryClientStartupCheck"/>.
 /// </summary>
 // See ADR-1285 (the endpoint rule) and ADR-1137 (configuration is validated at startup).
-internal sealed class DirectoryClientOptionsValidator(IOptions<CellOptions> cellOptions)
-    : IValidateOptions<DirectoryClientOptions>
+internal sealed class DirectoryClientOptionsValidator : IValidateOptions<DirectoryClientOptions>
 {
-    private CellOptions CellOptions { get; } = cellOptions.Value;
+    private static string Prefix => DirectoryClientOptions.SectionName;
 
     /// <inheritdoc />
     public ValidateOptionsResult Validate(string? name, DirectoryClientOptions options)
@@ -22,58 +22,36 @@ internal sealed class DirectoryClientOptionsValidator(IOptions<CellOptions> cell
 
         List<string> failures = [];
 
-        if (!IsAllowedEndpoint(options.Url))
+        if (!DirectoryEndpoint.IsAllowed(options.Url))
         {
             failures.Add(
-                $"{DirectoryClientOptions.SectionName}:{nameof(DirectoryClientOptions.Url)} must be an absolute https URL, or an http URL on a loopback host, with no query or fragment."
+                $"{Prefix}:{nameof(DirectoryClientOptions.Url)} '{options.Url}' must be an absolute https URL, or an http URL on a loopback host, with no query or fragment."
             );
         }
 
         if (string.IsNullOrWhiteSpace(options.ClientId))
         {
             failures.Add(
-                $"{DirectoryClientOptions.SectionName}:{nameof(DirectoryClientOptions.ClientId)} must name the machine client of the cell."
+                $"{Prefix}:{nameof(DirectoryClientOptions.ClientId)} '{options.ClientId}' must name the machine client of the cell."
             );
         }
 
         if (string.IsNullOrWhiteSpace(options.KeyRing))
         {
             failures.Add(
-                $"{DirectoryClientOptions.SectionName}:{nameof(DirectoryClientOptions.KeyRing)} must name the key ring that signs the client assertion."
+                $"{Prefix}:{nameof(DirectoryClientOptions.KeyRing)} '{options.KeyRing}' must name the key ring that signs the client assertion."
             );
         }
 
         if (options.PollInterval <= TimeSpan.Zero)
         {
             failures.Add(
-                $"{DirectoryClientOptions.SectionName}:{nameof(DirectoryClientOptions.PollInterval)} must be a positive time span."
-            );
-        }
-
-        if (!IsAllowedEndpoint(CellOptions.ControlPlane.Issuer))
-        {
-            failures.Add(
-                $"{CellOptions.SectionName}:{nameof(CellOptions.ControlPlane)}:{nameof(ControlPlaneOptions.Issuer)} must be an absolute https URL, or an http URL on a loopback host, when {DirectoryClientOptions.SectionName}:{nameof(DirectoryClientOptions.Url)} is set."
+                $"{Prefix}:{nameof(DirectoryClientOptions.PollInterval)} '{options.PollInterval}' must be a positive time span."
             );
         }
 
         return failures.Count == 0
             ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail(failures);
-    }
-
-    private static bool IsAllowedEndpoint(string? value)
-    {
-        if (string.IsNullOrEmpty(value) || value.Any(char.IsWhiteSpace))
-            return false;
-
-        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri))
-            return false;
-
-        if (!string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment))
-            return false;
-
-        return uri.Scheme == Uri.UriSchemeHttps
-            || (uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback);
     }
 }

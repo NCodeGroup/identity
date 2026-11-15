@@ -31,7 +31,8 @@ public static class DefaultRegistration
         /// <see cref="DirectoryClientOptions"/> strictly and is validated when the host starts. Each adapter calls the
         /// <c>directory/v1</c> API with a client-credentials token for the audience <c>urn:ncode:directory</c>, which
         /// the OpenID client library requests as the cell's machine client from the issuer named by
-        /// <c>Cell:ControlPlane:Issuer</c>, over the client library's bounded HTTP client. A call that cannot reach the
+        /// <c>Cell:ControlPlane:Issuer</c>, over the client library's bounded HTTP client. A start check also refuses a
+        /// <c>Cell:ControlPlane:Issuer</c> that is not an allowed endpoint. A call that cannot reach the
         /// directory throws <see cref="DirectoryUnavailableException"/>. The same registration adds a hosted service that
         /// registers the cell with the directory when the host starts, retrying while the directory is unavailable, and a
         /// hosted service that follows the directory's change feed: every <see cref="DirectoryClientOptions.PollInterval"/>
@@ -112,6 +113,11 @@ public static class DefaultRegistration
                     >()
                 );
             }
+
+            // The start check refuses an unusable control-plane issuer before the cell registers with the directory.
+            serviceCollection.TryAddEnumerable(
+                ServiceDescriptor.Singleton<IHostedService, DirectoryClientStartupCheck>()
+            );
 
             // The cell announces itself to the directory when the host starts, then follows its change feed.
             serviceCollection.TryAddEnumerable(
