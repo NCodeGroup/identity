@@ -19,6 +19,7 @@ internal sealed class DirectoryDbContextDesignTimeFactory
     private const string DesignTimeConnectionString =
         "Host=localhost;Port=5432;Database=directory;Username=postgres;Password=postgres";
 
+    /// <inheritdoc />
     public DirectoryDbContext CreateDbContext(string[] args)
     {
         var optionsBuilder = new DbContextOptionsBuilder<DirectoryDbContext>();
