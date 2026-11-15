@@ -79,8 +79,10 @@ and the build fails on any oversized chunk.**
 7. **Every test, story and setup file is type-checked.** No workspace tsconfig excludes `*.test.*` or `*.stories.*`, and
    each includes its `vitest.setup.ts`.
 8. **Coverage measures every source file and holds a floor.** Coverage includes every `.ts` and `.tsx` source except the
-   entry point (`main.ts` or `main.tsx`) and the re-export barrel (`index.ts`). Each workspace sets
-   `coverage.thresholds` for statements, branches, functions and lines at the level it reached, rounded down.
+   entry point (`main.ts` or `main.tsx`) and the re-export barrel (`index.ts`); the tests, the stories and the type
+   tests (`*.test-d.ts`), which the workspace's `typecheck` checks and no test run executes, are not source. Each
+   workspace sets `coverage.thresholds` for statements, branches, functions and lines at the level it reached, rounded
+   down.
    `pnpm run test:report` enforces them whenever coverage is collected, which CI always does; a plain `pnpm test` stays
    fast. A change that raises coverage raises the floor in the same change; lowering a floor needs a stated reason.
 

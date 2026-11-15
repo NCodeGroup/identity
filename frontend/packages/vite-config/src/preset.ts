@@ -189,10 +189,12 @@ export function testGates({ environment, coverage }: TestConfigOptions): TestCon
     include: ['src/**/*.test.{ts,tsx}'],
     coverage: {
       provider: 'v8',
-      // Every source file counts except the tests, the stories, the entry point, and the re-export barrel.
+      // Every source file counts except the tests, the type tests (which `typecheck` checks and nothing runs), the
+      // stories, the entry point, and the re-export barrel.
       include: ['src/**/*.{ts,tsx}'],
       exclude: [
         'src/**/*.test.{ts,tsx}',
+        'src/**/*.test-d.{ts,tsx}',
         'src/**/*.stories.{ts,tsx}',
         'src/main.{ts,tsx}',
         'src/index.ts',
