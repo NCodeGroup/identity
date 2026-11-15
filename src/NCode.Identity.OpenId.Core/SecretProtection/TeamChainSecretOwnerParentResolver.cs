@@ -31,10 +31,19 @@ internal sealed class TeamChainSecretOwnerParentResolver(
     IAmbientTenantAccessor ambientTenantAccessor
 ) : ISecretOwnerParentResolver
 {
+    /// <summary>
+    /// The reason that the resolver gives when it opens an unscoped ambient tenant scope to read teams.
+    /// </summary>
     private const string UnscopedReason = "secret owner ancestors";
 
+    /// <summary>
+    /// Gets the ancestors of an owner that has none.
+    /// </summary>
     private static IReadOnlyList<SecretOwner> Empty { get; } = [];
 
+    /// <summary>
+    /// Gets the ancestors of an owner whose only ancestor is the platform owner.
+    /// </summary>
     private static IReadOnlyList<SecretOwner> PlatformOnly { get; } = [SecretOwner.Platform];
 
     /// <summary>

@@ -95,7 +95,9 @@ root lives outside the database.
 14. **The nearest root key wraps.** `ISecretOwnerParentResolver` gives an owner's parents, and
     `DefaultMasterKeyManager` wraps an owner's master keys under the nearest root key: the owner's own, then the nearest
     ancestor's (a tenant's ancestors are its team chain), then the platform's. A team's root key is one per region and is held as an owner root key
-    ([ADR-1414](1414-a-tenant-can-wrap-its-master-keys-under-a-root-key-it-controls.md)).
+    ([ADR-1414](1414-a-tenant-can-wrap-its-master-keys-under-a-root-key-it-controls.md)). A host that supplies its own
+    resolver registers it after `AddIdentityServer()`, and the registration of the team chain wins over the library's
+    default in either order.
 15. **A KMS key stays in the cell's cloud regions.** `Cell:CloudRegions` lists the cloud regions a cell may use. The AWS
     KMS adapter refuses a key ARN whose region is not listed, and the Google Cloud KMS adapter refuses a crypto key
     location that is not listed. The host sets each adapter's `AllowedRegions` or `AllowedLocations` from

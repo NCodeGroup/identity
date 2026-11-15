@@ -43,6 +43,12 @@ internal sealed class DefaultAmbientTenantAccessor : IAmbientTenantAccessor
         return Begin(new AmbientTenantScopeState(TenantId: null, IsUnscoped: true, reason));
     }
 
+    /// <summary>
+    /// Makes the specified state the ambient state and returns the scope that restores the previous state when it is
+    /// disposed.
+    /// </summary>
+    /// <param name="state">The ambient state to apply.</param>
+    /// <returns>The scope that restores the previous ambient state when it is disposed.</returns>
     private AmbientTenantScope Begin(AmbientTenantScopeState state)
     {
         var previous = AmbientState.Value;
