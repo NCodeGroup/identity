@@ -58,17 +58,6 @@ public sealed class CrossTenantQueryAnalyzer : DiagnosticAnalyzer
             helpLinkUri: "https://github.com/NCodeGroup/identity/blob/main/docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md"
         );
 
-    /// <inheritdoc />
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } = [Rule];
-
-    /// <inheritdoc />
-    public override void Initialize(AnalysisContext context)
-    {
-        context.EnableConcurrentExecution();
-        context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
-        context.RegisterCompilationStartAction(OnCompilationStart);
-    }
-
     /// <summary>
     /// Registers the invocation analysis unless the compilation's assembly is one of the skipped assemblies.
     /// </summary>
@@ -183,5 +172,16 @@ public sealed class CrossTenantQueryAnalyzer : DiagnosticAnalyzer
         }
 
         return line.Start + offset;
+    }
+
+    /// <inheritdoc />
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } = [Rule];
+
+    /// <inheritdoc />
+    public override void Initialize(AnalysisContext context)
+    {
+        context.EnableConcurrentExecution();
+        context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
+        context.RegisterCompilationStartAction(OnCompilationStart);
     }
 }
