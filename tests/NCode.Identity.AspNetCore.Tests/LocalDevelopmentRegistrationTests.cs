@@ -100,16 +100,34 @@ public sealed class LocalDevelopmentRegistrationTests
     }
 
     [Fact]
-    public void AddLocalDevelopmentOptions_WithAnUnknownKey_Throws()
+    public void AddLocalDevelopmentOptions_WhenConfigurationIsAddedAfterRegistration_RegistersTheModeItSelects()
+    {
+        var configuration = new ConfigurationManager();
+        var serviceCollection = CreateServiceCollection();
+        serviceCollection.AddLocalDevelopmentOptions(configuration);
+
+        configuration.AddInMemoryCollection(
+            new Dictionary<string, string?> { ["LocalDevelopment:Enabled"] = "true" }
+        );
+
+        using var provider = serviceCollection.BuildServiceProvider();
+        Assert.True(provider.GetRequiredService<LocalDevelopmentMode>().Enabled);
+    }
+
+    [Fact]
+    public void AddLocalDevelopmentOptions_WithAnUnknownKey_ThrowsWhenTheModeIsResolved()
     {
         var serviceCollection = CreateServiceCollection();
+        serviceCollection.AddLocalDevelopmentOptions(
+            CreateConfiguration(
+                new Dictionary<string, string?> { ["LocalDevelopment:Enabeld"] = "true" }
+            )
+        );
+
+        using var provider = serviceCollection.BuildServiceProvider();
 
         Assert.Throws<InvalidOperationException>(() =>
-            serviceCollection.AddLocalDevelopmentOptions(
-                CreateConfiguration(
-                    new Dictionary<string, string?> { ["LocalDevelopment:Enabeld"] = "true" }
-                )
-            )
+            provider.GetRequiredService<LocalDevelopmentMode>()
         );
     }
 

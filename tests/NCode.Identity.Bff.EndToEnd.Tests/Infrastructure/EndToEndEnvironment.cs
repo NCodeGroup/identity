@@ -18,7 +18,7 @@ public sealed class EndToEndEnvironment : IAsyncLifetime
     private const string StrictClientId = "bff-strict";
     private const string LaxClientId = "bff-lax";
     private const string BlazorClientId = "bff-blazor";
-    private const string ContainerHost = "host.testcontainers.internal";
+    private const string ContainerHost = BffHostSetup.ContainerHost;
 
     private ConcurrentDictionary<string, Task<IBrowser>> Browsers { get; } = new();
 
