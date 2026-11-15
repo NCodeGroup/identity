@@ -3,10 +3,13 @@
 
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using NCode.Identity.OpenId.Logging;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Platform;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 using NCode.Mediator;
 
@@ -15,13 +18,16 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// <summary>
 /// Provides the default implementation of <see cref="IPlatformDocumentApplier"/>. It mirrors a published platform
 /// document into the platform row, then sends a <see cref="PlatformSettingsChangedCommand"/> that carries the settings
-/// before and after, so caches evict the settings.
+/// before and after, so caches evict the settings. The platform row is committed before the command, which runs on its
+/// own bounded token, so a command that fails is logged and never fails the committed write.
 /// </summary>
-// See ADR-1411, ADR-1169 and ADR-1412.
+// See ADR-1411, ADR-1169, ADR-1412 and ADR-1351.
 internal sealed class DefaultPlatformDocumentApplier(
     IStoreManagerFactory storeManagerFactory,
     IServiceScopeFactory serviceScopeFactory,
-    IAmbientTenantAccessor ambientTenantAccessor
+    IAmbientTenantAccessor ambientTenantAccessor,
+    TimeProvider timeProvider,
+    ILogger<DefaultPlatformDocumentApplier> logger
 ) : IPlatformDocumentApplier
 {
     /// <summary>
@@ -32,6 +38,8 @@ internal sealed class DefaultPlatformDocumentApplier(
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IServiceScopeFactory ServiceScopeFactory { get; } = serviceScopeFactory;
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
+    private TimeProvider TimeProvider { get; } = timeProvider;
+    private ILogger<DefaultPlatformDocumentApplier> Logger { get; } = logger;
 
     /// <inheritdoc />
     public async ValueTask ApplyAsync(
@@ -70,7 +78,7 @@ internal sealed class DefaultPlatformDocumentApplier(
 
         if (isApplied)
         {
-            await SendAsync(
+            await SendAfterCommitAsync(
                 new PlatformSettingsChangedCommand(previousSettings.Clone(), settings.Clone()),
                 cancellationToken
             );
@@ -87,6 +95,32 @@ internal sealed class DefaultPlatformDocumentApplier(
 
         var persistedPlatform = await store.GetOrDefaultAsync(cancellationToken);
         return persistedPlatform?.DirectorySequence ?? 0;
+    }
+
+    /// <summary>
+    /// Sends a platform-settings-changed command that follows the committed platform row. The command runs on its own
+    /// token, bounded by <see cref="PostCommitWork.Timeout"/>, so a slow command cannot hold the feed; a command that
+    /// fails is logged and never fails the committed write, and a caller's cancellation propagates.
+    /// </summary>
+    /// <param name="command">The <see cref="PlatformSettingsChangedCommand"/> to send.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> of the caller, whose cancellation propagates.</param>
+    private async ValueTask SendAfterCommitAsync(
+        PlatformSettingsChangedCommand command,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            await PostCommitWork.RunAsync(
+                TimeProvider,
+                static (state, token) => state.Applier.SendAsync(state.Command, token),
+                (Applier: this, Command: command)
+            );
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            Logger.DirectoryPlatformChangeNotSent(exception);
+        }
     }
 
     /// <summary>

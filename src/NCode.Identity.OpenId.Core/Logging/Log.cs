@@ -480,4 +480,14 @@ internal static partial class Log
         string teamId,
         Exception exception
     );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryPlatformChangeNotSent,
+        Level = LogLevel.Warning,
+        Message = "The platform change was committed, but the command that announces it to the cell's replicas failed; caches evict the platform at their next reconciliation."
+    )]
+    internal static partial void DirectoryPlatformChangeNotSent(
+        this ILogger logger,
+        Exception exception
+    );
 }

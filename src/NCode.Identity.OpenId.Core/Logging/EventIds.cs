@@ -105,4 +105,10 @@ internal static class EventIds
     public const int DirectoryTeamRootKeyNotApplied = Base + 47;
 
     public const int DirectoryTeamChangeNotSent = Base + 48;
+
+    /// <summary>
+    /// Identifies the warning that a mirrored platform change was committed, but the command that announces it to the
+    /// cell's replicas failed.
+    /// </summary>
+    public const int DirectoryPlatformChangeNotSent = Base + 49;
 }

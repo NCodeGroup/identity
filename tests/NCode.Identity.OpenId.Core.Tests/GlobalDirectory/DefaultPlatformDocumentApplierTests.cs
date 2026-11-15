@@ -3,8 +3,12 @@
 
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
+using Microsoft.Extensions.Time.Testing;
 using Moq;
 using NCode.Identity.OpenId.GlobalDirectory;
+using NCode.Identity.OpenId.Logging;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
@@ -24,6 +28,8 @@ public sealed class DefaultPlatformDocumentApplierTests : BaseTests
     private Mock<IPlatformStore> MockPlatformStore { get; }
     private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
     private Mock<IMediator> MockMediator { get; }
+    private FakeTimeProvider TimeProvider { get; } = new();
+    private FakeLogger<DefaultPlatformDocumentApplier> Logger { get; } = new();
     private ServiceProvider ServiceProvider { get; }
     private DefaultPlatformDocumentApplier Applier { get; }
 
@@ -42,7 +48,9 @@ public sealed class DefaultPlatformDocumentApplierTests : BaseTests
         Applier = new DefaultPlatformDocumentApplier(
             MockStoreManagerFactory.Object,
             ServiceProvider.GetRequiredService<IServiceScopeFactory>(),
-            MockAmbientTenantAccessor.Object
+            MockAmbientTenantAccessor.Object,
+            TimeProvider,
+            Logger
         );
     }
 
@@ -71,7 +79,7 @@ public sealed class DefaultPlatformDocumentApplierTests : BaseTests
             .Verifiable();
         SetupMirror(isApplied: true, sequence: 5, cancellationToken);
         SetupSave(cancellationToken);
-        SetupCommand("{}", """{"flag":true}""", cancellationToken);
+        SetupCommand("{}", """{"flag":true}""");
 
         await Applier.ApplyAsync(
             new PlatformDocument { SettingsJson = """{"flag":true}""", Sequence = 5 },
@@ -96,7 +104,7 @@ public sealed class DefaultPlatformDocumentApplierTests : BaseTests
             .Verifiable();
         SetupMirror(isApplied: true, sequence: 6, It.IsAny<CancellationToken>());
         SetupSave(It.IsAny<CancellationToken>());
-        SetupCommand("""{"flag":false}""", """{"flag":true}""", It.IsAny<CancellationToken>());
+        SetupCommand("""{"flag":false}""", """{"flag":true}""");
 
         await Applier.ApplyAsync(
             new PlatformDocument { SettingsJson = """{"flag":true}""", Sequence = 6 },
@@ -120,6 +128,32 @@ public sealed class DefaultPlatformDocumentApplierTests : BaseTests
             new PlatformDocument { SettingsJson = """{"flag":true}""", Sequence = 2 },
             CancellationToken.None
         );
+    }
+
+    [Fact]
+    public async Task ApplyAsync_WhenPlatformSettingsChangedCommandFails_LogsWarningAndReturns()
+    {
+        using var cts = new CancellationTokenSource();
+        var cancellationToken = cts.Token;
+        SetupUnscoped();
+        SetupStoreManager();
+        MockPlatformStore
+            .Setup(x => x.GetSettingsOrDefaultAsync(cancellationToken))
+            .ReturnsAsync((PersistedPlatformSettings?)null)
+            .Verifiable();
+        SetupMirror(isApplied: true, sequence: 7, cancellationToken);
+        SetupSave(cancellationToken);
+        SetupFailingCommand(new InvalidOperationException("The mediator is unavailable."));
+
+        await Applier.ApplyAsync(
+            new PlatformDocument { SettingsJson = """{"flag":true}""", Sequence = 7 },
+            cancellationToken
+        );
+
+        var record = Assert.Single(Logger.Collector.GetSnapshot());
+        Assert.Equal(LogLevel.Warning, record.Level);
+        Assert.Equal(EventIds.DirectoryPlatformChangeNotSent, record.Id.Id);
+        Assert.IsType<InvalidOperationException>(record.Exception);
     }
 
     #endregion
@@ -208,11 +242,7 @@ public sealed class DefaultPlatformDocumentApplierTests : BaseTests
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-    private void SetupCommand(
-        string previousSettings,
-        string settings,
-        CancellationToken cancellationToken
-    ) =>
+    private void SetupCommand(string previousSettings, string settings) =>
         MockMediator
             .Setup(x =>
                 x.SendAsync(
@@ -220,9 +250,20 @@ public sealed class DefaultPlatformDocumentApplierTests : BaseTests
                         command.PreviousSettings.GetRawText() == previousSettings
                         && command.Settings.GetRawText() == settings
                     ),
-                    cancellationToken
+                    It.IsAny<CancellationToken>()
                 )
             )
             .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+    private void SetupFailingCommand(Exception exception) =>
+        MockMediator
+            .Setup(x =>
+                x.SendAsync(
+                    It.IsAny<PlatformSettingsChangedCommand>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ThrowsAsync(exception)
             .Verifiable();
 }
