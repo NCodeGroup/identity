@@ -137,13 +137,17 @@ export function TenantMoveDialog({
     let completedStages = 0;
     try {
       const key = await operations.createTransferKey(target.name);
-      setCompleted((completedStages = 1));
+      completedStages = 1;
+      setCompleted(completedStages);
       const sealedPackage = await operations.exportTenant(sourceCell, tenantId, key.jwk);
-      setCompleted((completedStages = 2));
+      completedStages = 2;
+      setCompleted(completedStages);
       await operations.importTenant(target.name, key.kid, sealedPackage);
-      setCompleted((completedStages = 3));
+      completedStages = 3;
+      setCompleted(completedStages);
       await operations.releaseMovedTenant(sourceCell, tenantId);
-      setCompleted((completedStages = 4));
+      completedStages = 4;
+      setCompleted(completedStages);
     } catch (error) {
       setFailure({ stage: completedStages, message: errorMessage(error) });
     } finally {

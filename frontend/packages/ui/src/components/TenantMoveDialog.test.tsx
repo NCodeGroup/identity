@@ -165,6 +165,27 @@ describe('TenantMoveDialog', () => {
     expect(screen.getByTestId('move-confirm')).toBeDisabled();
   });
 
+  it('shows the first two stages done and the import failed when the import fails', async () => {
+    const operations: TenantMoveDialogOperations = {
+      ...createOperations(),
+      importTenant: vi.fn(async () => {
+        throw new Error('The cell is unavailable.');
+      }),
+    };
+    renderDialog({ operations });
+    choose('eu-2');
+
+    fireEvent.click(screen.getByTestId('move-confirm'));
+
+    expect(await screen.findByTestId('move-failure')).toHaveTextContent(
+      'Import the tenant into eu-2 failed: The cell is unavailable.',
+    );
+    expect(screen.getByTestId('move-stage-transfer-key')).toHaveTextContent('done');
+    expect(screen.getByTestId('move-stage-export')).toHaveTextContent('done');
+    expect(screen.getByTestId('move-stage-import')).toHaveTextContent('failed');
+    expect(screen.getByTestId('move-stage-release')).toHaveTextContent('pending');
+  });
+
   it('reports the release at the source as what remains when only the release fails', async () => {
     const operations: TenantMoveDialogOperations = {
       ...createOperations(),
