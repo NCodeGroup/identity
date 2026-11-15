@@ -8,7 +8,6 @@ using NCode.Identity.OpenId.Client;
 using NCode.Identity.OpenId.GlobalDirectory.Host;
 using NCode.Identity.OpenId.GlobalDirectory.Server;
 using NCode.Identity.Secrets;
-using NCode.Identity.Server;
 using NCode.Identity.SharedState;
 
 // COMPOSITION-ONLY HOST: this file is a flat list of turnkey Add*/Use*/Map* calls. Reusable startup logic does NOT
@@ -26,8 +25,6 @@ var serviceCollection = builder.Services;
 // Logs go to standard output on every platform: the console provider writes them, and the EventSource provider hands
 // them to a diagnostics tool that attaches (dotnet-monitor, dotnet-trace). See project-template ADR-0115.
 builder.Logging.ClearProviders().AddConsole().AddEventSourceLogger();
-
-serviceCollection.AddHealthChecks();
 
 // Metrics: the family's meters plus ASP.NET Core, Kestrel, outbound HTTP, and the runtime, exported over OTLP when
 // OTEL_EXPORTER_OTLP_ENDPOINT is configured. ADR-1197.
