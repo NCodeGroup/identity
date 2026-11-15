@@ -210,6 +210,34 @@ without its key, or a parts Secret whose required key is empty. Rendered for its
 {{- end }}
 
 {{/*
+The pattern of the ARN of an AWS KMS key or alias.
+*/}}
+{{- define "identity-host.awsKmsArnPattern" -}}
+^arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:(key/[A-Za-z0-9-]+|alias/[A-Za-z0-9/_-]+)$
+{{- end }}
+
+{{/*
+Refuses a remote key id that does not name a key version the provider can sign with. Takes the path of the value, the
+provider, the key id and an example of the key's name (keyName) and Google Cloud KMS key ring (keyRing). Rendered for its
+side effect only.
+*/}}
+{{- define "identity-host.remoteKeyIdValidate" -}}
+{{- if eq .provider "aws-kms" }}
+{{- if not (regexMatch (include "identity-host.awsKmsArnPattern" .) .keyId) }}
+{{- fail (printf "%s must be the ARN of an AWS KMS key or alias, such as arn:aws:kms:us-west-2:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab." .path) }}
+{{- end }}
+{{- else if eq .provider "azure-key-vault" }}
+{{- if not (regexMatch "^https://[A-Za-z0-9-]+([.][A-Za-z0-9-]+)+/keys/[A-Za-z0-9-]{1,127}/[A-Za-z0-9]{32}$" .keyId) }}
+{{- fail (printf "%s must be the identifier of a Key Vault or Managed HSM key version, such as https://contoso.vault.azure.net/keys/%s/0123456789abcdef0123456789abcdef." .path .example.keyName) }}
+{{- end }}
+{{- else if eq .provider "google-cloud-kms" }}
+{{- if not (regexMatch "^projects/[a-z0-9.:-]+/locations/[a-z0-9-]+/keyRings/[A-Za-z0-9_-]{1,63}/cryptoKeys/[A-Za-z0-9_-]{1,63}/cryptoKeyVersions/[0-9]{1,19}$" .keyId) }}
+{{- fail (printf "%s must be the resource name of a Cloud KMS crypto key version, such as projects/my-project/locations/us-central1/keyRings/%s/cryptoKeys/%s/cryptoKeyVersions/1." .path .example.keyRing .example.keyName) }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
 Refuses a release the host would refuse, or one that would run replicas without shared state, before anything is
 applied. Rendered for its side effect only.
 */}}
@@ -250,19 +278,7 @@ applied. Rendered for its side effect only.
 {{- range $kid, $key := $directoryKeys.remoteKeys }}
 {{- $directoryKeyIds = append $directoryKeyIds (lower $kid) }}
 {{- $path := printf "directory.keys.remoteKeys.%s.keyId" $kid }}
-{{- if eq $key.provider "aws-kms" }}
-{{- if not (regexMatch "^arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:(key/[A-Za-z0-9-]+|alias/[A-Za-z0-9/_-]+)$" $key.keyId) }}
-{{- fail (printf "%s must be the ARN of an AWS KMS key or alias, such as arn:aws:kms:us-west-2:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab." $path) }}
-{{- end }}
-{{- else if eq $key.provider "azure-key-vault" }}
-{{- if not (regexMatch "^https://[A-Za-z0-9-]+([.][A-Za-z0-9-]+)+/keys/[A-Za-z0-9-]{1,127}/[A-Za-z0-9]{32}$" $key.keyId) }}
-{{- fail (printf "%s must be the identifier of a Key Vault or Managed HSM key version, such as https://contoso.vault.azure.net/keys/cell-client/0123456789abcdef0123456789abcdef." $path) }}
-{{- end }}
-{{- else if eq $key.provider "google-cloud-kms" }}
-{{- if not (regexMatch "^projects/[a-z0-9.:-]+/locations/[a-z0-9-]+/keyRings/[A-Za-z0-9_-]{1,63}/cryptoKeys/[A-Za-z0-9_-]{1,63}/cryptoKeyVersions/[0-9]{1,19}$" $key.keyId) }}
-{{- fail (printf "%s must be the resource name of a Cloud KMS crypto key version, such as projects/my-project/locations/us-central1/keyRings/ncode-identity-cell/cryptoKeys/cell-client/cryptoKeyVersions/1." $path) }}
-{{- end }}
-{{- end }}
+{{- include "identity-host.remoteKeyIdValidate" (dict "path" $path "provider" $key.provider "keyId" $key.keyId "example" (dict "keyName" "cell-client" "keyRing" "ncode-identity-cell")) }}
 {{- end }}
 {{- if ne (len $directoryKeyIds) (len (uniq $directoryKeyIds)) }}
 {{- fail (printf "directory.keys holds two keys with the same id: each remote key's id differs from every other key's in the ring, compared without case, and from %s when pemSecret is set." .Values.directory.keyRing) }}
@@ -277,7 +293,7 @@ applied. Rendered for its side effect only.
 {{- if and (eq .Values.secretProtection.rootKeyProvider "aws-kms") (not .Values.secretProtection.awsKms.keyArn) }}
 {{- fail "secretProtection.awsKms.keyArn must name the KMS key or alias that holds the root key." }}
 {{- end }}
-{{- if and (eq .Values.secretProtection.rootKeyProvider "aws-kms") .Values.secretProtection.awsKms.keyArn (not (regexMatch "^arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:(key/[A-Za-z0-9-]+|alias/[A-Za-z0-9/_-]+)$" .Values.secretProtection.awsKms.keyArn)) }}
+{{- if and (eq .Values.secretProtection.rootKeyProvider "aws-kms") .Values.secretProtection.awsKms.keyArn (not (regexMatch (include "identity-host.awsKmsArnPattern" .) .Values.secretProtection.awsKms.keyArn)) }}
 {{- fail "secretProtection.awsKms.keyArn must be the ARN of a KMS key or alias, such as arn:aws:kms:us-west-2:111122223333:alias/ncode-identity-root." }}
 {{- end }}
 {{- if eq .Values.secretProtection.rootKeyProvider "azure-key-vault" }}
@@ -1012,19 +1028,7 @@ is applied. Rendered for its side effect only.
 {{- range $kid, $key := $keyRing.remoteKeys }}
 {{- $ids = append $ids (lower $kid) }}
 {{- $path := printf "managementConsole.keyRings.%s.remoteKeys.%s.keyId" $ring $kid }}
-{{- if eq $key.provider "aws-kms" }}
-{{- if not (regexMatch "^arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:(key/[A-Za-z0-9-]+|alias/[A-Za-z0-9/_-]+)$" $key.keyId) }}
-{{- fail (printf "%s must be the ARN of an AWS KMS key or alias, such as arn:aws:kms:us-west-2:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab." $path) }}
-{{- end }}
-{{- else if eq $key.provider "azure-key-vault" }}
-{{- if not (regexMatch "^https://[A-Za-z0-9-]+([.][A-Za-z0-9-]+)+/keys/[A-Za-z0-9-]{1,127}/[A-Za-z0-9]{32}$" $key.keyId) }}
-{{- fail (printf "%s must be the identifier of a Key Vault or Managed HSM key version, such as https://contoso.vault.azure.net/keys/mgmt-client/0123456789abcdef0123456789abcdef." $path) }}
-{{- end }}
-{{- else if eq $key.provider "google-cloud-kms" }}
-{{- if not (regexMatch "^projects/[a-z0-9.:-]+/locations/[a-z0-9-]+/keyRings/[A-Za-z0-9_-]{1,63}/cryptoKeys/[A-Za-z0-9_-]{1,63}/cryptoKeyVersions/[0-9]{1,19}$" $key.keyId) }}
-{{- fail (printf "%s must be the resource name of a Cloud KMS crypto key version, such as projects/my-project/locations/us-central1/keyRings/ncode-identity-console/cryptoKeys/mgmt-client/cryptoKeyVersions/1." $path) }}
-{{- end }}
-{{- end }}
+{{- include "identity-host.remoteKeyIdValidate" (dict "path" $path "provider" $key.provider "keyId" $key.keyId "example" (dict "keyName" "mgmt-client" "keyRing" "ncode-identity-console")) }}
 {{- end }}
 {{- if ne (len $ids) (len (uniq $ids)) }}
 {{- fail (printf "managementConsole.keyRings.%s holds two keys with the same id: each remote key's id differs from every other key's in the ring, compared without case, and from mgmt-%s when pemSecret is set." $ring $ring) }}
