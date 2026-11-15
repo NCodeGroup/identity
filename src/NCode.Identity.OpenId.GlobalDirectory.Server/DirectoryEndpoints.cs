@@ -53,8 +53,8 @@ public static class DirectoryEndpoints
 
     /// <summary>
     /// The problem detail that the cell registration route answers with when the management URL is not one that
-    /// <see cref="AbsoluteUri.TryParseHttpsServiceUrl"/> accepts, or that <see cref="AbsoluteUri.TryParseAnyHttpServiceUrl"/>
-    /// accepts in local development.
+    /// <see cref="AbsoluteUri.TryParseHttpsServiceUrl"/> accepts, or that
+    /// <see cref="AbsoluteUri.TryParseAnyHttpServiceUrl"/> accepts in local development.
     /// </summary>
     private const string InvalidManagementUrlDetail =
         "The cell's management URL is an absolute https URL, or an http URL in local development, with no user "
@@ -818,8 +818,8 @@ public static class DirectoryEndpoints
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
     /// <c>200 OK</c> when the cell is registered; <c>400 Bad Request</c> when the kind or the management URL is blank
-    /// or longer than the directory stores, the management URL is not an absolute <c>https</c> URL (or an <c>http</c> URL in local development)
-    /// without user information, a query or a fragment, the name or the region is not a
+    /// or longer than the directory stores, the management URL is not an absolute <c>https</c> URL (or an <c>http</c>
+    /// URL in local development) without user information, a query or a fragment, the name or the region is not a
     /// <see cref="CellLabelRules"/> label, or the descriptor names a cell other than the route's;
     /// <c>403 Forbidden</c> when the cell is not the caller or claims to be the control plane without being it.
     /// </returns>

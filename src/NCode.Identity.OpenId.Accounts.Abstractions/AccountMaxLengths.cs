@@ -27,8 +27,8 @@ public static class AccountMaxLengths
     /// <summary>
     /// Specifies the maximum length of an account's normalized user name in a store that puts the tenant identifier,
     /// up to 63 characters, and a <c>|</c> separator before it, such as the ASP.NET Core Identity adapter, for a user
-    /// name whose normalized form is no longer than <see cref="UserName"/>. A store that keeps the tenant in another
-    /// column holds at most <see cref="UserName"/>.
+    /// name whose normalized form holds at most <see cref="UserName"/> characters. A store that keeps the tenant in
+    /// another column holds at most <see cref="UserName"/>.
     /// </summary>
     public const int NormalizedUserName = UserName + TenantLookupPrefixLength;
 
@@ -40,8 +40,8 @@ public static class AccountMaxLengths
     /// <summary>
     /// Specifies the maximum length of an account's normalized email address in a store that puts the tenant
     /// identifier, up to 63 characters, and a <c>|</c> separator before it, such as the ASP.NET Core Identity
-    /// adapter, for an email address whose normalized form is no longer than <see cref="Email"/>. A store that keeps
-    /// the tenant in another column holds at most <see cref="Email"/>.
+    /// adapter, for an email address whose normalized form holds at most <see cref="Email"/> characters. A store that
+    /// keeps the tenant in another column holds at most <see cref="Email"/>.
     /// </summary>
     public const int NormalizedEmail = Email + TenantLookupPrefixLength;
 

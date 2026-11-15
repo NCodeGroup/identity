@@ -35,7 +35,9 @@ public static partial class DatabaseRoleNameRules
     /// Determines whether the specified value is a valid role name.
     /// </summary>
     /// <param name="role">The value to check.</param>
-    /// <returns><see langword="true"/> when the value is a valid role name; otherwise, <see langword="false"/>.</returns>
+    /// <returns>
+    /// <see langword="true"/> when the value is a valid role name; otherwise, <see langword="false"/>.
+    /// </returns>
     public static bool IsValid([NotNullWhen(true)] string? role) =>
         role is not null && RoleRegex().IsMatch(role);
 
@@ -44,7 +46,9 @@ public static partial class DatabaseRoleNameRules
     /// </summary>
     /// <param name="configuredRole">The configured value.</param>
     /// <param name="key">The configuration key that holds the value, which messages name.</param>
-    /// <param name="connectsAs">The text that completes "the name of the database role", which a message quotes.</param>
+    /// <param name="connectsAs">
+    /// The text that completes "the name of the database role", which a message quotes.
+    /// </param>
     /// <returns>The trimmed role name.</returns>
     /// <exception cref="InvalidOperationException">The value is blank or is not a valid role name.</exception>
     public static string RequireRuntimeRole(string? configuredRole, string key, string connectsAs)

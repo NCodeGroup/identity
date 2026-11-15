@@ -36,7 +36,8 @@ public static class RowLevelSecurity
     /// </summary>
     /// <param name="model">The model of the host's <c>OpenIdDbContext</c>.</param>
     /// <param name="runtimeRole">
-    /// The name of the database role the host runs as. It is a valid name according to <see cref="DatabaseRoleNameRules"/>, so it is safe to quote.
+    /// The name of the database role the host runs as. It is a valid name according to
+    /// <see cref="DatabaseRoleNameRules"/>, so it is safe to quote.
     /// </param>
     /// <returns>The statements to run, in order, each as one command.</returns>
     /// <exception cref="ArgumentException"><paramref name="runtimeRole"/> is not a valid role name.</exception>
@@ -74,7 +75,8 @@ public static class RowLevelSecurity
     /// </summary>
     /// <param name="model">The model of a host context.</param>
     /// <param name="runtimeRole">
-    /// The name of the database role the host runs as. It is a valid name according to <see cref="DatabaseRoleNameRules"/>, so it is safe to quote.
+    /// The name of the database role the host runs as. It is a valid name according to
+    /// <see cref="DatabaseRoleNameRules"/>, so it is safe to quote.
     /// </param>
     /// <returns>The statements to run, in order, each as one command.</returns>
     /// <exception cref="ArgumentException"><paramref name="runtimeRole"/> is not a valid role name.</exception>
