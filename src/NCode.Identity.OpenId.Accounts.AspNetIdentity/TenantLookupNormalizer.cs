@@ -13,8 +13,9 @@ namespace NCode.Identity.OpenId.Accounts.AspNetIdentity;
 /// unique per tenant and a lookup in one tenant never finds a user of another.
 /// </summary>
 /// <remarks>
-/// The normalizer fails closed. It throws when no tenant scope is set, and it returns the plain upper-invariant value
-/// inside an unscoped scope (<see cref="IAmbientTenantAccessor.IsUnscoped"/>), where code reads across tenants.
+/// The normalizer fails closed. It throws outside a tenant scope, an unscoped scope
+/// (<see cref="IAmbientTenantAccessor.IsUnscoped"/>) included, so no lookup or write stores or compares a normalized
+/// name without its tenant.
 /// </remarks>
 /// <param name="ambientTenantAccessor">The ambient tenant accessor that supplies the tenant of the current scope.</param>
 [PublicAPI]
@@ -31,20 +32,18 @@ public sealed class TenantLookupNormalizer(IAmbientTenantAccessor ambientTenantA
 
     private string? Normalize(string? value)
     {
-        var tenantId = AmbientTenantAccessor.TenantId;
-        if (tenantId is null && !AmbientTenantAccessor.IsUnscoped)
+        if (value is null)
         {
-            throw new InvalidOperationException(
-                "A user name or email cannot be normalized without a tenant scope. Open a tenant scope with IAmbientTenantAccessor.BeginScope, or an unscoped scope with BeginUnscoped."
+            return null;
+        }
+
+        var tenantId =
+            AmbientTenantAccessor.TenantId
+            ?? throw new InvalidOperationException(
+                "A user name or email is unique only within a tenant and is normalized only inside a tenant scope. Open one with IAmbientTenantAccessor.BeginScope."
             );
-        }
 
-        var upper = value?.Normalize().ToUpperInvariant();
-        if (tenantId is null || upper is null)
-        {
-            return upper;
-        }
-
+        var upper = value.Normalize().ToUpperInvariant();
         return $"{tenantId.ToLowerInvariant()}|{upper}";
     }
 }

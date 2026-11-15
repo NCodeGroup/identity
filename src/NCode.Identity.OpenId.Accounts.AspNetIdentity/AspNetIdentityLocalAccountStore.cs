@@ -26,8 +26,10 @@ namespace NCode.Identity.OpenId.Accounts.AspNetIdentity;
 /// <remarks>
 /// Each user belongs to one tenant (<see cref="ITenantBoundUser.TenantId"/>). Creating a user stamps the tenant of the
 /// ambient tenant scope and fails when no tenant scope is set. Every lookup treats a user of another tenant as not
-/// found, inside a tenant scope; an unscoped scope (<see cref="IAmbientTenantAccessor.IsUnscoped"/>) reads across
-/// tenants, and an unset scope finds nothing. <see cref="PersistedLocalAccount.TenantId"/> is mapped as empty; the
+/// found, inside a tenant scope. Lookups by user name, and credential verification, need a tenant scope: they find
+/// nothing in an unset scope and throw in an unscoped scope (<see cref="IAmbientTenantAccessor.IsUnscoped"/>).
+/// Lookups by identifier read across tenants only in an unscoped scope.
+/// <see cref="PersistedLocalAccount.TenantId"/> is mapped as empty; the
 /// resource-owner password grant authenticates against the request's tenant. Each operation resolves the scoped
 /// <see cref="UserManager{TUser}"/> from a fresh dependency-injection scope, so this adapter holds no scoped state and
 /// its writes commit immediately (they do not enlist in the OpenID unit of work).
@@ -615,11 +617,29 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         CancellationToken cancellationToken
     ) => FilterByTenant(await userManager.FindByIdAsync(localAccountId));
 
+    // A user name is unique only within a tenant, so a lookup by name needs a tenant scope: an unset scope finds
+    // nothing, and an unscoped scope is rejected.
     private async ValueTask<TUser?> FindByNameAsync(
         UserManager<TUser> userManager,
         string userName,
         CancellationToken cancellationToken
-    ) => FilterByTenant(await userManager.FindByNameAsync(userName));
+    )
+    {
+        var tenantId = GetCurrentTenantId();
+        if (tenantId is null)
+        {
+            return AmbientTenantAccessor.IsUnscoped
+                ? throw new InvalidOperationException(
+                    "A local account is found by user name only inside a tenant scope, because a user name is unique only within a tenant."
+                )
+                : null;
+        }
+
+        var user = await userManager.FindByNameAsync(userName);
+        return user is not null && string.Equals(user.TenantId, tenantId, StringComparison.Ordinal)
+            ? user
+            : null;
+    }
 
     private static IUserPasswordStore<TUser> GetPasswordStore(IServiceProvider serviceProvider) =>
         serviceProvider.GetRequiredService<IUserStore<TUser>>() as IUserPasswordStore<TUser>

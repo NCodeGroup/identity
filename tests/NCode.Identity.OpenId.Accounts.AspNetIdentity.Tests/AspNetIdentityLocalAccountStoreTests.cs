@@ -1106,6 +1106,29 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task GetByUserNameOrDefaultAsync_WithoutTenantScope_ReturnsNull()
+    {
+        var (store, _) = CreateStore();
+        TenantScope.Dispose();
+
+        var result = await store.GetByUserNameOrDefaultAsync(UserName, CancellationToken.None);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task GetByUserNameOrDefaultAsync_UnscopedScope_Throws()
+    {
+        var (store, _) = CreateStore();
+        TenantScope.Dispose();
+        using var unscoped = TenantAccessor.BeginUnscoped("test");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await store.GetByUserNameOrDefaultAsync(UserName, CancellationToken.None)
+        );
+    }
+
+    [Fact]
     public async Task FindById_UserOfOtherTenant_ReturnsNull()
     {
         var (store, userManager) = CreateStore();

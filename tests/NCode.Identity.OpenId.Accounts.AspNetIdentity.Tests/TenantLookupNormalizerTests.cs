@@ -44,19 +44,27 @@ public sealed class TenantLookupNormalizerTests
     }
 
     [Fact]
-    public void NormalizeName_WhenUnscoped_ReturnsTheUpperInvariantValue()
+    public void NormalizeName_WhenUnscoped_Throws()
     {
         using var scope = Accessor.BeginUnscoped("test");
 
-        var normalized = Normalizer.NormalizeName("Alice");
-
-        Assert.Equal("ALICE", normalized);
+        Assert.Throws<InvalidOperationException>(() => Normalizer.NormalizeName("Alice"));
     }
 
     [Fact]
     public void NormalizeName_WhenUnset_Throws()
     {
         Assert.Throws<InvalidOperationException>(() => Normalizer.NormalizeName("alice"));
+    }
+
+    [Fact]
+    public void NormalizeName_WithoutTenantScope_Throws()
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            Normalizer.NormalizeName("alice")
+        );
+
+        Assert.Contains("tenant scope", exception.Message);
     }
 
     [Fact]
@@ -84,13 +92,13 @@ public sealed class TenantLookupNormalizerTests
     }
 
     [Fact]
-    public void NormalizeEmail_WhenUnscoped_ReturnsTheUpperInvariantValue()
+    public void NormalizeEmail_WhenUnscoped_Throws()
     {
         using var scope = Accessor.BeginUnscoped("test");
 
-        var normalized = Normalizer.NormalizeEmail("Alice@Example.com");
-
-        Assert.Equal("ALICE@EXAMPLE.COM", normalized);
+        Assert.Throws<InvalidOperationException>(() =>
+            Normalizer.NormalizeEmail("Alice@Example.com")
+        );
     }
 
     [Fact]
