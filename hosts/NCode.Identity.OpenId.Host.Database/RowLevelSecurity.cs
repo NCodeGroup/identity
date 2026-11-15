@@ -28,10 +28,6 @@ public static class RowLevelSecurity
     /// </summary>
     public const string PolicyName = "tenant_isolation";
 
-    private const string TenantSetting = "app.tenant_id";
-    private const string UnscopedSetting = "app.unscoped";
-    private const string UnscopedOn = "on";
-
     /// <summary>
     /// Creates the statements that enable row-level security on every tenant-bound table of <paramref name="model"/> and
     /// grant the data access that <paramref name="runtimeRole"/> needs: <c>SELECT</c>, <c>INSERT</c>, <c>UPDATE</c> and
@@ -55,8 +51,8 @@ public static class RowLevelSecurity
 
             var name = QualifiedName(table.Schema, table.Name);
             var expression =
-                $"current_setting('{UnscopedSetting}', true) = '{UnscopedOn}' "
-                + $"OR {Quote(tenantColumn)} = current_setting('{TenantSetting}', true)";
+                $"current_setting('{TenantSessionSettings.Unscoped}', true) = '{TenantSessionSettings.On}' "
+                + $"OR {Quote(tenantColumn)} = current_setting('{TenantSessionSettings.TenantId}', true)";
 
             statements.Add($"ALTER TABLE {name} ENABLE ROW LEVEL SECURITY");
             statements.Add($"ALTER TABLE {name} FORCE ROW LEVEL SECURITY");

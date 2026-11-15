@@ -27,10 +27,7 @@ public sealed class TenantSessionInterceptor(IAmbientTenantAccessor ambientTenan
         IDbTransactionInterceptor
 {
     private const string SetConfigCommandText =
-        "SELECT set_config('app.tenant_id', @t, false), set_config('app.unscoped', @u, false)";
-
-    private const string UnscopedOn = "on";
-    private const string UnscopedOff = "off";
+        $"SELECT set_config('{TenantSessionSettings.TenantId}', @t, false), set_config('{TenantSessionSettings.Unscoped}', @u, false)";
 
     private ConditionalWeakTable<
         DbConnection,
@@ -206,8 +203,11 @@ public sealed class TenantSessionInterceptor(IAmbientTenantAccessor ambientTenan
     // the EF Core global query filter match the same rows for a mixed-case route tenant.
     private (string Tenant, string Unscoped) GetAmbientState() =>
         ambientTenantAccessor.IsUnscoped
-            ? (string.Empty, UnscopedOn)
-            : (ambientTenantAccessor.TenantId?.ToLowerInvariant() ?? string.Empty, UnscopedOff);
+            ? (string.Empty, TenantSessionSettings.On)
+            : (
+                ambientTenantAccessor.TenantId?.ToLowerInvariant() ?? string.Empty,
+                TenantSessionSettings.Off
+            );
 
     private bool TryGetPendingState(
         DbCommand command,
