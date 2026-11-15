@@ -116,7 +116,11 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
 
-        var user = GetRequiredUser(userManager, account.LocalAccountId);
+        var user = await GetRequiredUserAsync(
+            userManager,
+            account.LocalAccountId,
+            cancellationToken
+        );
 
         // SetUserNameAsync/SetEmailAsync also refresh the normalized lookup columns; setting the properties directly
         // would leave those stale. SetEmailAsync resets the confirmed flag, so the confirmation is applied after it.
@@ -151,7 +155,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         var passwordStore = GetPasswordStore(scope.ServiceProvider);
         var passwordHasher = GetPasswordHasher(userManager);
 
-        var user = GetRequiredUser(userManager, localAccountId);
+        var user = await GetRequiredUserAsync(userManager, localAccountId, cancellationToken);
 
         var submitted = DecodePassword(password);
         await SetPasswordHashAsync(
@@ -247,7 +251,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
 
-        var user = FindById(userManager, localAccountId);
+        var user = await FindByIdAsync(userManager, localAccountId, cancellationToken);
         return user is null ? null : await MapAsync(userManager, user, cancellationToken);
     }
 
@@ -288,7 +292,10 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         var limit = page.Limit;
 
         // Fetch one extra row to determine whether a further page exists.
-        var users = query.OrderBy(user => user.Id).Take(limit + 1).ToList();
+        var users = await ToListAsync(
+            query.OrderBy(user => user.Id).Take(limit + 1),
+            cancellationToken
+        );
 
         var hasMore = users.Count > limit;
         var items = new List<PersistedLocalAccount>(Math.Min(users.Count, limit));
@@ -307,7 +314,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
 
-        var user = FindById(userManager, localAccountId);
+        var user = await FindByIdAsync(userManager, localAccountId, cancellationToken);
         if (user is null)
         {
             return;
@@ -326,7 +333,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
 
-        var user = GetRequiredUser(userManager, localAccountId);
+        var user = await GetRequiredUserAsync(userManager, localAccountId, cancellationToken);
 
         var existing = await userManager.GetClaimsAsync(user);
         if (existing.Count > 0)
@@ -358,7 +365,10 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
         var passwordStore = GetPasswordStore(scope.ServiceProvider);
 
-        var users = GetTenantUsers(userManager).OrderBy(user => user.Id).ToList();
+        var users = await ToListAsync(
+            GetTenantUsers(userManager).OrderBy(user => user.Id),
+            cancellationToken
+        );
 
         var records = new List<LocalAccountTransferRecord>(users.Count);
         foreach (var user in users)
@@ -473,7 +483,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
 
-        var users = GetTenantUsers(userManager).ToList();
+        var users = await ToListAsync(GetTenantUsers(userManager), cancellationToken);
         foreach (var user in users)
         {
             ThrowIfFailed(await userManager.DeleteAsync(user), "delete the local account");
@@ -549,8 +559,12 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         );
     }
 
-    private TUser GetRequiredUser(UserManager<TUser> userManager, string localAccountId) =>
-        FindById(userManager, localAccountId)
+    private async ValueTask<TUser> GetRequiredUserAsync(
+        UserManager<TUser> userManager,
+        string localAccountId,
+        CancellationToken cancellationToken
+    ) =>
+        await FindByIdAsync(userManager, localAccountId, cancellationToken)
         ?? throw new InvalidOperationException(
             $"A local account with '{localAccountId}' was not found."
         );
@@ -587,9 +601,55 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
     }
 
     // The identifier is matched in the query over the tenant's users, so a user of another tenant is never read. The
-    // query stays synchronous because this package does not reference EF Core.
-    private TUser? FindById(UserManager<TUser> userManager, string localAccountId) =>
-        GetTenantUsers(userManager).FirstOrDefault(user => user.Id == localAccountId);
+    // query is read asynchronously when the provider offers IAsyncEnumerable<TUser> (this package does not reference EF
+    // Core), and synchronously for an in-memory store.
+    private ValueTask<TUser?> FindByIdAsync(
+        UserManager<TUser> userManager,
+        string localAccountId,
+        CancellationToken cancellationToken
+    ) =>
+        FirstOrDefaultAsync(
+            GetTenantUsers(userManager).Where(user => user.Id == localAccountId),
+            cancellationToken
+        );
+
+    private static async ValueTask<TUser?> FirstOrDefaultAsync(
+        IQueryable<TUser> query,
+        CancellationToken cancellationToken
+    )
+    {
+        var first = query.Take(1);
+        if (first is not IAsyncEnumerable<TUser> asyncUsers)
+        {
+            return first.FirstOrDefault();
+        }
+
+        await foreach (var user in asyncUsers.WithCancellation(cancellationToken))
+        {
+            return user;
+        }
+
+        return null;
+    }
+
+    private static async ValueTask<List<TUser>> ToListAsync(
+        IQueryable<TUser> query,
+        CancellationToken cancellationToken
+    )
+    {
+        if (query is not IAsyncEnumerable<TUser> asyncUsers)
+        {
+            return query.ToList();
+        }
+
+        var users = new List<TUser>();
+        await foreach (var user in asyncUsers.WithCancellation(cancellationToken))
+        {
+            users.Add(user);
+        }
+
+        return users;
+    }
 
     // A user name is unique only within a tenant, so a lookup by name needs a tenant scope: an unset scope finds
     // nothing, and an unscoped scope is rejected.

@@ -188,6 +188,45 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             ConcurrencyToken = string.Empty,
         };
 
+    // A queryable that offers IAsyncEnumerable<T> the way a database provider does: it composes like the wrapped
+    // queryable and refuses a synchronous enumeration.
+    private sealed class AsyncOnlyQueryable<T>(IQueryable<T> inner)
+        : IOrderedQueryable<T>,
+            IAsyncEnumerable<T>
+    {
+        public Type ElementType => inner.ElementType;
+
+        public System.Linq.Expressions.Expression Expression => inner.Expression;
+
+        public IQueryProvider Provider { get; } = new AsyncOnlyQueryProvider(inner.Provider);
+
+        public IEnumerator<T> GetEnumerator() =>
+            throw new NotSupportedException("The query is read asynchronously.");
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() =>
+            GetEnumerator();
+
+        public IAsyncEnumerator<T> GetAsyncEnumerator(
+            CancellationToken cancellationToken = default
+        ) => inner.ToAsyncEnumerable().GetAsyncEnumerator(cancellationToken);
+    }
+
+    private sealed class AsyncOnlyQueryProvider(IQueryProvider inner) : IQueryProvider
+    {
+        public IQueryable CreateQuery(System.Linq.Expressions.Expression expression) =>
+            inner.CreateQuery(expression);
+
+        public IQueryable<TElement> CreateQuery<TElement>(
+            System.Linq.Expressions.Expression expression
+        ) => new AsyncOnlyQueryable<TElement>(inner.CreateQuery<TElement>(expression));
+
+        public object? Execute(System.Linq.Expressions.Expression expression) =>
+            inner.Execute(expression);
+
+        public TResult Execute<TResult>(System.Linq.Expressions.Expression expression) =>
+            inner.Execute<TResult>(expression);
+    }
+
     #endregion
 
     #region VerifyCredentialAsync Tests
@@ -713,6 +752,42 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         Assert.True(result.IsEnabled);
         var claim = Assert.Single(result.Claims);
         Assert.Equal("admin", claim.Value);
+    }
+
+    [Fact]
+    public async Task GetByIdOrDefaultAsync_WhenTheQueryIsAsyncOnly_ReturnsMappedAccount()
+    {
+        var (store, userManager) = CreateStore();
+        var user = CreateUser();
+        userManager.SetupGet(x => x.SupportsQueryableUsers).Returns(true).Verifiable();
+        userManager
+            .SetupGet(x => x.Users)
+            .Returns(new AsyncOnlyQueryable<TestTenantUser>(new[] { user }.AsQueryable()))
+            .Verifiable();
+        SetupMapping(userManager, user);
+
+        var result = await store.GetByIdOrDefaultAsync(LocalAccountId, CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal(LocalAccountId, result.LocalAccountId);
+    }
+
+    [Fact]
+    public async Task GetPageAsync_WhenTheQueryIsAsyncOnly_ReturnsMappedPage()
+    {
+        var (store, userManager) = CreateStore();
+        var user = CreateUser();
+        userManager.SetupGet(x => x.SupportsQueryableUsers).Returns(true).Verifiable();
+        userManager
+            .SetupGet(x => x.Users)
+            .Returns(new AsyncOnlyQueryable<TestTenantUser>(new[] { user }.AsQueryable()))
+            .Verifiable();
+        SetupMapping(userManager, user);
+
+        var page = await store.GetPageAsync(new PageRequest { Limit = 10 }, CancellationToken.None);
+
+        var item = Assert.Single(page.Items);
+        Assert.Equal(LocalAccountId, item.LocalAccountId);
     }
 
     #endregion
