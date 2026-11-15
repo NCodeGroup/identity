@@ -117,6 +117,38 @@ describe('TenantPromotionDialog', () => {
     expect(screen.getByTestId('promotion-preview')).toBeDisabled();
   });
 
+  it('offers no source for a target whose region is not known', () => {
+    renderDialog({
+      tenants: [
+        { tenantId: 'dev', cell: 'eu-1', region: null },
+        { tenantId: 'us-prod', cell: 'us-1', region: null },
+      ],
+    });
+    fireEvent.change(screen.getByTestId('promotion-target'), { target: { value: 'us-prod' } });
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: /source tenant/i }));
+    expect(screen.queryAllByRole('option')).toHaveLength(0);
+    expect(
+      screen.getByText(
+        "The region of the target's cell is not known, so no tenant is offered as its source.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('promotion-preview')).toBeDisabled();
+  });
+
+  it('offers the other tenants without a cell as sources of a target without one', () => {
+    renderDialog({
+      tenants: [
+        { tenantId: 'dev' },
+        { tenantId: 'staging' },
+        { tenantId: 'eu-prod', cell: 'eu-1', region: 'eu' },
+      ],
+    });
+    fireEvent.change(screen.getByTestId('promotion-target'), { target: { value: 'staging' } });
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: /source tenant/i }));
+    const options = screen.getAllByRole('option').map((option) => option.textContent);
+    expect(options).toEqual(['dev']);
+  });
+
   it('lists the changes and enables Promote for a clean preview of the chosen pair', () => {
     const { props } = renderDialog({ report: baseReport });
     expect(screen.queryByTestId('promotion-changes')).not.toBeInTheDocument();

@@ -27,7 +27,10 @@ export type TenantPromotionDialogTenant = {
   readonly tenantId: string;
   /** The cell the tenant lives in; absent when the console forwards to no named cell. */
   readonly cell?: string | undefined;
-  /** The region of the tenant's cell, or `null` when it is not known. */
+  /**
+   * The region of the tenant's cell, or `null` when it is not known, which matches no other
+   * tenant's region.
+   */
   readonly region?: string | null | undefined;
 };
 
@@ -111,6 +114,26 @@ function noteText(note: TenantPromotionDialogNote): string {
   return `${note.resourceType} ${note.resourceId}: ${note.detail}`;
 }
 
+/**
+ * Whether a tenant shares the target's region: tenants without a cell share the one deployment, and
+ * a region that is not known matches no tenant.
+ */
+function sharesRegion(
+  tenant: TenantPromotionDialogTenant,
+  target: TenantPromotionDialogTenant,
+): boolean {
+  if (target.cell === undefined) {
+    return tenant.cell === undefined;
+  }
+  if (tenant.cell === undefined) {
+    return false;
+  }
+  if (target.region === null || target.region === undefined) {
+    return false;
+  }
+  return tenant.region === target.region;
+}
+
 /** The label of a tenant option: its id, with its cell when it has one. */
 function tenantLabel(tenant: TenantPromotionDialogTenant): string {
   return tenant.cell === undefined ? tenant.tenantId : `${tenant.tenantId} (${tenant.cell})`;
@@ -171,10 +194,12 @@ export function TenantPromotionDialog({
     target === undefined
       ? []
       : tenants.filter(
-          (tenant) =>
-            tenant.tenantId !== target.tenantId &&
-            (tenant.region ?? null) === (target.region ?? null),
+          (tenant) => tenant.tenantId !== target.tenantId && sharesRegion(tenant, target),
         );
+  const isTargetRegionUnknown =
+    target !== undefined &&
+    target.cell !== undefined &&
+    (target.region === null || target.region === undefined);
   // A source chosen for another target that is not in this target's region is no longer selected.
   const source = sources.find((tenant) => tenant.tenantId === selectedSourceId);
   const sourceTenantId = source?.tenantId ?? '';
@@ -272,7 +297,11 @@ export function TenantPromotionDialog({
             value={sourceTenantId}
             onChange={(event) => setSelectedSourceId(event.target.value)}
             disabled={target === undefined}
-            helperText="A tenant of the target's region whose configuration is copied."
+            helperText={
+              isTargetRegionUnknown
+                ? "The region of the target's cell is not known, so no tenant is offered as its source."
+                : "A tenant of the target's region whose configuration is copied."
+            }
             fullWidth
             slotProps={{ htmlInput: { 'data-testid': 'promotion-source' } }}
           >
