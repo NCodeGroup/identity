@@ -56,7 +56,10 @@ public static class DefaultRegistration
             ArgumentNullException.ThrowIfNull(configuration);
 
             var section = configuration.GetSection(DirectoryClientOptions.SectionName);
-            if (string.IsNullOrEmpty(section[nameof(DirectoryClientOptions.Url)]))
+            // The directory's URL decides what gets registered, so it is read through the strictly bound options.
+            var directory = new DirectoryClientOptions();
+            section.BindStrictly(directory);
+            if (string.IsNullOrEmpty(directory.Url))
                 return builder;
 
             var serviceCollection = builder.ServiceCollection;
@@ -94,11 +97,9 @@ public static class DefaultRegistration
             // The control-plane cell validates management tokens with its local adapter; every other cell validates
             // them against the control plane's issuer. Replace makes the remote adapter win over the local adapter's
             // TryAdd whichever registration runs first.
-            if (
-                !configuration.GetValue<bool>(
-                    $"{CellOptions.SectionName}:{nameof(CellOptions.IsControlPlane)}"
-                )
-            )
+            var cell = new CellOptions();
+            configuration.GetSection(CellOptions.SectionName).BindStrictly(cell);
+            if (!cell.IsControlPlane)
             {
                 serviceCollection.Replace(
                     ServiceDescriptor.Singleton<
