@@ -43,7 +43,11 @@ host never does and serves as a separate runtime role, and the build fails on dr
   ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)),
   so every cell has its own `openiddb`, which holds every tenant of the cell. The global directory's host,
   `hosts/NCode.Identity.OpenId.GlobalDirectory.Host`, has its own Postgres database, `DirectoryDbContext`, with its own
-  migrations and image. It holds cells, placements, team documents and retired identifiers, and no personal data.
+  migrations and image. It holds cells, placements, team documents and retired identifiers, and no personal data. Its
+  host's `migrate` command, which the chart's directory migration Job runs, migrates as the schema owner through
+  `ConnectionStrings:directory-migration` and grants the runtime role that `DirectoryDatabase:RuntimeRole` names
+  `SELECT`, `INSERT`, `UPDATE` and `DELETE` on its tables (`DirectoryDatabaseGrants`); serving connects as that role
+  through `ConnectionStrings:directory`, without schema rights.
 - **A migration role and a runtime role.** The two roles have separate connection strings: `ConnectionStrings:openid`
   is the runtime role's, and `ConnectionStrings:openid-migration` is the schema owner's, which only the worker uses.
   `HostDatabase:RuntimeRole` names the runtime role for the grants the worker applies
@@ -99,7 +103,8 @@ host never does and serves as a separate runtime role, and the build fails on dr
   authoritative.
 - A deployment holds two credentials for a cell's database, the owner's for the worker and the runtime role's for the
   host, so a host that is compromised cannot change its schema or step around row-level security. The directory's
-  database has its own credentials.
+  database has its own two credentials, the owner's for its migration Job and the runtime role's for its Deployment, so
+  a compromised directory cannot change its schema either.
 - The AppHost needs a container runtime (Docker or Podman). The host run standalone, without the orchestrator, uses an
   ephemeral in-memory database, so persistent local state requires the AppHost. A Postgres major-version upgrade can
   strand an old data volume; purge it with the reset script.
