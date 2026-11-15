@@ -169,6 +169,11 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
   compliance isolation runs a dedicated cell.
 - The directory is a dependency of tenant and team creation and deletion, and of the change feed that delivers team
   documents. Serving never depends on it, and an unreachable directory blocks creation with `503`.
+- The directory runs one replica with the `Recreate` strategy and keeps its expiring keys in process, an accepted
+  exception to points 4 and 5 of
+  [ADR-1134](1134-the-platform-and-the-host-follow-written-cloud-native-operating-principles.md). Serving never calls
+  the directory (its point 13), so while it restarts only creating, deleting and moving tenants and teams answer `503`.
+  A second replica needs the Valkey shared-state adapter first.
 - Every cell outside the control plane depends on the control-plane cell for management authority and for team
   documents, and fails closed when it is unreachable.
 - A path that reads across tenants must say so with an unscoped scope and a reason. An unscoped path that forgets one
