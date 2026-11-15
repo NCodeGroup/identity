@@ -5,6 +5,7 @@ using NCode.Identity.OpenId.Persistence;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Teams;
+using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.Persistence.Protection;
 using NCode.PropertyBag;
@@ -18,11 +19,14 @@ namespace NCode.Identity.OpenId.SecretProtection;
 /// its only ancestor, and the platform owner has none.
 /// </summary>
 /// <remarks>
-/// A team is read from the <see cref="IOpenIdTeamCache"/> when it is cached and from the team store when it is not.
+/// A tenant is read from the <see cref="IOpenIdTenantCache"/> when it is cached and from the tenant store when it is
+/// not, and a team is read from the <see cref="IOpenIdTeamCache"/> when it is cached and from the team store when it is
+/// not.
 /// </remarks>
 // See ADR-1414.
 internal sealed class TeamChainSecretOwnerParentResolver(
     IStoreManagerFactory storeManagerFactory,
+    IOpenIdTenantCache tenantCache,
     IOpenIdTeamCache teamCache,
     IAmbientTenantAccessor ambientTenantAccessor
 ) : ISecretOwnerParentResolver
@@ -33,7 +37,40 @@ internal sealed class TeamChainSecretOwnerParentResolver(
 
     private static IReadOnlyList<SecretOwner> PlatformOnly { get; } = [SecretOwner.Platform];
 
+    /// <summary>
+    /// Determines whether the secret owner has the specified owner type, compared without regard to case.
+    /// </summary>
+    /// <param name="owner">The secret owner to check.</param>
+    /// <param name="ownerType">The owner type to compare with.</param>
+    /// <returns><c>true</c> when the owner has the owner type; otherwise, <c>false</c>.</returns>
+    private static bool IsOwnerType(SecretOwner owner, string ownerType) =>
+        string.Equals(owner.OwnerType, ownerType, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Reads a team from the team store, with the teams above it.
+    /// </summary>
+    /// <param name="storeManager">The store manager to read the team with.</param>
+    /// <param name="teamId">The identifier of the team to read.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The team's identifier followed by the identifiers of the teams above it, nearest first; empty when the
+    /// team is not stored.</returns>
+    private static async ValueTask<IReadOnlyList<string>> ReadStoredLineageAsync(
+        IStoreManager storeManager,
+        string teamId,
+        CancellationToken cancellationToken
+    )
+    {
+        var team = await storeManager
+            .GetStore<ITeamStore>()
+            .GetOrDefaultAsync(teamId, cancellationToken);
+        if (team is null)
+            return [];
+
+        return [team.TeamId, .. team.AncestorTeamIds.Reverse()];
+    }
+
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
+    private IOpenIdTenantCache TenantCache { get; } = tenantCache;
     private IOpenIdTeamCache TeamCache { get; } = teamCache;
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
 
@@ -70,16 +107,44 @@ internal sealed class TeamChainSecretOwnerParentResolver(
         ];
     }
 
-    private static bool IsOwnerType(SecretOwner owner, string ownerType) =>
-        string.Equals(owner.OwnerType, ownerType, StringComparison.OrdinalIgnoreCase);
-
-    // The tenant's team, then the teams above it, nearest first.
+    /// <summary>
+    /// Gets a tenant's team and the teams above it, reading the tenant from the tenant cache when it is cached and from
+    /// the tenant store when it is not.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the tenant.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The identifier of the tenant's team followed by the identifiers of the teams above it, nearest first;
+    /// empty when the tenant or its team is not stored.</returns>
     private async ValueTask<IReadOnlyList<string>> GetTenantTeamIdsAsync(
         string tenantId,
         CancellationToken cancellationToken
     )
     {
         using var _ = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
+
+        var lease = await TenantCache.TryGetAsync(
+            tenantId,
+            PropertyBagFactory.Create(),
+            cancellationToken
+        );
+        if (lease.IsActive)
+        {
+            string teamId;
+            await using (lease)
+            {
+                teamId = lease.Value.TeamId;
+            }
+
+            var cached = await TryGetCachedLineageAsync(teamId, cancellationToken);
+            if (cached is not null)
+                return cached;
+
+            await using var teamStoreManager = await StoreManagerFactory.CreateAsync(
+                cancellationToken
+            );
+
+            return await ReadStoredLineageAsync(teamStoreManager, teamId, cancellationToken);
+        }
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
 
@@ -92,7 +157,13 @@ internal sealed class TeamChainSecretOwnerParentResolver(
         return await GetTeamLineageAsync(storeManager, tenant.TeamId, cancellationToken);
     }
 
-    // The teams above the team, nearest first.
+    /// <summary>
+    /// Gets the teams above a team.
+    /// </summary>
+    /// <param name="teamId">The identifier of the team.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The identifiers of the teams above the team, nearest first; empty when the team is a top-level team or
+    /// is not stored.</returns>
     private async ValueTask<IReadOnlyList<string>> GetTeamAncestorIdsAsync(
         string teamId,
         CancellationToken cancellationToken
@@ -110,7 +181,15 @@ internal sealed class TeamChainSecretOwnerParentResolver(
         return [.. lineage.Skip(1)];
     }
 
-    // The team followed by the teams above it, nearest first; empty when the team is not stored.
+    /// <summary>
+    /// Gets a team and the teams above it, from the team cache when the team is cached and from the team store when it
+    /// is not.
+    /// </summary>
+    /// <param name="storeManager">The store manager to read the team with when it is not cached.</param>
+    /// <param name="teamId">The identifier of the team.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The team's identifier followed by the identifiers of the teams above it, nearest first; empty when the
+    /// team is not stored.</returns>
     private async ValueTask<IReadOnlyList<string>> GetTeamLineageAsync(
         IStoreManager storeManager,
         string teamId,
@@ -121,6 +200,13 @@ internal sealed class TeamChainSecretOwnerParentResolver(
         return cached ?? await ReadStoredLineageAsync(storeManager, teamId, cancellationToken);
     }
 
+    /// <summary>
+    /// Gets a team and the teams above it from the team cache.
+    /// </summary>
+    /// <param name="teamId">The identifier of the team.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The team's identifier followed by the identifiers of the teams above it, nearest first; <c>null</c> when
+    /// the team is not cached.</returns>
     private async ValueTask<IReadOnlyList<string>?> TryGetCachedLineageAsync(
         string teamId,
         CancellationToken cancellationToken
@@ -139,20 +225,5 @@ internal sealed class TeamChainSecretOwnerParentResolver(
             // A team path names the teams from the top-level team down to the team itself.
             return [.. TeamPaths.Parse(lease.Value.Path).Reverse()];
         }
-    }
-
-    private static async ValueTask<IReadOnlyList<string>> ReadStoredLineageAsync(
-        IStoreManager storeManager,
-        string teamId,
-        CancellationToken cancellationToken
-    )
-    {
-        var team = await storeManager
-            .GetStore<ITeamStore>()
-            .GetOrDefaultAsync(teamId, cancellationToken);
-        if (team is null)
-            return [];
-
-        return [team.TeamId, .. team.AncestorTeamIds.Reverse()];
     }
 }
