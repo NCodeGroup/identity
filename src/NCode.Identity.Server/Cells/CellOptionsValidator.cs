@@ -49,9 +49,11 @@ internal sealed partial class CellOptionsValidator(LocalDevelopmentMode localDev
                         + "is not the control plane accepts platform and team management tokens from its issuer."
                 );
             }
-            else if (!Uri.TryCreate(issuer, UriKind.Absolute, out _))
+            else if (!IsAllowedIssuer(issuer))
             {
-                failures.Add($"{issuerKey} '{issuer}' must be an absolute URL.");
+                failures.Add(
+                    $"{issuerKey} '{issuer}' must be an absolute https URL, or an http URL on a loopback host, with no query or fragment."
+                );
             }
         }
 
@@ -60,6 +62,21 @@ internal sealed partial class CellOptionsValidator(LocalDevelopmentMode localDev
         return failures.Count == 0
             ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail(failures);
+    }
+
+    private static bool IsAllowedIssuer(string issuer)
+    {
+        if (issuer.Any(char.IsWhiteSpace))
+            return false;
+
+        if (!Uri.TryCreate(issuer, UriKind.Absolute, out var uri))
+            return false;
+
+        if (!string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment))
+            return false;
+
+        return uri.Scheme == Uri.UriSchemeHttps
+            || (uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback);
     }
 
     private static void ValidateLabel(string? value, string key, List<string> failures)

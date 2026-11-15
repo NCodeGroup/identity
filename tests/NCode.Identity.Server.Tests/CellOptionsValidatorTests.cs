@@ -125,7 +125,11 @@ public sealed class CellOptionsValidatorTests
     [InlineData("")]
     [InlineData("auth.example")]
     [InlineData("/relative")]
-    public void Validate_WhenTheCellIsNotTheControlPlaneAndTheIssuerIsNotAbsolute_Fails(
+    [InlineData("file:///relative")]
+    [InlineData("ftp://auth.example")]
+    [InlineData("http://auth.example")]
+    [InlineData("https://auth.example/?x=1")]
+    public void Validate_WhenTheCellIsNotTheControlPlaneAndTheIssuerIsNotAnAllowedEndpoint_Fails(
         string? issuer
     )
     {
@@ -141,6 +145,22 @@ public sealed class CellOptionsValidatorTests
             result.FailureMessage,
             StringComparison.Ordinal
         );
+    }
+
+    [Theory]
+    [InlineData("https://auth.example")]
+    [InlineData("http://localhost:5000")]
+    public void Validate_WhenTheCellIsNotTheControlPlaneAndTheIssuerIsAnAllowedEndpoint_Succeeds(
+        string issuer
+    )
+    {
+        var options = CreateOptions();
+        options.IsControlPlane = false;
+        options.ControlPlane.Issuer = issuer;
+
+        var result = CreateValidator().Validate(name: null, options);
+
+        Assert.True(result.Succeeded);
     }
 
     [Fact]
