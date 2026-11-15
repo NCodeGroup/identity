@@ -86,12 +86,14 @@ public interface IBffSessionStore
     );
 
     /// <summary>
-    /// Finds the distinct clients that stored sessions were issued to; a client whose sessions all ended may still be
-    /// listed.
+    /// Finds the distinct clients that stored sessions were issued to, other than the given clients, which the store
+    /// leaves out without reading their sessions; a client whose sessions all ended may still be listed.
     /// </summary>
+    /// <param name="except">The clients to leave out.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The distinct clients.</returns>
     ValueTask<IReadOnlyList<BffSessionClient>> FindClientsAsync(
+        IReadOnlyCollection<BffSessionClient> except,
         CancellationToken cancellationToken
     );
 

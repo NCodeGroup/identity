@@ -242,9 +242,12 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
 
     /// <inheritdoc />
     public async ValueTask<IReadOnlyList<BffSessionClient>> FindClientsAsync(
+        IReadOnlyCollection<BffSessionClient> except,
         CancellationToken cancellationToken
     )
     {
+        ArgumentNullException.ThrowIfNull(except);
+
         try
         {
             var members = await indexes.GetMembersAsync(
@@ -253,7 +256,10 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
             );
 
             var clients = new List<BffSessionClient>();
-            var digests = new HashSet<string>(StringComparer.Ordinal);
+            var digests = new HashSet<string>(
+                except.Select(BffStoreKeys.ClientDigest),
+                StringComparer.Ordinal
+            );
             foreach (var member in members)
             {
                 if (

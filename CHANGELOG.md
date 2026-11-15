@@ -6120,8 +6120,9 @@ Until the first stable release, the [Unreleased] section describes the product a
 
 - **The BFF's client index names each client only by a digest.** A member of the `bff:clients` index is the UTC day of
   a session's absolute expiry and the client's digest, so the key space of a shared Valkey names no client. Every
-  replica reads the same members; retirement resolves each digest through the plaintext client of a readable session in
-  that client's index, and a member it cannot resolve expires on its own.
+  replica reads the same members; retirement leaves out the clients that its frontends are configured as, resolves each
+  other digest through the plaintext client of a readable session in that client's index, and a member it cannot
+  resolve expires on its own.
 
 - **Only a cell's own machine client reaches the directory and the control plane.** The directory and control-plane
   endpoints accept a bearer token for the audience `urn:ncode:directory` or `urn:ncode:control-plane` with the matching

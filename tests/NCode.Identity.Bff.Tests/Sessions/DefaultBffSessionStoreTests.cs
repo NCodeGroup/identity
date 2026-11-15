@@ -579,7 +579,7 @@ public class DefaultBffSessionStoreTests : BaseTests
         SetupReadableClient(client, "store-1");
         SetupReadableClient(other, "store-2");
 
-        var result = await Store.FindClientsAsync(CancellationToken.None);
+        var result = await Store.FindClientsAsync([], CancellationToken.None);
 
         Assert.Equal([client, other], result);
         MockIndexes.Verify(
@@ -618,7 +618,7 @@ public class DefaultBffSessionStoreTests : BaseTests
             .Verifiable(Times.Once);
         SetupReadableClient(client, "store-1");
 
-        var result = await Store.FindClientsAsync(CancellationToken.None);
+        var result = await Store.FindClientsAsync([], CancellationToken.None);
 
         Assert.Equal([client], result);
         MockIndexes.Verify(
@@ -630,6 +630,27 @@ public class DefaultBffSessionStoreTests : BaseTests
                 ),
             Times.Never
         );
+    }
+
+    [Fact]
+    public async Task FindClientsAsync_MemberOfAnExceptedClient_SkipsItWithoutReadingItsIndex()
+    {
+        var client = CreateClient();
+        var other = new BffSessionClient("other", "https://op.example", "client-2");
+        IReadOnlyList<string> members =
+        [
+            "2026-01-02:" + BffStoreKeys.ClientDigest(client),
+            "2026-01-02:" + BffStoreKeys.ClientDigest(other),
+        ];
+        MockIndexes
+            .Setup(x => x.GetMembersAsync(BffStoreKeys.ClientsIndex, CancellationToken.None))
+            .ReturnsAsync(members)
+            .Verifiable(Times.Once);
+        SetupReadableClient(other, "store-2");
+
+        var result = await Store.FindClientsAsync([client], CancellationToken.None);
+
+        Assert.Equal([other], result);
     }
 
     [Fact]
@@ -651,7 +672,7 @@ public class DefaultBffSessionStoreTests : BaseTests
             .ReturnsAsync(CreateStoredValue(other))
             .Verifiable(Times.Once);
 
-        var result = await Store.FindClientsAsync(CancellationToken.None);
+        var result = await Store.FindClientsAsync([], CancellationToken.None);
 
         Assert.Empty(result);
     }
@@ -665,7 +686,7 @@ public class DefaultBffSessionStoreTests : BaseTests
             .Verifiable();
 
         await Assert.ThrowsAsync<BffStoreUnavailableException>(async () =>
-            await Store.FindClientsAsync(CancellationToken.None)
+            await Store.FindClientsAsync([], CancellationToken.None)
         );
     }
 

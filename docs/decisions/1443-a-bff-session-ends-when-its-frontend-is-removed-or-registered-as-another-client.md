@@ -38,13 +38,16 @@ client; and a background pass on one replica ends every stored session whose fro
    index per client, keyed by digests of the length-prefixed values, and one `bff:clients` index whose members are the
    UTC day of its sessions' absolute expiry and the client's digest. Every replica reads the same members, a member
    names a client only by its digest, and each member expires at the end of its day, so adding a session never
-   shortens how long its client stays listed. Retirement resolves each digest through the plaintext client of a
-   readable session in that client's index, and a member it cannot resolve is skipped and expires on its own.
+   shortens how long its client stays listed. Retirement leaves out the clients that its frontends are configured as,
+   by digest, resolves each other digest through the plaintext client of a readable session in that client's index,
+   and skips a member it cannot resolve, which expires on its own.
 4. **A pass reconciles the store with the set.** `BffSessionRetirementService` runs `BffSessionRetirement` when the
    host starts and after every change of the set. For each stored client whose frontend is gone, or is configured as
    another client, the pass takes the store lease `retire:<frontend>` for `Bff:SessionRetirement:LeaseDuration` (five
    minutes by default) and ends each matching session as `frontend_removed` (`BffSessionEndReasons.FrontendRemoved`)
-   or `client_changed`, recording the session-ended audit event and logging event 19013.
+   or `client_changed`, recording the session-ended audit event and logging event 19013. The pass names the clients
+   that its frontends are configured as to the store, which skips their digests without reading their indexes, so a
+   pass over a set that matches the store reads only `bff:clients`.
 5. **One caller ends a session.** A session ends through an atomic take of its record, so when a request and the pass
    end one session at once, only the caller whose take removed it audits and counts it.
 6. **Failures retry.** A replica that cannot take the lease leaves the frontend to the one that holds it and runs the
@@ -69,6 +72,8 @@ client; and a background pass on one replica ends every stored session whose fro
   adding the frontend again under its name would resume its sessions.
 - **Binding a session to its frontend's name only.** Rejected: a frontend registered as another client would serve
   claims and tokens that its client never issued.
+- **Naming each client in the members of `bff:clients`.** Rejected: the key space of a shared Valkey would name every
+  frontend, authority and client id.
 - **Recording the client in the session metadata, refusing a mismatch on each request and retiring stored sessions in
   a leased background pass over a client index** (chosen).
 

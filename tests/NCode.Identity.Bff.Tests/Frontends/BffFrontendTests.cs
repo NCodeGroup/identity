@@ -95,6 +95,18 @@ public class BffFrontendTests : BaseTests
 
     #endregion
 
+    #region Client Tests
+
+    [Fact]
+    public void Client_Always_ReturnsTheNameAuthorityAndClientIdOfTheFrontend()
+    {
+        var frontend = CreateFrontend(BffDPoPModes.Required);
+
+        Assert.Equal(new BffSessionClient("web", "https://op.example.com", "bff"), frontend.Client);
+    }
+
+    #endregion
+
     #region Cookie Name Tests
 
     [Fact]

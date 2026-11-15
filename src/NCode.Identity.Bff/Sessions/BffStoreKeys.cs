@@ -58,7 +58,7 @@ internal static class BffStoreKeys
 
     /// <summary>
     /// Gets the digest that names a client in the keys and in the members of <see cref="ClientsIndex"/>, so that the
-    /// shared state never holds a client's frontend, authority or client identifier in the clear.
+    /// key space of the shared state names no client.
     /// </summary>
     public static string ClientDigest(BffSessionClient client) =>
         Digest(client.Frontend, Digest(client.Authority, client.ClientId));

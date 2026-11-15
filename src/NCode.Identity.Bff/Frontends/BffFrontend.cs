@@ -83,6 +83,7 @@ internal sealed class BffFrontend
 
         Name = name;
         Options = options;
+        Client = new BffSessionClient(name, options.Authority, options.ClientId);
         Selection = selection;
         Selector = selector;
         Registration = CreateRegistration(options);
@@ -101,6 +102,11 @@ internal sealed class BffFrontend
     /// Gets the options of the frontend.
     /// </summary>
     public BffFrontendOptions Options { get; }
+
+    /// <summary>
+    /// Gets the client that the frontend is configured as: its name, authority and client id.
+    /// </summary>
+    public BffSessionClient Client { get; }
 
     /// <summary>
     /// Gets the client registration that describes the frontend as a client of the OpenID Provider, built once from the
@@ -163,8 +169,5 @@ internal sealed class BffFrontend
     /// <see langword="true"/> when the client is this frontend as it is configured; otherwise,
     /// <see langword="false"/>.
     /// </returns>
-    public bool IsConfiguredAs(BffSessionClient client) =>
-        string.Equals(client.Frontend, Name, StringComparison.Ordinal)
-        && string.Equals(client.Authority, Options.Authority, StringComparison.Ordinal)
-        && string.Equals(client.ClientId, Options.ClientId, StringComparison.Ordinal);
+    public bool IsConfiguredAs(BffSessionClient client) => Client.Equals(client);
 }

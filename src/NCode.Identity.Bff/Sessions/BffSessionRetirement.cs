@@ -17,6 +17,10 @@ namespace NCode.Identity.Bff.Sessions;
 /// next run. The pass decides from each record's own metadata and ends the session without any request to the
 /// provider.
 /// </para>
+/// <para>
+/// The pass names the clients that its frontends are configured as to the store, which skips them without reading
+/// their sessions, so a pass over a set that matches the store reads only the client index.
+/// </para>
 /// </remarks>
 // See ADR-1443.
 internal class BffSessionRetirement(
@@ -44,7 +48,10 @@ internal class BffSessionRetirement(
         ArgumentNullException.ThrowIfNull(frontends);
 
         var complete = true;
-        var clients = await store.FindClientsAsync(cancellationToken);
+        var clients = await store.FindClientsAsync(
+            [.. frontends.Frontends.Select(x => x.Client)],
+            cancellationToken
+        );
         var groups = clients.GroupBy(x => x.Frontend, StringComparer.Ordinal);
         foreach (var group in groups)
         {

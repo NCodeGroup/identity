@@ -74,7 +74,12 @@ public class BffSessionRetirementTests : BaseTests
 
     private void SetupFindClients(params BffSessionClient[] clients) =>
         Store
-            .Setup(x => x.FindClientsAsync(It.IsAny<CancellationToken>()))
+            .Setup(x =>
+                x.FindClientsAsync(
+                    It.IsAny<IReadOnlyCollection<BffSessionClient>>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
             .ReturnsAsync(clients)
             .Verifiable();
 
@@ -125,6 +130,25 @@ public class BffSessionRetirementTests : BaseTests
     public async Task RetireAsync_CurrentClient_EndsNothing()
     {
         SetupFindClients(CurrentClient);
+        var retirement = CreateRetirement();
+
+        Assert.True(await retirement.RetireAsync(CreateSet(), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task RetireAsync_Always_AsksTheStoreToLeaveOutTheClientsOfTheFrontends()
+    {
+        Store
+            .Setup(x =>
+                x.FindClientsAsync(
+                    It.Is<IReadOnlyCollection<BffSessionClient>>(except =>
+                        except.SequenceEqual(new[] { CurrentClient })
+                    ),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync([])
+            .Verifiable(Times.Once);
         var retirement = CreateRetirement();
 
         Assert.True(await retirement.RetireAsync(CreateSet(), CancellationToken.None));
