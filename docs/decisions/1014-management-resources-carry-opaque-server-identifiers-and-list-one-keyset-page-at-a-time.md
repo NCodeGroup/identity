@@ -27,7 +27,8 @@ assignment, local account and principal with `ICryptoService.GenerateResourceId(
 Base64Url, with no prefix. Because the generator is a method of the one injectable crypto seam, every service that needs
 an identifier asks the same place and a test replaces it in one registration.
 
-A create request carries no identifier for the resource it creates. The `201` body and the `Location` header return it.
+A create request carries no identifier for the resource it creates, except where the list below says otherwise. The
+`201` body and the `Location` header return it.
 Validators and unique indexes still assert uniqueness as a safety net.
 
 Some identifiers come from elsewhere by design:
@@ -38,6 +39,9 @@ Some identifiers come from elsewhere by design:
 - The platform has no identifier.
 - A resource server's `Identifier` (its audience) is operator-chosen and sits beside its opaque `ResourceServerId`.
 - A parent reference comes from the route, never from the body.
+- A cell's machine client has the identifier `cell-{name}`. The platform operator chooses it at
+  `POST /api/platform/clients`, because the directory and the control plane identify a cell by that client id. No other
+  client create request names an identifier.
 
 Internal surrogate keys, the IdGen snowflake produced through `IdValueGenerator` and `UseIdGeneratorConvention`, are never
 exposed. `Guid` is not used for resource identifiers.
@@ -84,7 +88,8 @@ no general query protocol.
 - A malformed cursor restarts the list instead of failing, so a stale or tampered cursor cannot cause an error.
 - A caller who needs a specific subset needs an explicit filter and store method added for it; the absence of a general
   query protocol is deliberate.
-- Smell: a create request that accepts an identifier, a list that authorizes per item, or a store that orders by
+- Smell: a create request that accepts an identifier outside the exceptions above, a list that authorizes per item, or a
+  store that orders by
   anything but the surrogate `Id` has drifted from this record.
 
 ## References

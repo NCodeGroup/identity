@@ -51,6 +51,7 @@ public sealed class CellOptionsValidatorTests
     [InlineData("eu_1")]
     [InlineData("eu 1")]
     [InlineData("-eu")]
+    [InlineData("eu-")]
     [InlineData("abcdefghijklmnopqrstuvwxyz0123456")]
     public void Validate_WhenTheNameIsNotALabel_Fails(string value)
     {

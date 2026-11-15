@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.GlobalDirectory;
@@ -14,15 +13,12 @@ namespace NCode.Identity.Server.Cells;
 /// (or <c>http</c> in local development).
 /// </summary>
 /// <param name="localDevelopmentMode">The mode that decides whether a management URL may use <c>http</c>.</param>
-internal sealed partial class CellOptionsValidator(LocalDevelopmentMode localDevelopmentMode)
+internal sealed class CellOptionsValidator(LocalDevelopmentMode localDevelopmentMode)
     : IValidateOptions<CellOptions>
 {
     private static string Prefix => CellOptions.SectionName;
 
     private LocalDevelopmentMode LocalDevelopmentMode { get; } = localDevelopmentMode;
-
-    [GeneratedRegex(@"^[a-z][a-z0-9-]{0,30}\z", RegexOptions.CultureInvariant)]
-    private static partial Regex LabelRegex();
 
     /// <inheritdoc />
     public ValidateOptionsResult Validate(string? name, CellOptions options)
@@ -81,11 +77,11 @@ internal sealed partial class CellOptionsValidator(LocalDevelopmentMode localDev
 
     private static void ValidateLabel(string? value, string key, List<string> failures)
     {
-        if (string.IsNullOrEmpty(value) || !LabelRegex().IsMatch(value))
+        if (!CellLabelRules.IsValidLabel(value))
         {
             failures.Add(
-                $"{key} '{value}' must start with a lowercase letter and hold only lowercase letters, digits and "
-                    + "hyphens, at most 31 characters."
+                $"{key} '{value}' must start with a lowercase letter, end with a lowercase letter or digit, and "
+                    + "hold only lowercase letters, digits and hyphens, at most 31 characters."
             );
         }
     }

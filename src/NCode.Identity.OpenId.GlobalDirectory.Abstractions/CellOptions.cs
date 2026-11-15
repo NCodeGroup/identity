@@ -20,12 +20,14 @@ public sealed class CellOptions
     public const string SectionName = "Cell";
 
     /// <summary>
-    /// Gets or sets the name of the cell, which is unique across the platform.
+    /// Gets or sets the name of the cell, which is unique across the platform and has the form
+    /// <see cref="CellLabelRules"/> describes.
     /// </summary>
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the region the cell runs in. Tenants of one region can move between its cells.
+    /// It has the form <see cref="CellLabelRules"/> describes.
     /// </summary>
     public string Region { get; set; } = string.Empty;
 

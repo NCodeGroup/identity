@@ -1237,6 +1237,31 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task CreateClientAsync_WithClientId_ReturnsValidationProblem()
+    {
+        SetupAuthorizeCreate(resourceServerId: null, error: null);
+
+        var request = new CreateClientRequest
+        {
+            ClientId = "chosen-id",
+            IsDisabled = false,
+            Settings = EmptyObject(),
+        };
+
+        // Strict mocks: no IStoreManagerFactory.CreateAsync setup, so opening the store would fail the test.
+        var result = await Handler.CreateClientAsync(
+            CreateHttpContext(authenticated: true),
+            TenantId,
+            request,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ValidationProblem>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+        Assert.Equal(["clientId"], problem.ProblemDetails.Errors.Keys);
+    }
+
+    [Fact]
     public async Task CreateClientAsync_WhenUnauthorized_ReturnsTheErrorWithoutOpeningTheStore()
     {
         SetupAuthorizeCreate("rs-1", Forbidden());
@@ -1393,6 +1418,110 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
 
         var notFound = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status404NotFound, notFound.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateMachineClientAsync_ForTeamWithClientId_ReturnsValidationProblem()
+    {
+        SetupAuthorizeCreateMachineClient(ResourceNodeTypes.Team, "team-1", error: null);
+
+        var request = new CreateClientRequest
+        {
+            ClientId = "cell-eu1",
+            IsDisabled = false,
+            Settings = EmptyObject(),
+        };
+        var owningNode = ResourceNode.For(TenantId, ResourceNodeTypes.Team, "team-1");
+
+        // Strict mocks: no scope or IStoreManagerFactory.CreateAsync setup, so reading would fail the test.
+        var result = await Handler.CreateMachineClientAsync(
+            CreateHttpContext(authenticated: true),
+            owningNode,
+            request,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ValidationProblem>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+        Assert.Equal(["clientId"], problem.ProblemDetails.Errors.Keys);
+    }
+
+    [Theory]
+    [InlineData("cell-")]
+    [InlineData("cell-A")]
+    [InlineData("cell--x")]
+    [InlineData("x-a")]
+    [InlineData("cell-1eu")]
+    [InlineData("cell-eu-")]
+    [InlineData("cell-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
+    public async Task CreateMachineClientAsync_ForPlatformWithMalformedCellClientId_ReturnsValidationProblem(
+        string clientId
+    )
+    {
+        SetupAuthorizeCreateMachineClient(
+            ResourceNodeTypes.Platform,
+            OpenIdConstants.PlatformResourceId,
+            error: null
+        );
+
+        var request = new CreateClientRequest
+        {
+            ClientId = clientId,
+            IsDisabled = false,
+            Settings = EmptyObject(),
+        };
+        var owningNode = ResourceNode.For(
+            TenantId,
+            ResourceNodeTypes.Platform,
+            OpenIdConstants.PlatformResourceId
+        );
+
+        // Strict mocks: no scope or IStoreManagerFactory.CreateAsync setup, so reading would fail the test.
+        var result = await Handler.CreateMachineClientAsync(
+            CreateHttpContext(authenticated: true),
+            owningNode,
+            request,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ValidationProblem>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+        Assert.Equal(["clientId"], problem.ProblemDetails.Errors.Keys);
+    }
+
+    [Fact]
+    public async Task CreateMachineClientAsync_ForPlatformWithCellClientId_CreatesTheClientWithThatId()
+    {
+        SetupAuthorizeCreateMachineClient(
+            ResourceNodeTypes.Platform,
+            OpenIdConstants.PlatformResourceId,
+            error: null
+        );
+        PersistedClient? captured = null;
+        SetupMachineClientCreation(client => captured = client, suppliedClientId: "cell-eu1");
+
+        var request = new CreateClientRequest
+        {
+            ClientId = "cell-eu1",
+            IsDisabled = false,
+            Settings = EmptyObject(),
+        };
+        var owningNode = ResourceNode.For(
+            TenantId,
+            ResourceNodeTypes.Platform,
+            OpenIdConstants.PlatformResourceId
+        );
+
+        var result = await Handler.CreateMachineClientAsync(
+            CreateHttpContext(authenticated: true),
+            owningNode,
+            request,
+            CancellationToken.None
+        );
+
+        Assert.IsType<Created<ClientResource>>(result);
+        Assert.NotNull(captured);
+        Assert.Equal("cell-eu1", captured.ClientId);
     }
 
     #endregion

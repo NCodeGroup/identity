@@ -150,3 +150,5 @@ static NCode.Identity.OpenId.GlobalDirectory.MoveResult.Conflict(string! detail)
 static NCode.Identity.OpenId.GlobalDirectory.MoveResult.Moved() -> NCode.Identity.OpenId.GlobalDirectory.MoveResult!
 static NCode.Identity.OpenId.GlobalDirectory.ReservationResult.Conflict(string! detail) -> NCode.Identity.OpenId.GlobalDirectory.ReservationResult!
 static NCode.Identity.OpenId.GlobalDirectory.ReservationResult.Reserved() -> NCode.Identity.OpenId.GlobalDirectory.ReservationResult!
+NCode.Identity.OpenId.GlobalDirectory.CellLabelRules
+static NCode.Identity.OpenId.GlobalDirectory.CellLabelRules.IsValidLabel(string? label) -> bool
