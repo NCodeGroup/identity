@@ -27,7 +27,8 @@ public sealed class DirectoryClientOptions
     public string? Url { get; set; }
 
     /// <summary>
-    /// Gets or sets the identifier of the machine client that the cell authenticates as, <c>cell-{name}</c>.
+    /// Gets or sets the identifier of the machine client that the cell authenticates as:
+    /// <see cref="GlobalDirectoryProtocol.CellClientIdPrefix"/> followed by the cell's name.
     /// </summary>
     public string? ClientId { get; set; }
 
