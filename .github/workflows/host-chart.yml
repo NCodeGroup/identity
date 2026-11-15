@@ -695,6 +695,59 @@ jobs:
             --set "$key.keyId=projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/1" \
             --set managementConsole.secretProtection.googleCloudKms.workloadIdentityFederation.provider=not-a-provider
 
+      - name: Refuse an unsafe cell directory client
+        run: |
+          base="$CHART/ci/cell-values.yaml"
+          key=directory.keys.remoteKeys.cell-client
+          refuse() {
+            if helm template release "$CHART" --values "$base" "$@" > /dev/null 2>&1; then
+              echo "::error::The chart rendered a cell directory client it must refuse: $*"
+              exit 1
+            fi
+          }
+          # The base values render, so each refusal below is the rule it names.
+          helm template release "$CHART" --values "$base" > /dev/null
+          refuse --set directory.clientId=
+          refuse --set directory.keyRing=
+          refuse --set directory.keys.pemSecret=
+          # A remote key replaces the PEM key, so the key's id never collides with the key ring's PEM key.
+          refuse --set directory.keys.pemSecret= --set "$key.provider=aws-kms" \
+            --set "$key.keyId=arn:aws:kms:us-west-2:111122223333:secret/abcd" \
+            --set "$key.algorithm=ES256" --set "$key.secretType=ecc" --set "$key.keySizeBits=256"
+          refuse --set directory.keys.pemSecret= --set "$key.provider=azure-key-vault" \
+            --set "$key.keyId=https://contoso.vault.azure.net/keys/cell-client" \
+            --set "$key.algorithm=ES256" --set "$key.secretType=ecc" --set "$key.keySizeBits=256"
+          refuse --set directory.keys.pemSecret= --set "$key.provider=google-cloud-kms" \
+            --set "$key.keyId=projects/p/locations/l/keyRings/r/cryptoKeys/cell-client" \
+            --set "$key.algorithm=ES256" --set "$key.secretType=ecc" --set "$key.keySizeBits=256"
+          # A remote key under the key ring's id, while the PEM Secret holds a key of that id.
+          refuse --set "$key.provider=aws-kms" --set "$key.keyId=arn:aws:kms:us-west-2:111122223333:key/abcd" \
+            --set "$key.algorithm=ES256" --set "$key.secretType=ecc" --set "$key.keySizeBits=256"
+
+      - name: Refuse an unsafe directory
+        run: |
+          base="$CHART/ci/directory-values.yaml"
+          refuse() {
+            if helm template release "$CHART" --values "$base" "$@" > /dev/null 2>&1; then
+              echo "::error::The chart rendered a directory it must refuse: $*"
+              exit 1
+            fi
+          }
+          # The base values render, so each refusal below is the rule it names.
+          helm template release "$CHART" --values "$base" > /dev/null
+          refuse --set-json 'directory.allowedHosts=[]'
+          refuse --set 'directory.allowedHosts={*}'
+          refuse --set 'directory.allowedHosts={*.example.com}'
+          refuse --set directory.issuer=
+          refuse --set directory.controlPlaneCell=
+          refuse --set directory.database.existingSecret=
+          refuse --set directory.database.connectionStringKey=
+          refuse --set directory.database.runtimeRole=
+          refuse --set directory.database.runtimeRole=Bad-Role
+          refuse --set directory.migrations.database.existingSecret=
+          refuse --set directory.migrations.database.connectionStringKey=
+          refuse --set directory.tls.existingSecret=
+
       - name: Hold the management console's keys in a key management service
         run: |
           base="$CHART/ci/management-console-remote-keys-values.yaml"
