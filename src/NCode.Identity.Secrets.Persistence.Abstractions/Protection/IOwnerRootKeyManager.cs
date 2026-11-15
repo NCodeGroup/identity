@@ -70,6 +70,42 @@ public interface IOwnerRootKeyManager
     ValueTask<OwnerRootKeyInfo?> GetAsync(SecretOwner owner, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Gets the root keys of several owners of one type in one read. An owner without a root key is skipped, and owner
+    /// identifiers match without regard to case. The read is not scoped to a tenant and is for the server's background
+    /// passes. The results carry no key material.
+    /// </summary>
+    /// <param name="ownerType">The type of every owner, such as <c>team</c>.</param>
+    /// <param name="ownerIds">The identifiers of the owners to read.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the root keys that
+    /// the owners bring.</returns>
+    /// <exception cref="ArgumentException">Thrown when the owner type is empty or white space.</exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when the owner identifiers are <see langword="null"/>.
+    /// </exception>
+    ValueTask<IReadOnlyList<OwnerRootKeyInfo>> GetManyAsync(
+        string ownerType,
+        IReadOnlyCollection<string> ownerIds,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
+    /// Gets one page of the root keys of every owner of one type, ordered by an opaque row identifier. The read is not
+    /// scoped to a tenant and is for the server's background passes. The results carry no key material.
+    /// </summary>
+    /// <param name="ownerType">The type of the owners, such as <c>team</c>.</param>
+    /// <param name="page">The cursor and the size of the page.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the page and the
+    /// cursor of the next one.</returns>
+    /// <exception cref="ArgumentException">Thrown when the owner type is empty or white space.</exception>
+    ValueTask<PagedResult<OwnerRootKeyInfo>> GetPageAsync(
+        string ownerType,
+        PageRequest page,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
     /// Checks that a key wrapper may be chosen and that it accepts the syntax of an access identity, which is at most
     /// <see cref="NCode.Identity.Secrets.Persistence.DataContracts.PersistedOwnerRootKey.MaxAccessIdentityLength"/>
     /// characters.

@@ -175,6 +175,45 @@ internal sealed class DefaultOwnerRootKeyManager(
     }
 
     /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<OwnerRootKeyInfo>> GetManyAsync(
+        string ownerType,
+        IReadOnlyCollection<string> ownerIds,
+        CancellationToken cancellationToken
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(ownerType);
+        ArgumentNullException.ThrowIfNull(ownerIds);
+
+        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+        var rows = await storeManager
+            .GetStore<IOwnerRootKeyStore>()
+            .FindManyAsync(ownerType, ownerIds, cancellationToken);
+
+        return [.. rows.Select(OwnerRootKeyInfo.From)];
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<PagedResult<OwnerRootKeyInfo>> GetPageAsync(
+        string ownerType,
+        PageRequest page,
+        CancellationToken cancellationToken
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(ownerType);
+
+        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+        var result = await storeManager
+            .GetStore<IOwnerRootKeyStore>()
+            .GetOwnerTypePageAsync(ownerType, page, cancellationToken);
+
+        return new PagedResult<OwnerRootKeyInfo>
+        {
+            Items = [.. result.Items.Select(OwnerRootKeyInfo.From)],
+            NextCursor = result.NextCursor,
+        };
+    }
+
+    /// <inheritdoc />
     // See ADR-1414.
     public async ValueTask<OwnerRootKeyChange> SetAsync(
         SecretOwner owner,

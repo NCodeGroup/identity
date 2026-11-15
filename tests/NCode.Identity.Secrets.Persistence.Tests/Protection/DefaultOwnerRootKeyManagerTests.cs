@@ -159,12 +159,14 @@ public class DefaultOwnerRootKeyManagerTests : BaseTests
     private PersistedOwnerRootKey CreateRootKey(
         string state = OwnerRootKeyStates.Active,
         string reference = Reference,
-        string? accessIdentity = null
+        string? accessIdentity = null,
+        string? ownerType = null,
+        string? ownerId = null
     ) =>
         new()
         {
-            OwnerType = NormalizedOwner.OwnerType,
-            OwnerId = NormalizedOwner.OwnerId,
+            OwnerType = ownerType ?? NormalizedOwner.OwnerType,
+            OwnerId = ownerId ?? NormalizedOwner.OwnerId,
             KeyWrapperName = "fake-kms",
             KeyReference = reference,
             AccessIdentity = accessIdentity,
@@ -1153,6 +1155,91 @@ public class DefaultOwnerRootKeyManagerTests : BaseTests
         Assert.Equal(Reference, info?.KeyReference);
         Assert.Null(
             await CreateManager().GetAsync(SecretOwner.ForTenant("other"), CancellationToken.None)
+        );
+    }
+
+    [Fact]
+    public async Task GetManyAsync_WhenTheStoreHoldsKeys_DescribesThem()
+    {
+        var team = new SecretOwner(SecretOwnerTypes.Team, "shared");
+        Stores.Seed(CreateTeamRootKey(team, OwnerRootKeyStates.Active));
+        Stores.Seed(CreateRootKey());
+        Stores.Seed(CreateRootKey(ownerType: SecretOwnerTypes.Tenant, ownerId: "shared"));
+
+        var infos = await CreateManager()
+            .GetManyAsync(SecretOwnerTypes.Team, ["SHARED", "missing"], CancellationToken.None);
+
+        var info = Assert.Single(infos);
+        Assert.Equal(team, info.Owner);
+        Assert.Equal("fake-kms", info.KeyWrapperName);
+        Assert.Equal(Reference, info.KeyReference);
+        Assert.Equal(OwnerRootKeyStates.Active, info.State);
+        Assert.Null(info.AccessIdentity);
+    }
+
+    [Fact]
+    public async Task GetManyAsync_WhenTheOwnerTypeIsBlank_Throws()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await CreateManager().GetManyAsync(" ", ["a"], CancellationToken.None)
+        );
+    }
+
+    [Fact]
+    public async Task GetPageAsync_WhenTheStoreHoldsAPage_DescribesItWithTheCursor()
+    {
+        Stores.Seed(
+            CreateTeamRootKey(
+                new SecretOwner(SecretOwnerTypes.Team, "one"),
+                OwnerRootKeyStates.Active
+            )
+        );
+        Stores.Seed(
+            CreateTeamRootKey(
+                new SecretOwner(SecretOwnerTypes.Team, "two"),
+                OwnerRootKeyStates.Active
+            )
+        );
+        Stores.Seed(
+            CreateTeamRootKey(
+                new SecretOwner(SecretOwnerTypes.Team, "three"),
+                OwnerRootKeyStates.Active
+            )
+        );
+        Stores.Seed(CreateRootKey());
+
+        var first = await CreateManager()
+            .GetPageAsync(
+                SecretOwnerTypes.Team,
+                new PageRequest { Limit = 2 },
+                CancellationToken.None
+            );
+
+        Assert.Equal(2, first.Items.Count);
+        Assert.NotNull(first.NextCursor);
+
+        var second = await CreateManager()
+            .GetPageAsync(
+                SecretOwnerTypes.Team,
+                new PageRequest { Limit = 2, Cursor = first.NextCursor },
+                CancellationToken.None
+            );
+
+        var last = Assert.Single(second.Items);
+        Assert.Equal(SecretOwnerTypes.Team, last.Owner.OwnerType);
+        Assert.Null(second.NextCursor);
+        Assert.Equal(
+            3,
+            first.Items.Concat(second.Items).Select(x => x.Owner.OwnerId).Distinct().Count()
+        );
+    }
+
+    [Fact]
+    public async Task GetPageAsync_WhenTheOwnerTypeIsBlank_Throws()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await CreateManager()
+                .GetPageAsync(" ", new PageRequest { Limit = 2 }, CancellationToken.None)
         );
     }
 
