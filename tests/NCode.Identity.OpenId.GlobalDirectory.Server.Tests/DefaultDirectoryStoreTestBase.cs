@@ -172,6 +172,20 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
             );
     }
 
+    protected async ValueTask<string?> ReadTeamPathAsync(
+        string teamId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+        var normalizedTeamId = teamId.ToLowerInvariant();
+        return await dbContext
+            .Teams.AsNoTracking()
+            .Where(entity => entity.NormalizedTeamId == normalizedTeamId)
+            .Select(entity => entity.NormalizedPath)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
     protected async ValueTask<int> CountPlatformRowsAsync(
         CancellationToken cancellationToken = default
     )

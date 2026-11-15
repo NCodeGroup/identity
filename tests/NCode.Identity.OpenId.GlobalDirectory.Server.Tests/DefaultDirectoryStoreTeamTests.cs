@@ -138,6 +138,31 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
     }
 
     [Fact]
+    public async Task PublishAsync_WhenAChildIsPublishedBeforeItsParent_RepathsTheChildAndItsSubtreeBeneathTheParent()
+    {
+        await PublishTeamAsync("team-1", parentTeamId: "team-0");
+        await PublishTeamAsync("team-2", parentTeamId: "team-1");
+        Assert.Equal("/team-1/", await ReadTeamPathAsync("team-1"));
+
+        await PublishTeamAsync("team-0");
+
+        Assert.Equal("/team-0/", await ReadTeamPathAsync("team-0"));
+        Assert.Equal("/team-0/team-1/", await ReadTeamPathAsync("team-1"));
+        Assert.Equal("/team-0/team-1/team-2/", await ReadTeamPathAsync("team-2"));
+    }
+
+    [Fact]
+    public async Task PublishAsync_WhenTheParentIsPublishedAgain_KeepsTheChildPath()
+    {
+        await PublishTeamAsync("team-0");
+        await PublishTeamAsync("team-1", parentTeamId: "team-0");
+
+        await PublishTeamAsync("team-0");
+
+        Assert.Equal("/team-0/team-1/", await ReadTeamPathAsync("team-1"));
+    }
+
+    [Fact]
     public async Task PublishAsync_WhenTheTeamIsRetired_KeepsItRetired()
     {
         await Teams.RetireAsync("team-1", CancellationToken.None);

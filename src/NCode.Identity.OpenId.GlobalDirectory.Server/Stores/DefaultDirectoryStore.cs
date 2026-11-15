@@ -871,7 +871,8 @@ internal sealed class DefaultDirectoryStore(
 
     /// <summary>
     /// Gets the normalized team path of a team: the path of its parent followed by the team's own normalized identifier
-    /// and <c>/</c>. A team with no parent, or whose parent the directory does not hold, is a top-level team.
+    /// and <c>/</c>. A team with no parent is a top-level team. A team whose parent the directory does not hold is placed
+    /// top-level until its parent is published, which re-paths it and its subtree beneath the parent.
     /// </summary>
     // See ADR-1426.
     private static async ValueTask<string> GetTeamPathAsync(
@@ -890,6 +891,52 @@ internal sealed class DefaultDirectoryStore(
                 .SingleOrDefaultAsync(cancellationToken);
 
         return $"{parentPath ?? "/"}{normalizedTeamId}/";
+    }
+
+    /// <summary>
+    /// Re-paths the published children of a team that were placed top-level because the directory did not hold the team
+    /// when they were published, and the subtrees beneath those children, so each path lies beneath the team's path.
+    /// </summary>
+    /// <param name="dbContext">The <see cref="DirectoryDbContext"/> that tracks the changes.</param>
+    /// <param name="normalizedTeamId">The normalized identifier of the team that is published.</param>
+    /// <param name="teamPath">The normalized path of the team that is published.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    // See ADR-1426.
+    private static async ValueTask RepathOrphanedChildrenAsync(
+        DirectoryDbContext dbContext,
+        string normalizedTeamId,
+        string teamPath,
+        CancellationToken cancellationToken
+    )
+    {
+        // A child published before its parent is re-pathed when the parent is published.
+        var children = await dbContext
+            .Teams.Where(entity =>
+                entity.NormalizedParentTeamId == normalizedTeamId
+                && entity.NormalizedPath != teamPath + entity.NormalizedTeamId + "/"
+            )
+            .ToListAsync(cancellationToken);
+
+        foreach (var child in children)
+        {
+            var oldPrefix = child.NormalizedPath;
+            var newPrefix = $"{teamPath}{child.NormalizedTeamId}/";
+
+            // The parent lies in the child's subtree, so the lineage is a cycle that has no path beneath the parent.
+            if (teamPath.StartsWith(oldPrefix, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var subtree = await dbContext
+                .Teams.Where(entity => entity.NormalizedPath.StartsWith(oldPrefix))
+                .ToListAsync(cancellationToken);
+            foreach (var subtreeTeam in subtree)
+            {
+                subtreeTeam.NormalizedPath =
+                    newPrefix + subtreeTeam.NormalizedPath[oldPrefix.Length..];
+            }
+        }
     }
 
     /// <summary>
@@ -1089,7 +1136,7 @@ internal sealed class DefaultDirectoryStore(
                         ? Normalize(parentTeamId)
                         : null;
 
-                    // The team path is set when the team is first published and never changes afterwards.
+                    // A published team keeps its path; publishing its parent re-paths it when it was placed before its parent.
                     var teamPath = team is { State: TeamRecord.StatePublished }
                         ? team.NormalizedPath
                         : await GetTeamPathAsync(
@@ -1116,6 +1163,8 @@ internal sealed class DefaultDirectoryStore(
                     team.NormalizedPath = teamPath;
                     team.DocumentJson = documentJson;
                     team.Sequence = change.Sequence;
+
+                    await RepathOrphanedChildrenAsync(dbContext, normalizedTeamId, teamPath, token);
 
                     await dbContext.SaveChangesAsync(token);
                     await transaction.CommitAsync(token);
