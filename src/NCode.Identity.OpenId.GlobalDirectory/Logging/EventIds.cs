@@ -17,4 +17,5 @@ internal static class EventIds
     public const int CellRegistrationFailed = Base + 1;
     public const int DirectoryChangeFeedUnavailable = Base + 2;
     public const int DirectoryChangeFeedPassFailed = Base + 3;
+    public const int DirectoryChangeApplyFailed = Base + 4;
 }

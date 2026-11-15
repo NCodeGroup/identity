@@ -8,8 +8,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Logging;
 
 /// <summary>
 /// Provides source-generated, strongly-typed log messages for the <c>NCode.Identity.OpenId.GlobalDirectory</c>
-/// package: each attempt to register the cell with the global directory that fails, and each pass over the directory's
-/// change feed that fails.
+/// package: each attempt to register the cell with the global directory that fails, each pass over the directory's
+/// change feed that fails, and each change of the feed that fails to apply.
 /// </summary>
 [ExcludeFromCodeCoverage]
 internal static partial class Log
@@ -44,5 +44,16 @@ internal static partial class Log
     internal static partial void DirectoryChangeFeedPassFailed(
         this ILogger logger,
         Exception exception
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryChangeApplyFailed,
+        Level = LogLevel.Error,
+        Message = "Applying the global directory's change {Sequence} failed; the change feed stops at it and retries at the next interval."
+    )]
+    internal static partial void DirectoryChangeApplyFailed(
+        this ILogger logger,
+        Exception exception,
+        long sequence
     );
 }

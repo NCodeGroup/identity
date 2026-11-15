@@ -134,11 +134,21 @@ internal sealed class DirectoryChangeFeedService(
                 break;
 
             var previous = after;
+            var allApplied = true;
             foreach (var change in changes)
             {
-                await ApplyAsync(change, cancellationToken);
+                if (!await TryApplyAsync(change, cancellationToken))
+                {
+                    allApplied = false;
+                    break;
+                }
+
                 after = Math.Max(after, change.Sequence);
             }
+
+            // Changes apply in sequence order, so none after a failed one applies in this pass.
+            if (!allApplied)
+                break;
 
             // A page that does not advance the sequence would repeat for ever.
             if (after == previous)
@@ -146,6 +156,25 @@ internal sealed class DirectoryChangeFeedService(
         }
 
         await ReconcileRootKeysAsync(cancellationToken);
+    }
+
+    // A failed change is logged and ends the pass's changes, but not the pass: the root keys are still reconciled.
+    private async ValueTask<bool> TryApplyAsync(
+        DirectoryChange change,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            await ApplyAsync(change, cancellationToken);
+            return true;
+        }
+        // A timeout throws OperationCanceledException with the token untouched; only a cancelled token is shutdown.
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            Logger.DirectoryChangeApplyFailed(exception, change.Sequence);
+            return false;
+        }
     }
 
     // A team's root key is applied while its document is applied, so a key that failed its probe or its rotation

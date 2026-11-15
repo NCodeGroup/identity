@@ -270,17 +270,42 @@ public class DirectoryChangeFeedServiceTests : BaseTests
     }
 
     [Fact]
-    public async Task RunAsync_WhenAnApplierFails_DoesNotThrow()
+    public async Task RunAsync_WhenAnApplierFails_ReconcilesTheRootKeys()
     {
         var document = CreateTeamDocument("team-a", 1);
 
         SetupLease(true);
         SetupAppliedSequences(teamSequence: 0, platformSequence: 0);
         SetupPage(0, TeamChange(1, document));
+        SetupReconcile(Times.Once());
         TeamDocumentApplierMock
             .Setup(x => x.ApplyAsync(document, It.IsAny<CancellationToken>()))
             .Returns(() => throw new InvalidOperationException("The row cannot be written."))
             .Verifiable(Times.Once);
+
+        using var service = CreateService();
+
+        await service.RunAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenAChangeFails_DoesNotApplyTheChangesAfterIt()
+    {
+        var first = CreateTeamDocument("team-a", 1);
+        var second = CreateTeamDocument("team-b", 2);
+
+        SetupLease(true);
+        SetupAppliedSequences(teamSequence: 0, platformSequence: 0);
+        SetupPage(0, TeamChange(1, first), TeamChange(2, second));
+        SetupReconcile(Times.Once());
+        TeamDocumentApplierMock
+            .Setup(x => x.ApplyAsync(first, It.IsAny<CancellationToken>()))
+            .Returns(() => throw new InvalidOperationException("The row cannot be written."))
+            .Verifiable(Times.Once);
+        TeamDocumentApplierMock
+            .Setup(x => x.ApplyAsync(second, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Never);
 
         using var service = CreateService();
 
