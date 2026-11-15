@@ -169,6 +169,14 @@ jobs:
           refuse --set directory.issuer=https://control-plane.example
           refuse --set directory.controlPlaneCell=control
           refuse --set directory.tls.existingSecret=directory-tls
+          refuse --set 'directory.allowedHosts={directory.example.com}'
+          refuse --set directory.database.runtimeRole=ncode_directory_app
+          refuse --set directory.database.existingSecret=directory-database
+          refuse --set directory.migrations.database.existingSecret=directory-database-owner
+          refuse --set directory.image.tag=1.0.0
+          refuse --set directory.serviceAccount.name=directory-sa
+          # A cell's management URL is https.
+          refuse --set cell.managementUrl=http://manage.example.com
           # The chart cannot know the CA behind a serving Secret of the operator's, so the controller's Secret is required.
           refuse_console() {
             if helm template release "$CHART" --values "$CHART/ci/management-console-values.yaml" "$@" > /dev/null 2>&1; then
@@ -720,10 +728,14 @@ jobs:
           }
           # The base values render, so each refusal below is the rule it names.
           helm template release "$CHART" --values "$base" > /dev/null
+          # A loopback http URL, and an https URL with a port and a path, render.
+          helm template release "$CHART" --values "$base" --set directory.url=http://localhost:8080 > /dev/null
+          helm template release "$CHART" --values "$base" --set directory.url=https://directory.example.com:8443/api > /dev/null
           # The directory's URL is https, or http on a loopback host, with no user information, query or fragment.
           refuse --set directory.url=http://directory.example
           refuse --set directory.url=https://user@directory.example
           refuse --set 'directory.url=https://directory.example/?a=b'
+          refuse --set cell.controlPlaneIssuer=http://id.example.com
           refuse --set directory.clientId=
           refuse --set directory.keyRing=
           refuse --set directory.keyRing=cell:client
@@ -758,6 +770,7 @@ jobs:
           refuse --set 'directory.allowedHosts={*}'
           refuse --set 'directory.allowedHosts={*.example.com}'
           refuse --set directory.issuer=
+          refuse --set directory.issuer=https://user@id.example.com
           refuse --set directory.controlPlaneCell=
           refuse --set directory.database.existingSecret=
           refuse --set directory.database.connectionStringKey=

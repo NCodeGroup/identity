@@ -217,6 +217,39 @@ The pattern of the ARN of an AWS KMS key or alias.
 {{- end }}
 
 {{/*
+The pattern of a service URL: https, or http on a loopback host, written with its authority and with no user
+information, query or fragment.
+*/}}
+{{- define "identity-host.serviceUrlPattern" -}}
+(?i)^(https://[^/?#@\s]+|http://(localhost|127\.0\.0\.1|\[::1\])(:[0-9]+)?)(/[^?#\s]*)?$
+{{- end }}
+
+{{/*
+The pattern of a service URL that must be https: written with its authority and with no user information, query or
+fragment.
+*/}}
+{{- define "identity-host.httpsServiceUrlPattern" -}}
+(?i)^https://[^/?#@\s]+(/[^?#\s]*)?$
+{{- end }}
+
+{{/*
+Refuses a service URL that is set and is not a valid one. Takes the path of the value (path), the value (value) and
+whether it must be https (httpsOnly), which otherwise also allows http on a loopback host. Rendered for its side effect
+only.
+*/}}
+{{- define "identity-host.serviceUrlValidate" -}}
+{{- if .value }}
+{{- if .httpsOnly }}
+{{- if not (regexMatch (include "identity-host.httpsServiceUrlPattern" .) .value) }}
+{{- fail (printf "%s must be an absolute https URL with no user information, query or fragment." .path) }}
+{{- end }}
+{{- else if not (regexMatch (include "identity-host.serviceUrlPattern" .) .value) }}
+{{- fail (printf "%s must be an absolute https URL, or an http URL on a loopback host, with no user information, query or fragment." .path) }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
 Refuses a remote key id that does not name a key version the provider can sign with. Takes the path of the value, the
 provider, the key id and an example of the key's name (keyName) and Google Cloud KMS key ring (keyRing). Rendered for its
 side effect only.
@@ -278,12 +311,15 @@ applied. Rendered for its side effect only.
 {{- if and (not .Values.directory.url) .Values.directory.keys.remoteKeys }}
 {{- fail "directory.keys.remoteKeys is set and directory.url is empty: set directory.url, or clear directory.keys.remoteKeys." }}
 {{- end }}
-{{- if and .Values.directory.url (not (regexMatch "^(https://[^/?#@]+|http://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?)(/[^?#]*)?$" .Values.directory.url)) }}
-{{- fail "directory.url must be an absolute https URL, or an http URL on a loopback host, with no user information, query or fragment." }}
+{{- include "identity-host.serviceUrlValidate" (dict "path" "directory.url" "value" .Values.directory.url "httpsOnly" false) }}
+{{- include "identity-host.serviceUrlValidate" (dict "path" "directory.issuer" "value" .Values.directory.issuer "httpsOnly" false) }}
+{{- include "identity-host.serviceUrlValidate" (dict "path" "cell.managementUrl" "value" .Values.cell.managementUrl "httpsOnly" true) }}
+{{- if not .Values.cell.isControlPlane }}
+{{- include "identity-host.serviceUrlValidate" (dict "path" "cell.controlPlaneIssuer" "value" .Values.cell.controlPlaneIssuer "httpsOnly" false) }}
 {{- end }}
 {{- $directory := .Values.directory }}
-{{- if and (not $directory.enabled) (or $directory.issuer $directory.controlPlaneCell $directory.allowedHosts $directory.database.runtimeRole $directory.database.existingSecret $directory.migrations.database.existingSecret $directory.tls.existingSecret) }}
-{{- fail "directory.issuer, directory.controlPlaneCell, directory.allowedHosts, directory.database, directory.migrations.database and directory.tls configure the directory host, which runs only when directory.enabled is true: set directory.enabled, or clear them." }}
+{{- if and (not $directory.enabled) (or $directory.issuer $directory.controlPlaneCell $directory.allowedHosts $directory.database.runtimeRole $directory.database.existingSecret $directory.migrations.database.existingSecret $directory.tls.existingSecret $directory.extraEnv $directory.extraEnvFrom $directory.extraVolumes $directory.extraVolumeMounts $directory.serviceAccount.name $directory.serviceAccount.annotations $directory.image.tag $directory.image.digest) }}
+{{- fail "directory.issuer, directory.controlPlaneCell, directory.allowedHosts, directory.database, directory.migrations.database, directory.tls, directory.serviceAccount, directory.image and directory.extra* configure the directory host, which runs only when directory.enabled is true: set directory.enabled, or clear them." }}
 {{- end }}
 {{- if and .Values.directory.url .Values.directory.keyRing }}
 {{- $directoryKeys := .Values.directory.keys }}

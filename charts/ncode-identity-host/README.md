@@ -272,6 +272,13 @@ Rendering fails, before anything is applied, when:
   and hyphens, at most 31 characters), or `cell.isControlPlane` is `false` and `cell.controlPlaneIssuer` is empty,
   because the host's remote-key sweep reads the cell's name and a cell that is not the control plane reaches the control
   plane's issuer;
+- a `directory.url`, `directory.issuer` or `cell.controlPlaneIssuer` is set and is not an absolute `https` URL, or an
+  `http` URL on a loopback host, written with its authority and with no user information, query or fragment; a
+  `cell.managementUrl` is set and is not such an `https` URL;
+- a value that configures the directory host (`directory.issuer`, `directory.controlPlaneCell`,
+  `directory.allowedHosts`, `directory.database`, `directory.migrations.database`, `directory.tls`,
+  `directory.serviceAccount`, `directory.image` or `directory.extra*`) is set and `directory.enabled` is `false`,
+  because the chart then runs no directory host;
 - a key management service is used, as `secretProtection.rootKeyProvider`, in `secretProtection.ownerRootKeys.providers`
   or enabled under `secretProtection.remoteKeyProviders`, and its workload credentials are half set: only one of
   `secretProtection.azureKeyVault.workloadIdentity.tenantId` and `clientId` is set, or

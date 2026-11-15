@@ -4254,7 +4254,10 @@ Until the first stable release, the [Unreleased] section describes the product a
   `directory.keyRing` and `directory.keys` point a cell at the platform's directory; and `directory.enabled` runs the
   directory host with its own database, `directory.database` (the runtime role's connection and name),
   `directory.migrations.database` (the schema owner's connection), `directory.tls` and pre-install migration Job, which
-  migrates as the owner and grants the runtime role data access to the directory's tables. The
+  migrates as the owner and grants the runtime role data access to the directory's tables. The chart refuses a
+  directory, control-plane issuer or management URL that the host would refuse (an `https` URL, or an `http` URL on a
+  loopback host for the directory and the issuers, with no user information, query or fragment), and the directory
+  host's values while `directory.enabled` is `false`. The
   `ci/cell-values.yaml` and `ci/directory-values.yaml` releases are linted and rendered by the `Host chart` workflow.
 
 - **A tenant's data carries the cell that wrote it.** `Cell:Name` is stamped on audit records and usage rows, it is the
