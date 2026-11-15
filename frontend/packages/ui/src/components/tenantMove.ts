@@ -11,10 +11,14 @@ export type TenantMoveTransferKey = {
 export type TenantMoveOperations = {
   /** Asks `cell`, the receiving cell, for a one-time transfer key. */
   readonly createTransferKey: (cell: string) => Promise<TenantMoveTransferKey>;
-  /** Exports the disabled tenant from `cell`, the tenant's own cell, sealed to `jwk`; resolves with the package. */
+  /**
+   * Exports the disabled tenant from `cell`, the tenant's own cell, sealed to `jwk` and offered to `targetCell`, the
+   * receiving cell, which alone imports the package; resolves with the package.
+   */
   readonly exportTenant: (
     cell: string,
     tenantId: string,
+    targetCell: string,
     jwk: Readonly<Record<string, unknown>>,
   ) => Promise<string>;
   /** Imports `sealedPackage` into `cell`, the receiving cell, with the transfer key named `kid`. */
@@ -87,7 +91,12 @@ export function createTenantMove(
         if (transferKey === undefined) {
           throw new Error('The transfer key was not issued.');
         }
-        sealedPackage = await operations.exportTenant(sourceCell, tenantId, transferKey.jwk);
+        sealedPackage = await operations.exportTenant(
+          sourceCell,
+          tenantId,
+          targetCell,
+          transferKey.jwk,
+        );
         return;
       case importStage:
         if (transferKey === undefined || sealedPackage === undefined) {

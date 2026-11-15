@@ -55,7 +55,7 @@ describe('createTenantMove', () => {
       'release eu-1 acme',
     ]);
     expect(completed).toEqual([1, 2, 3, tenantMoveStageCount]);
-    expect(operations.exportTenant).toHaveBeenCalledWith('eu-1', 'acme', jwk);
+    expect(operations.exportTenant).toHaveBeenCalledWith('eu-1', 'acme', 'eu-2', jwk);
     expect(operations.importTenant).toHaveBeenCalledWith('eu-2', 'k-1', 'sealed');
   });
 
@@ -133,7 +133,7 @@ describe('createTenantMove', () => {
     ]);
     expect(operations.createTransferKey).toHaveBeenCalledTimes(2);
     expect(operations.exportTenant).toHaveBeenCalledTimes(2);
-    expect(operations.exportTenant).toHaveBeenLastCalledWith('eu-1', 'acme', newJwk);
+    expect(operations.exportTenant).toHaveBeenLastCalledWith('eu-1', 'acme', 'eu-2', newJwk);
     expect(operations.importTenant).toHaveBeenCalledTimes(2);
     expect(operations.importTenant).toHaveBeenLastCalledWith('eu-2', 'k-2', 'sealed');
     expect(operations.releaseMovedTenant).toHaveBeenCalledTimes(1);

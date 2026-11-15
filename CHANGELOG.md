@@ -4224,14 +4224,17 @@ Until the first stable release, the [Unreleased] section describes the product a
 
 - **A tenant moves between cells of one region.** A platform administrator disables the tenant, takes a one-hour,
   take-once `ECDH-ES+A256KW` transfer key from the target cell (`POST /api/tenant-imports/transfer-keys`), exports the
-  tenant from the source cell (`POST /api/tenants/{tenantId}/export`), imports the package into the target cell
+  tenant from the source cell, naming the target cell (`POST /api/tenants/{tenantId}/export` with `jwk` and
+  `targetCell`), which records a move offer from the source cell to the target cell in the directory for the transfer
+  key's hour and names the target cell in the package, imports the package into the target cell
   (`POST /api/tenant-imports`), releases it at the source (`POST /api/tenants/{tenantId}/release-moved`), points the
   tenant's DNS record at the target cell's ingress and enables it, and the console runs the four calls as Move. The
   package carries the tenant's records and its master keys sealed to the transfer key, and the target rewraps the
   master keys under its own root key and retags the tenant's remote keys with its own name; grants, consents and
-  sessions end, audit and usage records stay in the source, and the tenant keeps its identifier and issuer. The
-  directory moves the placement only between cells of one region, so a tenant for another region is created in a cell of
-  that region, an import repeats over the rows an interrupted import left, and the
+  sessions end, audit and usage records stay in the source, and the tenant keeps its identifier and issuer. Only the
+  named target cell imports the package, and the directory moves the placement only for the target cell that calls, on
+  that unexpired offer and only between cells of one region (any other caller gets `403`), so a tenant for another
+  region is created in a cell of that region, an import repeats over the rows an interrupted import left, and the
   release removes the source's rows without retiring an identifier or destroying a remote key
   ([ADR-1514](docs/decisions/1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md),
   [`docs/tenant-move.md`](docs/tenant-move.md)).

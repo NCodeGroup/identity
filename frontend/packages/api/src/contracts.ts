@@ -885,10 +885,13 @@ export type TenantTransferKeyResource = {
 
 /**
  * Mirror of `TenantExportRequest` — the request to export a disabled tenant: the public half (`jwk`) of the receiving
- * cell's transfer key, to which the export is sealed.
+ * cell's transfer key, to which the export is sealed, and the name of the cell the tenant is offered to (`targetCell`),
+ * which the package names, so only that cell imports it.
  */
 export type TenantExportRequest = {
   readonly jwk: Readonly<Record<string, unknown>>;
+  /** The name of the cell that receives the tenant; the exporting cell offers the tenant to it in the global directory. */
+  readonly targetCell: string;
 };
 
 /** Mirror of `TenantExportResource` — the export of a disabled tenant as a compact JWE (`package`) to the receiving cell's transfer key. */

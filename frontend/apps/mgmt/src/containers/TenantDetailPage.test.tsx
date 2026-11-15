@@ -487,7 +487,10 @@ describe('TenantDetailPage', () => {
         'POST https://api.test/cells/eu-1/api/tenants/acme/release-moved',
       ]);
       const posts = calls.filter((c) => c.method === 'POST');
-      expect(JSON.parse(posts[1]?.body ?? '{}')).toEqual({ jwk: { kty: 'EC', crv: 'P-256' } });
+      expect(JSON.parse(posts[1]?.body ?? '{}')).toEqual({
+        jwk: { kty: 'EC', crv: 'P-256' },
+        targetCell: 'eu-2',
+      });
       expect(JSON.parse(posts[2]?.body ?? '{}')).toEqual({ kid: 'k-1', package: 'sealed' });
     });
 

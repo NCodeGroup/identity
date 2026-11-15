@@ -103,7 +103,7 @@ describe('TenantMoveDialog', () => {
       'import eu-2',
       'release eu-1 acme',
     ]);
-    expect(operations.exportTenant).toHaveBeenCalledWith('eu-1', 'acme', jwk);
+    expect(operations.exportTenant).toHaveBeenCalledWith('eu-1', 'acme', 'eu-2', jwk);
     expect(operations.importTenant).toHaveBeenCalledWith('eu-2', 'k-1', 'sealed');
     expect(screen.getByTestId('move-stage-release')).toHaveTextContent('done');
     expect(screen.getByTestId('move-close')).toBeInTheDocument();

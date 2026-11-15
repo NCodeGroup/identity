@@ -57,33 +57,38 @@ keeps the private half for one hour, and the import takes it once, so one packag
 
 ## 3. Export the tenant from the source
 
-Run at `<source>`: `POST <source-api>/api/tenants/<tenant>/export` with the body `{ "jwk": <the transfer key's jwk> }`.
-The response `package` is one compact JWE to that key. It holds the cell's region, the tenant's identifier, the tenant's
-records and the tenant's master keys sealed to the same key. The audit record `tenant.exported` records the export.
+Run at `<source>`: `POST <source-api>/api/tenants/<tenant>/export` with the body
+`{ "jwk": <the transfer key's jwk>, "targetCell": "<target>" }`. The export records a move offer from `<source>` to
+`<target>` in the directory, valid for the transfer key's hour. The response `package` is one compact JWE to the key. It
+holds the cell's region, the target cell's name, the tenant's identifier, the tenant's records and the tenant's master
+keys sealed to the same key. The audit record `tenant.exported` records the export.
 
-| Status | Meaning                                                                                      |
-| ------ | -------------------------------------------------------------------------------------------- |
-| `200`  | The package.                                                                                 |
-| `404`  | The tenant does not exist in `<source>`.                                                     |
-| `409`  | The tenant is not disabled.                                                                  |
-| `422`  | The key is not a `JWK` of an elliptic curve key on `P-256` for encryption, or it is refused. |
+| Status | Meaning                                                                                                              |
+| ------ | -------------------------------------------------------------------------------------------------------------------- |
+| `200`  | The package.                                                                                                         |
+| `404`  | The tenant does not exist in `<source>`.                                                                             |
+| `409`  | The tenant is not disabled, or the directory refuses the move offer (the tenant is not placed in `<source>`, a cell is not registered, or the cells are in different regions). |
+| `422`  | The key is not a `JWK` of an elliptic curve key on `P-256` for encryption, or it is refused; or `targetCell` is not a valid cell name. |
+| `503`  | The directory is unavailable, with a `Retry-After` header. No package is made.                                       |
 
-Only the holder of the transfer key's private half, which is `<target>`, opens the package. It still holds password
-hashes and protected secrets, so keep it out of logs, shell history and files, and hand it straight to the import.
+The package names its target cell, and only that cell imports it. Only the holder of the transfer key's private half,
+which is `<target>`, opens the package. It still holds password hashes and protected secrets, so keep it out of logs,
+shell history and files, and hand it straight to the import.
 
 ## 4. Import the tenant into the target
 
 Run at `<target>`: `POST <target-api>/api/tenant-imports` with the body `{ "kid": <the transfer key's kid>,
 "package": <the package> }`. The import takes the transfer key, decrypts the package, imports each section of the
 tenant's records, stores the master keys under `<target>`'s own root keys, points the remote keys that the tenant's
-secrets reference at `<target>`, and asks the directory to move the tenant's placement from `<source>` to `<target>`.
-The tenant stays disabled in `<target>`. The audit record `tenant.imported` names the source cell.
+secrets reference at `<target>`, and asks the directory to move the tenant's placement from `<source>` to `<target>`,
+which it does only for `<target>` calling on the unexpired move offer that the export recorded (any other caller gets
+`403`). The tenant stays disabled in `<target>`. The audit record `tenant.imported` names the source cell.
 
 | Status | Meaning                                                                                                                                                                                                                                                                                                         |
 | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `200`  | The tenant is imported and placed in `<target>`.                                                                                                                                                                                                                                                                |
-| `409`  | The directory places the tenant in no cell or already in `<target>`; or the directory refuses the move (the tenant is not placed in `<source>`, a cell is not registered, or the cells are in different regions). Nothing the import wrote remains.                                                              |
-| `422`  | The transfer key is unknown, expired or already used; the package does not decrypt with it or is malformed; its region is not `<target>`'s region; it has a section that `<target>` does not import; or the tenant's secrets reference a remote key of a provider that `<target>` does not register.              |
+| `409`  | The directory places the tenant in no cell or already in `<target>`; or the directory refuses the move (the tenant is not placed in `<source>`, `<source>` holds no unexpired move offer to `<target>`, a cell is not registered, or the cells are in different regions). Nothing the import wrote remains.                                                              |
+| `422`  | The transfer key is unknown, expired or already used; the package does not decrypt with it or is malformed; its region is not `<target>`'s region; it names a target cell other than `<target>`; it has a section that `<target>` does not import; or the tenant's secrets reference a remote key of a provider that `<target>` does not register.              |
 | `503`  | The directory is unavailable, with a `Retry-After` header. Nothing the import wrote remains.                                                                                                                                                                                                                    |
 
 **Verify:** `GET <target-api>/api/tenants/<tenant>` answers `200` with `isDisabled` `true`.

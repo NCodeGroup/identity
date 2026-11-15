@@ -505,13 +505,18 @@ export const managementApi = createApi({
     }),
     exportTenant: build.mutation<
       TenantExportResource,
-      { cell: string; tenantId: string; jwk: TenantExportRequest['jwk'] }
+      {
+        cell: string;
+        tenantId: string;
+        targetCell: TenantExportRequest['targetCell'];
+        jwk: TenantExportRequest['jwk'];
+      }
     >({
-      query: ({ cell, tenantId, jwk }) =>
+      query: ({ cell, tenantId, targetCell, jwk }) =>
         inCell(cell, {
           url: `api/tenants/${encodeURIComponent(tenantId)}/export`,
           method: 'POST',
-          body: { jwk } satisfies TenantExportRequest,
+          body: { jwk, targetCell } satisfies TenantExportRequest,
         }),
     }),
     importTenant: build.mutation<

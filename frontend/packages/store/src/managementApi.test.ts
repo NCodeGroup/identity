@@ -2692,6 +2692,7 @@ describe('managementApi across cells', () => {
       managementApi.endpoints.exportTenant.initiate({
         cell: 'eu-1',
         tenantId: 'acme-dev',
+        targetCell: 'eu-2',
         jwk: { kty: 'EC', crv: 'P-256' },
       }),
     );
@@ -2709,7 +2710,10 @@ describe('managementApi across cells', () => {
       'POST https://api.test/cells/eu-1/api/tenants/acme-dev/release-moved',
     ]);
     expect(captured[0]?.body).toBe('');
-    expect(JSON.parse(captured[1]?.body ?? '{}')).toEqual({ jwk: { kty: 'EC', crv: 'P-256' } });
+    expect(JSON.parse(captured[1]?.body ?? '{}')).toEqual({
+      jwk: { kty: 'EC', crv: 'P-256' },
+      targetCell: 'eu-2',
+    });
     expect(JSON.parse(captured[2]?.body ?? '{}')).toEqual({ kid: 'k-1', package: 'jwe' });
     expect(captured[3]?.body).toBe('');
   });

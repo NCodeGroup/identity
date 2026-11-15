@@ -69,11 +69,17 @@ tenant is created there instead.**
    source cell, in its region, until their retention ends
    ([ADR-1303](1303-audit-records-are-kept-in-an-indexed-store-that-each-replica-writes-in-batches.md)).
 6. **The directory placement changes, and the source deletes the tenant without retiring it.**
+   - The export takes the target cell's name (`targetCell`) with the transfer key. It records a move offer from the
+     source cell to the target cell through `ITenantDirectory.OfferMoveAsync`, valid for the transfer key's hour, and
+     writes the target cell's name into the package, so only that cell imports it. A conflict, such as a tenant the
+     directory does not place in the source cell or cells of different regions, answers `409`. An import of a package
+     that names another cell answers `422`.
    - The import calls `ITenantDirectory.MoveAsync` for the tenant from the source cell to the target cell. The
-     directory, in one serializable transaction, requires the placement to name the source cell and both cells to be
-     registered in the same region, and the route requires the caller to be the target cell's machine client, so a
-     cell cannot take a tenant for another. A conflict makes the import remove what it imported and answer `409`. The
-     local adapter always answers a conflict, because a single cell has no other cell.
+     directory, in one serializable transaction, requires the placement to name the source cell, both cells to be
+     registered in the same region and the source cell's unexpired move offer to the target cell, which the move
+     consumes. The route moves the tenant only for the target cell that calls, so a cell cannot take a tenant offered
+     to another, and any other caller gets `403`. A conflict makes the import remove what it imported and answer
+     `409`. The local adapter always answers a conflict, because a single cell has no other cell.
    - The remote keys the import found carry the target cell's tag through `IRemoteKeyProvider.RetagKeyAsync`, so the
      target's sweep keeps them and the source's sweep, which lists only keys of its own name, never destroys them.
    - `POST api/tenants/{tenantId}/release-moved` runs at the source cell. It proceeds only when the directory's

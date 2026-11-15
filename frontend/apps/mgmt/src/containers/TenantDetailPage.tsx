@@ -110,8 +110,8 @@ function TenantMoveAction({ tenantId }: TenantTabProps) {
   };
   const operations: TenantMoveDialogOperations = {
     createTransferKey: (target) => run(createTransferKey({ cell: target })),
-    exportTenant: async (source, id, jwk) =>
-      (await run(exportTenant({ cell: source, tenantId: id, jwk }))).package,
+    exportTenant: async (source, id, targetCell, jwk) =>
+      (await run(exportTenant({ cell: source, tenantId: id, targetCell, jwk }))).package,
     importTenant: async (target, kid, sealedPackage) => {
       await run(importTenant({ cell: target, kid, package: sealedPackage }));
     },
