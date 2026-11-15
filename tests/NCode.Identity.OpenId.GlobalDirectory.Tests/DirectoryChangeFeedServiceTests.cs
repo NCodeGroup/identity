@@ -47,17 +47,23 @@ public class DirectoryChangeFeedServiceTests : BaseTests
             NullLogger<DirectoryChangeFeedService>.Instance
         );
 
-    private void SetupLease(bool acquired) =>
+    private void SetupLease(bool acquired)
+    {
+        var window = TimeProvider.GetUtcNow().UtcTicks / PollInterval.Ticks;
         ExpiringKeySetMock
             .Setup(x =>
                 x.TryAddAsync(
-                    DirectoryChangeFeedService.LeaseKey,
-                    TimeProvider.GetUtcNow() + PollInterval / 2,
+                    $"{DirectoryChangeFeedService.LeasePurpose}:{window}",
+                    new DateTimeOffset((window + 1) * PollInterval.Ticks, TimeSpan.Zero),
                     It.IsAny<CancellationToken>()
                 )
             )
             .ReturnsAsync(acquired)
             .Verifiable(Times.Once);
+    }
+
+    private static bool IsWindowLeaseKey(string key) =>
+        key.StartsWith($"{DirectoryChangeFeedService.LeasePurpose}:", StringComparison.Ordinal);
 
     private void SetupAppliedSequences(long teamSequence, long platformSequence)
     {
@@ -102,7 +108,7 @@ public class DirectoryChangeFeedServiceTests : BaseTests
         ExpiringKeySetMock
             .Setup(x =>
                 x.TryAddAsync(
-                    DirectoryChangeFeedService.LeaseKey,
+                    It.Is<string>(key => IsWindowLeaseKey(key)),
                     It.IsAny<DateTimeOffset>(),
                     It.IsAny<CancellationToken>()
                 )
@@ -139,6 +145,28 @@ public class DirectoryChangeFeedServiceTests : BaseTests
         };
 
     #region RunAsync Tests
+
+    [Fact]
+    public async Task RunAsync_TakesALeaseKeyedByThePollWindowThatExpiresAtTheWindowsEnd()
+    {
+        var windowStart = TimeProvider.GetUtcNow();
+        var window = windowStart.UtcTicks / PollInterval.Ticks;
+        TimeProvider.Advance(TimeSpan.FromSeconds(10));
+        ExpiringKeySetMock
+            .Setup(x =>
+                x.TryAddAsync(
+                    $"{DirectoryChangeFeedService.LeasePurpose}:{window}",
+                    new DateTimeOffset(2030, 1, 1, 0, 0, 30, TimeSpan.Zero),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(false)
+            .Verifiable(Times.Once);
+
+        using var service = CreateService();
+
+        await service.RunAsync(CancellationToken.None);
+    }
 
     [Fact]
     public async Task RunAsync_WhenThePageIsFull_PagesUntilAnEmptyPage()
@@ -336,7 +364,7 @@ public class DirectoryChangeFeedServiceTests : BaseTests
         ExpiringKeySetMock
             .Setup(x =>
                 x.TryAddAsync(
-                    DirectoryChangeFeedService.LeaseKey,
+                    It.Is<string>(key => IsWindowLeaseKey(key)),
                     It.IsAny<DateTimeOffset>(),
                     It.IsAny<CancellationToken>()
                 )

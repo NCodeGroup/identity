@@ -14,7 +14,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// <see cref="DirectoryClientOptions.PollInterval"/>: it reads the highest sequence the cell has applied, pages
 /// <see cref="ITeamDirectory.ListChangesAsync"/> until a page is empty, applies each team change through
 /// <see cref="ITeamDocumentApplier"/> and each platform change through <see cref="IPlatformDocumentApplier"/>. One
-/// replica runs each pass, under a lease on the shared-state port that lasts half the interval. The replica that holds
+/// replica runs each pass, under a lease on the shared-state port keyed by the poll window. The replica that holds
 /// the lease also reconciles every mirrored team's root key for the cell's region through
 /// <see cref="ITeamDocumentApplier.ReconcileRootKeysAsync"/> after the change pages, on its first pass and then once
 /// <c>RootKeyReconcileInterval</c> has passed, so a key that failed its probe or its rotation cooldown is applied
@@ -39,9 +39,9 @@ internal sealed class DirectoryChangeFeedService(
 ) : BackgroundService
 {
     /// <summary>
-    /// The key of the lease that one replica takes on each pass.
+    /// The purpose that prefixes the key of the lease that one replica takes for each poll window.
     /// </summary>
-    internal const string LeaseKey = "directory-change-feed";
+    internal const string LeasePurpose = "directory-change-feed";
 
     /// <summary>
     /// The most changes that one page of the feed holds.
@@ -57,7 +57,7 @@ internal sealed class DirectoryChangeFeedService(
     private ITeamDocumentApplier TeamDocumentApplier { get; } = teamDocumentApplier;
     private IPlatformDocumentApplier PlatformDocumentApplier { get; } = platformDocumentApplier;
     private IExpiringKeySet ExpiringKeySet { get; } = expiringKeySet;
-    private CellOptions CellOptions { get; } = cellOptions.Value;
+    private IOptions<CellOptions> CellOptionsAccessor { get; } = cellOptions;
     private IOptions<DirectoryClientOptions> Options { get; } = directoryClientOptions;
     private TimeProvider TimeProvider { get; } = timeProvider;
     private ILogger<DirectoryChangeFeedService> Logger { get; } = logger;
@@ -65,7 +65,9 @@ internal sealed class DirectoryChangeFeedService(
     // The time of this replica's last reconcile of the teams' root keys, or null before its first.
     private DateTimeOffset? LastRootKeyReconcileWhen { get; set; }
 
-    // Read on use, never in the constructor, so the options are not built while the container composes this service.
+    // Both options are read on use, never in the constructor, so neither is built while the container composes this
+    // service.
+    private CellOptions CellOptions => CellOptionsAccessor.Value;
     private TimeSpan PollInterval => Options.Value.PollInterval;
 
     /// <inheritdoc />
@@ -113,12 +115,22 @@ internal sealed class DirectoryChangeFeedService(
         }
     }
 
+    /// <summary>
+    /// Runs one pass unless another replica holds the lease of the current poll window: applies the directory's
+    /// changes after the highest sequence the cell has applied, page by page, then reconciles the mirrored teams' root
+    /// keys when <see cref="RootKeyReconcileInterval"/> has passed.
+    /// </summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     private async ValueTask RunCoreAsync(CancellationToken cancellationToken)
     {
-        // The lease lasts half the interval: one that lasted the whole interval would still be held when the same
-        // replica's timer ticks next.
-        var leaseExpiresWhen = TimeProvider.GetUtcNow() + PollInterval / 2;
-        if (!await ExpiringKeySet.TryAddAsync(LeaseKey, leaseExpiresWhen, cancellationToken))
+        // Replicas that run in one poll window share the key, so one of them runs the pass, and the lease expires at
+        // the window's end, so the next window's pass takes a lease of its own.
+        var pollInterval = PollInterval;
+        var window = TimeProvider.GetUtcNow().UtcTicks / pollInterval.Ticks;
+        var windowKey = $"{LeasePurpose}:{window}";
+        var leaseExpiresWhen = new DateTimeOffset((window + 1) * pollInterval.Ticks, TimeSpan.Zero);
+        if (!await ExpiringKeySet.TryAddAsync(windowKey, leaseExpiresWhen, cancellationToken))
             return;
 
         var teamSequence = await TeamDocumentApplier.GetAppliedSequenceAsync(cancellationToken);
@@ -158,7 +170,15 @@ internal sealed class DirectoryChangeFeedService(
         await ReconcileRootKeysAsync(cancellationToken);
     }
 
-    // A failed change is logged and ends the pass's changes, but not the pass: the root keys are still reconciled.
+    /// <summary>
+    /// Applies one change of the feed. A change that fails is logged and ends the pass's changes, but not the pass:
+    /// the root keys are still reconciled.
+    /// </summary>
+    /// <param name="change">The <see cref="DirectoryChange"/> to apply.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing
+    /// <see langword="true"/> when the change was applied, or <see langword="false"/> when it failed and the pass applies
+    /// no change after it.</returns>
     private async ValueTask<bool> TryApplyAsync(
         DirectoryChange change,
         CancellationToken cancellationToken
@@ -177,9 +197,14 @@ internal sealed class DirectoryChangeFeedService(
         }
     }
 
-    // A team's root key is applied while its document is applied, so a key that failed its probe or its rotation
-    // cooldown stays unapplied until the directory publishes the team again; the replica that holds the lease
-    // reconciles every team's key on its first pass and then once the interval has passed.
+    /// <summary>
+    /// Reconciles every mirrored team's root key for the cell's region on this replica's first pass and then once
+    /// <see cref="RootKeyReconcileInterval"/> has passed. A team's root key is applied while its document is applied,
+    /// so a key that failed its probe or its rotation cooldown stays unapplied until the directory publishes the team
+    /// again or this reconcile applies it.
+    /// </summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     private async ValueTask ReconcileRootKeysAsync(CancellationToken cancellationToken)
     {
         var now = TimeProvider.GetUtcNow();
@@ -190,6 +215,13 @@ internal sealed class DirectoryChangeFeedService(
         LastRootKeyReconcileWhen = now;
     }
 
+    /// <summary>
+    /// Applies one change of the feed: a team change with a document applies the team's document, a team change without
+    /// one retires the team, and a platform change applies the platform's document.
+    /// </summary>
+    /// <param name="change">The <see cref="DirectoryChange"/> to apply.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     private async ValueTask ApplyAsync(DirectoryChange change, CancellationToken cancellationToken)
     {
         if (change.TeamId is not null)
