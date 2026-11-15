@@ -168,6 +168,32 @@ public class DirectoryClientOptionsValidatorTests : BaseTests
         Assert.True(result.Succeeded);
     }
 
+    [Fact]
+    public void Validate_WhenTheTokenRequestTimeoutIsNotATimerPeriod_FailsNamingTheKey()
+    {
+        var options = CreateOptions();
+        options.TokenRequestTimeout = TimeSpan.Zero;
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        var failure = Assert.Single(result.Failures);
+        Assert.Contains("Directory:TokenRequestTimeout", failure);
+    }
+
+    [Fact]
+    public void Validate_WhenTheTokenFailureCacheDurationIsNotATimerPeriod_FailsNamingTheKey()
+    {
+        var options = CreateOptions();
+        options.TokenFailureCacheDuration = TimeSpan.Zero;
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        var failure = Assert.Single(result.Failures);
+        Assert.Contains("Directory:TokenFailureCacheDuration", failure);
+    }
+
     #endregion
 
     private static void AssertPollIntervalFails(TimeSpan pollInterval)

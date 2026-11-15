@@ -65,6 +65,20 @@ internal sealed class DirectoryClientOptionsValidator : IValidateOptions<Directo
             );
         }
 
+        if (!TimerPeriod.IsValid(options.TokenRequestTimeout))
+        {
+            failures.Add(
+                $"{Prefix}:{nameof(DirectoryClientOptions.TokenRequestTimeout)} '{options.TokenRequestTimeout}' must be a time span from {TimerPeriod.MinValue} to {TimerPeriod.MaxValue}."
+            );
+        }
+
+        if (!TimerPeriod.IsValid(options.TokenFailureCacheDuration))
+        {
+            failures.Add(
+                $"{Prefix}:{nameof(DirectoryClientOptions.TokenFailureCacheDuration)} '{options.TokenFailureCacheDuration}' must be a time span from {TimerPeriod.MinValue} to {TimerPeriod.MaxValue}."
+            );
+        }
+
         return failures.Count == 0
             ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail(failures);
