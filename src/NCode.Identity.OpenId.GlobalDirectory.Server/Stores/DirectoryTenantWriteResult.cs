@@ -10,27 +10,17 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
 /// <see cref="DirectoryTenantWriteOutcome"/> and, for every outcome but <see cref="DirectoryTenantWriteOutcome.Done"/>,
 /// the reason.
 /// </summary>
+/// <param name="outcome">The outcome of the write.</param>
+/// <param name="detail">
+/// The reason the write was refused, or <c>null</c> when the outcome is <see cref="DirectoryTenantWriteOutcome.Done"/>.
+/// </param>
 // See ADR-1411.
 [ExcludeFromCodeCoverage]
-internal sealed class DirectoryTenantWriteResult
+internal sealed class DirectoryTenantWriteResult(
+    DirectoryTenantWriteOutcome outcome,
+    string? detail
+)
 {
-    private DirectoryTenantWriteResult(DirectoryTenantWriteOutcome outcome, string? detail)
-    {
-        Outcome = outcome;
-        Detail = detail;
-    }
-
-    /// <summary>
-    /// Gets the outcome of the write.
-    /// </summary>
-    public DirectoryTenantWriteOutcome Outcome { get; }
-
-    /// <summary>
-    /// Gets the reason the write was refused, or <c>null</c> when the outcome is
-    /// <see cref="DirectoryTenantWriteOutcome.Done"/>.
-    /// </summary>
-    public string? Detail { get; }
-
     /// <summary>
     /// Creates the result of a write that is committed or has nothing to write.
     /// </summary>
@@ -60,4 +50,15 @@ internal sealed class DirectoryTenantWriteResult
     /// <returns>A <see cref="DirectoryTenantWriteResult"/> whose outcome is <see cref="DirectoryTenantWriteOutcome.Conflict"/>.</returns>
     public static DirectoryTenantWriteResult Conflict(string detail) =>
         new(DirectoryTenantWriteOutcome.Conflict, detail);
+
+    /// <summary>
+    /// Gets the outcome of the write.
+    /// </summary>
+    public DirectoryTenantWriteOutcome Outcome { get; } = outcome;
+
+    /// <summary>
+    /// Gets the reason the write was refused, or <c>null</c> when the outcome is
+    /// <see cref="DirectoryTenantWriteOutcome.Done"/>.
+    /// </summary>
+    public string? Detail { get; } = detail;
 }

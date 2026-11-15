@@ -35,73 +35,6 @@ internal sealed class DirectoryAuthenticationEndpointFilter(
     private const string AuthenticationType = "DirectoryBearer";
     private const int RetryAfterSeconds = 5;
 
-    private IIssuerAccessTokenValidator Validator { get; } = validator;
-
-    private IOptions<DirectoryServerOptions> Options { get; } = options;
-
-    /// <inheritdoc />
-    public async ValueTask<object?> InvokeAsync(
-        EndpointFilterInvocationContext context,
-        EndpointFilterDelegate next
-    )
-    {
-        var httpContext = context.HttpContext;
-
-        if (!TryGetBearerToken(httpContext, out var token))
-            return Unauthorized(httpContext);
-
-        var issuer = Options.Value.Issuer;
-        if (string.IsNullOrEmpty(issuer))
-        {
-            throw new InvalidOperationException(
-                $"{DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.Issuer)} is not set."
-            );
-        }
-
-        var result = await Validator.ValidateAsync(
-            issuer,
-            GlobalDirectoryProtocol.DirectoryAudience,
-            token,
-            httpContext.RequestAborted
-        );
-
-        if (result.IsUnavailable)
-        {
-            httpContext.Response.Headers.RetryAfter = RetryAfterSeconds.ToString(
-                CultureInfo.InvariantCulture
-            );
-            return Results.Problem(
-                title: "Service Unavailable",
-                detail: "The issuer of the directory's access tokens is unavailable. Retry the request.",
-                statusCode: StatusCodes.Status503ServiceUnavailable
-            );
-        }
-
-        if (!result.IsValid)
-            return Unauthorized(httpContext);
-
-        var payload = result.Payload;
-        if (
-            payload.ValueKind != JsonValueKind.Object
-            || !HasScope(payload)
-            || !TryGetClientId(payload, out var clientId)
-        )
-        {
-            return Unauthorized(httpContext);
-        }
-
-        var identity = new ClaimsIdentity(
-            [
-                new Claim(ClientIdClaimType, clientId),
-                new Claim(ScopeClaimType, GlobalDirectoryProtocol.DirectoryScope),
-            ],
-            AuthenticationType
-        );
-        httpContext.User = new ClaimsPrincipal(identity);
-
-        return await next(context);
-    }
-
     /// <summary>
     /// Builds the <c>401 Unauthorized</c> problem document of a request that lacks a valid access token with the
     /// directory scope, and sets the <c>WWW-Authenticate: Bearer</c> response header that tells the caller how to
@@ -219,5 +152,72 @@ internal sealed class DirectoryAuthenticationEndpointFilter(
 
         clientId = string.Empty;
         return false;
+    }
+
+    private IIssuerAccessTokenValidator Validator { get; } = validator;
+
+    private IOptions<DirectoryServerOptions> Options { get; } = options;
+
+    /// <inheritdoc />
+    public async ValueTask<object?> InvokeAsync(
+        EndpointFilterInvocationContext context,
+        EndpointFilterDelegate next
+    )
+    {
+        var httpContext = context.HttpContext;
+
+        if (!TryGetBearerToken(httpContext, out var token))
+            return Unauthorized(httpContext);
+
+        var issuer = Options.Value.Issuer;
+        if (string.IsNullOrEmpty(issuer))
+        {
+            throw new InvalidOperationException(
+                $"{DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.Issuer)} is not set."
+            );
+        }
+
+        var result = await Validator.ValidateAsync(
+            issuer,
+            GlobalDirectoryProtocol.DirectoryAudience,
+            token,
+            httpContext.RequestAborted
+        );
+
+        if (result.IsUnavailable)
+        {
+            httpContext.Response.Headers.RetryAfter = RetryAfterSeconds.ToString(
+                CultureInfo.InvariantCulture
+            );
+            return Results.Problem(
+                title: "Service Unavailable",
+                detail: "The issuer of the directory's access tokens is unavailable. Retry the request.",
+                statusCode: StatusCodes.Status503ServiceUnavailable
+            );
+        }
+
+        if (!result.IsValid)
+            return Unauthorized(httpContext);
+
+        var payload = result.Payload;
+        if (
+            payload.ValueKind != JsonValueKind.Object
+            || !HasScope(payload)
+            || !TryGetClientId(payload, out var clientId)
+        )
+        {
+            return Unauthorized(httpContext);
+        }
+
+        var identity = new ClaimsIdentity(
+            [
+                new Claim(ClientIdClaimType, clientId),
+                new Claim(ScopeClaimType, GlobalDirectoryProtocol.DirectoryScope),
+            ],
+            AuthenticationType
+        );
+        httpContext.User = new ClaimsPrincipal(identity);
+
+        return await next(context);
     }
 }

@@ -43,35 +43,6 @@ public static class DirectoryEndpoints
         $"A tenant identifier is at most {DirectoryLimits.MaxIdentifierLength} characters, and an issuer at most "
         + $"{DirectoryLimits.MaxIssuerLength}.";
 
-    /// <param name="endpoints">The <see cref="IEndpointRouteBuilder"/> to map the routes on.</param>
-    extension(IEndpointRouteBuilder endpoints)
-    {
-        /// <summary>
-        /// Maps the global directory API under <c>/directory/v1/</c>. The routes resolve
-        /// <see cref="ITenantDirectory"/>, <see cref="ITeamDirectory"/>, <see cref="IPlatformDirectory"/> and
-        /// <see cref="ICellDirectory"/> from the request services.
-        /// </summary>
-        /// <returns>The <see cref="RouteGroupBuilder"/> of the directory API.</returns>
-        public RouteGroupBuilder MapDirectory()
-        {
-            ArgumentNullException.ThrowIfNull(endpoints);
-
-            var group = endpoints
-                .MapGroup(RoutePrefix)
-                .AddEndpointFilter<DirectoryAuthenticationEndpointFilter>()
-                .WithConfidentialBodies()
-                .ProducesProblem(StatusCodes.Status401Unauthorized)
-                .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
-
-            MapTenants(group.MapGroup("tenants"));
-            MapTeams(group.MapGroup("teams"));
-            MapPlatform(group.MapGroup("platform"));
-            MapCells(group.MapGroup("cells"));
-
-            return group;
-        }
-    }
-
     /// <summary>
     /// Maps the tenant routes: reserving, placing, releasing, moving, retiring and changing the issuer of a tenant,
     /// and reading a placement, a retired identifier or a retired issuer. Each route declares the problem documents
@@ -978,4 +949,33 @@ public static class DirectoryEndpoints
             DirectoryTenantWriteOutcome.NotFound => NotFound(result.Detail),
             _ => Conflict(result.Detail),
         };
+
+    /// <param name="endpoints">The <see cref="IEndpointRouteBuilder"/> to map the routes on.</param>
+    extension(IEndpointRouteBuilder endpoints)
+    {
+        /// <summary>
+        /// Maps the global directory API under <c>/directory/v1/</c>. The routes resolve
+        /// <see cref="ITenantDirectory"/>, <see cref="ITeamDirectory"/>, <see cref="IPlatformDirectory"/> and
+        /// <see cref="ICellDirectory"/> from the request services.
+        /// </summary>
+        /// <returns>The <see cref="RouteGroupBuilder"/> of the directory API.</returns>
+        public RouteGroupBuilder MapDirectory()
+        {
+            ArgumentNullException.ThrowIfNull(endpoints);
+
+            var group = endpoints
+                .MapGroup(RoutePrefix)
+                .AddEndpointFilter<DirectoryAuthenticationEndpointFilter>()
+                .WithConfidentialBodies()
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
+                .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+
+            MapTenants(group.MapGroup("tenants"));
+            MapTeams(group.MapGroup("teams"));
+            MapPlatform(group.MapGroup("platform"));
+            MapCells(group.MapGroup("cells"));
+
+            return group;
+        }
+    }
 }
