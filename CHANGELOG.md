@@ -6102,9 +6102,10 @@ Until the first stable release, the [Unreleased] section describes the product a
   [ADR-1370](docs/decisions/1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)).
 
 - **The build reports an unexplained `IgnoreQueryFilters()`.** `NCID0004` (`CrossTenantQueryAnalyzer`, in
-  `NCode.Identity.Analyzers`) reports an `IgnoreQueryFilters()` call unless a `// Cross-tenant: <why>` comment leads
-  its statement, so every deliberate bypass of the tenant filter explains itself; it skips assemblies whose names end in
-  `.Tests` or `.TestSupport`
+  `NCode.Identity.Analyzers`) reports an `IgnoreQueryFilters()` call unless a `// Cross-tenant: <why>` comment sits on
+  the line directly above the line that holds the call (above its statement, or above its `.IgnoreQueryFilters()` line
+  in a fluent chain), so every deliberate bypass of the tenant filter explains itself; it skips assemblies whose names
+  end in `.Tests` or `.TestSupport`
   ([ADR-1018](docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)).
 
 - **ASP.NET Core Identity users belong to one tenant.** An `IdentityUser` of the adapter implements `ITenantBoundUser`,

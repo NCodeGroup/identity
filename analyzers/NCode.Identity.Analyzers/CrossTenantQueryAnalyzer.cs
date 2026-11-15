@@ -54,7 +54,7 @@ public sealed class CrossTenantQueryAnalyzer : DiagnosticAnalyzer
             category: "Design",
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true,
-            description: "An IgnoreQueryFilters() call reads across tenants. A '// Cross-tenant: <why>' comment leads the statement, or leads the '.IgnoreQueryFilters()' line of a fluent chain, and states why the query reads across tenants.",
+            description: "An IgnoreQueryFilters() call reads across tenants. A '// Cross-tenant: <why>' comment sits on the line directly above the line that holds the call: above its statement when the call is on the statement's first line, or above its '.IgnoreQueryFilters()' line in a fluent chain, and states why the query reads across tenants.",
             helpLinkUri: "https://github.com/NCodeGroup/identity/blob/main/docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md"
         );
 

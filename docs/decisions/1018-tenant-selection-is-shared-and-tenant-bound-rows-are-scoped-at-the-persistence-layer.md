@@ -122,7 +122,8 @@ Direct construction in tests and tooling opens an explicit scope, a tenant scope
 ### The analyzer
 
 The analyzer `NCID0004` (`CrossTenantQueryAnalyzer`, in `NCode.Identity.Analyzers`) reports an `IgnoreQueryFilters()`
-call unless a `// Cross-tenant: <why>` comment leads its statement. Bypassing the filter in a query is therefore
+call unless a `// Cross-tenant: <why>` comment sits on the line directly above the line that holds the call: above its
+statement, or above its `.IgnoreQueryFilters()` line in a fluent chain. Bypassing the filter in a query is therefore
 explained at the call site. The analyzer skips assemblies whose names end in `.Tests` or `.TestSupport`.
 
 ### Row-level security
