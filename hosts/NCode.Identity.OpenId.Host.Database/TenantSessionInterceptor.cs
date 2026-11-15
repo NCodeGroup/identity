@@ -31,6 +31,44 @@ public sealed class TenantSessionInterceptor(IAmbientTenantAccessor ambientTenan
     private const string SetConfigCommandText =
         $"SELECT set_config('{TenantSessionSettings.TenantId}', @t, false), set_config('{TenantSessionSettings.Unscoped}', @u, false)";
 
+    /// <summary>
+    /// Creates the command that sets <c>app.tenant_id</c> and <c>app.unscoped</c> for the session, in the
+    /// transaction of the command it precedes so the two run on the same connection state.
+    /// </summary>
+    /// <param name="connection">The connection that runs the command.</param>
+    /// <param name="transaction">The transaction to enlist the command in, or <see langword="null"/> when none.</param>
+    /// <param name="state">The tenant and unscoped values to set.</param>
+    /// <returns>The <c>set_config</c> command, ready to execute.</returns>
+    private static DbCommand CreateSetConfigCommand(
+        DbConnection connection,
+        DbTransaction? transaction,
+        (string Tenant, string Unscoped) state
+    )
+    {
+        var setConfig = connection.CreateCommand();
+        setConfig.CommandText = SetConfigCommandText;
+        setConfig.Transaction = transaction;
+        setConfig.Parameters.Add(CreateParameter(setConfig, "t", state.Tenant));
+        setConfig.Parameters.Add(CreateParameter(setConfig, "u", state.Unscoped));
+        return setConfig;
+    }
+
+    /// <summary>
+    /// Creates a string parameter for the <c>set_config</c> command.
+    /// </summary>
+    /// <param name="command">The command that owns the parameter.</param>
+    /// <param name="name">The parameter name, without a prefix.</param>
+    /// <param name="value">The string value of the parameter.</param>
+    /// <returns>The parameter, typed as a string.</returns>
+    private static DbParameter CreateParameter(DbCommand command, string name, string value)
+    {
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.DbType = DbType.String;
+        parameter.Value = value;
+        return parameter;
+    }
+
     private ConditionalWeakTable<
         DbConnection,
         StrongBox<(string Tenant, string Unscoped, DbTransaction? Transaction)>
@@ -331,43 +369,5 @@ public sealed class TenantSessionInterceptor(IAmbientTenantAccessor ambientTenan
         await setConfig.ExecuteNonQueryAsync(cancellationToken);
 
         RecordAppliedState(connection, command.Transaction, state);
-    }
-
-    /// <summary>
-    /// Creates the command that sets <c>app.tenant_id</c> and <c>app.unscoped</c> for the session, in the
-    /// transaction of the command it precedes so the two run on the same connection state.
-    /// </summary>
-    /// <param name="connection">The connection that runs the command.</param>
-    /// <param name="transaction">The transaction to enlist the command in, or <see langword="null"/> when none.</param>
-    /// <param name="state">The tenant and unscoped values to set.</param>
-    /// <returns>The <c>set_config</c> command, ready to execute.</returns>
-    private static DbCommand CreateSetConfigCommand(
-        DbConnection connection,
-        DbTransaction? transaction,
-        (string Tenant, string Unscoped) state
-    )
-    {
-        var setConfig = connection.CreateCommand();
-        setConfig.CommandText = SetConfigCommandText;
-        setConfig.Transaction = transaction;
-        setConfig.Parameters.Add(CreateParameter(setConfig, "t", state.Tenant));
-        setConfig.Parameters.Add(CreateParameter(setConfig, "u", state.Unscoped));
-        return setConfig;
-    }
-
-    /// <summary>
-    /// Creates a string parameter for the <c>set_config</c> command.
-    /// </summary>
-    /// <param name="command">The command that owns the parameter.</param>
-    /// <param name="name">The parameter name, without a prefix.</param>
-    /// <param name="value">The string value of the parameter.</param>
-    /// <returns>The parameter, typed as a string.</returns>
-    private static DbParameter CreateParameter(DbCommand command, string name, string value)
-    {
-        var parameter = command.CreateParameter();
-        parameter.ParameterName = name;
-        parameter.DbType = DbType.String;
-        parameter.Value = value;
-        return parameter;
     }
 }
