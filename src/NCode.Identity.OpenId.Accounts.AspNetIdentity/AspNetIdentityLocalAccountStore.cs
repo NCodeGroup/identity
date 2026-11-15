@@ -44,6 +44,190 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
 ) : ILocalAccountStore, ILocalAccountTransferStore
     where TUser : IdentityUser, ITenantBoundUser, new()
 {
+    private static async ValueTask<PersistedLocalAccount> MapAsync(
+        UserManager<TUser> userManager,
+        TUser user,
+        CancellationToken cancellationToken
+    )
+    {
+        var claims = await userManager.GetClaimsAsync(user);
+        var isEnabled =
+            !userManager.SupportsUserLockout || !await userManager.IsLockedOutAsync(user);
+
+        return new PersistedLocalAccount
+        {
+            // The store has restricted the user to the ambient tenant; the grant authenticates against the request's tenant.
+            TenantId = string.Empty,
+            LocalAccountId = user.Id,
+            UserName = user.UserName ?? string.Empty,
+            Email = user.Email,
+            EmailVerified = user.EmailConfirmed,
+            SecurityStamp = user.SecurityStamp ?? string.Empty,
+            IsEnabled = isEnabled,
+            Claims = claims
+                .Select(claim => new PersistedLocalAccountClaim
+                {
+                    Type = claim.Type,
+                    Value = claim.Value,
+                })
+                .ToList(),
+            ConcurrencyToken = user.ConcurrencyStamp ?? string.Empty,
+        };
+    }
+
+    private static async ValueTask EnableAsync(
+        UserManager<TUser> userManager,
+        TUser user,
+        CancellationToken cancellationToken
+    )
+    {
+        if (userManager.SupportsUserLockout)
+        {
+            ThrowIfFailed(
+                await userManager.SetLockoutEndDateAsync(user, lockoutEnd: null),
+                "enable the local account"
+            );
+        }
+    }
+
+    private static async ValueTask DisableAsync(
+        UserManager<TUser> userManager,
+        TUser user,
+        CancellationToken cancellationToken
+    )
+    {
+        if (!userManager.SupportsUserLockout)
+        {
+            throw new NotSupportedException(
+                "The configured ASP.NET Core Identity store does not support lockout, which is required to disable a local account."
+            );
+        }
+
+        ThrowIfFailed(
+            await userManager.SetLockoutEnabledAsync(user, enabled: true),
+            "enable lockout for the local account"
+        );
+        ThrowIfFailed(
+            await userManager.SetLockoutEndDateAsync(user, DateTimeOffset.MaxValue),
+            "disable the local account"
+        );
+    }
+
+    /// <summary>
+    /// Reads the first user of a query, asynchronously when the provider offers <see cref="IAsyncEnumerable{T}"/> (this
+    /// package does not reference EF Core) and synchronously for an in-memory store.
+    /// </summary>
+    /// <param name="query">The query to read.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The first user that the query yields, or <c>null</c> when it yields none.</returns>
+    private static async ValueTask<TUser?> FirstOrDefaultAsync(
+        IQueryable<TUser> query,
+        CancellationToken cancellationToken
+    )
+    {
+        var first = query.Take(1);
+        if (first is not IAsyncEnumerable<TUser> asyncUsers)
+        {
+            return first.FirstOrDefault();
+        }
+
+        await foreach (var user in asyncUsers.WithCancellation(cancellationToken))
+        {
+            return user;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Reads a query into a list, asynchronously when the provider offers <see cref="IAsyncEnumerable{T}"/> and
+    /// synchronously otherwise.
+    /// </summary>
+    /// <param name="query">The query to read.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The users that the query yields, which is an empty list when it yields none.</returns>
+    private static async ValueTask<List<TUser>> ToListAsync(
+        IQueryable<TUser> query,
+        CancellationToken cancellationToken
+    )
+    {
+        if (query is not IAsyncEnumerable<TUser> asyncUsers)
+        {
+            return query.ToList();
+        }
+
+        var users = new List<TUser>();
+        await foreach (var user in asyncUsers.WithCancellation(cancellationToken))
+        {
+            users.Add(user);
+        }
+
+        return users;
+    }
+
+    private static IUserPasswordStore<TUser> GetPasswordStore(IServiceProvider serviceProvider) =>
+        serviceProvider.GetRequiredService<IUserStore<TUser>>() as IUserPasswordStore<TUser>
+        ?? throw new NotSupportedException(
+            "The configured ASP.NET Core Identity store does not store passwords, which a local account's password requires."
+        );
+
+    private static NormalizingPasswordHasher<TUser> GetPasswordHasher(
+        UserManager<TUser> userManager
+    ) =>
+        userManager.PasswordHasher as NormalizingPasswordHasher<TUser>
+        ?? throw new InvalidOperationException(
+            $"The password hasher of UserManager<{typeof(TUser).Name}> is not a NormalizingPasswordHasher, so it would not hash and verify the NFC form of a password. Register the host's IPasswordHasher<TUser> before AddAspNetIdentityLocalAccountStore, or wrap it in NormalizingPasswordHasher<TUser>."
+        );
+
+    private static async ValueTask SetPasswordHashAsync(
+        NormalizingPasswordHasher<TUser> passwordHasher,
+        IUserPasswordStore<TUser> passwordStore,
+        TUser user,
+        string password,
+        CancellationToken cancellationToken
+    )
+    {
+        // The hash is made with the user manager's normalizing hasher and stored through the user store, so no password
+        // validator of ASP.NET Core Identity judges a password the password policy accepted. See ADR-1238.
+        var passwordHash = passwordHasher.HashPassword(user, password);
+        await passwordStore.SetPasswordHashAsync(user, passwordHash, cancellationToken);
+    }
+
+    private static async ValueTask<string?> GetVerifiablePasswordHashAsync(
+        UserManager<TUser> userManager,
+        IUserPasswordStore<TUser> passwordStore,
+        TUser user,
+        CancellationToken cancellationToken
+    )
+    {
+        // A locked-out user's password is not verified: the lockout defends against guessing, so a correct password must
+        // not be told apart from a wrong one. See ADR-1229.
+        if (userManager.SupportsUserLockout && await userManager.IsLockedOutAsync(user))
+        {
+            return null;
+        }
+
+        // An empty hash is no password, as in the Entity Framework store; the host's hasher would refuse it without the
+        // work of a verification. See ADR-1239.
+        var passwordHash = await passwordStore.GetPasswordHashAsync(user, cancellationToken);
+        return string.IsNullOrEmpty(passwordHash) ? null : passwordHash;
+    }
+
+    // ASP.NET Core Identity's credential API is string-based, so the credential is decoded to a string only here.
+    private static string DecodePassword(ReadOnlyMemory<byte> password) =>
+        SecureEncoding.UTF8.GetString(password.Span);
+
+    private static void ThrowIfFailed(IdentityResult result, string action)
+    {
+        if (result.Succeeded)
+        {
+            return;
+        }
+
+        var errors = string.Join("; ", result.Errors.Select(error => error.Description));
+        throw new InvalidOperationException($"Failed to {action}: {errors}");
+    }
+
     private IServiceScopeFactory ServiceScopeFactory { get; } = serviceScopeFactory;
     private IStoreProvider StoreProvider { get; } = storeProvider;
     private AspNetIdentityDummyPasswordHash<TUser> DummyPasswordHash { get; } = dummyPasswordHash;
@@ -494,75 +678,6 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         }
     }
 
-    private static async ValueTask<PersistedLocalAccount> MapAsync(
-        UserManager<TUser> userManager,
-        TUser user,
-        CancellationToken cancellationToken
-    )
-    {
-        var claims = await userManager.GetClaimsAsync(user);
-        var isEnabled =
-            !userManager.SupportsUserLockout || !await userManager.IsLockedOutAsync(user);
-
-        return new PersistedLocalAccount
-        {
-            // The store has restricted the user to the ambient tenant; the grant authenticates against the request's tenant.
-            TenantId = string.Empty,
-            LocalAccountId = user.Id,
-            UserName = user.UserName ?? string.Empty,
-            Email = user.Email,
-            EmailVerified = user.EmailConfirmed,
-            SecurityStamp = user.SecurityStamp ?? string.Empty,
-            IsEnabled = isEnabled,
-            Claims = claims
-                .Select(claim => new PersistedLocalAccountClaim
-                {
-                    Type = claim.Type,
-                    Value = claim.Value,
-                })
-                .ToList(),
-            ConcurrencyToken = user.ConcurrencyStamp ?? string.Empty,
-        };
-    }
-
-    private static async ValueTask EnableAsync(
-        UserManager<TUser> userManager,
-        TUser user,
-        CancellationToken cancellationToken
-    )
-    {
-        if (userManager.SupportsUserLockout)
-        {
-            ThrowIfFailed(
-                await userManager.SetLockoutEndDateAsync(user, lockoutEnd: null),
-                "enable the local account"
-            );
-        }
-    }
-
-    private static async ValueTask DisableAsync(
-        UserManager<TUser> userManager,
-        TUser user,
-        CancellationToken cancellationToken
-    )
-    {
-        if (!userManager.SupportsUserLockout)
-        {
-            throw new NotSupportedException(
-                "The configured ASP.NET Core Identity store does not support lockout, which is required to disable a local account."
-            );
-        }
-
-        ThrowIfFailed(
-            await userManager.SetLockoutEnabledAsync(user, enabled: true),
-            "enable lockout for the local account"
-        );
-        ThrowIfFailed(
-            await userManager.SetLockoutEndDateAsync(user, DateTimeOffset.MaxValue),
-            "disable the local account"
-        );
-    }
-
     /// <summary>
     /// Finds a user by identifier within the ambient tenant, and requires that it exists.
     /// </summary>
@@ -648,58 +763,6 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         );
 
     /// <summary>
-    /// Reads the first user of a query, asynchronously when the provider offers <see cref="IAsyncEnumerable{T}"/> (this
-    /// package does not reference EF Core) and synchronously for an in-memory store.
-    /// </summary>
-    /// <param name="query">The query to read.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The first user that the query yields, or <c>null</c> when it yields none.</returns>
-    private static async ValueTask<TUser?> FirstOrDefaultAsync(
-        IQueryable<TUser> query,
-        CancellationToken cancellationToken
-    )
-    {
-        var first = query.Take(1);
-        if (first is not IAsyncEnumerable<TUser> asyncUsers)
-        {
-            return first.FirstOrDefault();
-        }
-
-        await foreach (var user in asyncUsers.WithCancellation(cancellationToken))
-        {
-            return user;
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Reads a query into a list, asynchronously when the provider offers <see cref="IAsyncEnumerable{T}"/> and
-    /// synchronously otherwise.
-    /// </summary>
-    /// <param name="query">The query to read.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The users that the query yields, which is an empty list when it yields none.</returns>
-    private static async ValueTask<List<TUser>> ToListAsync(
-        IQueryable<TUser> query,
-        CancellationToken cancellationToken
-    )
-    {
-        if (query is not IAsyncEnumerable<TUser> asyncUsers)
-        {
-            return query.ToList();
-        }
-
-        var users = new List<TUser>();
-        await foreach (var user in asyncUsers.WithCancellation(cancellationToken))
-        {
-            users.Add(user);
-        }
-
-        return users;
-    }
-
-    /// <summary>
     /// Finds a user by user name inside the ambient tenant scope. A user name is unique only within a tenant, so an
     /// unset scope finds nothing, and an unscoped scope is rejected.
     /// </summary>
@@ -730,68 +793,5 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         return user is not null && string.Equals(user.TenantId, tenantId, StringComparison.Ordinal)
             ? user
             : null;
-    }
-
-    private static IUserPasswordStore<TUser> GetPasswordStore(IServiceProvider serviceProvider) =>
-        serviceProvider.GetRequiredService<IUserStore<TUser>>() as IUserPasswordStore<TUser>
-        ?? throw new NotSupportedException(
-            "The configured ASP.NET Core Identity store does not store passwords, which a local account's password requires."
-        );
-
-    private static NormalizingPasswordHasher<TUser> GetPasswordHasher(
-        UserManager<TUser> userManager
-    ) =>
-        userManager.PasswordHasher as NormalizingPasswordHasher<TUser>
-        ?? throw new InvalidOperationException(
-            $"The password hasher of UserManager<{typeof(TUser).Name}> is not a NormalizingPasswordHasher, so it would not hash and verify the NFC form of a password. Register the host's IPasswordHasher<TUser> before AddAspNetIdentityLocalAccountStore, or wrap it in NormalizingPasswordHasher<TUser>."
-        );
-
-    private static async ValueTask SetPasswordHashAsync(
-        NormalizingPasswordHasher<TUser> passwordHasher,
-        IUserPasswordStore<TUser> passwordStore,
-        TUser user,
-        string password,
-        CancellationToken cancellationToken
-    )
-    {
-        // The hash is made with the user manager's normalizing hasher and stored through the user store, so no password
-        // validator of ASP.NET Core Identity judges a password the password policy accepted. See ADR-1238.
-        var passwordHash = passwordHasher.HashPassword(user, password);
-        await passwordStore.SetPasswordHashAsync(user, passwordHash, cancellationToken);
-    }
-
-    private static async ValueTask<string?> GetVerifiablePasswordHashAsync(
-        UserManager<TUser> userManager,
-        IUserPasswordStore<TUser> passwordStore,
-        TUser user,
-        CancellationToken cancellationToken
-    )
-    {
-        // A locked-out user's password is not verified: the lockout defends against guessing, so a correct password must
-        // not be told apart from a wrong one. See ADR-1229.
-        if (userManager.SupportsUserLockout && await userManager.IsLockedOutAsync(user))
-        {
-            return null;
-        }
-
-        // An empty hash is no password, as in the Entity Framework store; the host's hasher would refuse it without the
-        // work of a verification. See ADR-1239.
-        var passwordHash = await passwordStore.GetPasswordHashAsync(user, cancellationToken);
-        return string.IsNullOrEmpty(passwordHash) ? null : passwordHash;
-    }
-
-    // ASP.NET Core Identity's credential API is string-based, so the credential is decoded to a string only here.
-    private static string DecodePassword(ReadOnlyMemory<byte> password) =>
-        SecureEncoding.UTF8.GetString(password.Span);
-
-    private static void ThrowIfFailed(IdentityResult result, string action)
-    {
-        if (result.Succeeded)
-        {
-            return;
-        }
-
-        var errors = string.Join("; ", result.Errors.Select(error => error.Description));
-        throw new InvalidOperationException($"Failed to {action}: {errors}");
     }
 }
