@@ -104,6 +104,12 @@ internal class DefaultIssuerAccessTokenValidator(
         }
     }
 
+    /// <summary>
+    /// Builds the failed validation result with the given error.
+    /// </summary>
+    /// <param name="failureCode">The <see cref="TokenValidationFailureCodes"/> value that names the failure.</param>
+    /// <param name="reason">The description of why the access token failed validation.</param>
+    /// <returns>The failed <see cref="IssuerAccessTokenResult"/>.</returns>
     private static IssuerAccessTokenResult Fail(string failureCode, string reason) =>
         new(failureCode, reason);
 }
