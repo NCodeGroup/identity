@@ -29,7 +29,6 @@ internal sealed class RemoteManagementTokenValidator(
 {
     private const string BearerPrefix = "Bearer ";
     private const string DPoPPrefix = "DPoP ";
-    private const string ManagementAudience = "urn:ncode:management";
     private const string AuthenticationType = "ControlPlaneBearer";
     private const string ConfirmationKeyThumbprint = "jkt";
     private const string ReplayKeyPrefix = "dpop-jti:";
@@ -60,7 +59,7 @@ internal sealed class RemoteManagementTokenValidator(
 
         var result = await AccessTokenValidator.ValidateAsync(
             issuer,
-            ManagementAudience,
+            OpenIdConstants.SystemResourceServerIdentifiers.Management,
             token,
             cancellationToken
         );
