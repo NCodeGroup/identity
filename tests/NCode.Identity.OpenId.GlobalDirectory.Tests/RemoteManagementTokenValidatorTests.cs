@@ -19,6 +19,7 @@ public class RemoteManagementTokenValidatorTests : BaseTests
 {
     private const string Issuer = "https://control-plane.example.test";
     private const string ManagementUrl = "https://cell-a.example.test/ignored";
+    private const string CellName = "cell-a";
     private const string Audience = "urn:ncode:management";
     private const string AccessToken = "access-token";
     private const string ProofJwt = "header.payload.signature";
@@ -53,6 +54,7 @@ public class RemoteManagementTokenValidatorTests : BaseTests
             Options.Create(
                 new CellOptions
                 {
+                    Name = CellName,
                     ManagementUrl = managementUrl,
                     ControlPlane = new ControlPlaneOptions { Issuer = issuer },
                 }
@@ -82,7 +84,7 @@ public class RemoteManagementTokenValidatorTests : BaseTests
     private static string CreateBoundPayload(string thumbprint = Thumbprint) =>
         $$$"""{"sub":"user-1","client_id":"client-1","scope":"a b","cnf":{"jkt":"{{{thumbprint}}}"}}""";
 
-    private static DPoPProof CreateProof(string thumbprint = Thumbprint) =>
+    private static DPoPProof CreateProof(string thumbprint = Thumbprint, string jti = Jti) =>
         new()
         {
             Algorithm = "ES256",
@@ -90,7 +92,7 @@ public class RemoteManagementTokenValidatorTests : BaseTests
                 JsonElement.Parse("""{"kty":"EC","crv":"P-256","x":"x","y":"y"}""")
             ),
             JwkThumbprint = thumbprint,
-            Jti = Jti,
+            Jti = jti,
             IssuedAt = IssuedAt,
         };
 
@@ -123,17 +125,17 @@ public class RemoteManagementTokenValidatorTests : BaseTests
             .Returns(proof is not null)
             .Verifiable(Times.Once);
 
-    private void SetupReplayKeys(bool added) =>
+    private void SetupReplayKeys(bool added)
+    {
+        var expectedKey = ExpiringKeys.Create("management_dpop_jti", CellName, Thumbprint, Jti);
+
         ReplayKeysMock
             .Setup(x =>
-                x.TryAddAsync(
-                    $"dpop-jti:{Thumbprint}:{Jti}",
-                    IssuedAt + Lifetime,
-                    It.IsAny<CancellationToken>()
-                )
+                x.TryAddAsync(expectedKey, IssuedAt + Lifetime, It.IsAny<CancellationToken>())
             )
             .ReturnsAsync(added)
             .Verifiable(Times.Once);
+    }
 
     #endregion
 
@@ -383,6 +385,31 @@ public class RemoteManagementTokenValidatorTests : BaseTests
         Assert.Equal("user-1", identity.FindFirst("sub")?.Value);
         Assert.Equal("client-1", identity.FindFirst("client_id")?.Value);
         Assert.Equal("a b", Assert.Single(identity.FindAll("scope")).Value);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_WhenTheProofsJtiIsLong_RecordsAKeyOfBoundedLength()
+    {
+        SetupAccessTokenValidator(CreateValid(CreateBoundPayload()));
+        SetupProofService(CreateProof(jti: new string('j', 4_000)));
+        ReplayKeysMock
+            .Setup(x =>
+                x.TryAddAsync(
+                    It.Is<string>(key => key.Length < 100),
+                    IssuedAt + Lifetime,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(true)
+            .Verifiable(Times.Once);
+
+        var validation = await CreateValidator()
+            .ValidateAsync(
+                CreateHttpContext($"DPoP {AccessToken}", ProofJwt),
+                CancellationToken.None
+            );
+
+        Assert.True(validation.IsAuthenticated);
     }
 
     #endregion

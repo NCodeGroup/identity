@@ -31,7 +31,12 @@ internal sealed class RemoteManagementTokenValidator(
     private const string DPoPPrefix = "DPoP ";
     private const string AuthenticationType = "ControlPlaneBearer";
     private const string ConfirmationKeyThumbprint = "jkt";
-    private const string ReplayKeyPrefix = "dpop-jti:";
+
+    /// <summary>
+    /// The kind of record that the management DPoP replay keys hold.
+    /// </summary>
+    private const string ReplayPurpose = "management_dpop_jti";
+
     private const int ProofLifetimeSeconds = 60;
 
     private static TimeSpan ProofLifetime { get; } = TimeSpan.FromSeconds(ProofLifetimeSeconds);
@@ -233,11 +238,15 @@ internal sealed class RemoteManagementTokenValidator(
         if (!string.Equals(proof.JwkThumbprint, thumbprint, StringComparison.Ordinal))
             return false;
 
-        // A proof is accepted once within its window (RFC 9449 §11.1).
-        return await ReplayKeys.TryAddAsync(
-            $"{ReplayKeyPrefix}{proof.JwkThumbprint}:{proof.Jti}",
-            proof.IssuedAt + ProofLifetime,
-            cancellationToken
+        // The key is a digest of the length-prefixed thumbprint and jti, so a caller's jti cannot lengthen it.
+        var key = ExpiringKeys.Create(
+            ReplayPurpose,
+            CellOptions.Name,
+            proof.JwkThumbprint,
+            proof.Jti
         );
+
+        // A proof is accepted once within its window (RFC 9449 §11.1).
+        return await ReplayKeys.TryAddAsync(key, proof.IssuedAt + ProofLifetime, cancellationToken);
     }
 }
