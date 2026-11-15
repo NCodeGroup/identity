@@ -78,7 +78,8 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
    change touches, so the settings cascade resolves the same way in every cell. A tenant never moves between teams. The
    directory numbers its changes from a counter row that each change-writing transaction increments, so the writers
    serialize on the row, the commit order equals the sequence order, and a reader that has seen a sequence never misses
-   a smaller one.
+   a smaller one. The feed holds each team's and the platform's latest change, each carrying the whole document or the
+   retire, so it stays bounded by the number of teams, and a cell reading from the start reads every current document.
 6. **Tenant scoping fails closed inside a cell.** The ambient tenant has three states: unset, a tenant, and unscoped
    with a stated reason. The global query filter matches a tenant-bound row only when the scope is unscoped or names the
    row's tenant, so a query with no scope matches nothing, and every caller that reads across tenants opens an explicit,

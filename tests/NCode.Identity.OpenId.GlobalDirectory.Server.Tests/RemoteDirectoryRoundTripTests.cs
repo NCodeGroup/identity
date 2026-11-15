@@ -586,11 +586,12 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
     public async Task ListChangesAsync_WithTeamAndPlatformChanges_PagesTheChangesByAfter()
     {
         await Teams.PublishAsync(CreateTeam("team-1"), CancellationToken.None);
+        await Teams.PublishAsync(CreateTeam("team-2"), CancellationToken.None);
         await Platform.PublishAsync(
             new PlatformDocument { SettingsJson = SettingsWithLimit(5) },
             CancellationToken.None
         );
-        await Teams.RetireAsync("team-1", CancellationToken.None);
+        await Teams.RetireAsync("team-2", CancellationToken.None);
 
         var firstPage = await Teams.ListChangesAsync(0, 2, CancellationToken.None);
         var secondPage = await Teams.ListChangesAsync(
@@ -612,7 +613,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
         Assert.Equal(SettingsWithLimit(5), platformChange.Platform.SettingsJson);
         Assert.True(platformChange.Sequence > teamChange.Sequence);
         var retirement = Assert.Single(secondPage);
-        Assert.Equal("team-1", retirement.TeamId);
+        Assert.Equal("team-2", retirement.TeamId);
         Assert.Null(retirement.Document);
         Assert.Null(retirement.Platform);
         Assert.True(retirement.Sequence > platformChange.Sequence);

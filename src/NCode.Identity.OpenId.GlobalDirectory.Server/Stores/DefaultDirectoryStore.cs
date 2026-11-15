@@ -1332,6 +1332,16 @@ internal sealed class DefaultDirectoryStore(
                         TeamId = document.TeamId,
                         DocumentJson = documentJson,
                     };
+
+                    // A change carries the team's whole document, so the feed keeps only the team's latest change,
+                    // whose sequence the team row holds.
+                    if (team is { Sequence: > 0 })
+                    {
+                        var previousSequence = team.Sequence;
+                        await dbContext
+                            .Changes.Where(entity => entity.Sequence == previousSequence)
+                            .ExecuteDeleteAsync(token);
+                    }
                     dbContext.Changes.Add(change);
                     await dbContext.SaveChangesAsync(token);
 
@@ -1429,6 +1439,16 @@ internal sealed class DefaultDirectoryStore(
                         TeamId = teamId,
                         DocumentJson = null,
                     };
+
+                    // The retire is the team's last state, so the feed keeps only it in place of the team's latest
+                    // change, whose sequence the team row holds.
+                    if (team is { Sequence: > 0 })
+                    {
+                        var previousSequence = team.Sequence;
+                        await dbContext
+                            .Changes.Where(entity => entity.Sequence == previousSequence)
+                            .ExecuteDeleteAsync(token);
+                    }
                     dbContext.Changes.Add(change);
                     await dbContext.SaveChangesAsync(token);
 
@@ -1694,6 +1714,11 @@ internal sealed class DefaultDirectoryStore(
                         TeamId = null,
                         DocumentJson = documentJson,
                     };
+
+                    // A change carries the platform's whole document, so the feed keeps only the platform's latest change.
+                    await dbContext
+                        .Changes.Where(entity => entity.TeamId == null)
+                        .ExecuteDeleteAsync(token);
                     dbContext.Changes.Add(change);
                     await dbContext.SaveChangesAsync(token);
 

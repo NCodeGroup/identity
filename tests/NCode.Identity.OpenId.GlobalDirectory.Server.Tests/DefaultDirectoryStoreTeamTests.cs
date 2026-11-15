@@ -175,6 +175,21 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
         Assert.Single(changes);
     }
 
+    [Fact]
+    public async Task PublishAsync_WhenTheTeamWasPublishedBefore_KeepsOnlyItsLatestChange()
+    {
+        await PublishTeamAsync("team-1");
+        await PublishTeamAsync("team-2");
+
+        await PublishTeamAsync("TEAM-1", maxTenants: 2);
+
+        var changes = await Teams.ListChangesAsync(0, 10, CancellationToken.None);
+        Assert.Equal([2L, 3L], changes.Select(change => change.Sequence));
+        Assert.Equal("team-2", changes[0].TeamId);
+        Assert.Equal("TEAM-1", changes[1].TeamId);
+        Assert.Equal(SettingsWithLimit(2), changes[1].Document?.SettingsJson);
+    }
+
     #endregion
 
     #region RetireAsync Tests
@@ -207,6 +222,22 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
 
         var changes = await Teams.ListChangesAsync(0, 10, CancellationToken.None);
         Assert.Single(changes);
+    }
+
+    [Fact]
+    public async Task RetireAsync_WhenTheTeamWasPublished_KeepsOnlyTheRetire()
+    {
+        await PublishTeamAsync("team-1");
+        await PublishTeamAsync("team-2");
+
+        await Teams.RetireAsync("TEAM-1", CancellationToken.None);
+
+        var changes = await Teams.ListChangesAsync(0, 10, CancellationToken.None);
+        Assert.Equal([2L, 3L], changes.Select(change => change.Sequence));
+        Assert.Equal("team-2", changes[0].TeamId);
+        Assert.NotNull(changes[0].Document);
+        Assert.Equal("TEAM-1", changes[1].TeamId);
+        Assert.Null(changes[1].Document);
     }
 
     #endregion
@@ -243,8 +274,9 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
     public async Task ListChangesAsync_WhenTeamsAndThePlatformChange_ReturnsTheChangesInSequence()
     {
         await PublishTeamAsync("team-1", parentTeamId: "team-0");
+        await PublishTeamAsync("team-2");
         await PublishPlatformAsync(maxTenants: 4);
-        await Teams.RetireAsync("team-1", CancellationToken.None);
+        await Teams.RetireAsync("team-2", CancellationToken.None);
 
         var changes = await Teams.ListChangesAsync(0, 10, CancellationToken.None);
 
@@ -257,21 +289,21 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
         Assert.Equal("team-0", changes[0].Document?.ParentTeamId);
         Assert.Null(changes[0].Platform);
 
-        Assert.Equal(2, changes[1].Sequence);
+        Assert.Equal(3, changes[1].Sequence);
         Assert.Null(changes[1].TeamId);
         Assert.Null(changes[1].Document);
         Assert.NotNull(changes[1].Platform);
-        Assert.Equal(2, changes[1].Platform?.Sequence);
+        Assert.Equal(3, changes[1].Platform?.Sequence);
         Assert.Equal(SettingsWithLimit(4), changes[1].Platform?.SettingsJson);
 
-        Assert.Equal(3, changes[2].Sequence);
-        Assert.Equal("team-1", changes[2].TeamId);
+        Assert.Equal(4, changes[2].Sequence);
+        Assert.Equal("team-2", changes[2].TeamId);
         Assert.Null(changes[2].Document);
         Assert.Null(changes[2].Platform);
     }
 
     [Fact]
-    public async Task ListChangesAsync_WhenPublishesARetireAndAPlatformPublishInterleave_ReturnsContiguousSequences()
+    public async Task ListChangesAsync_WhenPublishesARetireAndAPlatformPublishInterleave_ReturnsEachLatestChangeInSequence()
     {
         await PublishTeamAsync("team-1");
         await PublishTeamAsync("team-2");
@@ -283,11 +315,11 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
 
         var changes = await Teams.ListChangesAsync(0, 10, CancellationToken.None);
 
-        Assert.Equal([1L, 2L, 3L, 4L, 5L, 6L, 7L], changes.Select(change => change.Sequence));
-        Assert.Equal(
-            ["team-1", "team-2", "team-1", null, "team-2", null, "team-3"],
-            changes.Select(change => change.TeamId)
-        );
+        Assert.Equal([3L, 5L, 6L, 7L], changes.Select(change => change.Sequence));
+        Assert.Equal(["team-1", "team-2", null, "team-3"], changes.Select(change => change.TeamId));
+        Assert.Null(changes[0].Document);
+        Assert.Equal(SettingsWithLimit(2), changes[1].Document?.SettingsJson);
+        Assert.Equal(SettingsWithLimit(5), changes[2].Platform?.SettingsJson);
     }
 
     [Fact]

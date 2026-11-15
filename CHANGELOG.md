@@ -4177,7 +4177,9 @@ Until the first stable release, the [Unreleased] section describes the product a
 - **A directory host serves the global directory.** `NCode.Identity.OpenId.GlobalDirectory.Server` maps the endpoints
   under `/directory/v1/` (tenants, teams, the platform document, cells and the change feed) over its own
   `DirectoryDbContext`, and `hosts/NCode.Identity.OpenId.GlobalDirectory.Host` is the deployable, with its own Postgres
-  database, migrations and image (`directory-image.yml`). It accepts bearer tokens of the control-plane cell's issuer
+  database, migrations and image (`directory-image.yml`). The change feed holds each team's and the platform's latest
+  change, each carrying the whole document or the retire, so it stays bounded by the number of teams and a cell reading
+  from the start reads every current document. The host accepts bearer tokens of the control-plane cell's issuer
   (`DirectoryServer:Issuer`) for the audience `urn:ncode:directory` and the scope `directory`. Each cell authenticates
   as the machine client `cell-{name}` of the control-plane cell's root tenant (`private_key_jwt`; `Directory:ClientId`
   and `Directory:KeyRing`, whose keys `KeyRings:{name}` holds), which `POST /api/platform/clients` registers with a
