@@ -128,6 +128,8 @@ without the cookie.**
 - Losing the cookie loses the session: nothing on the server can recover it, by design.
 - A host composes the BFF in one call, `AddIdentityBff(configuration)` from `NCode.Identity.Bff.Server`, or composes
   the six libraries (secrets, JOSE, JWT, protocol client, events and shared state) itself before `AddBffLibrary`.
+  The one-call composition refuses an empty or wildcard `AllowedHosts` at startup unless `LocalDevelopment:Enabled` is
+  set.
 - `IdTokenValidationResult.Identity` is public surface of the protocol client.
 
 ## References

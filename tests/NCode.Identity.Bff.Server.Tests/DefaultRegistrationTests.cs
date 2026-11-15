@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using Microsoft.AspNetCore.HostFiltering;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
@@ -199,6 +200,29 @@ public class DefaultRegistrationTests : BaseTests
                 && x.IsKeyedService
                 && Equals(x.ServiceKey, "client-ring")
         );
+    }
+
+    [Fact]
+    public async Task AddIdentityBff_WithoutAllowedHostsAndTheSwitchOff_FailsWhenTheHostFilteringOptionsAreRead()
+    {
+        var serviceCollection = CreateServices();
+        serviceCollection.AddIdentityBff(CreateConfiguration());
+
+        await using var provider = serviceCollection.BuildServiceProvider();
+        var accessor = provider.GetRequiredService<IOptions<HostFilteringOptions>>();
+
+        Assert.Throws<OptionsValidationException>(() => accessor.Value);
+    }
+
+    [Fact]
+    public async Task AddIdentityBff_WithoutAllowedHostsAndTheSwitchOn_AcceptsTheHostFilteringOptions()
+    {
+        var serviceCollection = CreateServices();
+        serviceCollection.AddIdentityBff(CreateConfiguration(localDevelopment: true));
+
+        await using var provider = serviceCollection.BuildServiceProvider();
+
+        Assert.NotNull(provider.GetRequiredService<IOptions<HostFilteringOptions>>().Value);
     }
 
     [Fact]

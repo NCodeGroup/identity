@@ -2875,7 +2875,8 @@ Until the first stable release, the [Unreleased] section describes the product a
   `AddIdentityBff(configuration)` composes the shared-state (in-process by default), events, secrets, JOSE, JWT,
   protocol-client and BFF libraries and binds the `Bff` section, and `IIdentityBffBuilder` exposes each library's
   builder, such as `SharedStateLibraryBuilder.AddValkey(configuration)` for several replicas, as `AddIdentityServer()`
-  does for the OP. The host registers the key rings its configuration names
+  does for the OP. The composition refuses an empty or wildcard `AllowedHosts` at startup unless
+  `LocalDevelopment:Enabled` is set. The host registers the key rings its configuration names
   ([#413](https://github.com/NCodeGroup/identity/issues/413),
   [ADR-1290](docs/decisions/1290-the-bff-keeps-each-session-as-an-encrypted-server-side-record-under-a-cookie-handle.md)).
 

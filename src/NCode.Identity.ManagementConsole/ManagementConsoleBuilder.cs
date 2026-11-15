@@ -63,8 +63,6 @@ internal sealed class ManagementConsoleBuilder
             >()
         );
 
-        serviceCollection.AddHostFilteringValidation(configuration);
-
         serviceCollection.TryAddSingleton<SinglePageBundle<ManagementConsolePage>>(CreateBundle);
         serviceCollection.TryAddSingleton<ManagementConsoleBootstrapHandler>();
         serviceCollection.TryAddSingleton<ManagementConsolePageHandler>();

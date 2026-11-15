@@ -115,9 +115,9 @@ management API at `/api` on the origin of its authority.**
      ([ADR-1026](1026-resource-servers-own-scopes-settings-and-keys-and-decide-a-clients-scopes-and-token-audiences.md)).
    - `UserInfo:Load`, and `UserClaims` `preferred_username` and `email` for `/bff/user`.
    - `ReturnUrls` `/`.
-9. **Host filtering.** `AddHostFilteringValidation` in `NCode.Identity.AspNetCore`, which the console and the global
-   directory both call, refuses an empty or wildcard `AllowedHosts` at startup unless `LocalDevelopment:Enabled` is
-   set, so a deployment lists its own host names.
+9. **Host filtering.** `AddHostFilteringValidation` in `NCode.Identity.AspNetCore`, which `AddIdentityBff` (and so the
+   console) and the global directory call, refuses an empty or wildcard `AllowedHosts` at startup unless
+   `LocalDevelopment:Enabled` is set, so a deployment lists its own host names.
 10. **Local development.** The AppHost ([ADR-1071](1071-the-aspire-apphost-runs-the-local-stack-in-health-gated-order-after-checking-the-frontend-toolchain.md))
    runs the console host on `https://localhost:5005` and `http://localhost:5004`. It generates per-machine P-256 keys
    `mgmt-client.pem` and `mgmt-dpop.pem` beside the other development secrets, passes their paths to the console as
