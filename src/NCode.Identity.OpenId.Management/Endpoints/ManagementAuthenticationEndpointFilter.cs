@@ -4,6 +4,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using NCode.Identity.Jose;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.ControlPlane;
 
@@ -18,14 +19,19 @@ namespace NCode.Identity.OpenId.Management.Endpoints;
 /// scheme set, and carries no feature; the imperative authorization returns <c>401</c>/<c>403</c>. When the validator
 /// cannot validate the token because the control plane that validates it is unavailable, the filter answers
 /// <c>503 Service Unavailable</c> with a <c>Retry-After</c> and does not call the endpoint. The same answer covers an endpoint
-/// whose authorization asks <see cref="IControlPlaneAuthority"/> for a role while the control plane is unavailable.
+/// whose authorization asks <see cref="IControlPlaneAuthority"/> for a role while the control plane is unavailable. For
+/// an authenticated caller the filter also asks <see cref="IControlPlaneAuthority"/>, once, whether the caller is a
+/// client acting for itself and keeps the answer on <see cref="ManagementActorFeature"/>; an unavailable control plane
+/// there keeps "not acting client" and does not fail the request.
 /// </summary>
 // See ADR-1466 and ADR-1044.
 internal sealed class ManagementAuthenticationEndpointFilter(
-    IManagementTokenValidator tokenValidator
+    IManagementTokenValidator tokenValidator,
+    IControlPlaneAuthority controlPlaneAuthority
 ) : IEndpointFilter
 {
     private IManagementTokenValidator TokenValidator { get; } = tokenValidator;
+    private IControlPlaneAuthority ControlPlaneAuthority { get; } = controlPlaneAuthority;
 
     /// <inheritdoc />
     public async ValueTask<object?> InvokeAsync(
@@ -57,12 +63,16 @@ internal sealed class ManagementAuthenticationEndpointFilter(
             httpContext.User = caller;
             var callerFeature = new DefaultManagementCallerFeature(caller);
             httpContext.Features.Set<IManagementCallerFeature>(callerFeature);
+
+            var isActingClient = await IsActingClientAsync(caller, httpContext.RequestAborted);
+            httpContext.Features.Set(new ManagementActorFeature(isActingClient));
         }
         else
         {
             var anonymousIdentity = new ClaimsIdentity();
             httpContext.User = new ClaimsPrincipal(anonymousIdentity);
             httpContext.Features.Set<IManagementCallerFeature>(null);
+            httpContext.Features.Set<ManagementActorFeature>(null);
         }
 
         try
@@ -81,6 +91,37 @@ internal sealed class ManagementAuthenticationEndpointFilter(
                         "The control plane that holds the platform and team roles is unavailable.",
                 }
             );
+        }
+    }
+
+    // Only the control plane can tell whether the subject is the principal of the requesting client, and a client that
+    // deletes itself is gone once the change commits, so the answer is resolved here, before the handler runs. When the
+    // control plane is unavailable the caller is not an acting client, and the authorization handlers answer their own
+    // 503.
+    private async ValueTask<bool> IsActingClientAsync(
+        ClaimsPrincipal caller,
+        CancellationToken cancellationToken
+    )
+    {
+        var subject = caller.FindFirstValue(JoseClaimNames.Payload.Sub);
+        var clientId = caller.FindFirstValue(JoseClaimNames.Payload.ClientId);
+        if (string.IsNullOrEmpty(subject) || string.IsNullOrEmpty(clientId))
+        {
+            return false;
+        }
+
+        try
+        {
+            var authority = await ControlPlaneAuthority.GetAsync(
+                new ControlPlaneAuthorityRequest { Subject = subject, ClientId = clientId },
+                cancellationToken
+            );
+
+            return authority.IsActingClient;
+        }
+        catch (DirectoryUnavailableException)
+        {
+            return false;
         }
     }
 }

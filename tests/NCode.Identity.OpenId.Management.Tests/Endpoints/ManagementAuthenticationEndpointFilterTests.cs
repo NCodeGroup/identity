@@ -17,6 +17,8 @@ public sealed class ManagementAuthenticationEndpointFilterTests : IDisposable
 
     private Mock<IManagementTokenValidator> MockTokenValidator { get; }
 
+    private Mock<IControlPlaneAuthority> MockControlPlaneAuthority { get; }
+
     private DefaultHttpContext HttpContext { get; } = new();
 
     private ManagementAuthenticationEndpointFilter Filter { get; }
@@ -24,8 +26,12 @@ public sealed class ManagementAuthenticationEndpointFilterTests : IDisposable
     public ManagementAuthenticationEndpointFilterTests()
     {
         MockTokenValidator = MockRepository.Create<IManagementTokenValidator>();
+        MockControlPlaneAuthority = MockRepository.Create<IControlPlaneAuthority>();
 
-        Filter = new ManagementAuthenticationEndpointFilter(MockTokenValidator.Object);
+        Filter = new ManagementAuthenticationEndpointFilter(
+            MockTokenValidator.Object,
+            MockControlPlaneAuthority.Object
+        );
     }
 
     private void SetupValidation(ManagementTokenValidation validation)
@@ -53,6 +59,113 @@ public sealed class ManagementAuthenticationEndpointFilterTests : IDisposable
         Assert.Same(expected, result);
         Assert.Same(principal, HttpContext.User);
         Assert.Same(principal, HttpContext.Features.Get<IManagementCallerFeature>()?.Caller);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_WhenTheCallerIsTheActingClient_StoresTheAnswerOnTheActorFeature()
+    {
+        var principal = new ClaimsPrincipal(
+            new ClaimsIdentity(
+                [new Claim("sub", "principal-1"), new Claim("client_id", "client-1")],
+                "Bearer"
+            )
+        );
+        SetupValidation(ManagementTokenValidation.Authenticated(principal));
+        MockControlPlaneAuthority
+            .Setup(x =>
+                x.GetAsync(
+                    It.Is<ControlPlaneAuthorityRequest>(request =>
+                        request.Subject == "principal-1"
+                        && request.ClientId == "client-1"
+                        && request.TeamId == null
+                    ),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(
+                new ControlPlaneAuthority { PrincipalId = "principal-1", IsActingClient = true }
+            )
+            .Verifiable();
+
+        bool? isActingClient = null;
+        EndpointFilterDelegate next = _ =>
+        {
+            isActingClient = HttpContext.Features.Get<ManagementActorFeature>()?.IsActingClient;
+            return ValueTask.FromResult<object?>(TypedResults.NoContent());
+        };
+        var context = EndpointFilterInvocationContext.Create(HttpContext);
+
+        await Filter.InvokeAsync(context, next);
+
+        Assert.True(isActingClient);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_WhenTheCallerIsNotTheActingClient_StoresFalseOnTheActorFeature()
+    {
+        var principal = new ClaimsPrincipal(
+            new ClaimsIdentity(
+                [new Claim("sub", "admin-1"), new Claim("client_id", "client-1")],
+                "Bearer"
+            )
+        );
+        SetupValidation(ManagementTokenValidation.Authenticated(principal));
+        MockControlPlaneAuthority
+            .Setup(x =>
+                x.GetAsync(It.IsAny<ControlPlaneAuthorityRequest>(), It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(new ControlPlaneAuthority { PrincipalId = "admin-1" })
+            .Verifiable();
+
+        EndpointFilterDelegate next = _ => ValueTask.FromResult<object?>(TypedResults.NoContent());
+        var context = EndpointFilterInvocationContext.Create(HttpContext);
+
+        await Filter.InvokeAsync(context, next);
+
+        Assert.False(HttpContext.Features.Get<ManagementActorFeature>()?.IsActingClient);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_WhenTheAuthorityIsUnavailable_StoresFalseAndCallsTheRoute()
+    {
+        var principal = new ClaimsPrincipal(
+            new ClaimsIdentity(
+                [new Claim("sub", "admin-1"), new Claim("client_id", "client-1")],
+                "Bearer"
+            )
+        );
+        SetupValidation(ManagementTokenValidation.Authenticated(principal));
+        MockControlPlaneAuthority
+            .Setup(x =>
+                x.GetAsync(It.IsAny<ControlPlaneAuthorityRequest>(), It.IsAny<CancellationToken>())
+            )
+            .ThrowsAsync(new DirectoryUnavailableException("The control plane is unavailable."))
+            .Verifiable();
+
+        var expected = TypedResults.NoContent();
+        EndpointFilterDelegate next = _ => ValueTask.FromResult<object?>(expected);
+        var context = EndpointFilterInvocationContext.Create(HttpContext);
+
+        var result = await Filter.InvokeAsync(context, next);
+
+        Assert.Same(expected, result);
+        Assert.False(HttpContext.Features.Get<ManagementActorFeature>()?.IsActingClient);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_WhenTheCallerHasNoClientId_StoresFalseWithoutAskingTheAuthority()
+    {
+        var principal = new ClaimsPrincipal(
+            new ClaimsIdentity([new Claim("sub", "admin-1")], "Bearer")
+        );
+        SetupValidation(ManagementTokenValidation.Authenticated(principal));
+
+        EndpointFilterDelegate next = _ => ValueTask.FromResult<object?>(TypedResults.NoContent());
+        var context = EndpointFilterInvocationContext.Create(HttpContext);
+
+        await Filter.InvokeAsync(context, next);
+
+        Assert.False(HttpContext.Features.Get<ManagementActorFeature>()?.IsActingClient);
     }
 
     [Fact]

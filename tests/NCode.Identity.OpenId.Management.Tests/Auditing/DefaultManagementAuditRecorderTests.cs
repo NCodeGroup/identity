@@ -11,8 +11,7 @@ using NCode.Identity.Events;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Environments;
-using NCode.Identity.OpenId.GlobalDirectory;
-using NCode.Identity.OpenId.Management.ControlPlane;
+using NCode.Identity.OpenId.Management.Endpoints;
 using NCode.Identity.OpenId.Management.Logging;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Secrets.Persistence.Auditing;
@@ -82,18 +81,14 @@ public sealed class DefaultManagementAuditRecorderTests : IDisposable
 
     // The actor id is derived through the host-configured environment seam; mirror the default `sub` extraction.
     // A change in a tenant whose event carries no environment type resolves the tenant's; a platform change or an event
-    // already stamped with one does not. The control-plane authority is asked who acts only when the request names both
-    // a subject and a client; the tests that expect an answer set it up on the mock they pass in.
+    // already stamped with one does not.
     private DefaultManagementAuditRecorder CreateRecorder(
         IEventPublisher eventPublisher,
         bool resolvesTenantEnvironment = true,
         ILogger<DefaultManagementAuditRecorder>? logger = null,
-        IManagementTenantEnvironmentResolver? tenantEnvironmentResolver = null,
-        Mock<IControlPlaneAuthority>? mockControlPlaneAuthority = null
+        IManagementTenantEnvironmentResolver? tenantEnvironmentResolver = null
     )
     {
-        mockControlPlaneAuthority ??= MockRepository.Create<IControlPlaneAuthority>();
-
         var mockEnvironment = MockRepository.Create<OpenIdEnvironment>();
         var mockEnvironmentProvider = MockRepository.Create<IOpenIdEnvironmentProvider>();
         mockEnvironment
@@ -133,7 +128,6 @@ public sealed class DefaultManagementAuditRecorderTests : IDisposable
             eventPublisher,
             mockEnvironmentProvider.Object,
             tenantEnvironmentResolver,
-            mockControlPlaneAuthority.Object,
             TimeProvider.System,
             logger ?? NullLogger<DefaultManagementAuditRecorder>.Instance
         );
@@ -430,7 +424,6 @@ public sealed class DefaultManagementAuditRecorderTests : IDisposable
 
     private async ValueTask<AuditActor> RecordGrantRevokedActorAsync(
         HttpContext httpContext,
-        Mock<IControlPlaneAuthority> mockControlPlaneAuthority,
         CancellationToken cancellationToken
     )
     {
@@ -447,10 +440,7 @@ public sealed class DefaultManagementAuditRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = CreateRecorder(
-            mockPublisher.Object,
-            mockControlPlaneAuthority: mockControlPlaneAuthority
-        );
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordGrantRevokedAsync(
             httpContext,
@@ -465,85 +455,34 @@ public sealed class DefaultManagementAuditRecorderTests : IDisposable
     }
 
     [Fact]
-    public async Task RecordGrantRevokedAsync_WhenAClientActsForItself_RecordsTheClientActor()
+    public async Task RecordGrantRevokedAsync_WhenTheFeatureSaysAClientActsForItself_RecordsTheClientActor()
     {
-        var mockAuthority = MockRepository.Create<IControlPlaneAuthority>();
-        mockAuthority
-            .Setup(x =>
-                x.GetAsync(
-                    It.Is<ControlPlaneAuthorityRequest>(request =>
-                        request.Subject == "principal-1"
-                        && request.ClientId == "client-1"
-                        && request.TeamId == null
-                    ),
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .ReturnsAsync(
-                new ControlPlaneAuthority { PrincipalId = "principal-1", IsActingClient = true }
-            )
-            .Verifiable();
+        var httpContext = CreateHttpContext("principal-1", clientId: "client-1");
+        httpContext.Features.Set(new ManagementActorFeature(isActingClient: true));
 
-        var actor = await RecordGrantRevokedActorAsync(
-            CreateHttpContext("principal-1", clientId: "client-1"),
-            mockAuthority,
-            CancellationToken.None
-        );
+        var actor = await RecordGrantRevokedActorAsync(httpContext, CancellationToken.None);
 
         Assert.Equal(AuditActorTypes.Client, actor.Type);
         Assert.Equal("client-1", actor.Id);
     }
 
     [Fact]
-    public async Task RecordGrantRevokedAsync_WhenAUserActsThroughAClient_RecordsTheAdministrator()
+    public async Task RecordGrantRevokedAsync_WhenTheFeatureSaysAUserActsThroughAClient_RecordsTheAdministrator()
     {
-        var mockAuthority = MockRepository.Create<IControlPlaneAuthority>();
-        mockAuthority
-            .Setup(x =>
-                x.GetAsync(It.IsAny<ControlPlaneAuthorityRequest>(), It.IsAny<CancellationToken>())
-            )
-            .ReturnsAsync(new ControlPlaneAuthority { PrincipalId = "admin-1" })
-            .Verifiable();
+        var httpContext = CreateHttpContext("admin-1", clientId: "client-1");
+        httpContext.Features.Set(new ManagementActorFeature(isActingClient: false));
 
-        var actor = await RecordGrantRevokedActorAsync(
-            CreateHttpContext("admin-1", clientId: "client-1"),
-            mockAuthority,
-            CancellationToken.None
-        );
+        var actor = await RecordGrantRevokedActorAsync(httpContext, CancellationToken.None);
 
         Assert.Equal(AuditActorTypes.Administrator, actor.Type);
         Assert.Equal("admin-1", actor.Id);
     }
 
     [Fact]
-    public async Task RecordGrantRevokedAsync_WhenTheAuthorityIsUnavailable_RecordsTheAdministrator()
+    public async Task RecordGrantRevokedAsync_WithoutTheFeature_RecordsTheAdministrator()
     {
-        var mockAuthority = MockRepository.Create<IControlPlaneAuthority>();
-        mockAuthority
-            .Setup(x =>
-                x.GetAsync(It.IsAny<ControlPlaneAuthorityRequest>(), It.IsAny<CancellationToken>())
-            )
-            .ThrowsAsync(new DirectoryUnavailableException("The control plane is unavailable."))
-            .Verifiable();
-
         var actor = await RecordGrantRevokedActorAsync(
             CreateHttpContext("admin-1", clientId: "client-1"),
-            mockAuthority,
-            CancellationToken.None
-        );
-
-        Assert.Equal(AuditActorTypes.Administrator, actor.Type);
-        Assert.Equal("admin-1", actor.Id);
-    }
-
-    [Fact]
-    public async Task RecordGrantRevokedAsync_WithoutAClientId_RecordsTheAdministratorWithoutAskingTheAuthority()
-    {
-        var mockAuthority = MockRepository.Create<IControlPlaneAuthority>();
-
-        var actor = await RecordGrantRevokedActorAsync(
-            CreateHttpContext("admin-1"),
-            mockAuthority,
             CancellationToken.None
         );
 
