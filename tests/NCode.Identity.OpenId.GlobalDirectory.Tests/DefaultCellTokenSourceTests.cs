@@ -220,6 +220,54 @@ public class DefaultCellTokenSourceTests : BaseTests
     }
 
     [Fact]
+    public async Task GetAccessTokenAsync_WhileAnotherAudienceIsRequested_ReturnsTheCachedToken()
+    {
+        var pending = new TaskCompletionSource<TokenResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        TokenClientMock
+            .Setup(x =>
+                x.RequestTokenAsync(
+                    It.IsAny<ClientRegistration>(),
+                    It.Is<TokenRequest>(r => r.Scope == ControlPlaneScope),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(new ValueTask<TokenResult>(CreateSuccess("control-plane-token", 300)))
+            .Verifiable(Times.Once);
+        TokenClientMock
+            .Setup(x =>
+                x.RequestTokenAsync(
+                    It.IsAny<ClientRegistration>(),
+                    It.Is<TokenRequest>(r => r.Scope == DirectoryScope),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(new ValueTask<TokenResult>(pending.Task))
+            .Verifiable(Times.Once);
+
+        var cached = await TokenSource.GetAccessTokenAsync(
+            ControlPlaneAudience,
+            ControlPlaneScope,
+            CancellationToken.None
+        );
+        var directoryTask = TokenSource
+            .GetAccessTokenAsync(DirectoryAudience, DirectoryScope, CancellationToken.None)
+            .AsTask();
+
+        var controlPlaneTask = TokenSource
+            .GetAccessTokenAsync(ControlPlaneAudience, ControlPlaneScope, CancellationToken.None)
+            .AsTask();
+
+        Assert.True(controlPlaneTask.IsCompletedSuccessfully);
+        Assert.False(directoryTask.IsCompleted);
+        Assert.Equal(cached, await controlPlaneTask);
+
+        pending.SetResult(CreateSuccess("directory-token", 300));
+        Assert.Equal("directory-token", await directoryTask);
+    }
+
+    [Fact]
     public async Task GetAccessTokenAsync_WhenTheControlPlaneRefusesTheRequest_ThrowsDirectoryUnavailable()
     {
         var error = new TokenResult(new ProtocolError("invalid_client", 401));

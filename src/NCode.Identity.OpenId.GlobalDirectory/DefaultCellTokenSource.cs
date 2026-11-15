@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.Client;
 
@@ -9,7 +10,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// <summary>
 /// Provides the default <see cref="ICellTokenSource"/>, which requests a client-credentials token through
 /// <see cref="ITokenClient"/> as the cell's machine client and keeps one token for each audience and scope until
-/// shortly before it expires. Concurrent callers share one request.
+/// shortly before it expires. Each audience and scope has its own single flight: concurrent callers for one audience
+/// and scope share one request, and a request for one audience and scope never waits on a request for another.
 /// </summary>
 // See ADR-1285.
 internal sealed class DefaultCellTokenSource(
@@ -29,12 +31,20 @@ internal sealed class DefaultCellTokenSource(
 
     private TimeProvider TimeProvider { get; } = timeProvider;
 
-    private SemaphoreSlim Gate { get; } = new(1, 1);
+    /// <summary>
+    /// Gets the gate of each audience and scope, which lets one caller at a time request that audience and scope's
+    /// token.
+    /// </summary>
+    private ConcurrentDictionary<(string Audience, string Scope), SemaphoreSlim> Gates { get; } =
+        new();
 
-    private Dictionary<
+    /// <summary>
+    /// Gets the token of each audience and scope, with the time at which the cell stops using it.
+    /// </summary>
+    private ConcurrentDictionary<
         (string Audience, string Scope),
         (string Token, DateTimeOffset ExpiresAt)
-    > Cache { get; } = [];
+    > Cache { get; } = new();
 
     /// <inheritdoc />
     public async ValueTask<string> GetAccessTokenAsync(
@@ -46,15 +56,16 @@ internal sealed class DefaultCellTokenSource(
         ArgumentException.ThrowIfNullOrEmpty(audience);
         ArgumentException.ThrowIfNullOrEmpty(scope);
 
-        await Gate.WaitAsync(cancellationToken);
+        var key = (audience, scope);
+        if (TryGetCachedToken(key, out var token))
+            return token;
+
+        var gate = Gates.GetOrAdd(key, static _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken);
         try
         {
-            var key = (audience, scope);
-            if (
-                Cache.TryGetValue(key, out var cached)
-                && cached.ExpiresAt > TimeProvider.GetUtcNow()
-            )
-                return cached.Token;
+            if (TryGetCachedToken(key, out token))
+                return token;
 
             var entry = await RequestTokenAsync(audience, scope, cancellationToken);
             Cache[key] = entry;
@@ -62,8 +73,26 @@ internal sealed class DefaultCellTokenSource(
         }
         finally
         {
-            Gate.Release();
+            gate.Release();
         }
+    }
+
+    /// <summary>
+    /// Gets the cached token of an audience and scope when the cell still uses it.
+    /// </summary>
+    /// <param name="key">The audience and scope of the token.</param>
+    /// <param name="token">The cached token when this method returns <see langword="true"/>; otherwise, an empty string.</param>
+    /// <returns><see langword="true"/> when an unexpired token is cached; otherwise, <see langword="false"/>.</returns>
+    private bool TryGetCachedToken((string Audience, string Scope) key, out string token)
+    {
+        if (Cache.TryGetValue(key, out var cached) && cached.ExpiresAt > TimeProvider.GetUtcNow())
+        {
+            token = cached.Token;
+            return true;
+        }
+
+        token = string.Empty;
+        return false;
     }
 
     /// <summary>
@@ -135,6 +164,7 @@ internal sealed class DefaultCellTokenSource(
     /// <inheritdoc />
     public void Dispose()
     {
-        Gate.Dispose();
+        foreach (var gate in Gates.Values)
+            gate.Dispose();
     }
 }
