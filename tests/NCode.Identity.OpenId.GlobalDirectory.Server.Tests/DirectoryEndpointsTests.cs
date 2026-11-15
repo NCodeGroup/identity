@@ -6,6 +6,9 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Metadata;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -1058,6 +1061,18 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetTeamDocument_WhenTheTeamIsUnknown_ReturnsANotFoundProblemDocument()
+    {
+        Authenticate();
+
+        var response = await Client.GetAsync($"/directory/v1/teams/{TeamId}/document");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var detail = await ReadProblemDetailAsync(response);
+        Assert.Contains(TeamId, detail);
+    }
+
+    [Fact]
     public async Task RetiredTeam_BeforeAndAfterRetire_AnswersNotFoundThenOk()
     {
         AuthenticateAsControlPlane();
@@ -1362,6 +1377,40 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         var response = await Client.GetAsync("/directory/v1/cells/a");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    #endregion
+
+    #region Route Metadata Tests
+
+    [Fact]
+    public void MapDirectoryEndpoints_WhenARouteBindsAJsonBody_DeclaresBadRequestAndUnsupportedMediaType()
+    {
+        var app = App ?? throw new InvalidOperationException();
+        var dataSource = app.Services.GetRequiredService<EndpointDataSource>();
+
+        var bodyEndpoints = dataSource
+            .Endpoints.OfType<RouteEndpoint>()
+            .Where(endpoint => endpoint.Metadata.GetMetadata<IAcceptsMetadata>() is not null)
+            .ToList();
+
+        Assert.NotEmpty(bodyEndpoints);
+        foreach (var endpoint in bodyEndpoints)
+        {
+            var statusCodes = endpoint
+                .Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>()
+                .Select(metadata => metadata.StatusCode)
+                .ToHashSet();
+
+            Assert.True(
+                statusCodes.Contains(StatusCodes.Status400BadRequest),
+                $"{endpoint.DisplayName} does not declare 400."
+            );
+            Assert.True(
+                statusCodes.Contains(StatusCodes.Status415UnsupportedMediaType),
+                $"{endpoint.DisplayName} does not declare 415."
+            );
+        }
     }
 
     #endregion

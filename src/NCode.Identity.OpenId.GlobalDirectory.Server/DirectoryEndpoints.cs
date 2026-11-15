@@ -66,12 +66,16 @@ public static class DirectoryEndpoints
     {
         group
             .MapPost("reserve", ReserveTenantAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status403Forbidden)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
         group
             .MapPost("place", PlaceTenantAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status403Forbidden)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
         group
             .MapPost("{tenantId}/release", ReleaseTenantAsync)
             .ProducesProblem(StatusCodes.Status403Forbidden);
@@ -79,15 +83,28 @@ public static class DirectoryEndpoints
             .MapPost("{tenantId}/move", MoveTenantAsync)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
-        group.MapPost("retire", RetireTenantAsync).ProducesProblem(StatusCodes.Status403Forbidden);
+        group
+            .MapPost("retire", RetireTenantAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
         group
             .MapPost("change-issuer", ChangeTenantIssuerAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
-        group.MapGet("{tenantId}", GetTenantPlacementAsync);
-        group.MapGet("retired-ids/{tenantId}", GetRetiredTenantIdAsync);
-        group.MapGet("retired-issuers", GetRetiredIssuerAsync);
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
+        group
+            .MapGet("{tenantId}", GetTenantPlacementAsync)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+        group
+            .MapGet("retired-ids/{tenantId}", GetRetiredTenantIdAsync)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+        group
+            .MapGet("retired-issuers", GetRetiredIssuerAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound);
     }
 
     private static void MapTeams(RouteGroupBuilder group)
@@ -98,31 +115,45 @@ public static class DirectoryEndpoints
             .ProducesProblem(StatusCodes.Status409Conflict);
         group
             .MapPut("{teamId}/document", PublishTeamAsync)
-            .ProducesProblem(StatusCodes.Status403Forbidden);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
         group
             .MapPost("{teamId}/release", ReleaseTeamAsync)
             .ProducesProblem(StatusCodes.Status403Forbidden);
         group
             .MapPost("{teamId}/retire", RetireTeamAsync)
             .ProducesProblem(StatusCodes.Status403Forbidden);
-        group.MapGet("{teamId}/retired", GetRetiredTeamIdAsync);
-        group.MapGet("{teamId}/document", GetTeamDocumentAsync);
-        group.MapGet("changes", ListChangesAsync);
+        group
+            .MapGet("{teamId}/retired", GetRetiredTeamIdAsync)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+        group
+            .MapGet("{teamId}/document", GetTeamDocumentAsync)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+        group.MapGet("changes", ListChangesAsync).ProducesProblem(StatusCodes.Status400BadRequest);
     }
 
     private static void MapPlatform(RouteGroupBuilder group)
     {
         group
             .MapPut("document", PublishPlatformAsync)
-            .ProducesProblem(StatusCodes.Status403Forbidden);
-        group.MapGet("document", GetPlatformDocumentAsync);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
+        group
+            .MapGet("document", GetPlatformDocumentAsync)
+            .ProducesProblem(StatusCodes.Status404NotFound);
     }
 
     private static void MapCells(RouteGroupBuilder group)
     {
-        group.MapPut("{name}", RegisterCellAsync).ProducesProblem(StatusCodes.Status403Forbidden);
+        group
+            .MapPut("{name}", RegisterCellAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
         group.MapGet("", ListCellsAsync);
-        group.MapGet("{name}", GetCellAsync);
+        group.MapGet("{name}", GetCellAsync).ProducesProblem(StatusCodes.Status404NotFound);
     }
 
     #region Tenants
@@ -257,7 +288,9 @@ public static class DirectoryEndpoints
     )
     {
         var placement = await directory.GetPlacementOrDefaultAsync(tenantId, cancellationToken);
-        return placement is null ? Results.NotFound() : Results.Ok(placement);
+        return placement is null
+            ? NotFound($"The directory holds no placement for the tenant '{tenantId}'.")
+            : Results.Ok(placement);
     }
 
     private static async ValueTask<IResult> GetRetiredTenantIdAsync(
@@ -267,7 +300,9 @@ public static class DirectoryEndpoints
     )
     {
         var isRetired = await directory.IsTenantIdRetiredAsync(tenantId, cancellationToken);
-        return isRetired ? Results.Ok() : Results.NotFound();
+        return isRetired
+            ? Results.Ok()
+            : NotFound($"The directory holds no retired tenant '{tenantId}'.");
     }
 
     private static async ValueTask<IResult> GetRetiredIssuerAsync(
@@ -283,7 +318,9 @@ public static class DirectoryEndpoints
             issuer,
             cancellationToken
         );
-        return holder is null ? Results.NotFound() : Results.Ok(holder);
+        return holder is null
+            ? NotFound($"The directory holds no retired issuer '{issuer}'.")
+            : Results.Ok(holder);
     }
 
     #endregion
@@ -364,7 +401,9 @@ public static class DirectoryEndpoints
     )
     {
         var isRetired = await directory.IsTeamIdRetiredAsync(teamId, cancellationToken);
-        return isRetired ? Results.Ok() : Results.NotFound();
+        return isRetired
+            ? Results.Ok()
+            : NotFound($"The directory holds no retired team '{teamId}'.");
     }
 
     private static async ValueTask<IResult> GetTeamDocumentAsync(
@@ -374,7 +413,9 @@ public static class DirectoryEndpoints
     )
     {
         var document = await directory.GetOrDefaultAsync(teamId, cancellationToken);
-        return document is null ? Results.NotFound() : Results.Ok(document);
+        return document is null
+            ? NotFound($"The directory holds no document for the team '{teamId}'.")
+            : Results.Ok(document);
     }
 
     private static async ValueTask<IResult> ListChangesAsync(
@@ -420,7 +461,9 @@ public static class DirectoryEndpoints
     )
     {
         var document = await directory.GetOrDefaultAsync(cancellationToken);
-        return document is null ? Results.NotFound() : Results.Ok(document);
+        return document is null
+            ? NotFound("The directory holds no platform document.")
+            : Results.Ok(document);
     }
 
     #endregion
@@ -484,7 +527,7 @@ public static class DirectoryEndpoints
     )
     {
         var cell = await directory.GetOrDefaultAsync(name, cancellationToken);
-        return cell is null ? Results.NotFound() : Results.Ok(cell);
+        return cell is null ? NotFound($"The directory holds no cell '{name}'.") : Results.Ok(cell);
     }
 
     #endregion
@@ -508,6 +551,13 @@ public static class DirectoryEndpoints
             title: "Forbidden",
             detail: detail,
             statusCode: StatusCodes.Status403Forbidden
+        );
+
+    private static IResult NotFound(string detail) =>
+        Results.Problem(
+            title: "Not Found",
+            detail: detail,
+            statusCode: StatusCodes.Status404NotFound
         );
 
     private static IResult BadRequest(string detail) =>
