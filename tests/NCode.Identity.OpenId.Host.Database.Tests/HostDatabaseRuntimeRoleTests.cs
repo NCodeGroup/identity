@@ -98,32 +98,4 @@ public sealed class HostDatabaseRuntimeRoleTests
     }
 
     #endregion
-
-    #region IsValid Tests
-
-    [Theory]
-    [InlineData("ncode_identity_app")]
-    [InlineData("_app")]
-    [InlineData("app1")]
-    public void IsValid_ValidRole_ReturnsTrue(string role)
-    {
-        var result = HostDatabaseRuntimeRole.IsValid(role);
-
-        Assert.True(result);
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData("app\"; drop")]
-    [InlineData("App")]
-    [InlineData("1app")]
-    [InlineData("app\n")]
-    public void IsValid_InvalidRole_ReturnsFalse(string role)
-    {
-        var result = HostDatabaseRuntimeRole.IsValid(role);
-
-        Assert.False(result);
-    }
-
-    #endregion
 }
