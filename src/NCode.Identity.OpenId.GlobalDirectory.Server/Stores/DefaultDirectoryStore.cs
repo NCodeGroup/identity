@@ -530,8 +530,8 @@ internal sealed class DefaultDirectoryStore(
     }
 
     /// <summary>
-    /// Records that a tenant gave up an issuer, unless the issuer is already retired. Only the tenant that held an
-    /// issuer can take it back, so an issuer that is already retired was retired by the same tenant or is refused.
+    /// Records that a tenant gave up an issuer, unless it is already retired, so the first tenant to retire an issuer
+    /// stays its holder.
     /// </summary>
     /// <param name="dbContext">The <see cref="DirectoryDbContext"/> to write to.</param>
     /// <param name="tenantId">The identifier of the tenant that gave up the issuer.</param>
@@ -566,9 +566,9 @@ internal sealed class DefaultDirectoryStore(
     }
 
     /// <summary>
-    /// Finds a team, of the lineage of the specified team, that already holds the most tenants its limit allows. A
-    /// team's limit is the lesser of the platform document's <c>max_tenants</c> setting and the team document's own, and
-    /// it bounds the reserved and placed tenants of the team and of every team beneath it. The lineage is walked
+    /// Finds a team of the lineage of the specified team that already holds the most tenants its limit allows. A team's
+    /// limit is the lesser of the platform document's <c>max_tenants</c> setting and the team document's own, and it
+    /// bounds the reserved and placed tenants of the team and of every team beneath it. The lineage is walked
     /// through the parent identifiers of the team documents, deepest team first.
     /// </summary>
     /// <param name="dbContext">The <see cref="DirectoryDbContext"/> to read from.</param>
