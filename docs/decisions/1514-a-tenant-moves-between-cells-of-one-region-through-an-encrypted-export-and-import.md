@@ -57,9 +57,11 @@ tenant is created there instead.**
    `kid` and the package, takes the private key once (`422` when it is gone), and answers `422` when the package's
    region is not the target's `Cell:Region` and `409` when the directory places the tenant in the cell. A tenant that
    the cell holds while the directory places it in another cell is the residue of an import that stopped before its
-   move, and the import removes those rows before it imports. In one unit of work it imports every section in `Order`, then the master keys, which `IMasterKeyTransfer` stores under the target's
-   nearest root key, the tenant's own when it carries one. The tenant stays disabled, and the audit record
-   `tenant.imported` names the source cell.
+   move, and the import removes those rows before it imports. It imports every section in `Order`, each committing on
+   its own, then the master keys, which `IMasterKeyTransfer` stores under the target's nearest root key, the tenant's
+   own when it carries one. When any part fails, it removes every section it imported and tags the remote keys back to
+   the source cell before it answers. The tenant stays disabled, and the audit record `tenant.imported` names the
+   source cell.
 5. **Some records travel and others do not.** The package carries the tenant's configuration, its secrets, its local
    accounts and its master keys. Grants, consents, sessions, federated principals and identities are dropped, so each
    person signs in again, and the dropped rows hold only what a sign-in recreates. Audit and usage records stay in the
