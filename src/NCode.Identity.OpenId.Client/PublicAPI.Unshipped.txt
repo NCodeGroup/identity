@@ -11,9 +11,6 @@ NCode.Identity.OpenId.Client.KeyRings.ClientKeyRingOptions.PemFiles.get -> Syste
 NCode.Identity.OpenId.Client.KeyRings.ClientKeyRingOptions.PemFiles.set -> void
 NCode.Identity.OpenId.Client.KeyRings.ClientKeyRingOptions.RemoteKeys.get -> System.Collections.Generic.Dictionary<string!, NCode.Identity.OpenId.Client.KeyRings.ClientRemoteKeyOptions!>!
 NCode.Identity.OpenId.Client.KeyRings.ClientKeyRingOptions.RemoteKeys.set -> void
-NCode.Identity.OpenId.Client.KeyRings.ClientKeyRingRegistration
-NCode.Identity.OpenId.Client.KeyRings.ClientKeyRingRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!)
-NCode.Identity.OpenId.Client.KeyRings.ClientKeyRingRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!).AddOpenIdClientKeyRings(Microsoft.Extensions.Configuration.IConfigurationSection! section) -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!
 NCode.Identity.OpenId.Client.KeyRings.ClientRemoteKeyOptions
 NCode.Identity.OpenId.Client.KeyRings.ClientRemoteKeyOptions.Algorithm.get -> string?
 NCode.Identity.OpenId.Client.KeyRings.ClientRemoteKeyOptions.Algorithm.set -> void
@@ -28,6 +25,9 @@ NCode.Identity.OpenId.Client.KeyRings.ClientRemoteKeyOptions.Provider.get -> str
 NCode.Identity.OpenId.Client.KeyRings.ClientRemoteKeyOptions.Provider.set -> void
 NCode.Identity.OpenId.Client.KeyRings.ClientRemoteKeyOptions.SecretType.get -> string?
 NCode.Identity.OpenId.Client.KeyRings.ClientRemoteKeyOptions.SecretType.set -> void
+NCode.Identity.OpenId.Client.KeyRings.DefaultRegistration
+NCode.Identity.OpenId.Client.KeyRings.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!)
+NCode.Identity.OpenId.Client.KeyRings.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!).AddOpenIdClientKeyRings(Microsoft.Extensions.Configuration.IConfigurationSection! section) -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!
 NCode.Identity.OpenId.Client.Metrics.OpenIdClientMetrics
 const NCode.Identity.OpenId.Client.Metrics.OpenIdClientMetrics.MeterName = "NCode.Identity.OpenId.Client" -> string!
 NCode.Identity.OpenId.Client.Options.OpenIdClientOptions

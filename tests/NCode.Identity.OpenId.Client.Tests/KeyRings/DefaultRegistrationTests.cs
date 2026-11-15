@@ -17,7 +17,7 @@ using Xunit;
 
 namespace NCode.Identity.OpenId.Client.Tests.KeyRings;
 
-public sealed class ClientKeyRingRegistrationTests : BaseTests, IAsyncLifetime
+public sealed class DefaultRegistrationTests : BaseTests, IAsyncLifetime
 {
     private const string SectionPath = "Test:KeyRings";
 
@@ -29,7 +29,7 @@ public sealed class ClientKeyRingRegistrationTests : BaseTests, IAsyncLifetime
 
     private ServiceProvider? Provider { get; set; }
 
-    public ClientKeyRingRegistrationTests()
+    public DefaultRegistrationTests()
     {
         ServiceCollection.AddLogging();
         ServiceCollection.AddSecretsLibrary().AddJoseLibrary();

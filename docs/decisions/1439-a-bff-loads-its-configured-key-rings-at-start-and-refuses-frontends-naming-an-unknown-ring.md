@@ -106,7 +106,7 @@ registers the keyed provider in code.**
   [ADR-1382](1382-the-bffs-browser-security-headers-and-its-client-key-endpoint-are-each-opt-in-for-the-host.md),
   [ADR-1442](1442-a-bff-serves-the-frontends-its-configuration-lists-each-selected-per-request-by-an-open-rule.md),
   [ADR-1479](1479-a-protocol-clients-and-a-bffs-keys-can-be-held-in-a-key-management-service.md)
-- `src/NCode.Identity.OpenId.Client/KeyRings/ClientKeyRingRegistration.cs`
+- `src/NCode.Identity.OpenId.Client/KeyRings/DefaultRegistration.cs`
 - `src/NCode.Identity.OpenId.Client/KeyRings/ClientPemKeyReader.cs`
 - `src/NCode.Identity.OpenId.Client/KeyRings/ClientKeyRingLoader.cs`
 - `src/NCode.Identity.Bff/Frontends/BffKeyRingCheck.cs`

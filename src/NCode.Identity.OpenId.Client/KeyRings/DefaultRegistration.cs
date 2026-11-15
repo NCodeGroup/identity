@@ -16,7 +16,7 @@ namespace NCode.Identity.OpenId.Client.KeyRings;
 /// Provides extension methods for <see cref="IServiceBuilder{T}"/> to load the named key rings of a protocol client.
 /// </summary>
 [PublicAPI]
-public static class ClientKeyRingRegistration
+public static class DefaultRegistration
 {
     /// <param name="builder">The <see cref="IServiceBuilder{T}"/> to configure services for <see cref="OpenIdClientLibrary"/>.</param>
     extension(IServiceBuilder<OpenIdClientLibrary> builder)
