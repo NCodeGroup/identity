@@ -748,6 +748,30 @@ jobs:
           refuse --set directory.migrations.database.connectionStringKey=
           refuse --set directory.tls.existingSecret=
 
+      - name: Render the directory
+        run: |
+          base="$CHART/ci/directory-values.yaml"
+          render() {
+            helm template release "$CHART" --values "$base" --show-only "$1"
+          }
+          expect() {
+            local rendered="$1"; shift
+            for expected in "$@"; do
+              if ! grep -q -- "$expected" <<< "$rendered"; then
+                echo "::error::The release lacks: $expected"
+                exit 1
+              fi
+            done
+          }
+          deployment="$(render templates/directory-deployment.yaml)"
+          expect "$deployment" 'type: Recreate' 'DirectoryServer__Issuer' 'DirectoryServer__ControlPlaneCell' \
+            'ConnectionStrings__directory' 'secretName: directory-tls' 'automountServiceAccountToken: false'
+          job="$(render templates/directory-migration-job.yaml)"
+          expect "$job" '- migrate' 'ConnectionStrings__directory-migration' 'DirectoryDatabase__RuntimeRole' \
+            'helm.sh/hook: pre-install,pre-upgrade'
+          service="$(render templates/directory-service.yaml)"
+          expect "$service" 'kind: Service' 'appProtocol: https' 'targetPort: https'
+
       - name: Hold the management console's keys in a key management service
         run: |
           base="$CHART/ci/management-console-remote-keys-values.yaml"
