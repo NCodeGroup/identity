@@ -188,6 +188,10 @@ jobs:
             echo "::error::The chart rendered a migration Job with migrations.enabled=false."
             exit 1
           fi
+          if ! helm template release "$CHART" --values "$base" --set migrations.enabled=false --set database.runtimeRole= > /dev/null; then
+            echo "::error::The chart refused an empty database.runtimeRole with migrations.enabled=false."
+            exit 1
+          fi
 
       - name: Keep the Flux example in step with its values, the chart and the README
         run: |

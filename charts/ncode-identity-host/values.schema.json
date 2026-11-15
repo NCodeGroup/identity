@@ -548,7 +548,7 @@
       "properties": {
         "runtimeRole": {
           "type": "string",
-          "pattern": "^[a-z_][a-z0-9_]*$"
+          "pattern": "^([a-z_][a-z0-9_]*)?$"
         },
         "existingSecret": {
           "type": "string"
