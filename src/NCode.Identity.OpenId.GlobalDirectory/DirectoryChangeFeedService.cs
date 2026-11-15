@@ -14,7 +14,11 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// <see cref="DirectoryClientOptions.PollInterval"/>: it reads the highest sequence the cell has applied, pages
 /// <see cref="ITeamDirectory.ListChangesAsync"/> until a page is empty, applies each team change through
 /// <see cref="ITeamDocumentApplier"/> and each platform change through <see cref="IPlatformDocumentApplier"/>. One
-/// replica runs each pass, under a lease on the shared-state port that lasts half the interval. A directory that
+/// replica runs each pass, under a lease on the shared-state port that lasts half the interval. The replica that holds
+/// the lease also reconciles every mirrored team's root key for the cell's region through
+/// <see cref="ITeamDocumentApplier.ReconcileRootKeysAsync"/> after the change pages, on its first pass and then once
+/// <c>RootKeyReconcileInterval</c> has passed, so a key that failed its probe or its rotation cooldown is applied
+/// once it can be. A directory that
 /// cannot be reached throws <see cref="DirectoryUnavailableException"/>, which is logged and waits for the next
 /// interval, and so does any other pass that fails.
 /// </summary>
@@ -44,6 +48,11 @@ internal sealed class DirectoryChangeFeedService(
     /// </summary>
     internal const int PageSize = 100;
 
+    /// <summary>
+    /// The time that must pass before this replica reconciles the mirrored teams' root keys again.
+    /// </summary>
+    internal static TimeSpan RootKeyReconcileInterval { get; } = TimeSpan.FromMinutes(15);
+
     private ITeamDirectory TeamDirectory { get; } = teamDirectory;
     private ITeamDocumentApplier TeamDocumentApplier { get; } = teamDocumentApplier;
     private IPlatformDocumentApplier PlatformDocumentApplier { get; } = platformDocumentApplier;
@@ -52,6 +61,9 @@ internal sealed class DirectoryChangeFeedService(
     private IOptions<DirectoryClientOptions> Options { get; } = directoryClientOptions;
     private TimeProvider TimeProvider { get; } = timeProvider;
     private ILogger<DirectoryChangeFeedService> Logger { get; } = logger;
+
+    // The time of this replica's last reconcile of the teams' root keys, or null before its first.
+    private DateTimeOffset? LastRootKeyReconcileWhen { get; set; }
 
     // Read on use, never in the constructor, so the options are not built while the container composes this service.
     private TimeSpan PollInterval => Options.Value.PollInterval;
@@ -119,7 +131,7 @@ internal sealed class DirectoryChangeFeedService(
         {
             var changes = await TeamDirectory.ListChangesAsync(after, PageSize, cancellationToken);
             if (changes.Count == 0)
-                return;
+                break;
 
             var previous = after;
             foreach (var change in changes)
@@ -130,8 +142,23 @@ internal sealed class DirectoryChangeFeedService(
 
             // A page that does not advance the sequence would repeat for ever.
             if (after == previous)
-                return;
+                break;
         }
+
+        await ReconcileRootKeysAsync(cancellationToken);
+    }
+
+    // A team's root key is applied while its document is applied, so a key that failed its probe or its rotation
+    // cooldown stays unapplied until the directory publishes the team again; the replica that holds the lease
+    // reconciles every team's key on its first pass and then once the interval has passed.
+    private async ValueTask ReconcileRootKeysAsync(CancellationToken cancellationToken)
+    {
+        var now = TimeProvider.GetUtcNow();
+        if (LastRootKeyReconcileWhen is { } last && now - last < RootKeyReconcileInterval)
+            return;
+
+        await TeamDocumentApplier.ReconcileRootKeysAsync(cancellationToken);
+        LastRootKeyReconcileWhen = now;
     }
 
     private async ValueTask ApplyAsync(DirectoryChange change, CancellationToken cancellationToken)

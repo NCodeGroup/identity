@@ -4206,7 +4206,9 @@ Until the first stable release, the [Unreleased] section describes the product a
   and `POST …/validate`, on the control-plane cell, set, remove and validate the team's root key for a region. The team
   document carries the per-region references, each cell mirrors its own region's reference into an `OwnerRootKey` row,
   and the master key of an owner is wrapped under the nearest root key: the owner's own, then the nearest ancestor's
-  (tenant, team), then the platform's. A changed team root key rewraps the affected master keys of the cell
+  (tenant, team), then the platform's. A changed team root key rewraps the affected master keys of the cell, and the
+  cell's directory change feed reconciles every mirrored team's key for its region every 15 minutes, so a key that
+  failed its probe or its rotation cooldown is applied once it can be
   ([ADR-1414](docs/decisions/1414-a-tenant-can-wrap-its-master-keys-under-a-root-key-it-controls.md)).
 
 - **The management console reaches every cell.** `GET /api/cells` on the control plane lists each cell's name, region

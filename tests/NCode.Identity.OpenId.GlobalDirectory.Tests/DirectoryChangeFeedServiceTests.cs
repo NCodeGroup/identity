@@ -91,6 +91,44 @@ public class DirectoryChangeFeedServiceTests : BaseTests
             Document = document,
         };
 
+    private void SetupReconcile(Times times) =>
+        TeamDocumentApplierMock
+            .Setup(x => x.ReconcileRootKeysAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(times);
+
+    private void SetupEmptyPasses(int count)
+    {
+        ExpiringKeySetMock
+            .Setup(x =>
+                x.TryAddAsync(
+                    DirectoryChangeFeedService.LeaseKey,
+                    It.IsAny<DateTimeOffset>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(true)
+            .Verifiable(Times.Exactly(count));
+        TeamDocumentApplierMock
+            .Setup(x => x.GetAppliedSequenceAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0)
+            .Verifiable(Times.Exactly(count));
+        PlatformDocumentApplierMock
+            .Setup(x => x.GetAppliedSequenceAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0)
+            .Verifiable(Times.Exactly(count));
+        TeamDirectoryMock
+            .Setup(x =>
+                x.ListChangesAsync(
+                    0,
+                    DirectoryChangeFeedService.PageSize,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync([])
+            .Verifiable(Times.Exactly(count));
+    }
+
     private static TeamDocument CreateTeamDocument(string teamId, long sequence) =>
         new()
         {
@@ -113,6 +151,7 @@ public class DirectoryChangeFeedServiceTests : BaseTests
         SetupPage(7, TeamChange(8, first), TeamChange(9, second));
         SetupPage(9, TeamChange(12, third));
         SetupPage(12);
+        SetupReconcile(Times.Once());
         TeamDocumentApplierMock
             .Setup(x => x.ApplyAsync(first, It.IsAny<CancellationToken>()))
             .Returns(ValueTask.CompletedTask)
@@ -140,6 +179,7 @@ public class DirectoryChangeFeedServiceTests : BaseTests
         SetupAppliedSequences(teamSequence: 0, platformSequence: 3);
         SetupPage(3, new DirectoryChange { Sequence = 4, Platform = platform });
         SetupPage(4);
+        SetupReconcile(Times.Once());
         PlatformDocumentApplierMock
             .Setup(x => x.ApplyAsync(platform, It.IsAny<CancellationToken>()))
             .Returns(ValueTask.CompletedTask)
@@ -157,6 +197,7 @@ public class DirectoryChangeFeedServiceTests : BaseTests
         SetupAppliedSequences(teamSequence: 2, platformSequence: 0);
         SetupPage(2, new DirectoryChange { Sequence = 3, TeamId = "team-a" });
         SetupPage(3);
+        SetupReconcile(Times.Once());
         TeamDocumentApplierMock
             .Setup(x => x.RetireAsync("team-a", 3, It.IsAny<CancellationToken>()))
             .Returns(ValueTask.CompletedTask)
@@ -165,6 +206,35 @@ public class DirectoryChangeFeedServiceTests : BaseTests
         using var service = CreateService();
 
         await service.RunAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenTheRootKeyReconcileIntervalHasNotPassed_DoesNotReconcileAgain()
+    {
+        SetupEmptyPasses(3);
+        SetupReconcile(Times.Exactly(2));
+
+        using var service = CreateService();
+
+        await service.RunAsync(CancellationToken.None);
+        TeamDocumentApplierMock.Verify(
+            x => x.ReconcileRootKeysAsync(It.IsAny<CancellationToken>()),
+            Times.Once
+        );
+
+        TimeProvider.Advance(DirectoryChangeFeedService.RootKeyReconcileInterval / 2);
+        await service.RunAsync(CancellationToken.None);
+        TeamDocumentApplierMock.Verify(
+            x => x.ReconcileRootKeysAsync(It.IsAny<CancellationToken>()),
+            Times.Once
+        );
+
+        TimeProvider.Advance(DirectoryChangeFeedService.RootKeyReconcileInterval / 2);
+        await service.RunAsync(CancellationToken.None);
+        TeamDocumentApplierMock.Verify(
+            x => x.ReconcileRootKeysAsync(It.IsAny<CancellationToken>()),
+            Times.Exactly(2)
+        );
     }
 
     [Fact]

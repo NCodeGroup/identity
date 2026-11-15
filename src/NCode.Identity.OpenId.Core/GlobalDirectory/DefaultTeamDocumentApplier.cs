@@ -21,7 +21,9 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// into the team's row, or removes the row of a retired team, then sends a <see cref="TeamChangedCommand"/> so caches
 /// evict the team. A team that tenants or teams still name is disabled instead of removed, because the cell refuses to
 /// delete a team that something names. The root key that the document holds for the cell's region is mirrored into the
-/// team's owner root key, which rewraps the master keys of the team's tenants in this cell.
+/// team's owner root key, which rewraps the master keys of the team's tenants in this cell. Reconciling brings the owner
+/// root key of every enabled mirrored team to the reference its row holds for the region, which applies a key that
+/// failed its probe or its rotation cooldown once it can be.
 /// </summary>
 // See ADR-1411 and ADR-1416.
 internal sealed class DefaultTeamDocumentApplier(
@@ -33,6 +35,9 @@ internal sealed class DefaultTeamDocumentApplier(
     ILogger<DefaultTeamDocumentApplier> logger
 ) : ITeamDocumentApplier
 {
+    // The teams are read in pages, so the reconcile never holds every team at once.
+    private const int TeamPageSize = 100;
+
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
     private IServiceScopeFactory ServiceScopeFactory { get; } = serviceScopeFactory;
@@ -96,23 +101,65 @@ internal sealed class DefaultTeamDocumentApplier(
                 cancellationToken
             );
 
-            await MirrorRootKeyAsync(document, cancellationToken);
+            await MirrorRootKeyAsync(
+                document.TeamId,
+                persistedTeam.RootKeys.GetValueOrDefault(CellOptions.Region),
+                cancellationToken
+            );
         }
     }
 
-    // A key that fails validation is logged and left unapplied; the team row and its command are already applied, and the
-    // next document the directory publishes for the team retries the key.
+    /// <inheritdoc />
+    public async ValueTask ReconcileRootKeysAsync(CancellationToken cancellationToken)
+    {
+        using var _ = AmbientTenantAccessor.BeginUnscoped("directory team mirror");
+
+        var region = CellOptions.Region;
+        var page = new PageRequest { Limit = TeamPageSize };
+        do
+        {
+            var teams = await GetTeamPageAsync(page, cancellationToken);
+            foreach (var team in teams.Items)
+            {
+                if (team.IsDisabled)
+                    continue;
+
+                await MirrorRootKeyAsync(
+                    team.TeamId,
+                    team.RootKeys.GetValueOrDefault(region),
+                    cancellationToken
+                );
+            }
+
+            page = page with { Cursor = teams.NextCursor };
+        } while (page.Cursor is not null);
+    }
+
+    private async ValueTask<PagedResult<PersistedTeam>> GetTeamPageAsync(
+        PageRequest page,
+        CancellationToken cancellationToken
+    )
+    {
+        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+        var store = storeManager.GetStore<ITeamStore>();
+        return await store.GetPageAsync(page, cancellationToken);
+    }
+
+    // A key that fails validation is logged and left unapplied, so one team's key never stops another's; the team row
+    // and its command are already applied, and the next document the directory publishes for the team, or the next
+    // reconcile, retries the key.
     private async ValueTask MirrorRootKeyAsync(
-        TeamDocument document,
+        string teamId,
+        OwnerRootKeyRequest? reference,
         CancellationToken cancellationToken
     )
     {
         var region = CellOptions.Region;
-        var owner = new SecretOwner(SecretOwnerTypes.Team, document.TeamId).Normalize();
+        var owner = new SecretOwner(SecretOwnerTypes.Team, teamId).Normalize();
         try
         {
             var current = await OwnerRootKeyManager.GetAsync(owner, cancellationToken);
-            if (!document.RootKeys.TryGetValue(region, out var reference))
+            if (reference is null)
             {
                 if (current is not null)
                     await OwnerRootKeyManager.RemoveAsync(owner, cancellationToken);
@@ -142,11 +189,7 @@ internal sealed class DefaultTeamDocumentApplier(
                 return;
             }
 
-            var request = new OwnerRootKeyRequest(reference.KeyWrapperName, reference.KeyReference)
-            {
-                AccessIdentity = reference.AccessIdentity,
-            };
-            await OwnerRootKeyManager.SetAsync(owner, request, cancellationToken);
+            await OwnerRootKeyManager.SetAsync(owner, reference, cancellationToken);
         }
         catch (Exception exception)
             when (exception
@@ -157,7 +200,7 @@ internal sealed class DefaultTeamDocumentApplier(
                         or StoreConcurrencyException
             )
         {
-            Logger.DirectoryTeamRootKeyNotApplied(document.TeamId, region, exception);
+            Logger.DirectoryTeamRootKeyNotApplied(teamId, region, exception);
         }
     }
 
