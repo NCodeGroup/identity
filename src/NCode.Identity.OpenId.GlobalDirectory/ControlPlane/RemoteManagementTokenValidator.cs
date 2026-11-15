@@ -40,6 +40,98 @@ internal sealed class RemoteManagementTokenValidator(
     private static string[] AllowedAlgorithms { get; } =
     ["ES256", "ES384", "ES512", "PS256", "PS384", "PS512", "EdDSA"];
 
+    /// <summary>
+    /// Gets the thumbprint of the key that an access token confirms.
+    /// </summary>
+    /// <param name="payload">The payload of the access token.</param>
+    /// <returns>The confirmation key thumbprint, or <c>null</c> when the token carries no key binding.</returns>
+    private static string? GetConfirmationThumbprint(JsonElement payload)
+    {
+        if (
+            payload.TryGetProperty(JoseClaimNames.Payload.Cnf, out var confirmation)
+            && confirmation.ValueKind == JsonValueKind.Object
+        )
+        {
+            return GetString(confirmation, ConfirmationKeyThumbprint);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Creates the principal of a validated access token from its subject, client identifier and scope claims.
+    /// </summary>
+    /// <param name="payload">The payload of the access token.</param>
+    /// <returns>
+    /// The <see cref="ClaimsPrincipal"/>, or <c>null</c> when the payload has no subject and no client identifier.
+    /// </returns>
+    private static ClaimsPrincipal? CreatePrincipal(JsonElement payload)
+    {
+        var subject = GetString(payload, JoseClaimNames.Payload.Sub);
+        var clientId = GetString(payload, JoseClaimNames.Payload.ClientId);
+        if (subject is null && clientId is null)
+            return null;
+
+        var identity = new ClaimsIdentity(AuthenticationType);
+
+        if (subject is not null)
+            identity.AddClaim(new Claim(JoseClaimNames.Payload.Sub, subject));
+
+        if (clientId is not null)
+            identity.AddClaim(new Claim(JoseClaimNames.Payload.ClientId, clientId));
+
+        var scope = GetString(payload, JoseClaimNames.Payload.Scope);
+        if (scope is not null)
+            identity.AddClaim(new Claim(JoseClaimNames.Payload.Scope, scope));
+
+        return new ClaimsPrincipal(identity);
+    }
+
+    /// <summary>
+    /// Gets a non-empty string property of a JSON object.
+    /// </summary>
+    /// <param name="element">The JSON object to read.</param>
+    /// <param name="name">The name of the property to read.</param>
+    /// <returns>The value, or <c>null</c> when the property is absent, is not a string or is empty.</returns>
+    private static string? GetString(JsonElement element, string name)
+    {
+        if (element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String)
+        {
+            var text = value.GetString();
+            return string.IsNullOrEmpty(text) ? null : text;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Reads the access token from the <c>Authorization</c> header of a request, under either the Bearer scheme or the
+    /// DPoP scheme.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> of the request.</param>
+    /// <param name="token">The access token, or an empty string when the header carries none.</param>
+    /// <param name="isDPoP"><c>true</c> when the token is sent under the DPoP scheme; otherwise, <c>false</c>.</param>
+    /// <returns><c>true</c> when the header carries a non-empty token; otherwise, <c>false</c>.</returns>
+    private static bool TryGetToken(HttpContext httpContext, out string token, out bool isDPoP)
+    {
+        var authorization = httpContext.Request.Headers.Authorization.ToString();
+
+        // Accept both the Bearer scheme and the DPoP scheme (RFC 9449 §7.1).
+        foreach (var prefix in (ReadOnlySpan<string>)[BearerPrefix, DPoPPrefix])
+        {
+            if (authorization.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                token = authorization[prefix.Length..].Trim();
+                isDPoP = string.Equals(prefix, DPoPPrefix, StringComparison.Ordinal);
+                return token.Length > 0;
+            }
+        }
+
+        token = string.Empty;
+        isDPoP = false;
+        return false;
+    }
+
     private IIssuerAccessTokenValidator AccessTokenValidator { get; } = accessTokenValidator;
     private IDPoPProofService ProofService { get; } = proofService;
     private IExpiringKeySet ReplayKeys { get; } = replayKeys;
@@ -146,97 +238,5 @@ internal sealed class RemoteManagementTokenValidator(
             proof.IssuedAt + ProofLifetime,
             cancellationToken
         );
-    }
-
-    /// <summary>
-    /// Gets the thumbprint of the key that an access token confirms.
-    /// </summary>
-    /// <param name="payload">The payload of the access token.</param>
-    /// <returns>The confirmation key thumbprint, or <c>null</c> when the token carries no key binding.</returns>
-    private static string? GetConfirmationThumbprint(JsonElement payload)
-    {
-        if (
-            payload.TryGetProperty(JoseClaimNames.Payload.Cnf, out var confirmation)
-            && confirmation.ValueKind == JsonValueKind.Object
-        )
-        {
-            return GetString(confirmation, ConfirmationKeyThumbprint);
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Creates the principal of a validated access token from its subject, client identifier and scope claims.
-    /// </summary>
-    /// <param name="payload">The payload of the access token.</param>
-    /// <returns>
-    /// The <see cref="ClaimsPrincipal"/>, or <c>null</c> when the payload has no subject and no client identifier.
-    /// </returns>
-    private static ClaimsPrincipal? CreatePrincipal(JsonElement payload)
-    {
-        var subject = GetString(payload, JoseClaimNames.Payload.Sub);
-        var clientId = GetString(payload, JoseClaimNames.Payload.ClientId);
-        if (subject is null && clientId is null)
-            return null;
-
-        var identity = new ClaimsIdentity(AuthenticationType);
-
-        if (subject is not null)
-            identity.AddClaim(new Claim(JoseClaimNames.Payload.Sub, subject));
-
-        if (clientId is not null)
-            identity.AddClaim(new Claim(JoseClaimNames.Payload.ClientId, clientId));
-
-        var scope = GetString(payload, JoseClaimNames.Payload.Scope);
-        if (scope is not null)
-            identity.AddClaim(new Claim(JoseClaimNames.Payload.Scope, scope));
-
-        return new ClaimsPrincipal(identity);
-    }
-
-    /// <summary>
-    /// Gets a non-empty string property of a JSON object.
-    /// </summary>
-    /// <param name="element">The JSON object to read.</param>
-    /// <param name="name">The name of the property to read.</param>
-    /// <returns>The value, or <c>null</c> when the property is absent, is not a string or is empty.</returns>
-    private static string? GetString(JsonElement element, string name)
-    {
-        if (element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String)
-        {
-            var text = value.GetString();
-            return string.IsNullOrEmpty(text) ? null : text;
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Reads the access token from the <c>Authorization</c> header of a request, under either the Bearer scheme or the
-    /// DPoP scheme.
-    /// </summary>
-    /// <param name="httpContext">The <see cref="HttpContext"/> of the request.</param>
-    /// <param name="token">The access token, or an empty string when the header carries none.</param>
-    /// <param name="isDPoP"><c>true</c> when the token is sent under the DPoP scheme; otherwise, <c>false</c>.</param>
-    /// <returns><c>true</c> when the header carries a non-empty token; otherwise, <c>false</c>.</returns>
-    private static bool TryGetToken(HttpContext httpContext, out string token, out bool isDPoP)
-    {
-        var authorization = httpContext.Request.Headers.Authorization.ToString();
-
-        // Accept both the Bearer scheme and the DPoP scheme (RFC 9449 §7.1).
-        foreach (var prefix in (ReadOnlySpan<string>)[BearerPrefix, DPoPPrefix])
-        {
-            if (authorization.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            {
-                token = authorization[prefix.Length..].Trim();
-                isDPoP = string.Equals(prefix, DPoPPrefix, StringComparison.Ordinal);
-                return token.Length > 0;
-            }
-        }
-
-        token = string.Empty;
-        isDPoP = false;
-        return false;
     }
 }
