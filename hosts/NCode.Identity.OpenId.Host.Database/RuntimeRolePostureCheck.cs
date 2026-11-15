@@ -62,6 +62,14 @@ public sealed class RuntimeRolePostureCheck(
     /// <inheritdoc />
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
+    /// <summary>
+    /// Reads the posture of the role that the host runs as and judges it.
+    /// </summary>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// The reasons the role is not subject to row-level security, which is empty when the role is subject to it.
+    /// </returns>
+    /// <exception cref="InvalidOperationException">The database has no row for the connected role.</exception>
     private async ValueTask<IReadOnlyList<string>> ReadViolationsAsync(
         CancellationToken cancellationToken
     )

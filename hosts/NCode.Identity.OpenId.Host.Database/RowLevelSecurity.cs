@@ -101,6 +101,13 @@ public static class RowLevelSecurity
         return statements;
     }
 
+    /// <summary>
+    /// Checks the arguments that every statement factory takes.
+    /// </summary>
+    /// <param name="model">The model that the statements are generated from.</param>
+    /// <param name="runtimeRole">The name of the database role the host runs as.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="model"/> or <paramref name="runtimeRole"/> is <c>null</c>.</exception>
+    /// <exception cref="ArgumentException"><paramref name="runtimeRole"/> is not a valid role name.</exception>
     private static void ValidateArguments(IModel model, string runtimeRole)
     {
         ArgumentNullException.ThrowIfNull(model);
@@ -113,6 +120,16 @@ public static class RowLevelSecurity
             );
     }
 
+    /// <summary>
+    /// Finds every table that the model maps, with the column that holds its tenant. The tables are ordered by schema
+    /// and then by name, both ordinally, so the generated statements are stable. Several entity types that share a
+    /// table yield one entry.
+    /// </summary>
+    /// <param name="model">The model to read the tables from.</param>
+    /// <returns>
+    /// The schema, the name and the tenant column of each table. The tenant column is <c>null</c> when no entity type
+    /// of the table is an <see cref="ISupportTenantEntity"/>, and then the table is not tenant-bound.
+    /// </returns>
     private static List<(string? Schema, string Name, string? TenantColumn)> FindTables(
         IModel model
     )
@@ -152,6 +169,17 @@ public static class RowLevelSecurity
         return [.. tables.Values];
     }
 
+    /// <summary>
+    /// Finds the name of the column that stores the normalized tenant identifier of a tenant-bound entity type in a
+    /// table.
+    /// </summary>
+    /// <param name="entityType">The entity type that implements <see cref="ISupportTenantEntity"/>.</param>
+    /// <param name="tableName">The name of the table that the entity type maps to.</param>
+    /// <param name="schema">The schema of the table, or <c>null</c> for the default schema.</param>
+    /// <returns>The column name of the <see cref="ISupportTenantEntity.NormalizedTenantId"/> property.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// The entity type has no mapped tenant property, or the property has no column in the table.
+    /// </exception>
     private static string FindTenantColumn(IEntityType entityType, string tableName, string? schema)
     {
         var property =
@@ -168,9 +196,20 @@ public static class RowLevelSecurity
             );
     }
 
+    /// <summary>
+    /// Quotes the name of a table or sequence for use in a statement, qualified by its schema when it has one.
+    /// </summary>
+    /// <param name="schema">The schema, or <c>null</c> or empty for the default schema.</param>
+    /// <param name="name">The name of the table or sequence.</param>
+    /// <returns>The quoted name, as <c>"schema"."name"</c> or <c>"name"</c>.</returns>
     private static string QualifiedName(string? schema, string name) =>
         string.IsNullOrEmpty(schema) ? Quote(name) : $"{Quote(schema)}.{Quote(name)}";
 
+    /// <summary>
+    /// Quotes an identifier for use in a statement, doubling every embedded double quote.
+    /// </summary>
+    /// <param name="identifier">The name of a table, column, sequence, schema or role.</param>
+    /// <returns>The identifier in double quotes.</returns>
     private static string Quote(string identifier) =>
         $"\"{identifier.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
 }
