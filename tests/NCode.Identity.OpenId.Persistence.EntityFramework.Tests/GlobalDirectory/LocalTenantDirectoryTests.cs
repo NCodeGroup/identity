@@ -470,6 +470,28 @@ public sealed class LocalTenantDirectoryTests : IDisposable
 
     #endregion
 
+    #region OfferMoveAsync Tests
+
+    [Fact]
+    public async Task OfferMoveAsync_WhenCalled_ConflictsBecauseTheCellRunsOnItsOwnAndWritesNothing()
+    {
+        var result = await Directory.OfferMoveAsync(
+            TenantId,
+            CellName,
+            "cell-b",
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsOffered);
+        Assert.Equal(
+            $"The cell '{CellName}' runs on its own, so it has no other cell to offer the tenant '{TenantId}' to.",
+            result.ConflictDetail
+        );
+        Assert.False(DbContext.ChangeTracker.HasChanges());
+    }
+
+    #endregion
+
     #region MoveAsync Tests
 
     [Fact]

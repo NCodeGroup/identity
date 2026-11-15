@@ -183,6 +183,43 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
                     b.ToTable("Teams");
                 });
 
+            modelBuilder.Entity("NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedWhen")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("ExpiresWhen")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FromCell")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("NormalizedTenantId")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("ToCell")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NormalizedTenantId")
+                        .IsUnique();
+
+                    b.ToTable("TenantMoveOffers");
+                });
+
             modelBuilder.Entity("NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord", b =>
                 {
                     b.Property<long>("Id")

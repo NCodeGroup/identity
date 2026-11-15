@@ -8,7 +8,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 
 /// <summary>
 /// Provides the entity framework <see cref="DbContext"/> of the global directory server: the cells, the tenant and team
-/// identifiers with their placements, the published team and platform documents, the retired issuers and the change
+/// identifiers with their placements, the offers to move a tenant, the published team and platform documents, the
+/// retired issuers and the change
 /// sequence that the cells mirror. The directory holds no personal data.
 /// </summary>
 /// <param name="options">The <see cref="DbContextOptions{TContext}"/> of the context.</param>
@@ -37,6 +38,11 @@ public sealed class DirectoryDbContext(DbContextOptions<DirectoryDbContext> opti
     /// Gets the tenant identifiers that the directory reserved, placed or retired.
     /// </summary>
     public DbSet<TenantRecord> Tenants => Set<TenantRecord>();
+
+    /// <summary>
+    /// Gets the offers that cells record to move a tenant to another cell, one per tenant at most.
+    /// </summary>
+    public DbSet<TenantMoveOfferRecord> TenantMoveOffers => Set<TenantMoveOfferRecord>();
 
     /// <summary>
     /// Gets the team identifiers that the directory reserved, published or retired.
@@ -91,6 +97,14 @@ public sealed class DirectoryDbContext(DbContextOptions<DirectoryDbContext> opti
             builder.Property(entity => entity.NormalizedTeamId).HasMaxLength(MaxIdentifierLength);
             builder.Property(entity => entity.Cell).HasMaxLength(MaxCellNameLength);
             builder.Property(entity => entity.State).HasMaxLength(MaxStateLength);
+        });
+
+        modelBuilder.Entity<TenantMoveOfferRecord>(builder =>
+        {
+            builder.HasIndex(entity => entity.NormalizedTenantId).IsUnique();
+            builder.Property(entity => entity.NormalizedTenantId).HasMaxLength(MaxIdentifierLength);
+            builder.Property(entity => entity.FromCell).HasMaxLength(MaxCellNameLength);
+            builder.Property(entity => entity.ToCell).HasMaxLength(MaxCellNameLength);
         });
 
         modelBuilder.Entity<TeamRecord>(builder =>

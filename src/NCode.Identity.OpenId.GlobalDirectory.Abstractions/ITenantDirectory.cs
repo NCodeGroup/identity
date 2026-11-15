@@ -71,8 +71,28 @@ public interface ITenantDirectory
     );
 
     /// <summary>
-    /// Moves a placed tenant from one cell to another cell of the same region. The move is refused when the tenant is
-    /// not placed in the source cell, when either cell is not registered, or when the cells are in different regions.
+    /// Records that the cell holding a tenant offers the tenant to another cell of the same region, until the offer
+    /// expires. A tenant has at most one offer, and offering again sets it to the new target cell and expiry. The offer
+    /// is refused when the tenant is not placed in the source cell, when the cells are the same, when either cell is not
+    /// registered, or when the cells are in different regions.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the tenant.</param>
+    /// <param name="fromCell">The name of the cell that holds the tenant and offers it.</param>
+    /// <param name="toCell">The name of the cell that the tenant is offered to.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>A <see cref="MoveOfferResult"/> that is offered, or a conflict with its detail.</returns>
+    ValueTask<MoveOfferResult> OfferMoveAsync(
+        string tenantId,
+        string fromCell,
+        string toCell,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
+    /// Moves a placed tenant from one cell to another cell of the same region. The move consumes the source cell's
+    /// unexpired offer of the tenant to the target cell, and is refused without one. The move is also refused when the
+    /// tenant is not placed in the source cell, when either cell is not registered, or when the cells are in different
+    /// regions.
     /// </summary>
     /// <param name="tenantId">The identifier of the tenant.</param>
     /// <param name="fromCell">The name of the cell that holds the tenant.</param>

@@ -6,9 +6,10 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// <summary>
 /// Provides the <see cref="ITenantDirectory"/> of a cell that reaches the global directory service over HTTP. Each
 /// method is one call under <c>directory/v1/tenants/</c>: <c>POST reserve</c>, <c>POST place</c>,
-/// <c>POST {tenantId}/release</c>, <c>POST {tenantId}/move?fromCell=&amp;toCell=</c>, <c>POST retire</c>, <c>POST change-issuer</c>, <c>GET {tenantId}</c>,
-/// <c>GET retired-ids/{tenantId}</c> and <c>GET retired-issuers?issuer=</c>. A <c>409</c> answer to a reservation, a
-/// move or an issuer change is a conflict result, and a <c>404</c> answer to a lookup means the tenant is not placed or the
+/// <c>POST {tenantId}/release</c>, <c>POST {tenantId}/move-offers</c>, <c>POST {tenantId}/move?fromCell=&amp;toCell=</c>, <c>POST retire</c>,
+/// <c>POST change-issuer</c>, <c>GET {tenantId}</c>, <c>GET retired-ids/{tenantId}</c> and
+/// <c>GET retired-issuers?issuer=</c>. A <c>409</c> answer to a reservation, a move offer, a move or an issuer change
+/// is a conflict result, and a <c>404</c> answer to a lookup means the tenant is not placed or the
 /// identifier is not retired. Every failure of the directory is a <see cref="DirectoryUnavailableException"/>, so a
 /// cell never creates a tenant while the directory is out of reach.
 /// </summary>
@@ -68,6 +69,35 @@ internal sealed class RemoteTenantDirectory(DirectoryHttpClient client) : ITenan
         );
 
         response.EnsureSuccess("release a tenant");
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<MoveOfferResult> OfferMoveAsync(
+        string tenantId,
+        string fromCell,
+        string toCell,
+        CancellationToken cancellationToken
+    )
+    {
+        ArgumentException.ThrowIfNullOrEmpty(tenantId);
+        ArgumentException.ThrowIfNullOrEmpty(fromCell);
+        ArgumentException.ThrowIfNullOrEmpty(toCell);
+
+        // The directory takes the source cell from the tenant's placement and the caller, so the body names only the target.
+        var response = await Client.SendAsync(
+            HttpMethod.Post,
+            $"{Prefix}{DirectoryHttpClient.Segment(tenantId)}/move-offers",
+            new TenantMoveOfferRequest { ToCell = toCell },
+            cancellationToken
+        );
+
+        if (response.IsConflict)
+            return MoveOfferResult.Conflict(
+                response.ReadProblemDetail("The directory refused to record a move offer.")
+            );
+
+        response.EnsureSuccess("offer a tenant to another cell");
+        return MoveOfferResult.Offered();
     }
 
     /// <inheritdoc />

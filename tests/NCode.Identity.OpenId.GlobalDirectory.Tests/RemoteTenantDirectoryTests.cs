@@ -218,6 +218,83 @@ public class RemoteTenantDirectoryTests : RemoteDirectoryTestBase
 
     #endregion
 
+    #region OfferMoveAsync Tests
+
+    [Fact]
+    public async Task OfferMoveAsync_WhenDirectoryAnswersNoContent_ReturnsOfferedAndPostsTheOfferWithTheBearerToken()
+    {
+        var handler = StubHttpMessageHandler.Respond(HttpStatusCode.NoContent);
+        var directory = new RemoteTenantDirectory(CreateClient(handler));
+
+        var result = await directory.OfferMoveAsync(
+            "tenant 1",
+            "cell-a",
+            "cell-b",
+            CancellationToken.None
+        );
+
+        Assert.True(result.IsOffered);
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Post, request.Method);
+        Assert.Equal(
+            "https://directory.example.test/directory/v1/tenants/tenant%201/move-offers",
+            request.RequestUri?.AbsoluteUri
+        );
+        Assert.Equal($"Bearer {AccessToken}", request.Authorization);
+        Assert.NotNull(request.Body);
+        Assert.Equal(
+            new TenantMoveOfferRequest { ToCell = "cell-b" },
+            JsonSerializer.Deserialize<TenantMoveOfferRequest>(request.Body, WireOptions)
+        );
+    }
+
+    [Fact]
+    public async Task OfferMoveAsync_WhenDirectoryAnswersConflict_ReturnsConflictWithTheProblemDetail()
+    {
+        var handler = StubHttpMessageHandler.Respond(HttpStatusCode.Conflict, ConflictBody);
+        var directory = new RemoteTenantDirectory(CreateClient(handler));
+
+        var result = await directory.OfferMoveAsync(
+            "tenant-1",
+            "cell-a",
+            "cell-b",
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsOffered);
+        Assert.Equal("The issuer is held by another tenant.", result.ConflictDetail);
+    }
+
+    [Fact]
+    public async Task OfferMoveAsync_WhenConflictCarriesNoProblemDetail_ReturnsConflictWithTheFallback()
+    {
+        var handler = StubHttpMessageHandler.Respond(HttpStatusCode.Conflict, "not json");
+        var directory = new RemoteTenantDirectory(CreateClient(handler));
+
+        var result = await directory.OfferMoveAsync(
+            "tenant-1",
+            "cell-a",
+            "cell-b",
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsOffered);
+        Assert.Equal("The directory refused to record a move offer.", result.ConflictDetail);
+    }
+
+    [Fact]
+    public async Task OfferMoveAsync_WhenDirectoryAnswersServiceUnavailable_ThrowsDirectoryUnavailable()
+    {
+        var handler = StubHttpMessageHandler.Respond(HttpStatusCode.ServiceUnavailable);
+        var directory = new RemoteTenantDirectory(CreateClient(handler));
+
+        await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
+            await directory.OfferMoveAsync("tenant-1", "cell-a", "cell-b", CancellationToken.None)
+        );
+    }
+
+    #endregion
+
     #region MoveAsync Tests
 
     [Fact]

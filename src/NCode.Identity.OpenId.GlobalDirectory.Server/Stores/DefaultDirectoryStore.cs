@@ -35,6 +35,11 @@ internal sealed class DefaultDirectoryStore(
     private const string WriteForbiddenDetail =
         "Only the cell that holds a tenant, or the control-plane cell, writes it.";
 
+    // The lifetime of a move offer in hours. It equals the lifetime of the one-time transfer key that the target cell
+    // issues for the move (DefaultTenantTransferKeyService.Lifetime), so an offer does not outlive the key that its
+    // export is sealed under.
+    private const int MoveOfferLifetimeHours = 1;
+
     private static JsonSerializerOptions JsonOptions { get; } = new(JsonSerializerDefaults.Web);
 
     private IDbContextFactory<DirectoryDbContext> DbContextFactory { get; } = dbContextFactory;
@@ -377,13 +382,148 @@ internal sealed class DefaultDirectoryStore(
                         );
                     }
 
+                    var offer = await dbContext.TenantMoveOffers.SingleOrDefaultAsync(
+                        entity => entity.NormalizedTenantId == normalizedTenantId,
+                        cancellationToken
+                    );
+                    if (
+                        offer is null
+                        || !string.Equals(offer.FromCell, fromCell, StringComparison.Ordinal)
+                        || !string.Equals(offer.ToCell, toCell, StringComparison.Ordinal)
+                    )
+                    {
+                        return MoveResult.Conflict(
+                            $"The cell '{fromCell}' has not offered the tenant '{tenantId}' to the cell '{toCell}'."
+                        );
+                    }
+
+                    var now = TimeProvider.GetUtcNow();
+                    if (offer.ExpiresWhen <= now)
+                    {
+                        return MoveResult.Conflict(
+                            $"The offer of the tenant '{tenantId}' to the cell '{toCell}' has expired."
+                        );
+                    }
+
+                    dbContext.TenantMoveOffers.Remove(offer);
                     tenant.Cell = toCell;
-                    tenant.ModifiedWhen = TimeProvider.GetUtcNow();
+                    tenant.ModifiedWhen = now;
 
                     await dbContext.SaveChangesAsync(cancellationToken);
                     await transaction.CommitAsync(cancellationToken);
 
                     return MoveResult.Moved();
+                },
+                cancellationToken
+            );
+    }
+
+    /// <inheritdoc />
+    async ValueTask<MoveOfferResult> ITenantDirectory.OfferMoveAsync(
+        string tenantId,
+        string fromCell,
+        string toCell,
+        CancellationToken cancellationToken
+    )
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+        return await dbContext
+            .Database.CreateExecutionStrategy()
+            .ExecuteAsync(
+                async _ =>
+                {
+                    // A retried attempt starts from the database, not from the failed attempt's tracked entities.
+                    dbContext.ChangeTracker.Clear();
+                    await using var transaction = await dbContext.Database.BeginTransactionAsync(
+                        IsolationLevel.Serializable,
+                        cancellationToken
+                    );
+
+                    var normalizedTenantId = Normalize(tenantId);
+                    var tenant = await dbContext
+                        .Tenants.AsNoTracking()
+                        .SingleOrDefaultAsync(
+                            entity =>
+                                entity.NormalizedTenantId == normalizedTenantId
+                                && entity.State == TenantRecord.StatePlaced,
+                            cancellationToken
+                        );
+                    if (tenant is null)
+                    {
+                        return MoveOfferResult.Conflict(
+                            $"The tenant '{tenantId}' is not placed in a cell."
+                        );
+                    }
+
+                    if (!string.Equals(tenant.Cell, fromCell, StringComparison.Ordinal))
+                    {
+                        return MoveOfferResult.Conflict(
+                            $"The tenant '{tenantId}' is not placed in the cell '{fromCell}'."
+                        );
+                    }
+
+                    if (string.Equals(fromCell, toCell, StringComparison.Ordinal))
+                    {
+                        return MoveOfferResult.Conflict(
+                            $"The tenant '{tenantId}' is already placed in the cell '{toCell}'."
+                        );
+                    }
+
+                    var from = await dbContext
+                        .Cells.AsNoTracking()
+                        .SingleOrDefaultAsync(entity => entity.Name == fromCell, cancellationToken);
+                    if (from is null)
+                    {
+                        return MoveOfferResult.Conflict(
+                            $"The cell '{fromCell}' is not registered."
+                        );
+                    }
+
+                    var to = await dbContext
+                        .Cells.AsNoTracking()
+                        .SingleOrDefaultAsync(entity => entity.Name == toCell, cancellationToken);
+                    if (to is null)
+                    {
+                        return MoveOfferResult.Conflict($"The cell '{toCell}' is not registered.");
+                    }
+
+                    if (!string.Equals(from.Region, to.Region, StringComparison.Ordinal))
+                    {
+                        return MoveOfferResult.Conflict(
+                            $"The cells '{fromCell}' and '{toCell}' are in different regions, and a tenant moves only within its region."
+                        );
+                    }
+
+                    var now = TimeProvider.GetUtcNow();
+                    var offer = await dbContext.TenantMoveOffers.SingleOrDefaultAsync(
+                        entity => entity.NormalizedTenantId == normalizedTenantId,
+                        cancellationToken
+                    );
+                    if (offer is null)
+                    {
+                        dbContext.TenantMoveOffers.Add(
+                            new TenantMoveOfferRecord
+                            {
+                                NormalizedTenantId = normalizedTenantId,
+                                FromCell = fromCell,
+                                ToCell = toCell,
+                                CreatedWhen = now,
+                                ExpiresWhen = now.AddHours(MoveOfferLifetimeHours),
+                            }
+                        );
+                    }
+                    else
+                    {
+                        offer.FromCell = fromCell;
+                        offer.ToCell = toCell;
+                        offer.CreatedWhen = now;
+                        offer.ExpiresWhen = now.AddHours(MoveOfferLifetimeHours);
+                    }
+
+                    await dbContext.SaveChangesAsync(cancellationToken);
+                    await transaction.CommitAsync(cancellationToken);
+
+                    return MoveOfferResult.Offered();
                 },
                 cancellationToken
             );

@@ -27,14 +27,171 @@ public sealed class DefaultDirectoryStoreMoveTests : DefaultDirectoryStoreTestBa
             cancellationToken
         );
 
-    #region MoveAsync Tests
+    private async ValueTask OfferMoveAsync(
+        string fromCell,
+        string toCell,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var result = await Tenants.OfferMoveAsync(TenantId, fromCell, toCell, cancellationToken);
+        Assert.True(result.IsOffered);
+    }
+
+    #region OfferMoveAsync Tests
 
     [Fact]
-    public async Task MoveAsync_WhenPlacedInTheSourceCellAndBothCellsShareARegion_MovesThePlacement()
+    public async Task OfferMoveAsync_ForPlacedTenant_RecordsOffer()
     {
         await RegisterCellAsync(CellName, CellRegion);
         await RegisterCellAsync(TargetCellName, CellRegion);
         await ReserveAndPlaceAsync(TenantId, Issuer);
+
+        var result = await Tenants.OfferMoveAsync(
+            TenantId,
+            CellName,
+            TargetCellName,
+            CancellationToken.None
+        );
+
+        Assert.True(result.IsOffered);
+        var offer = await ReadMoveOfferAsync(TenantId);
+        Assert.NotNull(offer);
+        Assert.Equal(CellName, offer.FromCell);
+        Assert.Equal(TargetCellName, offer.ToCell);
+        Assert.Equal(TimeProvider.GetUtcNow(), offer.CreatedWhen);
+        Assert.Equal(TimeProvider.GetUtcNow().AddHours(1), offer.ExpiresWhen);
+        Assert.Equal(CellName, (await ReadTenantAsync(TenantId))?.Cell);
+    }
+
+    [Fact]
+    public async Task OfferMoveAsync_WhenOfferedAgain_KeepsASingleOfferForTheNewTarget()
+    {
+        await RegisterCellAsync(CellName, CellRegion);
+        await RegisterCellAsync(TargetCellName, CellRegion);
+        await RegisterCellAsync("cell-c", CellRegion);
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+        await OfferMoveAsync(CellName, TargetCellName);
+        TimeProvider.Advance(TimeSpan.FromMinutes(5));
+
+        await OfferMoveAsync(CellName, "cell-c");
+
+        var offer = await ReadMoveOfferAsync(TenantId);
+        Assert.NotNull(offer);
+        Assert.Equal("cell-c", offer.ToCell);
+        Assert.Equal(TimeProvider.GetUtcNow().AddHours(1), offer.ExpiresWhen);
+    }
+
+    [Fact]
+    public async Task OfferMoveAsync_FromCellThatDoesNotHoldTenant_Conflicts()
+    {
+        await RegisterCellAsync(CellName, CellRegion);
+        await RegisterCellAsync(TargetCellName, CellRegion);
+        await RegisterCellAsync("cell-c", CellRegion);
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+
+        var result = await Tenants.OfferMoveAsync(
+            TenantId,
+            "cell-c",
+            TargetCellName,
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsOffered);
+        Assert.Equal(
+            $"The tenant '{TenantId}' is not placed in the cell 'cell-c'.",
+            result.ConflictDetail
+        );
+        Assert.Null(await ReadMoveOfferAsync(TenantId));
+    }
+
+    [Fact]
+    public async Task OfferMoveAsync_WhenTheTenantIsOnlyReserved_Conflicts()
+    {
+        await RegisterCellAsync(CellName, CellRegion);
+        await RegisterCellAsync(TargetCellName, CellRegion);
+        Assert.True((await ReserveAsync(TenantId, Issuer)).IsReserved);
+
+        var result = await Tenants.OfferMoveAsync(
+            TenantId,
+            CellName,
+            TargetCellName,
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsOffered);
+        Assert.Equal($"The tenant '{TenantId}' is not placed in a cell.", result.ConflictDetail);
+    }
+
+    [Fact]
+    public async Task OfferMoveAsync_WhenTheTargetIsTheSourceCell_Conflicts()
+    {
+        await RegisterCellAsync(CellName, CellRegion);
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+
+        var result = await Tenants.OfferMoveAsync(
+            TenantId,
+            CellName,
+            CellName,
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsOffered);
+        Assert.Equal(
+            $"The tenant '{TenantId}' is already placed in the cell '{CellName}'.",
+            result.ConflictDetail
+        );
+    }
+
+    [Fact]
+    public async Task OfferMoveAsync_WhenTheTargetCellIsNotRegistered_Conflicts()
+    {
+        await RegisterCellAsync(CellName, CellRegion);
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+
+        var result = await Tenants.OfferMoveAsync(
+            TenantId,
+            CellName,
+            TargetCellName,
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsOffered);
+        Assert.Equal($"The cell '{TargetCellName}' is not registered.", result.ConflictDetail);
+    }
+
+    [Fact]
+    public async Task OfferMoveAsync_WhenTheCellsAreInAnotherRegion_Conflicts()
+    {
+        await RegisterCellAsync(CellName, CellRegion);
+        await RegisterCellAsync(TargetCellName, OtherRegion);
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+
+        var result = await Tenants.OfferMoveAsync(
+            TenantId,
+            CellName,
+            TargetCellName,
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsOffered);
+        Assert.Equal(
+            $"The cells '{CellName}' and '{TargetCellName}' are in different regions, and a tenant moves only within its region.",
+            result.ConflictDetail
+        );
+        Assert.Null(await ReadMoveOfferAsync(TenantId));
+    }
+
+    #endregion
+
+    #region MoveAsync Tests
+
+    [Fact]
+    public async Task MoveAsync_WithOffer_MovesAndConsumesOffer()
+    {
+        await RegisterCellAsync(CellName, CellRegion);
+        await RegisterCellAsync(TargetCellName, CellRegion);
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+        await OfferMoveAsync(CellName, TargetCellName);
         TimeProvider.Advance(TimeSpan.FromMinutes(5));
 
         var result = await Tenants.MoveAsync(
@@ -50,11 +207,83 @@ public sealed class DefaultDirectoryStoreMoveTests : DefaultDirectoryStoreTestBa
         Assert.Equal(TenantRecord.StatePlaced, record.State);
         Assert.Equal(TargetCellName, record.Cell);
         Assert.Equal(TimeProvider.GetUtcNow(), record.ModifiedWhen);
+        Assert.Null(await ReadMoveOfferAsync(TenantId));
         var placement = await Tenants.GetPlacementOrDefaultAsync(TenantId, CancellationToken.None);
         Assert.NotNull(placement);
         Assert.Equal(TargetCellName, placement.Cell);
         Assert.Equal(CellRegion, placement.Region);
         Assert.Equal(Issuer, placement.Issuer);
+    }
+
+    [Fact]
+    public async Task MoveAsync_WithoutOffer_Conflicts()
+    {
+        await RegisterCellAsync(CellName, CellRegion);
+        await RegisterCellAsync(TargetCellName, CellRegion);
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+
+        var result = await Tenants.MoveAsync(
+            TenantId,
+            CellName,
+            TargetCellName,
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsMoved);
+        Assert.Equal(
+            $"The cell '{CellName}' has not offered the tenant '{TenantId}' to the cell '{TargetCellName}'.",
+            result.ConflictDetail
+        );
+        Assert.Equal(CellName, (await ReadTenantAsync(TenantId))?.Cell);
+    }
+
+    [Fact]
+    public async Task MoveAsync_WithExpiredOffer_Conflicts()
+    {
+        await RegisterCellAsync(CellName, CellRegion);
+        await RegisterCellAsync(TargetCellName, CellRegion);
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+        await OfferMoveAsync(CellName, TargetCellName);
+        TimeProvider.Advance(TimeSpan.FromHours(1));
+
+        var result = await Tenants.MoveAsync(
+            TenantId,
+            CellName,
+            TargetCellName,
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsMoved);
+        Assert.Equal(
+            $"The offer of the tenant '{TenantId}' to the cell '{TargetCellName}' has expired.",
+            result.ConflictDetail
+        );
+        Assert.Equal(CellName, (await ReadTenantAsync(TenantId))?.Cell);
+    }
+
+    [Fact]
+    public async Task MoveAsync_WithOfferToOtherCell_Conflicts()
+    {
+        await RegisterCellAsync(CellName, CellRegion);
+        await RegisterCellAsync(TargetCellName, CellRegion);
+        await RegisterCellAsync("cell-c", CellRegion);
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+        await OfferMoveAsync(CellName, "cell-c");
+
+        var result = await Tenants.MoveAsync(
+            TenantId,
+            CellName,
+            TargetCellName,
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsMoved);
+        Assert.Equal(
+            $"The cell '{CellName}' has not offered the tenant '{TenantId}' to the cell '{TargetCellName}'.",
+            result.ConflictDetail
+        );
+        Assert.Equal(CellName, (await ReadTenantAsync(TenantId))?.Cell);
+        Assert.NotNull(await ReadMoveOfferAsync(TenantId));
     }
 
     [Fact]

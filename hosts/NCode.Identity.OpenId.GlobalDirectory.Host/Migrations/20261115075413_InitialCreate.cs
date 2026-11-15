@@ -100,6 +100,23 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "TenantMoveOffers",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    NormalizedTenantId = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
+                    FromCell = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    ToCell = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    CreatedWhen = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    ExpiresWhen = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TenantMoveOffers", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Tenants",
                 columns: table => new
                 {
@@ -143,6 +160,12 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_TenantMoveOffers_NormalizedTenantId",
+                table: "TenantMoveOffers",
+                column: "NormalizedTenantId",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Tenants_NormalizedIssuer",
                 table: "Tenants",
                 column: "NormalizedIssuer",
@@ -180,6 +203,9 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
 
             migrationBuilder.DropTable(
                 name: "Teams");
+
+            migrationBuilder.DropTable(
+                name: "TenantMoveOffers");
 
             migrationBuilder.DropTable(
                 name: "Tenants");

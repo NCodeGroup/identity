@@ -172,6 +172,21 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
             );
     }
 
+    protected async ValueTask<TenantMoveOfferRecord?> ReadMoveOfferAsync(
+        string tenantId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+        var normalizedTenantId = tenantId.ToLowerInvariant();
+        return await dbContext
+            .TenantMoveOffers.AsNoTracking()
+            .SingleOrDefaultAsync(
+                entity => entity.NormalizedTenantId == normalizedTenantId,
+                cancellationToken
+            );
+    }
+
     protected async ValueTask<string?> ReadTeamPathAsync(
         string teamId,
         CancellationToken cancellationToken = default

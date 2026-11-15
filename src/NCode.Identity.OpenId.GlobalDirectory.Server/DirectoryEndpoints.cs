@@ -81,8 +81,15 @@ public static class DirectoryEndpoints
             .ProducesProblem(StatusCodes.Status403Forbidden);
         group
             .MapPost("{tenantId}/move", MoveTenantAsync)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
+        group
+            .MapPost("{tenantId}/move-offers", OfferTenantMoveAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
         group
             .MapPost("retire", RetireTenantAsync)
             .ProducesProblem(StatusCodes.Status400BadRequest)
@@ -235,11 +242,42 @@ public static class DirectoryEndpoints
 
         // The target cell asks for the move: the machine client that calls is `cell-{toCell}`.
         if (!IsCaller(httpContext, toCell))
-            return UnprocessableEntity("Only the target cell moves a tenant to itself.");
+            return Forbidden("Only the target cell moves a tenant to itself.");
 
         var result = await directory.MoveAsync(tenantId, fromCell, toCell, cancellationToken);
         return result.IsMoved
             ? Results.Ok()
+            : Results.Problem(
+                title: "Conflict",
+                detail: result.ConflictDetail,
+                statusCode: StatusCodes.Status409Conflict
+            );
+    }
+
+    private static async ValueTask<IResult> OfferTenantMoveAsync(
+        string tenantId,
+        TenantMoveOfferRequest request,
+        HttpContext httpContext,
+        ITenantDirectory directory,
+        CancellationToken cancellationToken
+    )
+    {
+        if (IsBlank(request.ToCell))
+            return BadRequest("The target cell is required.");
+
+        // The cell that holds the tenant offers it: the machine client that calls is `cell-{cell}`.
+        var placement = await directory.GetPlacementOrDefaultAsync(tenantId, cancellationToken);
+        if (placement is null || !IsCaller(httpContext, placement.Cell))
+            return Forbidden("Only the cell that holds a tenant offers it to another cell.");
+
+        var result = await directory.OfferMoveAsync(
+            tenantId,
+            placement.Cell,
+            request.ToCell,
+            cancellationToken
+        );
+        return result.IsOffered
+            ? Results.NoContent()
             : Results.Problem(
                 title: "Conflict",
                 detail: result.ConflictDetail,

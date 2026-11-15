@@ -19,6 +19,7 @@ NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.Platforms.get ->
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.RetiredIssuers.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.RetiredIssuerRecord!>!
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.Sequences.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectorySequenceRecord!>!
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.Teams.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord!>!
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.TenantMoveOffers.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord!>!
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.Tenants.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord!>!
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryEndpoints
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryEndpoints.extension(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!)
@@ -91,6 +92,20 @@ NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.State.set -> vo
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.TeamId.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.TeamId.set -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.TeamRecord() -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.CreatedWhen.get -> System.DateTimeOffset
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.CreatedWhen.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.ExpiresWhen.get -> System.DateTimeOffset
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.ExpiresWhen.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.FromCell.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.FromCell.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.Id.get -> long
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.Id.init -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.NormalizedTenantId.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.NormalizedTenantId.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.TenantMoveOfferRecord() -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.ToCell.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.ToCell.set -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.Cell.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.Cell.set -> void

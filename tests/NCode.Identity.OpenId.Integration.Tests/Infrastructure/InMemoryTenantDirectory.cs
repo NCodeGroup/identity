@@ -225,6 +225,17 @@ public sealed class InMemoryTenantDirectory : ITenantDirectory
     }
 
     /// <inheritdoc />
+    public ValueTask<MoveOfferResult> OfferMoveAsync(
+        string tenantId,
+        string fromCell,
+        string toCell,
+        CancellationToken cancellationToken
+    )
+    {
+        return ValueTask.FromResult(MoveOfferResult.Offered());
+    }
+
+    /// <inheritdoc />
     public ValueTask<MoveResult> MoveAsync(
         string tenantId,
         string fromCell,

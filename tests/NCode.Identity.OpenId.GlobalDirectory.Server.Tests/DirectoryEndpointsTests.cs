@@ -854,6 +854,19 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         );
     }
 
+    private async ValueTask OfferMoveAsync(
+        string fromCell,
+        string toCell,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var services = (App ?? throw new InvalidOperationException()).Services;
+        var tenants = services.GetRequiredService<ITenantDirectory>();
+
+        var result = await tenants.OfferMoveAsync(TenantId, fromCell, toCell, cancellationToken);
+        Assert.True(result.IsOffered);
+    }
+
     private async ValueTask<string?> GetPlacedCellAsync(
         CancellationToken cancellationToken = default
     )
@@ -872,6 +885,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     public async Task MoveTenant_WhenTheCallerIsTheTargetCell_AnswersOkAndMovesThePlacement()
     {
         await SeedPlacedTenantAsync("region-a");
+        await OfferMoveAsync("a", "b");
         Authenticate(clientId: "cell-b");
 
         var response = await Client.PostAsync(
@@ -884,9 +898,29 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task MoveTenant_WhenTheCallerIsAnotherCell_AnswersUnprocessableEntity()
+    public async Task MoveTenant_WithoutAnOffer_AnswersConflictWithTheDetail()
     {
         await SeedPlacedTenantAsync("region-a");
+        Authenticate(clientId: "cell-b");
+
+        var response = await Client.PostAsync(
+            $"/directory/v1/tenants/{TenantId}/move?fromCell=a&toCell=b",
+            content: null
+        );
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal(
+            $"The cell 'a' has not offered the tenant '{TenantId}' to the cell 'b'.",
+            await ReadProblemDetailAsync(response)
+        );
+        Assert.Equal("a", await GetPlacedCellAsync());
+    }
+
+    [Fact]
+    public async Task MoveTenant_CallerIsNotTargetCell_Returns403()
+    {
+        await SeedPlacedTenantAsync("region-a");
+        await OfferMoveAsync("a", "b");
         Authenticate(clientId: "cell-a");
 
         var response = await Client.PostAsync(
@@ -894,7 +928,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
             content: null
         );
 
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         Assert.Equal(
             "Only the target cell moves a tenant to itself.",
             await ReadProblemDetailAsync(response)
@@ -951,6 +985,63 @@ public class DirectoryEndpointsTests : IAsyncLifetime
             await ReadProblemDetailAsync(response)
         );
         Assert.Equal("a", await GetPlacedCellAsync());
+    }
+
+    #endregion
+
+    #region Offer Move Tests
+
+    [Fact]
+    public async Task OfferMove_SourceCell_Returns204()
+    {
+        await SeedPlacedTenantAsync("region-a");
+        Authenticate(clientId: "cell-a");
+
+        var response = await Client.PostAsJsonAsync(
+            $"/directory/v1/tenants/{TenantId}/move-offers",
+            new TenantMoveOfferRequest { ToCell = "b" },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task OfferMove_CallerIsNotSourceCell_Returns403()
+    {
+        await SeedPlacedTenantAsync("region-a");
+        Authenticate(clientId: "cell-b");
+
+        var response = await Client.PostAsJsonAsync(
+            $"/directory/v1/tenants/{TenantId}/move-offers",
+            new TenantMoveOfferRequest { ToCell = "b" },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(
+            "Only the cell that holds a tenant offers it to another cell.",
+            await ReadProblemDetailAsync(response)
+        );
+    }
+
+    [Fact]
+    public async Task OfferMove_WhenTheCellsAreInDifferentRegions_AnswersConflictWithTheDetail()
+    {
+        await SeedPlacedTenantAsync("region-b");
+        Authenticate(clientId: "cell-a");
+
+        var response = await Client.PostAsJsonAsync(
+            $"/directory/v1/tenants/{TenantId}/move-offers",
+            new TenantMoveOfferRequest { ToCell = "b" },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal(
+            "The cells 'a' and 'b' are in different regions, and a tenant moves only within its region.",
+            await ReadProblemDetailAsync(response)
+        );
     }
 
     #endregion
