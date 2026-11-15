@@ -8,9 +8,10 @@ using NCode.Identity.SharedState.Valkey.Options;
 namespace NCode.Identity.OpenId.Host;
 
 /// <summary>
-/// Prefixes every Valkey key and channel with the name of the cell, as <c>ncode-identity:{cell}:</c>, so cells that
-/// share one Valkey server never read or write one another's state. The prefix holds no braces: a clustered server
-/// takes the hash tag of a key from its first <c>{</c> and the next <c>}</c>.
+/// Appends the name of the cell and <c>:</c> to the configured <see cref="ValkeyOptions.KeyPrefix"/>, so every Valkey
+/// key and channel starts <c>{KeyPrefix}{cell}:</c> and cells that share one Valkey server never read or write one
+/// another's state. The default prefix gives <c>ncode-identity:{cell}:</c>. The prefix holds no braces: a clustered
+/// server takes the hash tag of a key from its first <c>{</c> and the next <c>}</c>.
 /// </summary>
 /// <param name="cellOptionsAccessor">The options that name the cell.</param>
 internal sealed class CellValkeyOptionsSetup(IOptions<CellOptions> cellOptionsAccessor)
@@ -23,6 +24,6 @@ internal sealed class CellValkeyOptionsSetup(IOptions<CellOptions> cellOptionsAc
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        options.KeyPrefix = $"{ValkeyOptions.DefaultKeyPrefix}{CellOptionsAccessor.Value.Name}:";
+        options.KeyPrefix = $"{options.KeyPrefix}{CellOptionsAccessor.Value.Name}:";
     }
 }

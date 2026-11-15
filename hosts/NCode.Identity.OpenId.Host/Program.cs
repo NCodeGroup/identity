@@ -3,8 +3,6 @@
 
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Options;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.Accounts.Authentication;
 using NCode.Identity.OpenId.Accounts.Credentials;
@@ -20,15 +18,12 @@ using NCode.Identity.OpenId.Setup;
 using NCode.Identity.Registration;
 using NCode.Identity.Registration.AspNetCore;
 using NCode.Identity.Secrets.AwsKms;
-using NCode.Identity.Secrets.AwsKms.Options;
 using NCode.Identity.Secrets.AzureKeyVault;
 using NCode.Identity.Secrets.GoogleCloudKms;
-using NCode.Identity.Secrets.GoogleCloudKms.Options;
 using NCode.Identity.Server;
 using NCode.Identity.Server.InstanceSetup;
 using NCode.Identity.Server.SecretProtection;
 using NCode.Identity.SharedState.Valkey;
-using NCode.Identity.SharedState.Valkey.Options;
 
 // COMPOSITION-ONLY HOST: this file is a flat list of turnkey Add*/Use*/Map* calls. Reusable or
 // developer-only startup logic does NOT belong here — put it in the owning package as an extension
@@ -140,36 +135,8 @@ identityServer.AddFrontendBootstrap(configuration);
 // in-process, which is correct only for a single replica (ADR-1164).
 identityServer.SharedStateLibraryBuilder.AddValkey(configuration);
 
-// Every Valkey key and channel carries the cell's name, so cells that share a server never share state.
-serviceCollection.TryAddEnumerable(
-    ServiceDescriptor.Singleton<IPostConfigureOptions<ValkeyOptions>, CellValkeyOptionsSetup>()
-);
-
-// A KMS key outside the cell's cloud regions is refused.
-serviceCollection.TryAddEnumerable(
-    ServiceDescriptor.Singleton<
-        IPostConfigureOptions<AwsKmsKeyWrapperOptions>,
-        CellKmsRegionOptionsSetup
-    >()
-);
-serviceCollection.TryAddEnumerable(
-    ServiceDescriptor.Singleton<
-        IPostConfigureOptions<AwsKmsRemoteKeyProviderOptions>,
-        CellKmsRegionOptionsSetup
-    >()
-);
-serviceCollection.TryAddEnumerable(
-    ServiceDescriptor.Singleton<
-        IPostConfigureOptions<GoogleCloudKmsKeyWrapperOptions>,
-        CellKmsRegionOptionsSetup
-    >()
-);
-serviceCollection.TryAddEnumerable(
-    ServiceDescriptor.Singleton<
-        IPostConfigureOptions<GoogleCloudKmsRemoteKeyProviderOptions>,
-        CellKmsRegionOptionsSetup
-    >()
-);
+// Every Valkey key and channel carries the cell's name, and a KMS key outside the cell's cloud regions is refused.
+serviceCollection.AddCellOptionsSetups();
 
 var entityFrameworkPersistence =
     serviceCollection.AddEntityFrameworkCorePersistence<OpenIdDbContext>();
