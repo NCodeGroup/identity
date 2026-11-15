@@ -165,6 +165,10 @@ jobs:
           refuse --set directory.keyRing=cell-client
           refuse --set directory.keys.pemSecret=cell-client-key
           refuse --set directory.keys.remoteKeys.cell-client.provider=aws-kms
+          # The directory server's values need directory.enabled: without it the chart runs no directory host.
+          refuse --set directory.issuer=https://control-plane.example
+          refuse --set directory.controlPlaneCell=control
+          refuse --set directory.tls.existingSecret=directory-tls
           # The chart cannot know the CA behind a serving Secret of the operator's, so the controller's Secret is required.
           refuse_console() {
             if helm template release "$CHART" --values "$CHART/ci/management-console-values.yaml" "$@" > /dev/null 2>&1; then
@@ -716,6 +720,10 @@ jobs:
           }
           # The base values render, so each refusal below is the rule it names.
           helm template release "$CHART" --values "$base" > /dev/null
+          # The directory's URL is https, or http on a loopback host, with no user information, query or fragment.
+          refuse --set directory.url=http://directory.example
+          refuse --set directory.url=https://user@directory.example
+          refuse --set 'directory.url=https://directory.example/?a=b'
           refuse --set directory.clientId=
           refuse --set directory.keyRing=
           refuse --set directory.keyRing=cell:client

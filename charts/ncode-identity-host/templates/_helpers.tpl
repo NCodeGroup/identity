@@ -278,6 +278,13 @@ applied. Rendered for its side effect only.
 {{- if and (not .Values.directory.url) .Values.directory.keys.remoteKeys }}
 {{- fail "directory.keys.remoteKeys is set and directory.url is empty: set directory.url, or clear directory.keys.remoteKeys." }}
 {{- end }}
+{{- if and .Values.directory.url (not (regexMatch "^(https://[^/?#@]+|http://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?)(/[^?#]*)?$" .Values.directory.url)) }}
+{{- fail "directory.url must be an absolute https URL, or an http URL on a loopback host, with no user information, query or fragment." }}
+{{- end }}
+{{- $directory := .Values.directory }}
+{{- if and (not $directory.enabled) (or $directory.issuer $directory.controlPlaneCell $directory.allowedHosts $directory.database.runtimeRole $directory.database.existingSecret $directory.migrations.database.existingSecret $directory.tls.existingSecret) }}
+{{- fail "directory.issuer, directory.controlPlaneCell, directory.allowedHosts, directory.database, directory.migrations.database and directory.tls configure the directory host, which runs only when directory.enabled is true: set directory.enabled, or clear them." }}
+{{- end }}
 {{- if and .Values.directory.url .Values.directory.keyRing }}
 {{- $directoryKeys := .Values.directory.keys }}
 {{- if and (not $directoryKeys.pemSecret) (not $directoryKeys.remoteKeys) }}
