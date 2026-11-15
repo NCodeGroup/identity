@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using Moq;
 using NCode.Identity.OpenId.Client;
+using NCode.Identity.OpenId.GlobalDirectory.ControlPlane;
 using NCode.Identity.OpenId.Management.ControlPlane;
 using Xunit;
 

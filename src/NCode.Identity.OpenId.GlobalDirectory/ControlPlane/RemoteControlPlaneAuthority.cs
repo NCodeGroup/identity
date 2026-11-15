@@ -5,7 +5,7 @@ using System.Collections.Concurrent;
 using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.Management.ControlPlane;
 
-namespace NCode.Identity.OpenId.GlobalDirectory;
+namespace NCode.Identity.OpenId.GlobalDirectory.ControlPlane;
 
 /// <summary>
 /// Provides the <see cref="IControlPlaneAuthority"/> of a cell that is not the control plane. It posts the question to
