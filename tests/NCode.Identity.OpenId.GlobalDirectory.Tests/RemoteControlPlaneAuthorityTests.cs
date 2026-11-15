@@ -202,7 +202,7 @@ public class RemoteControlPlaneAuthorityTests : BaseTests
     }
 
     [Fact]
-    public async Task GetAsync_WhenTheCacheIsFullOfFreshEntries_ClearsItBeforeAddingAnother()
+    public async Task GetAsync_WhenTheCacheIsFullOfFreshEntries_EvictsTheEntryThatExpiresFirst()
     {
         var handler = StubHttpMessageHandler.Respond(HttpStatusCode.OK, CreateAnswer());
         var authority = CreateAuthority(handler);
@@ -210,13 +210,16 @@ public class RemoteControlPlaneAuthorityTests : BaseTests
         for (var index = 0; index < 1024; index++)
         {
             await authority.GetAsync(CreateRequest($"subject-{index}"), CancellationToken.None);
+            TimeProvider.Advance(TimeSpan.FromMilliseconds(1));
         }
 
         await authority.GetAsync(CreateRequest("subject-new"), CancellationToken.None);
         var before = handler.Requests.Count;
-        await authority.GetAsync(CreateRequest("subject-new"), CancellationToken.None);
-        await authority.GetAsync(CreateRequest("subject-0"), CancellationToken.None);
 
+        await authority.GetAsync(CreateRequest("subject-1"), CancellationToken.None);
+        Assert.Equal(before, handler.Requests.Count);
+
+        await authority.GetAsync(CreateRequest("subject-0"), CancellationToken.None);
         Assert.Equal(before + 1, handler.Requests.Count);
     }
 

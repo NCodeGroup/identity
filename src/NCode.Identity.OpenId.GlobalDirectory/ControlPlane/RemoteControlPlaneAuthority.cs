@@ -95,7 +95,7 @@ internal sealed class RemoteControlPlaneAuthority(
 
     /// <summary>
     /// Caches an authority under its key. When the cache is full and the key is absent, the expired entries are
-    /// removed, and the whole cache is cleared if none had expired.
+    /// removed, and the entry that expires first is removed if none had expired.
     /// </summary>
     /// <param name="key">The subject, client identifier and team identifier that the authority answers for.</param>
     /// <param name="authority">The <see cref="ControlPlaneAuthority"/> to cache.</param>
@@ -112,14 +112,28 @@ internal sealed class RemoteControlPlaneAuthority(
             {
                 var now = TimeProvider.GetUtcNow();
                 var removedAny = false;
+                KeyValuePair<
+                    (string Subject, string ClientId, string? TeamId),
+                    (ControlPlaneAuthority Authority, DateTimeOffset ExpiresAt)
+                >? expiresFirst = null;
                 foreach (var entry in Cache)
                 {
-                    if (entry.Value.ExpiresAt <= now && Cache.TryRemove(entry))
-                        removedAny = true;
+                    if (entry.Value.ExpiresAt <= now)
+                    {
+                        if (Cache.TryRemove(entry))
+                            removedAny = true;
+                    }
+                    else if (
+                        expiresFirst is not { } tracked
+                        || entry.Value.ExpiresAt < tracked.Value.ExpiresAt
+                    )
+                    {
+                        expiresFirst = entry;
+                    }
                 }
 
-                if (!removedAny)
-                    Cache.Clear();
+                if (!removedAny && expiresFirst is { } evicted)
+                    Cache.TryRemove(evicted);
             }
 
             Cache[key] = (authority, expiresAt);
