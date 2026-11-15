@@ -122,10 +122,13 @@ internal sealed class LocalTenantDirectory(
     }
 
     /// <inheritdoc />
-    public ValueTask PlaceAsync(TenantPlacement placement, CancellationToken cancellationToken)
+    public ValueTask<ReservationResult> PlaceAsync(
+        TenantPlacement placement,
+        CancellationToken cancellationToken
+    )
     {
         // The tenant row is the placement.
-        return ValueTask.CompletedTask;
+        return ValueTask.FromResult(ReservationResult.Reserved());
     }
 
     /// <inheritdoc />

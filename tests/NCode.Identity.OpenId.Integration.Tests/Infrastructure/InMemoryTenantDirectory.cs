@@ -94,17 +94,49 @@ public sealed class InMemoryTenantDirectory : ITenantDirectory
     }
 
     /// <inheritdoc />
-    public ValueTask PlaceAsync(TenantPlacement placement, CancellationToken cancellationToken)
+    public ValueTask<ReservationResult> PlaceAsync(
+        TenantPlacement placement,
+        CancellationToken cancellationToken
+    )
     {
         lock (Gate)
         {
-            if (Tenants.TryGetValue(placement.TenantId, out var entry))
+            if (RetiredTenantIds.Contains(placement.TenantId))
             {
-                entry.Cell = placement.Cell;
-                entry.IsPlaced = true;
+                return ValueTask.FromResult(
+                    ReservationResult.Conflict(
+                        $"The tenant identifier '{placement.TenantId}' belonged to a deleted tenant and is never reissued."
+                    )
+                );
             }
 
-            return ValueTask.CompletedTask;
+            if (!Tenants.TryGetValue(placement.TenantId, out var entry))
+            {
+                return ValueTask.FromResult(
+                    ReservationResult.Conflict(
+                        $"The tenant '{placement.TenantId}' is not reserved."
+                    )
+                );
+            }
+
+            if (
+                !string.Equals(entry.Cell, placement.Cell, StringComparison.Ordinal)
+                || !string.Equals(
+                    entry.Issuer,
+                    placement.Issuer,
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                return ValueTask.FromResult(
+                    ReservationResult.Conflict(
+                        $"The tenant '{placement.TenantId}' is reserved for another cell or issuer."
+                    )
+                );
+            }
+
+            entry.IsPlaced = true;
+            return ValueTask.FromResult(ReservationResult.Reserved());
         }
     }
 

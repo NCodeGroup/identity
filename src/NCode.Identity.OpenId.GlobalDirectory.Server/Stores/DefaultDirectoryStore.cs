@@ -141,7 +141,7 @@ internal sealed class DefaultDirectoryStore(
     }
 
     /// <inheritdoc />
-    async ValueTask ITenantDirectory.PlaceAsync(
+    async ValueTask<ReservationResult> ITenantDirectory.PlaceAsync(
         TenantPlacement placement,
         CancellationToken cancellationToken
     )
@@ -152,43 +152,51 @@ internal sealed class DefaultDirectoryStore(
             cancellationToken
         );
 
-        var normalizedTenantId = Normalize(placement.TenantId);
+        var tenantId = placement.TenantId;
+        var normalizedTenantId = Normalize(tenantId);
         var tenant = await dbContext.Tenants.SingleOrDefaultAsync(
             entity => entity.NormalizedTenantId == normalizedTenantId,
             cancellationToken
         );
-
-        var now = TimeProvider.GetUtcNow();
         if (tenant is null)
         {
-            dbContext.Tenants.Add(
-                new TenantRecord
-                {
-                    TenantId = placement.TenantId,
-                    NormalizedTenantId = normalizedTenantId,
-                    Issuer = placement.Issuer,
-                    NormalizedIssuer = Normalize(placement.Issuer),
-                    Cell = placement.Cell,
-                    State = TenantRecord.StatePlaced,
-                    CreatedWhen = now,
-                    ModifiedWhen = now,
-                }
-            );
+            return ReservationResult.Conflict($"The tenant '{tenantId}' is not reserved.");
         }
-        else if (tenant.State == TenantRecord.StateRetired)
+
+        if (tenant.State == TenantRecord.StateRetired)
         {
             // A retired identifier is never reissued, so a placement cannot bring it back.
-            return;
+            return ReservationResult.Conflict(
+                $"The tenant identifier '{tenantId}' belonged to a deleted tenant and is never reissued."
+            );
         }
-        else
+
+        if (
+            !string.Equals(tenant.Cell, placement.Cell, StringComparison.Ordinal)
+            || !string.Equals(
+                tenant.NormalizedIssuer,
+                Normalize(placement.Issuer),
+                StringComparison.Ordinal
+            )
+        )
         {
-            tenant.State = TenantRecord.StatePlaced;
-            tenant.Cell = placement.Cell;
-            tenant.ModifiedWhen = now;
+            return ReservationResult.Conflict(
+                $"The tenant '{tenantId}' is reserved for another cell or issuer."
+            );
         }
+
+        if (tenant.State == TenantRecord.StatePlaced)
+        {
+            return ReservationResult.Reserved();
+        }
+
+        tenant.State = TenantRecord.StatePlaced;
+        tenant.ModifiedWhen = TimeProvider.GetUtcNow();
 
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+
+        return ReservationResult.Reserved();
     }
 
     /// <inheritdoc />

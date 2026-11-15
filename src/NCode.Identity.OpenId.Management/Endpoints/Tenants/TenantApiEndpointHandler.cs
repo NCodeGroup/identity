@@ -975,7 +975,7 @@ internal class TenantApiEndpointHandler(
             // tenant before seeding it.
             await storeManager.SaveChangesAsync(cancellationToken);
 
-            await TenantDirectory.PlaceAsync(
+            var placementResult = await TenantDirectory.PlaceAsync(
                 new TenantPlacement
                 {
                     TenantId = tenant.TenantId,
@@ -985,6 +985,17 @@ internal class TenantApiEndpointHandler(
                 },
                 cancellationToken
             );
+            if (!placementResult.IsReserved)
+            {
+                return ToErrorResult(
+                    new ManagementError
+                    {
+                        StatusCode = StatusCodes.Status409Conflict,
+                        Detail = placementResult.ConflictDetail,
+                    }
+                );
+            }
+
             isPlaced = true;
         }
         finally

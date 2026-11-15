@@ -108,7 +108,7 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
         var result = await ReserveAsync(tenantId, issuer, teamId, cancellationToken);
         Assert.True(result.IsReserved);
 
-        await Tenants.PlaceAsync(
+        var placementResult = await Tenants.PlaceAsync(
             new TenantPlacement
             {
                 TenantId = tenantId,
@@ -118,6 +118,7 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
             },
             cancellationToken
         );
+        Assert.True(placementResult.IsReserved);
     }
 
     protected ValueTask PublishTeamAsync(

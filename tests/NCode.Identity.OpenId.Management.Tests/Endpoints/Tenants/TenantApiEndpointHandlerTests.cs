@@ -3827,7 +3827,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
                 )
             )
             .Callback(() => Events.Add("place"))
-            .Returns(ValueTask.CompletedTask)
+            .ReturnsAsync(ReservationResult.Reserved())
             .Verifiable();
 
     private void SetupTenantReleased() =>
@@ -4050,6 +4050,43 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status503ServiceUnavailable, problem.StatusCode);
+        Assert.Equal(["reserve", "release"], Events);
+    }
+
+    [Fact]
+    public async Task CreateTenantAsync_WhenTheDirectoryRefusesThePlacement_ReleasesTheReservationAndReturnsConflict()
+    {
+        SetupTeamForCreate();
+        SetupDefaultAlias("acme", alias: null);
+        SetupValidSettings();
+        SetupStore();
+        SetupDefaultIssuer("acme", DerivedIssuer);
+        SetupCreateValidation();
+        SetupTenantReserved();
+        SetupTenantReleased();
+        MockTenantStore
+            .Setup(x => x.AddAsync(It.IsAny<PersistedTenant>(), It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockTenantDirectory
+            .Setup(x => x.PlaceAsync(It.IsAny<TenantPlacement>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ReservationResult.Conflict("The tenant 'acme' is not reserved."))
+            .Verifiable();
+
+        var result = await Handler.CreateTenantAsync(
+            CreateHttpContext(authenticated: true),
+            TeamId,
+            CreateTenantRequest(),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+        Assert.Equal("The tenant 'acme' is not reserved.", problem.ProblemDetails.Detail);
         Assert.Equal(["reserve", "release"], Events);
     }
 

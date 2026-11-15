@@ -57,7 +57,7 @@ public static class DirectoryEndpoints
     private static void MapTenants(RouteGroupBuilder group)
     {
         group.MapPost("reserve", ReserveTenantAsync).ProducesProblem(StatusCodes.Status409Conflict);
-        group.MapPost("place", PlaceTenantAsync);
+        group.MapPost("place", PlaceTenantAsync).ProducesProblem(StatusCodes.Status409Conflict);
         group.MapPost("{tenantId}/release", ReleaseTenantAsync);
         group
             .MapPost("{tenantId}/move", MoveTenantAsync)
@@ -135,8 +135,8 @@ public static class DirectoryEndpoints
             return BadRequest("The tenant, its issuer, its cell and its region are required.");
         }
 
-        await directory.PlaceAsync(placement, cancellationToken);
-        return Results.Ok();
+        var result = await directory.PlaceAsync(placement, cancellationToken);
+        return ToResult(result);
     }
 
     private static async ValueTask<IResult> ReleaseTenantAsync(

@@ -398,9 +398,9 @@ public sealed class LocalTenantDirectoryTests : IDisposable
     #region PlaceAsync Tests
 
     [Fact]
-    public async Task PlaceAsync_WhenCalled_WritesNothing()
+    public async Task PlaceAsync_WhenCalled_IsReservedAndWritesNothing()
     {
-        await Directory.PlaceAsync(
+        var result = await Directory.PlaceAsync(
             new TenantPlacement
             {
                 TenantId = TenantId,
@@ -411,6 +411,7 @@ public sealed class LocalTenantDirectoryTests : IDisposable
             CancellationToken.None
         );
 
+        Assert.True(result.IsReserved);
         Assert.False(DbContext.ChangeTracker.HasChanges());
     }
 

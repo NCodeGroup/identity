@@ -281,7 +281,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
         );
         Assert.Null(await Tenants.GetPlacementOrDefaultAsync(TenantId, CancellationToken.None));
 
-        await Tenants.PlaceAsync(
+        var placeResult = await Tenants.PlaceAsync(
             new TenantPlacement
             {
                 TenantId = TenantId,
@@ -292,6 +292,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
             CancellationToken.None
         );
 
+        Assert.True(placeResult.IsReserved);
         var placement = await Tenants.GetPlacementOrDefaultAsync(TenantId, CancellationToken.None);
         Assert.NotNull(placement);
         Assert.Equal(TenantId, placement.TenantId);

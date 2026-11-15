@@ -38,6 +38,23 @@ public sealed class DefaultDirectoryStoreTenantTests : DefaultDirectoryStoreTest
             cancellationToken
         );
 
+    private ValueTask<ReservationResult> PlaceTenantAsync(
+        string tenantId,
+        string issuer,
+        string cell = CellName,
+        CancellationToken cancellationToken = default
+    ) =>
+        Tenants.PlaceAsync(
+            new TenantPlacement
+            {
+                TenantId = tenantId,
+                Issuer = issuer,
+                Cell = cell,
+                Region = CellRegion,
+            },
+            cancellationToken
+        );
+
     #region PlaceAsync Tests
 
     [Fact]
@@ -46,17 +63,9 @@ public sealed class DefaultDirectoryStoreTenantTests : DefaultDirectoryStoreTest
         await RegisterCellAsync();
         Assert.True((await ReserveAsync(TenantId, Issuer)).IsReserved);
 
-        await Tenants.PlaceAsync(
-            new TenantPlacement
-            {
-                TenantId = TenantId,
-                Issuer = Issuer,
-                Cell = CellName,
-                Region = CellRegion,
-            },
-            CancellationToken.None
-        );
+        var result = await PlaceTenantAsync(TenantId, Issuer);
 
+        Assert.True(result.IsReserved);
         var placement = await Tenants.GetPlacementOrDefaultAsync(
             TenantId.ToUpperInvariant(),
             CancellationToken.None
@@ -72,47 +81,87 @@ public sealed class DefaultDirectoryStoreTenantTests : DefaultDirectoryStoreTest
     }
 
     [Fact]
-    public async Task PlaceAsync_WhenTheTenantIsNotReserved_RecordsThePlacement()
+    public async Task PlaceAsync_WhenTheTenantIsNotReserved_ConflictsAndRecordsNothing()
     {
         await RegisterCellAsync();
 
-        await Tenants.PlaceAsync(
-            new TenantPlacement
-            {
-                TenantId = TenantId,
-                Issuer = Issuer,
-                Cell = CellName,
-                Region = CellRegion,
-            },
-            CancellationToken.None
-        );
+        var result = await PlaceTenantAsync(TenantId, Issuer);
 
-        var placement = await Tenants.GetPlacementOrDefaultAsync(TenantId, CancellationToken.None);
-        Assert.NotNull(placement);
-        Assert.Equal(Issuer, placement.Issuer);
+        Assert.False(result.IsReserved);
+        Assert.Equal($"The tenant '{TenantId}' is not reserved.", result.ConflictDetail);
+        Assert.Null(await Tenants.GetPlacementOrDefaultAsync(TenantId, CancellationToken.None));
+        Assert.Null(await ReadTenantAsync(TenantId));
     }
 
     [Fact]
-    public async Task PlaceAsync_WhenTheTenantIsRetired_KeepsItRetired()
+    public async Task PlaceAsync_WhenTheTenantIsRetired_ConflictsAndKeepsItRetired()
     {
         await Tenants.RetireAsync(
             new TenantRetirement { TenantId = TenantId },
             CancellationToken.None
         );
 
-        await Tenants.PlaceAsync(
-            new TenantPlacement
-            {
-                TenantId = TenantId,
-                Issuer = Issuer,
-                Cell = CellName,
-                Region = CellRegion,
-            },
-            CancellationToken.None
-        );
+        var result = await PlaceTenantAsync(TenantId, Issuer);
 
+        Assert.False(result.IsReserved);
+        Assert.Equal(
+            $"The tenant identifier '{TenantId}' belonged to a deleted tenant and is never reissued.",
+            result.ConflictDetail
+        );
         Assert.Null(await Tenants.GetPlacementOrDefaultAsync(TenantId, CancellationToken.None));
         Assert.True(await Tenants.IsTenantIdRetiredAsync(TenantId, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task PlaceAsync_WhenTheTenantIsReservedForAnotherCell_Conflicts()
+    {
+        await RegisterCellAsync();
+        Assert.True((await ReserveAsync(TenantId, Issuer)).IsReserved);
+
+        var result = await PlaceTenantAsync(TenantId, Issuer, "cell-b");
+
+        Assert.False(result.IsReserved);
+        Assert.Equal(
+            $"The tenant '{TenantId}' is reserved for another cell or issuer.",
+            result.ConflictDetail
+        );
+        var record = await ReadTenantAsync(TenantId);
+        Assert.NotNull(record);
+        Assert.Equal(TenantRecord.StateReserved, record.State);
+        Assert.Equal(CellName, record.Cell);
+    }
+
+    [Fact]
+    public async Task PlaceAsync_WhenTheTenantIsReservedForAnotherIssuer_Conflicts()
+    {
+        await RegisterCellAsync();
+        Assert.True((await ReserveAsync(TenantId, Issuer)).IsReserved);
+
+        var result = await PlaceTenantAsync(TenantId, OtherIssuer);
+
+        Assert.False(result.IsReserved);
+        Assert.Equal(
+            $"The tenant '{TenantId}' is reserved for another cell or issuer.",
+            result.ConflictDetail
+        );
+        var record = await ReadTenantAsync(TenantId);
+        Assert.NotNull(record);
+        Assert.Equal(TenantRecord.StateReserved, record.State);
+        Assert.Equal(Issuer, record.Issuer);
+    }
+
+    [Fact]
+    public async Task PlaceAsync_WhenTheTenantIsAlreadyPlaced_IsReserved()
+    {
+        await RegisterCellAsync();
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+
+        var result = await PlaceTenantAsync(TenantId, Issuer);
+
+        Assert.True(result.IsReserved);
+        var record = await ReadTenantAsync(TenantId);
+        Assert.NotNull(record);
+        Assert.Equal(TenantRecord.StatePlaced, record.State);
     }
 
     #endregion

@@ -38,7 +38,7 @@ internal sealed class RemoteTenantDirectory(DirectoryHttpClient client) : ITenan
     }
 
     /// <inheritdoc />
-    public async ValueTask PlaceAsync(
+    public async ValueTask<ReservationResult> PlaceAsync(
         TenantPlacement placement,
         CancellationToken cancellationToken
     )
@@ -52,7 +52,7 @@ internal sealed class RemoteTenantDirectory(DirectoryHttpClient client) : ITenan
             cancellationToken
         );
 
-        response.EnsureSuccess("place a tenant");
+        return ToReservationResult(response, "place a tenant");
     }
 
     /// <inheritdoc />

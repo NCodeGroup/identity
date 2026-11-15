@@ -336,6 +336,36 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task PlaceTenant_WhenNotReserved_Returns409()
+    {
+        Authenticate(clientId: $"cell-{CellClientId}");
+        var cellResponse = await Client.PutAsJsonAsync(
+            $"/directory/v1/cells/{CellClientId}",
+            CreateCell(CellClientId),
+            WebOptions
+        );
+        Assert.Equal(HttpStatusCode.OK, cellResponse.StatusCode);
+
+        var response = await Client.PostAsJsonAsync(
+            "/directory/v1/tenants/place",
+            new TenantPlacement
+            {
+                TenantId = TenantId,
+                Issuer = TenantIssuer,
+                Cell = CellClientId,
+                Region = "region-a",
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal(
+            $"The tenant '{TenantId}' is not reserved.",
+            await ReadProblemDetailAsync(response)
+        );
+    }
+
+    [Fact]
     public async Task GetTenant_WhenNotPlaced_AnswersNotFound()
     {
         Authenticate();
