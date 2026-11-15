@@ -227,7 +227,9 @@ export type TeamResource = {
   readonly parentTeamId?: string | null;
 };
 
-/** Mirror of `CellResource`: one cell of the platform, with the region it serves and whether it is the control plane. */
+/**
+ * Mirror of `CellResource`: one cell of the platform, with the region it serves and whether it is the control plane.
+ */
 export type CellResource = {
   readonly name: string;
   readonly region: string;
@@ -253,7 +255,10 @@ export type RoleHolderResource = {
   readonly roleName: string;
 };
 
-/** Mirror of `RoleListResource`: the principals that hold one role at a node and whether the caller may grant and revoke it there (ADR-1465). */
+/**
+ * Mirror of `RoleListResource`: the principals that hold one role at a node and whether the caller may grant and revoke
+ * it there (ADR-1465).
+ */
 export type RoleListResource = {
   readonly items: readonly RoleHolderResource[];
   readonly canChange: boolean;
@@ -307,9 +312,15 @@ export type ClientResource = {
   readonly resourceServerId: string | null;
   /** The client's principal, which role assignments name to grant the client authority. */
   readonly principalId: string;
-  /** The type of the node that owns this machine client — `platform` or `team` — or `null` for an ordinary client (ADR-1466). */
+  /**
+   * The type of the node that owns this machine client — `platform` or `team` — or `null` for an ordinary client
+   * (ADR-1466).
+   */
   readonly owningNodeType: string | null;
-  /** The identifier of the node that owns this machine client: the team's id, or `platform`; `null` for an ordinary client. */
+  /**
+   * The identifier of the node that owns this machine client: the team's id, or `platform`; `null` for an ordinary
+   * client.
+   */
   readonly owningNodeId: string | null;
 };
 
@@ -668,7 +679,10 @@ export type EffectiveSettingsResource = {
   readonly settings: Readonly<Record<string, unknown>>;
 };
 
-/** Mirror of `SettingLimitsResource`: the limits an owner's settings may carry and whether the caller may change them (ADR-1418). */
+/**
+ * Mirror of `SettingLimitsResource`: the limits an owner's settings may carry and whether the caller may change them
+ * (ADR-1418).
+ */
 export type SettingLimitsResource = {
   readonly names: readonly string[];
   readonly canChange: boolean;
@@ -749,8 +763,8 @@ export type CreatedInitialAccessTokenResource = {
 
 // See ADR-1407.
 /**
- * Mirror of `EncryptionKeyResource` — one master key of a tenant or of the platform. It carries no key material, wrapped
- * key or key check.
+ * Mirror of `EncryptionKeyResource` — one master key of a tenant or of the platform. It carries no key material,
+ * wrapped key or key check.
  */
 export type EncryptionKeyResource = {
   readonly keyId: string;
@@ -839,7 +853,10 @@ export type TeamRootKeysResource = {
   readonly rootKeys: readonly TeamRootKeyResource[];
   /** The key wrapper names the team may choose a root key from. */
   readonly rootKeyProviders: readonly string[];
-  /** The value an identity the team grants can require of the server, such as the external ID of an AWS role's trust policy. */
+  /**
+   * The value an identity the team grants can require of the server, such as the external ID of an AWS role's trust
+   * policy.
+   */
   readonly rootKeyAccessBinding: string;
 };
 
@@ -890,11 +907,16 @@ export type TenantTransferKeyResource = {
  */
 export type TenantExportRequest = {
   readonly jwk: Readonly<Record<string, unknown>>;
-  /** The name of the cell that receives the tenant; the exporting cell offers the tenant to it in the global directory. */
+  /**
+   * The name of the cell that receives the tenant; the exporting cell offers the tenant to it in the global directory.
+   */
   readonly targetCell: string;
 };
 
-/** Mirror of `TenantExportResource` — the export of a disabled tenant as a compact JWE (`package`) to the receiving cell's transfer key. */
+/**
+ * Mirror of `TenantExportResource` — the export of a disabled tenant as a compact JWE (`package`) to the receiving
+ * cell's transfer key.
+ */
 export type TenantExportResource = {
   readonly package: string;
 };
