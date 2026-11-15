@@ -61,11 +61,11 @@ export type TenantMove = {
   ) => Promise<TenantMoveFailure | undefined>;
 };
 
-/** The number of stages of a move: the transfer key, the export, the import and the release. */
-export const tenantMoveStageCount = 4;
+/** The index of each stage of a move, in the order the stages run. */
+export const tenantMoveStages = { transferKey: 0, export: 1, import: 2, release: 3 } as const;
 
-const exportStage = 1;
-const importStage = 2;
+/** The number of stages of a move: the transfer key, the export, the import and the release. */
+export const tenantMoveStageCount = Object.keys(tenantMoveStages).length;
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -84,10 +84,10 @@ export function createTenantMove(
 
   const runStage = async (stage: number): Promise<void> => {
     switch (stage) {
-      case 0:
+      case tenantMoveStages.transferKey:
         transferKey = await operations.createTransferKey(targetCell);
         return;
-      case exportStage:
+      case tenantMoveStages.export:
         if (transferKey === undefined) {
           throw new Error('The transfer key was not issued.');
         }
@@ -98,15 +98,17 @@ export function createTenantMove(
           transferKey.jwk,
         );
         return;
-      case importStage:
+      case tenantMoveStages.import:
         if (transferKey === undefined || sealedPackage === undefined) {
           throw new Error('The sealed package was not exported.');
         }
         await operations.importTenant(targetCell, transferKey.kid, sealedPackage);
         return;
-      default:
+      case tenantMoveStages.release:
         await operations.releaseMovedTenant(sourceCell, tenantId);
         return;
+      default:
+        throw new Error(`Unknown stage ${stage}.`);
     }
   };
 
@@ -122,11 +124,11 @@ export function createTenantMove(
         }
         return undefined;
       } catch (error) {
-        if (stage === importStage) {
+        if (stage === tenantMoveStages.import) {
           // The import spends the transfer key, so a retry asks the receiving cell for another one.
           transferKey = undefined;
           sealedPackage = undefined;
-          return { stage, resumeStage: 0, message: errorMessage(error) };
+          return { stage, resumeStage: tenantMoveStages.transferKey, message: errorMessage(error) };
         }
         return { stage, resumeStage: stage, message: errorMessage(error) };
       }

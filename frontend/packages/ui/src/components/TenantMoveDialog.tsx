@@ -14,6 +14,7 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import {
   createTenantMove,
+  tenantMoveStages,
   type TenantMove,
   type TenantMoveFailure,
   type TenantMoveOperations,
@@ -60,8 +61,6 @@ function stagesOf(sourceCell: string, targetCell: string): readonly Stage[] {
     { key: 'release', label: `Release the tenant at ${sourceCell}` },
   ];
 }
-
-const releaseStage = 3;
 
 /**
  * Move dialog for a disabled tenant: pick another cell of the tenant's region, then run the four stages of a move in
@@ -133,7 +132,7 @@ export function TenantMoveDialog({
     });
     moveRef.current = move;
     setCompleted(0);
-    await runFrom(move, 0);
+    await runFrom(move, tenantMoveStages.transferKey);
   };
 
   const handleRetry = async () => {
@@ -205,7 +204,7 @@ export function TenantMoveDialog({
                 Remaining: {remaining.map((stage) => stage.label).join('; ')}.
               </Typography>
               <Typography variant="body2">
-                {failure.stage < releaseStage
+                {failure.stage < tenantMoveStages.release
                   ? `The tenant has not moved and is still at ${sourceCell}.`
                   : `The tenant is imported into ${targetCell}; ${sourceCell} still holds it until it is released.`}
               </Typography>

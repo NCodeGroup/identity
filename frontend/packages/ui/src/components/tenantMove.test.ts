@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createTenantMove, tenantMoveStageCount, type TenantMoveOperations } from './tenantMove.js';
+import {
+  createTenantMove,
+  tenantMoveStageCount,
+  tenantMoveStages,
+  type TenantMoveOperations,
+} from './tenantMove.js';
 
 const jwk = { kty: 'EC', crv: 'P-256' };
 const target = { tenantId: 'acme', sourceCell: 'eu-1', targetCell: 'eu-2' };
@@ -200,5 +205,24 @@ describe('createTenantMove', () => {
       message: 'The sealed package was not exported.',
     });
     expect(operations.importTenant).not.toHaveBeenCalled();
+  });
+
+  it('fails with the unknown stage and runs no operation when the run starts at a stage that does not exist', async () => {
+    const operations = createOperations();
+
+    const failure = await createTenantMove(operations, target).run(-1);
+
+    expect(failure).toEqual({ stage: -1, resumeStage: -1, message: 'Unknown stage -1.' });
+    expect(operations.createTransferKey).not.toHaveBeenCalled();
+    expect(operations.exportTenant).not.toHaveBeenCalled();
+    expect(operations.importTenant).not.toHaveBeenCalled();
+    expect(operations.releaseMovedTenant).not.toHaveBeenCalled();
+  });
+});
+
+describe('tenantMoveStages', () => {
+  it('names every stage once in run order', () => {
+    expect(Object.values(tenantMoveStages)).toEqual([0, 1, 2, 3]);
+    expect(new Set(Object.values(tenantMoveStages)).size).toBe(tenantMoveStageCount);
   });
 });
