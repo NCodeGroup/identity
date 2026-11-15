@@ -1,8 +1,10 @@
 #nullable enable
+const NCode.Identity.Persistence.DatabaseRoleNameRules.Pattern = "^[a-z_][a-z0-9_]*$" -> string!
 const NCode.Identity.Persistence.MaxLengths.ConcurrencyToken = 50 -> int
 const NCode.Identity.Persistence.MaxLengths.ResourceId = 300 -> int
 const NCode.Identity.Persistence.MaxLengths.ResourceType = 100 -> int
 const NCode.Identity.Persistence.ResourceTypes.Separator = "/" -> string!
+NCode.Identity.Persistence.DatabaseRoleNameRules
 NCode.Identity.Persistence.ISupportConcurrencyToken
 NCode.Identity.Persistence.ISupportConcurrencyToken.ConcurrencyToken.get -> string!
 NCode.Identity.Persistence.ISupportResource
@@ -11,6 +13,8 @@ NCode.Identity.Persistence.ISupportResource.ResourceType.get -> string!
 NCode.Identity.Persistence.MaxLengths
 NCode.Identity.Persistence.PostCommitWork
 NCode.Identity.Persistence.ResourceTypes
+static NCode.Identity.Persistence.DatabaseRoleNameRules.IsValid(string? role) -> bool
+static NCode.Identity.Persistence.DatabaseRoleNameRules.RequireRuntimeRole(string? configuredRole, string! key, string! connectsAs) -> string!
 static NCode.Identity.Persistence.PostCommitWork.RunAsync<TState>(System.TimeProvider! timeProvider, System.Func<TState, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>! step, TState state) -> System.Threading.Tasks.ValueTask
 static NCode.Identity.Persistence.PostCommitWork.Timeout.get -> System.TimeSpan
 NCode.Identity.Persistence.StoreManagerLibrary
