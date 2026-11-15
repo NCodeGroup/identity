@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Microsoft.Extensions.Options;
+using NCode.Identity.Time;
 
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
@@ -25,7 +26,7 @@ internal sealed class DirectoryClientOptionsValidator : IValidateOptions<Directo
         if (!DirectoryEndpoint.IsAllowed(options.Url))
         {
             failures.Add(
-                $"{Prefix}:{nameof(DirectoryClientOptions.Url)} '{options.Url}' must be an absolute https URL, or an http URL on a loopback host, with no query or fragment."
+                $"{Prefix}:{nameof(DirectoryClientOptions.Url)} '{DirectoryUrls.Describe(options.Url)}' must be an absolute https URL, or an http URL on a loopback host, with no user information, query or fragment."
             );
         }
 
@@ -43,10 +44,14 @@ internal sealed class DirectoryClientOptionsValidator : IValidateOptions<Directo
             );
         }
 
-        if (options.PollInterval <= TimeSpan.Zero)
+        // The change feed waits half the interval with a timer, so the half must be a valid timer period too.
+        if (
+            !TimerPeriod.IsValid(options.PollInterval)
+            || !TimerPeriod.IsValid(options.PollInterval / 2)
+        )
         {
             failures.Add(
-                $"{Prefix}:{nameof(DirectoryClientOptions.PollInterval)} '{options.PollInterval}' must be a positive time span."
+                $"{Prefix}:{nameof(DirectoryClientOptions.PollInterval)} '{options.PollInterval}' must be a time span from {TimerPeriod.MinValue * 2} to {TimerPeriod.MaxValue}."
             );
         }
 

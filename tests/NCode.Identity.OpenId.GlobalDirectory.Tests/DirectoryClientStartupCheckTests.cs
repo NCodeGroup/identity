@@ -56,7 +56,25 @@ public class DirectoryClientStartupCheckTests : BaseTests
         );
 
         Assert.Contains("Cell:ControlPlane:Issuer", exception.Message);
-        Assert.Contains($"'{issuer}'", exception.Message);
+        Assert.Contains($"'{DirectoryUrls.Describe(issuer)}'", exception.Message);
+    }
+
+    [Fact]
+    public async Task StartingAsync_DirectoryUrlAndIssuerWithUserInformation_ThrowsWithoutEchoingTheCredentials()
+    {
+        var check = CreateCheck(
+            "https://directory.example",
+            "https://user:secret@issuer.example/path?q=x"
+        );
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            check.StartingAsync(CancellationToken.None)
+        );
+
+        Assert.Contains("Cell:ControlPlane:Issuer", exception.Message);
+        Assert.Contains("https://issuer.example/path", exception.Message);
+        Assert.DoesNotContain("secret", exception.Message);
+        Assert.DoesNotContain("q=x", exception.Message);
     }
 
     #endregion

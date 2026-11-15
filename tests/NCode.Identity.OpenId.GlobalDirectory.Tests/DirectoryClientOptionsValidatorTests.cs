@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using NCode.Identity.Time;
 using Xunit;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Tests;
@@ -57,7 +58,24 @@ public class DirectoryClientOptionsValidatorTests : BaseTests
         var failure = Assert.Single(result.Failures);
         Assert.Contains("Directory:Url", failure);
         if (url.Length > 0)
-            Assert.Contains(url, failure);
+            Assert.Contains(DirectoryUrls.Describe(url), failure);
+    }
+
+    [Fact]
+    public void Validate_WhenUrlCarriesUserInformation_FailsWithoutEchoingTheCredentials()
+    {
+        var options = CreateOptions();
+        options.Url = "https://user:secret@directory.example/path?q=x";
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        var failure = Assert.Single(result.Failures);
+        Assert.Contains("Directory:Url", failure);
+        Assert.Contains("no user information", failure);
+        Assert.Contains("https://directory.example/path", failure);
+        Assert.DoesNotContain("secret", failure);
+        Assert.DoesNotContain("q=x", failure);
     }
 
     [Theory]
@@ -102,6 +120,40 @@ public class DirectoryClientOptionsValidatorTests : BaseTests
     public void Validate_WhenPollIntervalIsNegative_FailsNamingTheValue()
     {
         AssertPollIntervalFails(TimeSpan.FromSeconds(-5));
+    }
+
+    [Fact]
+    public void Validate_WhenPollIntervalIsOneMillisecond_FailsNamingTheValue()
+    {
+        AssertPollIntervalFails(TimeSpan.FromMilliseconds(1));
+    }
+
+    [Fact]
+    public void Validate_WhenPollIntervalExceedsTheTimerMaximum_FailsNamingTheValue()
+    {
+        AssertPollIntervalFails(TimerPeriod.MaxValue + TimeSpan.FromMilliseconds(1));
+    }
+
+    [Fact]
+    public void Validate_WhenPollIntervalIsTwiceTheTimerMinimum_Succeeds()
+    {
+        var options = CreateOptions();
+        options.PollInterval = TimerPeriod.MinValue * 2;
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public void Validate_WhenPollIntervalIsTheTimerMaximum_Succeeds()
+    {
+        var options = CreateOptions();
+        options.PollInterval = TimerPeriod.MaxValue;
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Succeeded);
     }
 
     #endregion

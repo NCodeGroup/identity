@@ -5,7 +5,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
 /// Decides whether a URL may name the directory service or the control-plane issuer: an absolute <c>https</c> URL, or
-/// an <c>http</c> URL on a loopback host, with no whitespace, query or fragment.
+/// an <c>http</c> URL on a loopback host, with no whitespace, user information, query or fragment.
 /// </summary>
 // See ADR-1285 (the endpoint rule).
 internal static class DirectoryEndpoint
@@ -20,7 +20,11 @@ internal static class DirectoryEndpoint
         if (!AbsoluteUri.TryParse(value, out var uri))
             return false;
 
-        if (!string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment))
+        if (
+            !string.IsNullOrEmpty(uri.UserInfo)
+            || !string.IsNullOrEmpty(uri.Query)
+            || !string.IsNullOrEmpty(uri.Fragment)
+        )
             return false;
 
         return uri.Scheme == Uri.UriSchemeHttps

@@ -30,7 +30,7 @@ internal sealed class DirectoryClientStartupCheck(
         if (!DirectoryEndpoint.IsAllowed(issuer))
         {
             throw new InvalidOperationException(
-                $"{CellOptions.SectionName}:{nameof(CellOptions.ControlPlane)}:{nameof(ControlPlaneOptions.Issuer)} '{issuer}' must be an absolute https URL, or an http URL on a loopback host, with no query or fragment, when {DirectoryClientOptions.SectionName}:{nameof(DirectoryClientOptions.Url)} is set."
+                $"{CellOptions.SectionName}:{nameof(CellOptions.ControlPlane)}:{nameof(ControlPlaneOptions.Issuer)} '{DirectoryUrls.Describe(issuer)}' must be an absolute https URL, or an http URL on a loopback host, with no user information, query or fragment, when {DirectoryClientOptions.SectionName}:{nameof(DirectoryClientOptions.Url)} is set."
             );
         }
 
