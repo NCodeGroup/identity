@@ -3,6 +3,7 @@
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.Client;
 using NCode.Identity.OpenId.GlobalDirectory.ControlPlane;
 using NCode.Identity.OpenId.Management.ControlPlane;
@@ -27,6 +28,13 @@ public class DefaultRegistrationTests : BaseTests
         var count = serviceCollection.Count;
         builder.AddOpenIdDirectoryClient(configuration);
         return [.. serviceCollection.Skip(count)];
+    }
+
+    private static ServiceProvider BuildProvider(IConfiguration configuration)
+    {
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.NewBuilder<OpenIdClientLibrary>().AddOpenIdDirectoryClient(configuration);
+        return serviceCollection.BuildServiceProvider();
     }
 
     private static bool IsRegistered<TService, TImplementation>(
@@ -123,6 +131,34 @@ public class DefaultRegistrationTests : BaseTests
         var exception = Assert.ThrowsAny<Exception>(() => Register(configuration));
 
         Assert.Contains("Unknown", exception.Message);
+    }
+
+    [Fact]
+    public void Register_UrlWithoutClientId_FailsStartupValidation()
+    {
+        using var serviceProvider = BuildProvider(
+            CreateConfiguration(("Directory:Url", "https://directory.example"))
+        );
+
+        var exception = Assert.Throws<OptionsValidationException>(() =>
+            serviceProvider.GetRequiredService<IStartupValidator>().Validate()
+        );
+
+        Assert.Contains("Directory:ClientId", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Register_UrlClientIdAndKeyRing_PassesStartupValidation()
+    {
+        using var serviceProvider = BuildProvider(
+            CreateConfiguration(
+                ("Directory:Url", "https://directory.example"),
+                ("Directory:ClientId", "cell-a"),
+                ("Directory:KeyRing", "cell-a-ring")
+            )
+        );
+
+        serviceProvider.GetRequiredService<IStartupValidator>().Validate();
     }
 
     #endregion
