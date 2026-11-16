@@ -16,6 +16,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\NCode.Identity.AspNetCore\NCode.Identity.AspNetCore.csproj" />
         <ProjectReference Include="..\NCode.Identity.Cryptography.Abstractions\NCode.Identity.Cryptography.Abstractions.csproj" />
         <ProjectReference Include="..\NCode.Identity.Events.Abstractions\NCode.Identity.Events.Abstractions.csproj" />
         <ProjectReference Include="..\NCode.Identity.OpenId.Persistence.Abstractions\NCode.Identity.OpenId.Persistence.Abstractions.csproj" />

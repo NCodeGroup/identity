@@ -4,6 +4,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Contracts.EncryptionKeys;

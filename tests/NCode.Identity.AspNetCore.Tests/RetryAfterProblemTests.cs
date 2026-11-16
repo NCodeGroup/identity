@@ -4,12 +4,30 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
-using NCode.Identity.OpenId.Management.Contracts;
+using Xunit;
 
-namespace NCode.Identity.OpenId.Management.Endpoints;
+namespace NCode.Identity.AspNetCore.Tests;
 
-public class RetryAfterProblemTests
+public class RetryAfterProblemTests : BaseTests
 {
+    #region GetWaitSeconds Tests
+
+    [Theory]
+    [InlineData(90.2, 91L)]
+    [InlineData(5.0, 5L)]
+    [InlineData(0.01, 1L)]
+    [InlineData(0.0, 1L)]
+    [InlineData(-5.0, 1L)]
+    public void GetWaitSeconds_Always_RoundsUpToWholeSecondsOfAtLeastOne(
+        double waitSeconds,
+        long expected
+    )
+    {
+        Assert.Equal(expected, RetryAfterProblem.GetWaitSeconds(TimeSpan.FromSeconds(waitSeconds)));
+    }
+
+    #endregion
+
     #region Create Tests
 
     [Fact]
@@ -31,10 +49,7 @@ public class RetryAfterProblemTests
         Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
         Assert.Equal("Wait for the replicas.", problem.ProblemDetails.Detail);
         Assert.Equal("91", httpContext.Response.Headers.RetryAfter.ToString());
-        Assert.Equal(
-            91L,
-            problem.ProblemDetails.Extensions[ManagementProblemMembers.RetryAfterSeconds]
-        );
+        Assert.Equal(91L, problem.ProblemDetails.Extensions[RetryAfterProblem.MemberName]);
     }
 
     [Fact]
@@ -50,10 +65,7 @@ public class RetryAfterProblemTests
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal("1", httpContext.Response.Headers.RetryAfter.ToString());
-        Assert.Equal(
-            1L,
-            problem.ProblemDetails.Extensions[ManagementProblemMembers.RetryAfterSeconds]
-        );
+        Assert.Equal(1L, problem.ProblemDetails.Extensions[RetryAfterProblem.MemberName]);
     }
 
     [Fact]
@@ -61,18 +73,30 @@ public class RetryAfterProblemTests
     {
         var httpContext = new DefaultHttpContext();
         var details = new ProblemDetails { Status = StatusCodes.Status503ServiceUnavailable };
-        details.Extensions[ManagementProblemMembers.OwnerId] = "tenant-1";
+        details.Extensions["resource"] = "r-1";
 
         var result = RetryAfterProblem.Create(httpContext, TimeSpan.FromSeconds(5), details);
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
-        Assert.Equal(
-            "tenant-1",
-            problem.ProblemDetails.Extensions[ManagementProblemMembers.OwnerId]
+        Assert.Equal("r-1", problem.ProblemDetails.Extensions["resource"]);
+        Assert.Equal(5L, problem.ProblemDetails.Extensions[RetryAfterProblem.MemberName]);
+    }
+
+    [Fact]
+    public void Create_WhenTheHttpContextIsNull_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(
+            "httpContext",
+            () => RetryAfterProblem.Create(null!, TimeSpan.FromSeconds(1), new ProblemDetails())
         );
-        Assert.Equal(
-            5L,
-            problem.ProblemDetails.Extensions[ManagementProblemMembers.RetryAfterSeconds]
+    }
+
+    [Fact]
+    public void Create_WhenTheProblemIsNull_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(
+            "problem",
+            () => RetryAfterProblem.Create(new DefaultHttpContext(), TimeSpan.FromSeconds(1), null!)
         );
     }
 

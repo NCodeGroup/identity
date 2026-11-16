@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
 using NCode.Buffers;
+using NCode.Identity.AspNetCore;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.Jose;

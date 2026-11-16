@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
+using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Contracts.Cells;
 using NCode.Identity.Registration.AspNetCore;
