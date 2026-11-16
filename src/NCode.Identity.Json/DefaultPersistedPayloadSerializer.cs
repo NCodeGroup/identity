@@ -6,12 +6,11 @@ using System.Collections.Frozen;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using NCode.Identity.Json;
 
-namespace NCode.Identity.OpenId.Authentication.Persistence;
+namespace NCode.Identity.Json;
 
 /// <summary>
-/// Provides the default implementation of <see cref="IPersistedPayloadSerializer"/> that wraps every persisted-grant
+/// Provides the default implementation of <see cref="IPersistedPayloadSerializer"/> that wraps every stored
 /// payload in a self-describing, schema-versioned envelope and migrates older stored documents up to the current schema
 /// version through registered <see cref="IPersistedPayloadUpcaster"/> steps.
 /// </summary>

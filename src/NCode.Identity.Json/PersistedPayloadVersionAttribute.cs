@@ -3,10 +3,10 @@
 
 using JetBrains.Annotations;
 
-namespace NCode.Identity.OpenId.Authentication.Persistence;
+namespace NCode.Identity.Json;
 
 /// <summary>
-/// Declares the current at-rest schema version of a persisted-grant payload type. The version is stamped into the
+/// Declares the current at-rest schema version of a stored payload type. The version is stamped into the
 /// schema-versioned envelope when the payload is written, and is the target version that
 /// <see cref="IPersistedPayloadUpcaster"/> steps migrate older stored documents up to when the payload is read. A
 /// payload type without this attribute is treated as schema version <c>1</c>; bump the version (and register an

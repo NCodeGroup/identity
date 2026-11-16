@@ -4,10 +4,10 @@
 using System.Text.Json;
 using JetBrains.Annotations;
 
-namespace NCode.Identity.OpenId.Authentication.Persistence;
+namespace NCode.Identity.Json;
 
 /// <summary>
-/// Provides the single seam through which persisted-grant payloads are serialized to, and deserialized from, their
+/// Provides the single seam through which stored payloads are serialized to, and deserialized from, their
 /// at-rest JSON form. Every stored document is wrapped in a self-describing, schema-versioned envelope so the schema
 /// version always travels with the data and future non-additive changes can be migrated by a registered
 /// <see cref="IPersistedPayloadUpcaster"/> without a storage migration. The current schema version of a payload type is

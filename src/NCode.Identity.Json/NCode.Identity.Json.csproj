@@ -4,11 +4,16 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <RootNamespace>NCode.Identity.Json</RootNamespace>
-        <Description>The JSON value model of JOSE, OAuth and OpenID Connect for NCode.Identity: NumericDate coercion, claim sets as object graphs, strict claim reads on JsonElement and the family's JSON converters.</Description>
+        <Description>The JSON value model of JOSE, OAuth and OpenID Connect for NCode.Identity: NumericDate coercion, claim sets as object graphs, strict claim reads on JsonElement, the family's JSON converters and the schema-versioned serializer of the payloads stored at rest as JSON.</Description>
     </PropertyGroup>
 
     <ItemGroup>
+        <InternalsVisibleTo Include="NCode.Identity.Json.Tests" />
+    </ItemGroup>
+
+    <ItemGroup>
         <PackageReference Include="JetBrains.Annotations" PrivateAssets="All" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
         <PackageReference Include="NCode.Buffers" />
     </ItemGroup>
 </Project>

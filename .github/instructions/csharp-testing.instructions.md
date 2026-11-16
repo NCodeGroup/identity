@@ -219,9 +219,9 @@ seams, facades, and `InternalsVisibleTo` wiring that make code mockable — live
   `DbContext.SaveChangesAsync` directly sees EF's `DbUpdateConcurrencyException`. See
   [ADR-1012](../../docs/decisions/1012-concurrency-tokens-are-interceptor-managed-and-a-lost-race-surfaces-as-a-store-neutral-exception.md).
 - 👁 **Build a stored grant's payload with `TestGrantPayloadProtector.Protect(...)`**
-  (which wraps the real `DefaultPersistedPayloadSerializer`), never a bare `JsonSerializer` call. The server stores a
-  protected, versioned envelope, so a test that hands the code the bare payload passes while the code fails on every
-  stored row (`DefaultSessionServiceTests`).
+  (which wraps the real serializer that `AddPersistedPayloadSerializer()` registers), never a bare `JsonSerializer`
+  call. The server stores a protected, versioned envelope, so a test that hands the code the bare payload passes while
+  the code fails on every stored row (`DefaultSessionServiceTests`).
 - 👁 **Seed a settings document the vocabulary cannot honor through the store, and prove it unreadable first.** The
   management API refuses such a document, so `SeedPublicClientWithSettingsAsync` writes it with an unregistered
   setting name; assert that the incoherent-client report lists it with a `documentError` before the behavior under

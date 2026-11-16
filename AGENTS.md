@@ -42,10 +42,10 @@ A project under `tests/` whose name does not end in `.Tests` is a support projec
 compiles it and no gate tests it
 ([ADR-1430](docs/decisions/1430-end-to-end-suites-run-the-bff-in-real-browsers-against-a-containerized-keycloak-in-their-own-gate.md)).
 
-- **Foundation** — `NCode.Identity.Json` (the JSON value model of JOSE, OAuth and OpenID Connect),
-  `NCode.Identity.Time` (`NumericDate` precision, timer and time periods) and `NCode.Identity.AspNetCore(.Abstractions)`
-  (page and response security, front-channel metadata, host hardening and the HTTP result contracts), which any package
-  may reference
+- **Foundation** — `NCode.Identity.Json` (the JSON value model of JOSE, OAuth and OpenID Connect, and the
+  schema-versioned serializer of the payloads stored at rest as JSON), `NCode.Identity.Time` (`NumericDate`
+  precision, timer and time periods) and `NCode.Identity.AspNetCore(.Abstractions)` (page and response security,
+  front-channel metadata, host hardening and the HTTP result contracts), which any package may reference
   ([ADR-1500](docs/decisions/1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md))
 - **JOSE / JWT** — `NCode.Identity.Jwk` (the JSON Web Key, key set and thumbprint model that the JOSE and Secrets
   libraries share), `NCode.Identity.Jose(.Abstractions)`, `NCode.Identity.Jwt(.Abstractions)`, and the opt-in algorithm

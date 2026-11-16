@@ -5,6 +5,7 @@ using JetBrains.Annotations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using NCode.Identity.Json;
 using NCode.Identity.Registration;
 
 namespace NCode.Identity.OpenId.Authentication.Persistence;
@@ -27,10 +28,7 @@ internal static class DefaultRegistration
         {
             var serviceCollection = builder.ServiceCollection;
 
-            serviceCollection.TryAddSingleton<
-                IPersistedPayloadSerializer,
-                DefaultPersistedPayloadSerializer
-            >();
+            serviceCollection.AddPersistedPayloadSerializer();
             serviceCollection.TryAddSingleton<
                 IGrantPayloadProtector,
                 DefaultGrantPayloadProtector

@@ -1,9 +1,19 @@
 #nullable enable
 NCode.Identity.Json.DateCoercion
+NCode.Identity.Json.DefaultRegistration
+NCode.Identity.Json.DefaultRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!)
+NCode.Identity.Json.DefaultRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).AddPersistedPayloadSerializer() -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 NCode.Identity.Json.DelegatingJsonConverter<TInterface, TImplementation>
 NCode.Identity.Json.DelegatingJsonConverter<TInterface, TImplementation>.DelegatingJsonConverter() -> void
 NCode.Identity.Json.DelegatingJsonConverter<TInterface, TImplementation>.MatchExact.get -> bool
 NCode.Identity.Json.DelegatingJsonConverter<TInterface, TImplementation>.MatchExact.set -> void
+NCode.Identity.Json.IPersistedPayloadSerializer
+NCode.Identity.Json.IPersistedPayloadSerializer.Deserialize<TPayload>(System.Text.Json.JsonElement jsonElement, System.Text.Json.JsonSerializerOptions! jsonOptions) -> TPayload
+NCode.Identity.Json.IPersistedPayloadSerializer.Serialize<TPayload>(TPayload payload, System.Text.Json.JsonSerializerOptions! jsonOptions) -> System.Text.Json.JsonElement
+NCode.Identity.Json.IPersistedPayloadUpcaster
+NCode.Identity.Json.IPersistedPayloadUpcaster.FromVersion.get -> int
+NCode.Identity.Json.IPersistedPayloadUpcaster.PayloadType.get -> System.Type!
+NCode.Identity.Json.IPersistedPayloadUpcaster.Upcast(System.Text.Json.Nodes.JsonNode? payload) -> System.Text.Json.Nodes.JsonNode?
 NCode.Identity.Json.JsonElements
 NCode.Identity.Json.ObjectGraphExtensions
 NCode.Identity.Json.ObjectJsonConverter
@@ -32,6 +42,9 @@ NCode.Identity.Json.ObjectJsonIntegerHandling.MostSpecific = 0 -> NCode.Identity
 NCode.Identity.Json.ObjectJsonRealHandling
 NCode.Identity.Json.ObjectJsonRealHandling.Decimal = 1 -> NCode.Identity.Json.ObjectJsonRealHandling
 NCode.Identity.Json.ObjectJsonRealHandling.Double = 0 -> NCode.Identity.Json.ObjectJsonRealHandling
+NCode.Identity.Json.PersistedPayloadVersionAttribute
+NCode.Identity.Json.PersistedPayloadVersionAttribute.PersistedPayloadVersionAttribute(int version) -> void
+NCode.Identity.Json.PersistedPayloadVersionAttribute.Version.get -> int
 override NCode.Identity.Json.ObjectJsonConverter.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> object?
 override NCode.Identity.Json.ObjectJsonConverter.Write(System.Text.Json.Utf8JsonWriter! writer, object! value, System.Text.Json.JsonSerializerOptions! options) -> void
 NCode.Identity.Json.UriJsonConverter

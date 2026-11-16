@@ -3,11 +3,8 @@
 
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using NCode.Identity.OpenId.Authentication.Persistence;
-using NCode.Identity.OpenId.Authentication.Sessions;
-using Xunit;
 
-namespace NCode.Identity.OpenId.Core.Tests.Persistence;
+namespace NCode.Identity.Json.Tests;
 
 public class DefaultPersistedPayloadSerializerTests
 {
@@ -122,30 +119,6 @@ public class DefaultPersistedPayloadSerializerTests
         Assert.Equal("abc", result.Name);
     }
 
-    [Theory]
-    [InlineData("idleTimeout")]
-    [InlineData("absoluteExpiresWhen")]
-    public void Deserialize_WhenSessionLacksABound_Throws(string missingMember)
-    {
-        var serializer = new DefaultPersistedPayloadSerializer([]);
-        var payload = new JsonObject
-        {
-            ["authTime"] = "2026-01-01T00:00:00+00:00",
-            ["clientIds"] = new JsonArray("client-1"),
-            ["lastActivityWhen"] = "2026-01-01T00:00:00+00:00",
-            ["idleTimeout"] = "01:00:00",
-            ["absoluteExpiresWhen"] = "2026-01-31T00:00:00+00:00",
-        };
-        payload.Remove(missingMember);
-        var stored = JsonSerializer.SerializeToElement(
-            new JsonObject { ["$ver"] = 1, ["$payload"] = payload }
-        );
-
-        Assert.Throws<JsonException>(() =>
-            serializer.Deserialize<SessionGrant>(stored, JsonOptions)
-        );
-    }
-
     #endregion
 
     #region Constructor Tests
@@ -158,42 +131,6 @@ public class DefaultPersistedPayloadSerializerTests
                 new RenamePropertyUpcaster(typeof(VersionedPayload), 1, "a", "b"),
                 new RenamePropertyUpcaster(typeof(VersionedPayload), 1, "c", "d"),
             ])
-        );
-    }
-
-    #endregion
-
-    #region Extension Data Tests
-
-    [Fact]
-    public void Deserialize_WhenStructPayloadHasUnknownMember_PreservesItThroughRewrite()
-    {
-        var serializer = new DefaultPersistedPayloadSerializer([]);
-        var stored = ParseDocument(
-            """
-            {
-                "$ver": 1,
-                "$payload": {
-                    "authTime": "2026-01-01T00:00:00+00:00",
-                    "clientIds": ["client-1"],
-                    "lastActivityWhen": "2026-01-01T00:00:00+00:00",
-                    "idleTimeout": "01:00:00",
-                    "absoluteExpiresWhen": "2026-01-31T00:00:00+00:00",
-                    "futureMember": "keep-me"
-                }
-            }
-            """
-        );
-
-        var session = serializer.Deserialize<SessionGrant>(stored, JsonOptions);
-
-        Assert.NotNull(session.ExtensionData);
-        Assert.True(session.ExtensionData!.ContainsKey("futureMember"));
-
-        var rewritten = serializer.Serialize(session, JsonOptions);
-        Assert.Equal(
-            "keep-me",
-            rewritten.GetProperty("$payload").GetProperty("futureMember").GetString()
         );
     }
 

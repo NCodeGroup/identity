@@ -57,7 +57,10 @@ any package may reference.**
    `NCode.Identity.Registration` and other foundation packages, and a new one needs a second package of the family that
    consumes it; a capability that only one package consumes belongs in that package.
 6. **JSON.** `NCode.Identity.Json.JsonElements` is the one JSON helper home: `TryGetPropertyValue<T>`,
-   `IsNullOrUndefined`, `OrEmptyObject` and `Parse`.
+   `IsNullOrUndefined`, `OrEmptyObject` and `Parse`. `NCode.Identity.Json` also holds the one serializer of the
+   payloads the family stores at rest as JSON, `IPersistedPayloadSerializer` with `IPersistedPayloadUpcaster` and
+   `PersistedPayloadVersionAttribute`, and its registration `AddPersistedPayloadSerializer()`, so every package that
+   stores such a payload registers and uses the one serializer without referencing another implementation.
 7. **Time.** `NCode.Identity.Time` holds `TimerPeriod`, the range of periods a timer accepts, and `TimePeriod`, the span
    between two instants such as a token's lifetime, as two types. It also holds the whole-second helpers
    `WithPrecisionInSeconds()` on `DateTime` and `DateTimeOffset`, and `GetUtcNowWithPrecisionInSeconds()` and
@@ -81,6 +84,7 @@ any package may reference.**
 10. **Persistence.** `NCode.Identity.Persistence.Abstractions` holds every persistence contract, in the namespaces
     `NCode.Identity.Persistence` and `NCode.Identity.Persistence.Stores`, and `StoreManagerLibrary`. `ISupportClone`
     lives in `NCode.Identity.OpenId.Abstractions`, namespace `NCode.Identity.OpenId.Messages`, beside `IOpenIdMessage`.
+    The serializer of the payloads stored at rest as JSON is the JSON foundation's (decision 6).
 11. **Settings, claims and cryptography.** `NCode.Identity.Settings`, `NCode.Identity.Claims` and
     `NCode.Identity.Cryptography`, each with its `.Abstractions` package, are flat, single-purpose pairs with the markers
     `SettingsLibrary`, `ClaimsLibrary` and `CryptographyLibrary`. Each `Add…Library()` extends a bare
