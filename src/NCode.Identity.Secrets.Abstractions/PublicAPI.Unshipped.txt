@@ -287,6 +287,10 @@ NCode.Identity.Secrets.KeyWrapping.KeyAccessClientCache<TClient>
 NCode.Identity.Secrets.KeyWrapping.KeyAccessClientCache<TClient>.Dispose() -> void
 NCode.Identity.Secrets.KeyWrapping.KeyAccessClientCache<TClient>.KeyAccessClientCache(System.TimeProvider! timeProvider, System.TimeSpan idleTimeout) -> void
 NCode.Identity.Secrets.KeyWrapping.KeyAccessClientCache<TClient>.UseAsync<TResult>(string! key, System.Func<System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TClient!>>! create, System.Func<TClient!, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TResult>>! operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<TResult>
+NCode.Identity.Secrets.Options.KeyResidencyOptions
+NCode.Identity.Secrets.Options.KeyResidencyOptions.CloudRegions.get -> System.Collections.Generic.List<string!>!
+NCode.Identity.Secrets.Options.KeyResidencyOptions.CloudRegions.set -> void
+NCode.Identity.Secrets.Options.KeyResidencyOptions.KeyResidencyOptions() -> void
 const NCode.Identity.Secrets.RemoteKeys.RemoteKeyGroupNames.Prefix = "ncid-" -> string!
 const NCode.Identity.Secrets.RemoteKeys.RemoteKeyProviderNames.AwsKms = "aws-kms" -> string!
 const NCode.Identity.Secrets.RemoteKeys.RemoteKeyProviderNames.AzureKeyVault = "azure-key-vault" -> string!

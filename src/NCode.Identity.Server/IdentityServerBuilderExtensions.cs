@@ -21,10 +21,12 @@ using NCode.Identity.OpenId.Setup;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Registration;
 using NCode.Identity.Registration.AspNetCore;
+using NCode.Identity.Secrets.Options;
 using NCode.Identity.Secrets.Persistence.Options;
 using NCode.Identity.Server.Cells;
 using NCode.Identity.Server.Frontend;
 using NCode.Identity.Server.SecretProtection;
+using NCode.Identity.SharedState.Options;
 
 namespace NCode.Identity.Server;
 
@@ -114,11 +116,14 @@ public static class IdentityServerBuilderExtensions
         /// key provider that protects the stored secrets and the Data Protection key ring at rest. The top-level
         /// <c>ApiReference</c> section binds <see cref="IdentityServerApiReferenceOptions"/>, which decide whether the
         /// OpenAPI document and the API reference page are served. The top-level <c>Cell</c> section binds
-        /// <see cref="CellOptions"/>, which name the cell this host runs, its region and its kind. The top-level
-        /// <c>KeyRings</c> section holds the named key rings that the OpenID client library loads, and the top-level
-        /// <c>Directory</c> section (<see cref="DirectoryClientOptions"/>) selects the remote global directory: a host
-        /// whose <c>Directory:Url</c> is set reads the directory with its client <c>Directory:ClientId</c> and the key
-        /// ring <c>Directory:KeyRing</c>, and a host without it keeps the local directory.
+        /// <see cref="CellOptions"/>, which name the cell this host runs, its region and its kind. The cell's name
+        /// becomes the <see cref="SharedStateOptions.Deployment"/> that a shared-state adapter puts in every key, and
+        /// its cloud regions the <see cref="KeyResidencyOptions.CloudRegions"/> that a key management service adapter
+        /// keeps its keys in. The top-level <c>KeyRings</c> section holds the named key rings that the OpenID client
+        /// library loads, and the top-level <c>Directory</c> section (<see cref="DirectoryClientOptions"/>) selects the
+        /// remote global directory: a host whose <c>Directory:Url</c> is set reads the directory with its client
+        /// <c>Directory:ClientId</c> and the key ring <c>Directory:KeyRing</c>, and a host without it keeps the local
+        /// directory.
         /// </summary>
         /// <remarks>
         /// Binding is strict and checked when the host starts: a key that maps to no option — a misspelling, or a
@@ -268,6 +273,22 @@ public static class IdentityServerBuilderExtensions
                 ServiceDescriptor.Singleton<
                     IValidateOptions<SecretProtectionOptions>,
                     CellRemoteKeyOptionsSetup
+                >()
+            );
+
+            // The shared-state adapters keep the cell's state apart from the other cells on their server, and the
+            // key management service adapters keep its keys in its cloud regions; the adapters know no cell
+            // (ADR-1164, ADR-1235).
+            serviceCollection.TryAddEnumerable(
+                ServiceDescriptor.Singleton<
+                    IPostConfigureOptions<SharedStateOptions>,
+                    CellScopeOptionsSetup
+                >()
+            );
+            serviceCollection.TryAddEnumerable(
+                ServiceDescriptor.Singleton<
+                    IPostConfigureOptions<KeyResidencyOptions>,
+                    CellScopeOptionsSetup
                 >()
             );
 

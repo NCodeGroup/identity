@@ -26,9 +26,11 @@ using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Registration;
 using NCode.Identity.Secrets;
 using NCode.Identity.Secrets.Collections;
+using NCode.Identity.Secrets.Options;
 using NCode.Identity.Secrets.Persistence.Protection;
 using NCode.Identity.Server.DevelopmentEnvironment;
 using NCode.Identity.Server.Frontend;
+using NCode.Identity.SharedState.Options;
 using Xunit;
 
 namespace NCode.Identity.Server.Tests;
@@ -691,6 +693,42 @@ public sealed class IdentityServerBuilderExtensionsTests : BaseTests
                 && x.IsKeyedService
                 && Equals(x.ServiceKey, "cell-client")
         );
+    }
+
+    [Fact]
+    public void AddConfiguration_WhenTheCellIsConfigured_MakesItsNameTheSharedStateDeployment()
+    {
+        using var serviceProvider = BuildConfiguredServiceProvider(
+            new Dictionary<string, string?>
+            {
+                ["Cell:Name"] = "eu-1",
+                ["Cell:Region"] = "eu",
+                ["Cell:IsControlPlane"] = "true",
+            }
+        );
+
+        var options = serviceProvider.GetRequiredService<IOptions<SharedStateOptions>>().Value;
+
+        Assert.Equal("eu-1", options.Deployment);
+    }
+
+    [Fact]
+    public void AddConfiguration_WhenTheCellNamesCloudRegions_MakesThemTheKeyResidency()
+    {
+        using var serviceProvider = BuildConfiguredServiceProvider(
+            new Dictionary<string, string?>
+            {
+                ["Cell:Name"] = "eu-1",
+                ["Cell:Region"] = "eu",
+                ["Cell:IsControlPlane"] = "true",
+                ["Cell:CloudRegions:0"] = "eu-west-1",
+                ["Cell:CloudRegions:1"] = "eu-central-1",
+            }
+        );
+
+        var options = serviceProvider.GetRequiredService<IOptions<KeyResidencyOptions>>().Value;
+
+        Assert.Equal(["eu-west-1", "eu-central-1"], options.CloudRegions);
     }
 
     private IHost BuildHost(

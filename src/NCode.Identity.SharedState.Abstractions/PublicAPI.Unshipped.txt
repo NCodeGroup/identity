@@ -53,5 +53,9 @@ NCode.Identity.SharedState.IReplicaBroadcastHandler.HandleAsync(string! message,
 NCode.Identity.SharedState.IReplicaBroadcastHandler.HandleMissedMessagesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.SharedState.IReplicaBroadcaster
 NCode.Identity.SharedState.IReplicaBroadcaster.PublishAsync(string! channel, string! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.SharedState.Options.SharedStateOptions
+NCode.Identity.SharedState.Options.SharedStateOptions.Deployment.get -> string!
+NCode.Identity.SharedState.Options.SharedStateOptions.Deployment.set -> void
+NCode.Identity.SharedState.Options.SharedStateOptions.SharedStateOptions() -> void
 NCode.Identity.SharedState.SharedStateLibrary
 NCode.Identity.SharedState.SharedStateLibrary.SharedStateLibrary() -> void
