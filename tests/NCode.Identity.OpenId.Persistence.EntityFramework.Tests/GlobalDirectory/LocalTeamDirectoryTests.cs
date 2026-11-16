@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Collections.Immutable;
 using System.Text.Json;
 using IdGen;
 using Microsoft.EntityFrameworkCore;
@@ -129,6 +130,8 @@ public sealed class LocalTeamDirectoryTests : IDisposable
                 TeamId = TeamId,
                 DisplayName = "Platform",
                 IsDisabled = false,
+                Settings = JsonElement.Parse("{}"),
+                RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
             },
             CancellationToken.None
         );

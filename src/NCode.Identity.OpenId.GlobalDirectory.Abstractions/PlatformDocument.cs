@@ -16,9 +16,10 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 public sealed record PlatformDocument
 {
     /// <summary>
-    /// Gets the platform's settings, a JSON object.
+    /// Gets the platform's settings, a JSON object, which is <see cref="JsonElements.EmptyObject"/> when the platform
+    /// has none.
     /// </summary>
-    public JsonElement Settings { get; init; } = JsonElements.EmptyObject;
+    public required JsonElement Settings { get; init; }
 
     /// <summary>
     /// Gets the sequence number of the directory change that published this document, or <c>0</c> for a document that

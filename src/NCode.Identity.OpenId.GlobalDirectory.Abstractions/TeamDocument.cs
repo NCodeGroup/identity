@@ -37,15 +37,14 @@ public sealed record TeamDocument
     public string? ParentTeamId { get; init; }
 
     /// <summary>
-    /// Gets the team's settings, a JSON object.
+    /// Gets the team's settings, a JSON object, which is <see cref="JsonElements.EmptyObject"/> when the team has none.
     /// </summary>
-    public JsonElement Settings { get; init; } = JsonElements.EmptyObject;
+    public required JsonElement Settings { get; init; }
 
     /// <summary>
-    /// Gets the team's root keys, keyed by region.
+    /// Gets the team's root keys, keyed by region, in a map that is empty when the team brings none.
     /// </summary>
-    public ImmutableDictionary<string, TeamRootKeyReference> RootKeys { get; init; } =
-        ImmutableDictionary<string, TeamRootKeyReference>.Empty;
+    public required ImmutableDictionary<string, TeamRootKeyReference> RootKeys { get; init; }
 
     /// <summary>
     /// Gets the sequence number of the directory change that published this document, or <c>0</c> for a document that

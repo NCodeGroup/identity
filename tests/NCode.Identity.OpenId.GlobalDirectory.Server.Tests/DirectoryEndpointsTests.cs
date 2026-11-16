@@ -1,10 +1,12 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Collections.Immutable;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
@@ -1570,6 +1572,8 @@ public class DirectoryEndpointsTests : IAsyncLifetime
                 TeamId = TeamId,
                 DisplayName = "Team One",
                 IsDisabled = false,
+                Settings = JsonElement.Parse("{}"),
+                RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
             },
             WebOptions
         );
@@ -1593,6 +1597,8 @@ public class DirectoryEndpointsTests : IAsyncLifetime
                 TeamId = "team-2",
                 DisplayName = "Team Two",
                 IsDisabled = false,
+                Settings = JsonElement.Parse("{}"),
+                RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
             },
             WebOptions
         );
@@ -1613,6 +1619,8 @@ public class DirectoryEndpointsTests : IAsyncLifetime
                 TeamId = teamId,
                 DisplayName = "Team One",
                 IsDisabled = false,
+                Settings = JsonElement.Parse("{}"),
+                RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
             },
             WebOptions
         );
@@ -1634,6 +1642,8 @@ public class DirectoryEndpointsTests : IAsyncLifetime
                 DisplayName = "Team One",
                 IsDisabled = false,
                 ParentTeamId = new string('t', DirectoryLimits.MaxIdentifierLength + 1),
+                Settings = JsonElement.Parse("{}"),
+                RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
             },
             WebOptions
         );
@@ -1657,6 +1667,8 @@ public class DirectoryEndpointsTests : IAsyncLifetime
                 DisplayName = "Team One",
                 IsDisabled = false,
                 ParentTeamId = parentTeamId,
+                Settings = JsonElement.Parse("{}"),
+                RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
             },
             WebOptions
         );
@@ -1686,6 +1698,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
                 DisplayName = "Team One",
                 IsDisabled = false,
                 Settings = JsonElement.Parse(settingsJson),
+                RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
             },
             WebOptions
         );
@@ -1693,6 +1706,47 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(SettingsNotAnObjectDetail, await ReadProblemDetailAsync(response));
         var getResponse = await Client.GetAsync($"/directory/v1/teams/{TeamId}/document");
+        Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("settings")]
+    [InlineData("rootKeys")]
+    public async Task PublishTeam_WhenTheDocumentLacksItsSettingsOrRootKeys_AnswersBadRequest(
+        string memberName
+    )
+    {
+        AuthenticateAsControlPlane();
+        await using var app = await CreateAppAsync(serviceCollection =>
+            serviceCollection.PostConfigure<RouteHandlerOptions>(options =>
+                options.ThrowOnBadRequest = false
+            )
+        );
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token);
+        var document = Assert.IsType<JsonObject>(
+            JsonSerializer.SerializeToNode(
+                new TeamDocument
+                {
+                    TeamId = TeamId,
+                    DisplayName = "Team One",
+                    IsDisabled = false,
+                    Settings = JsonElement.Parse("{}"),
+                    RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
+                },
+                WebOptions
+            )
+        );
+        document.Remove(memberName);
+
+        var response = await client.PutAsJsonAsync(
+            $"/directory/v1/teams/{TeamId}/document",
+            document,
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var getResponse = await client.GetAsync($"/directory/v1/teams/{TeamId}/document");
         Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
     }
 
@@ -1710,6 +1764,8 @@ public class DirectoryEndpointsTests : IAsyncLifetime
                     DisplayName = "Chain",
                     IsDisabled = false,
                     ParentTeamId = index > 1 ? $"chain-{index - 1}" : null,
+                    Settings = JsonElement.Parse("{}"),
+                    RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
                 },
                 WebOptions
             );
@@ -1725,6 +1781,8 @@ public class DirectoryEndpointsTests : IAsyncLifetime
                 DisplayName = "Chain",
                 IsDisabled = false,
                 ParentTeamId = $"chain-{DirectoryLimits.MaxTeamDepth}",
+                Settings = JsonElement.Parse("{}"),
+                RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
             },
             WebOptions
         );
@@ -1837,6 +1895,8 @@ public class DirectoryEndpointsTests : IAsyncLifetime
                 TeamId = TeamId,
                 DisplayName = "Team One",
                 IsDisabled = false,
+                Settings = JsonElement.Parse("{}"),
+                RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
             },
             WebOptions
         );
@@ -1909,6 +1969,8 @@ public class DirectoryEndpointsTests : IAsyncLifetime
                 TeamId = TeamId,
                 DisplayName = "Team One",
                 IsDisabled = false,
+                Settings = JsonElement.Parse("{}"),
+                RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
             },
             WebOptions
         );
@@ -1988,6 +2050,36 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(SettingsNotAnObjectDetail, await ReadProblemDetailAsync(response));
         var getResponse = await Client.GetAsync("/directory/v1/platform/document");
+        Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task PublishPlatformDocument_WhenTheDocumentLacksItsSettings_AnswersBadRequest()
+    {
+        AuthenticateAsControlPlane();
+        await using var app = await CreateAppAsync(serviceCollection =>
+            serviceCollection.PostConfigure<RouteHandlerOptions>(options =>
+                options.ThrowOnBadRequest = false
+            )
+        );
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token);
+        var document = Assert.IsType<JsonObject>(
+            JsonSerializer.SerializeToNode(
+                new PlatformDocument { Settings = JsonElement.Parse("{}") },
+                WebOptions
+            )
+        );
+        document.Remove("settings");
+
+        var response = await client.PutAsJsonAsync(
+            "/directory/v1/platform/document",
+            document,
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var getResponse = await client.GetAsync("/directory/v1/platform/document");
         Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
     }
 

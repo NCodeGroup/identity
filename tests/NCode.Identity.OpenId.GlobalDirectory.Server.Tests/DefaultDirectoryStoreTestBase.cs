@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Collections.Immutable;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -149,6 +150,7 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
                 IsDisabled = false,
                 ParentTeamId = parentTeamId,
                 Settings = JsonElement.Parse(SettingsWithLimit(maxTenants)),
+                RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
             },
             cancellationToken
         );

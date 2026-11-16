@@ -46,7 +46,10 @@ public class RemotePlatformDirectoryTests : RemoteDirectoryTestBase
         var directory = new RemotePlatformDirectory(CreateClient(handler));
 
         await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
-            await directory.PublishAsync(new PlatformDocument(), CancellationToken.None)
+            await directory.PublishAsync(
+                new PlatformDocument { Settings = JsonElement.Parse("{}") },
+                CancellationToken.None
+            )
         );
     }
 
@@ -57,7 +60,10 @@ public class RemotePlatformDirectoryTests : RemoteDirectoryTestBase
         var directory = new RemotePlatformDirectory(CreateClient(handler));
 
         await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
-            await directory.PublishAsync(new PlatformDocument(), CancellationToken.None)
+            await directory.PublishAsync(
+                new PlatformDocument { Settings = JsonElement.Parse("{}") },
+                CancellationToken.None
+            )
         );
     }
 
@@ -110,6 +116,19 @@ public class RemotePlatformDirectoryTests : RemoteDirectoryTestBase
         await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
             await directory.GetOrDefaultAsync(CancellationToken.None)
         );
+    }
+
+    [Fact]
+    public async Task GetOrDefaultAsync_WhenTheDocumentLacksItsSettings_ThrowsDirectoryUnavailable()
+    {
+        var handler = StubHttpMessageHandler.Respond(HttpStatusCode.OK, """{"sequence":7}""");
+        var directory = new RemotePlatformDirectory(CreateClient(handler));
+
+        var exception = await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
+            await directory.GetOrDefaultAsync(CancellationToken.None)
+        );
+
+        Assert.IsType<JsonException>(exception.InnerException);
     }
 
     #endregion

@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Collections.Immutable;
 using System.Text.Json;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Entities;
 using Xunit;
@@ -329,7 +330,10 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
     [Fact]
     public async Task ReserveAsync_WhenThePlatformDocumentHasNoLimit_ReservesWithoutLimit()
     {
-        await Platform.PublishAsync(new PlatformDocument(), CancellationToken.None);
+        await Platform.PublishAsync(
+            new PlatformDocument { Settings = JsonElement.Parse("{}") },
+            CancellationToken.None
+        );
         await PublishTeamAsync("team-1");
         Assert.True((await ReserveAsync(TenantId, Issuer, "team-1")).IsReserved);
 
@@ -348,6 +352,7 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
                 DisplayName = "team-1",
                 IsDisabled = false,
                 Settings = JsonElement.Parse("""{"max_tenants":"3"}"""),
+                RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
             },
             CancellationToken.None
         );
@@ -389,6 +394,7 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
                 DisplayName = "team-1",
                 IsDisabled = false,
                 Settings = JsonElement.Parse("[1]"),
+                RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
             },
             CancellationToken.None
         );
@@ -421,7 +427,7 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
     }
 
     [Fact]
-    public async Task ReserveAsync_WhenTheTeamSettingsAreNull_ReservesWithoutLimit()
+    public async Task ReserveAsync_WhenTheTeamSettingsAreNull_ReturnsConflict()
     {
         await Teams.PublishAsync(
             new TeamDocument
@@ -430,13 +436,18 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
                 DisplayName = "team-1",
                 IsDisabled = false,
                 Settings = JsonElement.Parse("null"),
+                RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
             },
             CancellationToken.None
         );
 
         var result = await ReserveAsync(TenantId, Issuer, "team-1");
 
-        Assert.True(result.IsReserved);
+        Assert.False(result.IsReserved);
+        Assert.Equal(
+            "The team 'team-1' has a max_tenants setting the directory cannot read.",
+            result.ConflictDetail
+        );
     }
 
     [Theory]
@@ -470,6 +481,58 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
         await PublishPlatformAsync(maxTenants: null);
         await PublishTeamAsync("team-1");
         await ReplacePlatformDocumentJsonAsync(documentJson);
+
+        var result = await ReserveAsync(TenantId, Issuer, "team-1");
+
+        Assert.False(result.IsReserved);
+        Assert.Equal(
+            "The platform has a max_tenants setting the directory cannot read.",
+            result.ConflictDetail
+        );
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenThePlatformSettingsAreNull_ReturnsConflict()
+    {
+        await Platform.PublishAsync(
+            new PlatformDocument { Settings = JsonElement.Parse("null") },
+            CancellationToken.None
+        );
+        await PublishTeamAsync("team-1");
+
+        var result = await ReserveAsync(TenantId, Issuer, "team-1");
+
+        Assert.False(result.IsReserved);
+        Assert.Equal(
+            "The platform has a max_tenants setting the directory cannot read.",
+            result.ConflictDetail
+        );
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenTheStoredTeamDocumentLacksItsSettings_ReturnsConflict()
+    {
+        await PublishTeamAsync("team-1");
+        await ReplaceTeamDocumentJsonAsync(
+            "team-1",
+            """{"$ver":1,"$payload":{"teamId":"team-1","displayName":"team-1","isDisabled":false,"rootKeys":{}}}"""
+        );
+
+        var result = await ReserveAsync(TenantId, Issuer, "team-1");
+
+        Assert.False(result.IsReserved);
+        Assert.Equal(
+            "The team 'team-1' has a max_tenants setting the directory cannot read.",
+            result.ConflictDetail
+        );
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenTheStoredPlatformDocumentLacksItsSettings_ReturnsConflict()
+    {
+        await PublishPlatformAsync(maxTenants: null);
+        await PublishTeamAsync("team-1");
+        await ReplacePlatformDocumentJsonAsync("""{"$ver":1,"$payload":{"sequence":0}}""");
 
         var result = await ReserveAsync(TenantId, Issuer, "team-1");
 

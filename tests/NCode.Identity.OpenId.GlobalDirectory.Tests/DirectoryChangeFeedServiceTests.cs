@@ -1,6 +1,8 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Collections.Immutable;
+using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
@@ -142,6 +144,8 @@ public class DirectoryChangeFeedServiceTests : BaseTests
             DisplayName = teamId,
             IsDisabled = false,
             Sequence = sequence,
+            Settings = JsonElement.Parse("{}"),
+            RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
         };
 
     #region RunAsync Tests
@@ -202,7 +206,7 @@ public class DirectoryChangeFeedServiceTests : BaseTests
     [Fact]
     public async Task RunAsync_WhenTheChangeIsAPlatformChange_AppliesThePlatformDocument()
     {
-        var platform = new PlatformDocument { Sequence = 4 };
+        var platform = new PlatformDocument { Settings = JsonElement.Parse("{}"), Sequence = 4 };
 
         SetupLease(true);
         SetupAppliedSequences(teamSequence: 0, platformSequence: 3);

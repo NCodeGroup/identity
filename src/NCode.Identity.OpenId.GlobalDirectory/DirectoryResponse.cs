@@ -68,7 +68,7 @@ internal sealed class DirectoryResponse(HttpStatusCode statusCode, byte[] body)
         catch (JsonException exception)
         {
             throw new DirectoryUnavailableException(
-                "The directory answered with a body that is not valid JSON.",
+                "The directory answered with a body that is not the record that the call reads.",
                 exception
             );
         }

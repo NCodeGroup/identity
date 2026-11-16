@@ -1,9 +1,11 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Collections.Immutable;
 using System.Globalization;
 using System.Net;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Web;
 using Xunit;
 
@@ -45,6 +47,8 @@ public class RemoteTeamDirectoryTests : RemoteDirectoryTestBase
             DisplayName = "Team 2",
             IsDisabled = false,
             ParentTeamId = "team-1",
+            Settings = JsonElement.Parse("{}"),
+            RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
         };
 
         await directory.PublishAsync(document, CancellationToken.None);
@@ -70,6 +74,8 @@ public class RemoteTeamDirectoryTests : RemoteDirectoryTestBase
             DisplayName = "Team 2",
             IsDisabled = false,
             ParentTeamId = "team-1",
+            Settings = JsonElement.Parse("{}"),
+            RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
         };
         var handler = StubHttpMessageHandler.Respond(
             HttpStatusCode.OK,
@@ -81,6 +87,37 @@ public class RemoteTeamDirectoryTests : RemoteDirectoryTestBase
 
         Assert.NotNull(result);
         Assert.Equal("team-1", result.ParentTeamId);
+    }
+
+    [Theory]
+    [InlineData("settings")]
+    [InlineData("rootKeys")]
+    public async Task GetOrDefaultAsync_WhenTheDocumentLacksItsSettingsOrRootKeys_ThrowsDirectoryUnavailable(
+        string memberName
+    )
+    {
+        var document = Assert.IsType<JsonObject>(
+            JsonSerializer.SerializeToNode(
+                new TeamDocument
+                {
+                    TeamId = "team-2",
+                    DisplayName = "Team 2",
+                    IsDisabled = false,
+                    Settings = JsonElement.Parse("{}"),
+                    RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
+                },
+                WireOptions
+            )
+        );
+        document.Remove(memberName);
+        var handler = StubHttpMessageHandler.Respond(HttpStatusCode.OK, document.ToJsonString());
+        var directory = new RemoteTeamDirectory(CreateClient(handler));
+
+        var exception = await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
+            await directory.GetOrDefaultAsync("team-2", CancellationToken.None)
+        );
+
+        Assert.IsType<JsonException>(exception.InnerException);
     }
 
     #endregion
@@ -101,6 +138,8 @@ public class RemoteTeamDirectoryTests : RemoteDirectoryTestBase
                     TeamId = "team-1",
                     DisplayName = "Team 1",
                     IsDisabled = false,
+                    Settings = JsonElement.Parse("{}"),
+                    RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
                 },
             },
             new()
@@ -200,6 +239,42 @@ public class RemoteTeamDirectoryTests : RemoteDirectoryTestBase
         await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
             await directory.ListChangesAsync(0, 10, CancellationToken.None)
         );
+    }
+
+    [Fact]
+    public async Task ListChangesAsync_WhenAChangedDocumentLacksItsRootKeys_ThrowsDirectoryUnavailable()
+    {
+        var page = Assert.IsType<JsonArray>(
+            JsonSerializer.SerializeToNode(
+                new List<DirectoryChange>
+                {
+                    new()
+                    {
+                        Sequence = 1,
+                        TeamId = "team-1",
+                        Document = new TeamDocument
+                        {
+                            TeamId = "team-1",
+                            DisplayName = "Team 1",
+                            IsDisabled = false,
+                            Settings = JsonElement.Parse("{}"),
+                            RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
+                        },
+                    },
+                },
+                WireOptions
+            )
+        );
+        var change = Assert.IsType<JsonObject>(page[0]);
+        Assert.IsType<JsonObject>(change["document"]).Remove("rootKeys");
+        var handler = StubHttpMessageHandler.Respond(HttpStatusCode.OK, page.ToJsonString());
+        var directory = new RemoteTeamDirectory(CreateClient(handler));
+
+        var exception = await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
+            await directory.ListChangesAsync(0, 10, CancellationToken.None)
+        );
+
+        Assert.IsType<JsonException>(exception.InnerException);
     }
 
     #endregion

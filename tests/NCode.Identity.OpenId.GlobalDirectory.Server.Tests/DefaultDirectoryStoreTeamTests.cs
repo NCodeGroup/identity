@@ -144,6 +144,8 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
                 TeamId = "team-1",
                 DisplayName = "Renamed",
                 IsDisabled = false,
+                Settings = JsonElement.Parse("{}"),
+                RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
             },
             CancellationToken.None
         );
@@ -417,6 +419,25 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
         );
     }
 
+    [Theory]
+    [InlineData(
+        """{"$ver":1,"$payload":{"teamId":"team-1","displayName":"team-1","isDisabled":false,"rootKeys":{}}}"""
+    )]
+    [InlineData(
+        """{"$ver":1,"$payload":{"teamId":"team-1","displayName":"team-1","isDisabled":false,"settings":{}}}"""
+    )]
+    public async Task GetOrDefaultAsync_WhenTheStoredDocumentLacksItsSettingsOrRootKeys_ThrowsJsonException(
+        string documentJson
+    )
+    {
+        await PublishTeamAsync("team-1");
+        await ReplaceTeamDocumentJsonAsync("team-1", documentJson);
+
+        await Assert.ThrowsAsync<JsonException>(async () =>
+            await Teams.GetOrDefaultAsync("team-1", CancellationToken.None)
+        );
+    }
+
     #endregion
 
     #region ListChangesAsync Tests
@@ -529,6 +550,20 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
         );
     }
 
+    [Fact]
+    public async Task ListChangesAsync_WhenAStoredChangeLacksItsRootKeys_ThrowsJsonException()
+    {
+        await PublishTeamAsync("team-1");
+        await ReplaceChangeDocumentJsonAsync(
+            1,
+            """{"$ver":1,"$payload":{"teamId":"team-1","displayName":"team-1","isDisabled":false,"settings":{}}}"""
+        );
+
+        await Assert.ThrowsAsync<JsonException>(async () =>
+            await Teams.ListChangesAsync(0, 10, CancellationToken.None)
+        );
+    }
+
     #endregion
 
     #region Helpers
@@ -542,6 +577,8 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
             DisplayName = GetChainTeamId(index),
             IsDisabled = false,
             ParentTeamId = index > 1 ? GetChainTeamId(index - 1) : null,
+            Settings = JsonElement.Parse("{}"),
+            RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
         };
 
     private async ValueTask PublishChainAsync(

@@ -1227,6 +1227,7 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
             DisplayName = "Acme",
             IsDisabled = false,
             Settings = JsonElement.Parse(settingsJson),
+            RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
             Sequence = sequence,
         };
 

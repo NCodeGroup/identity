@@ -626,9 +626,9 @@ public static class DirectoryEndpoints
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
     /// <c>200 OK</c> when the document is published; <c>403 Forbidden</c> when the caller is not the control-plane
-    /// cell; <c>400 Bad Request</c> when the document lacks its team or display name, names a blank parent team,
-    /// names a team or a parent team longer than the directory stores, names a team other than the route's, holds
-    /// settings that are not a JSON object, or would nest a team deeper than the directory stores.
+    /// cell; <c>400 Bad Request</c> when the document lacks its team, display name, settings or root keys, names a
+    /// blank parent team, names a team or a parent team longer than the directory stores, names a team other than the
+    /// route's, holds settings that are not a JSON object, or would nest a team deeper than the directory stores.
     /// </returns>
     private static async ValueTask<IResult> PublishTeamAsync(
         string teamId,
@@ -804,7 +804,8 @@ public static class DirectoryEndpoints
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
     /// <c>200 OK</c> when the document is published; <c>403 Forbidden</c> when the caller is not the control-plane
-    /// cell; or <c>400 Bad Request</c> when the document holds settings that are not a JSON object.
+    /// cell; or <c>400 Bad Request</c> when the document lacks its settings or holds settings that are not a JSON
+    /// object.
     /// </returns>
     private static async ValueTask<IResult> PublishPlatformAsync(
         PlatformDocument document,

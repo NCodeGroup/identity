@@ -4204,9 +4204,12 @@ Until the first stable release, the [Unreleased] section describes the product a
   cell write it, and only the control-plane cell retires a tenant the directory has no record of; a cell registers only
   itself, with a management URL that is an absolute `https` URL (or `http` in local development) with no user
   information, query or fragment, and asks to move a tenant only into itself. The directory refuses a tenant issuer that
-  is not an absolute `https` URL (or `http` on a loopback host) with no user information, query or fragment; a team or
-  platform document whose settings are not a JSON object; and a team document that would nest a team deeper than eight
-  levels, the bound of a cell's team tree.
+  is not an absolute `https` URL (or `http` on a loopback host) with no user information, query or fragment; a team
+  document that lacks its settings or its root keys, or a platform document that lacks its settings; a team or platform
+  document whose settings are not a JSON object; and a team document that would nest a team deeper than eight levels,
+  the bound of a cell's team tree. A stored team or platform document whose settings are missing or not a JSON object,
+  `null` included, fails the tenant-limit check, which refuses the reservation, and a cell's remote directory adapter
+  fails closed on a document that lacks its settings or its root keys.
 
 - **The control plane serves every cell.** The control-plane cell owns platform and team authority, setup and the team
   root keys; every other cell reaches it through remote adapters that fail closed. `IManagementTokenValidator` validates

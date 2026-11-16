@@ -29,6 +29,17 @@ public sealed class DefaultDirectoryStorePlatformTests : DefaultDirectoryStoreTe
         );
     }
 
+    [Fact]
+    public async Task GetOrDefaultAsync_WhenTheStoredDocumentLacksItsSettings_ThrowsJsonException()
+    {
+        await PublishPlatformAsync(maxTenants: 7);
+        await ReplacePlatformDocumentJsonAsync("""{"$ver":1,"$payload":{"sequence":0}}""");
+
+        await Assert.ThrowsAsync<JsonException>(async () =>
+            await Platform.GetOrDefaultAsync(CancellationToken.None)
+        );
+    }
+
     #endregion
 
     #region PublishAsync Tests

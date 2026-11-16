@@ -1217,12 +1217,9 @@ internal sealed class DefaultDirectoryStore(
             );
 
             var settings = getSettings(document);
-            if (settings.IsNullOrUndefined())
-            {
-                return true;
-            }
 
-            // A settings value that is not an object can name no limit, so it is unreadable, never unlimited.
+            // The publish routes store only object settings, so settings of any other kind, null included, are
+            // unreadable, never unlimited.
             if (settings.ValueKind != JsonValueKind.Object)
             {
                 return false;

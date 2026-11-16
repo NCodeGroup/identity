@@ -81,6 +81,10 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
    serialize on the row, the commit order equals the sequence order, and a reader that has seen a sequence never misses
    a smaller one. The feed holds each team's and the platform's latest change, each carrying the whole document or the
    retire, so it stays bounded by the number of teams, and a cell reading from the start reads every current document.
+   A team document always carries its settings and its root keys, and the platform document its settings, which are
+   an empty object or map when there are none. The directory refuses a document that lacks one with `400`, a stored
+   document that lacks one fails its read, and a cell's remote adapter fails closed on a document that lacks one, so a
+   missing member never reads as no settings, no tenant limit or no root key.
 6. **Tenant scoping fails closed inside a cell.** The ambient tenant has three states: unset, a tenant, and unscoped
    with a stated reason. The global query filter matches a tenant-bound row only when the scope is unscoped or names the
    row's tenant, so a query with no scope matches nothing, and every caller that reads across tenants opens an explicit,
@@ -115,6 +119,9 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
     directory enforces it when it reserves a tenant identifier, and a creation past it answers `409`. The ceiling is
     never serialized on the team row, so two creations that race may overshoot it by one. Teams' normalized paths use
     the `C` collation, so the index on them serves the subtree prefix match that counts a team's tenants.
+    The directory stores only settings that are a JSON object, so its check takes stored settings of any other kind,
+    `null` among them, as unreadable and refuses the reservation. A cell writes `null` settings for its platform row
+    and the teams it provisions, so the check of a cell that runs on its own reads `null` settings as no limit.
 14. **Authority runs platform, team, tenant, leaf.** `TeamAdmin` at a team creates its tenants and manages everything
     beneath it; `Owner` never creates. Granting or revoking `TeamAdmin` is `Operations.Create` at the team node, so an
     `Owner` can neither mint nor revoke it. `GlobalAdmin` acts across the platform. Platform, team and tenant nodes
