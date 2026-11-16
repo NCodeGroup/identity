@@ -4192,9 +4192,10 @@ Until the first stable release, the [Unreleased] section describes the product a
   record in the transaction that writes it: the cell that holds the tenant and the control-plane cell write it, and only
   the control-plane cell retires a tenant the directory has no record of; a cell registers only itself, with a
   management URL that is an absolute `https` URL (or `http` in local development) with no user information, query or
-  fragment, and asks to move a tenant only into itself. The directory refuses a team or platform document whose settings
-  are not a JSON object, and a team document that would nest a team deeper than eight levels, the bound of a cell's team
-  tree.
+  fragment, and asks to move a tenant only into itself. The directory refuses a tenant issuer that is not an absolute
+  `https` URL (or `http` on a loopback host) with no user information, query or fragment; a team or platform document
+  whose settings are not a JSON object; and a team document that would nest a team deeper than eight levels, the bound
+  of a cell's team tree.
 
 - **The control plane serves every cell.** The control-plane cell owns platform and team authority, setup and the team
   root keys; every other cell reaches it through remote adapters that fail closed. `IManagementTokenValidator` validates
@@ -5074,8 +5075,8 @@ Until the first stable release, the [Unreleased] section describes the product a
   URL, or an `http` URL on a loopback host, written with its authority and with no user information, query or fragment,
   judged on the text as written because `Uri` reads an empty `@` as absent; `TryParseHttpsServiceUrl` and
   `TryParseAnyHttpServiceUrl` apply it to a cell's management URL, which is `https`, or `http` in local development. The
-  directory client's URL, the control-plane issuer of a cell and of the directory, and a cell's management URL follow
-  it.
+  directory client's URL, the control-plane issuer of a cell and of the directory, a tenant's issuer, which a cell and
+  the directory's tenant routes check, and a cell's management URL follow it.
 
 - **Discovery publishes only what is marked discoverable.** The discovery endpoint (`/.well-known/openid-configuration`)
   returns only the settings marked `IsDiscoverable` and the endpoints marked discoverable, and no query-string parameter

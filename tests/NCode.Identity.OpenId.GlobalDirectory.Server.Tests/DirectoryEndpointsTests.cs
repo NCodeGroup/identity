@@ -40,6 +40,10 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         "The cell's management URL is an absolute https URL, or an http URL in local development, with no user "
         + "information, query or fragment.";
 
+    private const string InvalidIssuerDetail =
+        "A tenant's issuer is an absolute https URL, or an http URL on a loopback host, with no user information, "
+        + "query or fragment.";
+
     private const string SettingsNotAnObjectDetail = "The document's settings are a JSON object.";
 
     private const string BlankTeamDetail = "A team identifier is not blank.";
@@ -714,6 +718,144 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var issuerResponse = await Client.GetAsync(
             $"/directory/v1/tenants/retired-issuers?issuer={Uri.EscapeDataString(TenantIssuer)}"
+        );
+        Assert.Equal(HttpStatusCode.NotFound, issuerResponse.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("http://op.example/tenant-1")]
+    [InlineData("https://user@op.example/tenant-1")]
+    [InlineData("https://@op.example/tenant-1")]
+    [InlineData("https://op.example/tenant-1?x=1")]
+    [InlineData("https://op.example/tenant-1#f")]
+    [InlineData("op.example/tenant-1")]
+    [InlineData(" https://op.example/tenant-1")]
+    public async Task ReserveTenant_WhenTheIssuerIsNotAServiceUrl_AnswersBadRequestWithTheDetail(
+        string issuer
+    )
+    {
+        Authenticate();
+
+        var response = await ReserveTenantAsync(TenantId, issuer);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(InvalidIssuerDetail, await ReadProblemDetailAsync(response));
+        var reserveResponse = await ReserveTenantAsync(TenantId, TenantIssuer);
+        Assert.Equal(HttpStatusCode.OK, reserveResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task ReserveTenant_WhenTheIssuerIsAnHttpUrlOnALoopbackHost_AnswersOk()
+    {
+        Authenticate();
+
+        var response = await ReserveTenantAsync(TenantId, "http://localhost:5000/tenant-1");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PlaceTenant_WhenTheIssuerIsNotAServiceUrl_AnswersBadRequestWithTheDetail()
+    {
+        Authenticate();
+        var cellResponse = await Client.PutAsJsonAsync(
+            $"/directory/v1/cells/{CellName}",
+            CreateCell(CellName),
+            WebOptions
+        );
+        Assert.Equal(HttpStatusCode.OK, cellResponse.StatusCode);
+        await ReserveTenantAsync(TenantId, TenantIssuer);
+
+        var response = await Client.PostAsJsonAsync(
+            "/directory/v1/tenants/place",
+            new TenantPlacement
+            {
+                TenantId = TenantId,
+                Issuer = "https://op.example/tenant-1?x=1",
+                Cell = CellName,
+                Region = "region-a",
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(InvalidIssuerDetail, await ReadProblemDetailAsync(response));
+        var getResponse = await Client.GetAsync($"/directory/v1/tenants/{TenantId}");
+        Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("http://op.example/tenant-2")]
+    [InlineData("https://op.example/tenant-2#f")]
+    [InlineData("")]
+    public async Task ChangeIssuer_WhenTheIssuerIsNotAServiceUrl_AnswersBadRequestWithTheDetail(
+        string issuer
+    )
+    {
+        Authenticate();
+        await ReserveTenantAsync(TenantId, TenantIssuer);
+
+        var response = await Client.PostAsJsonAsync(
+            "/directory/v1/tenants/change-issuer",
+            new TenantIssuerChange
+            {
+                TenantId = TenantId,
+                PreviousIssuer = TenantIssuer,
+                Issuer = issuer,
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(InvalidIssuerDetail, await ReadProblemDetailAsync(response));
+        var issuerResponse = await Client.GetAsync(
+            $"/directory/v1/tenants/retired-issuers?issuer={Uri.EscapeDataString(TenantIssuer)}"
+        );
+        Assert.Equal(HttpStatusCode.NotFound, issuerResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task ChangeIssuer_WhenTheIssuerIsNull_AnswersOk()
+    {
+        Authenticate();
+        await ReserveTenantAsync(TenantId, TenantIssuer);
+
+        var response = await Client.PostAsJsonAsync(
+            "/directory/v1/tenants/change-issuer",
+            new TenantIssuerChange
+            {
+                TenantId = TenantId,
+                PreviousIssuer = TenantIssuer,
+                Issuer = null,
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var issuerResponse = await Client.GetAsync(
+            $"/directory/v1/tenants/retired-issuers?issuer={Uri.EscapeDataString(TenantIssuer)}"
+        );
+        Assert.Equal(HttpStatusCode.OK, issuerResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task RetireTenant_WhenTheIssuerIsNotAServiceUrl_AnswersBadRequestWithTheDetail()
+    {
+        AuthenticateAsControlPlane();
+        const string issuer = "https://op.example/tenant-1#f";
+
+        var response = await Client.PostAsJsonAsync(
+            "/directory/v1/tenants/retire",
+            new TenantRetirement { TenantId = TenantId, Issuer = issuer },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(InvalidIssuerDetail, await ReadProblemDetailAsync(response));
+        var idResponse = await Client.GetAsync($"/directory/v1/tenants/retired-ids/{TenantId}");
+        Assert.Equal(HttpStatusCode.NotFound, idResponse.StatusCode);
+        var issuerResponse = await Client.GetAsync(
+            $"/directory/v1/tenants/retired-issuers?issuer={Uri.EscapeDataString(issuer)}"
         );
         Assert.Equal(HttpStatusCode.NotFound, issuerResponse.StatusCode);
     }

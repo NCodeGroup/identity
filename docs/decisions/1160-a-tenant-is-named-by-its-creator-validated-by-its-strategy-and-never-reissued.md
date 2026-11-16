@@ -104,6 +104,9 @@ a retired identifier or issuer is never reissued.**
    and retires team identifiers. A reserved identifier is held by one tenant for the whole platform, so two cells cannot
    both create `acme`. The directory holds identifiers, issuers and placements, and nothing about a person
    ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
+   The directory service checks the issuer a reservation, a placement or a retirement names, and the one an issuer
+   change takes, by the service-URL rule of decision 5 and the same 1000-character bound, and answers `400` to any
+   other; the host-name bound is the serving cell's own, so the directory refuses no issuer that a cell accepts.
 10. **Creation reserves, then inserts, then places.** Creating a tenant reserves its identifier (`max_tenants` is
     enforced at the reservation), inserts the tenant in its cell and then places it; a failure releases the
     reservation. Creation fails closed with `503` when the directory is unreachable. Serving a tenant's requests never

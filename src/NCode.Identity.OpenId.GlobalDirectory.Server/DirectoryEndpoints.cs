@@ -66,6 +66,14 @@ public static class DirectoryEndpoints
         + "information, query or fragment.";
 
     /// <summary>
+    /// The problem detail that a tenant route answers with when an issuer it writes is not a service URL that
+    /// <see cref="AbsoluteUri.TryParseServiceUrl"/> accepts.
+    /// </summary>
+    private const string InvalidIssuerDetail =
+        "A tenant's issuer is an absolute https URL, or an http URL on a loopback host, with no user information, "
+        + "query or fragment.";
+
+    /// <summary>
     /// Gets the problem detail that the cell registration route answers with when the kind or the management URL is
     /// longer than the directory stores.
     /// </summary>
@@ -228,7 +236,8 @@ public static class DirectoryEndpoints
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
     /// <c>200 OK</c> when the tenant is reserved; <c>400 Bad Request</c> when a field is blank, the cell is not a
-    /// <see cref="CellLabelRules"/> label, or the tenant, its issuer or its team is longer than the directory stores;
+    /// <see cref="CellLabelRules"/> label, the tenant, its issuer or its team is longer than the directory stores, or
+    /// the issuer is not a service URL that <see cref="AbsoluteUri.TryParseServiceUrl"/> accepts;
     /// <c>403 Forbidden</c> when the cell is not the caller; <c>409 Conflict</c> when the identifier or the issuer is
     /// taken, the team has no record, or a <c>max_tenants</c> limit refuses the reservation or cannot be read.
     /// </returns>
@@ -257,6 +266,9 @@ public static class DirectoryEndpoints
         )
             return BadRequest(TooLongDetail);
 
+        if (IsMalformedIssuer(reservation.Issuer))
+            return BadRequest(InvalidIssuerDetail);
+
         if (ValidateOptionalTeamId(reservation.TeamId) is { } invalidTeam)
             return invalidTeam;
 
@@ -277,7 +289,8 @@ public static class DirectoryEndpoints
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
     /// <c>200 OK</c> when the tenant is placed; <c>400 Bad Request</c> when the tenant or its issuer is blank or longer
-    /// than the directory stores, or the cell or its region is not a <see cref="CellLabelRules"/> label;
+    /// than the directory stores, the issuer is not a service URL that <see cref="AbsoluteUri.TryParseServiceUrl"/>
+    /// accepts, or the cell or its region is not a <see cref="CellLabelRules"/> label;
     /// <c>403 Forbidden</c> when the cell is not the caller; <c>409 Conflict</c> when the identifier or the issuer
     /// belongs to another tenant.
     /// </returns>
@@ -296,6 +309,9 @@ public static class DirectoryEndpoints
             || IsOverLong(placement.Issuer, DirectoryLimits.MaxIssuerLength)
         )
             return BadRequest(TooLongDetail);
+
+        if (IsMalformedIssuer(placement.Issuer))
+            return BadRequest(InvalidIssuerDetail);
 
         if (
             !CellLabelRules.IsValidLabel(placement.Cell)
@@ -422,9 +438,10 @@ public static class DirectoryEndpoints
     /// </param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the tenant is retired; <c>400 Bad Request</c> when the tenant is blank, or the tenant or its
-    /// issuer is longer than the directory stores; <c>403 Forbidden</c> when the caller is not a cell; otherwise the
-    /// problem document of the write outcome.
+    /// <c>200 OK</c> when the tenant is retired; <c>400 Bad Request</c> when the tenant is blank, the tenant or its
+    /// issuer is longer than the directory stores, or the issuer is not a service URL that
+    /// <see cref="AbsoluteUri.TryParseServiceUrl"/> accepts; <c>403 Forbidden</c> when the caller is not a cell;
+    /// otherwise the problem document of the write outcome.
     /// </returns>
     private static async ValueTask<IResult> RetireTenantAsync(
         TenantRetirement retirement,
@@ -441,6 +458,9 @@ public static class DirectoryEndpoints
             || IsOverLong(retirement.Issuer, DirectoryLimits.MaxIssuerLength)
         )
             return BadRequest(TooLongDetail);
+
+        if (IsMalformedIssuer(retirement.Issuer))
+            return BadRequest(InvalidIssuerDetail);
 
         if (DirectoryCaller.GetCell(httpContext.User) is not { } callerCell)
             return Forbidden(TenantWriteForbiddenDetail);
@@ -459,10 +479,10 @@ public static class DirectoryEndpoints
     /// </param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the issuer is changed; <c>400 Bad Request</c> when the tenant is blank, or the tenant, the
-    /// issuer or the previous issuer is longer than the directory stores; <c>403 Forbidden</c> when the caller is not a
-    /// cell; otherwise the problem document of the write outcome, such as <c>404 Not Found</c>
-    /// for an unknown tenant.
+    /// <c>200 OK</c> when the issuer is changed; <c>400 Bad Request</c> when the tenant is blank, the tenant, the
+    /// issuer or the previous issuer is longer than the directory stores, or the issuer is not a service URL that
+    /// <see cref="AbsoluteUri.TryParseServiceUrl"/> accepts; <c>403 Forbidden</c> when the caller is not a cell;
+    /// otherwise the problem document of the write outcome, such as <c>404 Not Found</c> for an unknown tenant.
     /// </returns>
     private static async ValueTask<IResult> ChangeTenantIssuerAsync(
         TenantIssuerChange change,
@@ -480,6 +500,10 @@ public static class DirectoryEndpoints
             || IsOverLong(change.PreviousIssuer, DirectoryLimits.MaxIssuerLength)
         )
             return BadRequest(TooLongDetail);
+
+        // The previous issuer is only compared with the stored one, so only the issuer the tenant takes is judged.
+        if (IsMalformedIssuer(change.Issuer))
+            return BadRequest(InvalidIssuerDetail);
 
         if (DirectoryCaller.GetCell(httpContext.User) is not { } callerCell)
             return Forbidden(TenantWriteForbiddenDetail);
@@ -946,6 +970,17 @@ public static class DirectoryEndpoints
     /// </returns>
     private static bool IsOverLong(string? value, int maxLength) =>
         value is not null && value.Length > maxLength;
+
+    /// <summary>
+    /// Determines whether a request names an issuer that is not a service URL.
+    /// </summary>
+    /// <param name="issuer">The issuer the request names, or <c>null</c> when it names none.</param>
+    /// <returns>
+    /// <c>true</c> when the issuer is present, an empty one included, and <see cref="AbsoluteUri.TryParseServiceUrl"/>
+    /// refuses it; otherwise <c>false</c>.
+    /// </returns>
+    private static bool IsMalformedIssuer(string? issuer) =>
+        issuer is not null && !AbsoluteUri.TryParseServiceUrl(issuer, out _);
 
     /// <summary>
     /// Determines whether the authenticated caller is a given cell.
