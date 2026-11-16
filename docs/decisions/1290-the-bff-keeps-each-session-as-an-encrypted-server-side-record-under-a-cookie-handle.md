@@ -129,7 +129,9 @@ without the cookie.**
 - A host composes the BFF in one call, `AddIdentityBff(configuration)` from `NCode.Identity.Bff.Server`, or composes
   the six libraries (secrets, JOSE, JWT, protocol client, events and shared state) itself before `AddBffLibrary`.
   The one-call composition refuses an empty or wildcard `AllowedHosts` at startup unless `LocalDevelopment:Enabled` is
-  set.
+  set, and a host that composes the libraries itself calls `AddHostFilteringValidation(configuration)` for the same
+  refusal
+([ADR-1370](1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)).
 - `IdTokenValidationResult.Identity` is public surface of the protocol client.
 
 ## References

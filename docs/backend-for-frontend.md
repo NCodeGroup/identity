@@ -1013,7 +1013,10 @@ that is not registered is rejected at startup.
 
 ### 5.12 Composition and configuration
 
-The sketch below shows the composition. `AddIdentityBff` composes the shared-state, events, secrets, JOSE, JWT, protocol-client and BFF libraries; a host that needs a finer composition calls their `Add…Library` methods itself, as the composition root does.
+The sketch below shows the composition. `AddIdentityBff` composes the shared-state, events, secrets, JOSE, JWT,
+protocol-client and BFF libraries and refuses an empty or wildcard `AllowedHosts` unless `LocalDevelopment:Enabled` is
+set; a host that needs a finer composition calls their `Add…Library` methods and
+`AddHostFilteringValidation(configuration)` from `NCode.Identity.AspNetCore` itself, as the composition root does.
 
 ```csharp
 var bff = builder.Services.AddIdentityBff(builder.Configuration); // NCode.Identity.Bff.Server; binds "Bff" strictly
@@ -1046,6 +1049,7 @@ app.MapFallbackToFile("index.html");                    // the SPA itself, same 
 
 ```jsonc
 {
+  "AllowedHosts": "orders.example.com",                             // the host names this host serves; "*" is refused
   "Bff": {
     "Antiforgery": { "HeaderName": "X-CSRF", "HeaderValue": "1" },   // deployment-wide
     "Tokens": { "RefreshBeforeExpiry": "00:01:00" },                // deployment-wide
@@ -1162,6 +1166,9 @@ source registers the keyed provider in code and configures no entry for it
   provider.
 - `Bff:Antiforgery:HeaderName` or `HeaderValue` is blank, or the header name is one that skips a CORS preflight or
   carries credentials, or a `Bff:Tokens` duration is out of range.
+- `AllowedHosts` is empty or contains `*` (unless `LocalDevelopment:Enabled` is set), because a BFF host lists the
+  host names it serves
+([ADR-1370](decisions/1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)).
 - `Bff:Frontends:{name}:DPoP:Mode` is `required` and the OP does not support DPoP. This check runs when discovery is
   first fetched, not at startup.
 

@@ -4477,9 +4477,9 @@ Until the first stable release, the [Unreleased] section describes the product a
 ### Security
 
 - **Every host runs one secure-by-default posture in every environment.** The deployment gate, the Kestrel transport
-  check, HSTS, HTTPS-only setup, an explicit console `AllowedHosts`, https-only BFF and console URLs and the key-ring
-  refusal apply unless `LocalDevelopment:Enabled` is set. That switch is off when absent, the Production environment
-  refuses it, and it relaxes only the local inner loop
+  check, HSTS, HTTPS-only setup, an explicit `AllowedHosts` in every BFF host and the global directory, https-only BFF
+  and console URLs and the key-ring refusal apply unless `LocalDevelopment:Enabled` is set. That switch is off when
+  absent, the Production environment refuses it, and it relaxes only the local inner loop
   ([#831](https://github.com/NCodeGroup/identity/issues/831),
   [ADR-1370](docs/decisions/1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)).
 
