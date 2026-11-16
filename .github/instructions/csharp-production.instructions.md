@@ -217,8 +217,9 @@ than inlining the rationale.
   (`NCode.Identity.Json`, `NCode.Identity.Time`, `NCode.Identity.AspNetCore`) is the exception: any package may
   reference it ([ADR-1500](../../docs/decisions/1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md)).
 - 👁 **An `.Abstractions` package holds contracts, data and the pure form rules of the values its contracts carry**
-  (`TenantIdentifierRules`, `CellLabelRules`, `AbsoluteUri`, `DatabaseRoleNameRules`, `ExpiringKeys`), so every
-  implementation of a contract applies one rule; it holds no service logic and never logs. See
+  (`TenantIdentifierRules`, `CellLabelRules`, `AbsoluteUri`, `DatabaseRoleNameRules` with the Postgres identifier
+  quoting and runtime-role grant statements built on it, `PostgresIdentifiers` and `RuntimeRoleGrants`, and
+  `ExpiringKeys`), so every implementation of a contract applies one rule; it holds no service logic and never logs. See
   [ADR-1500](../../docs/decisions/1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md).
 - 👁 **Mark infrastructure-public types** — template [Public API](csharp.instructions.md#public-api), with the summary
   _"This API supports the NCode.Identity infrastructure and is not intended to be used directly from your code."_

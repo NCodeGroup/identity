@@ -45,9 +45,9 @@ host never does and serves as a separate runtime role, and the build fails on dr
   `hosts/NCode.Identity.OpenId.GlobalDirectory.Host`, has its own Postgres database, `DirectoryDbContext`, with its own
   migrations and image. It holds cells, placements, team documents and retired identifiers, and no personal data. Its
   host's `migrate` command, which the chart's directory migration Job runs, migrates as the schema owner through
-  `ConnectionStrings:directory-migration` and grants the runtime role that `DirectoryDatabase:RuntimeRole` names
-  `SELECT`, `INSERT`, `UPDATE` and `DELETE` on its tables (`DirectoryDatabaseGrants`); serving connects as that role
-  through `ConnectionStrings:directory`, without schema rights.
+  `ConnectionStrings:directory-migration` and grants the runtime role that `DirectoryDatabase:RuntimeRole` names the
+  access that `RuntimeRoleGrants` creates for a cell's database too (`DirectoryDatabaseGrants`); serving connects
+  through `ConnectionStrings:directory` as that role, which owns nothing and can only read and write rows.
 - **A migration role and a runtime role.** The two roles have separate connection strings: `ConnectionStrings:openid`
   is the runtime role's, and `ConnectionStrings:openid-migration` is the schema owner's, which only the worker uses.
   `HostDatabase:RuntimeRole` names the runtime role for the grants the worker applies

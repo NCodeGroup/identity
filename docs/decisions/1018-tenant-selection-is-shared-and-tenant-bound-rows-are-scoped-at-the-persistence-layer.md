@@ -137,8 +137,9 @@ current_setting('app.unscoped', true) = 'on' OR "NormalizedTenantId" = current_s
 ```
 
 - `RowLevelSecurity`, in the host database project, generates the statements from the EF model. The migration worker
-  applies them after migrating, idempotently (it drops the policy if it exists, then creates it), and grants
-  `SELECT, INSERT, UPDATE, DELETE` to the runtime role.
+  applies them after migrating, idempotently (it drops the policy if it exists, then creates it), and grants the runtime
+  role the access that `RuntimeRoleGrants` creates for the cell's and the directory's databases alike: `USAGE` on the
+  model's schemas, `SELECT, INSERT, UPDATE, DELETE` on its tables and `USAGE` on its sequences.
 - `TenantSessionInterceptor`, a connection, command and transaction interceptor, sets `app.tenant_id` and
   `app.unscoped` with a `set_config` command of its own before any command whose ambient state differs from the state
   the connection holds. It forgets that state when the connection opens, because Npgsql resets a session with
@@ -229,6 +230,7 @@ current_setting('app.unscoped', true) = 'on' OR "NormalizedTenantId" = current_s
 - `NCode.Identity.OpenId.Management`: `TenantScopeEndpointFilter`, `ControlPlaneScopeEndpointFilter`
 - `NCode.Identity.Analyzers`: `CrossTenantQueryAnalyzer` (`NCID0004`)
 - `NCode.Identity.OpenId.Host.Database`: `RowLevelSecurity`, `TenantSessionInterceptor`, `RuntimeRolePosture`
+- `NCode.Identity.Persistence.Abstractions`: `DatabaseRoleNameRules`, `PostgresIdentifiers`, `RuntimeRoleGrants`
 - [ADR-1036](1036-one-factory-materializes-every-openid-context-for-a-request-an-addressed-tenant-or-a-job.md), [ADR-1191](1191-a-management-request-is-authenticated-by-the-control-plane-tenant-and-scoped-by-its-routes-tenant.md),
   [ADR-1370](1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md),
   [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),

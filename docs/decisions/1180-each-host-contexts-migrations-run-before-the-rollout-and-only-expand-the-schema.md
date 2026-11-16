@@ -64,7 +64,8 @@ migrations do not hold it, because the statements come from the model
   the `tenant_isolation` policy from the EF Core model, so a new tenant-bound entity is covered with no further step.
 - The worker applies them idempotently: it drops the policy when it exists, then creates it, so a run that repeats
   changes nothing.
-- It then grants `SELECT, INSERT, UPDATE, DELETE` on the tables to the role named by `HostDatabase:RuntimeRole`.
+- It then grants the role named by `HostDatabase:RuntimeRole` the access that `RuntimeRoleGrants` creates: `USAGE` on
+  the model's schemas, `SELECT, INSERT, UPDATE, DELETE` on its tables and `USAGE` on its sequences.
 - The worker connects as the schema owner with `ConnectionStrings:openid-migration`, and the host serves as the runtime
   role with `ConnectionStrings:openid`.
 
