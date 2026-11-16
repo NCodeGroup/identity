@@ -308,7 +308,9 @@ public static class DirectoryEndpoints
     /// </summary>
     /// <param name="tenantId">The tenant identifier from the route.</param>
     /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
-    /// <param name="writer">The <see cref="IDirectoryTenantWriter"/> that applies the write for the calling cell.</param>
+    /// <param name="writer">
+    /// The <see cref="IDirectoryTenantWriter"/> that applies the write for the calling cell.
+    /// </param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
     /// <c>200 OK</c> when the reservation is released; otherwise the problem document of the write outcome, and
@@ -407,7 +409,9 @@ public static class DirectoryEndpoints
     /// </summary>
     /// <param name="retirement">The tenant to retire.</param>
     /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
-    /// <param name="writer">The <see cref="IDirectoryTenantWriter"/> that applies the write for the calling cell.</param>
+    /// <param name="writer">
+    /// The <see cref="IDirectoryTenantWriter"/> that applies the write for the calling cell.
+    /// </param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
     /// <c>200 OK</c> when the tenant is retired; <c>400 Bad Request</c> when the tenant is blank, or the tenant or its
@@ -442,7 +446,9 @@ public static class DirectoryEndpoints
     /// </summary>
     /// <param name="change">The tenant and its new issuer.</param>
     /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
-    /// <param name="writer">The <see cref="IDirectoryTenantWriter"/> that applies the write for the calling cell.</param>
+    /// <param name="writer">
+    /// The <see cref="IDirectoryTenantWriter"/> that applies the write for the calling cell.
+    /// </param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
     /// <c>200 OK</c> when the issuer is changed; <c>400 Bad Request</c> when the tenant is blank, or the tenant, the
@@ -499,7 +505,9 @@ public static class DirectoryEndpoints
     /// <param name="tenantId">The tenant identifier from the route.</param>
     /// <param name="directory">The <see cref="ITenantDirectory"/> that holds the retired identifiers.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-    /// <returns><c>200 OK</c> when the identifier is retired, or a <c>404 Not Found</c> problem when it is not.</returns>
+    /// <returns>
+    /// <c>200 OK</c> when the identifier is retired, or a <c>404 Not Found</c> problem when it is not.
+    /// </returns>
     private static async ValueTask<IResult> GetRetiredTenantIdAsync(
         string tenantId,
         ITenantDirectory directory,
@@ -582,20 +590,20 @@ public static class DirectoryEndpoints
     /// <param name="document">The team document to publish.</param>
     /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
     /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
-    /// <param name="directory">The <see cref="ITeamDirectory"/> that holds the document.</param>
+    /// <param name="writer">The <see cref="IDirectoryTeamWriter"/> that publishes the document.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
     /// <c>200 OK</c> when the document is published; <c>403 Forbidden</c> when the caller is not the control-plane
     /// cell; <c>400 Bad Request</c> when the document lacks its team or display name, names a team or a parent team
-    /// longer than the directory stores, names a team other than the route's, or holds settings that are not a JSON
-    /// object.
+    /// longer than the directory stores, names a team other than the route's, holds settings that are not a JSON
+    /// object, or would nest a team deeper than the directory stores.
     /// </returns>
     private static async ValueTask<IResult> PublishTeamAsync(
         string teamId,
         TeamDocument document,
         HttpContext httpContext,
         IOptions<DirectoryServerOptions> options,
-        ITeamDirectory directory,
+        IDirectoryTeamWriter writer,
         CancellationToken cancellationToken
     )
     {
@@ -617,8 +625,8 @@ public static class DirectoryEndpoints
         if (document.Settings.ValueKind != JsonValueKind.Object)
             return BadRequest(SettingsNotAnObjectDetail);
 
-        await directory.PublishAsync(document, cancellationToken);
-        return Results.Ok();
+        var result = await writer.PublishAsync(document, cancellationToken);
+        return result.IsDone ? Results.Ok() : BadRequest(result.Detail);
     }
 
     /// <summary>
@@ -688,7 +696,9 @@ public static class DirectoryEndpoints
     /// <param name="teamId">The team identifier from the route.</param>
     /// <param name="directory">The <see cref="ITeamDirectory"/> that holds the retired identifiers.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-    /// <returns><c>200 OK</c> when the identifier is retired, or a <c>404 Not Found</c> problem when it is not.</returns>
+    /// <returns>
+    /// <c>200 OK</c> when the identifier is retired, or a <c>404 Not Found</c> problem when it is not.
+    /// </returns>
     private static async ValueTask<IResult> GetRetiredTeamIdAsync(
         string teamId,
         ITeamDirectory directory,

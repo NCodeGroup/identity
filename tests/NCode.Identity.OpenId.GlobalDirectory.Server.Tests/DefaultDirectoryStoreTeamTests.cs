@@ -191,6 +191,87 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
         Assert.Equal(SettingsWithLimit(2), changes[1].Document?.Settings.GetRawText());
     }
 
+    [Fact]
+    public async Task PublishAsync_WhenTheTeamIsAtTheDepthLimit_Publishes()
+    {
+        await PublishChainAsync(1, DirectoryLimits.MaxTeamDepth, CancellationToken.None);
+
+        var stored = await Teams.GetOrDefaultAsync(
+            GetChainTeamId(DirectoryLimits.MaxTeamDepth),
+            CancellationToken.None
+        );
+        Assert.NotNull(stored);
+        Assert.Equal(GetChainTeamId(DirectoryLimits.MaxTeamDepth - 1), stored.ParentTeamId);
+    }
+
+    [Fact]
+    public async Task PublishAsync_WhenTheTeamWouldBeDeeperThanTheLimit_RefusesAndStoresNothing()
+    {
+        await PublishChainAsync(1, DirectoryLimits.MaxTeamDepth, CancellationToken.None);
+        var changesBefore = await ListChangeKeysAsync(CancellationToken.None);
+        var tooDeepTeamId = GetChainTeamId(DirectoryLimits.MaxTeamDepth + 1);
+
+        var result = await TeamWriter.PublishAsync(
+            CreateChainDocument(DirectoryLimits.MaxTeamDepth + 1),
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsDone);
+        Assert.Equal(
+            $"The team '{tooDeepTeamId}' cannot be nested deeper than {DirectoryLimits.MaxTeamDepth} levels.",
+            result.Detail
+        );
+        Assert.Null(await Teams.GetOrDefaultAsync(tooDeepTeamId, CancellationToken.None));
+        Assert.Equal(changesBefore, await ListChangeKeysAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task PublishAsync_WhenAParentWouldNestItsPublishedChildrenDeeperThanTheLimit_RefusesAndStoresNothing()
+    {
+        // The lower teams are published first, so the directory places the first of them top-level.
+        var lowestIndex = DirectoryLimits.MaxTeamDepth + 1;
+        await PublishChainAsync(3, lowestIndex, CancellationToken.None);
+        await PublishChainAsync(1, 1, CancellationToken.None);
+        var changesBefore = await ListChangeKeysAsync(CancellationToken.None);
+        var pathBefore = await ReadTeamPathAsync(GetChainTeamId(3));
+        Assert.Equal($"/{GetChainTeamId(3)}/", pathBefore);
+
+        var result = await TeamWriter.PublishAsync(CreateChainDocument(2), CancellationToken.None);
+
+        Assert.False(result.IsDone);
+        Assert.Equal(
+            $"The team '{GetChainTeamId(lowestIndex)}' cannot be nested deeper than {DirectoryLimits.MaxTeamDepth} levels.",
+            result.Detail
+        );
+        Assert.Null(await Teams.GetOrDefaultAsync(GetChainTeamId(2), CancellationToken.None));
+        Assert.Equal(changesBefore, await ListChangeKeysAsync(CancellationToken.None));
+        Assert.Equal(pathBefore, await ReadTeamPathAsync(GetChainTeamId(3)));
+        for (var index = 3; index <= lowestIndex; index++)
+        {
+            Assert.NotNull(
+                await Teams.GetOrDefaultAsync(GetChainTeamId(index), CancellationToken.None)
+            );
+        }
+    }
+
+    [Fact]
+    public async Task PublishAsync_ThroughThePort_WhenTheTeamWouldBeDeeperThanTheLimit_Throws()
+    {
+        await PublishChainAsync(1, DirectoryLimits.MaxTeamDepth, CancellationToken.None);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Teams.PublishAsync(
+                CreateChainDocument(DirectoryLimits.MaxTeamDepth + 1),
+                CancellationToken.None
+            )
+        );
+
+        Assert.Equal(
+            $"The team '{GetChainTeamId(DirectoryLimits.MaxTeamDepth + 1)}' cannot be nested deeper than {DirectoryLimits.MaxTeamDepth} levels.",
+            exception.Message
+        );
+    }
+
     #endregion
 
     #region RetireAsync Tests
@@ -363,6 +444,41 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
         var changes = await Teams.ListChangesAsync(0, 10, CancellationToken.None);
 
         Assert.Empty(changes);
+    }
+
+    #endregion
+
+    #region Helpers
+
+    private static string GetChainTeamId(int index) => $"chain-{index}";
+
+    private static TeamDocument CreateChainDocument(int index) =>
+        new()
+        {
+            TeamId = GetChainTeamId(index),
+            DisplayName = GetChainTeamId(index),
+            IsDisabled = false,
+            ParentTeamId = index > 1 ? GetChainTeamId(index - 1) : null,
+        };
+
+    private async ValueTask PublishChainAsync(
+        int first,
+        int last,
+        CancellationToken cancellationToken
+    )
+    {
+        for (var index = first; index <= last; index++)
+        {
+            await Teams.PublishAsync(CreateChainDocument(index), cancellationToken);
+        }
+    }
+
+    private async ValueTask<IReadOnlyList<(long Sequence, string? TeamId)>> ListChangeKeysAsync(
+        CancellationToken cancellationToken
+    )
+    {
+        var changes = await Teams.ListChangesAsync(0, 100, cancellationToken);
+        return [.. changes.Select(change => (change.Sequence, change.TeamId))];
     }
 
     #endregion

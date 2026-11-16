@@ -27,7 +27,13 @@ internal sealed class DefaultDirectoryStore(
     IDbContextFactory<DirectoryDbContext> dbContextFactory,
     IOptions<DirectoryServerOptions> options,
     TimeProvider timeProvider
-) : ITenantDirectory, IDirectoryTenantWriter, ITeamDirectory, ICellDirectory, IPlatformDirectory
+)
+    : ITenantDirectory,
+        IDirectoryTenantWriter,
+        IDirectoryTeamWriter,
+        ITeamDirectory,
+        ICellDirectory,
+        IPlatformDirectory
 {
     // The name of the 'max_tenants' team and platform setting (OpenIdSettingNames.MaxTenants). The directory does not
     // reference the OpenID abstractions that declare it.
@@ -1100,13 +1106,18 @@ internal sealed class DefaultDirectoryStore(
     /// <summary>
     /// Re-paths the published children of a team that were placed top-level because the directory did not hold the team
     /// when they were published, and the subtrees beneath those children, so each path lies beneath the team's path.
+    /// Every new path is computed first, and none is assigned when one would be deeper than the directory stores.
     /// </summary>
     /// <param name="dbContext">The <see cref="DirectoryDbContext"/> that tracks the changes.</param>
     /// <param name="normalizedTeamId">The normalized identifier of the team that is published.</param>
     /// <param name="teamPath">The normalized path of the team that is published.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>
+    /// The identifier of a team that the re-pathing would nest deeper than the directory stores, or <c>null</c> when
+    /// every orphaned child and its subtree is re-pathed.
+    /// </returns>
     // See ADR-1426.
-    private static async ValueTask RepathOrphanedChildrenAsync(
+    private static async ValueTask<string?> RepathOrphanedChildrenAsync(
         DirectoryDbContext dbContext,
         string normalizedTeamId,
         string teamPath,
@@ -1121,6 +1132,7 @@ internal sealed class DefaultDirectoryStore(
             )
             .ToListAsync(cancellationToken);
 
+        var repaths = new List<(TeamRecord Team, string NormalizedPath)>();
         foreach (var child in children)
         {
             var oldPrefix = child.NormalizedPath;
@@ -1137,11 +1149,39 @@ internal sealed class DefaultDirectoryStore(
                 .ToListAsync(cancellationToken);
             foreach (var subtreeTeam in subtree)
             {
-                subtreeTeam.NormalizedPath =
-                    newPrefix + subtreeTeam.NormalizedPath[oldPrefix.Length..];
+                var newPath = newPrefix + subtreeTeam.NormalizedPath[oldPrefix.Length..];
+                if (GetTeamDepth(newPath) > DirectoryLimits.MaxTeamDepth)
+                {
+                    return subtreeTeam.TeamId;
+                }
+
+                repaths.Add((subtreeTeam, newPath));
             }
         }
+
+        foreach (var (repathedTeam, newPath) in repaths)
+        {
+            repathedTeam.NormalizedPath = newPath;
+        }
+
+        return null;
     }
+
+    /// <summary>
+    /// Counts the teams of a normalized team path, so <c>/a/b/</c> holds two.
+    /// </summary>
+    /// <param name="normalizedPath">The normalized path of a team.</param>
+    /// <returns>The number of teams on the path.</returns>
+    private static int GetTeamDepth(string normalizedPath) =>
+        normalizedPath.AsSpan().Count('/') - 1;
+
+    /// <summary>
+    /// Describes why the directory refuses a team that would be nested too deep.
+    /// </summary>
+    /// <param name="teamId">The identifier of the team that would be nested too deep.</param>
+    /// <returns>The reason for the caller.</returns>
+    private static string GetTeamTooDeepDetail(string teamId) =>
+        $"The team '{teamId}' cannot be nested deeper than {DirectoryLimits.MaxTeamDepth} levels.";
 
     /// <summary>
     /// Reads the <c>max_tenants</c> setting of a platform or team document.
@@ -1232,6 +1272,16 @@ internal sealed class DefaultDirectoryStore(
 
     #endregion
 
+    #region IDirectoryTeamWriter
+
+    /// <inheritdoc />
+    async ValueTask<DirectoryTeamWriteResult> IDirectoryTeamWriter.PublishAsync(
+        TeamDocument document,
+        CancellationToken cancellationToken
+    ) => await PublishTeamCoreAsync(document, cancellationToken);
+
+    #endregion
+
     #region ITeamDirectory
 
     /// <inheritdoc />
@@ -1297,13 +1347,37 @@ internal sealed class DefaultDirectoryStore(
     }
 
     /// <inheritdoc />
+    /// <exception cref="InvalidOperationException">
+    /// The document is refused because a team would be nested deeper than the directory stores.
+    /// </exception>
     async ValueTask ITeamDirectory.PublishAsync(
         TeamDocument document,
         CancellationToken cancellationToken
     )
     {
+        var result = await PublishTeamCoreAsync(document, cancellationToken);
+        if (!result.IsDone)
+        {
+            throw new InvalidOperationException(result.Detail);
+        }
+    }
+
+    /// <summary>
+    /// Publishes a team document in a serializable transaction. A retired identifier has nothing to publish, and a
+    /// document whose team, or a team beneath it, would be nested deeper than the directory stores is refused before
+    /// the transaction commits, so nothing is stored.
+    /// </summary>
+    /// <param name="document">The <see cref="TeamDocument"/> to publish.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>A refused result naming the team that would be too deep; otherwise, a done result.</returns>
+    // See ADR-1426.
+    private async ValueTask<DirectoryTeamWriteResult> PublishTeamCoreAsync(
+        TeamDocument document,
+        CancellationToken cancellationToken
+    )
+    {
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
-        await dbContext
+        return await dbContext
             .Database.CreateExecutionStrategy()
             .ExecuteAsync(
                 async token =>
@@ -1323,7 +1397,30 @@ internal sealed class DefaultDirectoryStore(
                     if (team is { State: TeamRecord.StateRetired })
                     {
                         // A retired identifier is never reissued, so a document cannot bring it back.
-                        return;
+                        return DirectoryTeamWriteResult.Done();
+                    }
+
+                    var normalizedParentTeamId = document.ParentTeamId is { } parentTeamId
+                        ? Normalize(parentTeamId)
+                        : null;
+
+                    // A published team keeps its path; publishing its parent re-paths it when it was placed before
+                    // its parent.
+                    var teamPath = team is { State: TeamRecord.StatePublished }
+                        ? team.NormalizedPath
+                        : await GetTeamPathAsync(
+                            dbContext,
+                            normalizedTeamId,
+                            normalizedParentTeamId,
+                            token
+                        );
+
+                    // A path deeper than the directory stores is refused before anything is written.
+                    if (GetTeamDepth(teamPath) > DirectoryLimits.MaxTeamDepth)
+                    {
+                        return DirectoryTeamWriteResult.Refused(
+                            GetTeamTooDeepDetail(document.TeamId)
+                        );
                     }
 
                     // The directory assigns the sequence, so the stored document carries none: it is read back from the record.
@@ -1353,20 +1450,6 @@ internal sealed class DefaultDirectoryStore(
                     dbContext.Changes.Add(change);
                     await dbContext.SaveChangesAsync(token);
 
-                    var normalizedParentTeamId = document.ParentTeamId is { } parentTeamId
-                        ? Normalize(parentTeamId)
-                        : null;
-
-                    // A published team keeps its path; publishing its parent re-paths it when it was placed before its parent.
-                    var teamPath = team is { State: TeamRecord.StatePublished }
-                        ? team.NormalizedPath
-                        : await GetTeamPathAsync(
-                            dbContext,
-                            normalizedTeamId,
-                            normalizedParentTeamId,
-                            token
-                        );
-
                     if (team is null)
                     {
                         team = new TeamRecord
@@ -1385,10 +1468,25 @@ internal sealed class DefaultDirectoryStore(
                     team.DocumentJson = documentJson;
                     team.Sequence = change.Sequence;
 
-                    await RepathOrphanedChildrenAsync(dbContext, normalizedTeamId, teamPath, token);
+                    var tooDeepTeamId = await RepathOrphanedChildrenAsync(
+                        dbContext,
+                        normalizedTeamId,
+                        teamPath,
+                        token
+                    );
+                    if (tooDeepTeamId is not null)
+                    {
+                        // Returning before the commit rolls the transaction back, so the change record, the sequence
+                        // and the team row are discarded, and no child is re-pathed.
+                        return DirectoryTeamWriteResult.Refused(
+                            GetTeamTooDeepDetail(tooDeepTeamId)
+                        );
+                    }
 
                     await dbContext.SaveChangesAsync(token);
                     await transaction.CommitAsync(token);
+
+                    return DirectoryTeamWriteResult.Done();
                 },
                 cancellationToken
             );

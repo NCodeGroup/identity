@@ -1483,6 +1483,48 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task PublishTeam_WhenTheTeamWouldBeNestedDeeperThanTheLimit_AnswersBadRequest()
+    {
+        AuthenticateAsControlPlane();
+        for (var index = 1; index <= DirectoryLimits.MaxTeamDepth; index++)
+        {
+            var atLimit = await Client.PutAsJsonAsync(
+                $"/directory/v1/teams/chain-{index}/document",
+                new TeamDocument
+                {
+                    TeamId = $"chain-{index}",
+                    DisplayName = "Chain",
+                    IsDisabled = false,
+                    ParentTeamId = index > 1 ? $"chain-{index - 1}" : null,
+                },
+                WebOptions
+            );
+            Assert.Equal(HttpStatusCode.OK, atLimit.StatusCode);
+        }
+
+        var tooDeepTeamId = $"chain-{DirectoryLimits.MaxTeamDepth + 1}";
+        var response = await Client.PutAsJsonAsync(
+            $"/directory/v1/teams/{tooDeepTeamId}/document",
+            new TeamDocument
+            {
+                TeamId = tooDeepTeamId,
+                DisplayName = "Chain",
+                IsDisabled = false,
+                ParentTeamId = $"chain-{DirectoryLimits.MaxTeamDepth}",
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(
+            $"The team '{tooDeepTeamId}' cannot be nested deeper than {DirectoryLimits.MaxTeamDepth} levels.",
+            await ReadProblemDetailAsync(response)
+        );
+        var getResponse = await Client.GetAsync($"/directory/v1/teams/{tooDeepTeamId}/document");
+        Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
+    }
+
+    [Fact]
     public async Task GetTeamDocument_WhenNotPublished_AnswersNotFound()
     {
         Authenticate();

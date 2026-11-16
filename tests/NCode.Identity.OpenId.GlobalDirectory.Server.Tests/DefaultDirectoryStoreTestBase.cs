@@ -67,6 +67,8 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
 
     protected ITeamDirectory Teams => Store;
 
+    internal IDirectoryTeamWriter TeamWriter => Store;
+
     protected ICellDirectory Cells => Store;
 
     protected IPlatformDirectory Platform => Store;
