@@ -44,6 +44,11 @@ function New-Prose([int]$Length) {
     return $text
 }
 
+# Returns $Count words of eight letters separated by single spaces.
+function New-Words([int]$Count) {
+    return (@('abcdefgh') * $Count) -join ' '
+}
+
 # Returns the line after checking that it runs past 120 columns.
 function Assert-Longer([string]$Line) {
     if ($Line.Length -le 120) {
@@ -91,6 +96,21 @@ function Assert-Problems(
         if (-not $problems[$i].Contains($ExpectedFragments[$i], [StringComparison]::Ordinal)) {
             throw "Test '$Name' expected problem $i to contain '$($ExpectedFragments[$i])', got '$($problems[$i])'."
         }
+    }
+    $script:testCount++
+    Write-Host "PASS: $Name"
+}
+
+# Asserts that the file holds exactly the expected text, as UTF-8 without a byte order mark.
+function Assert-FileText([string]$Name, [string]$Repository, [string]$RelativePath, [string]$Expected) {
+    $fullPath = Join-Path $Repository $RelativePath
+    $bytes = [System.IO.File]::ReadAllBytes($fullPath)
+    if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+        throw "Test '$Name' expected '$RelativePath' without a byte order mark."
+    }
+    $actual = [System.IO.File]::ReadAllText($fullPath)
+    if ($actual -cne $Expected) {
+        throw "Test '$Name' expected '$RelativePath' to hold:`n$Expected`nbut it holds:`n$actual"
     }
     $script:testCount++
     Write-Host "PASS: $Name"
@@ -290,6 +310,170 @@ try {
     }
     $testCount++
     Write-Host 'PASS: a missing merge base fails with a fetch hint'
+
+    # -Fix: the tests assert the exact text afterwards. Each word is eight letters, so the line widths are plain sums.
+    $repository = New-Repository 'fix-summary' @{ 'src/A/Widget.cs' = New-CSharp }
+    Write-FixtureFile (Join-Path $repository 'src/A/Widget.cs') (New-CSharp @(
+            '/// <summary>',
+            "/// $(New-Words 3)",
+            "/// $(New-Words 9) <see cref=`"A.B`"/>",
+            "/// $(New-Words 10) <c>a b</c>",
+            "/// $(New-Words 4)",
+            '/// </summary>'))
+    Assert-Problems '-Fix leaves nothing to report after a reflow' $repository @() @{ Fix = $true }
+    Assert-FileText 'an under-filled C# summary becomes the greedy fill, keeping see and c elements whole' $repository 'src/A/Widget.cs' (
+        New-CSharp @(
+            '/// <summary>',
+            "/// $(New-Words 12)",
+            "/// <see cref=`"A.B`"/> $(New-Words 10)",
+            "/// <c>a b</c> $(New-Words 4)",
+            '/// </summary>'))
+    Assert-Problems 'the check reports nothing after -Fix' $repository @()
+
+    $repository = New-Repository 'fix-param' @{ 'src/A/Widget.cs' = New-CSharp }
+    Write-FixtureFile (Join-Path $repository 'src/A/Widget.cs') (New-CSharp @(
+            "/// <param name=`"x`">$(New-Words 5)",
+            "/// $(New-Words 9)",
+            "/// $(New-Words 6) abcdefgh</param>"))
+    Assert-Problems '-Fix on a param paragraph leaves nothing to report' $repository @() @{ Fix = $true }
+    Assert-FileText 'a param paragraph keeps its tag on the first line and its closing tag after the last word' $repository 'src/A/Widget.cs' (
+        New-CSharp @(
+            "/// <param name=`"x`">$(New-Words 11)",
+            "/// $(New-Words 9) abcdefgh</param>"))
+    Assert-Problems 'the check reports nothing after -Fix on a param paragraph' $repository @()
+
+    $repository = New-Repository 'fix-list' @{ 'frontend/web/src/widget.ts' = "export const widget = 1;`n" }
+    Write-FixtureFile (Join-Path $repository 'frontend/web/src/widget.ts') (New-Text @(
+            '/**',
+            ' * Applies the filter:',
+            " * - $(New-Words 2)",
+            " *   $(New-Words 8)",
+            " *   $(New-Words 8)",
+            ' * @returns the result.',
+            ' */',
+            'export const widget = 1;'))
+    Assert-Problems '-Fix on a TypeScript list item leaves nothing to report' $repository @() @{ Fix = $true }
+    Assert-FileText 'a TypeScript list item is refilled with its two-space continuation indent' $repository 'frontend/web/src/widget.ts' (
+        New-Text @(
+            '/**',
+            ' * Applies the filter:',
+            " * - $(New-Words 12)",
+            " *   $(New-Words 6)",
+            ' * @returns the result.',
+            ' */',
+            'export const widget = 1;'))
+    Assert-Problems 'the check reports nothing after -Fix on a TypeScript list item' $repository @()
+
+    $repository = New-Repository 'fix-single' @{ 'frontend/web/src/widget.ts' = "export const widget = 1;`n" }
+    Write-FixtureFile (Join-Path $repository 'frontend/web/src/widget.ts') (New-Text @(
+            "/** $(New-Words 20) */",
+            '/** A short note. */',
+            'export const widget = 1;'))
+    Assert-Problems '-Fix on a single-line JSDoc leaves nothing to report' $repository @() @{ Fix = $true }
+    Assert-FileText 'a single-line JSDoc over 120 columns becomes a three-part block' $repository 'frontend/web/src/widget.ts' (
+        New-Text @(
+            '/**',
+            " * $(New-Words 13)",
+            " * $(New-Words 7)",
+            ' */',
+            '/** A short note. */',
+            'export const widget = 1;'))
+
+    $oldBlocks = @(
+        '/// <summary>',
+        '/// Old short line one.',
+        '/// Old short line two.',
+        '/// </summary>',
+        '/// <code>',
+        '/// var a = 1;',
+        '/// var b = 2;',
+        '/// </code>',
+        'public sealed class Widget { }',
+        '')
+    $repository = New-Repository 'fix-untouched' @{ 'src/A/Widget.cs' = New-Text (@('namespace A;', '') + $oldBlocks) }
+    Write-FixtureFile (Join-Path $repository 'src/A/Widget.cs') (New-Text (@('namespace A;', '') + $oldBlocks + @(
+                '/// <summary>',
+                '/// New short line one.',
+                '/// New short line two.',
+                '/// </summary>',
+                '/// <code>',
+                '/// var c = 3;',
+                '/// var d = 4;',
+                '/// </code>',
+                'public sealed class Other { }')))
+    Assert-Problems '-Fix on a file with an old paragraph leaves nothing to report' $repository @() @{ Fix = $true }
+    Assert-FileText 'only the touched paragraph is refilled; an untouched paragraph and code blocks stay as written' $repository 'src/A/Widget.cs' (
+        New-Text (@('namespace A;', '') + $oldBlocks + @(
+                '/// <summary>',
+                '/// New short line one. New short line two.',
+                '/// </summary>',
+                '/// <code>',
+                '/// var c = 3;',
+                '/// var d = 4;',
+                '/// </code>',
+                'public sealed class Other { }')))
+    Assert-Problems 'the untouched paragraph is still reported with -All' $repository @(
+        "src/A/Widget.cs(4): $underFilled") @{ All = $true }
+
+    $repository = New-Repository 'fix-fence' @{ 'frontend/web/src/widget.ts' = "export const widget = 1;`n" }
+    Write-FixtureFile (Join-Path $repository 'frontend/web/src/widget.ts') (New-Text @(
+            '/**',
+            ' * Usage first line.',
+            ' * Usage second line.',
+            ' * ```ts',
+            ' * const a = 1;',
+            ' * const b = 2;',
+            ' * ```',
+            ' * Closing first line.',
+            ' * Closing second line.',
+            ' */',
+            'export const widget = 1;'))
+    Assert-Problems '-Fix on paragraphs around a fenced block leaves nothing to report' $repository @() @{ Fix = $true }
+    Assert-FileText 'a fenced block stays as written between two refilled paragraphs' $repository 'frontend/web/src/widget.ts' (
+        New-Text @(
+            '/**',
+            ' * Usage first line. Usage second line.',
+            ' * ```ts',
+            ' * const a = 1;',
+            ' * const b = 2;',
+            ' * ```',
+            ' * Closing first line. Closing second line.',
+            ' */',
+            'export const widget = 1;'))
+
+    $repository = New-Repository 'fix-path' @{ 'src/A/One.cs' = New-CSharp; 'src/A/Two.cs' = New-CSharp }
+    Write-FixtureFile (Join-Path $repository 'src/A/One.cs') $underFilledCSharp
+    Write-FixtureFile (Join-Path $repository 'src/A/Two.cs') $underFilledCSharp
+    Assert-Problems '-Fix with -Path reports only what remains in the named file' $repository @() @{
+        Fix  = $true
+        Path = 'src/A/Two.cs'
+    }
+    Assert-FileText '-Fix with -Path refills the named file' $repository 'src/A/Two.cs' (New-CSharp @(
+            '/// <summary>',
+            '/// A short first line. A second line that continues it.',
+            '/// </summary>'))
+    Assert-FileText '-Fix with -Path leaves the other files unchanged' $repository 'src/A/One.cs' $underFilledCSharp
+    Assert-Problems 'the other file is still reported after -Fix with -Path' $repository @(
+        "src/A/One.cs(4): $underFilled")
+
+    $repository = New-Repository 'fix-crlf' @{ 'src/A/Widget.cs' = New-CSharp }
+    Write-FixtureFile (Join-Path $repository 'src/A/Widget.cs') $underFilledCSharp.Replace("`n", "`r`n")
+    Assert-Problems '-Fix on a CRLF file leaves nothing to report' $repository @() @{ Fix = $true }
+    Assert-FileText 'a CRLF file keeps its line endings' $repository 'src/A/Widget.cs' (New-CSharp @(
+            '/// <summary>',
+            '/// A short first line. A second line that continues it.',
+            '/// </summary>')).Replace("`n", "`r`n")
+
+    $uncovered = New-CSharp @(
+        '/// <summary>',
+        '/// A short first line <see',
+        '/// cref="A"/> that continues it.',
+        '/// </summary>')
+    $repository = New-Repository 'fix-uncovered' @{ 'src/A/Widget.cs' = New-CSharp }
+    Write-FixtureFile (Join-Path $repository 'src/A/Widget.cs') $uncovered
+    Assert-Problems '-Fix leaves a paragraph whose text its tokens do not cover and reports it' $repository @(
+        "src/A/Widget.cs(4): $underFilled") @{ Fix = $true }
+    Assert-FileText 'a paragraph whose text its tokens do not cover stays as written' $repository 'src/A/Widget.cs' $uncovered
 
     Write-Host "$testCount doc-comment-fill checks passed."
 }

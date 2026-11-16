@@ -27,6 +27,14 @@
       <param name="cancellationToken"> sentence or a <response> line;
     - a line, not the last of its paragraph, that leaves room for the next line's first word.
 
+    -Fix reflows each touched paragraph that has a problem, then outputs the problems that remain. A reflow takes the
+    paragraph's tokens in order, keeps a <c>...</c> element, a tag, a {@...} inline tag and a backtick code span whole,
+    and fills each line with as many tokens as fit within 120 columns. The first line keeps its own prefix and the
+    leading white space of its text, and a continuation line takes the second line's prefix and leading white space. A
+    single-line /** ... */ comment over 120 columns becomes an opening line, filled * lines and a closing line. Every
+    other line stays byte-for-byte, and a file keeps its line endings and final newline and is written as UTF-8
+    without a byte order mark.
+
 .PARAMETER Root
     The repository root. Defaults to the parent of the build/ directory.
 
@@ -39,18 +47,25 @@
 .PARAMETER All
     Judges every paragraph of every file in scope, instead of the paragraphs the change touches.
 
+.PARAMETER Fix
+    Reflows each judged paragraph that has a problem, writes the file, and outputs the problems that remain.
+
 .EXAMPLE
     ./build/doc-comment-fill.ps1
 
 .EXAMPLE
     ./build/doc-comment-fill.ps1 -Path src/NCode.Identity.Time/TimeProviderExtensions.cs -Base origin/main
+
+.EXAMPLE
+    ./build/doc-comment-fill.ps1 -Path src/NCode.Identity.Time/TimeProviderExtensions.cs -Fix
 #>
 [CmdletBinding()]
 param(
     [string]$Root = (Split-Path -Parent $PSScriptRoot),
     [string]$Base = 'origin/main',
     [string[]]$Path,
-    [switch]$All
+    [switch]$All,
+    [switch]$Fix
 )
 
 Set-StrictMode -Version Latest
@@ -104,14 +119,18 @@ function Test-InScope([string]$RelativePath) {
     return $true
 }
 
-function New-DocLine([int]$Index, [int]$Block, [string]$Text, [int]$Width, [bool]$Single) {
+function New-DocLine(
+    [int]$Index, [int]$Block, [string]$Text, [int]$Width, [bool]$Single, [string]$Prefix, [string]$Suffix) {
     return [pscustomobject]@{
-        Index  = $Index
-        Block  = $Block
-        Text   = $Text
-        Width  = $Width
-        Single = $Single
-        Code   = $false
+        Index        = $Index
+        Block        = $Block
+        Text         = $Text
+        Width        = $Width
+        Single       = $Single
+        Code         = $false
+        Prefix       = $Prefix
+        Suffix       = $Suffix
+        Continuation = $Prefix
     }
 }
 
@@ -132,7 +151,8 @@ function Get-CSharpDocLines([string[]]$Lines) {
         }
         $previous = $i
         $text = $match.Groups[1].Value.TrimEnd()
-        $record = New-DocLine $i $block $text $Lines[$i].TrimEnd().Length $false
+        $prefix = $Lines[$i].Substring(0, $match.Groups[1].Index)
+        $record = New-DocLine $i $block $text $Lines[$i].TrimEnd().Length $false $prefix ''
         if (-not $inCode -and $text.TrimStart().StartsWith('<code', [StringComparison]::Ordinal)) {
             $inCode = $true
         }
@@ -164,34 +184,46 @@ function Get-TypeScriptDocLines([string[]]$Lines) {
         $closeAt = $line.IndexOf('*/', $open.Length - 1, [StringComparison]::Ordinal)
         if ($closeAt -ge 0) {
             $content = if ($closeAt -gt $open.Length) { $line.Substring($open.Length, $closeAt - $open.Length) } else { '' }
-            if ($content.StartsWith(' ', [StringComparison]::Ordinal)) {
-                $content = $content.Substring(1)
-            }
-            $blockRecords.Add((New-DocLine $i $block $content.TrimEnd() $line.TrimEnd().Length $true))
+            $skip = if ($content.StartsWith(' ', [StringComparison]::Ordinal)) { 1 } else { 0 }
+            $text = $content.Substring($skip).TrimEnd()
+            $prefixLength = $open.Length + $skip
+            $suffix = $line.Substring($prefixLength + $text.Length).TrimEnd()
+            $blockRecords.Add((New-DocLine $i $block $text $line.TrimEnd().Length $true $line.Substring(0, $prefixLength) $suffix))
             $i++
         }
         else {
             $content = $line.Substring($open.Length)
-            if ($content.StartsWith(' ', [StringComparison]::Ordinal)) {
-                $content = $content.Substring(1)
-            }
-            $blockRecords.Add((New-DocLine $i $block $content.TrimEnd() $line.TrimEnd().Length $false))
+            $skip = if ($content.StartsWith(' ', [StringComparison]::Ordinal)) { 1 } else { 0 }
+            $prefixLength = $open.Length + $skip
+            $record = New-DocLine $i $block $content.Substring($skip).TrimEnd() $line.TrimEnd().Length $false `
+                $line.Substring(0, $prefixLength) ''
+            $record.Continuation = $line.Substring(0, $open.Length - 3) + ' * '
+            $blockRecords.Add($record)
             $i++
             while ($i -lt $Lines.Length) {
                 $line = $Lines[$i]
                 $closeAt = $line.IndexOf('*/', [StringComparison]::Ordinal)
+                $body = if ($closeAt -ge 0) { $line.Substring(0, $closeAt) } else { $line }
+                $star = $tsMiddle.Match($body)
+                if ($star.Success) {
+                    $prefixLength = if ($star.Groups[1].Success) { $star.Groups[1].Index } else { $star.Length }
+                    $content = $star.Groups[1].Value
+                }
+                elseif ($closeAt -ge 0) {
+                    $prefixLength = 0
+                    $content = $body
+                }
+                else {
+                    $prefixLength = $line.Length
+                    $content = ''
+                }
+                $text = $content.TrimEnd()
+                $suffix = if ($closeAt -ge 0) { $line.Substring($prefixLength + $text.Length).TrimEnd() } else { '' }
+                $blockRecords.Add((New-DocLine $i $block $text $line.TrimEnd().Length $false $line.Substring(0, $prefixLength) $suffix))
+                $i++
                 if ($closeAt -ge 0) {
-                    $before = $line.Substring(0, $closeAt)
-                    $star = $tsMiddle.Match($before)
-                    $content = if ($star.Success) { $star.Groups[1].Value } else { $before }
-                    $blockRecords.Add((New-DocLine $i $block $content.TrimEnd() $line.TrimEnd().Length $false))
-                    $i++
                     break
                 }
-                $star = $tsMiddle.Match($line)
-                $content = if ($star.Success) { $star.Groups[1].Value } else { '' }
-                $blockRecords.Add((New-DocLine $i $block $content.TrimEnd() $line.TrimEnd().Length $false))
-                $i++
             }
         }
         $inFence = $false
@@ -251,30 +283,30 @@ function Test-OverLongExempt([object]$Record, [bool]$IsTypeScript) {
         $trimmed.StartsWith('<response', [StringComparison]::Ordinal)
 }
 
-# Adds the problems of one paragraph, a list of consecutive joinable doc lines.
-function Add-ParagraphProblems(
-    [object[]]$Paragraph, [bool]$IsTypeScript, [string]$RelativePath, [System.Collections.Generic.List[string]]$Problems) {
+# The problems of one paragraph, a list of consecutive joinable doc lines: the line index and message of each.
+function Get-ParagraphProblems([object[]]$Paragraph, [bool]$IsTypeScript) {
+    $found = [System.Collections.Generic.List[object]]::new()
     for ($k = 0; $k -lt $Paragraph.Length; $k++) {
         $record = $Paragraph[$k]
         if ($record.Width -gt $maxWidth) {
             if (-not (Test-OverLongExempt $record $IsTypeScript)) {
-                $Problems.Add("${RelativePath}($($record.Index + 1)): $overLongMessage")
+                $found.Add([pscustomobject]@{ Index = $record.Index; Message = $overLongMessage })
             }
         }
         elseif ($k -lt $Paragraph.Length - 1) {
             $next = $Paragraph[$k + 1]
             $word = Get-FirstToken $next.Text $IsTypeScript
             if ($null -ne $word -and $record.Width + 1 + $word.Length -le $maxWidth) {
-                $Problems.Add("${RelativePath}($($record.Index + 1)): $underFilledMessage")
+                $found.Add([pscustomobject]@{ Index = $record.Index; Message = $underFilledMessage })
             }
         }
     }
+    return $found
 }
 
-# The doc lines of a file grouped into paragraphs, each judged when any of its lines is touched.
-function Get-FileProblems(
-    [object[]]$Records, [bool]$IsTypeScript, [string]$RelativePath, [object]$Touched,
-    [System.Collections.Generic.List[string]]$Problems) {
+# The doc lines of a file grouped into paragraphs, each kept when any of its lines is touched.
+function Get-TouchedParagraphs([object[]]$Records, [bool]$IsTypeScript, [object]$Touched) {
+    $paragraphs = [System.Collections.Generic.List[object]]::new()
     $paragraph = [System.Collections.Generic.List[object]]::new()
     $paragraphTouched = $false
     foreach ($record in $Records) {
@@ -282,8 +314,7 @@ function Get-FileProblems(
         if ($paragraph.Count -gt 0 -and
             ($endsParagraph -or -not (Test-Joinable $paragraph[$paragraph.Count - 1] $record $IsTypeScript))) {
             if ($paragraphTouched) {
-                $lines = $paragraph.ToArray()
-                Add-ParagraphProblems $lines $IsTypeScript $RelativePath $Problems
+                $paragraphs.Add([pscustomobject]@{ Lines = $paragraph.ToArray() })
             }
             $paragraph.Clear()
             $paragraphTouched = $false
@@ -297,8 +328,144 @@ function Get-FileProblems(
         }
     }
     if ($paragraph.Count -gt 0 -and $paragraphTouched) {
-        $lines = $paragraph.ToArray()
-        Add-ParagraphProblems $lines $IsTypeScript $RelativePath $Problems
+        $paragraphs.Add([pscustomobject]@{ Lines = $paragraph.ToArray() })
+    }
+    return $paragraphs
+}
+
+function Get-LeadingWhiteSpace([string]$Text) {
+    return $Text.Substring(0, $Text.Length - $Text.TrimStart().Length)
+}
+
+# The lines a paragraph is rewritten to: its tokens filled greedily to 120 columns. A single-line /** ... */ comment
+# becomes a three-part block. Returns $null when the tokens do not cover the paragraph's text, so a reflow cannot
+# drop any of it.
+function Get-FilledLines([object[]]$Paragraph, [bool]$IsTypeScript, [string]$Indent) {
+    $token = if ($IsTypeScript) { $tsToken } else { $csToken }
+    $words = [System.Collections.Generic.List[string]]::new()
+    foreach ($record in $Paragraph) {
+        $covered = [System.Text.StringBuilder]::new()
+        foreach ($match in $token.Matches($record.Text)) {
+            $words.Add($match.Value)
+            $null = $covered.Append($match.Value)
+        }
+        if (($covered.ToString() -replace '\s', '') -cne ($record.Text -replace '\s', '')) {
+            return $null
+        }
+    }
+    if ($words.Count -eq 0) {
+        return $null
+    }
+
+    $first = $Paragraph[0]
+    $single = $first.Single
+    $firstIndent = Get-LeadingWhiteSpace $first.Text
+    $firstPrefix = if ($single) { "$Indent * " } else { $first.Prefix }
+    if ($Paragraph.Length -gt 1) {
+        $continuation = $Paragraph[1].Prefix + (Get-LeadingWhiteSpace $Paragraph[1].Text)
+    }
+    else {
+        $continuation = if ($single) { "$Indent * " } else { $first.Continuation }
+        $continuation += $firstIndent
+        if ($IsTypeScript -and $first.Text.TrimStart() -cmatch '^(?:[-*+] |\d+[.)] )') {
+            $continuation += '  '
+        }
+    }
+    if (-not $single) {
+        $words[$words.Count - 1] += $Paragraph[$Paragraph.Length - 1].Suffix
+    }
+
+    $filled = [System.Collections.Generic.List[string]]::new()
+    if ($single) {
+        $filled.Add("$Indent/**")
+    }
+    $current = $firstPrefix + $firstIndent
+    $isEmpty = $true
+    foreach ($word in $words) {
+        if ($isEmpty) {
+            $current += $word
+            $isEmpty = $false
+        }
+        elseif ($current.Length + 1 + $word.Length -le $maxWidth) {
+            $current += ' ' + $word
+        }
+        else {
+            $filled.Add($current)
+            $current = $continuation + $word
+        }
+    }
+    $filled.Add($current)
+    if ($single) {
+        $filled.Add("$Indent */")
+    }
+    return , $filled.ToArray()
+}
+
+# The file's lines with every touched paragraph that has a problem refilled, or $null when no line changes.
+function Get-RepairedLines([string[]]$Lines, [object[]]$Paragraphs, [bool]$IsTypeScript) {
+    $repaired = [System.Collections.Generic.List[string]]::new()
+    $position = 0
+    foreach ($paragraph in $Paragraphs) {
+        if (@(Get-ParagraphProblems $paragraph.Lines $IsTypeScript).Count -eq 0) {
+            continue
+        }
+        $start = $paragraph.Lines[0].Index
+        $end = $paragraph.Lines[$paragraph.Lines.Length - 1].Index
+        $filled = Get-FilledLines $paragraph.Lines $IsTypeScript (Get-LeadingWhiteSpace $Lines[$start])
+        if ($null -eq $filled -or ($filled -join "`n") -ceq ($Lines[$start..$end] -join "`n")) {
+            continue
+        }
+        for ($n = $position; $n -lt $start; $n++) {
+            $repaired.Add($Lines[$n])
+        }
+        $repaired.AddRange([string[]]$filled)
+        $position = $end + 1
+    }
+    if ($position -eq 0) {
+        return $null
+    }
+    for ($n = $position; $n -lt $Lines.Length; $n++) {
+        $repaired.Add($Lines[$n])
+    }
+    return , $repaired.ToArray()
+}
+
+# A file's text, lines, doc-line records and touched lines, or $null when it holds no doc line.
+function Read-DocFile([string]$FullPath, [string]$RelativePath, [bool]$IsTypeScript, [bool]$AllLines, [string]$MergeBase) {
+    $text = [IO.File]::ReadAllText($FullPath)
+    if ($text.IndexOf($(if ($IsTypeScript) { '/**' } else { '///' }), [StringComparison]::Ordinal) -lt 0) {
+        return $null
+    }
+    $lines = [regex]::Split($text, '\r?\n')
+    $records = @(if ($IsTypeScript) { Get-TypeScriptDocLines $lines } else { Get-CSharpDocLines $lines })
+    if ($records.Count -eq 0) {
+        return $null
+    }
+
+    # $null marks every line as touched; otherwise a 1-based flag per line.
+    $touched = $null
+    if (-not $AllLines) {
+        $touched = [bool[]]::new($lines.Length + 2)
+        $diff = @(Invoke-Git -Arguments @('diff', '-U0', '--no-color', '--no-renames', $MergeBase, '--', $RelativePath) `
+            -Failure "git diff of '$RelativePath' failed.")
+        foreach ($diffLine in $diff) {
+            $header = $hunkHeader.Match($diffLine)
+            if (-not $header.Success) {
+                continue
+            }
+            $start = [int]$header.Groups[1].Value
+            $count = if ($header.Groups[2].Success) { [int]$header.Groups[2].Value } else { 1 }
+            for ($n = $start; $n -lt $start + $count -and $n -lt $touched.Length; $n++) {
+                $touched[$n] = $true
+            }
+        }
+    }
+
+    return [pscustomobject]@{
+        Text    = $text
+        Lines   = $lines
+        Records = $records
+        Touched = $touched
     }
 }
 
@@ -357,37 +524,29 @@ foreach ($relative in $files) {
 
     $isTypeScript = $relative.EndsWith('.ts', [StringComparison]::Ordinal) -or
         $relative.EndsWith('.tsx', [StringComparison]::Ordinal)
-    $text = [IO.File]::ReadAllText($fullPath)
-    if ($text.IndexOf($(if ($isTypeScript) { '/**' } else { '///' }), [StringComparison]::Ordinal) -lt 0) {
-        continue
-    }
-    $lines = [regex]::Split($text, '\r?\n')
-    $records = @(if ($isTypeScript) { Get-TypeScriptDocLines $lines } else { Get-CSharpDocLines $lines })
-    if ($records.Count -eq 0) {
+    $state = Read-DocFile $fullPath $relative $isTypeScript $candidates[$relative] $mergeBase
+    if ($null -eq $state) {
         continue
     }
 
-    # $null marks every line as touched; otherwise a 1-based flag per line.
-    $touched = $null
-    if (-not $candidates[$relative]) {
-        $touched = [bool[]]::new($lines.Length + 2)
-        $diff = @(Invoke-Git -Arguments @('diff', '-U0', '--no-color', '--no-renames', $mergeBase, '--', $relative) `
-            -Failure "git diff of '$relative' failed.")
-        foreach ($diffLine in $diff) {
-            $header = $hunkHeader.Match($diffLine)
-            if (-not $header.Success) {
+    if ($Fix) {
+        $paragraphs = @(Get-TouchedParagraphs $state.Records $isTypeScript $state.Touched)
+        $repaired = Get-RepairedLines $state.Lines $paragraphs $isTypeScript
+        if ($null -ne $repaired) {
+            $newline = if ($state.Text.Contains("`r`n", [StringComparison]::Ordinal)) { "`r`n" } else { "`n" }
+            [IO.File]::WriteAllText($fullPath, ($repaired -join $newline), [System.Text.UTF8Encoding]::new($false))
+            $state = Read-DocFile $fullPath $relative $isTypeScript $candidates[$relative] $mergeBase
+            if ($null -eq $state) {
                 continue
-            }
-            $start = [int]$header.Groups[1].Value
-            $count = if ($header.Groups[2].Success) { [int]$header.Groups[2].Value } else { 1 }
-            for ($n = $start; $n -lt $start + $count -and $n -lt $touched.Length; $n++) {
-                $touched[$n] = $true
             }
         }
     }
 
-    Get-FileProblems -Records $records -IsTypeScript $isTypeScript -RelativePath $relative -Touched $touched `
-        -Problems $problems
+    foreach ($paragraph in @(Get-TouchedParagraphs $state.Records $isTypeScript $state.Touched)) {
+        foreach ($problem in @(Get-ParagraphProblems $paragraph.Lines $isTypeScript)) {
+            $problems.Add("${relative}($($problem.Index + 1)): $($problem.Message)")
+        }
+    }
 }
 
 $problems
