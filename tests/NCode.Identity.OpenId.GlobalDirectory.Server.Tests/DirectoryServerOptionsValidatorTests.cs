@@ -59,14 +59,29 @@ public class DirectoryServerOptionsValidatorTests
     }
 
     [Theory]
-    [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void Validate_EmptyIssuer_FailsAsRequired(string? issuer)
+    public void Validate_EmptyIssuer_FailsAsRequired(string issuer)
     {
         var options = new DirectoryServerOptions
         {
             Issuer = issuer,
+            ControlPlaneCell = ControlPlaneCell,
+        };
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        var failure = Assert.Single(result.Failures);
+        Assert.Equal("DirectoryServer:Issuer is required.", failure);
+    }
+
+    [Fact]
+    public void Validate_NullIssuer_FailsAsRequired()
+    {
+        var options = new DirectoryServerOptions
+        {
+            Issuer = null!,
             ControlPlaneCell = ControlPlaneCell,
         };
 
@@ -173,7 +188,7 @@ public class DirectoryServerOptionsValidatorTests
         var options = new DirectoryServerOptions
         {
             Issuer = "ftp://auth.example",
-            ControlPlaneCell = null,
+            ControlPlaneCell = string.Empty,
         };
 
         var result = CreateValidator().Validate(null, options);
@@ -186,15 +201,30 @@ public class DirectoryServerOptionsValidatorTests
     }
 
     [Theory]
-    [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void Validate_EmptyControlPlaneCell_FailsAsRequired(string? controlPlaneCell)
+    public void Validate_EmptyControlPlaneCell_FailsAsRequired(string controlPlaneCell)
     {
         var options = new DirectoryServerOptions
         {
             Issuer = "https://auth.example",
             ControlPlaneCell = controlPlaneCell,
+        };
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        var failure = Assert.Single(result.Failures);
+        Assert.Equal("DirectoryServer:ControlPlaneCell is required.", failure);
+    }
+
+    [Fact]
+    public void Validate_NullControlPlaneCell_FailsAsRequired()
+    {
+        var options = new DirectoryServerOptions
+        {
+            Issuer = "https://auth.example",
+            ControlPlaneCell = null!,
         };
 
         var result = CreateValidator().Validate(null, options);

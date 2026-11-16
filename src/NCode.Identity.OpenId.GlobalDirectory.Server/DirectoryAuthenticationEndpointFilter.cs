@@ -173,16 +173,8 @@ internal sealed class DirectoryAuthenticationEndpointFilter(
         if (!TryGetBearerToken(httpContext, out var token))
             return Unauthorized(httpContext);
 
-        var issuer = Options.Value.Issuer;
-        if (string.IsNullOrEmpty(issuer))
-        {
-            throw new InvalidOperationException(
-                $"{DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.Issuer)} is not set."
-            );
-        }
-
         var result = await Validator.ValidateAsync(
-            issuer,
+            Options.Value.Issuer,
             GlobalDirectoryProtocol.DirectoryAudience,
             token,
             httpContext.RequestAborted

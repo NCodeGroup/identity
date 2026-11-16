@@ -25,10 +25,10 @@ NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryEndpoints
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryEndpoints.extension(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!)
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryEndpoints.extension(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!).MapDirectory() -> Microsoft.AspNetCore.Routing.RouteGroupBuilder!
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions
-NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.ControlPlaneCell.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.ControlPlaneCell.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.ControlPlaneCell.set -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.DirectoryServerOptions() -> void
-NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.Issuer.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.Issuer.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.Issuer.set -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.CellRecord() -> void
