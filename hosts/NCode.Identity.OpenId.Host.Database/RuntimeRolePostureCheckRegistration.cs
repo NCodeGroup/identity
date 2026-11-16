@@ -4,6 +4,7 @@
 using JetBrains.Annotations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using NCode.Identity.OpenId.Host.Database.Facades;
 
 namespace NCode.Identity.OpenId.Host.Database;
 

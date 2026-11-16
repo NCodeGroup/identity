@@ -3,6 +3,7 @@
 
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using NCode.Identity.OpenId.Host.Database.Facades;
 using NCode.Identity.OpenId.Host.Database.Logging;
 
 namespace NCode.Identity.OpenId.Host.Database;

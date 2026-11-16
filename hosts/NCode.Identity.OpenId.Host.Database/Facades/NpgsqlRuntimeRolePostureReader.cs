@@ -4,7 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Npgsql;
 
-namespace NCode.Identity.OpenId.Host.Database;
+namespace NCode.Identity.OpenId.Host.Database.Facades;
 
 /// <summary>
 /// Reads the posture of the connected role from <c>pg_roles</c> and <c>pg_tables</c> over Npgsql.
@@ -13,7 +13,8 @@ namespace NCode.Identity.OpenId.Host.Database;
 [ExcludeFromCodeCoverage(
     Justification = "Reads pg_roles from a live database; RowLevelSecurityEndToEndTests covers it."
 )]
-internal class NpgsqlRuntimeRolePostureReader(string connectionString) : IRuntimeRolePostureReader
+internal sealed class NpgsqlRuntimeRolePostureReader(string connectionString)
+    : IRuntimeRolePostureReader
 {
     /// <summary>
     /// The query that reads the connected role's posture.

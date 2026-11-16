@@ -1,7 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-namespace NCode.Identity.OpenId.Host.Database;
+namespace NCode.Identity.OpenId.Host.Database.Facades;
 
 /// <summary>
 /// The facts about a Postgres role that decide whether row-level security applies to it.

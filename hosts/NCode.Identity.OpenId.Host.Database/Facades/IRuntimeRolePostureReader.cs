@@ -1,7 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-namespace NCode.Identity.OpenId.Host.Database;
+namespace NCode.Identity.OpenId.Host.Database.Facades;
 
 /// <summary>
 /// Reads the row-level security posture of the Postgres role the host runs as.

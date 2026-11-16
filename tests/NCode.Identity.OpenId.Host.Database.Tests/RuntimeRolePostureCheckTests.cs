@@ -3,6 +3,7 @@
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
+using NCode.Identity.OpenId.Host.Database.Facades;
 using NCode.Identity.OpenId.Host.Database.Logging;
 using Xunit;
 
