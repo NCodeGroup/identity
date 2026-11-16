@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using NCode.Identity.OpenId.Persistence.EntityFramework;
+using NCode.Identity.Persistence;
 
 namespace NCode.Identity.OpenId.Host.Database;
 
@@ -131,8 +132,7 @@ public static class MigrationRunner
         IEnumerable<string> migrations
     )
     {
-        var known = migrations.ToHashSet(StringComparer.Ordinal);
-        var unknown = appliedMigrations.Where(id => !known.Contains(id)).ToList();
+        var unknown = MigrationHistoryRules.FindUnknownMigrations(appliedMigrations, migrations);
         if (unknown.Count == 0)
             return;
 
