@@ -14,8 +14,27 @@ internal static class EventIds
 {
     private const int Base = 31000;
 
+    /// <summary>
+    /// Identifies the warning that registering the cell with the global directory failed because the directory is
+    /// unavailable; the registration is retried after a delay.
+    /// </summary>
     public const int CellRegistrationFailed = Base + 1;
+
+    /// <summary>
+    /// Identifies the warning that a pass over the global directory's change feed failed because the directory is
+    /// unavailable; the next interval runs the pass again.
+    /// </summary>
     public const int DirectoryChangeFeedUnavailable = Base + 2;
+
+    /// <summary>
+    /// Identifies the error that a pass over the global directory's change feed failed; the next interval runs the
+    /// pass again.
+    /// </summary>
     public const int DirectoryChangeFeedPassFailed = Base + 3;
+
+    /// <summary>
+    /// Identifies the error that applying a change from the global directory's change feed failed; the pass applies
+    /// no change after it, and the next interval retries it.
+    /// </summary>
     public const int DirectoryChangeApplyFailed = Base + 4;
 }

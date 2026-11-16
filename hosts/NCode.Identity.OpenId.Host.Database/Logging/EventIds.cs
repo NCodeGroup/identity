@@ -14,5 +14,9 @@ internal static class EventIds
 {
     private const int Base = 30000;
 
+    /// <summary>
+    /// Identifies the warning that the runtime database role is not subject to row-level security, which a host
+    /// configured for local development logs instead of refusing to start.
+    /// </summary>
     public const int RuntimeRolePostureViolated = Base + 1;
 }

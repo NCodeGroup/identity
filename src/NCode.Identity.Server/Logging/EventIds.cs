@@ -39,5 +39,10 @@ internal static class EventIds
     public const int InstanceSetupCommandManagementConsoleRegistered = Base + 23;
     public const int InstanceSetupCommandAutomationClientCreated = Base + 24;
     public const int InstanceSetupCommandRootPasswordMissing = Base + 25;
+
+    /// <summary>
+    /// Identifies the error that the setup command ran on a cell that is not the control plane; setup belongs to the
+    /// control-plane cell.
+    /// </summary>
     public const int InstanceSetupCommandNotOnTheControlPlane = Base + 26;
 }

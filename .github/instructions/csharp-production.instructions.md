@@ -1269,7 +1269,8 @@ MethodImplOptions.AggressiveOptimization)]`, manual unrolling of tiny fixed-coun
 - 👁 **Event IDs are named `const`s in a per-package `Logging/EventIds.cs`** — template
   [Logging](csharp.instructions.md#logging): an `internal static class EventIds` with a `private const int Base` set to
   the package's band (below) and one `public const int` per event, `Base + n`, named exactly as its `[LoggerMessage]`
-  method.
+  method. An added constant carries a `///` summary that names the event it identifies ("Identifies the warning
+  that …") — template [XML Documentation](csharp.instructions.md#xml-documentation).
 - 👁 **Every runtime package is pre-assigned a disjoint 1000-wide Event-ID band** in the registry below; a package
   starts using its band when it adds its first log. An `EventId` only has to be unique within an `ILogger<T>` category,
   but a family-wide band makes it **globally unique across packages**, so an operator's log filter or alert keys on a
