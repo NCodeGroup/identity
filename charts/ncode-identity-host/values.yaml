@@ -64,9 +64,10 @@ telemetry:
 # and publishes team documents. The cell reaches it through url, and a release can run the directory itself through
 # enabled.
 directory:
-  # The directory's absolute URL (Directory:Url). Empty keeps the local adapters, which serve one cell on its own with no
-  # extra service. Required when cell.isControlPlane is false: a cell outside the control plane reaches the platform's
-  # directory. An `https` URL, or an `http` URL on a loopback host, with no user information, query or fragment.
+  # The directory's absolute URL (Directory:Url), which selects the remote directory adapters. Empty keeps the local
+  # adapters, which serve one cell on its own with no extra service. Required when cell.isControlPlane is false: a cell
+  # outside the control plane reaches the platform's directory. An `https` URL, or an `http` URL on a loopback host,
+  # with no user information, query or fragment. The clientId, keyRing and keys values are refused while url is empty.
   url: ""
   # The machine client the cell authenticates as (Directory:ClientId), cell-<cell.name>. Required when url is set.
   clientId: ""

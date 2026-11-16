@@ -169,8 +169,11 @@ it, and the chart renders them as the `Cell` section the host binds:
 
 A cell reaches the platform's directory through the `directory` values, rendered as the `Directory` section
 (`Directory__Url`, `Directory__ClientId`, `Directory__KeyRing`) when `directory.url` is set, and then `directory.clientId`
-and `directory.keyRing` are required. The key ring that `directory.keyRing` names holds the keys that sign the
-assertions of the cell's client, `cell-<cell.name>`, and is rendered as `KeyRings__<directory.keyRing>__…`:
+and `directory.keyRing` are required. `directory.url` selects the remote directory, as `Directory:Url` does in the host:
+while it is empty, the cell keeps the local adapters and the chart refuses `directory.clientId`, `directory.keyRing`,
+`directory.keys.pemSecret` and `directory.keys.remoteKeys`. The key ring that `directory.keyRing` names holds the keys
+that sign the assertions of the cell's client, `cell-<cell.name>`, and is rendered as
+`KeyRings__<directory.keyRing>__…`:
 
 - `directory.keys.pemSecret`, a Secret holding the client's private key under the key `<directory.keyRing>.pem`, which
   the pods mount at `/etc/ncode-identity/directory-key`; the key's id is the value of `directory.keyRing`;
@@ -277,6 +280,9 @@ Rendering fails, before anything is applied, when:
   plane's issuer;
 - `directory.url` is set and `cell.controlPlaneIssuer` is empty, because the cell asks the control-plane cell's issuer
   for the token it presents to the directory;
+- a value of the cell's directory client (`directory.clientId`, `directory.keyRing`, `directory.keys.pemSecret` or
+  `directory.keys.remoteKeys`) is set and `directory.url` is empty, because the chart then renders none of them and the
+  cell keeps the local adapters;
 - a `directory.url` or `directory.issuer` is set and is not an absolute `https` URL, or an `http` URL on a loopback
   host, written with its authority and with no user information, query, fragment or white space; a
   `cell.controlPlaneIssuer` is not such a URL while the host reads it, which is when `cell.isControlPlane` is `false`

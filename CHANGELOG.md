@@ -4263,9 +4263,10 @@ Until the first stable release, the [Unreleased] section describes the product a
   which migrates as the owner and grants the runtime role data access to the directory's tables. The chart refuses a
   directory, control-plane issuer or management URL that the host would refuse (an `https` URL, or an `http` URL on a
   loopback host for the directory and the issuers, with no user information, query, fragment or white space), a
-  `directory.url` with no `cell.controlPlaneIssuer`, and the directory host's values while `directory.enabled` is
-  `false`. The `ci/cell-values.yaml` and `ci/directory-values.yaml` releases are linted and rendered by the `Host chart`
-  workflow.
+  `directory.url` with no `cell.controlPlaneIssuer`, the directory client's values (`directory.clientId`,
+  `directory.keyRing` and `directory.keys`) while `directory.url` is empty, and the directory host's values while
+  `directory.enabled` is `false`. The `ci/cell-values.yaml` and `ci/directory-values.yaml` releases are linted and
+  rendered by the `Host chart` workflow.
 
 - **A tenant's data carries the cell that wrote it.** `Cell:Name` is stamped on audit records and usage rows, it is the
   tag of the keys a remote key provider creates, and it prefixes every Valkey key, so a cell's records, keys and
