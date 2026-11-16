@@ -40,7 +40,8 @@ public sealed class LocalTeamDirectoryTests : IDisposable
         Directory = new LocalTeamDirectory(
             Provider.GetRequiredService<IDbContextFactory<OpenIdDbContext>>(),
             IdGenerator,
-            MockAmbientTenantAccessor.Object
+            MockAmbientTenantAccessor.Object,
+            TestPayloadSerializer.Instance
         );
     }
 
@@ -273,7 +274,8 @@ public sealed class LocalTeamDirectoryTests : IDisposable
     {
         SetupUnscoped();
         var team = DbContext.SeedTeam(IdGenerator, TeamId);
-        team.RootKeysJson = JsonSerializer.SerializeToElement(
+        team.RootKeysJson = TeamRootKeysPayload.Write(
+            TestPayloadSerializer.Instance,
             new Dictionary<string, OwnerRootKeyRequest>
             {
                 ["region-a"] = new("aws-kms", "kms://key-a")
@@ -297,6 +299,24 @@ public sealed class LocalTeamDirectoryTests : IDisposable
         Assert.Equal("gcp-kms", regionB.KeyWrapperName);
         Assert.Equal("kms://key-b", regionB.KeyReference);
         Assert.Null(regionB.AccessIdentity);
+    }
+
+    [Theory]
+    [InlineData("""{}""")]
+    [InlineData("""{"region-a":{"keyWrapperName":"aws-kms","keyReference":"kms://key-a"}}""")]
+    [InlineData("""null""")]
+    public async Task GetOrDefaultAsync_WhenTheStoredRootKeysAreNotAnEnvelope_ThrowsJsonException(
+        string rootKeysJson
+    )
+    {
+        SetupUnscoped();
+        var team = DbContext.SeedTeam(IdGenerator, TeamId);
+        team.RootKeysJson = JsonElement.Parse(rootKeysJson);
+        await DbContext.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<JsonException>(async () =>
+            await Directory.GetOrDefaultAsync(TeamId, CancellationToken.None)
+        );
     }
 
     [Fact]

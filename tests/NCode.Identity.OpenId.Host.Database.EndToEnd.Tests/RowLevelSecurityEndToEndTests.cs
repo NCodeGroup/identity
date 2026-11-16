@@ -200,7 +200,9 @@ public sealed class RowLevelSecurityEndToEndTests(PostgresFixture fixture)
             INSERT INTO "Teams" (
                 "Id", "TeamId", "NormalizedTeamId", "Path", "ConcurrencyToken", "SettingsConcurrencyToken",
                 "IsDisabled", "DisplayName", "SettingsJson", "RootKeysJson", "DirectorySequence")
-            VALUES (@teamRowId, @name, @name, @name, 'c', 'c', false, @name, '{}', '{}', 0);
+            VALUES (
+                @teamRowId, @name, @name, @name, 'c', 'c', false, @name, '{}',
+                '{"$ver":1,"$payload":{"rootKeys":{}}}', 0);
 
             INSERT INTO "Tenants" (
                 "Id", "TenantId", "NormalizedTenantId", "ConcurrencyToken", "SettingsConcurrencyToken",

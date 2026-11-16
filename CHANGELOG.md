@@ -3118,9 +3118,12 @@ Until the first stable release, the [Unreleased] section describes the product a
   `DeviceCodeGrant`) carry a `[JsonExtensionData]` bag, so a mixed-version node never drops unknown members on a
   read-modify-write. The global directory writes and reads each team and platform document it stores, and the document
   each change carries, through the same seam: a stored document that is not an envelope fails the read, and the
-  tenant-limit check that reads it refuses the reservation
+  tenant-limit check that reads it refuses the reservation. Each cell writes and reads the root keys that a team row
+  holds through the same seam, so a stored value that is not an envelope, or that holds a region without a root key or
+  a root key without its key wrapper name or key reference, fails every read of the team
   ([ADR-1395](docs/decisions/1395-grant-payloads-have-one-versioned-serializer-and-a-stored-record-missing-written-members-fails-closed.md),
-  [ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
+  [ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
+  [ADR-1414](docs/decisions/1414-a-tenant-can-wrap-its-master-keys-under-a-root-key-it-controls.md)).
 
 - **A change to a grant's payload loses no concurrent write.** The touch of a session, the addition of a client to it,
   and the polls and decisions of the device-code and CIBA grants apply their change to the grant as stored and read it

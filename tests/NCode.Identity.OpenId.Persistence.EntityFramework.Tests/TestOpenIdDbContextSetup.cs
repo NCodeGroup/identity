@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Collections.Immutable;
 using IdGen;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -8,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Configuration;
 using NCode.Identity.OpenId.Persistence.Tenants;
+using NCode.Identity.Secrets.Persistence.Protection;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework;
 
@@ -86,8 +88,9 @@ internal static class TestOpenIdDbContextSetup
             SettingsJson = System.Text.Json.JsonSerializer.SerializeToElement(
                 new Dictionary<string, object>()
             ),
-            RootKeysJson = System.Text.Json.JsonSerializer.SerializeToElement(
-                new Dictionary<string, object>()
+            RootKeysJson = TeamRootKeysPayload.Write(
+                TestPayloadSerializer.Instance,
+                ImmutableDictionary<string, OwnerRootKeyRequest>.Empty
             ),
             Tenants = new List<TenantEntity>(),
         };
@@ -121,8 +124,9 @@ internal static class TestOpenIdDbContextSetup
             SettingsJson = System.Text.Json.JsonSerializer.SerializeToElement(
                 new Dictionary<string, object>()
             ),
-            RootKeysJson = System.Text.Json.JsonSerializer.SerializeToElement(
-                new Dictionary<string, object>()
+            RootKeysJson = TeamRootKeysPayload.Write(
+                TestPayloadSerializer.Instance,
+                ImmutableDictionary<string, OwnerRootKeyRequest>.Empty
             ),
             Tenants = new List<TenantEntity>(),
         };

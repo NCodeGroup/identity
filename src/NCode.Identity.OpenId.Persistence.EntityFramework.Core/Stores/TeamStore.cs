@@ -5,6 +5,7 @@ using System.Linq.Expressions;
 using System.Text.Json;
 using IdGen;
 using Microsoft.EntityFrameworkCore;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -22,7 +23,8 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
 internal class TeamStore(
     IStoreProvider storeProvider,
     IIdGenerator<long> idGenerator,
-    OpenIdDbContext openIdDbContext
+    OpenIdDbContext openIdDbContext,
+    IPersistedPayloadSerializer payloadSerializer
 ) : CoreBaseStoreWithResourceId<PersistedTeam, TeamEntity>, ITeamStore
 {
     /// <inheritdoc />
@@ -33,6 +35,11 @@ internal class TeamStore(
 
     /// <inheritdoc />
     protected override OpenIdDbContext DbContext { get; } = openIdDbContext;
+
+    /// <summary>
+    /// Gets the serializer that writes and reads the root keys of each team row.
+    /// </summary>
+    private IPersistedPayloadSerializer PayloadSerializer { get; } = payloadSerializer;
 
     /// <summary>
     /// Maps a <see cref="TeamEntity"/> to a <see cref="PersistedTeamSettings"/> instance.
@@ -79,13 +86,25 @@ internal class TeamStore(
         };
     }
 
-    private static Dictionary<string, OwnerRootKeyRequest> ReadRootKeys(JsonElement rootKeysJson) =>
-        JsonSerializer.Deserialize<Dictionary<string, OwnerRootKeyRequest>>(rootKeysJson)
-        ?? new Dictionary<string, OwnerRootKeyRequest>(StringComparer.Ordinal);
+    /// <summary>
+    /// Reads the root keys of a team row from the schema-versioned envelope of their payload.
+    /// </summary>
+    /// <param name="rootKeysJson">The envelope that the team row holds.</param>
+    /// <returns>The root keys that the team brings, keyed by region.</returns>
+    /// <exception cref="JsonException">
+    /// The team row holds root keys that are not the schema-versioned envelope that this store writes.
+    /// </exception>
+    private IReadOnlyDictionary<string, OwnerRootKeyRequest> ReadRootKeys(
+        JsonElement rootKeysJson
+    ) => TeamRootKeysPayload.Read(PayloadSerializer, rootKeysJson);
 
-    private static JsonElement WriteRootKeys(
-        IReadOnlyDictionary<string, OwnerRootKeyRequest> rootKeys
-    ) => JsonSerializer.SerializeToElement(rootKeys);
+    /// <summary>
+    /// Writes the root keys that a team brings as the schema-versioned envelope of their payload.
+    /// </summary>
+    /// <param name="rootKeys">The root keys that the team brings, keyed by region.</param>
+    /// <returns>The envelope for the team row.</returns>
+    private JsonElement WriteRootKeys(IReadOnlyDictionary<string, OwnerRootKeyRequest> rootKeys) =>
+        TeamRootKeysPayload.Write(PayloadSerializer, rootKeys);
 
     /// <inheritdoc />
     protected override async ValueTask<TeamEntity?> GetEntityOrDefaultAsync(

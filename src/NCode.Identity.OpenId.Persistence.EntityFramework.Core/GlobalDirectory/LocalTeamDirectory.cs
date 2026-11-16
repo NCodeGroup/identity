@@ -5,10 +5,10 @@ using System.Collections.Immutable;
 using System.Text.Json;
 using IdGen;
 using Microsoft.EntityFrameworkCore;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 using NCode.Identity.OpenId.Persistence.Tenants;
-using NCode.Identity.Secrets.Persistence.Protection;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.GlobalDirectory;
 
@@ -23,7 +23,8 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.GlobalDirectory
 internal sealed class LocalTeamDirectory(
     IDbContextFactory<OpenIdDbContext> dbContextFactory,
     IIdGenerator<long> idGenerator,
-    IAmbientTenantAccessor ambientTenantAccessor
+    IAmbientTenantAccessor ambientTenantAccessor,
+    IPersistedPayloadSerializer payloadSerializer
 ) : ITeamDirectory
 {
     private const string UnscopedReason = "directory";
@@ -33,6 +34,11 @@ internal sealed class LocalTeamDirectory(
     private IIdGenerator<long> IdGenerator { get; } = idGenerator;
 
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
+
+    /// <summary>
+    /// Gets the serializer that reads the root keys of each team row.
+    /// </summary>
+    private IPersistedPayloadSerializer PayloadSerializer { get; } = payloadSerializer;
 
     private static string Normalize(string value) => value.ToLowerInvariant();
 
@@ -141,6 +147,9 @@ internal sealed class LocalTeamDirectory(
     }
 
     /// <inheritdoc />
+    /// <exception cref="JsonException">
+    /// The team row holds root keys that are not the schema-versioned envelope that the team store writes.
+    /// </exception>
     public async ValueTask<TeamDocument?> GetOrDefaultAsync(
         string teamId,
         CancellationToken cancellationToken
@@ -168,9 +177,7 @@ internal sealed class LocalTeamDirectory(
             return null;
         }
 
-        var rootKeys =
-            JsonSerializer.Deserialize<Dictionary<string, OwnerRootKeyRequest>>(team.RootKeysJson)
-            ?? [];
+        var rootKeys = TeamRootKeysPayload.Read(PayloadSerializer, team.RootKeysJson);
 
         return new TeamDocument
         {

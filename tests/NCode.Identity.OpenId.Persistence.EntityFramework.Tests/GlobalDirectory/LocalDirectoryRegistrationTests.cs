@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Microsoft.Extensions.DependencyInjection;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.GlobalDirectory;
 
@@ -54,6 +55,20 @@ public sealed class LocalDirectoryRegistrationTests
             x => x.ServiceType == typeof(ITenantDirectory)
         );
         Assert.Same(tenantDirectory, descriptor.ImplementationInstance);
+    }
+
+    [Fact]
+    public void AddEntityFrameworkCorePersistence_WhenCalled_RegistersThePayloadSerializerAsASingleton()
+    {
+        var serviceCollection = new ServiceCollection();
+
+        serviceCollection.AddEntityFrameworkCorePersistence<OpenIdDbContext>();
+
+        var descriptor = Assert.Single(
+            serviceCollection,
+            x => x.ServiceType == typeof(IPersistedPayloadSerializer)
+        );
+        Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
     }
 
     #endregion

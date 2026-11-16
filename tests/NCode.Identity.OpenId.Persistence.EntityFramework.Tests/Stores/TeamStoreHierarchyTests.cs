@@ -29,7 +29,12 @@ public sealed class TeamStoreHierarchyTests : IDisposable
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
         DbContext.Database.EnsureCreated();
         var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        Store = new TeamStore(Mock.Of<IStoreProvider>(), idGenerator, DbContext);
+        Store = new TeamStore(
+            Mock.Of<IStoreProvider>(),
+            idGenerator,
+            DbContext,
+            TestPayloadSerializer.Instance
+        );
     }
 
     public void Dispose()

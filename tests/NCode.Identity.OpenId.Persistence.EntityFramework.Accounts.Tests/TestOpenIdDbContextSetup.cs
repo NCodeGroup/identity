@@ -70,7 +70,8 @@ internal static class TestOpenIdDbContextSetup
             IsDisabled = false,
             DisplayName = "Platform",
             SettingsJson = JsonSerializer.SerializeToElement(new Dictionary<string, object>()),
-            RootKeysJson = JsonSerializer.SerializeToElement(new Dictionary<string, object>()),
+            // The envelope the team store writes for a team that brings no root keys.
+            RootKeysJson = JsonElement.Parse("""{"$ver":1,"$payload":{"rootKeys":{}}}"""),
             Tenants = new List<TenantEntity>(),
         };
         dbContext.Set<TeamEntity>().Add(entity);

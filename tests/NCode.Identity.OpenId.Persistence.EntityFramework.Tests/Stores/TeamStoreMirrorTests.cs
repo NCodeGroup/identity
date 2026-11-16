@@ -31,7 +31,12 @@ public sealed class TeamStoreMirrorTests : IDisposable
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
         DbContext.Database.EnsureCreated();
         var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        Store = new TeamStore(Mock.Of<IStoreProvider>(), idGenerator, DbContext);
+        Store = new TeamStore(
+            Mock.Of<IStoreProvider>(),
+            idGenerator,
+            DbContext,
+            TestPayloadSerializer.Instance
+        );
     }
 
     public void Dispose()
@@ -113,6 +118,36 @@ public sealed class TeamStoreMirrorTests : IDisposable
         await MirrorAsync(CreateTeam("acme-web-eu", "acme-web", sequence: 3), cancellationToken);
         await MirrorAsync(CreateTeam("acme-api", "acme", sequence: 4), cancellationToken);
         await MirrorAsync(CreateTeam("acme-x", null, sequence: 5), cancellationToken);
+    }
+
+    /// <summary>
+    /// Reads the root keys of a team as its row holds them.
+    /// </summary>
+    private async ValueTask<JsonElement> ReadRootKeysJsonAsync(
+        string normalizedTeamId,
+        CancellationToken cancellationToken
+    ) =>
+        await DbContext
+            .Teams.AsNoTracking()
+            .Where(entity => entity.NormalizedTeamId == normalizedTeamId)
+            .Select(entity => entity.RootKeysJson)
+            .SingleAsync(cancellationToken);
+
+    /// <summary>
+    /// Replaces the root keys that a team's row holds with the given JSON, as a damaged or foreign row holds them.
+    /// </summary>
+    private async ValueTask ReplaceRootKeysJsonAsync(
+        string normalizedTeamId,
+        string rootKeysJson,
+        CancellationToken cancellationToken
+    )
+    {
+        var entity = await DbContext.Teams.SingleAsync(
+            team => team.NormalizedTeamId == normalizedTeamId,
+            cancellationToken
+        );
+        entity.RootKeysJson = JsonElement.Parse(rootKeysJson);
+        await SaveAndClearAsync(cancellationToken);
     }
 
     #region MirrorAsync Tests
@@ -322,6 +357,71 @@ public sealed class TeamStoreMirrorTests : IDisposable
         var stored = await Store.GetOrDefaultAsync("acme", CancellationToken.None);
         Assert.NotNull(stored);
         AssertTwoRegionRootKeys(stored.RootKeys);
+    }
+
+    [Fact]
+    public async Task AddAsync_WhenTheTeamHoldsRootKeys_StoresThemAsAVersionedEnvelope()
+    {
+        var team = CreateTeam("acme", null, sequence: 0, rootKeys: CreateTwoRegionRootKeys());
+
+        await Store.AddAsync(team, CancellationToken.None);
+        await SaveAndClearAsync(CancellationToken.None);
+
+        var rootKeysJson = await ReadRootKeysJsonAsync("acme", CancellationToken.None);
+        Assert.Equal(1, rootKeysJson.GetProperty("$ver").GetInt32());
+        var rootKeys = rootKeysJson.GetProperty("$payload").GetProperty("rootKeys");
+        Assert.Equal(2, rootKeys.GetPropertyCount());
+        var regionA = rootKeys.GetProperty("region-a");
+        Assert.Equal("aws-kms", regionA.GetProperty("keyWrapperName").GetString());
+        Assert.Equal("kms://key-a", regionA.GetProperty("keyReference").GetString());
+        Assert.Equal(
+            "arn:aws:iam::123456789012:role/team-a",
+            regionA.GetProperty("accessIdentity").GetString()
+        );
+        Assert.Equal(
+            "gcp-kms",
+            rootKeys.GetProperty("region-b").GetProperty("keyWrapperName").GetString()
+        );
+    }
+
+    [Theory]
+    [InlineData("""{}""")]
+    [InlineData("""{"region-a":{"keyWrapperName":"aws-kms","keyReference":"kms://key-a"}}""")]
+    [InlineData("""null""")]
+    public async Task GetOrDefaultAsync_WhenTheStoredRootKeysAreNotAnEnvelope_ThrowsJsonException(
+        string rootKeysJson
+    )
+    {
+        await Store.AddAsync(CreateTeam("acme", null, sequence: 0), CancellationToken.None);
+        await SaveAndClearAsync(CancellationToken.None);
+        await ReplaceRootKeysJsonAsync("acme", rootKeysJson, CancellationToken.None);
+
+        await Assert.ThrowsAsync<JsonException>(async () =>
+            await Store.GetOrDefaultAsync("acme", CancellationToken.None)
+        );
+    }
+
+    [Theory]
+    [InlineData("""{"$ver":1,"$payload":{}}""")]
+    [InlineData("""{"$ver":1,"$payload":{"rootKeys":null}}""")]
+    [InlineData(
+        """{"$ver":1,"$payload":{"rootKeys":{"region-a":{"keyReference":"kms://key-a"}}}}"""
+    )]
+    [InlineData(
+        """{"$ver":1,"$payload":{"rootKeys":{"region-a":{"keyWrapperName":"aws-kms","keyReference":null}}}}"""
+    )]
+    [InlineData("""{"$ver":1,"$payload":{"rootKeys":{"region-a":null}}}""")]
+    public async Task GetOrDefaultAsync_WhenTheStoredRootKeysLackAMemberTheStoreWrites_ThrowsJsonException(
+        string rootKeysJson
+    )
+    {
+        await Store.AddAsync(CreateTeam("acme", null, sequence: 0), CancellationToken.None);
+        await SaveAndClearAsync(CancellationToken.None);
+        await ReplaceRootKeysJsonAsync("acme", rootKeysJson, CancellationToken.None);
+
+        await Assert.ThrowsAsync<JsonException>(async () =>
+            await Store.GetOrDefaultAsync("acme", CancellationToken.None)
+        );
     }
 
     [Fact]

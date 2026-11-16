@@ -33,7 +33,12 @@ public sealed class TeamStoreLifecycleTests : IDisposable
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
         DbContext.Database.EnsureCreated();
         IdGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        Store = new TeamStore(Mock.Of<IStoreProvider>(), IdGenerator, DbContext);
+        Store = new TeamStore(
+            Mock.Of<IStoreProvider>(),
+            IdGenerator,
+            DbContext,
+            TestPayloadSerializer.Instance
+        );
     }
 
     public void Dispose()

@@ -91,8 +91,8 @@ public sealed class TeamEntity : ISupportConcurrencyToken
     public required JsonElement SettingsJson { get; set; }
 
     /// <summary>
-    /// Gets or sets the serialized JSON of the root keys the team brings, an object keyed by region, which is
-    /// <c>{}</c> when the team brings none.
+    /// Gets or sets the root keys the team brings, keyed by region, as the schema-versioned JSON envelope of their
+    /// payload, whose map is empty when the team brings none.
     /// </summary>
     public required JsonElement RootKeysJson { get; set; }
 
