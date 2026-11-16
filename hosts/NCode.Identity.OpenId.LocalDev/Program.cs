@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using NCode.Identity.OpenId.LocalDev.Database;
 using NCode.Identity.OpenId.LocalDev.DevelopmentSecrets;
 using NCode.Identity.OpenId.LocalDev.Frontend;
@@ -8,7 +9,8 @@ using NCode.Identity.OpenId.LocalDev.Frontend;
 // ASPIRE ORCHESTRATION-ONLY HOST (ADR-1071): a flat resource graph that is the single one-stop entry to build, run,
 // and debug the whole local stack (the OpenID host + the frontend apps) with deterministic startup ordering.
 // This is a SIBLING of the host, not nested inside it — the host stays a single reference OP process.
-// Keep this file declarative (Add*/With*/WaitFor); no reusable logic belongs here.
+// Keep this file declarative (Add*/With*/WaitFor): coverage excludes it as Aspire resource wiring, so logic it needs
+// belongs in a tested member.
 
 // Aspire spawns pnpm/node for the frontend resources and discovers them on PATH. When Node is NVS-managed and not
 // globally linked, the AppHost (launched by VS Code) does not inherit it, so the frontend resources fail to start.
@@ -243,3 +245,9 @@ builder
     .WithExternalHttpEndpoints();
 
 builder.Build().Run();
+
+/// <summary>
+/// The AppHost's entry point, whose top-level statements declare the local stack's resource graph.
+/// </summary>
+[ExcludeFromCodeCoverage(Justification = "Aspire resource wiring.")]
+internal partial class Program;
