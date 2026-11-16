@@ -77,7 +77,9 @@ internal static partial class TenantAddressRules
 
     /// <summary>
     /// Parses the specified issuer when it is <see cref="IssuerRequirement"/>, the form OpenID Connect Discovery and
-    /// RFC 8414 require of an issuer identifier.
+    /// RFC 8414 require of an issuer identifier: a service URL that <see cref="AbsoluteUri.TryParseServiceUrl"/>
+    /// accepts, of at most <see cref="OpenIdMaxLengths.Issuer"/> characters, whose host the cell can resolve and
+    /// certify.
     /// </summary>
     /// <param name="issuer">The issuer to parse.</param>
     /// <param name="issuerUri">When this method returns <see langword="true"/>, contains the parsed issuer.</param>
@@ -89,23 +91,17 @@ internal static partial class TenantAddressRules
     {
         issuerUri = null;
 
-        // The raw text is checked as well as the parsed URI: the parser trims whitespace and drops an empty query or
-        // fragment, so a value it accepts can still differ from the issuer clients must match byte for byte.
+        // The service-URL rule judges the text as written, so the issuer it accepts is the text clients match byte for
+        // byte; the length and host bounds are the cell's own: a host it cannot resolve or certify cannot be served.
         if (
             string.IsNullOrEmpty(issuer)
             || issuer.Length > OpenIdMaxLengths.Issuer
-            || issuer.AsSpan().IndexOfAny('?', '#') >= 0
-            || issuer.Any(char.IsWhiteSpace)
-            || !AbsoluteUri.TryParse(issuer, out var uri)
+            || !AbsoluteUri.TryParseServiceUrl(issuer, out var uri)
+            || !IsValidHost(uri)
         )
         {
             return false;
         }
-
-        var isAllowedScheme =
-            uri.Scheme == Uri.UriSchemeHttps || (uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback);
-        if (!isAllowedScheme || !string.IsNullOrEmpty(uri.UserInfo) || !IsValidHost(uri))
-            return false;
 
         issuerUri = uri;
         return true;

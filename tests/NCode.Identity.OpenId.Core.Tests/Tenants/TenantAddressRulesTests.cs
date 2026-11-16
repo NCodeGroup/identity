@@ -132,9 +132,11 @@ public sealed class TenantAddressRulesTests
     [InlineData("")]
     [InlineData("op.example")]
     [InlineData("/acme")]
+    [InlineData("https:/op.example")]
     [InlineData("ftp://op.example")]
     [InlineData("http://op.example")]
     [InlineData("https://user:pass@op.example")]
+    [InlineData("https://@op.example")]
     [InlineData("https://op.example/?a=1")]
     [InlineData("https://op.example/?")]
     [InlineData("https://op.example/#a")]
@@ -147,6 +149,23 @@ public sealed class TenantAddressRulesTests
 
         Assert.False(result);
         Assert.Null(issuerUri);
+    }
+
+    [Theory]
+    [InlineData("https://op.example/acme")]
+    [InlineData("http://localhost:5000/acme")]
+    [InlineData("http://op.example/acme")]
+    [InlineData("https://@op.example/acme")]
+    [InlineData("https:/op.example/acme")]
+    [InlineData("https:op.example/acme")]
+    [InlineData(@"https:\\op.example\acme")]
+    [InlineData("https://op.example/acme?")]
+    public void TryParseIssuer_WhenWithinTheCellsBounds_AgreesWithTheServiceUrlRule(string issuer)
+    {
+        Assert.Equal(
+            AbsoluteUri.TryParseServiceUrl(issuer, out _),
+            TenantAddressRules.TryParseIssuer(issuer, out _)
+        );
     }
 
     [Fact]

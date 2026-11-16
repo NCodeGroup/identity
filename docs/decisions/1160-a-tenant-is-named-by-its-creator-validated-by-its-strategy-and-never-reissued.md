@@ -71,8 +71,10 @@ a retired identifier or issuer is never reissued.**
    for its own.
 5. **Shared rules:**
    - the identifier is valid;
-   - the issuer is an absolute `https` URL (`http` only for a loopback host) with no user information, query, fragment
-     or whitespace, of at most 1000 characters (OpenID Connect Discovery section 3, RFC 8414 section 2);
+   - the issuer is a service URL as `AbsoluteUri.TryParseServiceUrl` judges it on the text as written (an absolute
+     `https` URL, `http` only for a loopback host, written with its authority and with no user information, query,
+     fragment or whitespace; OpenID Connect Discovery section 3, RFC 8414 section 2), of at most 1000 characters, and
+     its host name is at most 253 characters with labels of 1 to 63, a host the cell can resolve and certify;
    - no other tenant holds the issuer (a conflict);
    - the identifier is not retired, which the tenant directory answers for the whole platform;
    - the issuer is not retired, unless this tenant gave it up, which the tenant directory answers for the whole platform.
