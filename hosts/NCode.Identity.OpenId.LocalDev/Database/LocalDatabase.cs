@@ -8,8 +8,8 @@ using Npgsql;
 namespace NCode.Identity.OpenId.LocalDev.Database;
 
 /// <summary>
-/// Creates the Postgres role that the reference OP hosts run as in local development, and names the connection parts
-/// that carry its credentials.
+/// Names the Postgres role that the reference OP hosts run as in local development, and builds the statement that
+/// creates it, the connection string the statement runs on and the connection parts that carry its credentials.
 /// </summary>
 /// <remarks>
 /// The migration worker connects as the schema owner and grants the runtime role its data access after it migrates, so
@@ -86,32 +86,25 @@ internal static partial class LocalDatabase
     }
 
     /// <summary>
-    /// Creates or updates the runtime role on the Postgres server.
+    /// Gets the connection string that the role statement runs on: the server's own, opening its <c>postgres</c>
+    /// maintenance database whichever database the server's connection string names.
     /// </summary>
-    /// <param name="serverConnectionString">The connection string of the server, without a database.</param>
-    /// <param name="password">The role's password; it is URL-safe Base64 (<c>A-Z a-z 0-9 - _</c>).</param>
-    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-    /// <returns>A value task that completes when the role exists.</returns>
-    /// <exception cref="ArgumentException">The password is not valid.</exception>
-    internal static async ValueTask EnsureRoleAsync(
-        string serverConnectionString,
-        string password,
-        CancellationToken cancellationToken
-    )
+    /// <param name="serverConnectionString">The connection string of the Postgres server.</param>
+    /// <returns>The connection string.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="serverConnectionString"/> is <c>null</c>.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="serverConnectionString"/> is empty or white space.
+    /// </exception>
+    internal static string MaintenanceConnectionString(string serverConnectionString)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(serverConnectionString);
 
-        var script = RoleScript(RuntimeRole, password);
         var builder = new NpgsqlConnectionStringBuilder(serverConnectionString)
         {
             Database = "postgres",
         };
 
-        await using var connection = new NpgsqlConnection(builder.ConnectionString);
-        await connection.OpenAsync(cancellationToken);
-
-        await using var command = new NpgsqlCommand(script, connection);
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        return builder.ConnectionString;
     }
 
     /// <summary>
@@ -149,36 +142,4 @@ internal static partial class LocalDatabase
 
     [GeneratedRegex(@"^[A-Za-z0-9_-]+\z", RegexOptions.CultureInvariant)]
     private static partial Regex PasswordPattern();
-
-    extension(IResourceBuilder<PostgresServerResource> postgres)
-    {
-        /// <summary>
-        /// Creates or updates the runtime role when the Postgres server is ready.
-        /// </summary>
-        /// <param name="password">The role's password; it is URL-safe Base64 (<c>A-Z a-z 0-9 - _</c>).</param>
-        /// <returns>The same resource builder, to chain further calls.</returns>
-        internal IResourceBuilder<PostgresServerResource> WithRuntimeRole(string password)
-        {
-            ArgumentNullException.ThrowIfNull(postgres);
-            ArgumentNullException.ThrowIfNull(password);
-
-            postgres.ApplicationBuilder.Eventing.Subscribe<ResourceReadyEvent>(
-                postgres.Resource,
-                async (_, cancellationToken) =>
-                {
-                    var serverConnectionString =
-                        await postgres.Resource.ConnectionStringExpression.GetValueAsync(
-                            cancellationToken
-                        )
-                        ?? throw new InvalidOperationException(
-                            "The Postgres server has no connection string."
-                        );
-
-                    await EnsureRoleAsync(serverConnectionString, password, cancellationToken);
-                }
-            );
-
-            return postgres;
-        }
-    }
 }

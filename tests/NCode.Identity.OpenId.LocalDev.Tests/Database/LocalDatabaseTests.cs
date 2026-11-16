@@ -2,12 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using NCode.Identity.OpenId.LocalDev.Database;
+using Npgsql;
 
 namespace NCode.Identity.OpenId.LocalDev.Tests.Database;
 
 public class LocalDatabaseTests
 {
     private const string Password = "Abc123-_xyzABC123-_xyzABC123-_xyzABC12345";
+
+    private const string ServerConnectionString =
+        $"Host=localhost;Port=15432;Username=postgres;Password={Password}";
 
     #region RuntimeRole Tests
 
@@ -134,6 +138,56 @@ public class LocalDatabaseTests
         {
             Assert.DoesNotContain(password, exception.Message);
         }
+    }
+
+    #endregion
+
+    #region MaintenanceConnectionString Tests
+
+    [Fact]
+    public void MaintenanceConnectionString_WhenServerNamesNoDatabase_OpensThePostgresDatabase()
+    {
+        var connectionString = LocalDatabase.MaintenanceConnectionString(ServerConnectionString);
+
+        var builder = new NpgsqlConnectionStringBuilder(connectionString);
+        Assert.Equal("postgres", builder.Database);
+    }
+
+    [Fact]
+    public void MaintenanceConnectionString_WhenServerNamesAnotherDatabase_OpensThePostgresDatabase()
+    {
+        var connectionString = LocalDatabase.MaintenanceConnectionString(
+            $"{ServerConnectionString};Database=openiddb"
+        );
+
+        var builder = new NpgsqlConnectionStringBuilder(connectionString);
+        Assert.Equal("postgres", builder.Database);
+    }
+
+    [Fact]
+    public void MaintenanceConnectionString_WhenValid_KeepsTheServersHostPortAndCredentials()
+    {
+        var connectionString = LocalDatabase.MaintenanceConnectionString(ServerConnectionString);
+
+        var builder = new NpgsqlConnectionStringBuilder(connectionString);
+        Assert.Equal("localhost", builder.Host);
+        Assert.Equal(15432, builder.Port);
+        Assert.Equal("postgres", builder.Username);
+        Assert.Equal(Password, builder.Password);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    public void MaintenanceConnectionString_WhenEmptyOrWhiteSpace_Throws(
+        string serverConnectionString
+    )
+    {
+        var exception = Assert.Throws<ArgumentException>(() =>
+            LocalDatabase.MaintenanceConnectionString(serverConnectionString)
+        );
+
+        Assert.Equal("serverConnectionString", exception.ParamName);
     }
 
     #endregion
