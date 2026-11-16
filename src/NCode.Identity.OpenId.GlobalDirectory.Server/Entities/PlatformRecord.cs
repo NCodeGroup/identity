@@ -20,7 +20,7 @@ public sealed class PlatformRecord
     public long Id { get; init; } = SingletonId;
 
     /// <summary>
-    /// Gets or sets the JSON of the published platform document.
+    /// Gets or sets the published platform document as its schema-versioned JSON envelope.
     /// </summary>
     /// <remarks>
     /// The store serializes the whole <c>PlatformDocument</c> into this text and deserializes it whole, and

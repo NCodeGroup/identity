@@ -18,6 +18,17 @@ public sealed class DefaultDirectoryStorePlatformTests : DefaultDirectoryStoreTe
         Assert.Null(document);
     }
 
+    [Fact]
+    public async Task GetOrDefaultAsync_WhenTheStoredDocumentIsNotAnEnvelope_ThrowsJsonException()
+    {
+        await PublishPlatformAsync(maxTenants: null);
+        await ReplacePlatformDocumentJsonAsync("""{"settings":{}}""");
+
+        await Assert.ThrowsAsync<JsonException>(async () =>
+            await Platform.GetOrDefaultAsync(CancellationToken.None)
+        );
+    }
+
     #endregion
 
     #region PublishAsync Tests
@@ -38,6 +49,21 @@ public sealed class DefaultDirectoryStorePlatformTests : DefaultDirectoryStoreTe
         Assert.NotNull(document);
         Assert.Equal(SettingsWithLimit(7), document.Settings.GetRawText());
         Assert.Equal(1, document.Sequence);
+    }
+
+    [Fact]
+    public async Task PublishAsync_WhenNothingIsPublished_StoresTheDocumentAndItsChangeAsAVersionedEnvelope()
+    {
+        await PublishPlatformAsync(maxTenants: 7);
+
+        var documentJson = await ReadPlatformDocumentJsonAsync();
+        Assert.NotNull(documentJson);
+        Assert.Equal(documentJson, await ReadChangeDocumentJsonAsync(1));
+        var envelope = JsonElement.Parse(documentJson);
+        Assert.Equal(1, envelope.GetProperty("$ver").GetInt32());
+        var payload = envelope.GetProperty("$payload");
+        Assert.Equal(0, payload.GetProperty("sequence").GetInt64());
+        Assert.Equal(7, payload.GetProperty("settings").GetProperty("max_tenants").GetInt32());
     }
 
     [Fact]

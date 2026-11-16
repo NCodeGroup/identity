@@ -439,5 +439,46 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
         Assert.True(result.IsReserved);
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("null")]
+    [InlineData("""{"teamId":"team-1","displayName":"team-1","isDisabled":false}""")]
+    public async Task ReserveAsync_WhenTheStoredTeamDocumentIsNotAnEnvelope_ReturnsConflict(
+        string documentJson
+    )
+    {
+        await PublishTeamAsync("team-1");
+        await ReplaceTeamDocumentJsonAsync("team-1", documentJson);
+
+        var result = await ReserveAsync(TenantId, Issuer, "team-1");
+
+        Assert.False(result.IsReserved);
+        Assert.Equal(
+            "The team 'team-1' has a max_tenants setting the directory cannot read.",
+            result.ConflictDetail
+        );
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("null")]
+    [InlineData("""{"settings":{}}""")]
+    public async Task ReserveAsync_WhenTheStoredPlatformDocumentIsNotAnEnvelope_ReturnsConflict(
+        string documentJson
+    )
+    {
+        await PublishPlatformAsync(maxTenants: null);
+        await PublishTeamAsync("team-1");
+        await ReplacePlatformDocumentJsonAsync(documentJson);
+
+        var result = await ReserveAsync(TenantId, Issuer, "team-1");
+
+        Assert.False(result.IsReserved);
+        Assert.Equal(
+            "The platform has a max_tenants setting the directory cannot read.",
+            result.ConflictDetail
+        );
+    }
+
     #endregion
 }

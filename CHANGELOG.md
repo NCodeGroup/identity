@@ -3106,17 +3106,21 @@ Until the first stable release, the [Unreleased] section describes the product a
   opaque public `GrantId` of the persisted grant, so a caller such as the initial-access-token management endpoint can
   reference it for revocation ([ADR-1192](docs/decisions/1192-dynamic-client-registration-rides-the-client-and-grant-stores-authorized-by-single-use-initial-access-tokens.md)).
 
-- **At-rest grant payloads are schema-versioned and upcastable.** Every grant payload
+- **At-rest JSON payloads are schema-versioned and upcastable.** Every grant payload
   (`PersistedGrant<TPayload>.Payload`: authorization codes, refresh tokens, device and CIBA requests, pushed
   authorization requests, DCR tokens, the end-user `session` grant, continue envelopes) is written through the
-  `IPersistedPayloadSerializer` seam, which wraps it in a self-describing envelope `{ "$ver": N, "$payload": … }`
-  stamped with the schema version declared by `[PersistedPayloadVersion(N)]` (default `1`). On read, registered
-  `IPersistedPayloadUpcaster` steps bring an older stored document up to the current version before deserialization; a
-  document newer than the current version is read forward-compatibly, and a document that is not an envelope, or that
-  lacks a member the serving code always writes, is rejected with a `JsonException`. The long-lived, in-place-mutated
-  payloads (`SessionGrant`, `CibaGrant`, `DeviceCodeGrant`) carry a `[JsonExtensionData]` bag, so a mixed-version node
-  never drops unknown members on a read-modify-write
-  ([ADR-1395](docs/decisions/1395-grant-payloads-have-one-versioned-serializer-and-a-stored-record-missing-written-members-fails-closed.md)).
+  `IPersistedPayloadSerializer` seam of `NCode.Identity.Json`, which `AddPersistedPayloadSerializer()` registers and
+  which wraps it in a self-describing envelope `{ "$ver": N, "$payload": … }` stamped with the schema version declared
+  by `[PersistedPayloadVersion(N)]` (default `1`). On read, registered `IPersistedPayloadUpcaster` steps bring an older
+  stored document up to the current version before deserialization; a document newer than the current version is read
+  forward-compatibly, and a document that is not an envelope, or that lacks a member the serving code always writes, is
+  rejected with a `JsonException`. The long-lived, in-place-mutated payloads (`SessionGrant`, `CibaGrant`,
+  `DeviceCodeGrant`) carry a `[JsonExtensionData]` bag, so a mixed-version node never drops unknown members on a
+  read-modify-write. The global directory writes and reads each team and platform document it stores, and the document
+  each change carries, through the same seam: a stored document that is not an envelope fails the read, and the
+  tenant-limit check that reads it refuses the reservation
+  ([ADR-1395](docs/decisions/1395-grant-payloads-have-one-versioned-serializer-and-a-stored-record-missing-written-members-fails-closed.md),
+  [ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
 
 - **A change to a grant's payload loses no concurrent write.** The touch of a session, the addition of a client to it,
   and the polls and decisions of the device-code and CIBA grants apply their change to the grant as stored and read it

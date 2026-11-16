@@ -26,6 +26,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
 internal sealed class DefaultDirectoryStore(
     IDbContextFactory<DirectoryDbContext> dbContextFactory,
     IOptions<DirectoryServerOptions> options,
+    IPersistedPayloadSerializer payloadSerializer,
     TimeProvider timeProvider
 )
     : ITenantDirectory,
@@ -52,6 +53,12 @@ internal sealed class DefaultDirectoryStore(
     private IDbContextFactory<DirectoryDbContext> DbContextFactory { get; } = dbContextFactory;
 
     private IOptions<DirectoryServerOptions> ServerOptions { get; } = options;
+
+    /// <summary>
+    /// Gets the serializer that writes and reads the schema-versioned envelope of every stored team and platform
+    /// document.
+    /// </summary>
+    private IPersistedPayloadSerializer PayloadSerializer { get; } = payloadSerializer;
 
     private TimeProvider TimeProvider { get; } = timeProvider;
 
@@ -990,7 +997,7 @@ internal sealed class DefaultDirectoryStore(
     /// </returns>
     // See ADR-1411.
     // See ADR-1426.
-    private static async ValueTask<string?> FindTeamAtLimitAsync(
+    private async ValueTask<string?> FindTeamAtLimitAsync(
         DirectoryDbContext dbContext,
         string teamId,
         CancellationToken cancellationToken
@@ -1186,29 +1193,28 @@ internal sealed class DefaultDirectoryStore(
     /// <summary>
     /// Reads the <c>max_tenants</c> setting of a platform or team document.
     /// </summary>
-    /// <param name="documentJson">The stored document, or <c>null</c> when there is none.</param>
+    /// <param name="documentJson">The stored envelope of the document, or <c>null</c> when none is stored.</param>
     /// <param name="getSettings">Gets the settings object of the deserialized document.</param>
     /// <param name="maxTenants">The limit, or <c>null</c> when the document has no <c>max_tenants</c> setting.</param>
     /// <returns><c>true</c> when the setting is absent or a non-negative integer; otherwise, <c>false</c> because the document or the setting cannot be read.</returns>
-    private static bool TryReadMaxTenants<TDocument>(
+    private bool TryReadMaxTenants<TDocument>(
         string? documentJson,
         Func<TDocument, JsonElement> getSettings,
         out int? maxTenants
     )
     {
         maxTenants = null;
-        if (string.IsNullOrEmpty(documentJson))
+        if (documentJson is null)
         {
             return true;
         }
 
         try
         {
-            var document = JsonSerializer.Deserialize<TDocument>(documentJson, JsonOptions);
-            if (document is null)
-            {
-                return true;
-            }
+            var document = PayloadSerializer.Deserialize<TDocument>(
+                JsonElement.Parse(documentJson),
+                JsonOptions
+            );
 
             var settings = getSettings(document);
             if (settings.IsNullOrUndefined())
@@ -1424,13 +1430,9 @@ internal sealed class DefaultDirectoryStore(
                     }
 
                     // The directory assigns the sequence, so the stored document carries none: it is read back from the record.
-                    var documentJson = JsonSerializer.Serialize(
-                        document with
-                        {
-                            Sequence = 0,
-                        },
-                        JsonOptions
-                    );
+                    var documentJson = PayloadSerializer
+                        .Serialize(document with { Sequence = 0 }, JsonOptions)
+                        .GetRawText();
                     var change = new DirectoryChangeRecord
                     {
                         Sequence = await NextSequenceAsync(dbContext, token),
@@ -1604,6 +1606,9 @@ internal sealed class DefaultDirectoryStore(
     }
 
     /// <inheritdoc />
+    /// <exception cref="JsonException">
+    /// The stored team document is not the schema-versioned envelope of a team document.
+    /// </exception>
     async ValueTask<TeamDocument?> ITeamDirectory.GetOrDefaultAsync(
         string teamId,
         CancellationToken cancellationToken
@@ -1625,15 +1630,17 @@ internal sealed class DefaultDirectoryStore(
             return null;
         }
 
-        return JsonSerializer.Deserialize<TeamDocument>(documentJson, JsonOptions) is { } document
-            ? document with
-            {
-                Sequence = team.Sequence,
-            }
-            : null;
+        var document = PayloadSerializer.Deserialize<TeamDocument>(
+            JsonElement.Parse(documentJson),
+            JsonOptions
+        );
+        return document with { Sequence = team.Sequence };
     }
 
     /// <inheritdoc />
+    /// <exception cref="JsonException">
+    /// A stored change is not the schema-versioned envelope of its document.
+    /// </exception>
     async ValueTask<IReadOnlyList<DirectoryChange>> ITeamDirectory.ListChangesAsync(
         long after,
         int limit,
@@ -1666,7 +1673,10 @@ internal sealed class DefaultDirectoryStore(
 
             var document = record.DocumentJson is null
                 ? null
-                : JsonSerializer.Deserialize<TeamDocument>(record.DocumentJson, JsonOptions);
+                : PayloadSerializer.Deserialize<TeamDocument>(
+                    JsonElement.Parse(record.DocumentJson),
+                    JsonOptions
+                );
             changes.Add(
                 new DirectoryChange
                 {
@@ -1807,13 +1817,9 @@ internal sealed class DefaultDirectoryStore(
                     );
 
                     // The directory assigns the sequence, so the stored document carries none: it is read back from the record.
-                    var documentJson = JsonSerializer.Serialize(
-                        document with
-                        {
-                            Sequence = 0,
-                        },
-                        JsonOptions
-                    );
+                    var documentJson = PayloadSerializer
+                        .Serialize(document with { Sequence = 0 }, JsonOptions)
+                        .GetRawText();
                     var change = new DirectoryChangeRecord
                     {
                         Sequence = await NextSequenceAsync(dbContext, token),
@@ -1856,6 +1862,9 @@ internal sealed class DefaultDirectoryStore(
     }
 
     /// <inheritdoc />
+    /// <exception cref="JsonException">
+    /// The stored platform document is not the schema-versioned envelope of a platform document.
+    /// </exception>
     async ValueTask<PlatformDocument?> IPlatformDirectory.GetOrDefaultAsync(
         CancellationToken cancellationToken
     )
@@ -1872,28 +1881,31 @@ internal sealed class DefaultDirectoryStore(
     }
 
     /// <summary>
-    /// Reads the platform document from its stored JSON and stamps it with the sequence number of its change.
+    /// Reads the platform document from its stored envelope and stamps it with the sequence number of its change.
     /// </summary>
-    /// <param name="documentJson">The stored JSON of the platform document, or <c>null</c> when none is stored.</param>
+    /// <param name="documentJson">
+    /// The stored envelope of the platform document, or <c>null</c> when none is stored.
+    /// </param>
     /// <param name="sequence">The sequence number of the change that stored the document.</param>
     /// <returns>
     /// The <see cref="PlatformDocument"/> with its <see cref="PlatformDocument.Sequence"/> set, or <c>null</c> when no
-    /// document is stored or the JSON holds none.
+    /// document is stored.
     /// </returns>
-    private static PlatformDocument? ReadPlatformDocument(string? documentJson, long sequence)
+    /// <exception cref="JsonException">
+    /// The stored text is not the schema-versioned envelope of a platform document.
+    /// </exception>
+    private PlatformDocument? ReadPlatformDocument(string? documentJson, long sequence)
     {
         if (documentJson is null)
         {
             return null;
         }
 
-        return
-            JsonSerializer.Deserialize<PlatformDocument>(documentJson, JsonOptions) is { } document
-            ? document with
-            {
-                Sequence = sequence,
-            }
-            : null;
+        var document = PayloadSerializer.Deserialize<PlatformDocument>(
+            JsonElement.Parse(documentJson),
+            JsonOptions
+        );
+        return document with { Sequence = sequence };
     }
 
     #endregion

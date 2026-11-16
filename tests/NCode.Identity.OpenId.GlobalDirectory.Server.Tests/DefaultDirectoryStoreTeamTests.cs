@@ -117,6 +117,22 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
     }
 
     [Fact]
+    public async Task PublishAsync_WhenTheTeamIsNew_StoresTheDocumentAndItsChangeAsAVersionedEnvelope()
+    {
+        await PublishTeamAsync("team-1", maxTenants: 3);
+
+        var documentJson = await ReadTeamDocumentJsonAsync("team-1");
+        Assert.NotNull(documentJson);
+        Assert.Equal(documentJson, await ReadChangeDocumentJsonAsync(1));
+        var envelope = JsonElement.Parse(documentJson);
+        Assert.Equal(1, envelope.GetProperty("$ver").GetInt32());
+        var payload = envelope.GetProperty("$payload");
+        Assert.Equal("team-1", payload.GetProperty("teamId").GetString());
+        Assert.Equal(0, payload.GetProperty("sequence").GetInt64());
+        Assert.Equal(3, payload.GetProperty("settings").GetProperty("max_tenants").GetInt32());
+    }
+
+    [Fact]
     public async Task PublishAsync_WhenTheTeamIsPublishedAgain_ReplacesTheDocumentWithANewSequence()
     {
         await PublishTeamAsync("team-1");
@@ -348,6 +364,20 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
         Assert.Null(document);
     }
 
+    [Fact]
+    public async Task GetOrDefaultAsync_WhenTheStoredDocumentIsNotAnEnvelope_ThrowsJsonException()
+    {
+        await PublishTeamAsync("team-1");
+        await ReplaceTeamDocumentJsonAsync(
+            "team-1",
+            """{"teamId":"team-1","displayName":"team-1","isDisabled":false}"""
+        );
+
+        await Assert.ThrowsAsync<JsonException>(async () =>
+            await Teams.GetOrDefaultAsync("team-1", CancellationToken.None)
+        );
+    }
+
     #endregion
 
     #region ListChangesAsync Tests
@@ -444,6 +474,20 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
         var changes = await Teams.ListChangesAsync(0, 10, CancellationToken.None);
 
         Assert.Empty(changes);
+    }
+
+    [Fact]
+    public async Task ListChangesAsync_WhenAStoredChangeIsNotAnEnvelope_ThrowsJsonException()
+    {
+        await PublishTeamAsync("team-1");
+        await ReplaceChangeDocumentJsonAsync(
+            1,
+            """{"teamId":"team-1","displayName":"team-1","isDisabled":false}"""
+        );
+
+        await Assert.ThrowsAsync<JsonException>(async () =>
+            await Teams.ListChangesAsync(0, 10, CancellationToken.None)
+        );
     }
 
     #endregion

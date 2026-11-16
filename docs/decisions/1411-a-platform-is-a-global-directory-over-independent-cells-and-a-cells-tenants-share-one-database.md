@@ -179,6 +179,12 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
   compliance isolation runs a dedicated cell.
 - The directory is a dependency of tenant and team creation and deletion, and of the change feed that delivers team
   documents. Serving never depends on it, and an unreachable directory blocks creation with `503`.
+- The directory stores each team and platform document, and the document that each change carries, as the family's
+  schema-versioned envelope `{ "$ver": N, "$payload": { ... } }`, written and read only through
+  `IPersistedPayloadSerializer`
+  ([ADR-1395](1395-grant-payloads-have-one-versioned-serializer-and-a-stored-record-missing-written-members-fails-closed.md)).
+  A stored document that is not an envelope is malformed: reading it fails, and the tenant-limit check that reads it
+  refuses the reservation.
 - The directory runs one replica with the `Recreate` strategy and keeps its expiring keys in process, an accepted
   exception to points 4 and 5 of
   [ADR-1134](1134-the-platform-and-the-host-follow-written-cloud-native-operating-principles.md). Serving never calls
@@ -222,6 +228,8 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
 - [ADR-1247](1247-the-platform-master-key-protects-the-data-protection-ring-and-an-unreadable-key-stops-the-host.md) —
   the platform master key
 - [ADR-1255](1255-the-management-consoles-url-is-its-navigation-state-and-every-scopes-surface-has-its-own-address.md) — console addresses
+- [ADR-1395](1395-grant-payloads-have-one-versioned-serializer-and-a-stored-record-missing-written-members-fails-closed.md)
+  — the schema-versioned envelope of stored payloads
 - [ADR-1426](1426-a-team-can-nest-beneath-a-parent-team-and-its-subtree-is-walked-depth-first.md) — nested teams
 - [ADR-1465](1465-role-lists-share-one-audited-grant-and-revoke-flow-and-a-caller-discovers-its-own-assignments.md) — the caller's home
 - [ADR-1466](1466-a-client-is-its-own-principal-and-a-machine-client-acts-only-within-its-owning-node.md) — machine clients

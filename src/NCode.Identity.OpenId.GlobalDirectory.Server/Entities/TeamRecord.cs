@@ -60,7 +60,8 @@ public sealed class TeamRecord
     public required string State { get; set; }
 
     /// <summary>
-    /// Gets or sets the JSON of the published team document, or <c>null</c> when none is published.
+    /// Gets or sets the published team document as its schema-versioned JSON envelope, or <c>null</c> when none is
+    /// published.
     /// </summary>
     /// <remarks>
     /// The store serializes the whole <c>TeamDocument</c> into this text and deserializes it whole, and

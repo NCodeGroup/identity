@@ -6,6 +6,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Entities;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
 using Xunit;
@@ -44,6 +45,7 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
         serviceCollection.AddDbContextFactory<DirectoryDbContext>(options =>
             options.UseSqlite(Connection)
         );
+        serviceCollection.AddPersistedPayloadSerializer();
         Provider = serviceCollection.BuildServiceProvider();
         DbContextFactory = Provider.GetRequiredService<IDbContextFactory<DirectoryDbContext>>();
 
@@ -57,6 +59,7 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
             Microsoft.Extensions.Options.Options.Create(
                 new DirectoryServerOptions { ControlPlaneCell = ControlPlaneCell }
             ),
+            Provider.GetRequiredService<IPersistedPayloadSerializer>(),
             TimeProvider
         );
     }
@@ -209,5 +212,104 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
     {
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
         return await dbContext.Platforms.CountAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Reads the text that the team row of a team stores as its document, or <c>null</c> when it stores none.
+    /// </summary>
+    protected async ValueTask<string?> ReadTeamDocumentJsonAsync(
+        string teamId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+        var normalizedTeamId = teamId.ToLowerInvariant();
+        return await dbContext
+            .Teams.AsNoTracking()
+            .Where(entity => entity.NormalizedTeamId == normalizedTeamId)
+            .Select(entity => entity.DocumentJson)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Reads the text that the platform row stores as its document, or <c>null</c> when no platform row exists.
+    /// </summary>
+    protected async ValueTask<string?> ReadPlatformDocumentJsonAsync(
+        CancellationToken cancellationToken = default
+    )
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+        return await dbContext
+            .Platforms.AsNoTracking()
+            .Select(entity => entity.DocumentJson)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Reads the text that the change with a sequence number stores as its document, or <c>null</c> when it stores
+    /// none.
+    /// </summary>
+    protected async ValueTask<string?> ReadChangeDocumentJsonAsync(
+        long sequence,
+        CancellationToken cancellationToken = default
+    )
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+        return await dbContext
+            .Changes.AsNoTracking()
+            .Where(entity => entity.Sequence == sequence)
+            .Select(entity => entity.DocumentJson)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Writes a text of the test's own into the document column of a team's row, past the store.
+    /// </summary>
+    protected async ValueTask ReplaceTeamDocumentJsonAsync(
+        string teamId,
+        string documentJson,
+        CancellationToken cancellationToken = default
+    )
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+        var normalizedTeamId = teamId.ToLowerInvariant();
+        var team = await dbContext.Teams.SingleAsync(
+            entity => entity.NormalizedTeamId == normalizedTeamId,
+            cancellationToken
+        );
+        team.DocumentJson = documentJson;
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Writes a text of the test's own into the document column of the platform row, past the store.
+    /// </summary>
+    protected async ValueTask ReplacePlatformDocumentJsonAsync(
+        string documentJson,
+        CancellationToken cancellationToken = default
+    )
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+        var platform = await dbContext.Platforms.SingleAsync(cancellationToken);
+        platform.DocumentJson = documentJson;
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Writes a text of the test's own into the document column of the change with a sequence number, past the store.
+    /// </summary>
+    protected async ValueTask ReplaceChangeDocumentJsonAsync(
+        long sequence,
+        string documentJson,
+        CancellationToken cancellationToken = default
+    )
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
+        var change = await dbContext.Changes.SingleAsync(
+            entity => entity.Sequence == sequence,
+            cancellationToken
+        );
+        change.DocumentJson = documentJson;
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 }

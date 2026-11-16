@@ -21,7 +21,7 @@ public sealed class DirectoryChangeRecord
     public string? TeamId { get; set; }
 
     /// <summary>
-    /// Gets or sets the JSON of the published document, or <c>null</c> for a team retire.
+    /// Gets or sets the published document as its schema-versioned JSON envelope, or <c>null</c> for a team retire.
     /// </summary>
     /// <remarks>
     /// The text is the published document as the store wrote it, and nothing reads its members as JSON, so the column

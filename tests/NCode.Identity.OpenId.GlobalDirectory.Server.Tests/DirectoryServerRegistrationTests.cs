@@ -9,6 +9,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Moq;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Client;
 using NCode.Identity.Registration;
 using Xunit;
@@ -42,6 +43,23 @@ public sealed class DirectoryServerRegistrationTests
         app.MapDirectory();
         return app;
     }
+
+    #region AddOpenIdDirectoryServer Tests
+
+    [Fact]
+    public async Task AddOpenIdDirectoryServer_WhenCalled_RegistersThePayloadSerializer()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        connection.Open();
+        await using var app = CreateApp(
+            connection,
+            new Dictionary<string, string?> { ["AllowedHosts"] = "localhost" }
+        );
+
+        Assert.NotNull(app.Services.GetService<IPersistedPayloadSerializer>());
+    }
+
+    #endregion
 
     #region StartAsync Tests
 

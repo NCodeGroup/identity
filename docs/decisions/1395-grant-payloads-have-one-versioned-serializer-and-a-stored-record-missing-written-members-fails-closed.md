@@ -110,6 +110,10 @@ and opaque metadata bags.
   periods.
 - The serializer throws a descriptive `JsonException` on a corrupt document or a missing upcaster step, so
   `DefaultPersistedGrantService` does not null-check a deserialized payload.
+- The serializer lives in the foundation package `NCode.Identity.Json`, which any package may reference, so every
+  package that stores a JSON payload, the global directory with its team and platform documents among them
+  ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)),
+  registers it from its own registration and writes and reads the payload through the same seam.
 
 ## References
 

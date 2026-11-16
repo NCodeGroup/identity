@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using NCode.Identity.AspNetCore;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Client;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Options;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
@@ -59,6 +60,7 @@ public static class DefaultRegistration
             );
 
             serviceCollection.TryAddSingleton(TimeProvider.System);
+            serviceCollection.AddPersistedPayloadSerializer();
             serviceCollection.TryAddSingleton<DefaultDirectoryStore>();
             serviceCollection.TryAddSingleton<ITenantDirectory>(serviceProvider =>
                 serviceProvider.GetRequiredService<DefaultDirectoryStore>()

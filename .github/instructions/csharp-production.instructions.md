@@ -185,8 +185,9 @@ than inlining the rationale.
   code writes fails closed** — template
   [Serialized and Stored Data](csharp.instructions.md#serialized-and-stored-data) and
   [project-template ADR-0108](../../docs/decisions/project-template/0108-persisted-documents-are-versioned-and-additive.md).
-  A domain payload serialized into a stored JSON blob (the `PersistedGrant<TPayload>.Payload` path) is written through
-  `IPersistedPayloadSerializer`, not a bare
+  A domain payload serialized into a stored JSON blob (the `PersistedGrant<TPayload>.Payload` path, and the global
+  directory's team and platform documents) is written through `IPersistedPayloadSerializer` (`NCode.Identity.Json`,
+  registered by `AddPersistedPayloadSerializer()`), not a bare
   `JsonSerializer` call, and its members never begin with `$`. A stored document that lacks what the serving code
   writes — the envelope, or a member the serving code always sets — is malformed: the reader throws rather than
   supplying a default or a fallback
