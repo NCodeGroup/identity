@@ -197,6 +197,11 @@ than inlining the rationale.
   ([#535](https://github.com/NCodeGroup/identity/issues/535)), a member the serving code always writes is `required`;
   from it, a non-additive change bumps `[PersistedPayloadVersion(N)]` on the payload and ships one
   `FromVersion → FromVersion + 1` `IPersistedPayloadUpcaster`.
+- 👁 **A stored settings document is a JSON object, and the empty object is one with no settings.** Code that stores a
+  settings document with no settings writes `JsonElements.EmptyObject`, never a JSON `null`, and a management create
+  stores its request's `settings` through `ToJsonObject`, which turns a `null` into `{}`. A reader of a stored
+  document's raw JSON, such as a tenant-limit check, takes a document of any other kind as unreadable
+  ([ADR-1139](../../docs/decisions/1139-setting-names-are-a-closed-vocabulary-changed-outright-and-settings-the-server-cannot-honor-fail-loudly.md)).
 - 👁 **Buffer by default; stream deliberately** — template
   [Types and Collections](csharp.instructions.md#types-and-collections).
 - 👁 **Own every stored collection; pick the concrete type by usage** — template

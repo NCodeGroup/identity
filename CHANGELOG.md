@@ -3407,7 +3407,9 @@ Until the first stable release, the [Unreleased] section describes the product a
   payload is rejected. A stored settings document that names an unregistered setting fails when it is loaded, so a
   control an operator configured is never silently dropped. `ISettingSerializer.ValidateSettings` returns `SettingError`
   values, and `ISettingCollection.Set(key, value)` throws for a key with no descriptor of that value type; an extension
-  registers a descriptor for every setting it reads or writes
+  registers a descriptor for every setting it reads or writes. Every settings document the server stores is a JSON
+  object, the empty object when it holds no settings, whoever writes it: a management create whose `settings` is `null`,
+  the platform, the teams and tenants the provisioners create and the resource servers a seed adds
   ([ADR-1139](docs/decisions/1139-setting-names-are-a-closed-vocabulary-changed-outright-and-settings-the-server-cannot-honor-fail-loudly.md)).
 
 - **A setting is accepted only at a scope that reads it.** Every setting declares the scopes it applies to
@@ -6461,5 +6463,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   [ADR-1479](docs/decisions/1479-a-protocol-clients-and-a-bffs-keys-can-be-held-in-a-key-management-service.md)).
 
 - **The directory and a cell refuse a reservation whose limit they cannot read.** A team or platform `max_tenants`
-  setting that is malformed, not a JSON number, negative or out of range is not read as "no limit": the global directory
-  and a cell's local directory answer the reservation with a conflict that names the platform or the team.
+  setting that is malformed, not a JSON number, negative or out of range, and a team or platform settings document that
+  is not a JSON object, `null` among them, are not read as "no limit": the global directory and a cell's local directory
+  answer the reservation with a conflict that names the platform or the team. The global directory and every cell store
+  settings only as a JSON object, the empty object when there are none.

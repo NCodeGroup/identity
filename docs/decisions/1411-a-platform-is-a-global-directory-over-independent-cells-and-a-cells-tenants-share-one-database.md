@@ -119,9 +119,10 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
     directory enforces it when it reserves a tenant identifier, and a creation past it answers `409`. The ceiling is
     never serialized on the team row, so two creations that race may overshoot it by one. Teams' normalized paths use
     the `C` collation, so the index on them serves the subtree prefix match that counts a team's tenants.
-    The directory stores only settings that are a JSON object, so its check takes stored settings of any other kind,
-    `null` among them, as unreadable and refuses the reservation. A cell writes `null` settings for its platform row
-    and the teams it provisions, so the check of a cell that runs on its own reads `null` settings as no limit.
+    The global directory stores only settings that are a JSON object, as every cell does
+    ([ADR-1139](1139-setting-names-are-a-closed-vocabulary-changed-outright-and-settings-the-server-cannot-honor-fail-loudly.md)),
+    so its check takes stored settings of any other kind, `null` among them, as unreadable and refuses the reservation,
+    and so does the check of a cell that runs on its own.
 14. **Authority runs platform, team, tenant, leaf.** `TeamAdmin` at a team creates its tenants and manages everything
     beneath it; `Owner` never creates. Granting or revoking `TeamAdmin` is `Operations.Create` at the team node, so an
     `Owner` can neither mint nor revoke it. `GlobalAdmin` acts across the platform. Platform, team and tenant nodes
@@ -228,6 +229,8 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
 - [ADR-1018](1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md) — the
   ambient-tenant query filter and fail-closed scoping
 - [ADR-1417](1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md) — roles and ownership
+- [ADR-1139](1139-setting-names-are-a-closed-vocabulary-changed-outright-and-settings-the-server-cannot-honor-fail-loudly.md)
+  — a stored settings document is a JSON object
 - [ADR-1148](1148-a-scope-selects-security-profiles-that-accumulate-down-the-cascade-as-ceilings-defaults-and-requirements.md)
   — security profiles down the cascade
 - [ADR-1149](1149-settings-declare-the-scopes-they-apply-to-and-the-scopes-are-a-registered-cascade.md) — the registered
