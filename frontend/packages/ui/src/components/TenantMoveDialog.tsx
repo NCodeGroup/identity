@@ -52,6 +52,12 @@ type Stage = {
   readonly label: string;
 };
 
+/** A move whose run failed: the move that a retry resumes, and the stage that failed and why. */
+type FailedMove = {
+  readonly move: TenantMove;
+  readonly failure: TenantMoveFailure;
+};
+
 /** The stages of a move, in the order they run. */
 function stagesOf(sourceCell: string, targetCell: string): readonly Stage[] {
   return [
@@ -82,8 +88,7 @@ export function TenantMoveDialog({
   const [targetCell, setTargetCell] = useState('');
   const [completed, setCompleted] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
-  const [failure, setFailure] = useState<TenantMoveFailure>();
-  const moveRef = useRef<TenantMove | undefined>(undefined);
+  const [failedMove, setFailedMove] = useState<FailedMove>();
   const wasOpenRef = useRef(open);
 
   // Reset only on the rising edge of `open`, so a re-render while open never discards the progress.
@@ -92,8 +97,7 @@ export function TenantMoveDialog({
       setTargetCell('');
       setCompleted(0);
       setIsRunning(false);
-      setFailure(undefined);
-      moveRef.current = undefined;
+      setFailedMove(undefined);
     }
     wasOpenRef.current = open;
   }, [open]);
@@ -107,40 +111,36 @@ export function TenantMoveDialog({
   const target = targets.find((cell) => cell.name === targetCell);
 
   const stages = target === undefined ? [] : stagesOf(sourceCell, target.name);
+  const failure = failedMove?.failure;
   const hasStarted = isRunning || completed > 0 || failure !== undefined;
   const isMoved = completed === stages.length && stages.length > 0;
 
   /** Runs the move from `fromStage`: 0 for a fresh move, the failure's `resumeStage` for a retry. */
   const runFrom = async (move: TenantMove, fromStage: number) => {
     setIsRunning(true);
-    setFailure(undefined);
+    setFailedMove(undefined);
     try {
-      setFailure(await move.run(fromStage, setCompleted));
+      const runFailure = await move.run(fromStage, setCompleted);
+      setFailedMove(runFailure === undefined ? undefined : { move, failure: runFailure });
     } finally {
       setIsRunning(false);
     }
   };
 
-  const handleMove = async () => {
-    if (target === undefined) {
-      return;
-    }
+  // The buttons hand each handler its cell or failed move, so neither runs without one.
+  const handleMove = async (receivingCell: TenantMoveDialogCell) => {
     const move = createTenantMove(operations, {
       tenantId,
       sourceCell,
-      targetCell: target.name,
+      targetCell: receivingCell.name,
     });
-    moveRef.current = move;
     setCompleted(0);
     await runFrom(move, tenantMoveStages.transferKey);
   };
 
-  const handleRetry = async () => {
-    if (moveRef.current === undefined || failure === undefined) {
-      return;
-    }
-    setCompleted(failure.resumeStage);
-    await runFrom(moveRef.current, failure.resumeStage);
+  const handleRetry = async (retried: FailedMove) => {
+    setCompleted(retried.failure.resumeStage);
+    await runFrom(retried.move, retried.failure.resumeStage);
   };
 
   const failedStage = failure === undefined ? undefined : stages[failure.stage];
@@ -227,11 +227,11 @@ export function TenantMoveDialog({
             <Button onClick={onClose} disabled={isRunning} data-testid="move-cancel">
               {failure === undefined ? 'Cancel' : 'Close'}
             </Button>
-            {failure !== undefined && (
+            {failedMove !== undefined && (
               <Button
                 variant="contained"
                 onClick={() => {
-                  void handleRetry();
+                  void handleRetry(failedMove);
                 }}
                 disabled={isRunning}
                 data-testid="move-retry"
@@ -241,9 +241,13 @@ export function TenantMoveDialog({
             )}
             <Button
               variant="contained"
-              onClick={() => {
-                void handleMove();
-              }}
+              onClick={
+                target === undefined
+                  ? undefined
+                  : () => {
+                      void handleMove(target);
+                    }
+              }
               disabled={target === undefined || hasStarted}
               data-testid="move-confirm"
             >

@@ -300,6 +300,33 @@ describe('TenantMoveDialog', () => {
     expect(screen.queryByTestId('move-failure')).not.toBeInTheDocument();
   });
 
+  it('retries from the export with the transfer key the move already holds', async () => {
+    let exports = 0;
+    const operations: TenantMoveDialogOperations = {
+      ...createOperations(),
+      exportTenant: vi.fn(async () => {
+        exports += 1;
+        if (exports === 1) {
+          throw new Error('The cell is unavailable.');
+        }
+        return 'sealed';
+      }),
+    };
+    renderDialog({ operations });
+    choose('eu-2');
+    fireEvent.click(screen.getByTestId('move-confirm'));
+    await screen.findByTestId('move-failure');
+
+    fireEvent.click(screen.getByTestId('move-retry'));
+
+    expect(await screen.findByTestId('move-done')).toHaveTextContent('Moved to eu-2.');
+    expect(operations.createTransferKey).toHaveBeenCalledTimes(1);
+    expect(operations.exportTenant).toHaveBeenCalledTimes(2);
+    expect(operations.exportTenant).toHaveBeenLastCalledWith('eu-1', 'acme', 'eu-2', jwk);
+    expect(operations.importTenant).toHaveBeenCalledWith('eu-2', 'k-1', 'sealed');
+    expect(screen.queryByTestId('move-failure')).not.toBeInTheDocument();
+  });
+
   it('shows no Retry before a failure', () => {
     renderDialog();
     choose('eu-2');
@@ -344,5 +371,33 @@ describe('TenantMoveDialog', () => {
 
     expect(screen.queryByTestId('move-done')).not.toBeInTheDocument();
     expect(screen.getByTestId('move-target')).toHaveValue('');
+  });
+
+  it('forgets a failed move and its Retry when it opens again', async () => {
+    const props: TenantMoveDialogProps = {
+      open: true,
+      tenantId: 'acme',
+      sourceCell: 'eu-1',
+      cells,
+      operations: {
+        ...createOperations(),
+        createTransferKey: vi.fn(async () => {
+          throw new Error('Unavailable.');
+        }),
+      },
+      onClose: vi.fn(),
+    };
+    const { rerender } = render(<TenantMoveDialog {...props} />);
+    choose('eu-2');
+    fireEvent.click(screen.getByTestId('move-confirm'));
+    await screen.findByTestId('move-failure');
+
+    rerender(<TenantMoveDialog {...props} open={false} />);
+    rerender(<TenantMoveDialog {...props} open />);
+
+    expect(screen.queryByTestId('move-failure')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('move-retry')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('move-stages')).not.toBeInTheDocument();
+    expect(screen.getByTestId('move-cancel')).toHaveTextContent('Cancel');
   });
 });
