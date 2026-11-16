@@ -28,8 +28,7 @@ public sealed class ClientRemoteKeyOptions
     public string? KeyId { get; set; }
 
     /// <summary>
-    /// Gets or sets the JOSE <c>alg</c> that the key signs or decrypts with. The configuration key is
-    /// <c>Algorithm</c>.
+    /// Gets or sets the JOSE <c>alg</c> that the key signs or decrypts with. The configuration key is <c>Algorithm</c>.
     /// </summary>
     public string? Algorithm { get; set; }
 

@@ -8,8 +8,8 @@ using NCode.Identity.Secrets.RemoteKeys;
 namespace NCode.Identity.OpenId.Client.KeyRings;
 
 /// <summary>
-/// Reads one <c>RemoteKeys:{kid}</c> entry of a client key ring: the public half of a key that a key management
-/// service holds, and the proof that the key holds the private half.
+/// Reads one <c>RemoteKeys:{kid}</c> entry of a client key ring: the public half of a key that a key management service
+/// holds, and the proof that the key holds the private half.
 /// </summary>
 // See ADR-1479.
 internal sealed class ClientRemoteKeyReader(

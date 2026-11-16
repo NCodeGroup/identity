@@ -24,15 +24,15 @@ public sealed class PromoteTenantRequest
     public string? SourceTenantId { get; init; }
 
     /// <summary>
-    /// Gets the configuration document that is promoted. The request gives either this or
-    /// <see cref="SourceTenantId"/>, not both.
+    /// Gets the configuration document that is promoted. The request gives either this or <see cref="SourceTenantId"/>,
+    /// not both.
     /// </summary>
     public TenantConfigurationDocument? Source { get; init; }
 
     /// <summary>
     /// Gets the environment-bound setting values the target keeps for the resources the promotion writes. A resource
-    /// the promotion writes holds the source's other settings, then the target's own environment-bound values, then
-    /// the values given here.
+    /// the promotion writes holds the source's other settings, then the target's own environment-bound values, then the
+    /// values given here.
     /// </summary>
     public List<TenantPromotionEnvironmentSettings> EnvironmentSettings { get; init; } = [];
 }

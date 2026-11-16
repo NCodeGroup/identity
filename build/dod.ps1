@@ -45,7 +45,8 @@
     errors anywhere are caught. Composes with -Fast and -Filter.
 
 .PARAMETER Base
-    The commit-ish whose merge base with HEAD -Affected measures the changes from. Defaults to origin/main.
+    The commit-ish whose merge base with HEAD -Affected measures the changes from. The doc comment fill stage measures
+    from the same merge base. Defaults to origin/main.
 
 .EXAMPLE
     ./build/dod.ps1
@@ -212,6 +213,17 @@ try {
     # runs before the slow stages. Its fixture tests end with the repository's own src/ and tests/.
     Invoke-Step 'doc comment citations' {
         & (Join-Path $PSScriptRoot 'tests\doc-comment-citations.tests.ps1')
+        $global:LASTEXITCODE = 0
+    }
+
+    # Doc-comment fill gate: a doc paragraph a change adds or edits fills its lines within 120 columns (ADR-1515). Only
+    # the paragraphs the change touches since its merge base with -Base are checked, so the stage is as cheap as the
+    # change is small. Build-free, so it runs before the slow stages. Its fixture tests run first.
+    Invoke-Step 'doc comment fill' {
+        & (Join-Path $PSScriptRoot 'tests\doc-comment-fill.tests.ps1')
+        $problems = @(& (Join-Path $PSScriptRoot 'doc-comment-fill.ps1') -Base $Base)
+        $problems | ForEach-Object { Write-Host $_ }
+        if ($problems.Count -gt 0) { throw "doc comment fill found $($problems.Count) problem(s)." }
         $global:LASTEXITCODE = 0
     }
 

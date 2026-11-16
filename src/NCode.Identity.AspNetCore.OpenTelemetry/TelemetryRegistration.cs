@@ -9,8 +9,8 @@ using OpenTelemetry.Metrics;
 namespace NCode.Identity.AspNetCore.OpenTelemetry;
 
 /// <summary>
-/// Registers the OpenTelemetry metrics pipeline for a host: the family's meters, ASP.NET Core, Kestrel, outbound
-/// HTTP, and the .NET runtime, exported over OTLP when an endpoint is configured.
+/// Registers the OpenTelemetry metrics pipeline for a host: the family's meters, ASP.NET Core, Kestrel, outbound HTTP,
+/// and the .NET runtime, exported over OTLP when an endpoint is configured.
 /// </summary>
 // See ADR-1197.
 [PublicAPI]
@@ -53,8 +53,8 @@ public static class TelemetryRegistration
     {
         /// <summary>
         /// Registers the OpenTelemetry metrics pipeline: every <c>NCode.Identity.*</c> meter, the ASP.NET Core,
-        /// Kestrel, routing, diagnostics, <c>System.Net.Http</c>, and runtime meters, and a view that keeps only bounded
-        /// attributes on the outbound-HTTP instruments. The OTLP exporter is added only when
+        /// Kestrel, routing, diagnostics, <c>System.Net.Http</c>, and runtime meters, and a view that keeps only
+        /// bounded attributes on the outbound-HTTP instruments. The OTLP exporter is added only when
         /// <see cref="OtlpEndpointConfigurationKey"/> is configured, so a host without a collector exports nothing.
         /// </summary>
         /// <param name="configuration">The <see cref="IConfiguration"/> read for the OTLP endpoint.</param>

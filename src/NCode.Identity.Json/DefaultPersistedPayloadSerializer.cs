@@ -10,9 +10,9 @@ using System.Text.Json.Nodes;
 namespace NCode.Identity.Json;
 
 /// <summary>
-/// Provides the default implementation of <see cref="IPersistedPayloadSerializer"/> that wraps every stored
-/// payload in a self-describing, schema-versioned envelope and migrates older stored documents up to the current schema
-/// version through registered <see cref="IPersistedPayloadUpcaster"/> steps.
+/// Provides the default implementation of <see cref="IPersistedPayloadSerializer"/> that wraps every stored payload in
+/// a self-describing, schema-versioned envelope and migrates older stored documents up to the current schema version
+/// through registered <see cref="IPersistedPayloadUpcaster"/> steps.
 /// </summary>
 internal sealed class DefaultPersistedPayloadSerializer : IPersistedPayloadSerializer
 {

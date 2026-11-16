@@ -12,9 +12,9 @@ namespace NCode.Identity.OpenId.Client.Tests.KeyRings;
 
 /// <summary>
 /// A remote key provider that stands in for a key management service: it holds one ES256 signing key and one
-/// RSA-OAEP-256 decryption key in memory, and counts every signature and decryption so a test can tell that the
-/// service used a key. A test sets <see cref="ActualSigningKey"/> or <see cref="ActualDecryptionKey"/> to make the
-/// service use another key than the one whose public half it returns.
+/// RSA-OAEP-256 decryption key in memory, and counts every signature and decryption so a test can tell that the service
+/// used a key. A test sets <see cref="ActualSigningKey"/> or <see cref="ActualDecryptionKey"/> to make the service use
+/// another key than the one whose public half it returns.
 /// </summary>
 internal sealed class FakeRemoteKeyProvider
     : IRemoteKeyProvider,

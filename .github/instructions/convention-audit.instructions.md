@@ -78,6 +78,10 @@ Fast mechanical checks (grep production `.cs`, adapt as needed):
   Get-ChildItem src,hosts,analyzers -Recurse -Filter *.cs | ? { $_.FullName -notmatch '\\(obj|bin)\\' } | % { $l = Get-Content $_.FullName; $m = $l | Select-String '^    extension\(' | Select-Object -First 1; if ($m -and ($l[$m.LineNumber..($l.Count-1)] | Select-String '^    (\[[^\]]+\]\s*)?(private|internal|public|protected)\s+(static|const)\b')) { $_.FullName } }
   ```
 
+- **Doc-comment fill** (§10): `./build/doc-comment-fill.ps1 -All` lists every `///` and JSDoc line in the tree that
+  runs past 120 columns or leaves room for the next line's first word. The Definition of Done checks only the paragraphs
+  a change touches, so this sweep finds the rest.
+
 - **Unbuffered stored collections** (§2): a ctor/method that assigns a collection parameter (or DI `IEnumerable<T>`)
   straight to a field/property with no `.ToArray()` / `.ToFrozenSet()` / `.ToFrozenDictionary()` / `[.. x]`.
 - **Before sealing, confirm it's a leaf** (§2): grep `:\s*TypeName\b` for real inheritance — a `TypeName? Bar { get; }`

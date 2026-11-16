@@ -31,10 +31,10 @@ POST api/tenants/{tenantId}/promotions
 */
 
 /// <summary>
-/// Provides the API endpoints for promoting a tenant's configuration into the tenant named by the route, from a
-/// source tenant of the same cell or from a configuration document exported by another cell of the same region: a
-/// preview that reports what the promotion changes and writes nothing, and the promotion that applies it. Every cell
-/// maps the routes.
+/// Provides the API endpoints for promoting a tenant's configuration into the tenant named by the route, from a source
+/// tenant of the same cell or from a configuration document exported by another cell of the same region: a preview that
+/// reports what the promotion changes and writes nothing, and the promotion that applies it. Every cell maps the
+/// routes.
 /// </summary>
 // See ADR-1425.
 internal class TenantPromotionApiEndpointHandler(

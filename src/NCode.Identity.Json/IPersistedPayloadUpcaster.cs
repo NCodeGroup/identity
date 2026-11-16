@@ -7,9 +7,9 @@ using JetBrains.Annotations;
 namespace NCode.Identity.Json;
 
 /// <summary>
-/// Represents a single-step migration of a stored payload's at-rest JSON from one schema version to the next.
-/// An upcaster is registered as an enumerable DI service and is applied by <see cref="IPersistedPayloadSerializer"/>
-/// when a stored document's schema version is older than the current schema version of the payload type. Chaining one
+/// Represents a single-step migration of a stored payload's at-rest JSON from one schema version to the next. An
+/// upcaster is registered as an enumerable DI service and is applied by <see cref="IPersistedPayloadSerializer"/> when
+/// a stored document's schema version is older than the current schema version of the payload type. Chaining one
 /// upcaster per version step keeps each migration small, ordered, and independently testable.
 /// </summary>
 /// <remarks>

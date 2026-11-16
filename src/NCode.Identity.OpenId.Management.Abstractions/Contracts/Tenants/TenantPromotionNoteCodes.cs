@@ -19,8 +19,8 @@ public static class TenantPromotionNoteCodes
     public const string CredentialRequired = "credential_required";
 
     /// <summary>
-    /// The source resource sets an environment-bound setting that the promoted document lacks, so the operator
-    /// supplies the target's value.
+    /// The source resource sets an environment-bound setting that the promoted document lacks, so the operator supplies
+    /// the target's value.
     /// </summary>
     public const string EnvironmentSettingUnset = "environment_setting_unset";
 
