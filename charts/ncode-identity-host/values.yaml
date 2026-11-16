@@ -95,7 +95,7 @@ directory:
   # is false.
   enabled: false
   # The issuer of the control-plane cell (DirectoryServer:Issuer), whose bearer tokens the directory accepts. Required
-  # when enabled.
+  # when enabled. An `https` URL, or an `http` URL on a loopback host, with no user information, query or fragment.
   issuer: ""
   # The name of the control-plane cell (DirectoryServer:ControlPlaneCell), the only cell that writes the platform and the
   # teams. Required when enabled.

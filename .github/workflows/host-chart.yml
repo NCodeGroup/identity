@@ -774,11 +774,16 @@ jobs:
           }
           # The base values render, so each refusal below is the rule it names.
           helm template release "$CHART" --values "$base" > /dev/null
+          # A loopback http issuer, on any 127.x.x.x address, renders, as the directory host accepts it.
+          helm template release "$CHART" --values "$base" --set directory.issuer=http://localhost:8080 > /dev/null
+          helm template release "$CHART" --values "$base" --set directory.issuer=http://127.0.0.2:8080 > /dev/null
           refuse --set-json 'directory.allowedHosts=[]'
           refuse --set 'directory.allowedHosts={*}'
           refuse --set 'directory.allowedHosts={*.example.com}'
           refuse --set directory.issuer=
+          # The issuer is https, or http on a loopback host, with no user information, query or fragment.
           refuse --set directory.issuer=https://user@id.example.com
+          refuse --set directory.issuer=http://id.example.com
           refuse --set directory.controlPlaneCell=
           refuse --set directory.database.existingSecret=
           refuse --set directory.database.connectionStringKey=

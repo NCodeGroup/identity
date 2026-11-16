@@ -333,7 +333,14 @@
         },
         "issuer": {
           "type": "string",
-          "pattern": "^(https://.+)?$"
+          "anyOf": [
+            {
+              "maxLength": 0
+            },
+            {
+              "format": "uri"
+            }
+          ]
         },
         "controlPlaneCell": {
           "type": "string",
