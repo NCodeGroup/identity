@@ -18,8 +18,8 @@ internal sealed class ClientKeyRingsOptionsValidator(IHostEnvironment environmen
     : IValidateOptions<ClientKeyRingsOptions>
 {
     /// <summary>
-    /// Checks one remote key of a key ring: it has an id, its provider is a valid remote key provider name, its key
-    /// id, algorithm and secret type are not blank, and its key size is positive. Each failure is named
+    /// Checks one remote key of a key ring: it has an id, its provider is a valid remote key provider name, its key id,
+    /// algorithm and secret type are not blank, and its key size is positive. Each failure is named
     /// <c>{keyRingKey}:RemoteKeys:{id}</c>, and a refused provider name or key size is stated in its failure.
     /// </summary>
     /// <param name="keyRingKey">The configuration path of the key ring that holds the remote key.</param>
@@ -82,10 +82,10 @@ internal sealed class ClientKeyRingsOptionsValidator(IHostEnvironment environmen
     }
 
     /// <summary>
-    /// Checks every configured key ring, in ordinal order of its name: the section is set, each key ring has a name
-    /// and lists at least one PEM file or remote key, each PEM path is not blank and names a file that exists under
-    /// <see cref="IHostEnvironment.ContentRootPath"/>, each remote key is valid, and no two keys of a key ring share
-    /// an id. A PEM file's id is its file name without its extension.
+    /// Checks every configured key ring, in ordinal order of its name: the section is set, each key ring has a name and
+    /// lists at least one PEM file or remote key, each PEM path is not blank and names a file that exists under
+    /// <see cref="IHostEnvironment.ContentRootPath"/>, each remote key is valid, and no two keys of a key ring share an
+    /// id. A PEM file's id is its file name without its extension.
     /// </summary>
     /// <param name="sectionPath">The configuration path of the key rings section, which prefixes every failure.</param>
     /// <param name="keyRings">The configured key rings by name, or <c>null</c> when the section is not set.</param>

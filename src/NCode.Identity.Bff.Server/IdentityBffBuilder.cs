@@ -50,8 +50,8 @@ internal sealed class IdentityBffBuilder : ServiceBuilder<IdentityBff>, IIdentit
     /// </summary>
     /// <param name="serviceCollection">The <see cref="IServiceCollection"/> to add services to.</param>
     /// <param name="configuration">
-    /// The configuration whose <c>Bff</c> section configures the BFF, whose <c>KeyRings</c> section configures its
-    /// key rings and whose <c>LocalDevelopment</c> section turns on the relaxations a local inner-loop host needs.
+    /// The configuration whose <c>Bff</c> section configures the BFF, whose <c>KeyRings</c> section configures its key
+    /// rings and whose <c>LocalDevelopment</c> section turns on the relaxations a local inner-loop host needs.
     /// </param>
     public IdentityBffBuilder(IServiceCollection serviceCollection, IConfiguration configuration)
         : base(serviceCollection)

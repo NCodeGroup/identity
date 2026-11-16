@@ -22,8 +22,8 @@ public static class ManagementConsoleEndpointRouteBuilderExtensions
 {
     /// <summary>
     /// Maps one management API forwarder, which forwards every request under <paramref name="path"/> to
-    /// <paramref name="destination"/> with the user's access token for the management API and serves only the
-    /// console's frontend.
+    /// <paramref name="destination"/> with the user's access token for the management API and serves only the console's
+    /// frontend.
     /// </summary>
     /// <param name="endpoints">The <see cref="IEndpointRouteBuilder"/> instance to map the forwarder to.</param>
     /// <param name="path">The local path prefix that the forwarder serves.</param>

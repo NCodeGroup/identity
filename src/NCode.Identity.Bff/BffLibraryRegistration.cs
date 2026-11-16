@@ -22,11 +22,11 @@ public static class BffLibraryRegistration
     extension(IServiceBuilder<BffLibrary> builder)
     {
         /// <summary>
-        /// Binds <see cref="BffOptions"/> strictly from the <c>Bff</c> section of <paramref name="configuration"/>, so a
-        /// key that maps to no option fails when the options are first read, and follows the section's reloads, so
-        /// the BFF's frontends take a valid change without a restart. The key rings that a frontend names are
-        /// the protocol client's, loaded by <c>AddOpenIdClientKeyRings</c>. The <c>LocalDevelopment</c> section turns
-        /// on the relaxations a local inner-loop host needs; without it the BFF validates its URLs strictly.
+        /// Binds <see cref="BffOptions"/> strictly from the <c>Bff</c> section of <paramref name="configuration"/>, so
+        /// a key that maps to no option fails when the options are first read, and follows the section's reloads, so
+        /// the BFF's frontends take a valid change without a restart. The key rings that a frontend names are the
+        /// protocol client's, loaded by <c>AddOpenIdClientKeyRings</c>. The <c>LocalDevelopment</c> section turns on
+        /// the relaxations a local inner-loop host needs; without it the BFF validates its URLs strictly.
         /// </summary>
         /// <param name="configuration">The <see cref="IConfiguration"/> read for the BFF settings.</param>
         /// <returns>The <see cref="IServiceBuilder{T}"/> so that additional calls can be chained.</returns>

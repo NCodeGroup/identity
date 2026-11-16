@@ -18,8 +18,8 @@ namespace NCode.Identity.Bff.Sessions;
 /// provider.
 /// </para>
 /// <para>
-/// The pass names the clients that its frontends are configured as to the store, which skips them without reading
-/// their sessions, so a pass over a set that matches the store reads only the client index.
+/// The pass names the clients that its frontends are configured as to the store, which skips them without reading their
+/// sessions, so a pass over a set that matches the store reads only the client index.
 /// </para>
 /// </remarks>
 // See ADR-1443.

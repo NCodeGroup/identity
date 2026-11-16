@@ -410,9 +410,9 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
     }
 
     /// <summary>
-    /// Reads the client from the first readable session record among the members of a client's index. A round reads
-    /// the records of the next <see cref="ClientResolutionReadsPerRound"/> members concurrently, in member order, and
-    /// the first round that holds a readable record ends the search with the first readable record of that round.
+    /// Reads the client from the first readable session record among the members of a client's index. A round reads the
+    /// records of the next <see cref="ClientResolutionReadsPerRound"/> members concurrently, in member order, and the
+    /// first round that holds a readable record ends the search with the first readable record of that round.
     /// </summary>
     /// <param name="storeKeys">The store keys of the sessions in the client's index.</param>
     /// <param name="cancellationToken">A token that cancels the reads.</param>

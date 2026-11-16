@@ -27,8 +27,8 @@ public static class DefaultRegistration
         /// when the options are first read, and validates them when the host starts. Every key ring is loaded when the
         /// host starts, from PEM files and keys that a key management service holds, and a keyed
         /// <see cref="ISecretKeyCollectionProvider"/>, named after the key ring, returns the loaded key ring for every
-        /// key ring configured when this method is called. A keyed provider resolves once the host starts: resolving
-        /// it earlier, such as from an eager singleton or an options validator, throws an
+        /// key ring configured when this method is called. A keyed provider resolves once the host starts: resolving it
+        /// earlier, such as from an eager singleton or an options validator, throws an
         /// <see cref="InvalidOperationException"/> that names the key ring.
         /// </summary>
         /// <param name="section">The configuration section whose children are the key rings, by name.</param>

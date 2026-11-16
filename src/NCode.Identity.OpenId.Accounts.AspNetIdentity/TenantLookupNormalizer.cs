@@ -7,9 +7,9 @@ using NCode.Identity.OpenId.Persistence.Tenants;
 namespace NCode.Identity.OpenId.Accounts.AspNetIdentity;
 
 /// <summary>
-/// Normalizes the names and emails that ASP.NET Core Identity looks users up by, and prefixes each with the
-/// normalized identifier of the ambient tenant (<c>{normalizedTenantId}|{value}</c>), so a user name or email is
-/// unique per tenant and a lookup in one tenant never finds a user of another.
+/// Normalizes the names and emails that ASP.NET Core Identity looks users up by, and prefixes each with the normalized
+/// identifier of the ambient tenant (<c>{normalizedTenantId}|{value}</c>), so a user name or email is unique per tenant
+/// and a lookup in one tenant never finds a user of another.
 /// </summary>
 /// <remarks>
 /// The normalizer fails closed. It throws outside a tenant scope, an unscoped scope

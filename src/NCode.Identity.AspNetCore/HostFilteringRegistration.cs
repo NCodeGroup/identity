@@ -15,8 +15,7 @@ namespace NCode.Identity.AspNetCore;
 /// Registers the validation that refuses a wildcard or empty <c>AllowedHosts</c> list.
 /// </summary>
 /// <remarks>
-/// Safe to leave wired: a host configured for local development (<c>LocalDevelopment:Enabled</c>) may accept any
-/// host.
+/// Safe to leave wired: a host configured for local development (<c>LocalDevelopment:Enabled</c>) may accept any host.
 /// </remarks>
 // See ADR-1370.
 [PublicAPI]

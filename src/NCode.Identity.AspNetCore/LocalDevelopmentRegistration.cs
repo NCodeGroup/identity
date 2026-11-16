@@ -28,9 +28,9 @@ public static class LocalDevelopmentRegistration
         /// </summary>
         /// <remarks>
         /// The section is bound strictly when the options are first read, so configuration sources added after this
-        /// call, such as a test host's, are honored. The options are read and validated when the host starts, so a
-        /// key that maps to no option, or the switch turned on in the Production environment, stops the host with an
-        /// error naming the entry. The <see cref="LocalDevelopmentMode"/> is the bound options' switch.
+        /// call, such as a test host's, are honored. The options are read and validated when the host starts, so a key
+        /// that maps to no option, or the switch turned on in the Production environment, stops the host with an error
+        /// naming the entry. The <see cref="LocalDevelopmentMode"/> is the bound options' switch.
         /// </remarks>
         /// <param name="configuration">
         /// The <see cref="IConfiguration"/> read for the <c>LocalDevelopment</c> section.

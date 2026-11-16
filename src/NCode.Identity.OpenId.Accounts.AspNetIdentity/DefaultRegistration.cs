@@ -102,14 +102,13 @@ public static class DefaultRegistration
         /// <c>IPasswordHasher&lt;TUser&gt;</c> registration, made before or after this call, in
         /// <see cref="NormalizingPasswordHasher{TUser}"/>, so the adapter and the host's own ASP.NET Core Identity
         /// pages hash and verify a password's NFC form; a hasher that the host registers after this call must be
-        /// wrapped by the host. It also registers an <see cref="ILookupNormalizer"/> that prefixes each normalized
-        /// user name and email with the ambient tenant's normalized identifier, so a user name and an email are
-        /// unique per tenant; the user type must implement <see cref="ITenantBoundUser"/>. The host's Identity schema
-        /// must size <c>NormalizedUserName</c> to at least <see cref="AccountMaxLengths.NormalizedUserName"/>
-        /// characters, <c>NormalizedEmail</c> to at least <see cref="AccountMaxLengths.NormalizedEmail"/>, and
-        /// <c>UserName</c> and <c>Email</c> to at least <see cref="AccountMaxLengths.UserName"/> and
-        /// <see cref="AccountMaxLengths.Email"/>; the default Entity Framework Core model of ASP.NET Core Identity
-        /// sizes all four at 256, which is shorter.
+        /// wrapped by the host. It also registers an <see cref="ILookupNormalizer"/> that prefixes each normalized user
+        /// name and email with the ambient tenant's normalized identifier, so a user name and an email are unique per
+        /// tenant; the user type must implement <see cref="ITenantBoundUser"/>. The host's Identity schema must size
+        /// <c>NormalizedUserName</c> to at least <see cref="AccountMaxLengths.NormalizedUserName"/> characters,
+        /// <c>NormalizedEmail</c> to at least <see cref="AccountMaxLengths.NormalizedEmail"/>, and <c>UserName</c> and
+        /// <c>Email</c> to at least <see cref="AccountMaxLengths.UserName"/> and <see cref="AccountMaxLengths.Email"/>;
+        /// the default Entity Framework Core model of ASP.NET Core Identity sizes all four at 256, which is shorter.
         /// </summary>
         /// <typeparam name="TUser">The ASP.NET Core Identity user type.</typeparam>
         /// <returns>The <see cref="IServiceBuilder{T}"/> proving a local-account store is registered.</returns>
