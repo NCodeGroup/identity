@@ -4,4 +4,5 @@
 using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("NCode.Identity.OpenId.Host.Database.Tests")]
+[assembly: InternalsVisibleTo("NCode.Identity.OpenId.Integration.Tests")]
 [assembly: InternalsVisibleTo("DynamicProxyGenAssembly2")]

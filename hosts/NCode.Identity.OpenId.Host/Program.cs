@@ -1,8 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using Microsoft.AspNetCore.DataProtection;
-using Microsoft.EntityFrameworkCore;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.AspNetCore.OpenTelemetry;
 using NCode.Identity.OpenId.Accounts.Authentication;
@@ -10,13 +8,10 @@ using NCode.Identity.OpenId.Accounts.Credentials;
 using NCode.Identity.OpenId.Accounts.Management;
 using NCode.Identity.OpenId.Authentication.Interactive;
 using NCode.Identity.OpenId.Host;
-using NCode.Identity.OpenId.Host.Database;
 using NCode.Identity.OpenId.Persistence.EntityFramework;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Accounts;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core;
-using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Setup;
-using NCode.Identity.Registration;
 using NCode.Identity.Registration.AspNetCore;
 using NCode.Identity.Secrets.AwsKms;
 using NCode.Identity.Secrets.AzureKeyVault;
@@ -183,46 +178,10 @@ serviceCollection.AddDatabaseDeveloperPageExceptionFilter();
 // under their owners' master keys and the ring under the platform master key, whose root key lives outside the database
 // (the 'SecretProtection' section); AddDeploymentSafety refuses to start without a real root key unless
 // 'LocalDevelopment:Enabled' is set (ADR-1235).
-
-var connectionString = HostDatabaseConnection.Resolve(configuration);
-if (!string.IsNullOrEmpty(connectionString))
-{
-    serviceCollection.AddDbContextFactory<OpenIdDbContext>(
-        (serviceProvider, dbOptions) =>
-            dbOptions.UseOpenIdNpgsql(
-                connectionString,
-                serviceProvider.GetRequiredService<IAmbientTenantAccessor>()
-            )
-    );
-    serviceCollection.AddDbContext<DeveloperDataProtectionDbContext>(dbOptions =>
-        dbOptions.UseDataProtectionNpgsql(connectionString)
-    );
-    serviceCollection
-        .AddDataProtection()
-        .PersistKeysToDbContext<DeveloperDataProtectionDbContext>()
-        .SetApplicationName("NCode.Identity.OpenId.Host");
-
-    // The host refuses to start when the role it connects as is a superuser, bypasses row-level security or owns the
-    // tables, because the tenant policies would not apply to it; 'LocalDevelopment:Enabled' only warns (ADR-1370).
-    serviceCollection.AddRuntimeRolePostureCheck(
-        connectionString,
-        configuration.IsLocalDevelopment()
-    );
-
-    // The replica is ready only while it can reach the database it serves every request from.
-    serviceCollection
-        .AddHealthChecks()
-        .AddDbContextCheck<OpenIdDbContext>("openiddb", tags: [HealthCheckTags.Readiness]);
-}
-else
-{
-    // No connection string: hermetic test hosts boot this composition root and replace the OpenID context and the Data
-    // Protection key ring with stores of their own; Data Protection otherwise keeps its default repository, which
-    // AddDeploymentSafety refuses.
-    serviceCollection.AddDbContextFactory<OpenIdDbContext>(dbOptions =>
-        dbOptions.UseInMemoryDatabase("OpenId")
-    );
-}
+// AddHostDatabase registers both contexts and the key ring over that database, its readiness check, and a startup check
+// that refuses a runtime role that is not subject to row-level security ('LocalDevelopment:Enabled' only warns,
+// ADR-1370); without a connection, as in hermetic test hosts, the OpenID context is in memory.
+serviceCollection.AddHostDatabase(configuration);
 
 await using var app = builder.Build();
 
