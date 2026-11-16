@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using JetBrains.Annotations;
 using NCode.Identity.Registration;
 using NCode.Identity.Registration.AspNetCore;
 
@@ -19,7 +18,6 @@ internal static class DefaultRegistration
         /// Configures services and handlers for OpenId Authentication endpoints.
         /// </summary>
         /// <returns>The <see cref="IServiceBuilder{T}"/> instance for method chaining.</returns>
-        [PublicAPI]
         public IServiceBuilder<OpenIdAuthenticationLibrary> AddEndpoints()
         {
             var newBuilder = builder.NewBuilder<OpenIdAuthenticationEndpoints>();

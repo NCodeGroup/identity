@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using JetBrains.Annotations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NCode.Identity.Dispatch;
@@ -31,7 +30,6 @@ internal static class DefaultRegistration
         /// registers its own resolver after this call, with <c>AddSingleton</c> or <c>Replace</c>.
         /// </summary>
         /// <returns>The <see cref="IServiceBuilder{T}"/> instance for method chaining.</returns>
-        [PublicAPI]
         public IServiceBuilder<OpenIdCoreLibrary> AddSecretProtectionServices()
         {
             var serviceCollection = builder.ServiceCollection;

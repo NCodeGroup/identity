@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using JetBrains.Annotations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -27,7 +26,6 @@ internal static class DefaultRegistration
         /// <c>OpenId:MutualTls</c>.
         /// </summary>
         /// <returns>The <see cref="IServiceBuilder{T}"/> instance for method chaining.</returns>
-        [PublicAPI]
         public IServiceBuilder<OpenIdAuthenticationLibrary> AddClientCertificateServices()
         {
             var serviceCollection = builder.ServiceCollection;

@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using JetBrains.Annotations;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NCode.Identity.Registration;
 
@@ -19,7 +18,6 @@ internal static class DefaultRegistration
         /// Configures the consent service.
         /// </summary>
         /// <returns>The <see cref="IServiceBuilder{T}"/> instance for method chaining.</returns>
-        [PublicAPI]
         public IServiceBuilder<OpenIdAuthenticationLibrary> AddConsentServices()
         {
             builder.ServiceCollection.TryAddSingleton<IConsentService, DefaultConsentService>();

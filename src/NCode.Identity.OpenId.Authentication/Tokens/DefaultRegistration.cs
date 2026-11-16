@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using JetBrains.Annotations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NCode.Identity.OpenId.Authentication.Tokens.Commands;
@@ -24,7 +23,6 @@ internal static class DefaultRegistration
         /// Configures services and handlers for OpenId Token services.
         /// </summary>
         /// <returns>The <see cref="IServiceBuilder{T}"/> instance for method chaining.</returns>
-        [PublicAPI]
         public IServiceBuilder<OpenIdAuthenticationLibrary> AddTokenServices()
         {
             var serviceCollection = builder.ServiceCollection;

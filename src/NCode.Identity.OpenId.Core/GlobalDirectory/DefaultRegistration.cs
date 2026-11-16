@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using JetBrains.Annotations;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NCode.Identity.Registration;
 
@@ -19,7 +18,6 @@ internal static class DefaultRegistration
         /// Configures the services that mirror the directory's team and platform documents into the cell's rows.
         /// </summary>
         /// <returns>The <see cref="IServiceBuilder{T}"/> instance for method chaining.</returns>
-        [PublicAPI]
         public IServiceBuilder<OpenIdCoreLibrary> AddDirectoryMirrorServices()
         {
             builder.ServiceCollection.TryAddSingleton<

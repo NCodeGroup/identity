@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using JetBrains.Annotations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NCode.Collections.Providers;
@@ -25,7 +24,6 @@ internal static class DefaultRegistration
         /// listing it in <c>code_challenge_methods_supported</c>.
         /// </summary>
         /// <returns>The <see cref="IServiceBuilder{T}"/> instance for method chaining.</returns>
-        [PublicAPI]
         public IServiceBuilder<OpenIdAuthenticationLibrary> AddPkceServices()
         {
             var serviceCollection = builder.ServiceCollection;
