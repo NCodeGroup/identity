@@ -73,11 +73,9 @@ serviceCollection
     .AddOpenIdDirectoryServer(configuration);
 
 // The directory's own Postgres database, and the readiness check that holds the replica out of rotation while it cannot
-// reach the database it serves every request from. The replicas connect as the runtime role, and the 'migrate' command
-// as the role that owns the schema.
-serviceCollection.AddDirectoryDatabase(
-    DirectoryDatabase.GetConnectionString(configuration, migrate)
-);
+// reach the database it serves every request from. Each workload is given its own role's credentials for the one
+// connection: the replicas the runtime role's, and the 'migrate' command the schema owner's.
+serviceCollection.AddDirectoryDatabase(DirectoryDatabase.GetConnectionString(configuration));
 
 await using var app = builder.Build();
 

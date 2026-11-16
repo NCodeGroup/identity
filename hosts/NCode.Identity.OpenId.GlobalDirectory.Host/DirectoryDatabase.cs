@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -15,28 +16,28 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host;
 /// through these helpers, so the provider and the migrations assembly have one source of truth.
 /// </summary>
 /// <remarks>
-/// The directory's replicas connect through the <c>directory</c> connection string as a runtime role that owns nothing.
-/// The <c>migrate</c> command connects through the <c>directory-migration</c> connection string as the role that owns
-/// the schema, applies the migrations and grants the runtime role, named by <c>DirectoryDatabase:RuntimeRole</c>, the
-/// data access it needs.
+/// The directory's replicas and its <c>migrate</c> command both read the one connection, the <c>directory</c>
+/// connection string or the <c>DirectoryDatabase</c> parts, and each workload is given its own role's credentials: the
+/// replicas the runtime role's, which owns nothing, and the command the schema owner's. The command applies the
+/// migrations and grants the role that <c>DirectoryMigration:RuntimeRole</c> names the data access it needs.
 /// </remarks>
 internal static class DirectoryDatabase
 {
     /// <summary>
-    /// The name of the connection string the directory's replicas use, <c>directory</c>.
+    /// The name of the connection string that the replicas and the <c>migrate</c> command read, <c>directory</c>.
     /// </summary>
     public const string ConnectionStringName = "directory";
 
     /// <summary>
-    /// The name of the connection string the <c>migrate</c> command uses, <c>directory-migration</c>.
+    /// The name of the configuration section that holds the connection's parts, <c>DirectoryDatabase</c>.
     /// </summary>
-    public const string MigrationConnectionStringName = "directory-migration";
+    public const string SectionName = "DirectoryDatabase";
 
     /// <summary>
     /// The name of the configuration section that holds the runtime role the <c>migrate</c> command grants data access
-    /// to, <c>DirectoryDatabase</c>.
+    /// to, <c>DirectoryMigration</c>.
     /// </summary>
-    public const string SectionName = "DirectoryDatabase";
+    public const string MigrationSectionName = "DirectoryMigration";
 
     /// <summary>
     /// The assembly that owns the EF Core migrations for the <see cref="DirectoryDbContext"/>. The directory server
@@ -47,22 +48,25 @@ internal static class DirectoryDatabase
         ?? throw new InvalidOperationException("The directory host assembly has no name.");
 
     /// <summary>
-    /// Reads the connection string the host runs with: the <c>directory-migration</c> one for the <c>migrate</c>
-    /// command, and the <c>directory</c> one otherwise.
+    /// Reads the connection string the host runs with, from the <c>directory</c> connection string or the
+    /// <c>DirectoryDatabase</c> parts, exactly one of which is configured.
     /// </summary>
     /// <param name="configuration">The host's configuration.</param>
-    /// <param name="migrate">Whether the host runs the <c>migrate</c> command.</param>
     /// <returns>The connection string.</returns>
-    /// <exception cref="InvalidOperationException">The connection string is not configured.</exception>
-    public static string GetConnectionString(IConfiguration configuration, bool migrate)
+    /// <exception cref="InvalidOperationException">
+    /// Neither form is configured, both are, the section holds a key that is not one of the parts, a required part is
+    /// missing, or the port is not a number from 1 to 65535. The message names the configuration paths and never holds
+    /// a configured value.
+    /// </exception>
+    public static string GetConnectionString(IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var name = migrate ? MigrationConnectionStringName : ConnectionStringName;
-        var connectionString = configuration.GetConnectionString(name);
-        return string.IsNullOrWhiteSpace(connectionString)
-            ? throw new InvalidOperationException($"The connection string '{name}' is required.")
-            : connectionString;
+        return PostgresConnectionRules.Resolve(configuration, ConnectionStringName, SectionName)
+            ?? throw new InvalidOperationException(
+                "The directory's database is not configured; set the connection string "
+                    + "'ConnectionStrings:directory' or the 'DirectoryDatabase' parts."
+            );
     }
 
     /// <summary>
@@ -71,17 +75,17 @@ internal static class DirectoryDatabase
     /// <param name="configuration">The host's configuration.</param>
     /// <returns>The trimmed role name.</returns>
     /// <exception cref="InvalidOperationException">
-    /// The section holds a key that is not one of the <see cref="DirectoryDatabaseSettings"/> properties, or the role
+    /// The section holds a key that is not one of the <see cref="DirectoryMigrationSettings"/> properties, or the role
     /// is missing, empty or not a valid role name. The message names the key and never holds the value.
     /// </exception>
     public static string GetRuntimeRole(IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var settings = new DirectoryDatabaseSettings();
-        configuration.GetSection(SectionName).BindStrictly(settings);
+        var settings = new DirectoryMigrationSettings();
+        configuration.GetSection(MigrationSectionName).BindStrictly(settings);
 
-        var key = $"{SectionName}:{nameof(DirectoryDatabaseSettings.RuntimeRole)}";
+        var key = $"{MigrationSectionName}:{nameof(DirectoryMigrationSettings.RuntimeRole)}";
 
         return DatabaseRoleNameRules.RequireRuntimeRole(
             settings.RuntimeRole,
@@ -91,13 +95,48 @@ internal static class DirectoryDatabase
     }
 
     /// <summary>
-    /// Applies the directory's migrations, then grants <paramref name="runtimeRole"/> the data access it needs on every
-    /// table and sequence, in one transaction, so a failed grant leaves no half-granted schema.
+    /// Throws when <paramref name="appliedMigrations"/> holds an identifier that <paramref name="migrations"/> does
+    /// not, so the <c>migrate</c> command stops with a message that says how to recover instead of a provider error
+    /// from a <c>CREATE TABLE</c> over a schema another <c>InitialCreate</c> created.
+    /// </summary>
+    /// <param name="appliedMigrations">The migration identifiers the database's migrations history records.</param>
+    /// <param name="migrations">The migration identifiers this host holds.</param>
+    /// <exception cref="InvalidOperationException">
+    /// <paramref name="appliedMigrations"/> holds an identifier that <paramref name="migrations"/> does not.
+    /// </exception>
+    // See ADR-1180.
+    internal static void ThrowIfUnknownMigrationsApplied(
+        IEnumerable<string> appliedMigrations,
+        IEnumerable<string> migrations
+    )
+    {
+        var unknown = MigrationHistoryRules.FindUnknownMigrations(appliedMigrations, migrations);
+        if (unknown.Count == 0)
+            return;
+
+        throw new InvalidOperationException(
+            $"The directory database's DirectoryDbContext migrations history records {string.Join(", ", unknown)}, "
+                + "which this host does not hold, so its migrations cannot be applied to it. The directory's "
+                + "DbContext has one InitialCreate, which is re-scaffolded with a fresh identifier on each model "
+                + "change. Drop and recreate the directory's database, then run the migrate command again."
+        );
+    }
+
+    /// <summary>
+    /// Checks the database's migrations history, applies the directory's migrations, then grants
+    /// <paramref name="runtimeRole"/> the data access it needs on every table and sequence, in one transaction, so a
+    /// failed grant leaves no half-granted schema.
     /// </summary>
     /// <param name="services">The built host's services.</param>
     /// <param name="runtimeRole">The runtime role to grant data access to.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>A <see cref="ValueTask"/> that completes when the database is migrated and granted.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// The database's migrations history records a migration this host does not hold. Nothing is applied.
+    /// </exception>
+    [ExcludeFromCodeCoverage(
+        Justification = "Migrates a live database; DirectoryMigrateCommandEndToEndTests covers it."
+    )]
     public static async ValueTask MigrateAsync(
         IServiceProvider services,
         string runtimeRole,
@@ -108,6 +147,12 @@ internal static class DirectoryDatabase
 
         var dbContextFactory = services.GetRequiredService<IDbContextFactory<DirectoryDbContext>>();
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var appliedMigrations = await dbContext.Database.GetAppliedMigrationsAsync(
+            cancellationToken
+        );
+        ThrowIfUnknownMigrationsApplied(appliedMigrations, dbContext.Database.GetMigrations());
+
         await dbContext.Database.MigrateAsync(cancellationToken);
 
         var statements = DirectoryDatabaseGrants.CreateStatements(

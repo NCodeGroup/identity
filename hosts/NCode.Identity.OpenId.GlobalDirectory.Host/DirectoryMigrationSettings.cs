@@ -4,10 +4,10 @@
 namespace NCode.Identity.OpenId.GlobalDirectory.Host;
 
 /// <summary>
-/// The declared shape of the <c>DirectoryDatabase</c> configuration section. The section binds strictly, so a key that
+/// The declared shape of the <c>DirectoryMigration</c> configuration section. The section binds strictly, so a key that
 /// is not one of these properties stops the host.
 /// </summary>
-internal sealed class DirectoryDatabaseSettings
+internal sealed class DirectoryMigrationSettings
 {
     /// <summary>
     /// The name of the Postgres role that the directory's replicas connect as.

@@ -10,7 +10,9 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host;
 /// </summary>
 /// <remarks>
 /// The command is selected by an argument list that is exactly <see cref="CommandName"/>. It runs against the built
-/// host's services, never starts the hosted services or binds a port, and returns its exit code.
+/// host's services, never starts the hosted services or binds a port, and returns its exit code. It reads the one
+/// connection the replicas read, given the schema owner's credentials, and grants the runtime role that
+/// <c>DirectoryMigration:RuntimeRole</c> names.
 /// </remarks>
 internal static class DirectoryMigrateCommand
 {
@@ -50,13 +52,16 @@ internal static class DirectoryMigrateCommand
     /// grants the runtime role the data access the replicas need.
     /// </summary>
     /// <param name="services">The services of the built host.</param>
-    /// <param name="configuration">The host's configuration, which names the runtime role.</param>
+    /// <param name="configuration">
+    /// The host's configuration, which names the runtime role in <c>DirectoryMigration:RuntimeRole</c>.
+    /// </param>
     /// <param name="cancellationToken">
     /// The <see cref="CancellationToken"/> that may be used to cancel the command.
     /// </param>
     /// <returns>The <see cref="ValueTask{TResult}"/> that represents the command, containing its exit code.</returns>
     /// <exception cref="InvalidOperationException">
-    /// The runtime role is not configured or is not a valid role name.
+    /// The runtime role (<c>DirectoryMigration:RuntimeRole</c>) is not configured or is not a valid role name, or the
+    /// database's migrations history records a migration this host does not hold.
     /// </exception>
     public static async ValueTask<int> RunAsync(
         IServiceProvider services,
