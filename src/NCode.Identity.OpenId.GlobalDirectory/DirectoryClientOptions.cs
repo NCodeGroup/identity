@@ -9,7 +9,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// <summary>
 /// Configures how a cell reaches the global directory service. Bound from the <c>Directory</c> configuration section.
 /// The cell authenticates as a confidential client of the control-plane cell, whose issuer is
-/// <see cref="CellOptions.ControlPlane"/>, with a <c>private_key_jwt</c> assertion signed by the named key ring.
+/// <see cref="ControlPlaneOptions.Issuer"/>, with a <c>private_key_jwt</c> assertion signed by the named key ring.
 /// </summary>
 [PublicAPI]
 [ExcludeFromCodeCoverage]

@@ -53,7 +53,8 @@ public sealed class CellOptions
     public bool IsControlPlane { get; set; }
 
     /// <summary>
-    /// Gets or sets the control-plane cell that a cell that is not the control plane reaches.
+    /// Gets or sets the settings, bound from the <c>Cell:ControlPlane</c> section, that identify the control-plane
+    /// cell to a cell that is not the control plane or that sets <c>Directory:Url</c>.
     /// </summary>
     public ControlPlaneOptions ControlPlane { get; set; } = new();
 }

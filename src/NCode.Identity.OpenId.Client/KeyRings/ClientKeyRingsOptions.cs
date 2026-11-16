@@ -5,7 +5,8 @@ namespace NCode.Identity.OpenId.Client.KeyRings;
 
 /// <summary>
 /// Holds the named client key rings that <c>AddOpenIdClientKeyRings</c> binds from a configuration section, and the
-/// path of that section, which the errors about a key ring name.
+/// path of that section, which begins every validation failure and appears in the error about a key ring that is not
+/// loaded.
 /// </summary>
 // See ADR-1439.
 internal sealed class ClientKeyRingsOptions
