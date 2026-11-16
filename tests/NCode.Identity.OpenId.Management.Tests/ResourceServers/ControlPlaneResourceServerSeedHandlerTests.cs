@@ -1,8 +1,10 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Text.Json;
 using Microsoft.Extensions.Options;
 using NCode.Identity.Cryptography;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -112,6 +114,50 @@ public sealed class ControlPlaneResourceServerSeedHandlerTests : IDisposable
         var controlPlaneScope = Assert.Single(controlPlane.Scopes);
         Assert.Equal(GlobalDirectoryProtocol.ControlPlaneScope, controlPlaneScope.Value);
         Assert.True(controlPlaneScope.IsSystem);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenControlPlaneRootAndAbsent_SeedsBothWithEmptyObjectSettings()
+    {
+        var manager = MockRepository.Create<IStoreManager>();
+        var store = MockRepository.Create<IResourceServerStore>();
+        var crypto = MockRepository.Create<ICryptoService>();
+
+        manager.Setup(x => x.GetStore<IResourceServerStore>()).Returns(store.Object).Verifiable();
+        foreach (var identifier in new[] { DirectoryIdentifier, ControlPlaneIdentifier })
+        {
+            store
+                .Setup(x =>
+                    x.GetByIdentifierOrDefaultAsync(identifier, It.IsAny<CancellationToken>())
+                )
+                .ReturnsAsync((PersistedResourceServer?)null)
+                .Verifiable();
+        }
+        crypto
+            .Setup(x => x.GenerateKey(16, BinaryEncodings.Base64Url))
+            .Returns("generated-rs-id")
+            .Verifiable();
+
+        var captured = new List<PersistedResourceServer>();
+        store
+            .Setup(x =>
+                x.AddAsync(It.IsAny<PersistedResourceServer>(), It.IsAny<CancellationToken>())
+            )
+            .Callback((PersistedResourceServer rs, CancellationToken _) => captured.Add(rs))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+        var handler = CreateHandler(crypto.Object, isControlPlane: true);
+        await handler.HandleAsync(
+            CreateCommand(manager.Object, TenantPlane.Root),
+            CancellationToken.None
+        );
+
+        Assert.Equal(2, captured.Count);
+        Assert.All(
+            captured,
+            rs => Assert.True(JsonElement.DeepEquals(JsonElements.EmptyObject, rs.Settings.Value))
+        );
     }
 
     [Fact]

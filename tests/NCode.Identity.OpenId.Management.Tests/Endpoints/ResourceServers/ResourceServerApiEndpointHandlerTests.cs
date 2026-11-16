@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Logging.Abstractions;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Events.Audit;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Authentication.Clients;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Environments;
@@ -569,6 +570,58 @@ public sealed class ResourceServerApiEndpointHandlerTests : IDisposable
         );
 
         AssertSettingsValidationProblem(result);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenTheSettingsAreNull_StoresEmptyObjectSettings()
+    {
+        SetupCreatorAssignment();
+        SetupResourceServerChangedAudit();
+        SetupValidSettings();
+        MockCryptoService
+            .Setup(x => x.GenerateKey(16, BinaryEncodings.Base64Url))
+            .Returns("generated-rs-id")
+            .Verifiable();
+        SetupStore();
+        SetupAuthorizeCreate(error: null);
+        MockValidator
+            .Setup(x =>
+                x.ValidateCreateAsync(
+                    It.IsAny<PersistedResourceServer>(),
+                    MockStoreManager.Object,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((ManagementError?)null)
+            .Verifiable();
+        PersistedResourceServer? added = null;
+        MockStore
+            .Setup(x =>
+                x.AddAsync(It.IsAny<PersistedResourceServer>(), It.IsAny<CancellationToken>())
+            )
+            .Callback(
+                (PersistedResourceServer resourceServer, CancellationToken _) =>
+                    added = resourceServer
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+        var request = new CreateResourceServerRequest
+        {
+            Identifier = "https://api.example.com",
+            Name = "Example API",
+            IsDisabled = false,
+            Settings = JsonElement.Parse("null"),
+        };
+
+        await Handler.CreateAsync(CreateHttpContext(), TenantId, request, CancellationToken.None);
+
+        Assert.NotNull(added);
+        Assert.True(JsonElement.DeepEquals(JsonElements.EmptyObject, added.Settings.Value));
     }
 
     [Fact]

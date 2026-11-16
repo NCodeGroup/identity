@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using NCode.Collections.Providers;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Environments;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -133,7 +134,7 @@ public class DefaultOpenIdPlatformFactoryTests : BaseTests
             Settings = new PersistedPlatformSettings
             {
                 ConcurrencyToken = "settings-token",
-                Value = JsonSerializer.SerializeToElement(null, typeof(object)),
+                Value = JsonElements.EmptyObject,
             },
         };
 
@@ -292,6 +293,20 @@ public class DefaultOpenIdPlatformFactoryTests : BaseTests
                 CancellationToken.None
             )
         );
+    }
+
+    #endregion
+
+    #region CreateEmptyPersistedPlatform Tests
+
+    [Fact]
+    public void CreateEmptyPersistedPlatform_WhenCalled_HasEmptyObjectSettings()
+    {
+        var (factory, _) = CreateStoreFactory();
+
+        var platform = factory.CreateEmptyPersistedPlatform();
+
+        Assert.True(JsonElement.DeepEquals(JsonElements.EmptyObject, platform.Settings.Value));
     }
 
     #endregion

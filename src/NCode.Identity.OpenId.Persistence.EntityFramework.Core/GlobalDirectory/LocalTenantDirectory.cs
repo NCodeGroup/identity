@@ -486,15 +486,16 @@ internal sealed class LocalTenantDirectory(
     /// </summary>
     /// <param name="settings">The settings document.</param>
     /// <param name="maxTenants">The limit, or <c>null</c> when the document has no <c>max_tenants</c> setting.</param>
-    /// <returns><c>true</c> when the setting is absent or a non-negative integer; otherwise, <c>false</c> because the setting cannot be read.</returns>
+    /// <returns>
+    /// <c>true</c> when the setting is absent or a non-negative integer; otherwise, <c>false</c> because the document
+    /// is not a JSON object or the setting cannot be read.
+    /// </returns>
     private static bool TryReadMaxTenants(JsonElement settings, out int? maxTenants)
     {
         maxTenants = null;
-        if (settings.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
-        {
-            return true;
-        }
 
+        // A cell stores every settings document as a JSON object, the empty object when it holds no settings, so
+        // settings of any other kind, null included, can name no limit: they are unreadable, never unlimited.
         if (settings.ValueKind != JsonValueKind.Object)
         {
             return false;

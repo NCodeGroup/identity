@@ -1,9 +1,9 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Text.Json;
 using Microsoft.Extensions.Options;
 using NCode.Identity.Cryptography;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -98,7 +98,7 @@ internal sealed class ControlPlaneResourceServerSeedHandler(
             {
                 TenantId = context.TenantId,
                 ResourceServerId = resourceServerId,
-                Value = JsonSerializer.SerializeToElement(null, typeof(object)),
+                Value = JsonElements.EmptyObject,
             },
             Scopes =
             [

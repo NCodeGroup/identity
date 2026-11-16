@@ -18,6 +18,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NCode.Buffers;
 using NCode.Identity.AspNetCore;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Accounts;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
@@ -1400,7 +1401,7 @@ public class HostApplicationFactory : WebApplicationFactory<HostApiMarker>
             TenantId = tenantId,
             TeamId = TeamId,
             Issuer = TestServerIssuer,
-            Settings = System.Text.Json.JsonSerializer.SerializeToElement(null, typeof(object)),
+            Settings = JsonElements.EmptyObject,
         }.Build();
 
     /// <inheritdoc />

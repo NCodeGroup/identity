@@ -1,9 +1,9 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Logging;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -256,7 +256,7 @@ internal sealed class DefaultTenantProvisioner(
         {
             TenantId = tenantId,
             ConcurrencyToken = Guid.NewGuid().ToString("N"),
-            Value = JsonSerializer.SerializeToElement(null, typeof(object)),
+            Value = JsonElements.EmptyObject,
         };
 
         var secrets = new PersistedTenantSecrets
