@@ -20,7 +20,7 @@ internal sealed class ClientKeyRingsOptionsValidator(IHostEnvironment environmen
     /// <summary>
     /// Checks one remote key of a key ring: it has an id, its provider is a valid remote key provider name, its key
     /// id, algorithm and secret type are not blank, and its key size is positive. Each failure is named
-    /// <c>{keyRingKey}:RemoteKeys:{id}</c>.
+    /// <c>{keyRingKey}:RemoteKeys:{id}</c>, and a refused provider name or key size is stated in its failure.
     /// </summary>
     /// <param name="keyRingKey">The configuration path of the key ring that holds the remote key.</param>
     /// <param name="id">The id of the remote key within the key ring.</param>
@@ -41,10 +41,12 @@ internal sealed class ClientKeyRingsOptionsValidator(IHostEnvironment environmen
 
         var key = $"{keyRingKey}:RemoteKeys:{id}";
 
-        if (!RemoteKeyReference.IsValidProviderName(remoteKey?.Provider))
+        var provider = remoteKey?.Provider;
+        if (!RemoteKeyReference.IsValidProviderName(provider))
         {
+            var actual = provider is null ? "it is not set" : $"it is '{provider}'";
             failures.Add(
-                $"{key}:Provider must name a remote key provider: lowercase letters and digits in groups separated by single hyphens."
+                $"{key}:Provider must name a remote key provider: lowercase letters and digits in groups separated by single hyphens; {actual}."
             );
         }
 
@@ -58,7 +60,10 @@ internal sealed class ClientKeyRingsOptionsValidator(IHostEnvironment environmen
             failures.Add($"{key}:SecretType must not be blank.");
 
         if (remoteKey is null || remoteKey.KeySizeBits <= 0)
-            failures.Add($"{key}:KeySizeBits must be positive.");
+        {
+            var actual = remoteKey is null ? "it is not set" : $"it is {remoteKey.KeySizeBits}";
+            failures.Add($"{key}:KeySizeBits must be positive; {actual}.");
+        }
     }
 
     private IHostEnvironment Environment { get; } = environment;

@@ -156,10 +156,13 @@ public sealed class ClientKeyRingsOptionsValidatorTests : BaseTests
     }
 
     [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("AWS-KMS")]
-    public void Validate_WhenRemoteKeyProviderIsInvalid_Fails(string? provider)
+    [InlineData(null, "it is not set")]
+    [InlineData("", "it is ''")]
+    [InlineData("AWS-KMS", "it is 'AWS-KMS'")]
+    public void Validate_WhenRemoteKeyProviderIsInvalid_FailsNamingTheValue(
+        string? provider,
+        string statement
+    )
     {
         var remoteKey = CreateValidRemoteKey();
         remoteKey.Provider = provider;
@@ -174,7 +177,7 @@ public sealed class ClientKeyRingsOptionsValidatorTests : BaseTests
         Assert.True(result.Failed);
         Assert.Equal(
             [
-                $"{SectionPath}:client:RemoteKeys:kms-sig:Provider must name a remote key provider: lowercase letters and digits in groups separated by single hyphens.",
+                $"{SectionPath}:client:RemoteKeys:kms-sig:Provider must name a remote key provider: lowercase letters and digits in groups separated by single hyphens; {statement}.",
             ],
             result.Failures ?? []
         );
@@ -200,7 +203,55 @@ public sealed class ClientKeyRingsOptionsValidatorTests : BaseTests
                 $"{SectionPath}:client:RemoteKeys:kms-sig:KeyId must not be blank.",
                 $"{SectionPath}:client:RemoteKeys:kms-sig:Algorithm must not be blank.",
                 $"{SectionPath}:client:RemoteKeys:kms-sig:SecretType must not be blank.",
-                $"{SectionPath}:client:RemoteKeys:kms-sig:KeySizeBits must be positive.",
+                $"{SectionPath}:client:RemoteKeys:kms-sig:KeySizeBits must be positive; it is 0.",
+            ],
+            result.Failures ?? []
+        );
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-256)]
+    public void Validate_WhenRemoteKeySizeIsNotPositive_FailsNamingTheValue(int keySizeBits)
+    {
+        var remoteKey = CreateValidRemoteKey();
+        remoteKey.KeySizeBits = keySizeBits;
+        var options = CreateOptions();
+        options.KeyRings["client"] = new ClientKeyRingOptions
+        {
+            RemoteKeys = { ["kms-sig"] = remoteKey },
+        };
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Equal(
+            [
+                $"{SectionPath}:client:RemoteKeys:kms-sig:KeySizeBits must be positive; it is {keySizeBits}.",
+            ],
+            result.Failures ?? []
+        );
+    }
+
+    [Fact]
+    public void Validate_WhenRemoteKeySectionIsEmpty_FailsForEachField()
+    {
+        var options = CreateOptions();
+        options.KeyRings["client"] = new ClientKeyRingOptions
+        {
+            RemoteKeys = { ["kms-sig"] = null! },
+        };
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Equal(
+            [
+                $"{SectionPath}:client:RemoteKeys:kms-sig:Provider must name a remote key provider: lowercase letters and digits in groups separated by single hyphens; it is not set.",
+                $"{SectionPath}:client:RemoteKeys:kms-sig:KeyId must not be blank.",
+                $"{SectionPath}:client:RemoteKeys:kms-sig:Algorithm must not be blank.",
+                $"{SectionPath}:client:RemoteKeys:kms-sig:SecretType must not be blank.",
+                $"{SectionPath}:client:RemoteKeys:kms-sig:KeySizeBits must be positive; it is not set.",
             ],
             result.Failures ?? []
         );
