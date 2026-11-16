@@ -8,9 +8,9 @@ using JetBrains.Annotations;
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
-/// Contains the rule for the form of a cell's name and its region: 1 to <see cref="MaxLabelLength"/> lowercase
-/// letters, digits or hyphens that starts with a letter and ends with a letter or digit. A cell's machine client
-/// identifier is <see cref="GlobalDirectoryProtocol.CellClientIdPrefix"/> followed by its name.
+/// Contains the rule for the form of a cell's name and its region: 1 to <see cref="MaxLabelLength"/> lowercase letters,
+/// digits or hyphens that starts with a letter and ends with a letter or digit. A cell's machine client identifier is
+/// <see cref="GlobalDirectoryProtocol.CellClientIdPrefix"/> followed by its name.
 /// </summary>
 [PublicAPI]
 public static partial class CellLabelRules

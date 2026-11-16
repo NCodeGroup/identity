@@ -7,9 +7,8 @@ using JetBrains.Annotations;
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
-/// Represents the outcome of offering a tenant to another cell through
-/// <see cref="ITenantDirectory.OfferMoveAsync"/>: the offer was recorded, or it conflicts with the tenant's placement
-/// or with the cells.
+/// Represents the outcome of offering a tenant to another cell through <see cref="ITenantDirectory.OfferMoveAsync"/>:
+/// the offer was recorded, or it conflicts with the tenant's placement or with the cells.
 /// </summary>
 [PublicAPI]
 [ExcludeFromCodeCoverage]

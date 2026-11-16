@@ -4,9 +4,9 @@
 namespace NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
 
 /// <summary>
-/// Writes the tenant changes that a cell makes to the directory, authorizing the calling cell against the stored
-/// tenant record in the transaction that writes it. A cell is authorized for a tenant when it holds the tenant or is
-/// the control-plane cell; for a tenant with no record, only the control-plane cell is authorized.
+/// Writes the tenant changes that a cell makes to the directory, authorizing the calling cell against the stored tenant
+/// record in the transaction that writes it. A cell is authorized for a tenant when it holds the tenant or is the
+/// control-plane cell; for a tenant with no record, only the control-plane cell is authorized.
 /// </summary>
 // See ADR-1411.
 internal interface IDirectoryTenantWriter

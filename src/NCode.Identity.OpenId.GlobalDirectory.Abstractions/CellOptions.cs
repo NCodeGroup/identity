@@ -26,8 +26,8 @@ public sealed class CellOptions
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the region the cell runs in. Tenants of one region can move between its cells.
-    /// It has the form <see cref="CellLabelRules"/> describes.
+    /// Gets or sets the region the cell runs in. Tenants of one region can move between its cells. It has the form
+    /// <see cref="CellLabelRules"/> describes.
     /// </summary>
     public string Region { get; set; } = string.Empty;
 
@@ -53,8 +53,8 @@ public sealed class CellOptions
     public bool IsControlPlane { get; set; }
 
     /// <summary>
-    /// Gets or sets the settings, bound from the <c>Cell:ControlPlane</c> section, that identify the control-plane
-    /// cell to a cell that is not the control plane or that sets <c>Directory:Url</c>.
+    /// Gets or sets the settings, bound from the <c>Cell:ControlPlane</c> section, that identify the control-plane cell
+    /// to a cell that is not the control plane or that sets <c>Directory:Url</c>.
     /// </summary>
     public ControlPlaneOptions ControlPlane { get; set; } = new();
 }

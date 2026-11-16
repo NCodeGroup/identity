@@ -16,8 +16,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 
 /// <summary>
 /// Maps the global directory API under <c>/directory/v1/</c>: the tenant, team, platform and cell routes that the
-/// remote adapters of <c>NCode.Identity.OpenId.GlobalDirectory</c> call. Every route requires a bearer access token
-/// for the audience <see cref="GlobalDirectoryProtocol.DirectoryAudience"/> with the scope
+/// remote adapters of <c>NCode.Identity.OpenId.GlobalDirectory</c> call. Every route requires a bearer access token for
+/// the audience <see cref="GlobalDirectoryProtocol.DirectoryAudience"/> with the scope
 /// <see cref="GlobalDirectoryProtocol.DirectoryScope"/>, checked before the route runs, its bodies are confidential so
 /// HTTP logging never writes them, and every failure, a lookup that finds nothing included, is an RFC 9457 problem
 /// document: a missing resource is a <c>404 Not Found</c> problem, never an empty body. Every write is bound to the
@@ -97,9 +97,9 @@ public static class DirectoryEndpoints
         $"A team identifier is at most {DirectoryLimits.MaxIdentifierLength} characters.";
 
     /// <summary>
-    /// Maps the tenant routes: reserving, placing, releasing, moving, retiring and changing the issuer of a tenant,
-    /// and reading a placement, a retired identifier or a retired issuer. Each route declares the problem documents
-    /// that it can answer.
+    /// Maps the tenant routes: reserving, placing, releasing, moving, retiring and changing the issuer of a tenant, and
+    /// reading a placement, a retired identifier or a retired issuer. Each route declares the problem documents that it
+    /// can answer.
     /// </summary>
     /// <param name="group">The <see cref="RouteGroupBuilder"/> of <c>/directory/v1/tenants</c>.</param>
     private static void MapTenants(RouteGroupBuilder group)
@@ -159,8 +159,8 @@ public static class DirectoryEndpoints
     }
 
     /// <summary>
-    /// Maps the team routes: reserving, publishing, releasing and retiring a team, reading a team document or a
-    /// retired identifier, and listing the change feed. Each route declares the problem documents that it can answer.
+    /// Maps the team routes: reserving, publishing, releasing and retiring a team, reading a team document or a retired
+    /// identifier, and listing the change feed. Each route declares the problem documents that it can answer.
     /// </summary>
     /// <param name="group">The <see cref="RouteGroupBuilder"/> of <c>/directory/v1/teams</c>.</param>
     private static void MapTeams(RouteGroupBuilder group)
@@ -237,9 +237,9 @@ public static class DirectoryEndpoints
     /// <returns>
     /// <c>200 OK</c> when the tenant is reserved; <c>400 Bad Request</c> when a field is blank, the cell is not a
     /// <see cref="CellLabelRules"/> label, the tenant, its issuer or its team is longer than the directory stores, or
-    /// the issuer is not a service URL that <see cref="AbsoluteUri.TryParseServiceUrl"/> accepts;
-    /// <c>403 Forbidden</c> when the cell is not the caller; <c>409 Conflict</c> when the identifier or the issuer is
-    /// taken, the team has no record, or a <c>max_tenants</c> limit refuses the reservation or cannot be read.
+    /// the issuer is not a service URL that <see cref="AbsoluteUri.TryParseServiceUrl"/> accepts; <c>403 Forbidden</c>
+    /// when the cell is not the caller; <c>409 Conflict</c> when the identifier or the issuer is taken, the team has no
+    /// record, or a <c>max_tenants</c> limit refuses the reservation or cannot be read.
     /// </returns>
     private static async ValueTask<IResult> ReserveTenantAsync(
         TenantReservation reservation,
@@ -290,9 +290,8 @@ public static class DirectoryEndpoints
     /// <returns>
     /// <c>200 OK</c> when the tenant is placed; <c>400 Bad Request</c> when the tenant or its issuer is blank or longer
     /// than the directory stores, the issuer is not a service URL that <see cref="AbsoluteUri.TryParseServiceUrl"/>
-    /// accepts, or the cell or its region is not a <see cref="CellLabelRules"/> label;
-    /// <c>403 Forbidden</c> when the cell is not the caller; <c>409 Conflict</c> when the identifier or the issuer
-    /// belongs to another tenant.
+    /// accepts, or the cell or its region is not a <see cref="CellLabelRules"/> label; <c>403 Forbidden</c> when the
+    /// cell is not the caller; <c>409 Conflict</c> when the identifier or the issuer belongs to another tenant.
     /// </returns>
     private static async ValueTask<IResult> PlaceTenantAsync(
         TenantPlacement placement,
@@ -399,9 +398,8 @@ public static class DirectoryEndpoints
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
     /// <c>204 No Content</c> when the offer is recorded; <c>400 Bad Request</c> when the target cell is missing or is
-    /// not a <see cref="CellLabelRules"/> label;
-    /// <c>403 Forbidden</c> when the tenant has no placement or the caller does not hold it; <c>409 Conflict</c> when
-    /// the directory refuses the offer.
+    /// not a <see cref="CellLabelRules"/> label; <c>403 Forbidden</c> when the tenant has no placement or the caller
+    /// does not hold it; <c>409 Conflict</c> when the directory refuses the offer.
     /// </returns>
     private static async ValueTask<IResult> OfferTenantMoveAsync(
         string tenantId,
@@ -863,8 +861,8 @@ public static class DirectoryEndpoints
     /// <c>200 OK</c> when the cell is registered; <c>400 Bad Request</c> when the kind or the management URL is blank
     /// or longer than the directory stores, the management URL is not an absolute <c>https</c> URL (or an <c>http</c>
     /// URL in local development) without user information, a query or a fragment, the name or the region is not a
-    /// <see cref="CellLabelRules"/> label, or the descriptor names a cell other than the route's;
-    /// <c>403 Forbidden</c> when the cell is not the caller or claims to be the control plane without being it.
+    /// <see cref="CellLabelRules"/> label, or the descriptor names a cell other than the route's; <c>403 Forbidden</c>
+    /// when the cell is not the caller or claims to be the control plane without being it.
     /// </returns>
     private static async ValueTask<IResult> RegisterCellAsync(
         string name,
@@ -1001,8 +999,8 @@ public static class DirectoryEndpoints
     /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated caller.</param>
     /// <param name="options">The <see cref="DirectoryServerOptions"/> that name the control-plane cell.</param>
     /// <returns>
-    /// <c>null</c> when the caller is the control-plane cell and the write proceeds; otherwise the
-    /// <c>403 Forbidden</c> problem.
+    /// <c>null</c> when the caller is the control-plane cell and the write proceeds; otherwise the <c>403 Forbidden</c>
+    /// problem.
     /// </returns>
     private static IResult? ForbidUnlessControlPlane(
         HttpContext httpContext,
@@ -1030,8 +1028,8 @@ public static class DirectoryEndpoints
     }
 
     /// <summary>
-    /// Refuses a team identifier that a request body names, such as the team of a tenant reservation or the parent
-    /// of a team document, when it is blank or longer than the directory stores. A body that names no team passes.
+    /// Refuses a team identifier that a request body names, such as the team of a tenant reservation or the parent of a
+    /// team document, when it is blank or longer than the directory stores. A body that names no team passes.
     /// </summary>
     /// <param name="teamId">The team identifier from the request body, or <c>null</c> when it names none.</param>
     /// <returns>
@@ -1103,8 +1101,8 @@ public static class DirectoryEndpoints
     /// </summary>
     /// <param name="result">The <see cref="ReservationResult"/> of the directory.</param>
     /// <returns>
-    /// <c>200 OK</c> when the reservation is made; otherwise the <c>409 Conflict</c> problem that carries the
-    /// conflict detail.
+    /// <c>200 OK</c> when the reservation is made; otherwise the <c>409 Conflict</c> problem that carries the conflict
+    /// detail.
     /// </returns>
     private static IResult ToResult(ReservationResult result) =>
         result.IsReserved ? Results.Ok() : Conflict(result.ConflictDetail);

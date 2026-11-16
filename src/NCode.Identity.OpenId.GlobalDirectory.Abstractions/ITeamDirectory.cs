@@ -14,8 +14,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 public interface ITeamDirectory
 {
     /// <summary>
-    /// Reserves the identifier of a team about to be created. The reservation is refused when the identifier is held
-    /// or retired.
+    /// Reserves the identifier of a team about to be created. The reservation is refused when the identifier is held or
+    /// retired.
     /// </summary>
     /// <param name="teamId">The identifier of the team.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>

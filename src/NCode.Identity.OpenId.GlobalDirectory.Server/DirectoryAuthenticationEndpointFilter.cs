@@ -16,9 +16,9 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 /// The authentication endpoint filter of the directory API. It validates the bearer access token of a request with
 /// <see cref="IIssuerAccessTokenValidator"/> against <see cref="DirectoryServerOptions.Issuer"/> and the audience
 /// <see cref="GlobalDirectoryProtocol.DirectoryAudience"/>, and requires the scope
-/// <see cref="GlobalDirectoryProtocol.DirectoryScope"/>. A request that lacks a valid token with the scope
-/// is answered <c>401 Unauthorized</c>, and a request whose issuer cannot be reached is answered
-/// <c>503 Service Unavailable</c> through <see cref="RetryAfterProblem"/>, with the wait of
+/// <see cref="GlobalDirectoryProtocol.DirectoryScope"/>. A request that lacks a valid token with the scope is answered
+/// <c>401 Unauthorized</c>, and a request whose issuer cannot be reached is answered <c>503 Service Unavailable</c>
+/// through <see cref="RetryAfterProblem"/>, with the wait of
 /// <see cref="GlobalDirectoryProtocol.UnavailableRetryAfterSeconds"/> in <c>Retry-After</c> and in the problem's
 /// <c>retryAfterSeconds</c>, never allowed. A token bound to a key (one that carries a <c>cnf</c> claim) is answered
 /// <c>401 Unauthorized</c>, because the directory checks no proof of possession. A request that passes carries a

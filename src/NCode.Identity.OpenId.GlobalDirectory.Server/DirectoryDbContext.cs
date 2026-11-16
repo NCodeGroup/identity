@@ -9,8 +9,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 /// <summary>
 /// Provides the entity framework <see cref="DbContext"/> of the global directory server: the cells, the tenant and team
 /// identifiers with their placements, the offers to move a tenant, the published team and platform documents, the
-/// retired issuers and the change
-/// sequence that the cells mirror. The directory holds no personal data.
+/// retired issuers and the change sequence that the cells mirror. The directory holds no personal data.
 /// </summary>
 /// <param name="options">The <see cref="DbContextOptions{TContext}"/> of the context.</param>
 public sealed class DirectoryDbContext(DbContextOptions<DirectoryDbContext> options)

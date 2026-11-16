@@ -17,17 +17,17 @@ using NCode.Identity.Secrets.Persistence.Protection;
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
-/// Provides the default implementation of <see cref="ITeamDocumentApplier"/>. It mirrors a published team document
-/// into the team's row, or removes the row of a retired team, then sends a <see cref="TeamChangedCommand"/> so caches
-/// evict the team. A team that tenants or teams still name is disabled instead of removed, because the cell refuses to
-/// delete a team that something names. The root key that the document holds for the cell's region is mirrored into the
-/// team's owner root key, which rewraps the master keys of the team's tenants in this cell, unless the team is
-/// disabled: a disabled team keeps the owner root key it has, and the document that enables it again mirrors its key.
-/// A removed team's owner root key is removed, and a team disabled because something names it keeps its key; a
-/// removed team's key that fails to go is removed by the next reconcile. Reconciling brings the owner root key of
-/// every enabled mirrored team to the reference its row holds for the region, which applies a key that failed its
-/// probe or its rotation cooldown once it can be, and removes the owner root key of a team that has no row. The team
-/// row is committed before the command and the root key follow, each in a step of its own on a token bounded by
+/// Provides the default implementation of <see cref="ITeamDocumentApplier"/>. It mirrors a published team document into
+/// the team's row, or removes the row of a retired team, then sends a <see cref="TeamChangedCommand"/> so caches evict
+/// the team. A team that tenants or teams still name is disabled instead of removed, because the cell refuses to delete
+/// a team that something names. The root key that the document holds for the cell's region is mirrored into the team's
+/// owner root key, which rewraps the master keys of the team's tenants in this cell, unless the team is disabled: a
+/// disabled team keeps the owner root key it has, and the document that enables it again mirrors its key. A removed
+/// team's owner root key is removed, and a team disabled because something names it keeps its key; a removed team's key
+/// that fails to go is removed by the next reconcile. Reconciling brings the owner root key of every enabled mirrored
+/// team to the reference its row holds for the region, which applies a key that failed its probe or its rotation
+/// cooldown once it can be, and removes the owner root key of a team that has no row. The team row is committed before
+/// the command and the root key follow, each in a step of its own on a token bounded by
 /// <see cref="PostCommitWork.Timeout"/>, so the caller's cancellation drops neither, and a command or a root key that
 /// fails or that the bound cuts is logged and never fails the committed write.
 /// </summary>
@@ -260,9 +260,9 @@ internal sealed class DefaultTeamDocumentApplier(
     /// region, as <see cref="ApplyRootKeyAsync"/> does, in one step on a token of its own bounded by
     /// <see cref="PostCommitWork.Timeout"/>, because the mirror follows the committed team row. A key that fails, or
     /// that the bound cuts, is logged and left unapplied; the team row and its command are already applied, and the
-    /// next document the directory publishes for the team, or the next reconcile, retries the key, and a removed
-    /// team's key that fails to go is removed by the next reconcile. The caller's token never reaches the mirror; it
-    /// only decides whether a cancellation is the caller's own, which propagates.
+    /// next document the directory publishes for the team, or the next reconcile, retries the key, and a removed team's
+    /// key that fails to go is removed by the next reconcile. The caller's token never reaches the mirror; it only
+    /// decides whether a cancellation is the caller's own, which propagates.
     /// </summary>
     /// <param name="teamId">The identifier of the team whose owner root key is mirrored.</param>
     /// <param name="reference">The root key reference for the region, or <c>null</c> when the team has none.</param>
@@ -302,8 +302,8 @@ internal sealed class DefaultTeamDocumentApplier(
 
     /// <summary>
     /// Brings the owner root key of a team to the reference that the team's document holds for the cell's region: it
-    /// removes the key when the document holds none, sets it when it differs from the key in place, and leaves it
-    /// when it is the same. A failure propagates to the caller.
+    /// removes the key when the document holds none, sets it when it differs from the key in place, and leaves it when
+    /// it is the same. A failure propagates to the caller.
     /// </summary>
     /// <param name="owner">The normalized <see cref="SecretOwner"/> of the team.</param>
     /// <param name="reference">The root key reference for the region, or <c>null</c> when the team has none.</param>
@@ -346,8 +346,8 @@ internal sealed class DefaultTeamDocumentApplier(
     }
 
     /// <summary>
-    /// Runs the work of one team's owner root key. A failure is logged and never fails the committed write or stops
-    /// the next team; a caller's cancellation propagates.
+    /// Runs the work of one team's owner root key. A failure is logged and never fails the committed write or stops the
+    /// next team; a caller's cancellation propagates.
     /// </summary>
     /// <param name="teamId">The identifier of the team whose owner root key the work changes.</param>
     /// <param name="work">The work to run.</param>

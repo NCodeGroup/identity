@@ -6,8 +6,8 @@ using JetBrains.Annotations;
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
-/// Contains the known values of <see cref="CellOptions.Kind"/>. The vocabulary is open: a deployment may name any
-/// other kind, and code compares kinds ordinally without assuming these are all of them.
+/// Contains the known values of <see cref="CellOptions.Kind"/>. The vocabulary is open: a deployment may name any other
+/// kind, and code compares kinds ordinally without assuming these are all of them.
 /// </summary>
 [PublicAPI]
 public static class CellKinds

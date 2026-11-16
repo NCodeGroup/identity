@@ -8,8 +8,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
 /// Represents the outcome of moving a tenant's placement between cells through
-/// <see cref="ITenantDirectory.MoveAsync"/>: the placement moved, or the move conflicts with the tenant's placement
-/// or with the cells.
+/// <see cref="ITenantDirectory.MoveAsync"/>: the placement moved, or the move conflicts with the tenant's placement or
+/// with the cells.
 /// </summary>
 [PublicAPI]
 [ExcludeFromCodeCoverage]
@@ -26,8 +26,7 @@ public sealed class MoveResult
     public string? ConflictDetail { get; }
 
     /// <summary>
-    /// Gets a value indicating whether the placement moved, which is when <see cref="ConflictDetail"/> is
-    /// <c>null</c>.
+    /// Gets a value indicating whether the placement moved, which is when <see cref="ConflictDetail"/> is <c>null</c>.
     /// </summary>
     [MemberNotNullWhen(false, nameof(ConflictDetail))]
     public bool IsMoved => ConflictDetail is null;

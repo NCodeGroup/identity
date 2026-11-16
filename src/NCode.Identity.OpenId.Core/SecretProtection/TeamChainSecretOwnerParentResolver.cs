@@ -181,8 +181,8 @@ internal sealed class TeamChainSecretOwnerParentResolver(
     /// Gets a team and the teams above it, from the team cache when the team is cached and from the team store when it
     /// is not.
     /// </summary>
-    /// <param name="storeManager">The store manager to read the team with when it is not cached, or <c>null</c> to
-    /// read it with one that is opened for that read and disposed after it.</param>
+    /// <param name="storeManager">The store manager to read the team with when it is not cached, or <c>null</c> to read
+    /// it with one that is opened for that read and disposed after it.</param>
     /// <param name="teamId">The identifier of the team.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The team's identifier followed by the identifiers of the teams above it, nearest first; empty when the

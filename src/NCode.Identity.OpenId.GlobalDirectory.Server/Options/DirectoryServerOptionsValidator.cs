@@ -11,8 +11,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server.Options;
 /// <see cref="DirectoryLimits.MaxIssuerLength"/> characters with no user information, query or fragment, because the
 /// directory calls the issuer's discovery endpoint to validate a bearer token. The directory also names the
 /// control-plane cell, which alone writes the platform and team documents, by a cell name of the form
-/// <see cref="CellLabelRules"/> describes. Every failure is reported at once, and no
-/// message repeats a configured issuer, which could carry a credential.
+/// <see cref="CellLabelRules"/> describes. Every failure is reported at once, and no message repeats a configured
+/// issuer, which could carry a credential.
 /// </summary>
 internal sealed class DirectoryServerOptionsValidator : IValidateOptions<DirectoryServerOptions>
 {

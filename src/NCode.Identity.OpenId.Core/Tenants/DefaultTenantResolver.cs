@@ -16,11 +16,11 @@ namespace NCode.Identity.OpenId.Tenants;
 
 /// <summary>
 /// Provides a default implementation of the <see cref="ITenantResolver"/> abstraction that selects the configured
-/// <see cref="ITenantStrategy"/> by <see cref="TenantResolutionOptions.StrategyCode"/> and delegates to it. It validates
-/// the addressing rules every strategy shares itself — the root tenant's address among them — and the selected strategy
-/// validates its own and derives a tenant's default issuer. The lookups that find a tenant by its host or issuer, and
-/// the validation lookups, read across tenants, so each runs in an unscoped scope. The identifiers and issuers of
-/// deleted tenants are answered by the <see cref="ITenantDirectory"/>.
+/// <see cref="ITenantStrategy"/> by <see cref="TenantResolutionOptions.StrategyCode"/> and delegates to it. It
+/// validates the addressing rules every strategy shares itself — the root tenant's address among them — and the
+/// selected strategy validates its own and derives a tenant's default issuer. The lookups that find a tenant by its
+/// host or issuer, and the validation lookups, read across tenants, so each runs in an unscoped scope. The identifiers
+/// and issuers of deleted tenants are answered by the <see cref="ITenantDirectory"/>.
 /// </summary>
 internal class DefaultTenantResolver(
     IOptions<TenantResolutionOptions> optionsAccessor,

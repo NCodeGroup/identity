@@ -67,9 +67,8 @@ internal sealed class DefaultDirectoryStore(
     private static string Normalize(string value) => value.ToLowerInvariant();
 
     /// <summary>
-    /// Increments the counter row that numbers the changes and returns the new value. The caller runs in a
-    /// serializable transaction, so the writers of changes serialize on the row and the commit order equals the
-    /// sequence order.
+    /// Increments the counter row that numbers the changes and returns the new value. The caller runs in a serializable
+    /// transaction, so the writers of changes serialize on the row and the commit order equals the sequence order.
     /// </summary>
     /// <param name="dbContext">The <see cref="DirectoryDbContext"/> whose transaction holds the counter row.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
@@ -573,9 +572,9 @@ internal sealed class DefaultDirectoryStore(
     }
 
     /// <summary>
-    /// Retires a tenant in a serializable transaction. The tenant's record becomes retired and holds no issuer, and
-    /// the issuer that the tenant held, or that the retirement names when the tenant has no record, is recorded as
-    /// retired so that no other tenant takes it.
+    /// Retires a tenant in a serializable transaction. The tenant's record becomes retired and holds no issuer, and the
+    /// issuer that the tenant held, or that the retirement names when the tenant has no record, is recorded as retired
+    /// so that no other tenant takes it.
     /// </summary>
     /// <param name="retirement">The <see cref="TenantRetirement"/> that names the tenant to retire.</param>
     /// <param name="callerCell">The name of the calling cell, or <c>null</c> for the directory's own call.</param>
@@ -986,8 +985,8 @@ internal sealed class DefaultDirectoryStore(
     /// <summary>
     /// Finds a team of the lineage of the specified team that already holds the most tenants its limit allows. A team's
     /// limit is the lesser of the platform document's <c>max_tenants</c> setting and the team document's own, and it
-    /// bounds the reserved and placed tenants of the team and of every team beneath it. The lineage is walked
-    /// through the parent identifiers of the team documents, deepest team first.
+    /// bounds the reserved and placed tenants of the team and of every team beneath it. The lineage is walked through
+    /// the parent identifiers of the team documents, deepest team first.
     /// </summary>
     /// <param name="dbContext">The <see cref="DirectoryDbContext"/> to read from.</param>
     /// <param name="teamId">The identifier of the team that would hold the new tenant.</param>
