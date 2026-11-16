@@ -159,16 +159,20 @@ without a host key. Rendered for its side effect only.
 {{/*
 The database environment entries of a host container: the parts of a Postgres operator's Secret, each from its own
 key, or the finished connection string. The scope holds the settings of one connection, and its empty keys fall back to
-the defaults, which are the values of the database the host itself uses (ADR-1509).
+the defaults, which are the values of the database the host itself uses (ADR-1509). The entries are named for the
+connection string (connectionStringName, openiddb when empty) and the configuration section that holds the parts
+(sectionName, OpenIdDatabase when empty); the directory host reads its own, directory and DirectoryDatabase.
 */}}
 {{- define "identity-host.databaseEnv" -}}
 {{- $scope := .scope }}
 {{- $defaults := .defaults }}
+{{- $connectionStringName := .connectionStringName | default "openiddb" }}
+{{- $sectionName := .sectionName | default "OpenIdDatabase" }}
 {{- if $scope.parts.existingSecret }}
 {{- range $part := list (list "Host" "hostKey") (list "Port" "portKey") (list "Name" "databaseKey") (list "Username" "usernameKey") (list "Password" "passwordKey") }}
 {{- $key := (index $scope.parts (last $part)) | default (index $defaults.parts (last $part)) }}
 {{- if $key }}
-- name: OpenIdDatabase__{{ first $part }}
+- name: {{ $sectionName }}__{{ first $part }}
   valueFrom:
     secretKeyRef:
       name: {{ $scope.parts.existingSecret }}
@@ -176,7 +180,7 @@ the defaults, which are the values of the database the host itself uses (ADR-150
 {{- end }}
 {{- end }}
 {{- else }}
-- name: ConnectionStrings__openiddb
+- name: ConnectionStrings__{{ $connectionStringName }}
   valueFrom:
     secretKeyRef:
       name: {{ $scope.existingSecret }}
@@ -186,15 +190,17 @@ the defaults, which are the values of the database the host itself uses (ADR-150
 
 {{/*
 Refuses a database connection that names both of its forms, or none when it is required, a finished connection string
-without its key, or a parts Secret whose required key is empty. Rendered for its side effect only.
+without its key, or a parts Secret whose required key is empty. The message of a missing connection names it by the
+connection string's name (connectionStringName, openiddb when empty). Rendered for its side effect only.
 */}}
 {{- define "identity-host.databaseValidate" -}}
 {{- $scope := .scope }}
+{{- $connectionStringName := .connectionStringName | default "openiddb" }}
 {{- if and $scope.existingSecret $scope.parts.existingSecret }}
 {{- fail (printf "%s.existingSecret and %s.parts.existingSecret are both set: name the Secret that holds the finished connection string or the Secret that holds its parts, not both." .path .path) }}
 {{- end }}
 {{- if and .required (not $scope.existingSecret) (not $scope.parts.existingSecret) }}
-{{- fail (printf "%s.existingSecret must name the Secret holding the openiddb connection string, or %s.parts.existingSecret the Secret holding its host, database, user and password." .path .path) }}
+{{- fail (printf "%s.existingSecret must name the Secret holding the %s connection string, or %s.parts.existingSecret the Secret holding its host, database, user and password." .path $connectionStringName .path) }}
 {{- end }}
 {{- if and $scope.existingSecret (not ($scope.connectionStringKey | default .defaults.connectionStringKey)) }}
 {{- fail (printf "%s.connectionStringKey must name the key that holds the connection string in %s.existingSecret." .path .path) }}
@@ -323,7 +329,7 @@ applied. Rendered for its side effect only.
 {{- include "identity-host.serviceUrlValidate" (dict "path" "cell.controlPlaneIssuer" "value" .Values.cell.controlPlaneIssuer "httpsOnly" false) }}
 {{- end }}
 {{- $directory := .Values.directory }}
-{{- if and (not $directory.enabled) (or $directory.issuer $directory.controlPlaneCell $directory.allowedHosts $directory.database.runtimeRole $directory.database.existingSecret $directory.migrations.database.existingSecret $directory.tls.existingSecret $directory.extraEnv $directory.extraEnvFrom $directory.extraVolumes $directory.extraVolumeMounts $directory.serviceAccount.name $directory.serviceAccount.annotations $directory.image.tag $directory.image.digest) }}
+{{- if and (not $directory.enabled) (or $directory.issuer $directory.controlPlaneCell $directory.allowedHosts $directory.database.runtimeRole $directory.database.existingSecret $directory.database.parts.existingSecret $directory.migrations.database.existingSecret $directory.migrations.database.parts.existingSecret $directory.tls.existingSecret $directory.extraEnv $directory.extraEnvFrom $directory.extraVolumes $directory.extraVolumeMounts $directory.serviceAccount.name $directory.serviceAccount.annotations $directory.image.tag $directory.image.digest) }}
 {{- fail "directory.issuer, directory.controlPlaneCell, directory.allowedHosts, directory.database, directory.migrations.database, directory.tls, directory.serviceAccount, directory.image and directory.extra* configure the directory host, which runs only when directory.enabled is true: set directory.enabled, or clear them." }}
 {{- end }}
 {{- if and .Values.directory.url .Values.directory.keyRing }}
@@ -1222,8 +1228,9 @@ The directory's container image: the digest when one is set, else the tag, which
 {{- end }}
 
 {{/*
-The environment of the directory's Deployment container, which holds the runtime role's connection. The migration Job
-sets its own environment and never receives that connection.
+The environment of the directory's Deployment container, which holds the runtime role's connection: the finished
+connection string (ConnectionStrings:directory) or the parts of a Postgres operator's Secret (DirectoryDatabase), as the
+OP's pods read theirs (ADR-1509). The migration Job sets its own environment and never receives that connection.
 */}}
 {{- define "identity-host.directory.env" -}}
 {{- $directory := .Values.directory }}
@@ -1235,11 +1242,7 @@ sets its own environment and never receives that connection.
   value: {{ $directory.issuer | quote }}
 - name: DirectoryServer__ControlPlaneCell
   value: {{ $directory.controlPlaneCell | quote }}
-- name: ConnectionStrings__directory
-  valueFrom:
-    secretKeyRef:
-      name: {{ $directory.database.existingSecret }}
-      key: {{ $directory.database.connectionStringKey | quote }}
+{{ include "identity-host.databaseEnv" (dict "scope" $directory.database "defaults" $directory.database "connectionStringName" "directory" "sectionName" "DirectoryDatabase") | trim }}
 {{ include "identity-host.telemetryEnv" . | trim }}
 {{- with $directory.extraEnv }}
 {{- toYaml . | nindent 0 }}
@@ -1266,24 +1269,14 @@ Refuses a directory the host would refuse, before anything is applied. Rendered 
 {{- if not $directory.controlPlaneCell }}
 {{- fail "directory.controlPlaneCell must name the control-plane cell when directory.enabled is true: the directory takes platform and team writes only from it." }}
 {{- end }}
-{{- if not $directory.database.existingSecret }}
-{{- fail "directory.database.existingSecret must name the Secret holding the directory's connection string when directory.enabled is true." }}
-{{- end }}
-{{- if not $directory.database.connectionStringKey }}
-{{- fail "directory.database.connectionStringKey must name the key that holds the connection string in directory.database.existingSecret." }}
-{{- end }}
+{{- include "identity-host.databaseValidate" (dict "path" "directory.database" "scope" $directory.database "defaults" $directory.database "required" true "connectionStringName" "directory") }}
 {{- if not $directory.database.runtimeRole }}
 {{- fail "directory.database.runtimeRole must name the Postgres role the directory connects as when directory.enabled is true: the migration Job grants it access to the tables." }}
 {{- end }}
 {{- if not (regexMatch "^[a-z_][a-z0-9_]*$" $directory.database.runtimeRole) }}
 {{- fail "directory.database.runtimeRole must be a lower-case Postgres role name of letters, digits and underscores that does not start with a digit." }}
 {{- end }}
-{{- if not $directory.migrations.database.existingSecret }}
-{{- fail "directory.migrations.database.existingSecret must name the Secret holding the connection string of the role that owns the directory's schema when directory.enabled is true." }}
-{{- end }}
-{{- if not $directory.migrations.database.connectionStringKey }}
-{{- fail "directory.migrations.database.connectionStringKey must name the key that holds the connection string in directory.migrations.database.existingSecret." }}
-{{- end }}
+{{- include "identity-host.databaseValidate" (dict "path" "directory.migrations.database" "scope" $directory.migrations.database "defaults" $directory.database "required" true "connectionStringName" "directory") }}
 {{- if not $directory.tls.existingSecret }}
 {{- fail "directory.tls.existingSecret must name the Secret holding the directory's serving certificate when directory.enabled is true: the directory serves HTTPS only." }}
 {{- end }}

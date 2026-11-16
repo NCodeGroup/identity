@@ -111,15 +111,26 @@ directory:
     # When set, the image is pulled by digest and the tag is ignored.
     digest: ""
     pullPolicy: IfNotPresent
-  # The directory's own Postgres database (ConnectionStrings:directory), never the cell's, as the runtime role: the
-  # Deployment reads the finished Npgsql connection string from the key of a Secret the operator created. The role must
-  # not own the tables, be a superuser or bypass row-level security. Required when enabled.
+  # The directory's own Postgres database (ConnectionStrings:directory), never the cell's, as the runtime role. Required
+  # when enabled: name either existingSecret, a Secret holding the finished Npgsql connection string, or
+  # parts.existingSecret, a Secret holding the connection's parts (DirectoryDatabase), as a Postgres operator writes it;
+  # never both. The Deployment reads the connection as the runtime role, and the migration Job reads the same settings
+  # with the schema owner's credentials (migrations.database). The role the connection logs in as must not own the
+  # tables, be a superuser or bypass row-level security.
   database:
-    # The runtime role's name (DirectoryDatabase:RuntimeRole), lower-case letters, digits and underscores. Required when
-    # enabled. The migration Job grants the role access to the directory's tables after it migrates.
+    # The runtime role's name (DirectoryMigration:RuntimeRole), lower-case letters, digits and underscores. Required
+    # when enabled. The migration Job grants the role access to the directory's tables after it migrates.
     runtimeRole: ""
     existingSecret: ""
     connectionStringKey: connection-string
+    # The defaults are the keys of a CloudNativePG <cluster>-app Secret. An empty portKey leaves the port out.
+    parts:
+      existingSecret: ""
+      hostKey: host
+      portKey: port
+      databaseKey: dbname
+      usernameKey: user
+      passwordKey: password
   # A kubernetes.io/tls Secret the operator created, with tls.crt and tls.key, that the directory serves. Its
   # certificate names the host of url. Required when enabled.
   tls:
@@ -137,12 +148,23 @@ directory:
     name: ""
     annotations: {}
   migrations:
-    # The owner's connection (ConnectionStrings:directory-migration), the one that creates and changes the directory's
-    # schema and grants the runtime role. Required when enabled. Only the migration Job reads it, so the Deployment
-    # connects without schema rights.
+    # The owner's connection, the one that creates and changes the directory's schema and grants the runtime role
+    # (DirectoryMigration:RuntimeRole). Required when enabled, in the same two forms as directory.database: name either
+    # existingSecret or parts.existingSecret, never both. The Job reads it through the same settings the Deployment
+    # reads (ConnectionStrings:directory or DirectoryDatabase), so only the Job holds the owner's credentials and the
+    # Deployment connects without schema rights.
     database:
       existingSecret: ""
-      connectionStringKey: connection-string
+      # An empty key falls back to the same key of directory.database, so a Secret of the same shape needs only its
+      # name.
+      connectionStringKey: ""
+      parts:
+        existingSecret: ""
+        hostKey: ""
+        portKey: ""
+        databaseKey: ""
+        usernameKey: ""
+        passwordKey: ""
     backoffLimit: 1
     activeDeadlineSeconds: 600
     resources:

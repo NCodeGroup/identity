@@ -3,7 +3,8 @@
 {{- $directory := .Values.directory }}
 # Applies the directory's database migrations before an install or upgrade changes anything else, while the previous
 # version still serves. Helm waits for the Job, and a failed Job fails the release before its rollout starts. The
-# directory host image runs its own migrations: the 'migrate' command applies them and exits.
+# directory host image runs its own migrations: the 'migrate' command applies them and exits. The Job connects as the
+# schema owner and grants the runtime role, which the Deployment connects as, access to the tables it migrated.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -54,14 +55,12 @@ spec:
           env:
             - name: ASPNETCORE_ENVIRONMENT
               value: {{ .Values.environment | quote }}
-            # The owner's connection, which creates and changes the schema, and the runtime role the command grants data
-            # access to. The Job never receives the runtime role's connection, which only the Deployment's pods use.
-            - name: ConnectionStrings__directory-migration
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $directory.migrations.database.existingSecret }}
-                  key: {{ $directory.migrations.database.connectionStringKey | quote }}
-            - name: DirectoryDatabase__RuntimeRole
+            # The directory's connection, read from the schema owner's Secret: the connection string or the parts, as
+            # the Deployment reads the runtime role's. The owner creates and changes the schema, and the command grants
+            # the runtime role that DirectoryMigration:RuntimeRole names data access. The Job never receives the runtime
+            # role's connection, which only the Deployment's pods use.
+            {{- include "identity-host.databaseEnv" (dict "scope" $directory.migrations.database "defaults" $directory.database "connectionStringName" "directory" "sectionName" "DirectoryDatabase") | trim | nindent 12 }}
+            - name: DirectoryMigration__RuntimeRole
               value: {{ $directory.database.runtimeRole | quote }}
             {{- include "identity-host.telemetryEnv" . | trim | nindent 12 }}
             # The directory's extra settings and volumes apply to the Job too, such as the CA bundle and SSL mode a TLS
