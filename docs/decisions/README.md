@@ -107,6 +107,7 @@ The records are grouped by area; within an area they are in number order.
 | [1502](./1502-code-a-self-hoster-could-use-is-public-and-identity-holds-the-products-and-platforms-decisions.md) | Code a self-hoster could use is public, and identity holds the product's and platform's decisions | Accepted |
 | [1503](./1503-http-logging-writes-a-body-only-for-an-endpoint-that-opts-in-and-never-for-one-that-carries-credentials.md) | HTTP logging writes a body only for an endpoint that opts in, and never for one that carries credentials | Accepted |
 | [1508](./1508-a-decision-record-is-rewritten-when-its-decision-changes-and-relates-only-to-template-records.md) | A decision record is rewritten when its decision changes and relates only to template records | Accepted |
+| [1515](./1515-doc-comments-fill-their-lines-to-120-columns-and-the-definition-of-done-checks-the-paragraphs-a-change-touches.md) | Doc comments fill their lines to 120 columns, and the Definition of Done checks the paragraphs a change touches | Accepted |
 
 ### Deployment and local development
 
