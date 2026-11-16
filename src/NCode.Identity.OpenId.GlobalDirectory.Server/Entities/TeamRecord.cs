@@ -64,10 +64,11 @@ public sealed class TeamRecord
     /// published.
     /// </summary>
     /// <remarks>
-    /// The store serializes the whole <c>TeamDocument</c> into this text and deserializes it whole, and
-    /// nothing reads its members as JSON, so the column keeps the text the store wrote; a <c>JsonElement</c> would
-    /// parse every row that is loaded, including the loads that never read the document.
+    /// The column keeps the envelope as text, which the store parses only when it reads the document. A load of the row
+    /// that never reads the document, such as a publish, a retire or the re-pathing of a subtree, parses nothing, so a
+    /// text that does not parse fails only the reads of the document, and the next publish repairs it.
     /// </remarks>
+    // See ADR-1411.
     public string? DocumentJson { get; set; }
 
     /// <summary>

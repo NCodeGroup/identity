@@ -82,6 +82,20 @@ public sealed class DefaultDirectoryStorePlatformTests : DefaultDirectoryStoreTe
     }
 
     [Fact]
+    public async Task PublishAsync_WhenTheStoredDocumentDoesNotParse_StoresThePublishedDocument()
+    {
+        await PublishPlatformAsync(maxTenants: 7);
+        await ReplacePlatformDocumentJsonAsync("{");
+
+        await PublishPlatformAsync(maxTenants: 2);
+
+        var document = await Platform.GetOrDefaultAsync(CancellationToken.None);
+        Assert.NotNull(document);
+        Assert.Equal(SettingsWithLimit(2), document.Settings.GetRawText());
+        Assert.Equal(2, document.Sequence);
+    }
+
+    [Fact]
     public async Task PublishAsync_WhenThePlatformWasPublishedBefore_KeepsOnlyItsLatestChange()
     {
         await PublishPlatformAsync(maxTenants: 7);

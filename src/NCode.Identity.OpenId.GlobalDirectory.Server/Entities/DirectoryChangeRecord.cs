@@ -24,8 +24,9 @@ public sealed class DirectoryChangeRecord
     /// Gets or sets the published document as its schema-versioned JSON envelope, or <c>null</c> for a team retire.
     /// </summary>
     /// <remarks>
-    /// The text is the published document as the store wrote it, and nothing reads its members as JSON, so the column
-    /// keeps it as text.
+    /// The column keeps the envelope as text, as the team and platform rows do: the store writes one text to the change
+    /// and to the row whose document it carries, and the change feed parses it only when it reads the change.
     /// </remarks>
+    // See ADR-1411.
     public string? DocumentJson { get; set; }
 }

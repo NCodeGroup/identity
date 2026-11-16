@@ -185,6 +185,12 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
   ([ADR-1395](1395-grant-payloads-have-one-versioned-serializer-and-a-stored-record-missing-written-members-fails-closed.md)).
   A stored document that is not an envelope is malformed: reading it fails, and the tenant-limit check that reads it
   refuses the reservation.
+- The directory's team, platform and change rows hold each envelope as text in their `DocumentJson` columns, unlike
+  the `JsonElement` columns of a cell's `OpenIdDbContext`. The store writes one text to a change and to the row whose
+  document it carries, and parses it only in the reads of the document. A load that never reads the document, such as
+  a publish, a retire or the re-pathing of a subtree, parses nothing, so a stored text that does not parse fails only
+  the reads of its document, and the next publish repairs it. A `JsonElement` column would parse the text at every
+  load of its row and fail that publish too.
 - The directory runs one replica with the `Recreate` strategy and keeps its expiring keys in process, an accepted
   exception to points 4 and 5 of
   [ADR-1134](1134-the-platform-and-the-host-follow-written-cloud-native-operating-principles.md). Serving never calls

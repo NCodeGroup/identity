@@ -23,10 +23,11 @@ public sealed class PlatformRecord
     /// Gets or sets the published platform document as its schema-versioned JSON envelope.
     /// </summary>
     /// <remarks>
-    /// The store serializes the whole <c>PlatformDocument</c> into this text and deserializes it whole, and
-    /// nothing reads its members as JSON, so the column keeps the text the store wrote; a <c>JsonElement</c> would
-    /// parse every row that is loaded, including the loads that never read the document.
+    /// The column keeps the envelope as text, which the store parses only when it reads the document. A publish loads
+    /// the row without reading the document and parses nothing, so a text that does not parse fails only the reads of
+    /// the document, and the next publish repairs it.
     /// </remarks>
+    // See ADR-1411.
     public required string DocumentJson { get; set; }
 
     /// <summary>

@@ -155,6 +155,20 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
     }
 
     [Fact]
+    public async Task PublishAsync_WhenTheStoredDocumentDoesNotParse_StoresThePublishedDocument()
+    {
+        await PublishTeamAsync("team-1");
+        await ReplaceTeamDocumentJsonAsync("team-1", "{");
+
+        await PublishTeamAsync("team-1", maxTenants: 3);
+
+        var stored = await Teams.GetOrDefaultAsync("team-1", CancellationToken.None);
+        Assert.NotNull(stored);
+        Assert.Equal(SettingsWithLimit(3), stored.Settings.GetRawText());
+        Assert.Equal(2, stored.Sequence);
+    }
+
+    [Fact]
     public async Task PublishAsync_WhenAChildIsPublishedBeforeItsParent_RepathsTheChildAndItsSubtreeBeneathTheParent()
     {
         await PublishTeamAsync("team-1", parentTeamId: "team-0");
@@ -166,6 +180,17 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
         Assert.Equal("/team-0/", await ReadTeamPathAsync("team-0"));
         Assert.Equal("/team-0/team-1/", await ReadTeamPathAsync("team-1"));
         Assert.Equal("/team-0/team-1/team-2/", await ReadTeamPathAsync("team-2"));
+    }
+
+    [Fact]
+    public async Task PublishAsync_WhenAChildDocumentDoesNotParse_RepathsTheChild()
+    {
+        await PublishTeamAsync("team-1", parentTeamId: "team-0");
+        await ReplaceTeamDocumentJsonAsync("team-1", "{");
+
+        await PublishTeamAsync("team-0");
+
+        Assert.Equal("/team-0/team-1/", await ReadTeamPathAsync("team-1"));
     }
 
     [Fact]
@@ -301,6 +326,18 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
 
         Assert.Null(await Teams.GetOrDefaultAsync("team-1", CancellationToken.None));
         Assert.True(await Teams.IsTeamIdRetiredAsync("team-1", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task RetireAsync_WhenTheStoredDocumentDoesNotParse_RetiresTheTeam()
+    {
+        await PublishTeamAsync("team-1");
+        await ReplaceTeamDocumentJsonAsync("team-1", "{");
+
+        await Teams.RetireAsync("team-1", CancellationToken.None);
+
+        Assert.True(await Teams.IsTeamIdRetiredAsync("team-1", CancellationToken.None));
+        Assert.Null(await ReadTeamDocumentJsonAsync("team-1"));
     }
 
     [Fact]
