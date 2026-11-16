@@ -22,6 +22,10 @@ spec:
     metadata:
       labels:
         {{- include "identity-host.directory.labels" . | nindent 8 }}
+      {{- with include "identity-host.backupAnnotations" . | trim }}
+      annotations:
+        {{- . | nindent 8 }}
+      {{- end }}
     spec:
       # The directory never calls the Kubernetes API, so its own account mounts no token.
       serviceAccountName: {{ include "identity-host.directory.serviceAccountName" . }}

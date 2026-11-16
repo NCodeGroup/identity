@@ -24,6 +24,10 @@ spec:
       labels:
         {{- include "identity-host.commonLabels" . | nindent 8 }}
         app.kubernetes.io/component: directory-migrations
+      {{- with include "identity-host.backupAnnotations" . | trim }}
+      annotations:
+        {{- . | nindent 8 }}
+      {{- end }}
     spec:
       restartPolicy: Never
       {{- if not .Values.directory.serviceAccount.create }}
@@ -48,9 +52,10 @@ spec:
           securityContext:
             {{- include "identity-host.containerSecurityContext" . | nindent 12 }}
           env:
-            {{- include "identity-host.directory.env" . | trim | nindent 12 }}
-            # The owner's connection, which creates and changes the schema; the shared environment above carries the
-            # runtime role's connection, which the command does not use.
+            - name: ASPNETCORE_ENVIRONMENT
+              value: {{ .Values.environment | quote }}
+            # The owner's connection, which creates and changes the schema, and the runtime role the command grants data
+            # access to. The Job never receives the runtime role's connection, which only the Deployment's pods use.
             - name: ConnectionStrings__directory-migration
               valueFrom:
                 secretKeyRef:
@@ -58,6 +63,12 @@ spec:
                   key: {{ $directory.migrations.database.connectionStringKey | quote }}
             - name: DirectoryDatabase__RuntimeRole
               value: {{ $directory.database.runtimeRole | quote }}
+            {{- include "identity-host.telemetryEnv" . | trim | nindent 12 }}
+            # The directory's extra settings and volumes apply to the Job too, such as the CA bundle and SSL mode a TLS
+            # connection to Postgres needs.
+            {{- with $directory.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- with $directory.extraEnvFrom }}
           envFrom:
             {{- toYaml . | nindent 12 }}

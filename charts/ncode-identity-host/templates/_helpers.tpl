@@ -682,8 +682,8 @@ cell's identity as resource attributes.
 {{- end }}
 
 {{/*
-The pod annotation that names where the cell's backups are kept, for the pods that own the database. Renders nothing
-when backup.location is empty.
+The pod annotation that names where the cell's backups are kept, for the pods that own a database: those of the host,
+the directory and their migration Jobs. Renders nothing when backup.location is empty.
 */}}
 {{- define "identity-host.backupAnnotations" -}}
 {{- with .Values.backup.location }}
@@ -1222,8 +1222,8 @@ The directory's container image: the digest when one is set, else the tag, which
 {{- end }}
 
 {{/*
-The environment of the directory container, which the Deployment and the migration Job share, so the Job reads the same
-configuration the pods it migrates the database for read.
+The environment of the directory's Deployment container, which holds the runtime role's connection. The migration Job
+sets its own environment and never receives that connection.
 */}}
 {{- define "identity-host.directory.env" -}}
 {{- $directory := .Values.directory }}

@@ -4254,12 +4254,13 @@ Until the first stable release, the [Unreleased] section describes the product a
 
 - **The host chart configures a cell.** `cell.name`, `cell.region`, `cell.kind`, `cell.cloudRegions`,
   `cell.managementUrl`, `cell.isControlPlane` and `cell.controlPlaneIssuer` set `Cell`; `backup.location` annotates the
-  pods that own the database with `ncode.io/backup-location`; `telemetry.otlpEndpoint` and the `cell.name` and
-  `cell.region` resource attributes tag every pod's OpenTelemetry signals; `directory.url`, `directory.clientId`,
-  `directory.keyRing` and `directory.keys` point a cell at the platform's directory; and `directory.enabled` runs the
-  directory host with its own database, `directory.database` (the runtime role's connection and name),
-  `directory.migrations.database` (the schema owner's connection), `directory.tls` and pre-install migration Job, which
-  migrates as the owner and grants the runtime role data access to the directory's tables. The chart refuses a
+  pods of the host, the directory and their migration Jobs with `ncode.io/backup-location`; `telemetry.otlpEndpoint` and
+  the `cell.name` and `cell.region` resource attributes tag every pod's OpenTelemetry signals; `directory.url`,
+  `directory.clientId`, `directory.keyRing` and `directory.keys` point a cell at the platform's directory; and
+  `directory.enabled` runs the directory host with its own database, `directory.database` (the runtime role's
+  connection, which only the directory's Deployment receives, and the role's name), `directory.migrations.database` (the
+  schema owner's connection, which only the migration Job receives), `directory.tls` and pre-install migration Job,
+  which migrates as the owner and grants the runtime role data access to the directory's tables. The chart refuses a
   directory, control-plane issuer or management URL that the host would refuse (an `https` URL, or an `http` URL on a
   loopback host for the directory and the issuers, with no user information, query, fragment or white space), a
   `directory.url` with no `cell.controlPlaneIssuer`, and the directory host's values while `directory.enabled` is

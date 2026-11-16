@@ -198,7 +198,8 @@ and pre-upgrade Job that applies its migrations, and requires:
   refused;
 - `directory.database.existingSecret`, a Secret holding the Npgsql connection string the directory's replicas use under
   `directory.database.connectionStringKey` (default `connection-string`), to a database of its own, never the cell's
-  (`ConnectionStrings__directory`); it logs in as the runtime role, which owns no table;
+  (`ConnectionStrings__directory`), which only the directory's Deployment receives; it logs in as the runtime role,
+  which owns no table;
 - `directory.database.runtimeRole`, that runtime role's name, lower-case letters, digits and underscores, which the
   migration Job grants data access to the directory's tables (`DirectoryDatabase__RuntimeRole`);
 - `directory.migrations.database.existingSecret`, a Secret holding the connection string of the role that owns the
@@ -220,8 +221,9 @@ account exists on a first install, so it uses the namespace's default account un
 under the account `name` names.
 
 `backup.location` names where the cell's backups are kept, such as a bucket or a volume snapshot class. When set, the
-host and migration pods carry it as the `ncode.io/backup-location` annotation for the backup tool to read; the chart
-starts no backup itself. `telemetry.otlpEndpoint` sets `OTEL_EXPORTER_OTLP_ENDPOINT` on every pod, and every pod carries
+pods that own a database, those of the host, the directory and their migration Jobs, carry it as the
+`ncode.io/backup-location` annotation for the backup tool to read; the chart starts no backup itself.
+`telemetry.otlpEndpoint` sets `OTEL_EXPORTER_OTLP_ENDPOINT` on every pod, and every pod carries
 `OTEL_RESOURCE_ATTRIBUTES` with `cell.name` and `cell.region`, so a signal names its cell.
 
 ## What the chart refuses

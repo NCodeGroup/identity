@@ -808,7 +808,7 @@ jobs:
         run: |
           base="$CHART/ci/directory-values.yaml"
           render() {
-            helm template release "$CHART" --values "$base" --show-only "$1"
+            helm template release "$CHART" --values "$base" --show-only "$@"
           }
           expect() {
             local rendered="$1"; shift
@@ -819,12 +819,34 @@ jobs:
               fi
             done
           }
+          reject() {
+            local rendered="$1"; shift
+            for unexpected in "$@"; do
+              if grep -q -- "$unexpected" <<< "$rendered"; then
+                echo "::error::The release renders what it must not: $unexpected"
+                exit 1
+              fi
+            done
+          }
           deployment="$(render templates/directory-deployment.yaml)"
           expect "$deployment" 'type: Recreate' 'DirectoryServer__Issuer' 'DirectoryServer__ControlPlaneCell' \
-            'ConnectionStrings__directory' 'secretName: directory-tls' 'automountServiceAccountToken: false'
-          job="$(render templates/directory-migration-job.yaml)"
+            'name: ConnectionStrings__directory$' 'secretName: directory-tls' 'automountServiceAccountToken: false'
+          # The Deployment carries the runtime role's connection and never the owner's.
+          reject "$deployment" 'ConnectionStrings__directory-migration' 'DirectoryDatabase__RuntimeRole'
+          job="$(render templates/directory-migration-job.yaml \
+            --set-json 'directory.extraEnv=[{"name":"PGSSLMODE","value":"verify-full"}]')"
           expect "$job" '- migrate' 'ConnectionStrings__directory-migration' 'DirectoryDatabase__RuntimeRole' \
-            'helm.sh/hook: pre-install,pre-upgrade'
+            'helm.sh/hook: pre-install,pre-upgrade' 'name: ASPNETCORE_ENVIRONMENT' 'name: OTEL_RESOURCE_ATTRIBUTES' \
+            'name: PGSSLMODE'
+          # The migration Job carries the owner's connection, never the runtime role's, and no server setting.
+          reject "$job" 'name: ConnectionStrings__directory$' 'name: AllowedHosts' 'name: DirectoryServer__'
+          # Both directory pods carry the backup location when it is set, and neither carries one when it is not.
+          reject "$deployment" 'ncode.io/backup-location'
+          reject "$job" 'ncode.io/backup-location'
+          for template in templates/directory-deployment.yaml templates/directory-migration-job.yaml; do
+            expect "$(render "$template" --set backup.location=s3://ci-backups)" \
+              '^        ncode.io/backup-location: "s3://ci-backups"$'
+          done
           service="$(render templates/directory-service.yaml)"
           expect "$service" 'kind: Service' 'appProtocol: https' 'targetPort: https'
 
