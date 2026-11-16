@@ -1394,15 +1394,15 @@ NCode.Identity.OpenId.Management.Transfers.TenantTransferImportResult
 NCode.Identity.OpenId.Management.Transfers.TenantTransferImportResult.RemoteKeys.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.Secrets.RemoteKeys.RemoteKeyReference>!
 NCode.Identity.OpenId.Management.Transfers.TenantTransferImportResult.RemoteKeys.init -> void
 NCode.Identity.OpenId.Management.Transfers.TenantTransferImportResult.TenantTransferImportResult() -> void
-NCode.Identity.OpenId.Management.Transfers.TenantTransferOrders
-const NCode.Identity.OpenId.Management.Transfers.TenantTransferOrders.Core = 0 -> int
-const NCode.Identity.OpenId.Management.Transfers.TenantTransferOrders.LocalAccounts = 100 -> int
 NCode.Identity.OpenId.Management.Transfers.TenantTransferKey
 NCode.Identity.OpenId.Management.Transfers.TenantTransferKey.Jwk.get -> System.Text.Json.JsonElement
 NCode.Identity.OpenId.Management.Transfers.TenantTransferKey.Jwk.init -> void
 NCode.Identity.OpenId.Management.Transfers.TenantTransferKey.KeyId.get -> string!
 NCode.Identity.OpenId.Management.Transfers.TenantTransferKey.KeyId.init -> void
 NCode.Identity.OpenId.Management.Transfers.TenantTransferKey.TenantTransferKey() -> void
+NCode.Identity.OpenId.Management.Transfers.TenantTransferOrders
+const NCode.Identity.OpenId.Management.Transfers.TenantTransferOrders.Core = 0 -> int
+const NCode.Identity.OpenId.Management.Transfers.TenantTransferOrders.LocalAccounts = 100 -> int
 NCode.Identity.OpenId.Management.Transfers.TenantTransferSection
 NCode.Identity.OpenId.Management.Transfers.TenantTransferSection.Json.get -> System.Text.Json.JsonElement
 NCode.Identity.OpenId.Management.Transfers.TenantTransferSection.Json.init -> void

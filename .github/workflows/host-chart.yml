@@ -728,14 +728,22 @@ jobs:
           }
           # The base values render, so each refusal below is the rule it names.
           helm template release "$CHART" --values "$base" > /dev/null
-          # A loopback http URL, and an https URL with a port and a path, render.
+          # A loopback http URL, on any 127.x.x.x address, and an https URL with a port and a path, render.
           helm template release "$CHART" --values "$base" --set directory.url=http://localhost:8080 > /dev/null
+          helm template release "$CHART" --values "$base" --set directory.url=http://127.0.0.2:8080 > /dev/null
           helm template release "$CHART" --values "$base" --set directory.url=https://directory.example.com:8443/api > /dev/null
+          # A control-plane cell that reaches the directory renders, so each refusal of its issuer below is its rule.
+          helm template release "$CHART" --values "$base" --set cell.isControlPlane=true > /dev/null
           # The directory's URL is https, or http on a loopback host, with no user information, query or fragment.
           refuse --set directory.url=http://directory.example
           refuse --set directory.url=https://user@directory.example
           refuse --set 'directory.url=https://directory.example/?a=b'
+          # White space is refused, a no-break space included.
+          refuse --set "directory.url=https://directory.example/a"$'\xc2\xa0'"b"
           refuse --set cell.controlPlaneIssuer=http://id.example.com
+          # A cell that reaches the directory names the control plane's issuer, the control-plane cell included.
+          refuse --set cell.isControlPlane=true --set cell.controlPlaneIssuer=
+          refuse --set cell.isControlPlane=true --set cell.controlPlaneIssuer=http://id.example.com
           refuse --set directory.clientId=
           refuse --set directory.keyRing=
           refuse --set directory.keyRing=cell:client

@@ -4163,12 +4163,12 @@ Until the first stable release, the [Unreleased] section describes the product a
   one region, and a platform is many independent cells under a small global directory that reserves tenant and team
   identifiers platform-wide, places each tenant in a cell and publishes team documents; it holds no personal data. A
   cell names itself through `Cell` (`CellOptions`: `Name`, `Region`, `Kind` of `shared` or `dedicated`, `CloudRegions`,
-  `ManagementUrl`, `IsControlPlane` and `ControlPlane:Issuer`), and a cell that is not the control plane names the
-  control plane's issuer. `NCode.Identity.OpenId.GlobalDirectory.Abstractions` holds the ports `ITenantDirectory`
-  (reserve, place, release, retire, change an issuer, find a placement, move between cells of one region),
-  `ITeamDirectory` (reserve, release, publish, retire, get, list changes after a sequence), `IPlatformDirectory` and
-  `ICellDirectory`, their records and `DirectoryUnavailableException`. A cell runs on its own with the local adapters
-  over its own database and no extra service, and `Directory:Url` selects the remote adapters of
+  `ManagementUrl`, `IsControlPlane` and `ControlPlane:Issuer`), and a cell that is not the control plane, or that sets
+  `Directory:Url`, names the control plane's issuer. `NCode.Identity.OpenId.GlobalDirectory.Abstractions` holds the
+  ports `ITenantDirectory` (reserve, place, release, retire, change an issuer, find a placement, move between cells of
+  one region), `ITeamDirectory` (reserve, release, publish, retire, get, list changes after a sequence),
+  `IPlatformDirectory` and `ICellDirectory`, their records and `DirectoryUnavailableException`. A cell runs on its own
+  with the local adapters over its own database and no extra service, and `Directory:Url` selects the remote adapters of
   `NCode.Identity.OpenId.GlobalDirectory`, which fail closed with `503` and `Retry-After` on a transport failure, a
   timeout or a `5xx`. Creating a tenant reserves its identifier (a team's `max_tenants` is enforced there), saves the
   tenant and places it, releasing the reservation on failure; serving a tenant's requests never calls the directory,
@@ -4190,9 +4190,9 @@ Until the first stable release, the [Unreleased] section describes the product a
   control-plane cell (`DirectoryServer:ControlPlaneCell`) and authorizes each tenant write against the tenant's stored
   record in the transaction that writes it: the cell that holds the tenant and the control-plane cell write it, and only
   the control-plane cell retires a tenant the directory has no record of; a cell registers only itself, with a
-  management URL that is an absolute `https` URL (or `http` on a loopback host or in local development) with no user
-  information, query or fragment, and asks to move a tenant only into itself. The directory refuses a team or platform
-  document whose settings are not a JSON object.
+  management URL that is an absolute `https` URL (or `http` in local development) with no user information, query or
+  fragment, and asks to move a tenant only into itself. The directory refuses a team or platform document whose
+  settings are not a JSON object.
 
 - **The control plane serves every cell.** The control-plane cell owns platform and team authority, setup and the team
   root keys; every other cell reaches it through remote adapters that fail closed. `IManagementTokenValidator` validates
@@ -4257,9 +4257,10 @@ Until the first stable release, the [Unreleased] section describes the product a
   `directory.migrations.database` (the schema owner's connection), `directory.tls` and pre-install migration Job, which
   migrates as the owner and grants the runtime role data access to the directory's tables. The chart refuses a
   directory, control-plane issuer or management URL that the host would refuse (an `https` URL, or an `http` URL on a
-  loopback host for the directory and the issuers, with no user information, query or fragment), and the directory
-  host's values while `directory.enabled` is `false`. The
-  `ci/cell-values.yaml` and `ci/directory-values.yaml` releases are linted and rendered by the `Host chart` workflow.
+  loopback host for the directory and the issuers, with no user information, query, fragment or white space), a
+  `directory.url` with no `cell.controlPlaneIssuer`, and the directory host's values while `directory.enabled` is
+  `false`. The `ci/cell-values.yaml` and `ci/directory-values.yaml` releases are linted and rendered by the `Host chart`
+  workflow.
 
 - **A tenant's data carries the cell that wrote it.** `Cell:Name` is stamped on audit records and usage rows, it is the
   tag of the keys a remote key provider creates, and it prefixes every Valkey key, so a cell's records, keys and

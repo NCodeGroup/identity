@@ -218,18 +218,20 @@ The pattern of the ARN of an AWS KMS key or alias.
 
 {{/*
 The pattern of a service URL: https, or http on a loopback host, written with its authority and with no user
-information, query or fragment.
+information, query, fragment or white space. The host applies the rule itself when it starts; the pattern is the chart's
+check before anything is applied.
 */}}
 {{- define "identity-host.serviceUrlPattern" -}}
-(?i)^(https://[^/?#@\s]+|http://(localhost|127\.0\.0\.1|\[::1\])(:[0-9]+)?)(/[^?#\s]*)?$
+(?i)^(https://[^/?#@\s\v\x{85}\p{Z}]+|http://(localhost|127(\.[0-9]{1,3}){3}|\[::1\])(:[0-9]+)?)(/[^?#\s\v\x{85}\p{Z}]*)?$
 {{- end }}
 
 {{/*
-The pattern of a service URL that must be https: written with its authority and with no user information, query or
-fragment.
+The pattern of a service URL that must be https: written with its authority and with no user information, query,
+fragment or white space. The host applies the rule itself when it starts; the pattern is the chart's check before
+anything is applied.
 */}}
 {{- define "identity-host.httpsServiceUrlPattern" -}}
-(?i)^https://[^/?#@\s]+(/[^?#\s]*)?$
+(?i)^https://[^/?#@\s\v\x{85}\p{Z}]+(/[^?#\s\v\x{85}\p{Z}]*)?$
 {{- end }}
 
 {{/*
@@ -314,7 +316,10 @@ applied. Rendered for its side effect only.
 {{- include "identity-host.serviceUrlValidate" (dict "path" "directory.url" "value" .Values.directory.url "httpsOnly" false) }}
 {{- include "identity-host.serviceUrlValidate" (dict "path" "directory.issuer" "value" .Values.directory.issuer "httpsOnly" false) }}
 {{- include "identity-host.serviceUrlValidate" (dict "path" "cell.managementUrl" "value" .Values.cell.managementUrl "httpsOnly" true) }}
-{{- if not .Values.cell.isControlPlane }}
+{{- if and .Values.directory.url (not .Values.cell.controlPlaneIssuer) }}
+{{- fail "cell.controlPlaneIssuer must be the issuer of the control-plane cell when directory.url is set: the cell asks it for the token it presents to the directory." }}
+{{- end }}
+{{- if or (not .Values.cell.isControlPlane) .Values.directory.url }}
 {{- include "identity-host.serviceUrlValidate" (dict "path" "cell.controlPlaneIssuer" "value" .Values.cell.controlPlaneIssuer "httpsOnly" false) }}
 {{- end }}
 {{- $directory := .Values.directory }}

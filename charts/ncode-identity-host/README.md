@@ -163,8 +163,9 @@ it, and the chart renders them as the `Cell` section the host binds:
   (`Cell__ManagementUrl`);
 - `cell.isControlPlane` (default `false`), whether the cell is the control-plane cell, which serves platform and team
   management and setup (`Cell__IsControlPlane`);
-- `cell.controlPlaneIssuer`, the issuer of the control-plane cell, required when `cell.isControlPlane` is `false`
-  because the cell accepts platform and team management tokens from it (`Cell__ControlPlane__Issuer`).
+- `cell.controlPlaneIssuer`, the issuer of the control-plane cell (`Cell__ControlPlane__Issuer`), required when
+  `cell.isControlPlane` is `false` because the cell accepts platform and team management tokens from it, and when
+  `directory.url` is set because the cell asks it for the token it presents to the directory.
 
 A cell reaches the platform's directory through the `directory` values, rendered as the `Directory` section
 (`Directory__Url`, `Directory__ClientId`, `Directory__KeyRing`) when `directory.url` is set, and then `directory.clientId`
@@ -272,9 +273,12 @@ Rendering fails, before anything is applied, when:
   and hyphens, at most 31 characters), or `cell.isControlPlane` is `false` and `cell.controlPlaneIssuer` is empty,
   because the host's remote-key sweep reads the cell's name and a cell that is not the control plane reaches the control
   plane's issuer;
-- a `directory.url`, `directory.issuer` or `cell.controlPlaneIssuer` is set and is not an absolute `https` URL, or an
-  `http` URL on a loopback host, written with its authority and with no user information, query or fragment; a
-  `cell.managementUrl` is set and is not such an `https` URL;
+- `directory.url` is set and `cell.controlPlaneIssuer` is empty, because the cell asks the control-plane cell's issuer
+  for the token it presents to the directory;
+- a `directory.url` or `directory.issuer` is set and is not an absolute `https` URL, or an `http` URL on a loopback
+  host, written with its authority and with no user information, query, fragment or white space; a
+  `cell.controlPlaneIssuer` is not such a URL while the host reads it, which is when `cell.isControlPlane` is `false`
+  or `directory.url` is set; a `cell.managementUrl` is set and is not such an `https` URL;
 - a value that configures the directory host (`directory.issuer`, `directory.controlPlaneCell`,
   `directory.allowedHosts`, `directory.database`, `directory.migrations.database`, `directory.tls`,
   `directory.serviceAccount`, `directory.image` or `directory.extra*`) is set and `directory.enabled` is `false`,

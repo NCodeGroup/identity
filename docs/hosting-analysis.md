@@ -443,9 +443,11 @@ A platform is a global directory over independent cells.
 - **The directory host** (`NCode.Identity.OpenId.GlobalDirectory.Host`) reserves tenant and team identifiers
   platform-wide, places each tenant in one cell, records the cells and publishes team documents. It holds no personal
   data, has its own Postgres database and runs as one replica. A cell that sets `Directory:Url` reaches it with a
-  client-credentials token under its machine client `cell-{name}`; a cell without `Directory:Url` uses local adapters.
-  Serving a tenant never calls the directory, and creating a tenant fails with `503` when the directory is unreachable.
-  [Running cells](platform-bootstrap.md#9-run-the-cells-of-a-platform) sets this up.
+  client-credentials token under its machine client `cell-{name}`, which it requests from the issuer
+  `Cell:ControlPlane:Issuer` names, so every such cell sets that issuer, the control-plane cell included; a cell without
+  `Directory:Url` uses local adapters. Serving a tenant never calls the directory, and creating a tenant fails with
+  `503` when the directory is unreachable. [Running cells](platform-bootstrap.md#9-run-the-cells-of-a-platform) sets
+  this up.
 - **Two database roles.** The host connects as a runtime role that cannot bypass the row-level security on tenant-bound
   tables, and the migrations connect as the schema owner. The two are separate secrets and the chart has no fallback
   from one to the other (`database.*`, `database.runtimeRole`, `migrations.database.*`).

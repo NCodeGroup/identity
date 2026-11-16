@@ -43,7 +43,8 @@ cell:
   # true when the cell is the control-plane cell, which serves platform and team management and setup.
   isControlPlane: false
   # The issuer of the control-plane cell. Required when isControlPlane is false: the cell accepts platform and team
-  # management tokens from it.
+  # management tokens from it. Required when directory.url is set: the cell asks it for the token it presents to the
+  # directory. An `https` URL, or an `http` URL on a loopback host, with no user information, query or fragment.
   controlPlaneIssuer: ""
 
 # The cell's backup (ncode.io/backup-location). The chart starts no backup itself.

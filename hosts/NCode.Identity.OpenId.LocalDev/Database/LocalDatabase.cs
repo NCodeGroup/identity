@@ -43,7 +43,9 @@ internal static partial class LocalDatabase
     /// The statement is one <c>DO</c> block, so it is safe on every start: it creates the role when
     /// <c>pg_roles</c> has none, and otherwise alters the role to the same attributes and password.
     /// </remarks>
-    /// <param name="runtimeRole">The role name; it matches <c>^[a-z_][a-z0-9_]*$</c>.</param>
+    /// <param name="runtimeRole">
+    /// The role name; it is a valid name according to <see cref="DatabaseRoleNameRules"/>.
+    /// </param>
     /// <param name="password">The role's password; it is URL-safe Base64 (<c>A-Z a-z 0-9 - _</c>).</param>
     /// <returns>The statement.</returns>
     /// <exception cref="ArgumentException">The role or the password is not valid.</exception>
@@ -115,7 +117,9 @@ internal static partial class LocalDatabase
     /// <summary>
     /// Checks that a role name and a password are safe to embed in a statement.
     /// </summary>
-    /// <param name="runtimeRole">The role name; it matches <c>^[a-z_][a-z0-9_]*$</c>.</param>
+    /// <param name="runtimeRole">
+    /// The role name; it is a valid name according to <see cref="DatabaseRoleNameRules"/>.
+    /// </param>
     /// <param name="password">The role's password; it is URL-safe Base64 (<c>A-Z a-z 0-9 - _</c>).</param>
     /// <exception cref="ArgumentNullException"><paramref name="runtimeRole"/> or <paramref name="password"/> is <c>null</c>.</exception>
     /// <exception cref="ArgumentException">The role or the password does not match its pattern.</exception>
