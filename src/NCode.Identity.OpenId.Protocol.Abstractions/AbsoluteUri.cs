@@ -7,12 +7,12 @@ using JetBrains.Annotations;
 namespace NCode.Identity.OpenId;
 
 /// <summary>
-/// Parses the absolute URIs that OAuth 2.0 and OpenID Connect messages, metadata and settings carry (RFC 3986 §4.3): text
-/// that names its scheme and contains no whitespace. <see cref="Uri.TryCreate(string, UriKind, out Uri)"/> with
+/// Parses the absolute URIs that OAuth 2.0 and OpenID Connect messages, metadata and settings carry (RFC 3986 §4.3):
+/// text that names its scheme and contains no whitespace. <see cref="Uri.TryCreate(string, UriKind, out Uri)"/> with
 /// <see cref="UriKind.Absolute"/> also accepts an implicit file path as a <c>file</c> URI — <c>/path</c> on Unix,
 /// <c>C:\path</c> on Windows — and trims surrounding whitespace, so the same text would mean different things on
-/// different platforms; this parser accepts neither. A service URL is written with its authority and judged on the
-/// text as written, because <see cref="Uri"/> reads an empty <c>?</c>, <c>#</c> or <c>@</c> as absent.
+/// different platforms; this parser accepts neither. A service URL is written with its authority and judged on the text
+/// as written, because <see cref="Uri"/> reads an empty <c>?</c>, <c>#</c> or <c>@</c> as absent.
 /// </summary>
 [PublicAPI]
 public static class AbsoluteUri
@@ -152,8 +152,8 @@ public static class AbsoluteUri
     /// <param name="value">The text to parse.</param>
     /// <param name="uri">When this method returns <see langword="true"/>, the parsed URI.</param>
     /// <returns>
-    /// <see langword="true"/> when the text is an absolute URI written with its authority and with no user
-    /// information, query or fragment; otherwise, <see langword="false"/>.
+    /// <see langword="true"/> when the text is an absolute URI written with its authority and with no user information,
+    /// query or fragment; otherwise, <see langword="false"/>.
     /// </returns>
     private static bool TryParseServiceUrlShape(
         [NotNullWhen(true)] string? value,

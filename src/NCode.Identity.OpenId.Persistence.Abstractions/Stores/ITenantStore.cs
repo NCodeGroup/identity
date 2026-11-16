@@ -339,8 +339,8 @@ public interface ITenantStore : IStore<PersistedTenant>
     /// </remarks>
     /// <param name="tenantId">The identifier of the OpenId Tenant to remove from this cell.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c>
-    /// if the tenant was removed; otherwise <c>false</c> when no matching tenant existed.</returns>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c> if the
+    /// tenant was removed; otherwise <c>false</c> when no matching tenant existed.</returns>
     // See ADR-1514.
     ValueTask<bool> RemoveFromCellAsync(string tenantId, CancellationToken cancellationToken);
 

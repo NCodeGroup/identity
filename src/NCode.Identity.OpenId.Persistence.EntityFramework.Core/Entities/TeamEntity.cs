@@ -51,9 +51,9 @@ public sealed class TeamEntity : ISupportConcurrencyToken
     public long? ParentTeamId { get; set; }
 
     /// <summary>
-    /// Gets or sets the team path: the identifiers of the teams from this team's top-level team down to this team,
-    /// each followed by <c>/</c>, after a leading <c>/</c>. It is built when the team is created and changes only when
-    /// a mirrored team document moves the team or a team above it.
+    /// Gets or sets the team path: the identifiers of the teams from this team's top-level team down to this team, each
+    /// followed by <c>/</c>, after a leading <c>/</c>. It is built when the team is created and changes only when a
+    /// mirrored team document moves the team or a team above it.
     /// </summary>
     [Unicode(false)]
     [MaxLength(OpenIdMaxLengths.TeamPath)]

@@ -12,8 +12,8 @@ namespace NCode.Identity.Secrets.Persistence.Protection;
 /// </summary>
 /// <remarks>
 /// An owner root key is not scoped to a tenant, so a read names its owner or owners, its owner type, or the due keys.
-/// <see cref="IStore{T}.UpdateAsync"/> throws a <see cref="StoreConcurrencyException"/> when the concurrency token
-/// does not match, and an <see cref="InvalidOperationException"/> when the row is gone.
+/// <see cref="IStore{T}.UpdateAsync"/> throws a <see cref="StoreConcurrencyException"/> when the concurrency token does
+/// not match, and an <see cref="InvalidOperationException"/> when the row is gone.
 /// </remarks>
 // See ADR-1414.
 [PublicAPI]

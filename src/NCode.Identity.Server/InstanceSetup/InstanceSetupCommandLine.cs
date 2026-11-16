@@ -19,9 +19,9 @@ namespace NCode.Identity.Server.InstanceSetup;
 /// database connection is already full authority over the instance.
 /// </summary>
 /// <remarks>
-/// The exit code is <c>0</c> when the root administrator is created or the instance is already initialized, so a Job can
-/// run the command on every release, <c>1</c> when the root administrator cannot be created, and <c>2</c> for a usage
-/// error, when the configuration lacks the root administrator's username or password, or when the cell is not the
+/// The exit code is <c>0</c> when the root administrator is created or the instance is already initialized, so a Job
+/// can run the command on every release, <c>1</c> when the root administrator cannot be created, and <c>2</c> for a
+/// usage error, when the configuration lacks the root administrator's username or password, or when the cell is not the
 /// control-plane cell, because setup belongs to the control plane.
 /// </remarks>
 // See ADR-1512.

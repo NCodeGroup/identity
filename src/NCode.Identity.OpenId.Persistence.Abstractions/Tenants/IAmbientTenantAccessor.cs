@@ -38,9 +38,8 @@ public interface IAmbientTenantAccessor
     string? TenantId { get; }
 
     /// <summary>
-    /// Gets a value indicating whether an unscoped scope is currently active, which lets tenant-bound data access
-    /// read across tenants. It is <c>false</c> inside a tenant scope, even when that scope is nested in an unscoped
-    /// one.
+    /// Gets a value indicating whether an unscoped scope is currently active, which lets tenant-bound data access read
+    /// across tenants. It is <c>false</c> inside a tenant scope, even when that scope is nested in an unscoped one.
     /// </summary>
     bool IsUnscoped { get; }
 

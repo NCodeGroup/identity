@@ -53,9 +53,9 @@ public interface IPlatformStore : IStore<PersistedPlatform>
     /// settings.</param>
     /// <param name="directorySequence">The sequence of the directory change that published the document.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c> when
-    /// the settings were written; otherwise <c>false</c> when the row already carries a sequence at or above the
-    /// given one.</returns>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c> when the
+    /// settings were written; otherwise <c>false</c> when the row already carries a sequence at or above the given
+    /// one.</returns>
     ValueTask<bool> MirrorSettingsAsync(
         PersistedPlatformSettings settings,
         long directorySequence,

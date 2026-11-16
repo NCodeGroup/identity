@@ -15,8 +15,8 @@ using NCode.Identity.Secrets.Persistence.Protection;
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
 
 /// <summary>
-/// Provides a default implementation of <see cref="ITeamStore"/> that uses Entity Framework Core for persistence.
-/// A team is removed only when it holds no tenant and no team. The directory retires a removed team's identifier.
+/// Provides a default implementation of <see cref="ITeamStore"/> that uses Entity Framework Core for persistence. A
+/// team is removed only when it holds no tenant and no team. The directory retires a removed team's identifier.
 /// </summary>
 // See ADR-1411
 // See ADR-1426.

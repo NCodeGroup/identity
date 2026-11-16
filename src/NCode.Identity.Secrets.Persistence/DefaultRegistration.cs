@@ -66,8 +66,8 @@ public static class DefaultRegistration
         /// keys protect and destroys retired keys that nothing names.</description></item>
         /// <item><description><see cref="IMasterKeyRewrapper"/> - Rewraps persisted master keys under the root of their
         /// owner: its own root key, or the configured root key provider and recovery public key.</description></item>
-        /// <item><description><see cref="IMasterKeyTransfer"/> - Exports the master keys of an owner as a package
-        /// that only the holder of a recipient key reads, and imports such a package under the root of the importing
+        /// <item><description><see cref="IMasterKeyTransfer"/> - Exports the master keys of an owner as a package that
+        /// only the holder of a recipient key reads, and imports such a package under the root of the importing
         /// owner.</description></item>
         /// <item><description><see cref="IOwnerRootKeyManager"/> - Sets, validates and removes the root key that an owner
         /// brings, which wraps the owner's master keys in place of the deployment's root key. Each

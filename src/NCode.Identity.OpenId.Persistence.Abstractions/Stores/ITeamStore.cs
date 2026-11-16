@@ -199,8 +199,8 @@ public interface ITeamStore : IStore<PersistedTeam>
     /// <param name="persistedTeam">The <see cref="PersistedTeam"/> instance that carries the document's values and its
     /// sequence.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c> when
-    /// the document was applied; otherwise <c>false</c> when the row already carries a sequence at or above the
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c> when the
+    /// document was applied; otherwise <c>false</c> when the row already carries a sequence at or above the
     /// document's.</returns>
     /// <exception cref="InvalidOperationException">Thrown when the parent team does not exist, or when the team or a
     /// team beneath it would be nested deeper than <see cref="TeamPaths.MaxDepth"/> levels.</exception>

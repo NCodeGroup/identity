@@ -391,8 +391,8 @@ internal sealed class LocalTenantDirectory(
 
     /// <summary>
     /// Finds a team of the lineage of the specified team that already holds the most tenants its limit allows. A team's
-    /// limit is the lesser of the platform's <c>max_tenants</c> setting and the team's own, and it bounds the
-    /// tenants of the team and of every team beneath it. The deepest team is checked first.
+    /// limit is the lesser of the platform's <c>max_tenants</c> setting and the team's own, and it bounds the tenants
+    /// of the team and of every team beneath it. The deepest team is checked first.
     /// </summary>
     /// <param name="dbContext">The <see cref="OpenIdDbContext"/> to read from.</param>
     /// <param name="teamId">The identifier of the team that would hold the new tenant.</param>

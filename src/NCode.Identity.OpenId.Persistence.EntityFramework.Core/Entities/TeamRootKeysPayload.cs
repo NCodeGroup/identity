@@ -58,8 +58,8 @@ internal sealed class TeamRootKeysPayload
     /// <param name="rootKeysJson">The <see cref="JsonElement"/> that holds the envelope.</param>
     /// <returns>The root keys that the team brings, keyed by region.</returns>
     /// <exception cref="JsonException">
-    /// The value is not the schema-versioned envelope of a team's root keys, or its payload lacks the root keys,
-    /// holds a region without a root key, or holds a root key without its key wrapper name or key reference.
+    /// The value is not the schema-versioned envelope of a team's root keys, or its payload lacks the root keys, holds
+    /// a region without a root key, or holds a root key without its key wrapper name or key reference.
     /// </exception>
     public static IReadOnlyDictionary<string, OwnerRootKeyRequest> Read(
         IPersistedPayloadSerializer payloadSerializer,

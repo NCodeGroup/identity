@@ -98,13 +98,12 @@ public abstract class BaseStore<TItem, TEntity> : IStore
     );
 
     /// <summary>
-    /// Returns an already-tracked entity matching the predicate without querying the database. The lookup applies
-    /// the tenant scope the fail-closed tenant-scoping query filter applies, so it answers exactly what the query
-    /// would: a tracked entity that is not tenant-bound matches; a tracked tenant-child entity matches only when the
-    /// scope is unscoped or its tenant is the ambient tenant. With the scope unset, no tracked tenant-child entity
-    /// matches. EF identity resolution would return this same tracked instance from a query anyway, so a
-    /// <c>Local</c>-first lookup avoids a redundant round-trip when the entity was already loaded in the current
-    /// unit of work.
+    /// Returns an already-tracked entity matching the predicate without querying the database. The lookup applies the
+    /// tenant scope the fail-closed tenant-scoping query filter applies, so it answers exactly what the query would: a
+    /// tracked entity that is not tenant-bound matches; a tracked tenant-child entity matches only when the scope is
+    /// unscoped or its tenant is the ambient tenant. With the scope unset, no tracked tenant-child entity matches. EF
+    /// identity resolution would return this same tracked instance from a query anyway, so a <c>Local</c>-first lookup
+    /// avoids a redundant round-trip when the entity was already loaded in the current unit of work.
     /// </summary>
     /// <param name="predicate">The predicate to match against the tracked (local) entities.</param>
     /// <returns>The tracked entity if one matches in the tenant scope; otherwise <c>null</c>.</returns>

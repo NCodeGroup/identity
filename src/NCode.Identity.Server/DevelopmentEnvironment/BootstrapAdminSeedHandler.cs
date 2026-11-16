@@ -27,13 +27,13 @@ namespace NCode.Identity.Server.DevelopmentEnvironment;
 /// Seeds the configured bootstrap administrator client into the configured bootstrap tenant as part of the tenant seed
 /// fan-out. The client registers <c>client_secret_basic</c>, so it presents the configured secret with HTTP Basic
 /// authentication. The client holds a persisted <c>GlobalAdmin</c> role assignment at the platform node, which the
-/// control plane answers for the client's principal, so an operator can make the first authorized management call.
-/// The handler is idempotent and inert unless a bootstrap client id and secret are configured, and it seeds exactly the
-/// one tenant <see cref="BootstrapAdminOptions.TenantId"/> names — never every tenant, which would hand a GlobalAdmin
+/// control plane answers for the client's principal, so an operator can make the first authorized management call. The
+/// handler is idempotent and inert unless a bootstrap client id and secret are configured, and it seeds exactly the one
+/// tenant <see cref="BootstrapAdminOptions.TenantId"/> names — never every tenant, which would hand a GlobalAdmin
 /// credential to each tenant created at runtime. The client is checked before it is stored, so a ceiling that excludes
 /// <c>client_secret_basic</c> stops the seed. An existing client is left as it is, apart from its secret and its
-/// platform assignment; the reconciliation of the platform's
-/// settings, team by team, reports it, as it reports every stored client, when the settings make it incoherent.
+/// platform assignment; the reconciliation of the platform's settings, team by team, reports it, as it reports every
+/// stored client, when the settings make it incoherent.
 /// </summary>
 // See ADR-1044 (the bootstrap administrator), ADR-1166 (a seeder that names a tenant seeds exactly that tenant), and
 // ADR-1412 (an existing client is reported by the per-team reconciliation).

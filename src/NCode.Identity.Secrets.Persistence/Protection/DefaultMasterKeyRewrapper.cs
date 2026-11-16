@@ -13,11 +13,10 @@ namespace NCode.Identity.Secrets.Persistence.Protection;
 /// </summary>
 /// <remarks>
 /// Each row is rewrapped in its own unit of work. A row that vanished during the run, whether its update conflicts or
-/// finds it gone, counts as examined only. The material of a master key does not change, so no replica needs to
-/// reload it. The target of a row is the root of its owner: the nearest root key that is not being removed, the
-/// owner's own or else its nearest ancestor's, otherwise the configured root key provider. A row that already sits
-/// under that root key is
-/// examined only, and a row that is moved under it loses its recovery copy; a row moved under the deployment's root
+/// finds it gone, counts as examined only. The material of a master key does not change, so no replica needs to reload
+/// it. The target of a row is the root of its owner: the nearest root key that is not being removed, the owner's own or
+/// else its nearest ancestor's, otherwise the configured root key provider. A row that already sits under that root key
+/// is examined only, and a row that is moved under it loses its recovery copy; a row moved under the deployment's root
 /// key gets a recovery copy when a recovery public key is configured, and when none is, the existing recovery copy is
 /// left as it is, because a recovery path is never removed silently.
 /// </remarks>

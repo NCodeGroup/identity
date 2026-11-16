@@ -26,12 +26,12 @@ public static class DefaultRegistration
     {
         /// <summary>
         /// Registers the generic Entity Framework <see cref="ILocalAccountStore"/> and
-        /// <see cref="ILocalAccountTransferStore"/> together with the
-        /// <see cref="LocalAccountLibrary"/> marker that the opt-in local-account capabilities require as a compile-time
-        /// argument, and the model contributor that adds the account entities to the shared <c>OpenIdDbContext</c>. The
-        /// store hashes and verifies passwords with the <see cref="IPasswordHasher"/> that the host registers, for
-        /// example with <c>AddDefaultPasswordHasher</c> from the <c>NCode.Identity.OpenId.Accounts</c> package. The
-        /// receiver proves the Entity Framework persistence framework is registered.
+        /// <see cref="ILocalAccountTransferStore"/> together with the <see cref="LocalAccountLibrary"/> marker that the
+        /// opt-in local-account capabilities require as a compile-time argument, and the model contributor that adds
+        /// the account entities to the shared <c>OpenIdDbContext</c>. The store hashes and verifies passwords with the
+        /// <see cref="IPasswordHasher"/> that the host registers, for example with <c>AddDefaultPasswordHasher</c> from
+        /// the <c>NCode.Identity.OpenId.Accounts</c> package. The receiver proves the Entity Framework persistence
+        /// framework is registered.
         /// </summary>
         /// <returns>The <see cref="IServiceBuilder{T}"/> proving a local-account store is registered.</returns>
         public IServiceBuilder<LocalAccountLibrary> AddLocalAccountEntityFramework()

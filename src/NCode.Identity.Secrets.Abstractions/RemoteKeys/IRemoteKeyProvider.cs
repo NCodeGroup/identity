@@ -142,8 +142,8 @@ public interface IRemoteKeyProvider
 
     /// <summary>
     /// Sets the deployment tag of the key in the key management service, the tag that the remote-key sweep reads, so
-    /// the key belongs to the deployment of another cell and only the sweep of that deployment lists it.
-    /// The key's other tags and labels are kept. Completes without error for a key that is missing.
+    /// the key belongs to the deployment of another cell and only the sweep of that deployment lists it. The key's
+    /// other tags and labels are kept. Completes without error for a key that is missing.
     /// </summary>
     /// <param name="keyId">The key management service's identifier for the key.</param>
     /// <param name="deployment">The deployment to tag the key with.</param>

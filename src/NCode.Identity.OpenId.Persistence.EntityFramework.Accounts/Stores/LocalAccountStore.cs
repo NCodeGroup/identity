@@ -16,12 +16,11 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Accounts.Stores;
 
 /// <summary>
 /// Provides the generic Entity Framework Core implementation of <see cref="ILocalAccountStore"/> and
-/// <see cref="ILocalAccountTransferStore"/> over the shared
-/// <see cref="OpenIdDbContext"/>, reusing the framework store base for id/concurrency generation and normalization.
-/// Credential handling is owned here: it hashes and verifies passwords through the pluggable <see cref="IPasswordHasher"/>
-/// and keeps the hash a store-internal detail that never leaves on the <see cref="PersistedLocalAccount"/> contract.
-/// A user name that no account has, and an account without a password, are verified against the hasher's dummy hash,
-/// so a wrong password takes as long either way.
+/// <see cref="ILocalAccountTransferStore"/> over the shared <see cref="OpenIdDbContext"/>, reusing the framework store
+/// base for id/concurrency generation and normalization. Credential handling is owned here: it hashes and verifies
+/// passwords through the pluggable <see cref="IPasswordHasher"/> and keeps the hash a store-internal detail that never
+/// leaves on the <see cref="PersistedLocalAccount"/> contract. A user name that no account has, and an account without
+/// a password, are verified against the hasher's dummy hash, so a wrong password takes as long either way.
 /// </summary>
 internal sealed class LocalAccountStore(
     IStoreProvider storeProvider,
