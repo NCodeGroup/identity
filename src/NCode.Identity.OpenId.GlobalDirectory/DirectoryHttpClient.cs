@@ -47,7 +47,9 @@ internal sealed class DirectoryHttpClient(
     /// <param name="body">The record to send as the JSON body, or <c>null</c> for a request without a body.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="DirectoryResponse"/> of a success, <c>404</c> or <c>409</c>.</returns>
-    /// <exception cref="DirectoryUnavailableException">The directory cannot be reached or answers with a failure.</exception>
+    /// <exception cref="DirectoryUnavailableException">
+    /// The directory cannot be reached or answers with a failure.
+    /// </exception>
     public ValueTask<DirectoryResponse> SendAsync(
         HttpMethod method,
         string path,
@@ -73,7 +75,9 @@ internal sealed class DirectoryHttpClient(
     /// <param name="cellRequest">The call to make.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="DirectoryResponse"/> of a success, <c>404</c> or <c>409</c>.</returns>
-    /// <exception cref="DirectoryUnavailableException">The endpoint cannot be reached or answers with a failure.</exception>
+    /// <exception cref="DirectoryUnavailableException">
+    /// The endpoint cannot be reached or answers with a failure.
+    /// </exception>
     public async ValueTask<DirectoryResponse> SendAsync(
         CellApiRequest cellRequest,
         CancellationToken cancellationToken

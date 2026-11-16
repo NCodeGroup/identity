@@ -9,8 +9,8 @@ using NCode.Identity.OpenId.GlobalDirectory;
 namespace NCode.Identity.Server.Cells;
 
 /// <summary>
-/// Validates <see cref="CellOptions"/>: a cell names itself and its region with lowercase labels, names its kind, points
-/// a cell that is not the control plane at the control plane's issuer, and reaches its management API over
+/// Validates <see cref="CellOptions"/>: a cell names itself and its region with lowercase labels, names its kind,
+/// points a cell that is not the control plane at the control plane's issuer, and reaches its management API over
 /// <c>https</c>, or over <c>http</c> in local development. A failure names the key and the rule, never the value,
 /// because a refused URL may carry a password.
 /// </summary>

@@ -16,7 +16,9 @@ internal interface INearestOwnerRootKeyResolver
     /// Finds the nearest owner root key that wraps the master keys of an owner. A root key that is being removed wraps
     /// nothing, so the search passes it by.
     /// </summary>
-    /// <param name="store">The store that reads the owner root keys, which keeps the read in the caller's unit of work.</param>
+    /// <param name="store">
+    /// The store that reads the owner root keys, which keeps the read in the caller's unit of work.
+    /// </param>
     /// <param name="owner">The owner whose master keys the root key wraps.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>

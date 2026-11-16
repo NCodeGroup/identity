@@ -13,9 +13,9 @@ namespace NCode.Identity.OpenId.Management.ControlPlane;
 public static class ControlPlaneServiceKeys
 {
     /// <summary>
-    /// The key of the remote <see cref="IManagementTokenValidator"/> and the remote <see cref="IControlPlaneAuthority"/>.
-    /// A cell that is not the control plane resolves them when they are registered, and the control-plane cell never
-    /// does.
+    /// The key of the remote <see cref="IManagementTokenValidator"/> and the remote
+    /// <see cref="IControlPlaneAuthority"/>. A cell that is not the control plane resolves them when they are
+    /// registered, and the control-plane cell never does.
     /// </summary>
     public const string Remote = "remote";
 }

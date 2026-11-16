@@ -586,7 +586,8 @@ internal class TeamApiEndpointHandler(
     /// <param name="store">The <see cref="ITeamStore"/> that inserts the team.</param>
     /// <param name="storeManager">The <see cref="IStoreManager"/> that saves the team.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="IResult"/> that refuses the creation, or <c>null</c> when the team is created and published.</returns>
+    /// <returns>The <see cref="IResult"/> that refuses the creation, or <c>null</c> when the team is created and
+    /// published.</returns>
     // See ADR-1411.
     private async ValueTask<IResult?> ReserveInsertAndPublishAsync(
         PersistedTeam team,
@@ -670,7 +671,8 @@ internal class TeamApiEndpointHandler(
     /// </summary>
     /// <param name="team">The <see cref="PersistedTeam"/> as saved.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="DirectoryUnavailableException"/> that the directory threw, or <c>null</c> when the document is published.</returns>
+    /// <returns>The <see cref="DirectoryUnavailableException"/> that the directory threw, or <c>null</c> when the
+    /// document is published.</returns>
     private async ValueTask<DirectoryUnavailableException?> TryPublishAsync(
         PersistedTeam team,
         CancellationToken cancellationToken

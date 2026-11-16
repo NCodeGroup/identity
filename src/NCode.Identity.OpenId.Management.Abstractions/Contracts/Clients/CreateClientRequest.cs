@@ -15,8 +15,8 @@ namespace NCode.Identity.OpenId.Management.Contracts.Clients;
 public sealed class CreateClientRequest
 {
     /// <summary>
-    /// Gets the client's identifier, or <c>null</c> when the server generates one. Only the platform's machine client of
-    /// a cell may set it, as <c>cell-</c> followed by the cell's name; every other request leaves it <c>null</c>.
+    /// Gets the client's identifier, or <c>null</c> when the server generates one. Only the platform's machine client
+    /// of a cell may set it, as <c>cell-</c> followed by the cell's name; every other request leaves it <c>null</c>.
     /// </summary>
     public string? ClientId { get; init; }
 

@@ -53,10 +53,10 @@ public static class ManagementConsoleEndpointRouteBuilderExtensions
         /// <summary>
         /// Maps the BFF endpoints and remote APIs of the configured frontends, the management API forwarder under
         /// <see cref="ManagementConsoleDefaults.ApiPath"/>, one management API forwarder per configured cell under
-        /// <c>{<see cref="ManagementConsoleDefaults.CellsPath"/>}/{cell}/api</c>, the console's bootstrap document under
-        /// <see cref="ManagementConsoleDefaults.BootstrapPath"/>, the bundle's static assets under
-        /// <see cref="ManagementConsoleDefaults.AssetsPath"/> and, as the fallback of every other
-        /// <c>GET</c> and <c>HEAD</c> path that is not a file, the console's page.
+        /// <c>{<see cref="ManagementConsoleDefaults.CellsPath"/>}/{cell}/api</c>, the console's bootstrap document
+        /// under <see cref="ManagementConsoleDefaults.BootstrapPath"/>, the bundle's static assets under
+        /// <see cref="ManagementConsoleDefaults.AssetsPath"/> and, as the fallback of every other <c>GET</c> and
+        /// <c>HEAD</c> path that is not a file, the console's page.
         /// </summary>
         /// <remarks>
         /// Each management API forwarder is limited to the <see cref="ManagementConsoleDefaults.FrontendName"/>

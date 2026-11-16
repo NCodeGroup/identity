@@ -38,7 +38,8 @@ public sealed class ManagementTokenValidation
         new(principal, false, default);
 
     /// <summary>
-    /// Creates the outcome of a token that could not be validated because the authority that validates it is unavailable.
+    /// Creates the outcome of a token that could not be validated because the authority that validates it is
+    /// unavailable.
     /// </summary>
     /// <param name="retryAfter">The time after which the caller may retry.</param>
     /// <returns>The <see cref="ManagementTokenValidation"/>.</returns>

@@ -28,6 +28,9 @@ public interface ITenantTransferKeyService
     /// </summary>
     /// <param name="keyId">The <c>kid</c> of the transfer key.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The private <see cref="SecretKey"/>; or <see langword="null"/> when the key is unknown, expired, already taken or unreadable.</returns>
+    /// <returns>
+    /// The private <see cref="SecretKey"/>; or <see langword="null"/> when the key is unknown, expired, already taken
+    /// or unreadable.
+    /// </returns>
     ValueTask<SecretKey?> TakeAsync(string keyId, CancellationToken cancellationToken);
 }

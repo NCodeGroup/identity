@@ -35,9 +35,9 @@ public class BootstrapAdminOptions
 
     /// <summary>
     /// Gets the identifier of the tenant the bootstrap administrator client is seeded into and holds its platform
-    /// <c>GlobalAdmin</c> assignment in. It is required when the bootstrap administrator is configured, and it must name
-    /// the control-plane tenant: the static tenant of a single-tenant host, or the root tenant of a multi-tenant one. A
-    /// default of every tenant would give each tenant created at runtime a GlobalAdmin credential.
+    /// <c>GlobalAdmin</c> assignment in. It is required when the bootstrap administrator is configured, and it must
+    /// name the control-plane tenant: the static tenant of a single-tenant host, or the root tenant of a multi-tenant
+    /// one. A default of every tenant would give each tenant created at runtime a GlobalAdmin credential.
     /// </summary>
     public string? TenantId { get; set; }
 

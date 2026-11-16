@@ -53,7 +53,9 @@ public interface ITenantDirectory
     /// tenant that held a retired issuer can take it back. The directory retires the issuer its record of the tenant
     /// holds, or the issuer the retirement names when it has no record, and retiring what is already retired succeeds.
     /// </summary>
-    /// <param name="retirement">The <see cref="TenantRetirement"/> describing the identifier and issuer to retire.</param>
+    /// <param name="retirement">
+    /// The <see cref="TenantRetirement"/> describing the identifier and issuer to retire.
+    /// </param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     ValueTask RetireAsync(TenantRetirement retirement, CancellationToken cancellationToken);
@@ -73,8 +75,8 @@ public interface ITenantDirectory
     /// <summary>
     /// Records that the cell holding a tenant offers the tenant to another cell of the same region, until the offer
     /// expires. A tenant has at most one offer, and offering again sets it to the new target cell and expiry. The offer
-    /// is refused when the tenant is not placed in the source cell, when the cells are the same, when either cell is not
-    /// registered, or when the cells are in different regions.
+    /// is refused when the tenant is not placed in the source cell, when the cells are the same, when either cell is
+    /// not registered, or when the cells are in different regions.
     /// </summary>
     /// <param name="tenantId">The identifier of the tenant.</param>
     /// <param name="fromCell">The name of the cell that holds the tenant and offers it.</param>
@@ -111,7 +113,9 @@ public interface ITenantDirectory
     /// </summary>
     /// <param name="tenantId">The identifier of the tenant.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="TenantPlacement"/> of the tenant, or <c>null</c> when the tenant is not placed.</returns>
+    /// <returns>
+    /// The <see cref="TenantPlacement"/> of the tenant, or <c>null</c> when the tenant is not placed.
+    /// </returns>
     ValueTask<TenantPlacement?> GetPlacementOrDefaultAsync(
         string tenantId,
         CancellationToken cancellationToken
@@ -130,7 +134,9 @@ public interface ITenantDirectory
     /// </summary>
     /// <param name="issuer">The issuer to look up.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The identifier of the tenant that held the issuer, or <c>null</c> when no tenant has given it up.</returns>
+    /// <returns>
+    /// The identifier of the tenant that held the issuer, or <c>null</c> when no tenant has given it up.
+    /// </returns>
     ValueTask<string?> GetRetiredIssuerHolderOrDefaultAsync(
         string issuer,
         CancellationToken cancellationToken

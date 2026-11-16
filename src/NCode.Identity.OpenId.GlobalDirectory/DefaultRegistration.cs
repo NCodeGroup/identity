@@ -33,17 +33,17 @@ public static class DefaultRegistration
         /// the OpenID client library requests as the cell's machine client from the issuer named by
         /// <c>Cell:ControlPlane:Issuer</c>, over the client library's bounded HTTP client. A start check also refuses a
         /// <c>Cell:ControlPlane:Issuer</c> that is not an allowed endpoint. A call that cannot reach the
-        /// directory throws <see cref="DirectoryUnavailableException"/>. The same registration adds a hosted service that
-        /// registers the cell with the directory when the host starts, retrying while the directory is unavailable, and a
-        /// hosted service that follows the directory's change feed: every <see cref="DirectoryClientOptions.PollInterval"/>
-        /// one replica of a cell that is not the control plane mirrors the published team and platform documents into the
-        /// cell.
-        /// A cell that is not the control plane (<see cref="CellOptions.IsControlPlane"/> is <c>false</c>) uses the
-        /// <see cref="IManagementTokenValidator"/> that validates management tokens against
-        /// <c>Cell:ControlPlane:Issuer</c> and the <see cref="IControlPlaneAuthority"/> that asks the control-plane cell's
-        /// <c>control-plane/v1/authority</c> endpoint for the roles of a caller, with a token for the audience
-        /// <c>urn:ncode:control-plane</c> from the same <see cref="ICellTokenSource"/>. This registration adds both as
-        /// keyed singletons under <see cref="ControlPlaneServiceKeys.Remote"/> on every cell and reads no <c>Cell</c>
+        /// directory throws <see cref="DirectoryUnavailableException"/>. The same registration adds a hosted service
+        /// that registers the cell with the directory when the host starts, retrying while the directory is
+        /// unavailable, and a hosted service that follows the directory's change feed: every
+        /// <see cref="DirectoryClientOptions.PollInterval"/> one replica of a cell that is not the control plane
+        /// mirrors the published team and platform documents into the cell. A cell that is not the control plane
+        /// (<see cref="CellOptions.IsControlPlane"/> is <c>false</c>) uses the <see cref="IManagementTokenValidator"/>
+        /// that validates management tokens against <c>Cell:ControlPlane:Issuer</c> and the
+        /// <see cref="IControlPlaneAuthority"/> that asks the control-plane cell's <c>control-plane/v1/authority</c>
+        /// endpoint for the roles of a caller, with a token for the audience <c>urn:ncode:control-plane</c> from the
+        /// same <see cref="ICellTokenSource"/>. This registration adds both as keyed singletons under
+        /// <see cref="ControlPlaneServiceKeys.Remote"/> on every cell and reads no <c>Cell</c>
         /// setting; the management library resolves them for a cell that is not the control plane and resolves its
         /// local adapters for the control-plane cell.
         /// </summary>

@@ -14,10 +14,10 @@ using NCode.Identity.Persistence.Stores;
 namespace NCode.Identity.OpenId.Management.Promotions;
 
 /// <summary>
-/// Carries the shared state of one tenant promotion: the source configuration document and the target tenant, the unit of work every contributor
-/// enlists in, the document the target holds once promoted, and what planning records for the report, the audit trail
-/// and the authority checks (changes, notes, errors, changed limits, required creation authorities and the mapping
-/// of source identifiers to target identifiers).
+/// Carries the shared state of one tenant promotion: the source configuration document and the target tenant, the unit
+/// of work every contributor enlists in, the document the target holds once promoted, and what planning records for the
+/// report, the audit trail and the authority checks (changes, notes, errors, changed limits, required creation
+/// authorities and the mapping of source identifiers to target identifiers).
 /// </summary>
 // See ADR-1425.
 [PublicAPI]

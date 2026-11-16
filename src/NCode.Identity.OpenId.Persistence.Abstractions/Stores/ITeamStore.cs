@@ -154,7 +154,8 @@ public interface ITeamStore : IStore<PersistedTeam>
     /// Updates the root keys that the team brings, keyed by region. Only the map is written, and the team's other
     /// columns stay as they are.
     /// </summary>
-    /// <param name="persistedTeam">The <see cref="PersistedTeam"/> instance carrying the root keys and the concurrency token it was read with.</param>
+    /// <param name="persistedTeam">The <see cref="PersistedTeam"/> instance carrying the root keys and the concurrency
+    /// token it was read with.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     /// <exception cref="StoreConcurrencyException">Thrown when the team was modified since it was read.</exception>
@@ -195,7 +196,8 @@ public interface ITeamStore : IStore<PersistedTeam>
     /// document's. Otherwise a missing row is inserted, its display name, settings, parent and path are set from the
     /// document, and, when the parent changes, the paths of the teams beneath it are rewritten.
     /// </summary>
-    /// <param name="persistedTeam">The <see cref="PersistedTeam"/> instance that carries the document's values and its sequence.</param>
+    /// <param name="persistedTeam">The <see cref="PersistedTeam"/> instance that carries the document's values and its
+    /// sequence.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c> when
     /// the document was applied; otherwise <c>false</c> when the row already carries a sequence at or above the

@@ -20,7 +20,9 @@ namespace NCode.Identity.OpenId.Accounts.AspNetIdentity;
 /// <see cref="AccountMaxLengths.UserName"/> and <see cref="AccountMaxLengths.Email"/>; the default Entity Framework
 /// Core model of ASP.NET Core Identity sizes all four at 256, which is shorter.
 /// </remarks>
-/// <param name="ambientTenantAccessor">The ambient tenant accessor that supplies the tenant of the current scope.</param>
+/// <param name="ambientTenantAccessor">
+/// The ambient tenant accessor that supplies the tenant of the current scope.
+/// </param>
 internal class TenantLookupNormalizer(IAmbientTenantAccessor ambientTenantAccessor)
     : ILookupNormalizer
 {

@@ -285,7 +285,9 @@ internal static class EncryptionKeyEndpoints
     /// <summary>
     /// Checks the key wrapper, the key reference and the access identity of a root key request field by field.
     /// </summary>
-    /// <param name="ownerRootKeyManager">The <see cref="IOwnerRootKeyManager"/> that decides which key wrappers and references are acceptable.</param>
+    /// <param name="ownerRootKeyManager">
+    /// The <see cref="IOwnerRootKeyManager"/> that decides which key wrappers and references are acceptable.
+    /// </param>
     /// <param name="request">The <see cref="EncryptionRootKeyRequest"/> to check.</param>
     /// <returns>The errors keyed by field, which is empty when the request is valid.</returns>
     internal static Dictionary<string, string[]> ValidateRootKeyRequest(

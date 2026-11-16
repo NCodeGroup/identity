@@ -33,7 +33,9 @@ public sealed class IssuerAccessTokenResult
     /// </summary>
     /// <param name="failureCode">The machine-readable code of the reason the access token is invalid.</param>
     /// <param name="failureReason">The reason the access token is invalid.</param>
-    /// <exception cref="ArgumentException"><paramref name="failureCode"/> or <paramref name="failureReason"/> is null or empty.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="failureCode"/> or <paramref name="failureReason"/> is null or empty.
+    /// </exception>
     public IssuerAccessTokenResult(string failureCode, string failureReason)
     {
         ArgumentException.ThrowIfNullOrEmpty(failureCode);

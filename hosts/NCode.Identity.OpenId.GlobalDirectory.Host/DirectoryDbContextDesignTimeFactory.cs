@@ -8,8 +8,8 @@ using NCode.Identity.OpenId.GlobalDirectory.Server;
 namespace NCode.Identity.OpenId.GlobalDirectory.Host;
 
 /// <summary>
-/// Lets the EF Core tools (<c>dotnet ef migrations …</c>) construct <see cref="DirectoryDbContext"/> without booting the
-/// host. Migrations are generated into this (the directory host) assembly and target Npgsql; the directory server
+/// Lets the EF Core tools (<c>dotnet ef migrations …</c>) construct <see cref="DirectoryDbContext"/> without booting
+/// the host. Migrations are generated into this (the directory host) assembly and target Npgsql; the directory server
 /// package ships no migrations. The connection string is a design-time placeholder — migrations are generated from the
 /// model and never open a connection.
 /// </summary>

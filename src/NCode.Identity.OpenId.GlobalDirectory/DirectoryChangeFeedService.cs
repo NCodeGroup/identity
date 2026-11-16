@@ -177,8 +177,8 @@ internal sealed class DirectoryChangeFeedService(
     /// <param name="change">The <see cref="DirectoryChange"/> to apply.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing
-    /// <see langword="true"/> when the change was applied, or <see langword="false"/> when it failed and the pass applies
-    /// no change after it.</returns>
+    /// <see langword="true"/> when the change was applied, or <see langword="false"/> when it failed and the pass
+    /// applies no change after it.</returns>
     private async ValueTask<bool> TryApplyAsync(
         DirectoryChange change,
         CancellationToken cancellationToken

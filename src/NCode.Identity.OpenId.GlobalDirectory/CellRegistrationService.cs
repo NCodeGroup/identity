@@ -34,7 +34,8 @@ internal sealed class CellRegistrationService(
     /// <param name="attempt">The one-based number of the attempt that failed.</param>
     /// <param name="jitter">A random value in <c>[0, 1)</c> that picks the delay between half and all of the capped
     /// delay.</param>
-    /// <returns>The <see cref="TimeSpan"/> to wait before the next attempt, never above <see cref="MaxDelay"/>.</returns>
+    /// <returns>The <see cref="TimeSpan"/> to wait before the next attempt, never above
+    /// <see cref="MaxDelay"/>.</returns>
     internal static TimeSpan GetDelay(int attempt, double jitter) =>
         TimeSpan.FromSeconds(
             Math.Min(Math.Pow(2, attempt - 1), MaxDelay.TotalSeconds) * (0.5 + jitter / 2)

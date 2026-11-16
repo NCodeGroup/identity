@@ -808,7 +808,9 @@ internal sealed class DefaultDirectoryStore(
     /// or the cell is the control-plane cell. A tenant with no record, or a record that names no cell, is held by no
     /// cell.
     /// </summary>
-    /// <param name="callerCell">The name of the cell that makes the call, or <c>null</c> for the directory's own call.</param>
+    /// <param name="callerCell">
+    /// The name of the cell that makes the call, or <c>null</c> for the directory's own call.
+    /// </param>
     /// <param name="storedCell">The name of the cell that the tenant's record names, or <c>null</c>.</param>
     /// <returns><c>true</c> when the call is authorized; otherwise, <c>false</c>.</returns>
     private bool IsAuthorized(string? callerCell, string? storedCell) =>
@@ -896,7 +898,8 @@ internal sealed class DefaultDirectoryStore(
 
     /// <summary>
     /// Finds whether an issuer is retired by a tenant other than the specified one. Relying parties that trusted a
-    /// retired issuer would accept another tenant's tokens under it, so only the tenant that gave it up can take it back.
+    /// retired issuer would accept another tenant's tokens under it, so only the tenant that gave it up can take it
+    /// back.
     /// </summary>
     /// <param name="dbContext">The <see cref="DirectoryDbContext"/> to read from.</param>
     /// <param name="tenantId">The identifier of the tenant that would hold the issuer.</param>
@@ -928,7 +931,9 @@ internal sealed class DefaultDirectoryStore(
     /// <param name="dbContext">The <see cref="DirectoryDbContext"/> to read from.</param>
     /// <param name="normalizedIssuer">The normalized issuer to look up.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The identifier of the tenant that retired the issuer, or <c>null</c> when no tenant retired it.</returns>
+    /// <returns>
+    /// The identifier of the tenant that retired the issuer, or <c>null</c> when no tenant retired it.
+    /// </returns>
     private static async ValueTask<string?> GetRetiredIssuerHolderCoreAsync(
         DirectoryDbContext dbContext,
         string normalizedIssuer,
@@ -1079,8 +1084,8 @@ internal sealed class DefaultDirectoryStore(
 
     /// <summary>
     /// Gets the normalized team path of a team: the path of its parent followed by the team's own normalized identifier
-    /// and <c>/</c>. A team with no parent is a top-level team. A team whose parent the directory does not hold is placed
-    /// top-level until its parent is published, which re-paths it and its subtree beneath the parent.
+    /// and <c>/</c>. A team with no parent is a top-level team. A team whose parent the directory does not hold is
+    /// placed top-level until its parent is published, which re-paths it and its subtree beneath the parent.
     /// </summary>
     // See ADR-1426.
     private static async ValueTask<string> GetTeamPathAsync(

@@ -932,7 +932,8 @@ internal class ClientApiEndpointHandler(
     /// </summary>
     /// <param name="owningNode">The platform or team node that owns the client.</param>
     /// <param name="requestedClientId">The client identifier the request names, or <c>null</c>.</param>
-    /// <returns>The <c>400</c> result that refuses the identifier, or <c>null</c> when the request may proceed.</returns>
+    /// <returns>The <c>400</c> result that refuses the identifier, or <c>null</c> when the request may
+    /// proceed.</returns>
     // See ADR-1014.
     private static ValidationProblem? ValidateMachineClientId(
         ResourceNode owningNode,

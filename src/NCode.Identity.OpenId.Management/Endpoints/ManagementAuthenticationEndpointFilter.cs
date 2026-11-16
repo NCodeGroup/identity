@@ -19,11 +19,11 @@ namespace NCode.Identity.OpenId.Management.Endpoints;
 /// endpoints' resource-based authorization to read. Any other request is anonymous whatever principal an authentication
 /// scheme set, and carries no feature; the imperative authorization returns <c>401</c>/<c>403</c>. When the validator
 /// cannot validate the token because the control plane that validates it is unavailable, the filter answers
-/// <c>503 Service Unavailable</c> with a <c>Retry-After</c> and does not call the endpoint. The same answer covers an endpoint
-/// whose authorization asks <see cref="IControlPlaneAuthority"/> for a role while the control plane is unavailable. For
-/// an authenticated caller the filter also asks <see cref="IControlPlaneAuthority"/>, once, whether the caller is a
-/// client acting for itself and keeps the answer on <see cref="ManagementActorFeature"/>; an unavailable control plane
-/// there keeps "not acting client" and does not fail the request.
+/// <c>503 Service Unavailable</c> with a <c>Retry-After</c> and does not call the endpoint. The same answer covers an
+/// endpoint whose authorization asks <see cref="IControlPlaneAuthority"/> for a role while the control plane is
+/// unavailable. For an authenticated caller the filter also asks <see cref="IControlPlaneAuthority"/>, once, whether
+/// the caller is a client acting for itself and keeps the answer on <see cref="ManagementActorFeature"/>; an
+/// unavailable control plane there keeps "not acting client" and does not fail the request.
 /// </summary>
 // See ADR-1466 and ADR-1044.
 internal sealed class ManagementAuthenticationEndpointFilter(

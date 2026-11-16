@@ -19,7 +19,9 @@ public interface ILocalAccountTransferStore : IStore
     /// identifier.
     /// </summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the records.</returns>
+    /// <returns>
+    /// The <see cref="ValueTask"/> that represents the asynchronous operation, containing the records.
+    /// </returns>
     ValueTask<IReadOnlyList<LocalAccountTransferRecord>> ExportAsync(
         CancellationToken cancellationToken
     );

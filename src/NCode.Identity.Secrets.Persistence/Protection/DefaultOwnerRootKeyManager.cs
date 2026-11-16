@@ -19,8 +19,8 @@ namespace NCode.Identity.Secrets.Persistence.Protection;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Setting a key probes it, stores the binding as active, evicts every owner from the ring, tells the observers, and then
-/// completes: the owner's master key rotates onto the key unless the active one already sits under it, and every
+/// Setting a key probes it, stores the binding as active, evicts every owner from the ring, tells the observers, and
+/// then completes: the owner's master key rotates onto the key unless the active one already sits under it, and every
 /// retired master key is rewrapped under it. The earlier material exists in backups under the deployment's root key and
 /// its recovery copy, so only a master key created under the owner's key gives the owner sole control of what is
 /// written afterwards. Removing the key does not rotate: its material was only ever under the stronger root. A

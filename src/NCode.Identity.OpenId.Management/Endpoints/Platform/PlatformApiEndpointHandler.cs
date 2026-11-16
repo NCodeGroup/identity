@@ -560,7 +560,8 @@ internal class PlatformApiEndpointHandler(
     /// </summary>
     /// <param name="settings">The platform's settings document as saved.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="DirectoryUnavailableException"/> that the directory threw, or <c>null</c> when the document is published.</returns>
+    /// <returns>The <see cref="DirectoryUnavailableException"/> that the directory threw, or <c>null</c> when the
+    /// document is published.</returns>
     private async ValueTask<DirectoryUnavailableException?> TryPublishAsync(
         JsonElement settings,
         CancellationToken cancellationToken

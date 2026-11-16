@@ -5,8 +5,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server.Entities;
 
 /// <summary>
 /// Represents an entity framework data contract for an issuer that a tenant gave up, by changing its issuer or by being
-/// deleted. Relying parties that trusted the issuer would trust any tenant that took it, so only the tenant that held it
-/// can take it back.
+/// deleted. Relying parties that trusted the issuer would trust any tenant that took it, so only the tenant that held
+/// it can take it back.
 /// </summary>
 public sealed class RetiredIssuerRecord
 {

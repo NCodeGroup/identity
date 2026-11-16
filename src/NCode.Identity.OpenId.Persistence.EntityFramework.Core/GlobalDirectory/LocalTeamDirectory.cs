@@ -13,8 +13,8 @@ using NCode.Identity.OpenId.Persistence.Tenants;
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.GlobalDirectory;
 
 /// <summary>
-/// Provides the <see cref="ITeamDirectory"/> of a cell that runs on its own. It answers from the cell's own team tables:
-/// the team rows and the retired team identifiers. The team row is the published document, so publishing writes
+/// Provides the <see cref="ITeamDirectory"/> of a cell that runs on its own. It answers from the cell's own team
+/// tables: the team rows and the retired team identifiers. The team row is the published document, so publishing writes
 /// nothing and the change feed is always empty. Every call is its own atomic operation: it opens an
 /// <see cref="OpenIdDbContext"/> of its own and commits its writes before it returns, so retiring a team is durable
 /// whether or not the caller saves anything else.

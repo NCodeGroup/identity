@@ -350,7 +350,8 @@ internal sealed class LocalTenantDirectory(
 
     /// <summary>
     /// Finds whether an issuer is retired by a tenant other than the specified one. Relying parties that trusted a
-    /// retired issuer would accept another tenant's tokens under it, so only the tenant that gave it up can take it back.
+    /// retired issuer would accept another tenant's tokens under it, so only the tenant that gave it up can take it
+    /// back.
     /// </summary>
     /// <param name="dbContext">The <see cref="OpenIdDbContext"/> to read from.</param>
     /// <param name="tenantId">The identifier of the tenant that would hold the issuer.</param>

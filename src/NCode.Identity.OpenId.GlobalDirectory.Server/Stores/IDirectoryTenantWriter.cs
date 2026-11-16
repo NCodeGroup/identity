@@ -12,8 +12,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
 internal interface IDirectoryTenantWriter
 {
     /// <summary>
-    /// Releases the reservation of a tenant whose creation failed. A tenant with no record has nothing to release, and a
-    /// tenant that is not reserved is kept.
+    /// Releases the reservation of a tenant whose creation failed. A tenant with no record has nothing to release, and
+    /// a tenant that is not reserved is kept.
     /// </summary>
     /// <param name="tenantId">The identifier of the tenant.</param>
     /// <param name="callerCell">The name of the cell that makes the call.</param>
@@ -40,8 +40,8 @@ internal interface IDirectoryTenantWriter
     );
 
     /// <summary>
-    /// Changes the issuer of a tenant and retires the issuer the tenant gives up. The change names the issuer the tenant
-    /// holds, and a change to the issuer the tenant already holds is done without a write.
+    /// Changes the issuer of a tenant and retires the issuer the tenant gives up. The change names the issuer the
+    /// tenant holds, and a change to the issuer the tenant already holds is done without a write.
     /// </summary>
     /// <param name="change">The <see cref="TenantIssuerChange"/> describing the previous and the new issuer.</param>
     /// <param name="callerCell">The name of the cell that makes the call.</param>

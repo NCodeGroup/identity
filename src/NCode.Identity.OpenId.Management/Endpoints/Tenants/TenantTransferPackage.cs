@@ -5,8 +5,8 @@ namespace NCode.Identity.OpenId.Management.Endpoints.Tenants;
 
 /// <summary>
 /// Names the members of the tenant transfer package's payload and its format version. The payload is
-/// <c>{ version, region, targetCell, tenantId, sections: [{ name, json }], masterKeys }</c>. A cell imports only a package of its
-/// own <see cref="FormatVersion"/>, and a section's shape changes only with a new format version.
+/// <c>{ version, region, targetCell, tenantId, sections: [{ name, json }], masterKeys }</c>. A cell imports only a
+/// package of its own <see cref="FormatVersion"/>, and a section's shape changes only with a new format version.
 /// </summary>
 // See ADR-1514.
 internal static class TenantTransferPackage

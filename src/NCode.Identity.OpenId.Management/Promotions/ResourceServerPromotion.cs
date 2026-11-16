@@ -7,8 +7,8 @@ using NCode.Identity.OpenId.Persistence.DataContracts;
 namespace NCode.Identity.OpenId.Management.Promotions;
 
 /// <summary>
-/// Contains what a promotion does for one non-system resource server of the source tenant's configuration document: the target it reaches, the
-/// settings document it writes, the scopes it adds or changes, and the errors that refuse it.
+/// Contains what a promotion does for one non-system resource server of the source tenant's configuration document: the
+/// target it reaches, the settings document it writes, the scopes it adds or changes, and the errors that refuse it.
 /// </summary>
 // See ADR-1425.
 internal sealed class ResourceServerPromotion

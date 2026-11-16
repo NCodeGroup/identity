@@ -927,7 +927,8 @@ internal class TenantApiEndpointHandler(
     /// <param name="tenant">The <see cref="PersistedTenant"/> to create.</param>
     /// <param name="storeManager">The <see cref="IStoreManager"/> that inserts the tenant.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="IResult"/> that refuses the creation, or <c>null</c> when the tenant is created and placed.</returns>
+    /// <returns>The <see cref="IResult"/> that refuses the creation, or <c>null</c> when the tenant is created and
+    /// placed.</returns>
     // See ADR-1160.
     private async ValueTask<IResult?> ReserveInsertAndPlaceAsync(
         PersistedTenant tenant,
@@ -1755,8 +1756,8 @@ internal class TenantApiEndpointHandler(
     /// <summary>
     /// Exports a tenant's configuration document: its settings, clients, client grants and resource servers, stamped
     /// with the region of the cell and holding no secret. A promotion into a tenant of the same region reads it in
-    /// place of the source tenant. The caller needs <see cref="Operations.Read"/> at the tenant, as a promotion needs it
-    /// at its source tenant.
+    /// place of the source tenant. The caller needs <see cref="Operations.Read"/> at the tenant, as a promotion needs
+    /// it at its source tenant.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
     /// <param name="tenantId">The identifier of the OpenID Tenant.</param>

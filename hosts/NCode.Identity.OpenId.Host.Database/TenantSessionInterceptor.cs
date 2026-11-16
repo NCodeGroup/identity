@@ -241,7 +241,8 @@ public sealed class TenantSessionInterceptor(IAmbientTenantAccessor ambientTenan
 
     /// <summary>
     /// Forgets the state recorded for the connection of a transaction that did not commit, because Postgres undoes a
-    /// <c>set_config</c> that ran inside such a transaction. Nothing is forgotten when the transaction applied no state.
+    /// <c>set_config</c> that ran inside such a transaction. Nothing is forgotten when the transaction applied no
+    /// state.
     /// </summary>
     /// <param name="transaction">The transaction that rolled back, rolled back to a savepoint or failed.</param>
     private void ForgetStateAppliedIn(DbTransaction transaction)

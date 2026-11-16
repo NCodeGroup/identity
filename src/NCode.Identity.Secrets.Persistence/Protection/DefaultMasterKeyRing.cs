@@ -48,7 +48,9 @@ namespace NCode.Identity.Secrets.Persistence.Protection;
 /// </para>
 /// </remarks>
 /// <param name="factory">The factory that creates new master keys and unwraps persisted master keys.</param>
-/// <param name="nearestRootKeyResolver">The resolver that finds the root key that wraps the master keys of an owner.</param>
+/// <param name="nearestRootKeyResolver">
+/// The resolver that finds the root key that wraps the master keys of an owner.
+/// </param>
 /// <param name="storeManagerFactory">The factory that creates the unit of work that reads and writes master keys.</param>
 /// <param name="recovery">The wrapper that reports whether master keys are wrapped under a recovery key.</param>
 /// <param name="options">The options whose master key refresh interval bounds how long an entry is used.</param>

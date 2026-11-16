@@ -212,8 +212,8 @@ internal sealed class TeamChainSecretOwnerParentResolver(
     /// </summary>
     /// <param name="teamId">The identifier of the team.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The team's identifier followed by the identifiers of the teams above it, nearest first; <c>null</c> when
-    /// the team is not cached.</returns>
+    /// <returns>The team's identifier followed by the identifiers of the teams above it, nearest first; <c>null</c>
+    /// when the team is not cached.</returns>
     private async ValueTask<IReadOnlyList<string>?> TryGetCachedLineageAsync(
         string teamId,
         CancellationToken cancellationToken

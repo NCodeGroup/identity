@@ -19,7 +19,9 @@ internal interface ITenantConfigurationExporter
     /// </summary>
     /// <param name="tenantId">The identifier of the tenant to export.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The tenant's configuration document, or <see langword="null"/> when the tenant does not exist.</returns>
+    /// <returns>
+    /// The tenant's configuration document, or <see langword="null"/> when the tenant does not exist.
+    /// </returns>
     ValueTask<TenantConfigurationDocument?> ExportAsync(
         string tenantId,
         CancellationToken cancellationToken

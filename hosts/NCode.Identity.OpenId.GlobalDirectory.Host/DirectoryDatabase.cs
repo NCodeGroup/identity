@@ -134,8 +134,8 @@ internal static class DirectoryDatabase
     extension(DbContextOptionsBuilder builder)
     {
         /// <summary>
-        /// Configures the options to use Npgsql against <paramref name="connectionString"/>, pointing migrations at this
-        /// (the directory host) assembly.
+        /// Configures the options to use Npgsql against <paramref name="connectionString"/>, pointing migrations at
+        /// this (the directory host) assembly.
         /// </summary>
         /// <param name="connectionString">The Postgres connection string.</param>
         /// <returns>The same <see cref="DbContextOptionsBuilder"/> instance for method chaining.</returns>

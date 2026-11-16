@@ -43,7 +43,9 @@ public interface ITenantTransferContributor
     /// <param name="tenantId">The identifier of the tenant to import.</param>
     /// <param name="section">The <see cref="TenantTransferSection"/> that the contributor exported.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="TenantTransferImportResult"/> that names the remote keys the imported secrets reference.</returns>
+    /// <returns>
+    /// The <see cref="TenantTransferImportResult"/> that names the remote keys the imported secrets reference.
+    /// </returns>
     ValueTask<TenantTransferImportResult> ImportAsync(
         string tenantId,
         TenantTransferSection section,

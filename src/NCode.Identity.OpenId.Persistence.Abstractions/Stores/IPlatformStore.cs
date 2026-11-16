@@ -49,7 +49,8 @@ public interface IPlatformStore : IStore<PersistedPlatform>
     /// when its <see cref="PersistedPlatform.DirectorySequence"/> is at or above the given sequence. Otherwise the
     /// settings and the sequence are written and the settings get a new concurrency token.
     /// </summary>
-    /// <param name="settings">The <see cref="PersistedPlatformSettings"/> instance that carries the document's settings.</param>
+    /// <param name="settings">The <see cref="PersistedPlatformSettings"/> instance that carries the document's
+    /// settings.</param>
     /// <param name="directorySequence">The sequence of the directory change that published the document.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c> when

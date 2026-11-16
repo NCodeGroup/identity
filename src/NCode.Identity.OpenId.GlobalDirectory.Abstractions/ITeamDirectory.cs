@@ -65,10 +65,15 @@ public interface ITeamDirectory
     /// <summary>
     /// Lists the changes to team documents that follow the specified sequence, in ascending order of sequence.
     /// </summary>
-    /// <param name="after">The sequence of the last change the caller has applied, or <c>0</c> for every change.</param>
+    /// <param name="after">
+    /// The sequence of the last change the caller has applied, or <c>0</c> for every change.
+    /// </param>
     /// <param name="limit">The most changes to return.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="DirectoryChange"/> entries after <paramref name="after"/>, at most <paramref name="limit"/> of them.</returns>
+    /// <returns>
+    /// The <see cref="DirectoryChange"/> entries after <paramref name="after"/>, at most <paramref name="limit"/> of
+    /// them.
+    /// </returns>
     ValueTask<IReadOnlyList<DirectoryChange>> ListChangesAsync(
         long after,
         int limit,

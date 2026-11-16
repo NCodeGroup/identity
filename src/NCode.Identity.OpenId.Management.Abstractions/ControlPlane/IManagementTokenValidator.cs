@@ -19,8 +19,8 @@ public interface IManagementTokenValidator
     /// <param name="httpContext">The <see cref="HttpContext"/> of the request.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>
-    /// The <see cref="ManagementTokenValidation"/> that tells whether the token authenticates, does not authenticate, or
-    /// could not be validated because the authority that validates it is unavailable.
+    /// The <see cref="ManagementTokenValidation"/> that tells whether the token authenticates, does not authenticate,
+    /// or could not be validated because the authority that validates it is unavailable.
     /// </returns>
     ValueTask<ManagementTokenValidation> ValidateAsync(
         HttpContext httpContext,

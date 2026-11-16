@@ -11,7 +11,9 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// </summary>
 internal static class DefaultRegistration
 {
-    /// <param name="builder">The <see cref="IServiceBuilder"/> to configure services for <see cref="OpenIdCoreLibrary"/>.</param>
+    /// <param name="builder">
+    /// The <see cref="IServiceBuilder"/> to configure services for <see cref="OpenIdCoreLibrary"/>.
+    /// </param>
     extension(IServiceBuilder<OpenIdCoreLibrary> builder)
     {
         /// <summary>

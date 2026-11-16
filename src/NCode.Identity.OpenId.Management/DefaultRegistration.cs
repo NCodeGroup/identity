@@ -49,10 +49,10 @@ public static class DefaultRegistration
     {
         /// <summary>
         /// Registers the OpenID management library, its authorization handlers, and API endpoints. The
-        /// <see cref="IManagementTokenValidator"/> and <see cref="IControlPlaneAuthority"/> a host resolves are the local
-        /// adapters on the control-plane cell (<see cref="CellOptions.IsControlPlane"/>), and otherwise the remote
-        /// adapters registered under <see cref="ControlPlaneServiceKeys.Remote"/>, falling back to the local adapters
-        /// when none is registered.
+        /// <see cref="IManagementTokenValidator"/> and <see cref="IControlPlaneAuthority"/> a host resolves are the
+        /// local adapters on the control-plane cell (<see cref="CellOptions.IsControlPlane"/>), and otherwise the
+        /// remote adapters registered under <see cref="ControlPlaneServiceKeys.Remote"/>, falling back to the local
+        /// adapters when none is registered.
         /// </summary>
         /// <returns>An <see cref="IServiceBuilder{TLibrary}"/> for the registered <see cref="OpenIdManagementLibrary"/>.</returns>
         [PublicAPI]

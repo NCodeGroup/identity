@@ -34,11 +34,11 @@ public interface ITeamDocumentApplier
     ValueTask RetireAsync(string teamId, long sequence, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Brings the owner root key of each mirrored team to the reference that the team's row holds for the cell's region:
-    /// it sets a key that differs, removes a key that the row doesn't hold, and leaves a key that agrees. A team
-    /// whose key fails validation is logged and left, and the others still reconcile. A disabled team changes nothing.
-    /// It also removes the owner root key of a team that has no row, which finishes a retirement whose key removal
-    /// failed.
+    /// Brings the owner root key of each mirrored team to the reference that the team's row holds for the cell's
+    /// region: it sets a key that differs, removes a key that the row doesn't hold, and leaves a key that agrees. A
+    /// team whose key fails validation is logged and left, and the others still reconcile. A disabled team changes
+    /// nothing. It also removes the owner root key of a team that has no row, which finishes a retirement whose key
+    /// removal failed.
     /// </summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>

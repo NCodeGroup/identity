@@ -24,14 +24,18 @@ internal sealed class DirectoryTenantWriteResult(
     /// <summary>
     /// Creates the result of a write that is committed or has nothing to write.
     /// </summary>
-    /// <returns>A <see cref="DirectoryTenantWriteResult"/> whose outcome is <see cref="DirectoryTenantWriteOutcome.Done"/>.</returns>
+    /// <returns>
+    /// A <see cref="DirectoryTenantWriteResult"/> whose outcome is <see cref="DirectoryTenantWriteOutcome.Done"/>.
+    /// </returns>
     public static DirectoryTenantWriteResult Done() => new(DirectoryTenantWriteOutcome.Done, null);
 
     /// <summary>
     /// Creates the result of a write that the calling cell is not authorized to make.
     /// </summary>
     /// <param name="detail">The reason the write was refused.</param>
-    /// <returns>A <see cref="DirectoryTenantWriteResult"/> whose outcome is <see cref="DirectoryTenantWriteOutcome.Forbidden"/>.</returns>
+    /// <returns>
+    /// A <see cref="DirectoryTenantWriteResult"/> whose outcome is <see cref="DirectoryTenantWriteOutcome.Forbidden"/>.
+    /// </returns>
     public static DirectoryTenantWriteResult Forbidden(string detail) =>
         new(DirectoryTenantWriteOutcome.Forbidden, detail);
 
@@ -39,7 +43,9 @@ internal sealed class DirectoryTenantWriteResult(
     /// Creates the result of a write to a tenant that has no record.
     /// </summary>
     /// <param name="detail">The reason the write was refused.</param>
-    /// <returns>A <see cref="DirectoryTenantWriteResult"/> whose outcome is <see cref="DirectoryTenantWriteOutcome.NotFound"/>.</returns>
+    /// <returns>
+    /// A <see cref="DirectoryTenantWriteResult"/> whose outcome is <see cref="DirectoryTenantWriteOutcome.NotFound"/>.
+    /// </returns>
     public static DirectoryTenantWriteResult NotFound(string detail) =>
         new(DirectoryTenantWriteOutcome.NotFound, detail);
 
@@ -47,7 +53,9 @@ internal sealed class DirectoryTenantWriteResult(
     /// Creates the result of a write that conflicts with the directory's records.
     /// </summary>
     /// <param name="detail">The reason the write was refused.</param>
-    /// <returns>A <see cref="DirectoryTenantWriteResult"/> whose outcome is <see cref="DirectoryTenantWriteOutcome.Conflict"/>.</returns>
+    /// <returns>
+    /// A <see cref="DirectoryTenantWriteResult"/> whose outcome is <see cref="DirectoryTenantWriteOutcome.Conflict"/>.
+    /// </returns>
     public static DirectoryTenantWriteResult Conflict(string detail) =>
         new(DirectoryTenantWriteOutcome.Conflict, detail);
 

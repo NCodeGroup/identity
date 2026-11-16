@@ -73,8 +73,8 @@ internal static partial class GoogleCloudKmsKeyName
     }
 
     /// <summary>
-    /// Gets the location, such as <c>us-central1</c> or <c>global</c>, in the <c>locations/{location}</c> segment of the
-    /// specified name. The name must already have been validated with <see cref="IsKeyRingName"/>,
+    /// Gets the location, such as <c>us-central1</c> or <c>global</c>, in the <c>locations/{location}</c> segment of
+    /// the specified name. The name must already have been validated with <see cref="IsKeyRingName"/>,
     /// <see cref="IsCryptoKeyName"/> or <see cref="IsCryptoKeyVersionName"/>.
     /// </summary>
     /// <param name="name">The resource name of a key ring, crypto key or crypto key version.</param>

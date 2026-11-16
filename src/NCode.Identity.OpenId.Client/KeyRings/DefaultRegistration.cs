@@ -18,7 +18,8 @@ namespace NCode.Identity.OpenId.Client.KeyRings;
 [PublicAPI]
 public static class DefaultRegistration
 {
-    /// <param name="builder">The <see cref="IServiceBuilder{T}"/> to configure services for <see cref="OpenIdClientLibrary"/>.</param>
+    /// <param name="builder">The <see cref="IServiceBuilder{T}"/> to configure services for
+    /// <see cref="OpenIdClientLibrary"/>.</param>
     extension(IServiceBuilder<OpenIdClientLibrary> builder)
     {
         /// <summary>

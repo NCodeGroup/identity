@@ -222,7 +222,9 @@ internal class TenantTransferApiEndpointHandler(
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
     /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
-    /// <param name="request">The <see cref="TenantExportRequest"/> that carries the recipient's public key and the target cell.</param>
+    /// <param name="request">
+    /// The <see cref="TenantExportRequest"/> that carries the recipient's public key and the target cell.
+    /// </param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="200">The export, a compact <c>JWE</c> to the recipient key, which names the target cell.</response>
     /// <response code="404">The tenant does not exist.</response>

@@ -33,7 +33,9 @@ namespace NCode.Identity.Secrets.Persistence.Protection;
 /// </para>
 /// </remarks>
 /// <param name="factory">The factory that unwraps and wraps master keys.</param>
-/// <param name="nearestRootKeyResolver">The resolver that finds the root key that wraps the master keys of an owner.</param>
+/// <param name="nearestRootKeyResolver">
+/// The resolver that finds the root key that wraps the master keys of an owner.
+/// </param>
 /// <param name="storeManagerFactory">The factory that opens the unit of work for the stores.</param>
 /// <param name="joseSerializer">The serializer that encrypts and decrypts the package.</param>
 /// <param name="algorithmCollectionProvider">The provider of the key management and encryption algorithms.</param>
