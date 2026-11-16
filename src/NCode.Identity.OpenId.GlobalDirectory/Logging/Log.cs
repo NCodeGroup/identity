@@ -7,9 +7,9 @@ using Microsoft.Extensions.Logging;
 namespace NCode.Identity.OpenId.GlobalDirectory.Logging;
 
 /// <summary>
-/// Provides source-generated, strongly-typed log messages for the <c>NCode.Identity.OpenId.GlobalDirectory</c>
-/// package: each attempt to register the cell with the global directory that fails, each pass over the directory's
-/// change feed that fails, and each change of the feed that fails to apply.
+/// Provides source-generated, strongly-typed log messages for the <c>NCode.Identity.OpenId.GlobalDirectory</c> package:
+/// each attempt to register the cell with the global directory that fails, each pass over the directory's change feed
+/// that fails, and each change of the feed that fails to apply.
 /// </summary>
 [ExcludeFromCodeCoverage]
 internal static partial class Log

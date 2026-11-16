@@ -7,8 +7,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Logging;
 /// Defines the reserved logging event IDs for the <c>NCode.Identity.OpenId.GlobalDirectory</c> package.
 /// </summary>
 /// <remarks>
-/// This package reserves the <c>31000</c>–<c>31999</c> band per the logging conventions. Values are append-only:
-/// never renumber or reuse a shipped identifier. Each constant is named exactly as the <c>Log</c> method it identifies.
+/// This package reserves the <c>31000</c>–<c>31999</c> band per the logging conventions. Values are append-only: never
+/// renumber or reuse a shipped identifier. Each constant is named exactly as the <c>Log</c> method it identifies.
 /// </remarks>
 internal static class EventIds
 {
@@ -27,14 +27,14 @@ internal static class EventIds
     public const int DirectoryChangeFeedUnavailable = Base + 2;
 
     /// <summary>
-    /// Identifies the error that a pass over the global directory's change feed failed; the next interval runs the
-    /// pass again.
+    /// Identifies the error that a pass over the global directory's change feed failed; the next interval runs the pass
+    /// again.
     /// </summary>
     public const int DirectoryChangeFeedPassFailed = Base + 3;
 
     /// <summary>
-    /// Identifies the error that applying a change from the global directory's change feed failed; the pass applies
-    /// no change after it, and the next interval retries it.
+    /// Identifies the error that applying a change from the global directory's change feed failed; the pass applies no
+    /// change after it, and the next interval retries it.
     /// </summary>
     public const int DirectoryChangeApplyFailed = Base + 4;
 }

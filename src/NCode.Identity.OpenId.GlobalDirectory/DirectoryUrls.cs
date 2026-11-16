@@ -4,8 +4,8 @@
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
-/// Describes a configured URL in a message without its user information, query or fragment, so a credential in a
-/// URL never reaches a log.
+/// Describes a configured URL in a message without its user information, query or fragment, so a credential in a URL
+/// never reaches a log.
 /// </summary>
 internal static class DirectoryUrls
 {
@@ -22,8 +22,8 @@ internal static class DirectoryUrls
     /// </returns>
     /// <remarks>
     /// The text as written decides, because <see cref="AbsoluteUri.TryParse"/> also reads text such as
-    /// <c>user:secret@host</c> as a scheme followed by an opaque remainder. A text that is not written as a URL may
-    /// be anything an operator pasted into the setting, a secret included, so it is never printed.
+    /// <c>user:secret@host</c> as a scheme followed by an opaque remainder. A text that is not written as a URL may be
+    /// anything an operator pasted into the setting, a secret included, so it is never printed.
     /// </remarks>
     public static string Describe(string? value)
     {

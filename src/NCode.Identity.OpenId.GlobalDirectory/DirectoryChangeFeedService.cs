@@ -14,13 +14,12 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// <see cref="DirectoryClientOptions.PollInterval"/>: it reads the highest sequence the cell has applied, pages
 /// <see cref="ITeamDirectory.ListChangesAsync"/> until a page is empty, applies each team change through
 /// <see cref="ITeamDocumentApplier"/> and each platform change through <see cref="IPlatformDocumentApplier"/>. One
-/// replica runs each pass, under a lease on the shared-state port keyed by the poll window. The replica that holds
-/// the lease also reconciles every mirrored team's root key for the cell's region through
+/// replica runs each pass, under a lease on the shared-state port keyed by the poll window. The replica that holds the
+/// lease also reconciles every mirrored team's root key for the cell's region through
 /// <see cref="ITeamDocumentApplier.ReconcileRootKeysAsync"/> after the change pages, on its first pass and then once
-/// <c>RootKeyReconcileInterval</c> has passed, so a key that failed its probe or its rotation cooldown is applied
-/// once it can be. A directory that
-/// cannot be reached throws <see cref="DirectoryUnavailableException"/>, which is logged and waits for the next
-/// interval, and so does any other pass that fails.
+/// <c>RootKeyReconcileInterval</c> has passed, so a key that failed its probe or its rotation cooldown is applied once
+/// it can be. A directory that cannot be reached throws <see cref="DirectoryUnavailableException"/>, which is logged
+/// and waits for the next interval, and so does any other pass that fails.
 /// </summary>
 /// <remarks>
 /// The service does nothing when <see cref="CellOptions.IsControlPlane"/> is <c>true</c>, because the control-plane
@@ -116,9 +115,9 @@ internal sealed class DirectoryChangeFeedService(
     }
 
     /// <summary>
-    /// Runs one pass unless another replica holds the lease of the current poll window: applies the directory's
-    /// changes after the highest sequence the cell has applied, page by page, then reconciles the mirrored teams' root
-    /// keys when <see cref="RootKeyReconcileInterval"/> has passed.
+    /// Runs one pass unless another replica holds the lease of the current poll window: applies the directory's changes
+    /// after the highest sequence the cell has applied, page by page, then reconciles the mirrored teams' root keys
+    /// when <see cref="RootKeyReconcileInterval"/> has passed.
     /// </summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
@@ -171,8 +170,8 @@ internal sealed class DirectoryChangeFeedService(
     }
 
     /// <summary>
-    /// Applies one change of the feed. A change that fails is logged and ends the pass's changes, but not the pass:
-    /// the root keys are still reconciled.
+    /// Applies one change of the feed. A change that fails is logged and ends the pass's changes, but not the pass: the
+    /// root keys are still reconciled.
     /// </summary>
     /// <param name="change">The <see cref="DirectoryChange"/> to apply.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>

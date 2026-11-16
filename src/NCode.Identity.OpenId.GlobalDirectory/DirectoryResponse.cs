@@ -7,9 +7,8 @@ using System.Text.Json;
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
-/// Holds the status and the body of an answer of the directory service that is not a failure of the service. A
-/// failure of the service never becomes a <see cref="DirectoryResponse"/>: it is a
-/// <see cref="DirectoryUnavailableException"/>.
+/// Holds the status and the body of an answer of the directory service that is not a failure of the service. A failure
+/// of the service never becomes a <see cref="DirectoryResponse"/>: it is a <see cref="DirectoryUnavailableException"/>.
 /// </summary>
 internal sealed class DirectoryResponse(HttpStatusCode statusCode, byte[] body)
 {

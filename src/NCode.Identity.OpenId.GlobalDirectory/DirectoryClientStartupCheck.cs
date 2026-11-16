@@ -8,8 +8,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
 /// Stops the host as it starts when <c>Directory:Url</c> is set and <c>Cell:ControlPlane:Issuer</c> is not a service
-/// URL, so a cell that cannot authenticate to the directory fails at start instead of the first time it reserves
-/// an identifier. The composition root makes this check because it reads two options types; it runs as a start check
+/// URL, so a cell that cannot authenticate to the directory fails at start instead of the first time it reserves an
+/// identifier. The composition root makes this check because it reads two options types; it runs as a start check
 /// rather than an options validator, because a validator reads no other options.
 /// </summary>
 /// <param name="cellOptions">The options of the cell, which name the control-plane issuer.</param>

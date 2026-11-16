@@ -11,10 +11,9 @@ namespace NCode.Identity.OpenId.GlobalDirectory.ControlPlane;
 /// Provides the <see cref="IControlPlaneAuthority"/> of a cell that is not the control plane. It posts the question to
 /// the control-plane cell's <c>control-plane/v1/authority</c> endpoint, at the origin of
 /// <c>Cell:ControlPlane:Issuer</c>, with a client-credentials token for the audience
-/// <see cref="GlobalDirectoryProtocol.ControlPlaneAudience"/>.
-/// It fails closed: a missing issuer, a failed call or an answer that is not a <see cref="ControlPlaneAuthority"/> is a
-/// <see cref="DirectoryUnavailableException"/>, never an empty grant. A successful answer is kept for 30 seconds in a
-/// bounded in-process cache; a failure is never kept.
+/// <see cref="GlobalDirectoryProtocol.ControlPlaneAudience"/>. It fails closed: a missing issuer, a failed call or an
+/// answer that is not a <see cref="ControlPlaneAuthority"/> is a <see cref="DirectoryUnavailableException"/>, never an
+/// empty grant. A successful answer is kept for 30 seconds in a bounded in-process cache; a failure is never kept.
 /// </summary>
 // See ADR-1411.
 internal sealed class RemoteControlPlaneAuthority(

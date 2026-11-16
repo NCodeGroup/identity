@@ -191,9 +191,9 @@ internal sealed class RemoteManagementTokenValidator(
     }
 
     /// <summary>
-    /// Validates the DPoP proof that accompanies an access token bound to a key: the request carries exactly one
-    /// proof, the proof is made for the cell's configured management URL and the request's method and path, it is bound
-    /// to the access token and to the key that the token confirms, and it has not been seen within its window.
+    /// Validates the DPoP proof that accompanies an access token bound to a key: the request carries exactly one proof,
+    /// the proof is made for the cell's configured management URL and the request's method and path, it is bound to the
+    /// access token and to the key that the token confirms, and it has not been seen within its window.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> of the request that carries the proof.</param>
     /// <param name="accessToken">The access token that the proof is bound to.</param>

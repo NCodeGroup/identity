@@ -13,8 +13,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// <summary>
 /// Sends the requests of the remote adapters to the directory service and to the control plane with a bearer token,
 /// over the protocol client's HTTP client, which bounds every call with a total and a per-attempt timeout and retries
-/// only safe requests. It fails closed: a transport failure, a timeout, a <c>5xx</c> answer, an oversized body, a
-/// token that cannot be obtained or any status other than a success, <c>404</c> or <c>409</c> is a
+/// only safe requests. It fails closed: a transport failure, a timeout, a <c>5xx</c> answer, an oversized body, a token
+/// that cannot be obtained or any status other than a success, <c>404</c> or <c>409</c> is a
 /// <see cref="DirectoryUnavailableException"/>.
 /// </summary>
 // See ADR-1285 and ADR-1385 (the client's pipeline runs on Polly.Core alone).

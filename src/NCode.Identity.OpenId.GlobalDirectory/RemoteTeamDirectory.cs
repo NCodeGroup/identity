@@ -4,8 +4,8 @@
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
-/// Provides the <see cref="ITeamDirectory"/> of a cell that reaches the global directory service over HTTP. Each
-/// method is one call under <c>directory/v1/teams/</c>: <c>POST {teamId}/reserve</c>, <c>PUT {teamId}/document</c>,
+/// Provides the <see cref="ITeamDirectory"/> of a cell that reaches the global directory service over HTTP. Each method
+/// is one call under <c>directory/v1/teams/</c>: <c>POST {teamId}/reserve</c>, <c>PUT {teamId}/document</c>,
 /// <c>POST {teamId}/release</c>, <c>POST {teamId}/retire</c>, <c>GET {teamId}/retired</c>, <c>GET {teamId}/document</c>
 /// and <c>GET changes?after=&amp;limit=</c>. A <c>409</c> answer to a reservation is a conflict result, and a
 /// <c>404</c> answer to a lookup means the team has no document or the identifier is not retired. Every failure of the

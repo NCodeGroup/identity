@@ -28,8 +28,8 @@ internal sealed class CellRegistrationService(
 
     /// <summary>
     /// Gets the delay that follows a failed attempt: one second doubled for each earlier failure, capped at
-    /// <see cref="MaxDelay"/>, then jittered to lie between half and all of that capped delay, so the cells that
-    /// fail together don't retry together.
+    /// <see cref="MaxDelay"/>, then jittered to lie between half and all of that capped delay, so the cells that fail
+    /// together don't retry together.
     /// </summary>
     /// <param name="attempt">The one-based number of the attempt that failed.</param>
     /// <param name="jitter">A random value in <c>[0, 1)</c> that picks the delay between half and all of the capped

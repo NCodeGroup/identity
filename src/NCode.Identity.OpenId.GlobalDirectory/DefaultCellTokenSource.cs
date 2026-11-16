@@ -100,8 +100,8 @@ internal sealed class DefaultCellTokenSource(
     /// </summary>
     /// <param name="key">The audience and scope of the token.</param>
     /// <param name="entry">
-    /// The cached token and the time at which the cell stops using it when this method returns
-    /// <see langword="true"/>; otherwise, an empty token.
+    /// The cached token and the time at which the cell stops using it when this method returns <see langword="true"/>;
+    /// otherwise, an empty token.
     /// </param>
     /// <returns><see langword="true"/> when an unexpired token is cached; otherwise, <see langword="false"/>.</returns>
     private bool TryGetCachedEntry(

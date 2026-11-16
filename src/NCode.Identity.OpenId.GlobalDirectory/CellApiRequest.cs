@@ -4,8 +4,8 @@
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
-/// Describes one call that a cell makes to the directory service or to the control plane: the HTTP method, the
-/// absolute URI, the audience and scope of the access token that the call presents, and an optional JSON body.
+/// Describes one call that a cell makes to the directory service or to the control plane: the HTTP method, the absolute
+/// URI, the audience and scope of the access token that the call presents, and an optional JSON body.
 /// </summary>
 /// <param name="Method">The HTTP method.</param>
 /// <param name="Uri">The absolute URI of the endpoint.</param>
