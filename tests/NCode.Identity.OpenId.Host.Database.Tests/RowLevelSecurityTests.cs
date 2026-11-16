@@ -129,6 +129,7 @@ public sealed class RowLevelSecurityTests
                 "ALTER TABLE \"app\".\"Rows\" FORCE ROW LEVEL SECURITY",
                 "DROP POLICY IF EXISTS tenant_isolation ON \"app\".\"Rows\"",
                 $"CREATE POLICY tenant_isolation ON \"app\".\"Rows\" USING ({expression}) WITH CHECK ({expression})",
+                $"GRANT USAGE ON SCHEMA \"app\" TO \"{Role}\"",
                 $"GRANT SELECT, INSERT, UPDATE, DELETE ON \"app\".\"Rows\" TO \"{Role}\"",
                 $"GRANT USAGE ON SEQUENCE \"Another\" TO \"{Role}\"",
                 $"GRANT USAGE ON SEQUENCE \"app\".\"RowSequence\" TO \"{Role}\"",
@@ -162,8 +163,17 @@ public sealed class RowLevelSecurityTests
 
         var statements = RowLevelSecurity.CreateStatements(model, Role);
 
-        Assert.Contains("ALTER TABLE \"app\".\"Rows\" ENABLE ROW LEVEL SECURITY", statements);
-        Assert.All(statements, statement => Assert.Contains("\"app\".\"Rows\"", statement));
+        Assert.Equal(
+            [
+                "ALTER TABLE \"app\".\"Rows\" ENABLE ROW LEVEL SECURITY",
+                "ALTER TABLE \"app\".\"Rows\" FORCE ROW LEVEL SECURITY",
+                "DROP POLICY IF EXISTS tenant_isolation ON \"app\".\"Rows\"",
+                $"CREATE POLICY tenant_isolation ON \"app\".\"Rows\" USING ({Expression}) WITH CHECK ({Expression})",
+                $"GRANT USAGE ON SCHEMA \"app\" TO \"{Role}\"",
+                $"GRANT SELECT, INSERT, UPDATE, DELETE ON \"app\".\"Rows\" TO \"{Role}\"",
+            ],
+            statements
+        );
     }
 
     [Fact]
@@ -253,7 +263,7 @@ public sealed class RowLevelSecurityTests
     }
 
     [Fact]
-    public void CreateGrantStatements_WhenModelHasSequences_GrantsUsageOnEverySequence()
+    public void CreateGrantStatements_WhenModelHasASchema_GrantsTheSchemaThenTheTableThenTheSequence()
     {
         var builder = new ModelBuilder();
         builder.Entity<TenantRow>(entity =>
@@ -269,6 +279,7 @@ public sealed class RowLevelSecurityTests
 
         Assert.Equal(
             [
+                $"GRANT USAGE ON SCHEMA \"app\" TO \"{Role}\"",
                 $"GRANT SELECT, INSERT, UPDATE, DELETE ON \"app\".\"Rows\" TO \"{Role}\"",
                 $"GRANT USAGE ON SEQUENCE \"app\".\"RowSequence\" TO \"{Role}\"",
             ],

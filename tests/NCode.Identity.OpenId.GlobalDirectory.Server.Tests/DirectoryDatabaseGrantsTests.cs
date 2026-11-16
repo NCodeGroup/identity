@@ -73,5 +73,33 @@ public class DirectoryDatabaseGrantsTests
         Assert.Equal("runtimeRole", exception.ParamName);
     }
 
+    [Fact]
+    public void CreateStatements_ModelWithSchemaAndSequence_GrantsTheSchemaTheTableAndTheSequence()
+    {
+        var builder = new ModelBuilder();
+        builder.Entity<SchemaRow>(entity =>
+        {
+            entity.ToTable("Rows", "dir");
+            entity.HasKey(x => x.Id);
+        });
+        builder.HasSequence("Ids", "dir");
+        var model = builder.FinalizeModel();
+
+        var statements = DirectoryDatabaseGrants.CreateStatements(model, RuntimeRole);
+
+        string[] expected =
+        [
+            "GRANT USAGE ON SCHEMA \"dir\" TO \"ncode_directory_app\"",
+            "GRANT SELECT, INSERT, UPDATE, DELETE ON \"dir\".\"Rows\" TO \"ncode_directory_app\"",
+            "GRANT USAGE ON SEQUENCE \"dir\".\"Ids\" TO \"ncode_directory_app\"",
+        ];
+        Assert.Equal(expected, statements);
+    }
+
     #endregion
+
+    private sealed class SchemaRow
+    {
+        public long Id { get; set; }
+    }
 }

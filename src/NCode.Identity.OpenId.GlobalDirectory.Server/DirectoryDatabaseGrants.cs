@@ -25,70 +25,26 @@ public static class DirectoryDatabaseGrants
     /// <param name="model">The design-time model of the <see cref="DirectoryDbContext"/>.</param>
     /// <param name="runtimeRole">The name of the database role the directory's replicas connect as.</param>
     /// <returns>The statements to run, in order, each as one command.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="model"/> or <paramref name="runtimeRole"/> is <c>null</c>.
+    /// </exception>
     /// <exception cref="ArgumentException">
     /// <paramref name="runtimeRole"/> is not a valid role name according to <see cref="DatabaseRoleNameRules"/>.
     /// </exception>
     public static IReadOnlyList<string> CreateStatements(IModel model, string runtimeRole)
     {
         ArgumentNullException.ThrowIfNull(model);
-        ArgumentNullException.ThrowIfNull(runtimeRole);
 
-        if (!DatabaseRoleNameRules.IsValid(runtimeRole))
-            throw new ArgumentException(
-                $"The runtime role '{runtimeRole}' must match {DatabaseRoleNameRules.Pattern}.",
-                nameof(runtimeRole)
-            );
-
-        var role = Quote(runtimeRole);
-
-        var tables = new SortedSet<(string? Schema, string Name)>(
-            Comparer<(string? Schema, string Name)>.Create(
-                (x, y) =>
-                {
-                    var bySchema = string.CompareOrdinal(x.Schema, y.Schema);
-                    return bySchema != 0 ? bySchema : string.CompareOrdinal(x.Name, y.Name);
-                }
-            )
-        );
+        var tables = new List<DatabaseObjectName>();
         foreach (var entityType in model.GetEntityTypes())
         {
             if (entityType.GetTableName() is { } tableName)
-                tables.Add((entityType.GetSchema(), tableName));
+                tables.Add(new DatabaseObjectName(entityType.GetSchema(), tableName));
         }
 
         var sequences = model
             .GetSequences()
-            .OrderBy(sequence => sequence.Schema, StringComparer.Ordinal)
-            .ThenBy(sequence => sequence.Name, StringComparer.Ordinal)
-            .ToList();
-
-        var schemas = tables
-            .Select(table => table.Schema)
-            .Concat(sequences.Select(sequence => sequence.Schema))
-            .OfType<string>()
-            .Distinct(StringComparer.Ordinal)
-            .Order(StringComparer.Ordinal);
-
-        var statements = new List<string>();
-        foreach (var schema in schemas)
-            statements.Add($"GRANT USAGE ON SCHEMA {Quote(schema)} TO {role}");
-
-        foreach (var (schema, name) in tables)
-            statements.Add(
-                $"GRANT SELECT, INSERT, UPDATE, DELETE ON {QualifiedName(schema, name)} TO {role}"
-            );
-
-        foreach (var sequence in sequences)
-            statements.Add(
-                $"GRANT USAGE ON SEQUENCE {QualifiedName(sequence.Schema, sequence.Name)} TO {role}"
-            );
-
-        return statements;
+            .Select(sequence => new DatabaseObjectName(sequence.Schema, sequence.Name));
+        return RuntimeRoleGrants.CreateStatements(runtimeRole, tables, sequences);
     }
-
-    private static string QualifiedName(string? schema, string name) =>
-        schema is null ? Quote(name) : $"{Quote(schema)}.{Quote(name)}";
-
-    private static string Quote(string identifier) =>
-        "\"" + identifier.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
 }

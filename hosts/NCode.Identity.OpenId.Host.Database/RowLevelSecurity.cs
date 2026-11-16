@@ -30,9 +30,8 @@ public static class RowLevelSecurity
     public const string PolicyName = "tenant_isolation";
 
     /// <summary>
-    /// Creates the statements that enable row-level security on every tenant-bound table of <paramref name="model"/> and
-    /// grant the data access that <paramref name="runtimeRole"/> needs: <c>SELECT</c>, <c>INSERT</c>, <c>UPDATE</c> and
-    /// <c>DELETE</c> on every table, and <c>USAGE</c> on every sequence.
+    /// Creates the statements that enable row-level security on every tenant-bound table of <paramref name="model"/>,
+    /// followed by the statements of <see cref="CreateGrantStatements"/>.
     /// </summary>
     /// <param name="model">The model of the host's <c>OpenIdDbContext</c>.</param>
     /// <param name="runtimeRole">
@@ -40,10 +39,13 @@ public static class RowLevelSecurity
     /// <see cref="DatabaseRoleNameRules"/>, so it is safe to quote.
     /// </param>
     /// <returns>The statements to run, in order, each as one command.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="model"/> or <paramref name="runtimeRole"/> is <c>null</c>.
+    /// </exception>
     /// <exception cref="ArgumentException"><paramref name="runtimeRole"/> is not a valid role name.</exception>
     public static IReadOnlyList<string> CreateStatements(IModel model, string runtimeRole)
     {
-        ValidateArguments(model, runtimeRole);
+        var grants = CreateGrantStatements(model, runtimeRole);
 
         var statements = new List<string>();
         foreach (var table in FindTables(model))
@@ -51,10 +53,11 @@ public static class RowLevelSecurity
             if (table.TenantColumn is not { } tenantColumn)
                 continue;
 
-            var name = QualifiedName(table.Schema, table.Name);
+            var name = PostgresIdentifiers.QualifiedName(table.Schema, table.Name);
+            var column = PostgresIdentifiers.Quote(tenantColumn);
             var expression =
                 $"current_setting('{TenantSessionSettings.Unscoped}', true) = '{TenantSessionSettings.On}' "
-                + $"OR {Quote(tenantColumn)} = current_setting('{TenantSessionSettings.TenantId}', true)";
+                + $"OR {column} = current_setting('{TenantSessionSettings.TenantId}', true)";
 
             statements.Add($"ALTER TABLE {name} ENABLE ROW LEVEL SECURITY");
             statements.Add($"ALTER TABLE {name} FORCE ROW LEVEL SECURITY");
@@ -64,14 +67,15 @@ public static class RowLevelSecurity
             );
         }
 
-        statements.AddRange(CreateGrantStatements(model, runtimeRole));
+        statements.AddRange(grants);
         return statements;
     }
 
     /// <summary>
-    /// Creates the statements that grant <paramref name="runtimeRole"/> the data access it needs on <paramref name="model"/>:
-    /// <c>SELECT</c>, <c>INSERT</c>, <c>UPDATE</c> and <c>DELETE</c> on every table, and <c>USAGE</c> on every
-    /// sequence. The statements enable no row-level security.
+    /// Creates the statements that grant <paramref name="runtimeRole"/> the data access it needs on
+    /// <paramref name="model"/>: <c>USAGE</c> on every schema the model names, <c>SELECT</c>, <c>INSERT</c>,
+    /// <c>UPDATE</c> and <c>DELETE</c> on every table, and <c>USAGE</c> on every sequence, as
+    /// <see cref="RuntimeRoleGrants"/> creates them. The statements enable no row-level security.
     /// </summary>
     /// <param name="model">The model of a host context.</param>
     /// <param name="runtimeRole">
@@ -79,48 +83,20 @@ public static class RowLevelSecurity
     /// <see cref="DatabaseRoleNameRules"/>, so it is safe to quote.
     /// </param>
     /// <returns>The statements to run, in order, each as one command.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="model"/> or <paramref name="runtimeRole"/> is <c>null</c>.
+    /// </exception>
     /// <exception cref="ArgumentException"><paramref name="runtimeRole"/> is not a valid role name.</exception>
     public static IReadOnlyList<string> CreateGrantStatements(IModel model, string runtimeRole)
     {
-        ValidateArguments(model, runtimeRole);
+        ArgumentNullException.ThrowIfNull(model);
 
-        var role = Quote(runtimeRole);
-
-        var statements = new List<string>();
-        foreach (var table in FindTables(model))
-            statements.Add(
-                $"GRANT SELECT, INSERT, UPDATE, DELETE ON {QualifiedName(table.Schema, table.Name)} TO {role}"
-            );
-
+        var tables = FindTables(model)
+            .Select(table => new DatabaseObjectName(table.Schema, table.Name));
         var sequences = model
             .GetSequences()
-            .OrderBy(sequence => sequence.Schema, StringComparer.Ordinal)
-            .ThenBy(sequence => sequence.Name, StringComparer.Ordinal);
-        foreach (var sequence in sequences)
-            statements.Add(
-                $"GRANT USAGE ON SEQUENCE {QualifiedName(sequence.Schema, sequence.Name)} TO {role}"
-            );
-
-        return statements;
-    }
-
-    /// <summary>
-    /// Checks the arguments that every statement factory takes.
-    /// </summary>
-    /// <param name="model">The model that the statements are generated from.</param>
-    /// <param name="runtimeRole">The name of the database role the host runs as.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="model"/> or <paramref name="runtimeRole"/> is <c>null</c>.</exception>
-    /// <exception cref="ArgumentException"><paramref name="runtimeRole"/> is not a valid role name.</exception>
-    private static void ValidateArguments(IModel model, string runtimeRole)
-    {
-        ArgumentNullException.ThrowIfNull(model);
-        ArgumentNullException.ThrowIfNull(runtimeRole);
-
-        if (!DatabaseRoleNameRules.IsValid(runtimeRole))
-            throw new ArgumentException(
-                $"The runtime role '{runtimeRole}' must match {DatabaseRoleNameRules.Pattern}.",
-                nameof(runtimeRole)
-            );
+            .Select(sequence => new DatabaseObjectName(sequence.Schema, sequence.Name));
+        return RuntimeRoleGrants.CreateStatements(runtimeRole, tables, sequences);
     }
 
     /// <summary>
@@ -198,21 +174,4 @@ public static class RowLevelSecurity
                     + $"has no column in table '{tableName}'."
             );
     }
-
-    /// <summary>
-    /// Quotes the name of a table or sequence for use in a statement, qualified by its schema when it has one.
-    /// </summary>
-    /// <param name="schema">The schema, or <c>null</c> or empty for the default schema.</param>
-    /// <param name="name">The name of the table or sequence.</param>
-    /// <returns>The quoted name, as <c>"schema"."name"</c> or <c>"name"</c>.</returns>
-    private static string QualifiedName(string? schema, string name) =>
-        string.IsNullOrEmpty(schema) ? Quote(name) : $"{Quote(schema)}.{Quote(name)}";
-
-    /// <summary>
-    /// Quotes an identifier for use in a statement, doubling every embedded double quote.
-    /// </summary>
-    /// <param name="identifier">The name of a table, column, sequence, schema or role.</param>
-    /// <returns>The identifier in double quotes.</returns>
-    private static string Quote(string identifier) =>
-        $"\"{identifier.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
 }
