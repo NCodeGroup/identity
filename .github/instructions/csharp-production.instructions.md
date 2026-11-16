@@ -1321,6 +1321,10 @@ MethodImplOptions.AggressiveOptimization)]`, manual unrolling of tiny fixed-coun
 - 👁 **Create meters through `IMeterFactory`** — template [Metrics and Traces](csharp.instructions.md#metrics-and-traces);
   a package's instruments live in one internal `…Metrics` singleton, and a meter name starts with `NCode.Identity.`, so
   the host's `AddOpenTelemetryMetrics` subscribes to it without a change.
+- 👁 **Only `NCode.Identity.AspNetCore.OpenTelemetry` references the OpenTelemetry SDK** — a library package records
+  through `System.Diagnostics.Metrics` alone, and only a host references that opt-in package; the build fails any other
+  shipping package whose references hold an OpenTelemetry package
+  ([ADR-1197](../../docs/decisions/1197-telemetry-has-one-owner-per-signal-bounded-attributes-and-spans-that-mirror-their-histograms.md)).
 - 👁 **An event adds metric dimensions by implementing `ISupportMetricAttributes`**, never through a counter at its
   call site; an endpoint tags the request through `OpenIdMetricAttributes.Add`.
 - 👁 **Name instruments and attributes `ncode.identity.{area}.…`** — template

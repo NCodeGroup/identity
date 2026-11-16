@@ -15,8 +15,6 @@
     <ItemGroup>
         <PackageReference Include="JetBrains.Annotations" PrivateAssets="All" />
         <PackageReference Include="NCode.Buffers" />
-        <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
-        <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
     </ItemGroup>
 
     <ItemGroup>

@@ -70,6 +70,11 @@ any package may reference.**
    `SetNoStore()`) that the authentication and management packages share. `AddIdentityServer()` and `AddIdentityBff()`
    register no host hardening: a host composes its own from `NCode.Identity.AspNetCore`
    ([ADR-1447](1447-each-host-composes-forwarded-header-trust-and-strict-transport-security-from-one-general-package.md)).
+   The opt-in `NCode.Identity.AspNetCore.OpenTelemetry` package holds the OpenTelemetry metrics registration that a host
+   opts in to
+   ([ADR-1197](1197-telemetry-has-one-owner-per-signal-bounded-attributes-and-spans-that-mirror-their-histograms.md));
+   it is not a foundation package, and only a host references it, so no package that a library references carries the
+   OpenTelemetry SDK.
 9. **Framework-free low tier.** Low-tier contract packages (settings, claims, cryptography, JOSE, secrets, persistence)
    carry no ASP.NET Core. The `Microsoft.AspNetCore.App` `FrameworkReference` sits only on abstractions whose contracts
    are HTTP types.

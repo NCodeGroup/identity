@@ -10,7 +10,8 @@ costs nothing per series.
 ## Collecting the metrics
 
 The library packages record through `System.Diagnostics.Metrics` and cost nothing until a listener subscribes. A host
-opts in with `AddOpenTelemetryMetrics(configuration)` from `NCode.Identity.AspNetCore`. It adds:
+opts in with `AddOpenTelemetryMetrics(configuration)` from the opt-in `NCode.Identity.AspNetCore.OpenTelemetry` package,
+the only package that references the OpenTelemetry SDK. It adds:
 
 - every meter whose name starts with `NCode.Identity.`;
 - ASP.NET Core's built-in meters (`Microsoft.AspNetCore.Hosting`, `Microsoft.AspNetCore.Server.Kestrel`,

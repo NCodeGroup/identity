@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using NCode.Identity.AspNetCore;
+using NCode.Identity.AspNetCore.OpenTelemetry;
 using NCode.Identity.Jose;
 using NCode.Identity.Jwt;
 using NCode.Identity.OpenId.Client;

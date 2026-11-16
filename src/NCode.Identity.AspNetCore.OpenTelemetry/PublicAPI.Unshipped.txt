@@ -1,0 +1,5 @@
+#nullable enable
+const NCode.Identity.AspNetCore.OpenTelemetry.TelemetryRegistration.OtlpEndpointConfigurationKey = "OTEL_EXPORTER_OTLP_ENDPOINT" -> string!
+NCode.Identity.AspNetCore.OpenTelemetry.TelemetryRegistration
+NCode.Identity.AspNetCore.OpenTelemetry.TelemetryRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!)
+NCode.Identity.AspNetCore.OpenTelemetry.TelemetryRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).AddOpenTelemetryMetrics(Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

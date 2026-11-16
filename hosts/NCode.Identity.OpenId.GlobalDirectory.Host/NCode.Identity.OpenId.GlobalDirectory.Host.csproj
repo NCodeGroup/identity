@@ -12,6 +12,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\..\src\NCode.Identity.AspNetCore.OpenTelemetry\NCode.Identity.AspNetCore.OpenTelemetry.csproj" />
         <ProjectReference Include="..\..\src\NCode.Identity.Jose\NCode.Identity.Jose.csproj" />
         <ProjectReference Include="..\..\src\NCode.Identity.Jwt\NCode.Identity.Jwt.csproj" />
         <ProjectReference Include="..\..\src\NCode.Identity.OpenId.Client\NCode.Identity.OpenId.Client.csproj" />

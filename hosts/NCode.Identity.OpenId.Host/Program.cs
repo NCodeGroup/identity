@@ -4,6 +4,7 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using NCode.Identity.AspNetCore;
+using NCode.Identity.AspNetCore.OpenTelemetry;
 using NCode.Identity.OpenId.Accounts.Authentication;
 using NCode.Identity.OpenId.Accounts.Credentials;
 using NCode.Identity.OpenId.Accounts.Management;

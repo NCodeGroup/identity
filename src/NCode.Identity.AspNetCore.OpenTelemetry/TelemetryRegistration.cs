@@ -6,7 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry.Metrics;
 
-namespace NCode.Identity.AspNetCore;
+namespace NCode.Identity.AspNetCore.OpenTelemetry;
 
 /// <summary>
 /// Registers the OpenTelemetry metrics pipeline for a host: the family's meters, ASP.NET Core, Kestrel, outbound

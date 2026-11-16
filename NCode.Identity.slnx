@@ -24,6 +24,7 @@
     </Folder>
     <Folder Name="/src/">
         <Project Path="src/NCode.Identity.AspNetCore.Abstractions/NCode.Identity.AspNetCore.Abstractions.csproj" />
+        <Project Path="src/NCode.Identity.AspNetCore.OpenTelemetry/NCode.Identity.AspNetCore.OpenTelemetry.csproj" />
         <Project Path="src/NCode.Identity.AspNetCore/NCode.Identity.AspNetCore.csproj" />
         <Project Path="src/NCode.Identity.Bff.Abstractions/NCode.Identity.Bff.Abstractions.csproj" />
         <Project Path="src/NCode.Identity.Bff.Blazor.Client/NCode.Identity.Bff.Blazor.Client.csproj" />
@@ -101,6 +102,7 @@
     </Folder>
     <Folder Name="/tests/">
         <Project Path="tests/NCode.Identity.Analyzers.Tests/NCode.Identity.Analyzers.Tests.csproj" />
+        <Project Path="tests/NCode.Identity.AspNetCore.OpenTelemetry.Tests/NCode.Identity.AspNetCore.OpenTelemetry.Tests.csproj" />
         <Project Path="tests/NCode.Identity.AspNetCore.Tests/NCode.Identity.AspNetCore.Tests.csproj" />
         <Project Path="tests/NCode.Identity.Bff.Blazor.Client.Tests/NCode.Identity.Bff.Blazor.Client.Tests.csproj" />
         <Project Path="tests/NCode.Identity.Bff.Blazor.Tests/NCode.Identity.Bff.Blazor.Tests.csproj" />

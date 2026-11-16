@@ -116,7 +116,7 @@ A project's top-level folder says whether it ships ([ADR-1501](docs/decisions/15
 | Persistence          | `NCode.Identity.Persistence.Abstractions`, `NCode.Identity.OpenId.Persistence*(.EntityFramework)` |
 | Protocol client      | `NCode.Identity.OpenId.Client(.Abstractions)`, `NCode.Identity.OpenId.Protocol.Abstractions`                                     |
 | Backend for frontend | `NCode.Identity.Bff(.Abstractions)`, `.Bff.Protocol.Abstractions`, `.Bff.Server` (the turnkey `AddIdentityBff`), `.Bff.Blazor`, `.Bff.Blazor.Client` |
-| Composition | `NCode.Identity.Registration(.AspNetCore)`, `NCode.Identity.Server`, `NCode.Identity.ManagementConsole` |
+| Composition | `NCode.Identity.Registration(.AspNetCore)`, `NCode.Identity.Server`, `NCode.Identity.ManagementConsole`, `NCode.Identity.AspNetCore.OpenTelemetry` |
 
 The deployables under `hosts/` are `NCode.Identity.OpenId.Host` with its `.Host.Database` and `.Host.MigrationService`, `NCode.Identity.ManagementConsole.Host` and `NCode.Identity.OpenId.LocalDev`.
 

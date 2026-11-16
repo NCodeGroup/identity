@@ -3337,14 +3337,15 @@ Until the first stable release, the [Unreleased] section describes the product a
   `ncode.identity.rate_limiting.partition` and `ncode.identity.rate_limiting.result` (`admitted`, `rejected`,
   `store_unavailable`). `NCode.Identity.SharedState.Valkey` owns the meter `ValkeyMetrics.MeterName` and the histogram
   `ncode.identity.shared_state.operation.duration` (`s`) of each Valkey round trip by operation, adapter, and
-  `error.type`. `NCode.Identity.AspNetCore` provides `AddOpenTelemetryMetrics(configuration)`, which the reference
-  host and the directory host call: the family's meters, ASP.NET Core, Kestrel, `System.Net.Http` (bounded attributes
-  only), and the runtime, exported over OTLP when `OTEL_EXPORTER_OTLP_ENDPOINT` is set; the exporter is added to the
-  metrics pipeline only, so logs and traces stay the host's choice. Every meter comes from `IMeterFactory`. The
-  catalog is
+  `error.type`. The opt-in `NCode.Identity.AspNetCore.OpenTelemetry` package provides
+  `AddOpenTelemetryMetrics(configuration)`, which the reference host and the directory host call: the family's meters,
+  ASP.NET Core, Kestrel, `System.Net.Http` (bounded attributes only), and the runtime, exported over OTLP when
+  `OTEL_EXPORTER_OTLP_ENDPOINT` is set; the exporter is added to the metrics pipeline only, so logs and traces stay the
+  host's choice. It is the only package that references the OpenTelemetry SDK, and the build fails any other shipping
+  package whose references hold an OpenTelemetry package. Every meter comes from `IMeterFactory`. The catalog is
   [`docs/metrics.md`](docs/metrics.md)
-  ([ADR-1197](docs/decisions/1197-telemetry-has-one-owner-per-signal-bounded-attributes-and-spans-that-mirror-their-histograms.md), issue
-  [#119](https://github.com/NCodeGroup/identity/issues/119)).
+  ([ADR-1197](docs/decisions/1197-telemetry-has-one-owner-per-signal-bounded-attributes-and-spans-that-mirror-their-histograms.md),
+  issue [#119](https://github.com/NCodeGroup/identity/issues/119)).
 
 - **The outbound clients count their retries and timeouts.** The guarded outbound client records
   `ncode.identity.outbound_http.retries` (by `error.type`) and `ncode.identity.outbound_http.timeouts` (by `attempt` or

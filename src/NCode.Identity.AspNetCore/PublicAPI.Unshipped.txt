@@ -80,10 +80,6 @@ NCode.Identity.AspNetCore.StrictTransportSecurityApplicationBuilderExtensions.ex
 NCode.Identity.AspNetCore.StrictTransportSecurityRegistration
 NCode.Identity.AspNetCore.StrictTransportSecurityRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!)
 NCode.Identity.AspNetCore.StrictTransportSecurityRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).AddStrictTransportSecurity(Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-const NCode.Identity.AspNetCore.TelemetryRegistration.OtlpEndpointConfigurationKey = "OTEL_EXPORTER_OTLP_ENDPOINT" -> string!
-NCode.Identity.AspNetCore.TelemetryRegistration
-NCode.Identity.AspNetCore.TelemetryRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!)
-NCode.Identity.AspNetCore.TelemetryRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).AddOpenTelemetryMetrics(Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 const NCode.Identity.AspNetCore.Options.StrictTransportSecurityOptions.DefaultSectionName = "StrictTransportSecurity" -> string!
 NCode.Identity.AspNetCore.Options.StrictTransportSecurityOptions
 NCode.Identity.AspNetCore.Options.StrictTransportSecurityOptions.Enabled.get -> bool

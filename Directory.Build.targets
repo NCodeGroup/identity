@@ -91,6 +91,26 @@
     />
   </Target>
 
+  <!-- Only the opt-in NCode.Identity.AspNetCore.OpenTelemetry package references the OpenTelemetry SDK: every other
+       shipping package records through System.Diagnostics.Metrics alone, so a consumer that references one never
+       receives the SDK or an exporter with it. See ADR-1197. -->
+  <Target
+    Name="RejectOpenTelemetryOutsideItsPackage"
+    AfterTargets="ResolveReferences"
+    Condition="'$(IsPackable)' != 'false' And '$(MSBuildProjectName)' != 'NCode.Identity.AspNetCore.OpenTelemetry'"
+  >
+    <ItemGroup>
+      <_OpenTelemetryReference
+        Include="@(ReferencePath)"
+        Condition="$([System.String]::Copy('%(ReferencePath.NuGetPackageId)').StartsWith('OpenTelemetry'))"
+      />
+    </ItemGroup>
+    <Error
+      Condition="'@(_OpenTelemetryReference)' != ''"
+      Text="A shipping package records metrics through System.Diagnostics.Metrics alone: $(MSBuildProjectName) references an OpenTelemetry package, directly or through another package. Only NCode.Identity.AspNetCore.OpenTelemetry references the OpenTelemetry SDK, and only a host references that package (ADR-1197)."
+    />
+  </Target>
+
   <!-- A project's top-level folder says whether it ships (ADR-1501): every project under src/ packs, and none outside it does. -->
   <Target Name="RequirePackingFollowsFolder" AfterTargets="ResolveReferences">
     <PropertyGroup>

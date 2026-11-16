@@ -130,7 +130,10 @@ compiles it and no gate tests it
   opt-in `NCode.Identity.SharedState.Valkey` adapter
   ([ADR-1164](docs/decisions/1164-replicas-share-expiring-keys-values-and-indexes-through-ports-with-in-process-and-valkey-adapters.md))
 - **Composition** — `NCode.Identity.Registration` (the `IServiceBuilder<TMarker>` builder) and
-  `NCode.Identity.Registration.AspNetCore` (endpoint registration), `NCode.Identity.Server` (`AddIdentityServer()`)
+  `NCode.Identity.Registration.AspNetCore` (endpoint registration), `NCode.Identity.Server` (`AddIdentityServer()`), and
+  the opt-in `NCode.Identity.AspNetCore.OpenTelemetry` (`AddOpenTelemetryMetrics()`, the OpenTelemetry metrics
+  registration that only a host references —
+  [ADR-1197](docs/decisions/1197-telemetry-has-one-owner-per-signal-bounded-attributes-and-spans-that-mirror-their-histograms.md))
 - **Hosts (`hosts/`)** — the deployables, which no package ships: `NCode.Identity.OpenId.Host` (the ASP.NET Core
   reference OP), `NCode.Identity.OpenId.Host.Database` (the host's EF Core migrations and Npgsql wiring),
   `NCode.Identity.OpenId.Host.MigrationService` (the migration worker the host image carries),
