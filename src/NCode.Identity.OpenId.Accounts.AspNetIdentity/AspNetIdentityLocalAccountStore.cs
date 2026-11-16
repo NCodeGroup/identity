@@ -65,7 +65,8 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
 
         return new PersistedLocalAccount
         {
-            // The store has restricted the user to the ambient tenant; the grant authenticates against the request's tenant.
+            // The store has restricted the user to the ambient tenant; the grant authenticates against the request's
+            // tenant.
             TenantId = string.Empty,
             LocalAccountId = user.Id,
             UserName = userName,
@@ -209,8 +210,8 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         CancellationToken cancellationToken
     )
     {
-        // A locked-out user's password is not verified: the lockout defends against guessing, so a correct password must
-        // not be told apart from a wrong one. See ADR-1229.
+        // A locked-out user's password is not verified: the lockout defends against guessing, so a correct password
+        // must not be told apart from a wrong one. See ADR-1229.
         if (userManager.SupportsUserLockout && await userManager.IsLockedOutAsync(user))
         {
             return null;

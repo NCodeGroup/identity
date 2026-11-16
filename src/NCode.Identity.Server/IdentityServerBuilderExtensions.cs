@@ -261,8 +261,8 @@ public static class IdentityServerBuilderExtensions
                 ServiceDescriptor.Singleton<IValidateOptions<CellOptions>, CellOptionsValidator>()
             );
 
-            // The cell's name is the tag of the keys the server creates in a key management service, so the sweep of one
-            // cell never destroys the keys of another (ADR-1478).
+            // The cell's name is the tag of the keys the server creates in a key management service, so the sweep of
+            // one cell never destroys the keys of another (ADR-1478).
             serviceCollection.TryAddEnumerable(
                 ServiceDescriptor.Singleton<
                     IPostConfigureOptions<SecretProtectionOptions>,
@@ -305,8 +305,8 @@ public static class IdentityServerBuilderExtensions
             // Stored secrets and the Data Protection key ring are protected under a root key held outside the database (ADR-1235).
             SecretProtectionRegistration.AddSecretProtection(builder, configuration);
 
-            // The client library loads the named key rings, and the directory client reads the global directory with one
-            // of them when Directory:Url is set.
+            // The client library loads the named key rings, and the directory client reads the global directory with
+            // one of them when Directory:Url is set.
             builder.OpenIdClientLibraryBuilder.AddOpenIdClientKeyRings(
                 configuration.GetSection("KeyRings")
             );

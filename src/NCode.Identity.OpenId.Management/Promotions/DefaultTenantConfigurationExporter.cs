@@ -68,8 +68,8 @@ internal class DefaultTenantConfigurationExporter(
         };
     }
 
-    // A machine client belongs to its owning node, not to the tenant's configuration (ADR-1466), and the host configures
-    // a host-managed client, so neither the client nor its grants are exported.
+    // A machine client belongs to its owning node, not to the tenant's configuration (ADR-1466), and the host
+    // configures a host-managed client, so neither the client nor its grants are exported.
     private async ValueTask ReadClientsAsync(
         IStoreManager storeManager,
         string tenantId,

@@ -29,9 +29,9 @@ internal static partial class TenantAddressRules
     /// Gets the requirement an issuer must meet, phrased to complete a sentence such as "must be …".
     /// </summary>
     public static string IssuerRequirement { get; } =
-        "an absolute https URL (http only for a loopback host) with no user information, query, fragment, or "
-        + $"whitespace, of at most {OpenIdMaxLengths.Issuer} characters, whose host name labels are each 1 to 63 "
-        + "characters";
+        "an absolute https URL (http only for a loopback host) written with its authority, with no user information, "
+        + $"query, fragment, or whitespace, of at most {OpenIdMaxLengths.Issuer} characters, whose host name is at "
+        + $"most {MaxHostLength} characters with labels of 1 to {MaxHostLabelLength} characters";
 
     /// <summary>
     /// Gets the requirement an issuer template must meet, phrased to complete a sentence such as "must be …".

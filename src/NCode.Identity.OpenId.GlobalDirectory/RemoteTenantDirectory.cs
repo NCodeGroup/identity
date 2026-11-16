@@ -83,7 +83,8 @@ internal sealed class RemoteTenantDirectory(DirectoryHttpClient client) : ITenan
         ArgumentException.ThrowIfNullOrEmpty(fromCell);
         ArgumentException.ThrowIfNullOrEmpty(toCell);
 
-        // The directory takes the source cell from the tenant's placement and the caller, so the body names only the target.
+        // The directory takes the source cell from the tenant's placement and the caller, so the body names only the
+        // target.
         var response = await Client.SendAsync(
             HttpMethod.Post,
             $"{Prefix}{DirectoryHttpClient.Segment(tenantId)}/move-offers",

@@ -120,8 +120,8 @@ public class DefaultMasterKeyRewrapperTests : BaseTests
 
         // A unit of work that lists or pages rows also reads the root key of each owner on them, which is the one that
         // the test sets. A unit of work that only writes a row never touches this store, and one that is reused for
-        // several attempts reads it once per attempt.
-        // The store answers only for the owner of the key the test sets, so an owner that has none reaches its ancestors.
+        // several attempts reads it once per attempt. The store answers only for the owner of the key the test sets, so
+        // an owner that has none reaches its ancestors.
         var rootKeyStore = CreateStrictMock<IOwnerRootKeyStore>();
         rootKeyStore
             .Setup(x => x.FindAsync(It.IsAny<SecretOwner>(), It.IsAny<CancellationToken>()))

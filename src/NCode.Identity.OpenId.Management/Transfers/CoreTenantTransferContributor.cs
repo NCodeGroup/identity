@@ -166,7 +166,8 @@ internal class CoreTenantTransferContributor(
 
         await storeManager.SaveChangesAsync(cancellationToken);
 
-        // The client store gives each client a principal of its own, so a role assignment follows its client's principal.
+        // The client store gives each client a principal of its own, so a role assignment follows its client's
+        // principal.
         var principalIds = new Dictionary<string, string>(StringComparer.Ordinal);
         var clientStore = storeManager.GetStore<IClientStore>();
         foreach (var client in clients)

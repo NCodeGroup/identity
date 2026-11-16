@@ -98,8 +98,8 @@ public static class DefaultRegistration
 
             // Every cell registers the remote management adapters under the key that Management's registration looks
             // up. Management chooses between the local and the remote adapter from the cell's options at resolution, so
-            // this registration never reads the Cell section: the control-plane cell keeps its local adapters, and every
-            // other cell validates management tokens against the control plane's issuer.
+            // this registration never reads the Cell section: the control-plane cell keeps its local adapters, and
+            // every other cell validates management tokens against the control plane's issuer.
             serviceCollection.TryAddKeyedSingleton<
                 IManagementTokenValidator,
                 RemoteManagementTokenValidator

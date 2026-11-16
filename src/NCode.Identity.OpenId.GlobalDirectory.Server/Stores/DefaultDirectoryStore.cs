@@ -1395,7 +1395,8 @@ internal sealed class DefaultDirectoryStore(
                         );
                     }
 
-                    // The directory assigns the sequence, so the stored document carries none: it is read back from the record.
+                    // The directory assigns the sequence, so the stored document carries none: it is read back from the
+                    // record.
                     var documentJson = PayloadSerializer
                         .Serialize(document with { Sequence = 0 }, JsonOptions)
                         .GetRawText();
@@ -1782,7 +1783,8 @@ internal sealed class DefaultDirectoryStore(
                         token
                     );
 
-                    // The directory assigns the sequence, so the stored document carries none: it is read back from the record.
+                    // The directory assigns the sequence, so the stored document carries none: it is read back from the
+                    // record.
                     var documentJson = PayloadSerializer
                         .Serialize(document with { Sequence = 0 }, JsonOptions)
                         .GetRawText();
@@ -1793,7 +1795,8 @@ internal sealed class DefaultDirectoryStore(
                         DocumentJson = documentJson,
                     };
 
-                    // A change carries the platform's whole document, so the feed keeps only the platform's latest change.
+                    // A change carries the platform's whole document, so the feed keeps only the platform's latest
+                    // change.
                     await dbContext
                         .Changes.Where(entity => entity.TeamId == null)
                         .ExecuteDeleteAsync(token);

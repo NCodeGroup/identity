@@ -1930,8 +1930,8 @@ internal class TeamApiEndpointHandler(
             AccessIdentity = rootKey.AccessIdentity,
         };
 
-    // Writes the team's root keys, publishes the team's document, audits the change and announces it, in the order of
-    // a settings update. A directory that cannot be reached leaves the saved keys unpublished, which the caller reports.
+    // Writes the team's root keys, publishes the team's document, audits the change and announces it, in the order of a
+    // settings update. A directory that cannot be reached leaves the saved keys unpublished, which the caller reports.
     private async ValueTask<DirectoryUnavailableException?> ChangeRootKeysAsync(
         HttpContext httpContext,
         IStoreManager storeManager,

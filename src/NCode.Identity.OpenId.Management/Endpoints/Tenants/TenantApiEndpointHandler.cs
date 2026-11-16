@@ -967,8 +967,8 @@ internal class TenantApiEndpointHandler(
             await store.AddAsync(tenant, cancellationToken);
 
             // The tenant row commits first: the creator's ownership is a row the tenant owns, and the stores resolve an
-            // owning tenant from the database rather than the change tracker — the same reason the provisioner commits a
-            // tenant before seeding it.
+            // owning tenant from the database rather than the change tracker — the same reason the provisioner commits
+            // a tenant before seeding it.
             await storeManager.SaveChangesAsync(cancellationToken);
             isInserted = true;
 

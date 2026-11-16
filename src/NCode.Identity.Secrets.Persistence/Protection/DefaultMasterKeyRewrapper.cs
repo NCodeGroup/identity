@@ -318,8 +318,8 @@ internal sealed class DefaultMasterKeyRewrapper(
         await storeManager.SaveChangesAsync(cancellationToken);
     }
 
-    // Reads the row again and the root key that wraps it, the owner's own or the nearest ancestor's, through the same unit
-    // of work.
+    // Reads the row again and the root key that wraps it, the owner's own or the nearest ancestor's, through the same
+    // unit of work.
     private async ValueTask<(PersistedMasterKey? Row, PersistedOwnerRootKey? RootKey)> FindAsync(
         PersistedMasterKey row,
         CancellationToken cancellationToken
