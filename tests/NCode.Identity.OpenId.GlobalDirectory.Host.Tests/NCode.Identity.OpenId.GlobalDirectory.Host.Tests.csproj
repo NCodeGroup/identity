@@ -22,5 +22,6 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\hosts\NCode.Identity.OpenId.GlobalDirectory.Host\NCode.Identity.OpenId.GlobalDirectory.Host.csproj" />
+        <ProjectReference Include="..\..\hosts\NCode.Identity.OpenId.Host.Database\NCode.Identity.OpenId.Host.Database.csproj" />
     </ItemGroup>
 </Project>
