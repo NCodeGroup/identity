@@ -123,6 +123,8 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
     ([ADR-1139](1139-setting-names-are-a-closed-vocabulary-changed-outright-and-settings-the-server-cannot-honor-fail-loudly.md)),
     so its check takes stored settings of any other kind, `null` among them, as unreadable and refuses the reservation,
     and so does the check of a cell that runs on its own.
+    Both checks read a stored settings document's `max_tenants` and a team's limit through one rule, `TenantLimitRules`
+    in the directory abstractions, so the global directory and a cell judge a reservation alike.
 14. **Authority runs platform, team, tenant, leaf.** `TeamAdmin` at a team creates its tenants and manages everything
     beneath it; `Owner` never creates. Granting or revoking `TeamAdmin` is `Operations.Create` at the team node, so an
     `Owner` can neither mint nor revoke it. `GlobalAdmin` acts across the platform. Platform, team and tenant nodes

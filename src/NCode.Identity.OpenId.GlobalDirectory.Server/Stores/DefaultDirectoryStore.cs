@@ -36,10 +36,6 @@ internal sealed class DefaultDirectoryStore(
         ICellDirectory,
         IPlatformDirectory
 {
-    // The name of the 'max_tenants' team and platform setting (OpenIdSettingNames.MaxTenants). The directory does not
-    // reference the OpenID abstractions that declare it.
-    private const string MaxTenantsSettingName = "max_tenants";
-
     private const string WriteForbiddenDetail =
         "Only the cell that holds a tenant, or the control-plane cell, writes it.";
 
@@ -1045,7 +1041,6 @@ internal sealed class DefaultDirectoryStore(
             isNamedTeam = false;
             nextTeamId = team.NormalizedParentTeamId;
 
-            // A team's limit is the lesser of the platform's and its own; unset means unlimited.
             if (
                 !TryReadMaxTenants<TeamDocument>(
                     team.DocumentJson,
@@ -1057,11 +1052,7 @@ internal sealed class DefaultDirectoryStore(
                 return $"The team '{team.TeamId}' has a max_tenants setting the directory cannot read.";
             }
 
-            var effectiveLimit = ownLimit is { } own
-                ? platformLimit is { } platform
-                    ? Math.Min(platform, own)
-                    : own
-                : platformLimit;
+            var effectiveLimit = TenantLimitRules.GetEffectiveLimit(platformLimit, ownLimit);
             if (effectiveLimit is not { } maxTenants)
             {
                 continue;
@@ -1196,7 +1187,10 @@ internal sealed class DefaultDirectoryStore(
     /// <param name="documentJson">The stored envelope of the document, or <c>null</c> when none is stored.</param>
     /// <param name="getSettings">Gets the settings object of the deserialized document.</param>
     /// <param name="maxTenants">The limit, or <c>null</c> when the document has no <c>max_tenants</c> setting.</param>
-    /// <returns><c>true</c> when the setting is absent or a non-negative integer; otherwise, <c>false</c> because the document or the setting cannot be read.</returns>
+    /// <returns>
+    /// <c>true</c> when no document is stored, or its settings are a JSON object whose setting is absent or a
+    /// non-negative integer; otherwise, <c>false</c> because the document, its settings or the setting cannot be read.
+    /// </returns>
     private bool TryReadMaxTenants<TDocument>(
         string? documentJson,
         Func<TDocument, JsonElement> getSettings,
@@ -1211,36 +1205,11 @@ internal sealed class DefaultDirectoryStore(
 
         try
         {
-            var document = PayloadSerializer.Deserialize<TDocument>(
-                JsonElement.Parse(documentJson),
-                JsonOptions
-            );
-
+            var envelope = JsonElement.Parse(documentJson);
+            var document = PayloadSerializer.Deserialize<TDocument>(envelope, JsonOptions);
             var settings = getSettings(document);
 
-            // The publish routes store only object settings, so settings of any other kind, null included, are
-            // unreadable, never unlimited.
-            if (settings.ValueKind != JsonValueKind.Object)
-            {
-                return false;
-            }
-
-            if (!settings.TryGetProperty(MaxTenantsSettingName, out var element))
-            {
-                return true;
-            }
-
-            if (
-                element.ValueKind != JsonValueKind.Number
-                || !element.TryGetInt32(out var limit)
-                || limit < 0
-            )
-            {
-                return false;
-            }
-
-            maxTenants = limit;
-            return true;
+            return TenantLimitRules.TryReadMaxTenants(settings, out maxTenants);
         }
         catch (JsonException)
         {

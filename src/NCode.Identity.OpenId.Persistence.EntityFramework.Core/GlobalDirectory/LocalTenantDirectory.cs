@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Text.Json;
 using IdGen;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -28,10 +27,6 @@ internal sealed class LocalTenantDirectory(
 ) : ITenantDirectory
 {
     private const string UnscopedReason = "directory";
-
-    // The name of the 'max_tenants' team setting (OpenIdSettingNames.MaxTenants). The persistence slices do not
-    // reference the OpenID abstractions that declare it.
-    private const string MaxTenantsSettingName = "max_tenants";
 
     private IDbContextFactory<OpenIdDbContext> DbContextFactory { get; } = dbContextFactory;
 
@@ -433,7 +428,7 @@ internal sealed class LocalTenantDirectory(
         int? platformLimit = null;
         if (
             platformSettings is not null
-            && !TryReadMaxTenants(platformSettings.SettingsJson, out platformLimit)
+            && !TenantLimitRules.TryReadMaxTenants(platformSettings.SettingsJson, out platformLimit)
         )
         {
             return "The platform has a max_tenants setting the directory cannot read.";
@@ -452,17 +447,12 @@ internal sealed class LocalTenantDirectory(
 
         foreach (var team in lineage.OrderByDescending(entity => entity.Path.Length))
         {
-            if (!TryReadMaxTenants(team.SettingsJson, out var ownLimit))
+            if (!TenantLimitRules.TryReadMaxTenants(team.SettingsJson, out var ownLimit))
             {
                 return $"The team '{team.TeamId}' has a max_tenants setting the directory cannot read.";
             }
 
-            // A team's limit is the lesser of the platform's and its own; unset means unlimited.
-            var effectiveLimit = ownLimit is { } own
-                ? platformLimit is { } platformMax
-                    ? Math.Min(platformMax, own)
-                    : own
-                : platformLimit;
+            var effectiveLimit = TenantLimitRules.GetEffectiveLimit(platformLimit, ownLimit);
             if (effectiveLimit is not { } maxTenants)
             {
                 continue;
@@ -479,43 +469,5 @@ internal sealed class LocalTenantDirectory(
         }
 
         return null;
-    }
-
-    /// <summary>
-    /// Reads the <c>max_tenants</c> setting of a settings document.
-    /// </summary>
-    /// <param name="settings">The settings document.</param>
-    /// <param name="maxTenants">The limit, or <c>null</c> when the document has no <c>max_tenants</c> setting.</param>
-    /// <returns>
-    /// <c>true</c> when the setting is absent or a non-negative integer; otherwise, <c>false</c> because the document
-    /// is not a JSON object or the setting cannot be read.
-    /// </returns>
-    private static bool TryReadMaxTenants(JsonElement settings, out int? maxTenants)
-    {
-        maxTenants = null;
-
-        // A cell stores every settings document as a JSON object, the empty object when it holds no settings, so
-        // settings of any other kind, null included, can name no limit: they are unreadable, never unlimited.
-        if (settings.ValueKind != JsonValueKind.Object)
-        {
-            return false;
-        }
-
-        if (!settings.TryGetProperty(MaxTenantsSettingName, out var limitElement))
-        {
-            return true;
-        }
-
-        if (
-            limitElement.ValueKind != JsonValueKind.Number
-            || !limitElement.TryGetInt32(out var limit)
-            || limit < 0
-        )
-        {
-            return false;
-        }
-
-        maxTenants = limit;
-        return true;
     }
 }

@@ -130,6 +130,10 @@ NCode.Identity.OpenId.GlobalDirectory.TenantIssuerChange.PreviousIssuer.get -> s
 NCode.Identity.OpenId.GlobalDirectory.TenantIssuerChange.PreviousIssuer.init -> void
 NCode.Identity.OpenId.GlobalDirectory.TenantIssuerChange.TenantId.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.TenantIssuerChange.TenantId.init -> void
+NCode.Identity.OpenId.GlobalDirectory.TenantLimitRules
+const NCode.Identity.OpenId.GlobalDirectory.TenantLimitRules.MaxTenantsSettingName = "max_tenants" -> string!
+static NCode.Identity.OpenId.GlobalDirectory.TenantLimitRules.GetEffectiveLimit(int? platformLimit, int? teamLimit) -> int?
+static NCode.Identity.OpenId.GlobalDirectory.TenantLimitRules.TryReadMaxTenants(System.Text.Json.JsonElement settings, out int? maxTenants) -> bool
 NCode.Identity.OpenId.GlobalDirectory.TenantMoveOfferRequest
 NCode.Identity.OpenId.GlobalDirectory.TenantMoveOfferRequest.ToCell.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.TenantMoveOfferRequest.ToCell.init -> void
