@@ -725,6 +725,58 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
     }
 
     [Fact]
+    public async Task ReconcileRootKeysAsync_WhenAKeysTeamStillHasARow_LeavesTheKey()
+    {
+        using var cts = new CancellationTokenSource();
+        var cancellationToken = cts.Token;
+        var owner = new SecretOwner(SecretOwnerTypes.Team, "globex").Normalize();
+        SetupUnscoped();
+        SetupStoreManager();
+        SetupTeamPage(cursor: null, nextCursor: null, [], cancellationToken);
+        SetupRootKeyPage(
+            cursor: null,
+            nextCursor: null,
+            [CreateRootKeyInfo("aws-kms", "kms://key-a", AccessIdentityA, owner)],
+            cancellationToken
+        );
+
+        // The stored row's identifier differs in case from the normalized owner's.
+        SetupExistingTeams(["globex"], ["Globex"], cancellationToken);
+
+        // Strict mocks: no RemoveAsync is set up, so a removal would fail the test.
+        await Applier.ReconcileRootKeysAsync(cancellationToken);
+
+        Assert.Empty(Logger.Collector.GetSnapshot());
+    }
+
+    [Fact]
+    public async Task ReconcileRootKeysAsync_WhenOneKeysTeamIsGoneAndAnothersExists_RemovesOnlyTheGoneTeamsKey()
+    {
+        using var cts = new CancellationTokenSource();
+        var cancellationToken = cts.Token;
+        var goneOwner = new SecretOwner(SecretOwnerTypes.Team, "globex").Normalize();
+        var existingOwner = new SecretOwner(SecretOwnerTypes.Team, "initech").Normalize();
+        SetupUnscoped();
+        SetupStoreManager();
+        SetupTeamPage(cursor: null, nextCursor: null, [], cancellationToken);
+        SetupRootKeyPage(
+            cursor: null,
+            nextCursor: null,
+            [
+                CreateRootKeyInfo("aws-kms", "kms://key-a", AccessIdentityA, goneOwner),
+                CreateRootKeyInfo("aws-kms", "kms://key-b", AccessIdentityA, existingOwner),
+            ],
+            cancellationToken
+        );
+        SetupExistingTeams(["globex", "initech"], ["initech"], cancellationToken);
+        SetupRemoveRootKey(goneOwner, cancellationToken);
+
+        await Applier.ReconcileRootKeysAsync(cancellationToken);
+
+        Assert.Empty(Logger.Collector.GetSnapshot());
+    }
+
+    [Fact]
     public async Task ReconcileRootKeysAsync_WhenAGoneTeamsKeyIsBeingRemoved_LeavesIt()
     {
         using var cts = new CancellationTokenSource();
