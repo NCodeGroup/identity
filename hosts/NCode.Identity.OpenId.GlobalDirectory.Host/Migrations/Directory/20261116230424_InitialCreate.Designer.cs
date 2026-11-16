@@ -9,10 +9,10 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
+namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations.Directory
 {
     [DbContext(typeof(DirectoryDbContext))]
-    [Migration("20261115075413_InitialCreate")]
+    [Migration("20261116230424_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -63,8 +63,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("TeamId")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
+                        .HasMaxLength(63)
+                        .HasColumnType("character varying(63)");
 
                     b.HasKey("Sequence");
 
@@ -121,8 +121,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
 
                     b.Property<string>("TenantId")
                         .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
+                        .HasMaxLength(63)
+                        .HasColumnType("character varying(63)");
 
                     b.HasKey("Id");
 
@@ -144,19 +144,19 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("NormalizedParentTeamId")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
+                        .HasMaxLength(63)
+                        .HasColumnType("character varying(63)");
 
                     b.Property<string>("NormalizedPath")
                         .IsRequired()
-                        .HasMaxLength(2409)
-                        .HasColumnType("character varying(2409)")
+                        .HasMaxLength(513)
+                        .HasColumnType("character varying(513)")
                         .UseCollation("C");
 
                     b.Property<string>("NormalizedTeamId")
                         .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
+                        .HasMaxLength(63)
+                        .HasColumnType("character varying(63)");
 
                     b.Property<long>("Sequence")
                         .HasColumnType("bigint");
@@ -168,8 +168,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
 
                     b.Property<string>("TeamId")
                         .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
+                        .HasMaxLength(63)
+                        .HasColumnType("character varying(63)");
 
                     b.HasKey("Id");
 
@@ -204,8 +204,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
 
                     b.Property<string>("NormalizedTenantId")
                         .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
+                        .HasMaxLength(63)
+                        .HasColumnType("character varying(63)");
 
                     b.Property<string>("ToCell")
                         .IsRequired()
@@ -247,13 +247,13 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
                         .HasColumnType("character varying(1000)");
 
                     b.Property<string>("NormalizedTeamId")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
+                        .HasMaxLength(63)
+                        .HasColumnType("character varying(63)");
 
                     b.Property<string>("NormalizedTenantId")
                         .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
+                        .HasMaxLength(63)
+                        .HasColumnType("character varying(63)");
 
                     b.Property<string>("State")
                         .IsRequired()
@@ -262,8 +262,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations
 
                     b.Property<string>("TenantId")
                         .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
+                        .HasMaxLength(63)
+                        .HasColumnType("character varying(63)");
 
                     b.HasKey("Id");
 
