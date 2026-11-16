@@ -14,7 +14,7 @@
 # build needs no emulation: the only target-architecture stage copies files and runs nothing.
 
 # The management console bundle (apps/mgmt). Its output is static files, identical on every architecture.
-FROM --platform=$BUILDPLATFORM node:26-trixie-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072 AS frontend
+FROM --platform=$BUILDPLATFORM node:26-trixie-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS frontend
 WORKDIR /source/frontend
 COPY frontend/ ./
 # pnpm is installed at the exact version package.json's packageManager field pins.
