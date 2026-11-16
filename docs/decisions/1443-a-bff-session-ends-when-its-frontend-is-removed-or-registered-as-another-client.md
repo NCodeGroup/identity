@@ -40,7 +40,9 @@ client; and a background pass on one replica ends every stored session whose fro
    names a client only by its digest, and each member expires at the end of its day, so adding a session never
    shortens how long its client stays listed. Retirement leaves out the clients that its frontends are configured as,
    by digest, resolves each other digest through the plaintext client of a readable session in that client's index,
-   and skips a member it cannot resolve, which expires on its own.
+   and skips a member it cannot resolve, which expires on its own. A session stays in its client's index until its
+   absolute expiry, after its record has ended at its idle expiry, so the default store reads the sessions of an
+   index eight at a time, concurrently, and stops at the first round that holds a readable one.
 4. **A pass reconciles the store with the set.** `BffSessionRetirementService` runs `BffSessionRetirement` when the
    host starts and after every change of the set. For each stored client whose frontend is gone, or is configured as
    another client, the pass takes the store lease `retire:<frontend>` for `Bff:SessionRetirement:LeaseDuration` (five
@@ -74,6 +76,13 @@ client; and a background pass on one replica ends every stored session whose fro
   claims and tokens that its client never issued.
 - **Naming each client in the members of `bff:clients`.** Rejected: the key space of a shared Valkey would name every
   frontend, authority and client id.
+- **Reading an index's sessions one at a time, stopping after a few that cannot be read, or reading only the first.**
+  Rejected: read one at a time, an index of sessions that idle expiry ended costs a round trip per session on each
+  pass that reads it, and an index's members have no order, so stopping early or reading only the first would skip a
+  client whose readable session comes late and leave its sessions, refresh tokens included, unretired.
+- **Reading an index's sessions in one multi-key command.** Rejected: session keys share no hash tag, so a clustered
+  Valkey spreads one client's sessions over its nodes and no one command names them all; the reads of a round go out
+  together over the connection the replica shares.
 - **Recording the client in the session metadata, refusing a mismatch on each request and retiring stored sessions in
   a leased background pass over a client index** (chosen).
 

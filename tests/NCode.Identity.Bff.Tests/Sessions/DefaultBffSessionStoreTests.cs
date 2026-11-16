@@ -15,6 +15,7 @@ public class DefaultBffSessionStoreTests : BaseTests
 
     private static DateTimeOffset Absolute { get; } = new(2026, 1, 2, 11, 0, 0, TimeSpan.Zero);
     private static DateTimeOffset Idle { get; } = new(2026, 1, 2, 4, 0, 0, TimeSpan.Zero);
+    private static TimeSpan WaitTimeout { get; } = TimeSpan.FromSeconds(30);
 
     private Mock<IExpiringValueSet> MockValues { get; }
     private Mock<IExpiringIndexSet> MockIndexes { get; }
@@ -99,6 +100,29 @@ public class DefaultBffSessionStoreTests : BaseTests
             )
             .Returns(ValueTask.CompletedTask)
             .Verifiable(Times.Once);
+    }
+
+    private void SetupClientIndexMembers(BffSessionClient client, IReadOnlyList<string> storeKeys)
+    {
+        IReadOnlyList<string> members = ["2026-01-02:" + BffStoreKeys.ClientDigest(client)];
+        MockIndexes
+            .Setup(x => x.GetMembersAsync(BffStoreKeys.ClientsIndex, CancellationToken.None))
+            .ReturnsAsync(members)
+            .Verifiable(Times.Once);
+        MockIndexes
+            .Setup(x => x.GetMembersAsync(BffStoreKeys.ClientIndex(client), CancellationToken.None))
+            .ReturnsAsync(storeKeys)
+            .Verifiable(Times.Once);
+    }
+
+    private static async ValueTask<ExpiringValue?> ReadAfterReleaseAsync(
+        Task release,
+        ExpiringValue? value,
+        CancellationToken cancellationToken
+    )
+    {
+        await release.WaitAsync(cancellationToken);
+        return value;
     }
 
     #region TryCreateAsync Tests
@@ -684,6 +708,105 @@ public class DefaultBffSessionStoreTests : BaseTests
             .Setup(x => x.GetMembersAsync(BffStoreKeys.ClientsIndex, CancellationToken.None))
             .ThrowsAsync(new InvalidOperationException("boom"))
             .Verifiable();
+
+        await Assert.ThrowsAsync<BffStoreUnavailableException>(async () =>
+            await Store.FindClientsAsync([], CancellationToken.None)
+        );
+    }
+
+    [Fact]
+    public async Task FindClientsAsync_WhenAnIndexListsMoreThanEightSessions_ReadsEightRecordsAtOnce()
+    {
+        var client = CreateClient();
+        IReadOnlyList<string> storeKeys =
+        [
+            "k0",
+            "k1",
+            "k2",
+            "k3",
+            "k4",
+            "k5",
+            "k6",
+            "k7",
+            "k8",
+            "k9",
+        ];
+        SetupClientIndexMembers(client, storeKeys);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        foreach (var storeKey in storeKeys)
+        {
+            var key = "bff:session:" + storeKey;
+            ExpiringValue? value = storeKey == "k9" ? CreateStoredValue(client) : null;
+            MockValues
+                .Setup(x => x.GetAsync(key, CancellationToken.None))
+                .Returns(
+                    (string _, CancellationToken cancellationToken) =>
+                        ReadAfterReleaseAsync(release.Task, value, cancellationToken)
+                )
+                .Verifiable(Times.Once);
+        }
+
+        var pending = Store.FindClientsAsync([], CancellationToken.None).AsTask();
+
+        MockValues.Verify(
+            x => x.GetAsync(It.IsAny<string>(), CancellationToken.None),
+            Times.Exactly(8)
+        );
+        Assert.False(pending.IsCompleted);
+
+        release.SetResult();
+        var result = await pending.WaitAsync(WaitTimeout);
+
+        Assert.Equal([client], result);
+    }
+
+    [Fact]
+    public async Task FindClientsAsync_WhenARoundHoldsAReadableRecord_ReadsNoLaterRound()
+    {
+        var client = CreateClient();
+        IReadOnlyList<string> storeKeys =
+        [
+            "k0",
+            "k1",
+            "k2",
+            "k3",
+            "k4",
+            "k5",
+            "k6",
+            "k7",
+            "k8",
+            "k9",
+            "k10",
+            "k11",
+        ];
+        SetupClientIndexMembers(client, storeKeys);
+        foreach (var storeKey in storeKeys.Take(8))
+        {
+            var key = "bff:session:" + storeKey;
+            ExpiringValue? value = storeKey == "k3" ? CreateStoredValue(client) : null;
+            MockValues
+                .Setup(x => x.GetAsync(key, CancellationToken.None))
+                .ReturnsAsync(value)
+                .Verifiable(Times.Once);
+        }
+
+        var result = await Store.FindClientsAsync([], CancellationToken.None);
+
+        Assert.Equal([client], result);
+    }
+
+    [Fact]
+    public async Task FindClientsAsync_WhenOneReadOfARoundFails_ThrowsBffStoreUnavailableException()
+    {
+        SetupClientIndexMembers(CreateClient(), ["k0", "k1"]);
+        MockValues
+            .Setup(x => x.GetAsync("bff:session:k0", CancellationToken.None))
+            .ThrowsAsync(new InvalidOperationException("boom"))
+            .Verifiable(Times.Once);
+        MockValues
+            .Setup(x => x.GetAsync("bff:session:k1", CancellationToken.None))
+            .ReturnsAsync((ExpiringValue?)null)
+            .Verifiable(Times.Once);
 
         await Assert.ThrowsAsync<BffStoreUnavailableException>(async () =>
             await Store.FindClientsAsync([], CancellationToken.None)

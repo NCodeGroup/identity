@@ -14,6 +14,11 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
     : IBffSessionStore
 {
     /// <summary>
+    /// The number of session records that one round of a client's resolution reads concurrently.
+    /// </summary>
+    private const int ClientResolutionReadsPerRound = 8;
+
+    /// <summary>
     /// Encodes a refresh lease's owner token as UTF-8 into sensitive pooled memory that is zeroed when the returned
     /// lease is disposed. The bytes live in <see cref="ReadOnlyMemory{T}"/> because they cross an <c>await</c>.
     /// </summary>
@@ -405,7 +410,9 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
     }
 
     /// <summary>
-    /// Reads the client from the first session record that can be read among the members of a client's index.
+    /// Reads the client from the first readable session record among the members of a client's index. A round reads
+    /// the records of the next <see cref="ClientResolutionReadsPerRound"/> members concurrently, in member order, and
+    /// the first round that holds a readable record ends the search with the first readable record of that round.
     /// </summary>
     /// <param name="storeKeys">The store keys of the sessions in the client's index.</param>
     /// <param name="cancellationToken">A token that cancels the reads.</param>
@@ -415,10 +422,21 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
         CancellationToken cancellationToken
     )
     {
-        foreach (var storeKey in storeKeys)
+        for (var offset = 0; offset < storeKeys.Count; offset += ClientResolutionReadsPerRound)
         {
-            if (await GetAsync(storeKey, cancellationToken) is { } record)
-                return record.Metadata.Client;
+            var reads = new Task<BffSessionRecord?>[
+                Math.Min(ClientResolutionReadsPerRound, storeKeys.Count - offset)
+            ];
+            for (var index = 0; index < reads.Length; index++)
+            {
+                reads[index] = GetAsync(storeKeys[offset + index], cancellationToken).AsTask();
+            }
+
+            foreach (var record in await Task.WhenAll(reads))
+            {
+                if (record is not null)
+                    return record.Metadata.Client;
+            }
         }
 
         return null;
