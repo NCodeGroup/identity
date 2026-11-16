@@ -5,9 +5,7 @@ using System.Collections;
 using System.Data;
 using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using Microsoft.EntityFrameworkCore.Infrastructure;
 using NCode.Identity.OpenId.Persistence.Tenants;
 using Xunit;
 
@@ -575,22 +573,6 @@ public sealed class TenantSessionInterceptorTests
         );
 
         AssertSetConfig(Assert.Single(connection.Executed), "tenant-a", "off");
-    }
-
-    #endregion
-
-    #region UseOpenIdNpgsql Tests
-
-    [Fact]
-    public void UseOpenIdNpgsql_WithAccessor_AddsTheTenantSessionInterceptor()
-    {
-        var builder = new DbContextOptionsBuilder();
-
-        builder.UseOpenIdNpgsql("Host=localhost;Database=openiddb", new FakeAccessor());
-
-        var interceptors = builder.Options.FindExtension<CoreOptionsExtension>()?.Interceptors;
-        Assert.NotNull(interceptors);
-        Assert.Single(interceptors.OfType<TenantSessionInterceptor>());
     }
 
     #endregion

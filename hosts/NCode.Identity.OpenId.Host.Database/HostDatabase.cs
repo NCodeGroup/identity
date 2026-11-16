@@ -3,6 +3,7 @@
 
 using JetBrains.Annotations;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.EntityFramework;
 using NCode.Identity.OpenId.Persistence.Tenants;
 
@@ -67,30 +68,46 @@ public static class HostDatabase
         );
 
     /// <summary>
-    /// An unscoped <see cref="IAmbientTenantAccessor"/> used when a context is constructed outside a request (EF
-    /// design-time tooling and the migration worker). Schema operations never read tenant-scoped data, so an unscoped
-    /// accessor is sufficient and avoids resolving the request-scoped accessor.
+    /// Creates an <see cref="OpenIdDbContext"/> outside a request, for the EF Core design-time tools and the migration
+    /// runner. The context and its <see cref="TenantSessionInterceptor"/> share one
+    /// <see cref="UnscopedAmbientTenantAccessor"/>, so its queries and its Postgres session reach every tenant's rows,
+    /// and it takes its id generator and model contributors from <paramref name="serviceProvider"/>.
     /// </summary>
-    public sealed class UnscopedAmbientTenantAccessor : IAmbientTenantAccessor
+    /// <param name="serviceProvider">A provider that has the OpenID persistence slice registered (id generator and
+    /// model contributors).</param>
+    /// <param name="connectionString">The Postgres connection string.</param>
+    /// <returns>The context, which the caller disposes.</returns>
+    internal static OpenIdDbContext CreateUnscopedOpenIdContext(
+        IServiceProvider serviceProvider,
+        string connectionString
+    )
     {
-        /// <inheritdoc />
-        public bool IsScoped => false;
+        var ambientTenantAccessor = new UnscopedAmbientTenantAccessor();
 
-        /// <inheritdoc />
-        public string? TenantId => null;
+        var optionsBuilder = new DbContextOptionsBuilder<OpenIdDbContext>();
+        optionsBuilder.UseOpenIdNpgsql(connectionString, ambientTenantAccessor);
+        optionsBuilder.UseApplicationServiceProvider(serviceProvider);
 
-        /// <inheritdoc />
-        public bool IsUnscoped => true;
+        return new OpenIdDbContext(
+            optionsBuilder.Options,
+            ambientTenantAccessor,
+            serviceProvider.GetServices<IOpenIdModelContributor>()
+        );
+    }
 
-        /// <inheritdoc />
-        public string? UnscopedReason => "schema migration";
+    /// <summary>
+    /// Creates a <see cref="DeveloperDataProtectionDbContext"/> outside a request, for the EF Core design-time tools
+    /// and the migration runner, configured by <see cref="UseDataProtectionNpgsql"/>.
+    /// </summary>
+    /// <param name="connectionString">The Postgres connection string.</param>
+    /// <returns>The context, which the caller disposes.</returns>
+    internal static DeveloperDataProtectionDbContext CreateDataProtectionContext(
+        string connectionString
+    )
+    {
+        var optionsBuilder = new DbContextOptionsBuilder<DeveloperDataProtectionDbContext>();
+        optionsBuilder.UseDataProtectionNpgsql(connectionString);
 
-        /// <inheritdoc />
-        public IDisposable BeginScope(string tenantId) =>
-            throw new NotSupportedException("Unscoped construction cannot begin a tenant scope.");
-
-        /// <inheritdoc />
-        public IDisposable BeginUnscoped(string reason) =>
-            throw new NotSupportedException("Unscoped construction cannot begin another scope.");
+        return new DeveloperDataProtectionDbContext(optionsBuilder.Options);
     }
 }

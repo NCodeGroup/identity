@@ -1,11 +1,11 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using JetBrains.Annotations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
-using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.EntityFramework;
 
 namespace NCode.Identity.OpenId.Host.Database;
@@ -34,6 +34,9 @@ public static class MigrationRunner
     /// <exception cref="InvalidOperationException">A context's migrations history records a migration this assembly
     /// does not hold.</exception>
     /// <exception cref="ArgumentException"><paramref name="runtimeRole"/> is not a valid role name.</exception>
+    [ExcludeFromCodeCoverage(
+        Justification = "Migrates a live database; RowLevelSecurityEndToEndTests covers it."
+    )]
     public static async ValueTask MigrateAllAsync(
         IServiceProvider serviceProvider,
         string connectionString,
@@ -41,23 +44,12 @@ public static class MigrationRunner
         CancellationToken cancellationToken
     )
     {
-        var ambientTenantAccessor = new HostDatabase.UnscopedAmbientTenantAccessor();
-
-        var openIdOptionsBuilder = new DbContextOptionsBuilder<OpenIdDbContext>();
-        openIdOptionsBuilder.UseOpenIdNpgsql(connectionString, ambientTenantAccessor);
-        openIdOptionsBuilder.UseApplicationServiceProvider(serviceProvider);
-
-        var dataProtectionOptionsBuilder =
-            new DbContextOptionsBuilder<DeveloperDataProtectionDbContext>();
-        dataProtectionOptionsBuilder.UseDataProtectionNpgsql(connectionString);
-
-        await using var openIdContext = new OpenIdDbContext(
-            openIdOptionsBuilder.Options,
-            ambientTenantAccessor,
-            serviceProvider.GetServices<IOpenIdModelContributor>()
+        await using var openIdContext = HostDatabase.CreateUnscopedOpenIdContext(
+            serviceProvider,
+            connectionString
         );
-        await using var dataProtectionContext = new DeveloperDataProtectionDbContext(
-            dataProtectionOptionsBuilder.Options
+        await using var dataProtectionContext = HostDatabase.CreateDataProtectionContext(
+            connectionString
         );
 
         await ThrowIfUnknownMigrationsAppliedAsync(openIdContext, cancellationToken);
@@ -106,6 +98,9 @@ public static class MigrationRunner
         return statements;
     }
 
+    [ExcludeFromCodeCoverage(
+        Justification = "Reads a live database's migrations history; RowLevelSecurityEndToEndTests covers it."
+    )]
     private static async ValueTask ThrowIfUnknownMigrationsAppliedAsync(
         DbContext context,
         CancellationToken cancellationToken
