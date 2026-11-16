@@ -265,11 +265,12 @@ try {
         }
     }
 
-    # EF model-drift gate: fail if either host context has model changes no migration captures. The dev database
+    # EF model-drift gate: fail if a host context has model changes no migration captures. The dev database
     # is Postgres, applied by the migration worker (ADR-1073), so migrations are authoritative — an un-migrated model
-    # edit must fail pre-push and in CI, when the feature is added. Both contexts share the dev database (OpenID data +
-    # the developer DataProtection key ring), so both are checked. Reuses the build output (--no-build); exit code 1 =
-    # pending changes. The Database project carries the design-time factories, so it is both project and startup.
+    # edit must fail pre-push and in CI, when the feature is added. The cell's two contexts share the dev database
+    # (OpenID data + the developer DataProtection key ring) and the directory has its own, so all three are checked.
+    # Reuses the build output (--no-build); exit code 1 = pending changes. The Database project carries the cell's
+    # design-time factories, so it is both project and startup; the directory host carries its own.
     Invoke-Step 'ef model drift' {
         dotnet ef migrations has-pending-model-changes `
             --no-build `
@@ -286,6 +287,15 @@ try {
             --project hosts/NCode.Identity.OpenId.Host.Database/NCode.Identity.OpenId.Host.Database.csproj `
             --startup-project hosts/NCode.Identity.OpenId.Host.Database/NCode.Identity.OpenId.Host.Database.csproj `
             --context DeveloperDataProtectionDbContext
+        if ($LASTEXITCODE -ne 0) {
+            throw "ef model drift (DeveloperDataProtectionDbContext) failed with exit code $LASTEXITCODE."
+        }
+        dotnet ef migrations has-pending-model-changes `
+            --no-build `
+            --configuration $Configuration `
+            --project hosts/NCode.Identity.OpenId.GlobalDirectory.Host/NCode.Identity.OpenId.GlobalDirectory.Host.csproj `
+            --startup-project hosts/NCode.Identity.OpenId.GlobalDirectory.Host/NCode.Identity.OpenId.GlobalDirectory.Host.csproj `
+            --context DirectoryDbContext
     }
 
     # Writes artifacts/openapi/v1.json from the build output, which CI uploads as the openapi artifact (ADR-1505).

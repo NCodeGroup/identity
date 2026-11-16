@@ -31,8 +31,10 @@ Job implement its items 3 to 8.
 ### One initial migration per context
 
 Until the first stable release each host context has one migration, `InitialCreate`, in `Migrations/OpenId` or
-`Migrations/DeveloperDataProtection` under `hosts/NCode.Identity.OpenId.Host.Database`. It holds only schema operations,
-and `InitialCreateTests` fails a context that holds any other migration.
+`Migrations/DeveloperDataProtection` under `hosts/NCode.Identity.OpenId.Host.Database`, and the global directory's
+`DirectoryDbContext` has its own in `Migrations/Directory` under `hosts/NCode.Identity.OpenId.GlobalDirectory.Host`. It
+holds only schema operations, and `InitialCreateTests` fails a cell context that holds any other migration, as
+`DirectoryInitialCreateTests` does the directory's.
 
 A model change re-scaffolds the migration: delete the context's migration, designer and snapshot, run
 
@@ -40,7 +42,15 @@ A model change re-scaffolds the migration: delete the context's migration, desig
 dotnet ef migrations add InitialCreate --context <Context> --output-dir Migrations/<Name> --project hosts/NCode.Identity.OpenId.Host.Database --startup-project hosts/NCode.Identity.OpenId.Host.Database
 ```
 
-and strip the byte-order mark from the files it writes.
+and strip the byte-order mark from the files it writes. The directory's context is scaffolded the same way, with its
+own host as both the project and the startup project:
+
+```text
+dotnet ef migrations add InitialCreate --context DirectoryDbContext --output-dir Migrations/Directory --project hosts/NCode.Identity.OpenId.GlobalDirectory.Host --startup-project hosts/NCode.Identity.OpenId.GlobalDirectory.Host
+```
+
+The Definition of Done runs `dotnet ef migrations has-pending-model-changes` for the three contexts, so a model change
+without its re-scaffold fails before the push.
 
 ### No migration rewrites stored data
 
