@@ -28,8 +28,7 @@ export type TenantPromotionDialogTenant = {
   /** The cell the tenant lives in; absent when the console forwards to no named cell. */
   readonly cell?: string | undefined;
   /**
-   * The region of the tenant's cell, or `null` when it is not known, which matches no other
-   * tenant's region.
+   * The region of the tenant's cell, or `null` when it is not known, which matches no other tenant's region.
    */
   readonly region?: string | null | undefined;
 };
@@ -115,8 +114,8 @@ function noteText(note: TenantPromotionDialogNote): string {
 }
 
 /**
- * Whether a tenant shares the target's region: tenants without a cell share the one deployment, and
- * a region that is not known matches no tenant.
+ * Whether a tenant shares the target's region: tenants without a cell share the one deployment, and a region that is
+ * not known matches no tenant.
  */
 function sharesRegion(
   tenant: TenantPromotionDialogTenant,
@@ -157,11 +156,11 @@ function parseValue(text: string): ParsedValue | undefined {
 
 /**
  * Stateless promotion dialog for a team's tenants: pick a target tenant and a source tenant of the target's region,
- * preview the promotion, fill the environment-bound values the preview asks for, and promote. The selections and
- * the typed values are local because they are intrinsic to the controlled inputs (they reset each time the dialog
- * opens); the report, the busy flag and every failure are the container's to supply, as is the work of previewing
- * and promoting. The request carries each tenant's cell so the container can address the target's cell and, when
- * the source lives in another cell, fetch its configuration there.
+ * preview the promotion, fill the environment-bound values the preview asks for, and promote. The selections and the
+ * typed values are local because they are intrinsic to the controlled inputs (they reset each time the dialog opens);
+ * the report, the busy flag and every failure are the container's to supply, as is the work of previewing and
+ * promoting. The request carries each tenant's cell so the container can address the target's cell and, when the source
+ * lives in another cell, fetch its configuration there.
  */
 export function TenantPromotionDialog({
   open,

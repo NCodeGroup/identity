@@ -47,11 +47,10 @@ export type TenantTableProps = {
 };
 
 /**
- * Stateless tenant table. Receives rows and callbacks as props; holds no state and does no fetching,
- * so it renders directly in Storybook and under RTL. The row-level edit/delete controls appear only
- * when their callbacks are supplied, and stop propagation so they never trigger row selection. A
- * non-production environment is highlighted, so a sandbox tenant is never mistaken for production. The Cell
- * column appears only when `showCell` is set.
+ * Stateless tenant table. Receives rows and callbacks as props; holds no state and does no fetching, so it renders
+ * directly in Storybook and under RTL. The row-level edit/delete controls appear only when their callbacks are
+ * supplied, and stop propagation so they never trigger row selection. A non-production environment is highlighted, so a
+ * sandbox tenant is never mistaken for production. The Cell column appears only when `showCell` is set.
  */
 export function TenantTable({
   tenants,

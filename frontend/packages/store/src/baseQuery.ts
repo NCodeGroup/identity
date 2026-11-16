@@ -17,9 +17,9 @@ export type ApiRootState = {
 };
 
 /**
- * The arguments of a call to the management API. The `url` is relative to the API's base (`api/…`). With a `cell`
- * the call goes to that cell's management API through the console's per-cell forwarder
- * (`{apiBaseUrl}/cells/{cell}/api/…`); without one it goes to the control plane (`{apiBaseUrl}/api/…`).
+ * The arguments of a call to the management API. The `url` is relative to the API's base (`api/…`). With a `cell` the
+ * call goes to that cell's management API through the console's per-cell forwarder (`{apiBaseUrl}/cells/{cell}/api/…`);
+ * without one it goes to the control plane (`{apiBaseUrl}/api/…`).
  */
 export type CellFetchArgs = FetchArgs & {
   /** The name of the cell the call addresses; absent for the control plane. */

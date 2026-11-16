@@ -1,12 +1,14 @@
-/** The transfer key a receiving cell issues: its `kid` and its public JSON Web Key (decoupled from the API contract). */
+/**
+ * The transfer key a receiving cell issues: its `kid` and its public JSON Web Key (decoupled from the API contract).
+ */
 export type TenantMoveTransferKey = {
   readonly kid: string;
   readonly jwk: Readonly<Record<string, unknown>>;
 };
 
 /**
- * The four calls of a move, each addressed to the cell it concerns (decoupled from the API contract). Each rejects
- * with an `Error` whose message says why it failed.
+ * The four calls of a move, each addressed to the cell it concerns (decoupled from the API contract). Each rejects with
+ * an `Error` whose message says why it failed.
  */
 export type TenantMoveOperations = {
   /** Asks `cell`, the receiving cell, for a one-time transfer key. */

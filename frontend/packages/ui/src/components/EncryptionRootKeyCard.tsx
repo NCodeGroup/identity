@@ -12,18 +12,16 @@ export type EncryptionRootKeyRow = {
   /** The reference that names the key at its provider, such as a KMS key ARN. */
   readonly keyReference: string;
   /**
-   * The identity the server assumes to reach the key, or absent when it reaches it with the
-   * deployment's identity.
+   * The identity the server assumes to reach the key, or absent when it reaches it with the deployment's identity.
    */
   readonly accessIdentity?: string | null;
   /**
-   * `active` or `removing`; any other state reads as unavailable. Absent for a key whose state the
-   * owner does not report, which shows no state and no unavailable alert.
+   * `active` or `removing`; any other state reads as unavailable. Absent for a key whose state the owner does not
+   * report, which shows no state and no unavailable alert.
    */
   readonly state?: string;
   /**
-   * When the key was created, or absent for a key that has no creation time, which shows no created
-   * field.
+   * When the key was created, or absent for a key that has no creation time, which shows no created field.
    */
   readonly createdWhen?: string;
   readonly validatedWhen?: string | null;
@@ -37,8 +35,7 @@ export type EncryptionRootKeyCardProps = {
   /** The root key the owner brings, or absent when the deployment's root key wraps its keys. */
   readonly rootKey: EncryptionRootKeyRow | null | undefined;
   /**
-   * Whether the owner may choose a root key provider; without one and without a root key there is
-   * nothing to set.
+   * Whether the owner may choose a root key provider; without one and without a root key there is nothing to set.
    */
   readonly canSet: boolean;
   readonly isBusy?: boolean;
@@ -71,11 +68,11 @@ function Field({ label, value, testId }: FieldProps) {
 }
 
 /**
- * Stateless card for the root key an owner brings (ADR-1414), named by `ownerLabel`: the provider,
- * the key reference, its state and when it was created when the row has them, when it was last
- * validated, and why the last validation failed. It shows no key material, because the API returns
- * none. With no root key it says the deployment's root key wraps the owner's keys, and offers
- * "Set root key" only when a provider is available. Holds no state and does no fetching.
+ * Stateless card for the root key an owner brings (ADR-1414), named by `ownerLabel`: the provider, the key reference,
+ * its state and when it was created when the row has them, when it was last validated, and why the last validation
+ * failed. It shows no key material, because the API returns none. With no root key it says the deployment's root key
+ * wraps the owner's keys, and offers "Set root key" only when a provider is available. Holds no state and does no
+ * fetching.
  */
 export function EncryptionRootKeyCard({
   ownerLabel,

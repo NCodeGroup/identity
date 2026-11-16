@@ -28,14 +28,13 @@ export type TenantMoveDialogCell = {
 };
 
 /**
- * The transfer key a receiving cell issues: its `kid` and its public JSON Web Key (decoupled from
- * the API contract).
+ * The transfer key a receiving cell issues: its `kid` and its public JSON Web Key (decoupled from the API contract).
  */
 export type TenantMoveDialogTransferKey = TenantMoveTransferKey;
 
 /**
- * The four calls of a move, each addressed to the cell it concerns (decoupled from the API
- * contract). Each rejects with an `Error` whose message says why it failed.
+ * The four calls of a move, each addressed to the cell it concerns (decoupled from the API contract). Each rejects with
+ * an `Error` whose message says why it failed.
  */
 export type TenantMoveDialogOperations = TenantMoveOperations;
 
@@ -74,14 +73,13 @@ function stagesOf(sourceCell: string, targetCell: string): readonly Stage[] {
 }
 
 /**
- * Move dialog for a disabled tenant: pick another cell of the tenant's region, then run the four
- * stages of a move in order (a transfer key from the receiving cell, the export from the tenant's
- * cell, the import into the receiving cell and the release at the tenant's cell), showing each
- * stage. A failure stops the run and names the failed stage and what remains; Retry resumes from
- * the failed stage, so the stages that finished do not run again, except after a failed import,
- * which spends the transfer key, so Retry then runs from the transfer key. The chosen cell and the
- * progress are local because the dialog runs the sequence itself; the calls are the container's to
- * supply, so this package holds no store.
+ * Move dialog for a disabled tenant: pick another cell of the tenant's region, then run the four stages of a move in
+ * order (a transfer key from the receiving cell, the export from the tenant's cell, the import into the receiving cell
+ * and the release at the tenant's cell), showing each stage. A failure stops the run and names the failed stage and
+ * what remains; Retry resumes from the failed stage, so the stages that finished do not run again, except after a
+ * failed import, which spends the transfer key, so Retry then runs from the transfer key. The chosen cell and the
+ * progress are local because the dialog runs the sequence itself; the calls are the container's to supply, so this
+ * package holds no store.
  */
 export function TenantMoveDialog({
   open,

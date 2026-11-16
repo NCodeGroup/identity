@@ -17,8 +17,7 @@ export function TenantCellProvider({ cell, children }: TenantCellProviderProps) 
 }
 
 /**
- * The cell of the tenant route being shown; `undefined` outside one, so a call reaches the control
- * plane.
+ * The cell of the tenant route being shown; `undefined` outside one, so a call reaches the control plane.
  */
 export function useTenantCell(): string | undefined {
   return use(TenantCellContext);

@@ -94,8 +94,8 @@ const inCell = (cell: string | undefined, args: string | FetchArgs): CellFetchAr
 export type CellTenantResource = TenantResource & { readonly cell?: string };
 
 /**
- * The tenants of every cell, merged. `unavailableCells` names each cell that did not answer: one cell's failure
- * keeps the tenants of the others.
+ * The tenants of every cell, merged. `unavailableCells` names each cell that did not answer: one cell's failure keeps
+ * the tenants of the others.
  */
 export type CellTenantsResource = {
   readonly items: readonly CellTenantResource[];
@@ -106,9 +106,9 @@ export type CellTenantsResource = {
 type CellQueryResult = { data?: unknown; error?: FetchBaseQueryError | undefined };
 
 /**
- * Lists the tenants at `url` in every cell the console forwards to and merges them, each tagged with its cell. A
- * cell that fails is reported as unavailable. With no named cell the control plane answers alone, and its failure
- * fails the query.
+ * Lists the tenants at `url` in every cell the console forwards to and merges them, each tagged with its cell. A cell
+ * that fails is reported as unavailable. With no named cell the control plane answers alone, and its failure fails the
+ * query.
  */
 async function listTenantsInEveryCell(
   cells: readonly string[],

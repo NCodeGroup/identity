@@ -93,8 +93,8 @@ export type BffBootstrapDocument = {
   /** Where the surface reaches its BFF. */
   readonly bff: BffConfig;
   /**
-   * The names of the cells the host forwards to, sorted. Each is reached under `{apiBaseUrl}/cells/{name}/api`.
-   * Absent when the host forwards to no named cell.
+   * The names of the cells the host forwards to, sorted. Each is reached under `{apiBaseUrl}/cells/{name}/api`. Absent
+   * when the host forwards to no named cell.
    */
   readonly cells?: readonly string[];
   /** Optional feature flags toggled per tier/deployment. */

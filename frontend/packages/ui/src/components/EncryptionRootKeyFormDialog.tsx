@@ -13,15 +13,15 @@ import TextField from '@mui/material/TextField';
 /** The root key form's own field shape. */
 export type EncryptionRootKeyFormValues = {
   /**
-   * The preferred key wrapper name (e.g. `aws-kms`). The form offers only the providers the owner
-   * may choose, so a provider it does not offer gives way to the first one it does.
+   * The preferred key wrapper name (e.g. `aws-kms`). The form offers only the providers the owner may choose, so a
+   * provider it does not offer gives way to the first one it does.
    */
   readonly provider: string;
   /** The reference that names the key at its provider, such as a KMS key ARN. */
   readonly keyReference: string;
   /**
-   * The identity the server assumes to reach the key, such as an AWS role ARN, or `null` to reach
-   * it with the deployment's identity. The form submits it trimmed, and `null` when blank.
+   * The identity the server assumes to reach the key, such as an AWS role ARN, or `null` to reach it with the
+   * deployment's identity. The form submits it trimmed, and `null` when blank.
    */
   readonly accessIdentity: string | null;
 };
@@ -32,13 +32,12 @@ export type EncryptionRootKeyFormDialogProps = {
   readonly ownerLabel: string;
   readonly initialValues: EncryptionRootKeyFormValues;
   /**
-   * The binding of the owner that an AWS role's trust policy requires as the external ID, or `null`
-   * when there is none.
+   * The binding of the owner that an AWS role's trust policy requires as the external ID, or `null` when there is none.
    */
   readonly accessBinding: string | null;
   /**
-   * The key wrapper names the owner may choose from. None are offered while they load, and the form
-   * cannot be submitted.
+   * The key wrapper names the owner may choose from. None are offered while they load, and the form cannot be
+   * submitted.
    */
   readonly providers: readonly string[];
   readonly isSubmitting?: boolean;
@@ -55,13 +54,12 @@ export const emptyEncryptionRootKeyFormValues: EncryptionRootKeyFormValues = {
 };
 
 /**
- * Stateless root key form rendered in a dialog (ADR-1414) for the owner `ownerLabel` names: the
- * provider the owner chooses from the allowed ones, the key reference and the optional access
- * identity the server assumes to reach the key. The field state is local because it is intrinsic to
- * the controlled inputs (it reseeds on the rising edge of `open`), so the component still renders
- * in isolation under Storybook/RTL. The server validates the key by wrapping and unwrapping a probe
- * through it, and its error is shown in the dialog; persistence and that error handling live in the
- * container that wires the mutation.
+ * Stateless root key form rendered in a dialog (ADR-1414) for the owner `ownerLabel` names: the provider the owner
+ * chooses from the allowed ones, the key reference and the optional access identity the server assumes to reach the
+ * key. The field state is local because it is intrinsic to the controlled inputs (it reseeds on the rising edge of
+ * `open`), so the component still renders in isolation under Storybook/RTL. The server validates the key by wrapping
+ * and unwrapping a probe through it, and its error is shown in the dialog; persistence and that error handling live in
+ * the container that wires the mutation.
  */
 export function EncryptionRootKeyFormDialog({
   open,
