@@ -109,6 +109,24 @@ public sealed class RuntimeRolePostureCheckTests
 
     #endregion
 
+    #region StopAsync Tests
+
+    [Fact]
+    public void StopAsync_Always_CompletesWithoutReadingThePosture()
+    {
+        var reader = new FakeReader(
+            null,
+            new InvalidOperationException("The posture is read only when the host starts.")
+        );
+        var check = CreateCheck(reader, false);
+
+        var task = check.StopAsync(CancellationToken.None);
+
+        Assert.True(task.IsCompletedSuccessfully);
+    }
+
+    #endregion
+
     private sealed class FakeReader(RuntimeRolePostureRow? row, Exception? exception = null)
         : IRuntimeRolePostureReader
     {
