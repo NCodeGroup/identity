@@ -45,8 +45,8 @@ export type TenantsPageProps = {
   readonly teamId: string;
   readonly onOpenTenant: (tenantId: string, cell?: string) => void;
   /**
-   * How long the address must stay unchanged before it is previewed. Defaults to 300 ms so typing sends no burst of
-   * requests; a test passes `0`.
+   * How long the address must stay unchanged before it is previewed. Defaults to 300 ms so typing
+   * sends no burst of requests; a test passes `0`.
    */
   readonly addressPreviewDelayMs?: number;
 };
@@ -60,15 +60,18 @@ type DialogState =
 
 const closed: DialogState = { kind: 'none' };
 
-/** How long the address must stay unchanged before it is previewed, so typing sends no burst of requests. */
+/**
+ * How long the address must stay unchanged before it is previewed, so typing sends no burst of
+ * requests.
+ */
 const defaultAddressPreviewDelayMs = 300;
 
 /** The status of a problem whose `errors` extension lists why a promotion cannot be applied. */
 const conflictStatus = 409;
 
 /**
- * The message of a failed promotion request: the problem's detail, followed by each error a `409` problem lists in
- * its `errors` extension.
+ * The message of a failed promotion request: the problem's detail, followed by each error a `409`
+ * problem lists in its `errors` extension.
  */
 function promotionErrorMessage(error: ApiError): string {
   const message = apiErrorMessage(error);
@@ -109,9 +112,10 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 
 /**
  * Container: a team's tenant browser and CRUD surface. Wires the RTK Query tenant list and
- * mutations to the stateless {@link TenantTable}, {@link TenantEnvironmentFilter}, {@link TenantFormDialog},
- * and {@link ConfirmDialog}. Owns only dialog, filter, and error state; all persistence, cache invalidation, and error shaping come from the
- * store layer. Selecting a tenant crosses into that tenant's security boundary.
+ * mutations to the stateless {@link TenantTable}, {@link TenantEnvironmentFilter},
+ * {@link TenantFormDialog}, and {@link ConfirmDialog}. Owns only dialog, filter, and error state;
+ * all persistence, cache invalidation, and error shaping come from the store layer. Selecting a
+ * tenant crosses into that tenant's security boundary.
  */
 export function TenantsPage({
   teamId,
@@ -143,7 +147,8 @@ export function TenantsPage({
 
   const [environmentFilter, setEnvironmentFilter] = useState(allTenantEnvironments);
   const environmentTypes = tenantEnvironmentTypes(rows);
-  // A filter whose type no listed tenant has any longer (its last tenant was deleted) shows every tenant.
+  // A filter whose type no listed tenant has any longer (its last tenant was deleted) shows every
+  // tenant.
   const activeEnvironment = environmentTypes.includes(environmentFilter)
     ? environmentFilter
     : allTenantEnvironments;
@@ -211,9 +216,9 @@ export function TenantsPage({
           ...(controlPlaneCell !== undefined && { cell: controlPlaneCell }),
         };
 
-  // The address is previewed against the server's own rules: for a new tenant through its team's route,
-  // always, and for an existing tenant through its own route, only when its issuer or mTLS endpoint alias
-  // changes, because the server judges an address only when it can change.
+  // The address is previewed against the server's own rules: for a new tenant through its team's
+  // route, always, and for an existing tenant through its own route, only when its issuer or mTLS
+  // endpoint alias changes, because the server judges an address only when it can change.
   const debouncedAddress = useDebouncedValue(addressInput, addressPreviewDelayMs);
   const isAddressUnchanged =
     dialog.kind === 'edit' &&

@@ -1,22 +1,24 @@
 import { PLATFORM_SCOPE, teamScope, tenantScope, type ManagementScope } from '@ncode/api';
 
 /**
- * The console's URL is its navigation state. The path names the security boundary first and the surface
- * within it second, so the platform ↔ team ↔ tenant boundaries (ADR-1064) stay explicit in every address:
+ * The console's URL is its navigation state. The path names the security boundary first and the
+ * surface within it second, so the platform ↔ team ↔ tenant boundaries (ADR-1064) stay explicit in
+ * every address:
  *
  * - `/home` — the caller's home: the places it holds authority (ADR-1465);
  * - `/teams`, `/clients`, `/settings`, `/encryption-keys` — the platform scope's surfaces;
  * - `/teams/{teamId}/{surface}` — a team scope's surfaces (`tenants`, `teams`, `clients`,
  *   `settings`, `access`, `encryption-keys` and `usage`), the team id percent-encoded as one
  *   segment;
- * - `/tenants/{tenantId}/{surface}` — a tenant scope's surfaces (`clients`, `resource-servers`, `grants`, `secrets`,
- *   `encryption-keys`, `settings`, `access` and `usage`), the tenant id percent-encoded as one
- *   segment (ADR-1255);
+ * - `/tenants/{tenantId}/{surface}` — a tenant scope's surfaces (`clients`, `resource-servers`,
+ *   `grants`, `secrets`, `encryption-keys`, `settings`, `access` and `usage`), the tenant id
+ *   percent-encoded as one segment (ADR-1255);
  * - `/cells/{cell}/tenants/{tenantId}/{surface}` — the same tenant surfaces of a tenant that lives
  *   in a named cell, the cell percent-encoded as one segment; a tenant path without a cell
  *   addresses the control plane.
  *
- * This module is UI-free so the route grammar is unit-tested; `navigation.ts` binds it to the browser history.
+ * This module is UI-free so the route grammar is unit-tested; `navigation.ts` binds it to the
+ * browser history.
  */
 
 /** The surfaces of the platform scope, in tab order. */
@@ -50,8 +52,8 @@ export type TeamSurface = (typeof TEAM_SURFACES)[number];
 export type TenantSurface = (typeof TENANT_SURFACES)[number];
 
 /**
- * The tenant surfaces that show the tenant's own secrets, settings, access and usage rather than the resources it
- * holds.
+ * The tenant surfaces that show the tenant's own secrets, settings, access and usage rather than
+ * the resources it holds.
  */
 export type TenantOwnSurface = Extract<
   TenantSurface,
@@ -168,8 +170,8 @@ function decodeSegment(segment: string): string | null {
 }
 
 /**
- * Parses a path into the route it names, or `null` when it names none. A single trailing slash is tolerated, and a
- * team or tenant path without a surface names that scope's default surface.
+ * Parses a path into the route it names, or `null` when it names none. A single trailing slash is
+ * tolerated, and a team or tenant path without a surface names that scope's default surface.
  */
 export function parseRoute(pathname: string): ConsoleRoute | null {
   if (!pathname.startsWith('/')) {
@@ -236,9 +238,10 @@ function parseTenantRoute(
 }
 
 /**
- * Resolves any path to the route the console shows for it and that route's canonical path: a path naming no route
- * resolves to {@link DEFAULT_ROUTE}. The canonical path is always built by {@link routePath}, so it is a same-origin
- * console path whatever the input — safe to restore after a redirect round trip.
+ * Resolves any path to the route the console shows for it and that route's canonical path: a path
+ * naming no route resolves to {@link DEFAULT_ROUTE}. The canonical path is always built by
+ * {@link routePath}, so it is a same-origin console path whatever the input — safe to restore after
+ * a redirect round trip.
  */
 export function resolveRoute(pathname: string): {
   readonly route: ConsoleRoute;
