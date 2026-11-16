@@ -6095,13 +6095,14 @@ Until the first stable release, the [Unreleased] section describes the product a
   when the session is unscoped (`app.unscoped`) or the row's `NormalizedTenantId` is the session's tenant
   (`app.tenant_id`). The host database generates the statements from the EF Core model (`RowLevelSecurity`), and the
   migration worker applies them idempotently after it migrates and grants the tables to the runtime role that
-  `HostDatabase:RuntimeRole` names. A `TenantSessionInterceptor` sets the two session settings from the ambient scope
-  whenever it differs from the one the connection holds, resets them when a connection opens, and forgets the state set
-  in a transaction that rolls back. The migration worker connects as the schema owner and the host as the runtime role,
-  each through the one `openiddb` connection it reads, and `RuntimeRolePosture` refuses a runtime role that is a
-  superuser, has `BYPASSRLS` or owns the tables: the host stops on it under the deployment posture and warns under
-  `LocalDevelopment:Enabled`. LocalDev creates the runtime role `ncode_identity_app` before the worker starts, and
-  the Postgres end-to-end suite proves the policies on a real server
+  `HostDatabase:RuntimeRole` names. A `TenantSessionInterceptor` sets the two session settings from the ambient scope,
+  in a command of its own, before the first command on each opened connection and before any command whose scope
+  differs from the one the connection holds, and sets them again after a transaction that set them rolls back. The
+  migration worker connects as the schema owner and the host as the runtime role, each through the one `openiddb`
+  connection it reads, and `RuntimeRolePosture` refuses a runtime role that is a superuser, has `BYPASSRLS` or owns the
+  tables: the host stops on it under the deployment posture and warns under `LocalDevelopment:Enabled`. LocalDev
+  creates the runtime role `ncode_identity_app` before the worker starts, and the Postgres end-to-end suite proves the
+  policies on a real server
   ([ADR-1018](docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md),
   [ADR-1370](docs/decisions/1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)).
 

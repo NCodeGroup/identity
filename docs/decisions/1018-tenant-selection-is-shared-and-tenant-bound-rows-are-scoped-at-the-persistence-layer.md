@@ -139,9 +139,12 @@ current_setting('app.unscoped', true) = 'on' OR "NormalizedTenantId" = current_s
 - `RowLevelSecurity`, in the host database project, generates the statements from the EF model. The migration worker
   applies them after migrating, idempotently (it drops the policy if it exists, then creates it), and grants
   `SELECT, INSERT, UPDATE, DELETE` to the runtime role.
-- `TenantSessionInterceptor`, a connection interceptor and a command interceptor, calls `set_config` for `app.tenant_id`
-  and `app.unscoped` whenever the ambient state differs from the state last applied to the connection, and resets both
-  when the connection opens. A pooled connection never carries the previous request's tenant.
+- `TenantSessionInterceptor`, a connection, command and transaction interceptor, sets `app.tenant_id` and
+  `app.unscoped` with a `set_config` command of its own before any command whose ambient state differs from the state
+  the connection holds. It forgets that state when the connection opens, because Npgsql resets a session with
+  `DISCARD ALL` when its connection returns to the pool. State set inside a transaction holds only for that
+  transaction's commands until the transaction commits, and a rollback, a rollback to a savepoint or a failure of the
+  transaction clears it. A pooled connection never carries the previous request's tenant.
 - Migrations run as the schema owner and the host runs as a separate runtime role. The two have separate connection
   strings: `ConnectionStrings:openid` for the runtime role and `ConnectionStrings:openid-migration` for the owner.
   `HostDatabase:RuntimeRole` names the runtime role for the grants.
@@ -187,6 +190,14 @@ current_setting('app.unscoped', true) = 'on' OR "NormalizedTenantId" = current_s
 - **Query filters alone, with no database enforcement.** Rejected: a raw query, a missed `IgnoreQueryFilters()` or a
   bug in the filter is a cross-tenant read. Row-level security under a runtime role that cannot bypass it holds the
   same rule where the filter cannot be skipped, and `NCID0004` explains each deliberate bypass.
+- **Sending `set_config` with the command it precedes, or once per physical connection.** Rejected: prefixed to the
+  command's text, it runs in the command's implicit transaction, so a failure of the command, which can surface while
+  its rows are read, undoes a setting the interceptor has recorded as applied; its row becomes the first result, which
+  `ExecuteScalar` returns and a reader starts on; and a migration's statement becomes a multi-statement command, in
+  which a statement such as `CREATE INDEX CONCURRENTLY` cannot run. Sent beside the command in an Npgsql batch, it
+  makes the interceptor execute each such command itself and stand in for the reader, the scalar and the affected-row
+  counts that EF Core reads. A physical-connection initializer or a connection-string option sets the session once per
+  physical connection, so it cannot carry a request's tenant.
 
 ## Consequences
 
@@ -202,7 +213,10 @@ current_setting('app.unscoped', true) = 'on' OR "NormalizedTenantId" = current_s
 - Every `IgnoreQueryFilters()` call carries a `// Cross-tenant:` explanation, or the build reports `NCID0004`.
 - The host needs two database credentials, the owner's for migrations and the runtime role's for serving, and it
   refuses a runtime role that bypasses row-level security under the deployment posture.
-- Each pooled connection carries the ambient state of its current command, set by `TenantSessionInterceptor`.
+- Each pooled connection carries the ambient state of its current command, set by `TenantSessionInterceptor` at the
+  cost of one round trip before the first command after the connection opens and one before a command under another
+  ambient state. Outside an explicit transaction, EF Core opens the connection for each query and each `SaveChanges`,
+  so each of them pays one.
 - A tenant's Identity users and local accounts are isolated like every other tenant child, and the `bff:clients`
   members name each client only by a digest.
 

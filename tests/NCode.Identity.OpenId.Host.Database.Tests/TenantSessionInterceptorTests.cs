@@ -223,6 +223,36 @@ public sealed class TenantSessionInterceptorTests
     }
 
     [Fact]
+    public void ReaderExecuting_ScopeRestoredToTheStateTheConnectionHolds_SendsNothingAgain()
+    {
+        var (interceptor, accessor) = CreateInterceptor();
+        var first = new FakeConnection();
+        var second = new FakeConnection();
+        accessor.TenantId = "tenant-a";
+        interceptor.ReaderExecuting(
+            CreateCommand(first),
+            null!,
+            default(InterceptionResult<DbDataReader>)
+        );
+        accessor.TenantId = "tenant-b";
+        interceptor.ReaderExecuting(
+            CreateCommand(second),
+            null!,
+            default(InterceptionResult<DbDataReader>)
+        );
+
+        accessor.TenantId = "tenant-a";
+        interceptor.ReaderExecuting(
+            CreateCommand(first),
+            null!,
+            default(InterceptionResult<DbDataReader>)
+        );
+
+        AssertSetConfig(Assert.Single(second.Executed), "tenant-b", "off");
+        AssertSetConfig(Assert.Single(first.Executed), "tenant-a", "off");
+    }
+
+    [Fact]
     public void ReaderExecuting_CommandWithoutConnection_SendsNothing()
     {
         var (interceptor, _) = CreateInterceptor();
