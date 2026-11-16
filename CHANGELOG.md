@@ -3265,12 +3265,12 @@ Until the first stable release, the [Unreleased] section describes the product a
   one replica), and the opt-in `NCode.Identity.SharedState.Valkey` package adds
   `SharedStateLibraryBuilder.AddValkey(configuration)`, which takes the Valkey connection as the
   `ConnectionStrings:valkey` connection string or as the `ValkeyConnection` parts and binds the `Valkey` section
-  (`KeyPrefix`) strictly; the reference host sets the prefix to `ncode-identity:{cell}:` from `Cell:Name`, so cells that
-  share one Valkey share no key or channel. Without a connection it registers nothing; with one, it registers the
-  Valkey adapters and
-  adds a `valkey` health check tagged `ready`. The reference host calls it, and the Aspire AppHost runs a Valkey
-  container and injects the connection string, so local development uses the same adapter as a multi-replica
-  deployment
+  (`KeyPrefix`) strictly; the adapter appends the deployment that `SharedStateOptions` names to that prefix, and the
+  server's `AddConfiguration` names `Cell:Name` as the deployment, so a cell's keys start `ncode-identity:{cell}:` and
+  cells that share one Valkey share no key or channel, whichever host composes the server with the adapter. Without a
+  connection it registers nothing; with one, it registers the Valkey adapters and adds a `valkey` health check tagged
+  `ready`. The reference host calls it, and the Aspire AppHost runs a Valkey container and injects the connection
+  string, so local development uses the same adapter as a multi-replica deployment
   ([ADR-1164](docs/decisions/1164-replicas-share-expiring-keys-values-and-indexes-through-ports-with-in-process-and-valkey-adapters.md)).
 
 - **A shared expiring counter set backs rate limiting.** `NCode.Identity.SharedState.Abstractions` provides
@@ -6156,9 +6156,10 @@ Until the first stable release, the [Unreleased] section describes the product a
   speak for another. A remote adapter that cannot reach the directory, the control plane or the key set answers `503`,
   never allow, empty or valid.
 
-- **KMS keys are refused outside the cell's cloud regions.** The host sets the AWS KMS adapter's `AllowedRegions` and
-  the Google Cloud KMS adapter's `AllowedLocations` from `Cell:CloudRegions`, and each adapter's options validator
-  refuses a key ARN or location outside them, so a cell's keys stay in the cloud regions of its infrastructure.
+- **KMS keys are refused outside the cell's cloud regions.** The server's `AddConfiguration` names `Cell:CloudRegions`
+  as the `KeyResidencyOptions` of the secrets library, and the AWS KMS adapter replaces its `AllowedRegions` and the
+  Google Cloud KMS adapter its `AllowedLocations` with them, so whichever host composes the server with either adapter
+  refuses a key ARN or location outside them, and a cell's keys stay in the cloud regions of its infrastructure.
 
 - **A tenant export is sealed to a one-time transfer key and exists only for a disabled tenant.** The export is one
   compact `JWE` to a key the receiving cell published, which that cell hands out once and holds for one hour, so the

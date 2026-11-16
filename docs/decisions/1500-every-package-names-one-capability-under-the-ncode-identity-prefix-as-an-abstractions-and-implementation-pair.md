@@ -37,16 +37,18 @@ any package may reference.**
    `RuntimeRoleGrants`), and the `ExpiringKeys` key shape, so every implementation of a contract applies one rule; it
    holds no service logic. The implementation shares its namespace, so a pair is one namespace across two assemblies.
 3. **Implementations depend on abstractions.** An implementation references `*.Abstractions`, foundation packages and
-   the composition builders `NCode.Identity.Registration` and `NCode.Identity.Registration.AspNetCore`, and
-   collaborates with other capabilities through abstractions resolved from DI.
-   Apart from the composition roots and hosts below and the layered reference of decision 4, an implementation
-   project references no other implementation project. It registers with `TryAdd*` from its `DefaultRegistration`,
-   and its default type is named per
+   the composition builders `NCode.Identity.Registration` and `NCode.Identity.Registration.AspNetCore`, and collaborates
+   with other capabilities through abstractions resolved from DI. Apart from the composition roots and hosts below and
+   the layered reference of decision 4, an implementation project references no other implementation project. It
+   registers with `TryAdd*` from its `DefaultRegistration`, and its default type is named per
    [project-template ADR-0105](project-template/0105-the-canonical-implementation-is-named-defaultfoo.md). The
    composition roots (`AddIdentityServer()` in `NCode.Identity.Server`, `NCode.Identity.Bff.Server` and
    `NCode.Identity.ManagementConsole`) and the hosts under `hosts/` reference and wire the implementations. The DI
    shapes of a seam are
-   [ADR-1001](1001-behavior-is-a-service-a-strategy-collection-or-a-mediator-seam-chosen-by-one-ladder.md)'s.
+   [ADR-1001](1001-behavior-is-a-service-a-strategy-collection-or-a-mediator-seam-chosen-by-one-ladder.md)'s. A
+   composition root hands the opt-in implementations it does not reference what only it knows through options in their
+   `.Abstractions` packages: the server names its cell's name in `SharedStateOptions` and its cloud regions in
+   `KeyResidencyOptions`, which the Valkey adapter and the AWS and Google Cloud key management service adapters apply.
 4. **The one layered reference.** An Entity Framework slice references the Entity Framework framework it plugs into
    ([ADR-1052](1052-entity-framework-persistence-is-a-reusable-framework-that-domain-slices-plug-into.md)). Every other
    collaboration between implementations is through abstractions resolved from DI:

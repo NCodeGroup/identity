@@ -100,9 +100,11 @@ root lives outside the database.
     default in either order.
 15. **A KMS key stays in the cell's cloud regions.** `Cell:CloudRegions` lists the cloud regions a cell may use. The AWS
     KMS adapter refuses a key ARN whose region is not listed, and the Google Cloud KMS adapter refuses a crypto key
-    location that is not listed. The host sets each adapter's `AllowedRegions` or `AllowedLocations` from
-    `Cell:CloudRegions`, and each adapter's options validator enforces it, so a cell's wrapped keys stay in its
-    region.
+    location that is not listed. The server's `AddConfiguration` names `Cell:CloudRegions` as the
+    `KeyResidencyOptions.CloudRegions` of `NCode.Identity.Secrets.Abstractions`, and each adapter's own registration
+    replaces its `AllowedRegions` or `AllowedLocations` with them, so a cell's wrapped keys stay in its region whichever
+    host composes the server with the adapter. An adapter knows no cell: a composition that names no cloud region, such
+    as a BFF, keeps each adapter's list as configured.
 
 ## Options considered
 
@@ -126,6 +128,9 @@ root lives outside the database.
 - **`GrantId` as the grant envelope's item id.** It does not bind the envelope to the lookup key a reader holds.
   Rejected for the hashed key.
 - **A plaintext fallback for grant payloads.** It would also accept a forged plaintext row. Rejected.
+- **The allowed regions set on each adapter by the reference host, or read from the cell by the adapters.** Any other
+  host that composes the server with an adapter would accept a key in any region, and adapters that read the cell would
+  carry the global directory's contracts into hosts that run no cell, such as a BFF. Rejected.
 - **Envelopes under a root-wrapped master key per owner, with grant payloads under the tenant's key.** Chosen.
 
 ## Consequences
