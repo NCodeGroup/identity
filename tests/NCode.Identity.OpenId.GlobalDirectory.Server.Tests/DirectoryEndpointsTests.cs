@@ -289,7 +289,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Request_WhenTheIssuerIsUnavailable_AnswersServiceUnavailableWithRetryAfter()
+    public async Task Request_WhenTheIssuerIsUnavailable_AnswersServiceUnavailableWithTheWaitInHeaderAndMember()
     {
         ValidatorMock
             .Setup(x =>
@@ -311,6 +311,16 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         Assert.Equal(
             TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds),
             response.Headers.RetryAfter.Delta
+        );
+        var problem = await ReadAsync<JsonElement>(response);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(
+            GlobalDirectoryProtocol.UnavailableRetryAfterSeconds,
+            problem.GetProperty(RetryAfterProblem.MemberName).GetInt32()
+        );
+        Assert.Equal(
+            "The issuer of the directory's access tokens is unavailable. Retry the request.",
+            problem.GetProperty("detail").GetString()
         );
     }
 

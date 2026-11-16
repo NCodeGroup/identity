@@ -5,7 +5,9 @@ using System.Globalization;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.Setup.Contracts;
 
 namespace NCode.Identity.OpenId.Setup;
@@ -219,14 +221,16 @@ internal sealed class SetupApiHandler(
 
     private static ProblemHttpResult RefuseRateLimited(HttpContext httpContext, TimeSpan retryAfter)
     {
-        // Retry-After counts whole seconds, so round up and never tell the caller to retry at once.
-        var seconds = Math.Max(1L, (long)Math.Ceiling(retryAfter.TotalSeconds));
-        httpContext.Response.Headers.RetryAfter = seconds.ToString(CultureInfo.InvariantCulture);
         httpContext.Response.Headers.CacheControl = "no-store";
 
-        return TypedResults.Problem(
-            detail: GetRateLimitedDetail(seconds),
-            statusCode: StatusCodes.Status429TooManyRequests
+        return RetryAfterProblem.Create(
+            httpContext,
+            retryAfter,
+            new ProblemDetails
+            {
+                Status = StatusCodes.Status429TooManyRequests,
+                Detail = GetRateLimitedDetail(RetryAfterProblem.GetWaitSeconds(retryAfter)),
+            }
         );
     }
 

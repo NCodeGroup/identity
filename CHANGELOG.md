@@ -4183,19 +4183,20 @@ Until the first stable release, the [Unreleased] section describes the product a
   change, each carrying the whole document or the retire, so it stays bounded by the number of teams and a cell reading
   from the start reads every current document. The host accepts unbound bearer tokens of the control-plane cell's issuer
   (`DirectoryServer:Issuer`) for the audience `urn:ncode:directory` and the scope `directory`, and refuses a token that
-  carries a `cnf` claim. Each cell authenticates as the machine client `cell-{name}` of the control-plane cell's root
-  tenant (`private_key_jwt`; `Directory:ClientId` and `Directory:KeyRing`, whose keys `KeyRings:{name}` holds), which
-  `POST /api/platform/clients` registers with a requested `clientId` and its `jwks`. A cell's token request to the
-  control plane ends after `Directory:TokenRequestTimeout` (30 seconds), and a failed request is remembered for
-  `Directory:TokenFailureCacheDuration` (5 seconds). The directory takes platform and team writes only from the
-  control-plane cell (`DirectoryServer:ControlPlaneCell`) and authorizes each tenant write against the tenant's stored
-  record in the transaction that writes it: the cell that holds the tenant and the control-plane cell write it, and only
-  the control-plane cell retires a tenant the directory has no record of; a cell registers only itself, with a
-  management URL that is an absolute `https` URL (or `http` in local development) with no user information, query or
-  fragment, and asks to move a tenant only into itself. The directory refuses a tenant issuer that is not an absolute
-  `https` URL (or `http` on a loopback host) with no user information, query or fragment; a team or platform document
-  whose settings are not a JSON object; and a team document that would nest a team deeper than eight levels, the bound
-  of a cell's team tree.
+  carries a `cnf` claim. A request that arrives while that issuer cannot be reached is answered `503` with `Retry-After`
+  and the same wait in the problem's `retryAfterSeconds`. Each cell authenticates as the machine client `cell-{name}` of
+  the control-plane cell's root tenant (`private_key_jwt`; `Directory:ClientId` and `Directory:KeyRing`, whose keys
+  `KeyRings:{name}` holds), which `POST /api/platform/clients` registers with a requested `clientId` and its `jwks`. A
+  cell's token request to the control plane ends after `Directory:TokenRequestTimeout` (30 seconds), and a failed
+  request is remembered for `Directory:TokenFailureCacheDuration` (5 seconds). The directory takes platform and team
+  writes only from the control-plane cell (`DirectoryServer:ControlPlaneCell`) and authorizes each tenant write against
+  the tenant's stored record in the transaction that writes it: the cell that holds the tenant and the control-plane
+  cell write it, and only the control-plane cell retires a tenant the directory has no record of; a cell registers only
+  itself, with a management URL that is an absolute `https` URL (or `http` in local development) with no user
+  information, query or fragment, and asks to move a tenant only into itself. The directory refuses a tenant issuer that
+  is not an absolute `https` URL (or `http` on a loopback host) with no user information, query or fragment; a team or
+  platform document whose settings are not a JSON object; and a team document that would nest a team deeper than eight
+  levels, the bound of a cell's team tree.
 
 - **The control plane serves every cell.** The control-plane cell owns platform and team authority, setup and the team
   root keys; every other cell reaches it through remote adapters that fail closed. `IManagementTokenValidator` validates
@@ -4386,11 +4387,13 @@ Until the first stable release, the [Unreleased] section describes the product a
   [ADR-1407](docs/decisions/1407-a-master-key-rotates-its-data-keys-are-rewrapped-and-it-is-destroyed-once-unnamed.md),
   [ADR-1483](docs/decisions/1483-every-management-error-is-a-problem-document-that-its-route-declares.md)).
 
-- **A management problem that asks the caller to wait carries the wait.** A rekey or a root key change that comes too
-  soon, and a root key that is unavailable, answer through `RetryAfterProblem.Create` with `Retry-After` and
-  `retryAfterSeconds` holding the same whole number of seconds, rounded up to at least one.
-  `ManagementProblemMembers` names every extension member the management API writes, and the console's
-  `apiErrorMessage` says "Try again in …" with the wait in seconds, minutes or hours
+- **A problem that asks the caller to wait carries the wait.** `RetryAfterProblem.Create` in `NCode.Identity.AspNetCore`
+  sets `Retry-After` and the problem's `retryAfterSeconds` to the same whole number of seconds, rounded up to at least
+  one, and every problem document of the family that asks the caller to wait answers through it: the management API's
+  for a rekey or a root key change that comes too soon, a root key that is unavailable and a directory or control plane
+  that cannot be reached, the directory API's `503` for an unreachable token issuer, and the setup API's `429`.
+  `ManagementProblemMembers` names every extension member the management API writes, and the console's `apiErrorMessage`
+  says "Try again in …" with the wait in seconds, minutes or hours
   ([#571](https://github.com/NCodeGroup/identity/issues/571),
   [ADR-1483](docs/decisions/1483-every-management-error-is-a-problem-document-that-its-route-declares.md)).
 
@@ -4491,9 +4494,9 @@ Until the first stable release, the [Unreleased] section describes the product a
   `/setup` answers 404 to a request that is not HTTPS, except a request from a loopback remote address when
   `LocalDevelopment:Enabled` is set, rate-limits `POST /setup/api/token` and
   `POST /setup/api/root` together to 10 requests per minute per client address (a refused attempt answers `429` with
-  `Retry-After` and `Cache-Control: no-store`), serves its page with a nonce Content-Security-Policy and `no-store`
-  caching, and never writes its request or response bodies to HTTP logging. The
-  page's `connect-src` is `'self'` plus only the origin of the console that the deployment hints through
+  `Retry-After`, the same wait in the problem's `retryAfterSeconds`, and `Cache-Control: no-store`), serves its page
+  with a nonce Content-Security-Policy and `no-store` caching, and never writes its request or response bodies to HTTP
+  logging. The page's `connect-src` is `'self'` plus only the origin of the console that the deployment hints through
   `Setup:Wizard:ManagementConsole`, so a console URL from a link or typed by the operator is refused by the browser and
   a link someone else wrote cannot make the wizard read keys from an origin the deployment does not name, and the
   console hint answers only to a holder of the token

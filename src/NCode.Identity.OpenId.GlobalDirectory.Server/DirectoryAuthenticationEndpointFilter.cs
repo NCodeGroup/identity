@@ -1,11 +1,12 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Globalization;
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using NCode.Identity.AspNetCore;
 using NCode.Identity.Jose;
 using NCode.Identity.OpenId.Client;
 
@@ -17,9 +18,11 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 /// <see cref="GlobalDirectoryProtocol.DirectoryAudience"/>, and requires the scope
 /// <see cref="GlobalDirectoryProtocol.DirectoryScope"/>. A request that lacks a valid token with the scope
 /// is answered <c>401 Unauthorized</c>, and a request whose issuer cannot be reached is answered
-/// <c>503 Service Unavailable</c> with a <c>Retry-After</c>, never allowed. A token bound to a key (one that carries a
-/// <c>cnf</c> claim) is answered <c>401 Unauthorized</c>, because the directory checks no proof of possession. A
-/// request that passes carries a principal whose <c>client_id</c> claim names the calling machine client.
+/// <c>503 Service Unavailable</c> through <see cref="RetryAfterProblem"/>, with the wait of
+/// <see cref="GlobalDirectoryProtocol.UnavailableRetryAfterSeconds"/> in <c>Retry-After</c> and in the problem's
+/// <c>retryAfterSeconds</c>, never allowed. A token bound to a key (one that carries a <c>cnf</c> claim) is answered
+/// <c>401 Unauthorized</c>, because the directory checks no proof of possession. A request that passes carries a
+/// principal whose <c>client_id</c> claim names the calling machine client.
 /// </summary>
 // See ADR-1411.
 internal sealed class DirectoryAuthenticationEndpointFilter(
@@ -187,14 +190,16 @@ internal sealed class DirectoryAuthenticationEndpointFilter(
 
         if (result.IsUnavailable)
         {
-            httpContext.Response.Headers.RetryAfter =
-                GlobalDirectoryProtocol.UnavailableRetryAfterSeconds.ToString(
-                    CultureInfo.InvariantCulture
-                );
-            return Results.Problem(
-                title: "Service Unavailable",
-                detail: "The issuer of the directory's access tokens is unavailable. Retry the request.",
-                statusCode: StatusCodes.Status503ServiceUnavailable
+            return RetryAfterProblem.Create(
+                httpContext,
+                TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds),
+                new ProblemDetails
+                {
+                    Title = "Service Unavailable",
+                    Detail =
+                        "The issuer of the directory's access tokens is unavailable. Retry the request.",
+                    Status = StatusCodes.Status503ServiceUnavailable,
+                }
             );
         }
 

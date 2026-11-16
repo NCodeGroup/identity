@@ -55,7 +55,9 @@ setup creates a root global administrator.**
    ([ADR-1370](1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)).
    A request with no remote address is not loopback. It rate-limits
    `POST /setup/api/token` and `POST /setup/api/root` to 10 requests per minute per client address and answers 429
-   beyond that, with `Retry-After` giving the seconds until the next attempt and `Cache-Control: no-store`. It serves
+   beyond that, with `Retry-After` and the problem's `retryAfterSeconds` giving the seconds until the next attempt
+   ([ADR-1483](1483-every-management-error-is-a-problem-document-that-its-route-declares.md)), and
+   `Cache-Control: no-store`. It serves
    its page with a nonce Content-Security-Policy (`script-src 'nonce-…' 'strict-dynamic'`,
    `style-src 'nonce-…'`, `img-src 'self'`, `connect-src 'self'` plus the hinted console's origin, if any,
    `form-action 'none'`)

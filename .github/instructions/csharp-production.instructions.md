@@ -670,8 +670,11 @@ than inlining the rationale.
   no handler catches it. Resolve only after authorization (a read resolves in the `mapperAsync` of `ProcessGetAsync`),
   and keep `Resolve` for a proposed document and for a write that replaces the document it cannot read
   ([ADR-1245](../../docs/decisions/1245-management-requests-list-incoherent-clients-name-unreadable-stored-settings-and-let-a-write-repair-them.md)).
-- 👁 **A management problem that asks the caller to wait answers through `RetryAfterProblem.Create`**, which sets
-  `Retry-After` and `retryAfterSeconds`; extension members are named by `ManagementProblemMembers`
+- 👁 **A problem document that asks the caller to wait answers through `RetryAfterProblem.Create`**
+  (`NCode.Identity.AspNetCore`), which sets `Retry-After` and `retryAfterSeconds` (`RetryAfterProblem.MemberName`) to
+  the same whole seconds, rounded up and at least one: the management API's waits, the directory API's `503` and the
+  setup API's `429` alike. A detail that states the wait takes it from `RetryAfterProblem.GetWaitSeconds`, and a
+  management problem's extension members are named by `ManagementProblemMembers`
   ([ADR-1483](../../docs/decisions/1483-every-management-error-is-a-problem-document-that-its-route-declares.md)).
 - 👁 **A revocation wins a lost race.** Revoke grants through `IPersistedGrantService` (`SetRevokedOnceAsync`,
   `RevokeWhereAsync`, `RevokeByRefreshTokenLineageAsync`), which read again in a new unit of work and retry, never
