@@ -43,8 +43,8 @@ POST api/tenant-imports/transfer-keys
 /// public half seals the tenant's export. The other imports the export: it takes the transfer key, decrypts the
 /// package, imports every section and the master keys, retags the remote keys that the imported secrets reference to
 /// this cell, and moves the tenant's placement in the global directory to this cell. A package names the cell it is
-/// offered to, and only that cell imports it. The tenant stays disabled. Every
-/// cell maps the routes, and the caller needs the update operation on the platform node.
+/// offered to, and only that cell imports it. The tenant stays disabled. Every cell maps the routes, and the caller
+/// needs the update operation on the platform node.
 /// </summary>
 // See ADR-1514.
 internal class TenantImportApiEndpointHandler(

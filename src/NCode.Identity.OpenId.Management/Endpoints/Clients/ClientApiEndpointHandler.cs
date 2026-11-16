@@ -927,8 +927,8 @@ internal class ClientApiEndpointHandler(
 
     /// <summary>
     /// Checks the client identifier a request names for a machine client. Only the platform's machine client of a cell
-    /// names one, <c>cell-</c> followed by the cell's name, because the directory and the control plane identify a
-    /// cell by that client id. Every other machine client has its identifier generated.
+    /// names one, <c>cell-</c> followed by the cell's name, because the directory and the control plane identify a cell
+    /// by that client id. Every other machine client has its identifier generated.
     /// </summary>
     /// <param name="owningNode">The platform or team node that owns the client.</param>
     /// <param name="requestedClientId">The client identifier the request names, or <c>null</c>.</param>

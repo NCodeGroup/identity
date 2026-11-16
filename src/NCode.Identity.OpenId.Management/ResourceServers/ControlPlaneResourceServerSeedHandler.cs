@@ -14,11 +14,11 @@ namespace NCode.Identity.OpenId.Management.ResourceServers;
 
 /// <summary>
 /// Seeds the reserved directory (<see cref="GlobalDirectoryProtocol.DirectoryAudience"/>) and control-plane
-/// (<see cref="GlobalDirectoryProtocol.ControlPlaneAudience"/>)
-/// resource servers into the root tenant of the control-plane cell. Other cells request tokens for these audiences
-/// with the scopes <see cref="GlobalDirectoryProtocol.DirectoryScope"/> and
-/// <see cref="GlobalDirectoryProtocol.ControlPlaneScope"/>. The handler seeds nothing in a workload tenant or in a
-/// cell that is not the control plane. It is idempotent: it creates each resource server only when it is absent.
+/// (<see cref="GlobalDirectoryProtocol.ControlPlaneAudience"/>) resource servers into the root tenant of the
+/// control-plane cell. Other cells request tokens for these audiences with the scopes
+/// <see cref="GlobalDirectoryProtocol.DirectoryScope"/> and <see cref="GlobalDirectoryProtocol.ControlPlaneScope"/>.
+/// The handler seeds nothing in a workload tenant or in a cell that is not the control plane. It is idempotent: it
+/// creates each resource server only when it is absent.
 /// </summary>
 internal sealed class ControlPlaneResourceServerSeedHandler(
     ICryptoService cryptoService,

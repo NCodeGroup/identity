@@ -6,8 +6,8 @@ using NCode.Identity.OpenId.Management.Contracts.Tenants;
 namespace NCode.Identity.OpenId.Management.Promotions;
 
 /// <summary>
-/// Defines the contract to export the configuration of one tenant as a <see cref="TenantConfigurationDocument"/>,
-/// which a promotion into another tenant of the same region reads in place of the source tenant.
+/// Defines the contract to export the configuration of one tenant as a <see cref="TenantConfigurationDocument"/>, which
+/// a promotion into another tenant of the same region reads in place of the source tenant.
 /// </summary>
 // See ADR-1425.
 internal interface ITenantConfigurationExporter

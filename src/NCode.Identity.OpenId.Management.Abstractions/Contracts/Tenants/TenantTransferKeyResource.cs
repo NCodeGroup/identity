@@ -8,8 +8,8 @@ using JetBrains.Annotations;
 namespace NCode.Identity.OpenId.Management.Contracts.Tenants;
 
 /// <summary>
-/// Represents the REST resource returned when a cell issues a one-time transfer key to receive a tenant. It carries
-/// the public key only.
+/// Represents the REST resource returned when a cell issues a one-time transfer key to receive a tenant. It carries the
+/// public key only.
 /// </summary>
 // See ADR-1514.
 [PublicAPI]

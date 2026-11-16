@@ -23,11 +23,10 @@ namespace NCode.Identity.OpenId.Management.Endpoints;
 /// endpoint via <see cref="ManagementEnvironmentEndpointFilter"/> but opens no tenant scope. Each control-plane family
 /// (capabilities, caller, platform, teams, machine clients, tenant provisioning) opens the control-plane unscoped scope
 /// through <see cref="ControlPlaneScopeEndpointFilter"/> on its own route group, and the tenant-plane group opens the
-/// route's tenant scope. It declares on every route the
-/// <c>409</c> and <c>503</c> problems that its settings and root-key filters answer. It also describes the problem
-/// responses that every route shares in the OpenAPI document, and answers a thrown request-binding failure with its
-/// status.
-/// Its endpoints have confidential bodies, so HTTP logging never writes their request or response bodies.
+/// route's tenant scope. It declares on every route the <c>409</c> and <c>503</c> problems that its settings and
+/// root-key filters answer. It also describes the problem responses that every route shares in the OpenAPI document,
+/// and answers a thrown request-binding failure with its status. Its endpoints have confidential bodies, so HTTP
+/// logging never writes their request or response bodies.
 /// </summary>
 internal sealed class ManagementRootGroup : IEndpointGroup
 {

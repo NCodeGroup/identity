@@ -21,8 +21,8 @@ namespace NCode.Identity.OpenId.Management.ControlPlane;
 /// token of the request for the control-plane audience, and requires the <c>control-plane</c> scope and a
 /// <c>client_id</c> that names a cell's machine client. A request without a valid token is answered
 /// <c>401 Unauthorized</c> and a request whose token lacks the scope or names another client is answered
-/// <c>403 Forbidden</c>, never allowed. A request that passes runs inside an unscoped ambient scope, because the
-/// roles it reads are the control plane's own rows.
+/// <c>403 Forbidden</c>, never allowed. A request that passes runs inside an unscoped ambient scope, because the roles
+/// it reads are the control plane's own rows.
 /// </summary>
 // See ADR-1411 and ADR-1466.
 internal sealed class ControlPlaneAuthenticationEndpointFilter(

@@ -20,8 +20,8 @@ public interface ITenantTransferContributor
     string Name { get; }
 
     /// <summary>
-    /// Gets the position of the contributor among the others. A contributor with a lower value runs first when a
-    /// tenant is imported and last when its rows are removed. See <see cref="TenantTransferOrders"/> for the built-in
+    /// Gets the position of the contributor among the others. A contributor with a lower value runs first when a tenant
+    /// is imported and last when its rows are removed. See <see cref="TenantTransferOrders"/> for the built-in
     /// contributors' positions.
     /// </summary>
     int Order { get; }

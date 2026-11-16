@@ -21,9 +21,9 @@ POST control-plane/v1/authority
 
 /// <summary>
 /// Provides the endpoint through which the control-plane cell tells the other cells which platform and team roles a
-/// caller holds. It maps nothing unless the cell is the control plane. The route sits beside the management
-/// <c>/api</c> tree, never under it, because the filters of that tree treat a request as a management caller; it is
-/// authenticated by <see cref="ControlPlaneAuthenticationEndpointFilter"/> and its bodies are never logged.
+/// caller holds. It maps nothing unless the cell is the control plane. The route sits beside the management <c>/api</c>
+/// tree, never under it, because the filters of that tree treat a request as a management caller; it is authenticated
+/// by <see cref="ControlPlaneAuthenticationEndpointFilter"/> and its bodies are never logged.
 /// </summary>
 // See ADR-1411 and ADR-1466.
 internal sealed class ControlPlaneAuthorityEndpointProvider : IEndpointProvider

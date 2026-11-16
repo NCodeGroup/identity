@@ -8,8 +8,8 @@ using JetBrains.Annotations;
 namespace NCode.Identity.OpenId.Management.Transfers;
 
 /// <summary>
-/// Represents the public half of a one-time transfer key that a cell issued to receive a tenant. The private half
-/// stays in the cell and is taken once through <see cref="ITenantTransferKeyService.TakeAsync"/>.
+/// Represents the public half of a one-time transfer key that a cell issued to receive a tenant. The private half stays
+/// in the cell and is taken once through <see cref="ITenantTransferKeyService.TakeAsync"/>.
 /// </summary>
 // See ADR-1514.
 [PublicAPI]

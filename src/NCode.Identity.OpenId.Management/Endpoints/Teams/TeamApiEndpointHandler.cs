@@ -75,8 +75,8 @@ POST   api/teams/{teamId}/encryption-keys/root-keys/{region}/validate
 
 /// <summary>
 /// Provides the API endpoints for managing a team: a customer's grouping of related tenants. A team is an authority
-/// node beneath the platform, and every team node carries the control-plane tenant as its tenant. The routes are
-/// mapped only on the control-plane cell.
+/// node beneath the platform, and every team node carries the control-plane tenant as its tenant. The routes are mapped
+/// only on the control-plane cell.
 /// </summary>
 // See ADR-1411
 internal class TeamApiEndpointHandler(
@@ -1603,8 +1603,8 @@ internal class TeamApiEndpointHandler(
     }
 
     /// <summary>
-    /// Lists the root keys that a team brings, one per region, with the key wrappers the team may choose and the
-    /// access binding it can require of the server.
+    /// Lists the root keys that a team brings, one per region, with the key wrappers the team may choose and the access
+    /// binding it can require of the server.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
     /// <param name="teamId">The identifier of the team.</param>

@@ -1396,9 +1396,9 @@ internal class TenantApiEndpointHandler(
     }
 
     /// <summary>
-    /// Gives a tenant back the issuer it held before a change that the cell's tenant row did not take, so the
-    /// directory holds the issuer the row holds. The call is best effort: a directory that cannot be reached leaves
-    /// the issuer change recorded, which a later change of the tenant's issuer corrects.
+    /// Gives a tenant back the issuer it held before a change that the cell's tenant row did not take, so the directory
+    /// holds the issuer the row holds. The call is best effort: a directory that cannot be reached leaves the issuer
+    /// change recorded, which a later change of the tenant's issuer corrects.
     /// </summary>
     /// <param name="tenantId">The identifier of the tenant.</param>
     /// <param name="previousIssuer">The issuer the tenant held before the change.</param>

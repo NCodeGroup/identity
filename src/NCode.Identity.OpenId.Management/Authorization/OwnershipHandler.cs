@@ -20,11 +20,12 @@ namespace NCode.Identity.OpenId.Management.Authorization;
 /// resource. Any <see cref="ISupportTenantId"/> resource is judged at its <see cref="IResourceNode"/>; a persisted
 /// entity or a <see cref="TenantScopeResource"/> is judged at its tenant's node, and any other node type inherits the
 /// tenant's and the team's assignments. A principal holds authority when it has a role assignment at that node or an
-/// ancestor: the chain is the node, its tenant, its team, every team above that team, then the platform root. The platform, team and tenant nodes have globally unique identifiers and match on
-/// type and identifier; any other node's identifier is unique only within its tenant, so an assignment at it counts
-/// only when it belongs to the node's tenant. This realizes ownership: an <c>Owner</c> assignment at an instance lets the principal
-/// manage that instance (and everything beneath it) without any tenant-wide role. Ownership grants every operation
-/// except <see cref="Operations.Create"/>; creating a new resource is authority at the parent node, held by a
+/// ancestor: the chain is the node, its tenant, its team, every team above that team, then the platform root. The
+/// platform, team and tenant nodes have globally unique identifiers and match on type and identifier; any other node's
+/// identifier is unique only within its tenant, so an assignment at it counts only when it belongs to the node's
+/// tenant. This realizes ownership: an <c>Owner</c> assignment at an instance lets the principal manage that instance
+/// (and everything beneath it) without any tenant-wide role. Ownership grants every operation except
+/// <see cref="Operations.Create"/>; creating a new resource is authority at the parent node, held by a
 /// <c>TeamAdmin</c>, <c>TenantAdmin</c> or <c>GlobalAdmin</c> assignment at the node or an ancestor. The platform and
 /// team roles come from <see cref="IControlPlaneAuthority"/>, asked about the caller's <c>sub</c> and <c>client_id</c>
 /// claims and the teams above the node, which also answers the control-plane principal identifier that the cell's

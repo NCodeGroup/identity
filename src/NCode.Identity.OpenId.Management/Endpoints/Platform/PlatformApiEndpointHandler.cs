@@ -53,8 +53,8 @@ POST  api/platform/encryption-keys/rekey
 */
 
 /// <summary>
-/// Provides the API endpoints for the platform's settings and master keys. The platform is the one deployment root, so its routes carry
-/// no identifier. The routes are mapped only on the control-plane cell.
+/// Provides the API endpoints for the platform's settings and master keys. The platform is the one deployment root, so
+/// its routes carry no identifier. The routes are mapped only on the control-plane cell.
 /// </summary>
 internal class PlatformApiEndpointHandler(
     IStoreManagerFactory storeManagerFactory,

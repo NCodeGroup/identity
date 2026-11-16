@@ -21,13 +21,12 @@ using NCode.Identity.Secrets.Persistence.Protection;
 namespace NCode.Identity.OpenId.Management.Auditing;
 
 /// <summary>
-/// Provides the default implementation of <see cref="IManagementAuditRecorder"/> that derives the audit
-/// envelope — including the acting administrator or client and the effective environment type of the tenant the event
-/// names — from the current request and publishes through the event seam. The actor is a client when the management
-/// authentication filter resolved, before the change committed, that the subject is the requesting client acting for
-/// itself (<see cref="ManagementActorFeature"/>), and the administrator the token names otherwise. The whole record,
-/// resolving the tenant's environment type included, runs on its own bounded token and never takes the request's
-/// cancellation.
+/// Provides the default implementation of <see cref="IManagementAuditRecorder"/> that derives the audit envelope —
+/// including the acting administrator or client and the effective environment type of the tenant the event names — from
+/// the current request and publishes through the event seam. The actor is a client when the management authentication
+/// filter resolved, before the change committed, that the subject is the requesting client acting for itself
+/// (<see cref="ManagementActorFeature"/>), and the administrator the token names otherwise. The whole record, resolving
+/// the tenant's environment type included, runs on its own bounded token and never takes the request's cancellation.
 /// </summary>
 [SuppressMessage(
     "Design",

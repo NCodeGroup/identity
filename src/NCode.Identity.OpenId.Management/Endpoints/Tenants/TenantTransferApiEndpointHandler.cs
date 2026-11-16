@@ -46,10 +46,10 @@ POST api/tenants/{tenantId}/release-moved
 /// region, the name of the target cell, the tenant's identifier, the section of every
 /// <see cref="ITenantTransferContributor"/> in order, and the tenant's master keys sealed to the same key. Before it
 /// seals the package, the export records in the global directory the offer of the tenant to the target cell, which only
-/// that cell's move consumes. The tenant must be disabled so that nothing changes while it moves. The
-/// release removes the tenant's rows from this cell once the global directory places the tenant in another cell; it
-/// destroys no remote key and retires nothing. The caller needs the update operation on the platform node. The
-/// export's response is never logged.
+/// that cell's move consumes. The tenant must be disabled so that nothing changes while it moves. The release removes
+/// the tenant's rows from this cell once the global directory places the tenant in another cell; it destroys no remote
+/// key and retires nothing. The caller needs the update operation on the platform node. The export's response is never
+/// logged.
 /// </summary>
 // See ADR-1514.
 internal class TenantTransferApiEndpointHandler(

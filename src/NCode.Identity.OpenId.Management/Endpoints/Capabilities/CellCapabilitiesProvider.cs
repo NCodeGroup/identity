@@ -10,8 +10,8 @@ namespace NCode.Identity.OpenId.Management.Endpoints.Capabilities;
 
 /// <summary>
 /// Contributes the <c>cell</c> section to the management capabilities document, naming the cell that serves the
-/// management API, its region and whether it is the control-plane cell, so clients can discover which cell answers
-/// the platform and team management routes.
+/// management API, its region and whether it is the control-plane cell, so clients can discover which cell answers the
+/// platform and team management routes.
 /// </summary>
 internal sealed class CellCapabilitiesProvider(IOptions<CellOptions> cellOptions)
     : ICommandHandler<DiscoverManagementCapabilitiesCommand>
