@@ -240,6 +240,10 @@ The build scripts' PowerShell conventions are in
 [`powershell.instructions.md`](.github/instructions/powershell.instructions.md), which applies to every `.ps1` file;
 [`.claude/rules/powershell.md`](.claude/rules/powershell.md) points Claude Code at it.
 
+The frontend's conventions are in [`frontend.instructions.md`](.github/instructions/frontend.instructions.md), which
+applies to every `.ts` and `.tsx` file under `frontend/`; [`.claude/rules/frontend.md`](.claude/rules/frontend.md)
+points Claude Code at it.
+
 ## Known pending work
 
 Pending work — deferred decisions, feature gaps, follow-ups and review findings — is tracked as

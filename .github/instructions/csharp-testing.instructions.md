@@ -101,6 +101,10 @@ seams, facades, and `InternalsVisibleTo` wiring that make code mockable — live
   doc comment (`// See ADR-1201.`), as production code does
   ([`csharp-production.instructions.md`](csharp-production.instructions.md) §10); the `doc comment citations` stage of
   [`build/dod.ps1`](../../build/dod.ps1) scans `tests/` as well as `src/`, `hosts/` and `analyzers/`.
+- ✅ **A `///` paragraph in tests fits and fills as production code does.** Each line stays within 120 columns and holds
+  as many whole words as fit ([`csharp-production.instructions.md`](csharp-production.instructions.md) §10); the
+  `doc comment fill` stage of [`build/dod.ps1`](../../build/dod.ps1) checks `tests/` as well as `src/`, `hosts/` and
+  `analyzers/`.
 
 ## Isolation & mocking
 

@@ -1137,11 +1137,16 @@ says for a pre-release project.
   [XML Documentation](csharp.instructions.md#xml-documentation); the same discipline applies to ADR prose.
 - 👁 **A `<summary>` tag is multi-line, and a property summary opens with "Gets or sets", "Gets" or "Sets" by its
   accessors** — template [XML Documentation](csharp.instructions.md#xml-documentation).
-- 👁 **A `///` line fits within 120 columns.** A paragraph fills each line with as many whole words as fit, and an
+- ✅ **A `///` line fits within 120 columns.** A paragraph fills each line with as many whole words as fit, and an
   element too long for one line opens and closes its tags on lines of their own, or keeps the continuation form its
   file already uses: the text starts after the opening tag, and the closing tag follows the last word. Two forms may
   run past 120 columns on one line: the standard `<param name="cancellationToken">` sentence, which reads the same on
-  every member, and a `<response>` element, whose text is the response description in the served OpenAPI document.
+  every member, and a `<response>` element, whose text is the response description in the served OpenAPI document. The
+  `doc comment fill` stage of [`build/dod.ps1`](../../build/dod.ps1) runs
+  [`build/doc-comment-fill.ps1`](../../build/doc-comment-fill.ps1), which fails a paragraph that a change adds or edits,
+  measured from its merge base, when a line runs past 120 columns or leaves room for the next line's first word; `-Fix`
+  reflows those paragraphs and `-All` lists the whole tree. See
+  [ADR-1515](../../docs/decisions/1515-doc-comments-fill-their-lines-to-120-columns-and-the-definition-of-done-checks-the-paragraphs-a-change-touches.md).
 - 👁 **Prose spells protocol terms the spec way, not the .NET-type way.** In `///` and `//` text write **"JSON Web
   Token (JWT)"** (and likewise JSON/JOSE/OAuth/OpenID in their canonical casing); do not carry the `JsonWebToken` type's
   Pascal casing into documentation. This applies only to prose — a `<see cref="JsonWebToken"/>` or an identifier keeps
