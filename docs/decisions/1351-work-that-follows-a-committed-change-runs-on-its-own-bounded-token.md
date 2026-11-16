@@ -20,6 +20,9 @@ effect or audit record must not turn the success into a failure.
 - Unbounded work on `CancellationToken.None` lets a hung store hold the request open indefinitely.
 - A recorder or effect method that accepts a `CancellationToken` invites its caller to pass the request's token, which
   defeats the rule.
+- The directory change feed commits a mirrored team row and then announces the team and mirrors its owner root key.
+  Work that runs on the feed's token is skipped when the host stops after the commit, and a key service that hangs
+  holds the feed's pass.
 
 [project-template ADR-0141](project-template/0141-side-effects-after-a-commit-go-through-an-outbox.md) decision 1 keeps
 such inline effects on `CancellationToken.None` with their own timeout. This record fixes that bound and the places
@@ -75,6 +78,15 @@ Work that wholly follows a committed change runs on its own bounded token, never
 10. **The bound is fixed.** It is a backstop behind the store's and the Valkey client's own timeouts, and it equals the
     guarded client's default `TotalTimeout`
     ([ADR-1315](1315-calls-to-caller-supplied-urls-share-one-guarded-bounded-client-and-one-single-flight-helper.md)). It is not an option.
+11. **The directory feed's team writes.** The directory change feed's token plays the request's part. Once
+    `DefaultTeamDocumentApplier` commits a team document or a team's retirement, it sends `TeamChangedCommand` through
+    `PostCommitCommandSender` and then, unless the team is disabled, mirrors the team's owner root key for the cell's
+    region; each is a `PostCommitWork` step of its own. The feed's token reaches neither step and only decides whether
+    a cancellation is the feed's own, which propagates. A step that fails or that the bound cuts is logged
+    (`DirectoryTeamChangeNotSent`, `DirectoryTeamRootKeyNotApplied`) and the write stands; the next document for the
+    team, or the root-key reconcile of
+    [ADR-1414](1414-a-tenant-can-wrap-its-master-keys-under-a-root-key-it-controls.md), redoes a mirror that failed.
+    The reconcile follows no commit, so it runs on the feed's token.
 
 ## Options considered
 
@@ -96,7 +108,9 @@ Work that wholly follows a committed change runs on its own bounded token, never
 ## Consequences
 
 - A client that disconnects after a commit skips no eviction, announcement, security effect or audit record.
-- A hung store adds at most 30 seconds per step.
+- A host that stops after the directory change feed commits a team row skips neither the team's announcement nor its
+  root-key mirror.
+- A hung store or key service adds at most 30 seconds per step.
 - A failure after a commit is visible only in the log; the entries named above are the signal to alert on.
 - A new step that follows a commit goes through `PostCommitWork.RunAsync`, and a new recorder or effect method takes no
   token.
@@ -105,6 +119,8 @@ Work that wholly follows a committed change runs on its own bounded token, never
 
 - `PostCommitWork` in `NCode.Identity.Persistence.Abstractions`.
 - `TenantChangedHandler`, `TeamChangedHandler`, `PlatformSettingsChangedHandler`, `IManagementAuditRecorder`,
-  `DefaultManagementAuditRecorder`, `IPostCommitSecurityEffects` and `DefaultPostCommitSecurityEffects`.
+  `DefaultManagementAuditRecorder`, `IPostCommitSecurityEffects`, `DefaultPostCommitSecurityEffects`,
+  `PostCommitCommandSender` and `DefaultTeamDocumentApplier`.
 - [ADR-1315](1315-calls-to-caller-supplied-urls-share-one-guarded-bounded-client-and-one-single-flight-helper.md).
+- [ADR-1414](1414-a-tenant-can-wrap-its-master-keys-under-a-root-key-it-controls.md).
 - [project-template ADR-0141](project-template/0141-side-effects-after-a-commit-go-through-an-outbox.md).

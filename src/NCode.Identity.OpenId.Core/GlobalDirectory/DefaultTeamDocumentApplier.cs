@@ -10,6 +10,7 @@ using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Teams;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.Persistence.Protection;
 
@@ -26,10 +27,11 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// removed team's key that fails to go is removed by the next reconcile. Reconciling brings the owner root key of
 /// every enabled mirrored team to the reference its row holds for the region, which applies a key that failed its
 /// probe or its rotation cooldown once it can be, and removes the owner root key of a team that has no row. The team
-/// row is committed before the command and the root key follow, so a command or a root key that fails is logged and
-/// never fails the committed write.
+/// row is committed before the command and the root key follow, each in a step of its own on a token bounded by
+/// <see cref="PostCommitWork.Timeout"/>, so the caller's cancellation drops neither, and a command or a root key that
+/// fails or that the bound cuts is logged and never fails the committed write.
 /// </summary>
-// See ADR-1411 and ADR-1416.
+// See ADR-1351, ADR-1411 and ADR-1416.
 internal sealed class DefaultTeamDocumentApplier(
     IStoreManagerFactory storeManagerFactory,
     IAmbientTenantAccessor ambientTenantAccessor,
@@ -122,8 +124,7 @@ internal sealed class DefaultTeamDocumentApplier(
             if (document.IsDisabled)
                 return;
 
-            // The mirror stays on the caller's token: the rewrap must not be cut by the post-commit bound, and a mirror
-            // that fails or is cancelled is redone by ReconcileRootKeysAsync on a replica's first pass.
+            // The mirror follows the committed row, so it runs on a bounded token of its own, as the command does.
             await MirrorRootKeyAsync(
                 document.TeamId,
                 persistedTeam.RootKeys.GetValueOrDefault(CellOptions.Region),
@@ -256,14 +257,18 @@ internal sealed class DefaultTeamDocumentApplier(
 
     /// <summary>
     /// Reads the owner root key of a team and brings it to the reference that the team's document holds for the cell's
-    /// region, as <see cref="ApplyRootKeyAsync"/> does. A key that fails is logged and left unapplied, so one team's
-    /// key never stops another's; the team row and its command are already applied, and the next document the
-    /// directory publishes for the team, or the next reconcile, retries the key, and a removed team's key that fails
-    /// to go is removed by the next reconcile. A caller's cancellation propagates.
+    /// region, as <see cref="ApplyRootKeyAsync"/> does, in one step on a token of its own bounded by
+    /// <see cref="PostCommitWork.Timeout"/>, because the mirror follows the committed team row. A key that fails, or
+    /// that the bound cuts, is logged and left unapplied; the team row and its command are already applied, and the
+    /// next document the directory publishes for the team, or the next reconcile, retries the key, and a removed
+    /// team's key that fails to go is removed by the next reconcile. The caller's token never reaches the mirror; it
+    /// only decides whether a cancellation is the caller's own, which propagates.
     /// </summary>
     /// <param name="teamId">The identifier of the team whose owner root key is mirrored.</param>
     /// <param name="reference">The root key reference for the region, or <c>null</c> when the team has none.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <param name="cancellationToken">
+    /// The <see cref="CancellationToken"/> of the caller, whose cancellation propagates.
+    /// </param>
     private async ValueTask MirrorRootKeyAsync(
         string teamId,
         OwnerRootKeyRequest? reference,
@@ -273,11 +278,24 @@ internal sealed class DefaultTeamDocumentApplier(
         var owner = new SecretOwner(SecretOwnerTypes.Team, teamId).Normalize();
         await RunRootKeyWorkAsync(
             teamId,
-            async () =>
-            {
-                var current = await OwnerRootKeyManager.GetAsync(owner, cancellationToken);
-                await ApplyRootKeyAsync(owner, reference, current, cancellationToken);
-            },
+            () =>
+                PostCommitWork.RunAsync(
+                    TimeProvider,
+                    static async (state, token) =>
+                    {
+                        var current = await state.Applier.OwnerRootKeyManager.GetAsync(
+                            state.Owner,
+                            token
+                        );
+                        await state.Applier.ApplyRootKeyAsync(
+                            state.Owner,
+                            state.Reference,
+                            current,
+                            token
+                        );
+                    },
+                    (Applier: this, Owner: owner, Reference: reference)
+                ),
             cancellationToken
         );
     }
@@ -333,7 +351,9 @@ internal sealed class DefaultTeamDocumentApplier(
     /// </summary>
     /// <param name="teamId">The identifier of the team whose owner root key the work changes.</param>
     /// <param name="work">The work to run.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <param name="cancellationToken">
+    /// The <see cref="CancellationToken"/> of the caller, whose cancellation propagates.
+    /// </param>
     private async ValueTask RunRootKeyWorkAsync(
         string teamId,
         Func<ValueTask> work,

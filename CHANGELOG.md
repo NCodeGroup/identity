@@ -3328,7 +3328,10 @@ Until the first stable release, the [Unreleased] section describes the product a
   `TenantChangedHandler`, `TeamChangedHandler` and `PlatformSettingsChangedHandler` evict, read back and announce a committed change each on its
   own 30-second token, so a client that disconnects does not skip the announcement and a store or Valkey timeout does
   not fail a write that has already committed; a failed refresh or announcement is logged, and a failed eviction is
-  still announced ([#485](https://github.com/NCodeGroup/identity/issues/485),
+  still announced. A cell's directory change feed sends a mirrored team's change and mirrors its owner root key, each
+  on its own 30-second token, once it commits the team's row, so a host that stops after the commit skips neither and
+  a key-service call that hangs ends after 30 seconds; a mirror that fails is logged and redone by the team's next
+  document or the feed's root-key reconcile ([#485](https://github.com/NCodeGroup/identity/issues/485),
   [ADR-1351](docs/decisions/1351-work-that-follows-a-committed-change-runs-on-its-own-bounded-token.md)).
 
 - **Protocol-endpoint metrics.** The protocol endpoints tag ASP.NET Core's `http.server.request.duration` with
