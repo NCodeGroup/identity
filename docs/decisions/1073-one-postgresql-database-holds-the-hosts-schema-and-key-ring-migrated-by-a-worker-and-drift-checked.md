@@ -33,8 +33,8 @@ PostgreSQL through Npgsql is the host's only relational provider, and a cell's o
 and the key ring. The global directory has its own database. A worker applies the migrations as the schema owner, the
 host never does and serves as a separate runtime role, and the build fails on drift.
 
-- **One provider.** `NCode.Identity.OpenId.Host` resolves its database connection, the `openiddb` connection string or
-  the `OpenIdDatabase` parts (`HostDatabaseConnection`,
+- **One provider.** `NCode.Identity.OpenId.Host` resolves its database connection, `ConnectionStrings:openiddb` or the
+  `OpenIdDatabase` parts (`HostDatabaseConnection`, which judges them with `PostgresConnectionRules`,
   [ADR-1509](1509-the-host-chart-passes-a-postgres-operators-secret-as-the-connections-parts-and-the-host-assembles-the-npgsql-connection.md)),
   registers `OpenIdDbContext` with `UseOpenIdNpgsql`, and tags an `openiddb` `AddDbContextCheck<OpenIdDbContext>` with
   `HealthCheckTags.Readiness`. Without a database connection, as in hermetic test hosts that replace the context, the
@@ -43,16 +43,22 @@ host never does and serves as a separate runtime role, and the build fails on dr
   ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)),
   so every cell has its own `openiddb`, which holds every tenant of the cell. The global directory's host,
   `hosts/NCode.Identity.OpenId.GlobalDirectory.Host`, has its own Postgres database, `DirectoryDbContext`, with its own
-  migrations and image. It holds cells, placements, team documents and retired identifiers, and no personal data. Its
-  host's `migrate` command, which the chart's directory migration Job runs, migrates as the schema owner through
-  `ConnectionStrings:directory-migration` and grants the runtime role that `DirectoryDatabase:RuntimeRole` names the
-  access that `RuntimeRoleGrants` creates for a cell's database too (`DirectoryDatabaseGrants`); serving connects
-  through `ConnectionStrings:directory` as that role, which owns nothing and can only read and write rows.
-- **A migration role and a runtime role.** The two roles have separate connection strings: `ConnectionStrings:openid`
-  is the runtime role's, and `ConnectionStrings:openid-migration` is the schema owner's, which only the worker uses.
-  `HostDatabase:RuntimeRole` names the runtime role for the grants the worker applies
+  migrations and image. It holds cells, placements, team documents and retired identifiers, and no personal data. The
+  directory's Deployment and its host's `migrate` command, which the chart's directory migration Job runs, both read
+  `ConnectionStrings:directory` or the `DirectoryDatabase` parts through `PostgresConnectionRules`
+  (`DirectoryDatabase.GetConnectionString`), each given its own role's credentials: the Deployment the runtime role's,
+  which owns nothing and can only read and write rows, and the Job the schema owner's. The command migrates, then
+  grants the runtime role that `DirectoryMigration:RuntimeRole` names the access that `RuntimeRoleGrants` creates for a
+  cell's database too (`DirectoryDatabaseGrants`).
+- **A migration role and a runtime role.** The two roles read one connection, `ConnectionStrings:openiddb` or the
+  `OpenIdDatabase` parts, each given its own credentials: the runtime role's in the host's pods, and the schema owner's
+  in the migration worker, which the chart's Job runs. The AppHost supplies the owner's
+  `ConnectionStrings:openiddb` to the worker and the runtime role's `OpenIdDatabase` parts to the host. The worker also
+  reads `HostDatabase:RuntimeRole`, which names the runtime role for the grants it applies
   ([ADR-1018](1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)). The
-  runtime role is not a superuser, has no `BYPASSRLS` and owns no table, so row-level security binds it.
+  directory's Deployment and `migrate` Job read their one connection the same way, the Job with
+  `DirectoryMigration:RuntimeRole`. The runtime role is not a superuser, has no `BYPASSRLS` and owns no table, so
+  row-level security binds it.
 - **A host-owned database project.** The published `NCode.Identity.OpenId.Persistence.EntityFramework` ships the model
   only. The unpacked `NCode.Identity.OpenId.Host.Database` holds the Npgsql wiring (`HostDatabase`, which points
   `MigrationsAssembly` at itself), the design-time factories `OpenIdDbContextDesignTimeFactory` and

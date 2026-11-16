@@ -146,9 +146,13 @@ current_setting('app.unscoped', true) = 'on' OR "NormalizedTenantId" = current_s
   `DISCARD ALL` when its connection returns to the pool. State set inside a transaction holds only for that
   transaction's commands until the transaction commits, and a rollback, a rollback to a savepoint or a failure of the
   transaction clears it. A pooled connection never carries the previous request's tenant.
-- Migrations run as the schema owner and the host runs as a separate runtime role. The two have separate connection
-  strings: `ConnectionStrings:openid` for the runtime role and `ConnectionStrings:openid-migration` for the owner.
-  `HostDatabase:RuntimeRole` names the runtime role for the grants.
+- Migrations run as the schema owner and the host runs as a separate runtime role. Both read one connection,
+  `ConnectionStrings:openiddb` or the `OpenIdDatabase` parts
+  ([ADR-1509](1509-the-host-chart-passes-a-postgres-operators-secret-as-the-connections-parts-and-the-host-assembles-the-npgsql-connection.md)),
+  each given its own role's credentials: the runtime role's in the host's pods, and the schema owner's in the migration
+  worker and the chart's Job. The worker also reads `HostDatabase:RuntimeRole`, which names the runtime role for the
+  grants. The directory's Deployment and `migrate` Job read `ConnectionStrings:directory` or the `DirectoryDatabase`
+  parts the same way, the Job with `DirectoryMigration:RuntimeRole`.
 - `RuntimeRolePosture.Evaluate` refuses a runtime role that is a superuser, has `BYPASSRLS` or owns the tables, because
   such a role skips the policy. The host refuses to start on it under the deployment posture and warns under
   `LocalDevelopment:Enabled`

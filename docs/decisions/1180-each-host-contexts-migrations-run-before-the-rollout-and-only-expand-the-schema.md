@@ -64,6 +64,11 @@ narrowing a setting edits its descriptor, and a stored document that does not fi
 `MigrationRunner` first compares each context's recorded migration ids with the assembly's. When the history names a
 migration the assembly lacks, it applies nothing and throws, naming the context and `build/dev-db-reset.ps1`.
 
+The directory's `migrate` command refuses a database ahead of its host the same way: `DirectoryDatabase` applies
+nothing and throws, naming `DirectoryDbContext` and saying to drop and recreate the directory's database and run the
+command again. Both runners compare through `MigrationHistoryRules.FindUnknownMigrations`, which compares ordinally, and
+each writes its own recovery.
+
 ### The worker applies row-level security and grants after migrating
 
 After it applies both contexts' migrations, the worker applies row-level security to the OpenId context. The
@@ -76,8 +81,13 @@ migrations do not hold it, because the statements come from the model
   changes nothing.
 - It then grants the role named by `HostDatabase:RuntimeRole` the access that `RuntimeRoleGrants` creates: `USAGE` on
   the model's schemas, `SELECT, INSERT, UPDATE, DELETE` on its tables and `USAGE` on its sequences.
-- The worker connects as the schema owner with `ConnectionStrings:openid-migration`, and the host serves as the runtime
-  role with `ConnectionStrings:openid`.
+- The worker and the host read one connection, `ConnectionStrings:openiddb` or the `OpenIdDatabase` parts
+  ([ADR-1509](1509-the-host-chart-passes-a-postgres-operators-secret-as-the-connections-parts-and-the-host-assembles-the-npgsql-connection.md)):
+  the worker with the schema owner's credentials, and the host with the runtime role's.
+- The directory's `migrate` command applies its context's migrations and grants the role that
+  `DirectoryMigration:RuntimeRole` names the same access, in one transaction. It reads the directory's one connection,
+  `ConnectionStrings:directory` or the `DirectoryDatabase` parts, with the schema owner's credentials, and the
+  directory's Deployment reads it with the runtime role's.
 
 The statements are not migrations, so `InitialCreateTests` and the expand-only rule stay about the schema.
 
@@ -126,9 +136,15 @@ A reviewer checks these by hand:
   PodDisruptionBudget selects it.
 - The Job uses the namespace's `default` service account unless `serviceAccount.create` is false, because the chart's own
   account does not exist when a first install runs the hook.
-- `database.migration` names the schema owner's connection as a Secret and feeds `ConnectionStrings:openid-migration`
-  to the Job; `database.runtime` names the runtime role's connection and feeds `ConnectionStrings:openid` to the host,
-  and `database.runtimeRole` names the role for the grants. The host runs without the right to change its own schema.
+- `migrations.database` names the schema owner's connection as a Secret, and the Job reads it as
+  `ConnectionStrings:openiddb` or the `OpenIdDatabase` parts; `database` names the runtime role's connection, and the
+  host reads it the same way. `database.runtimeRole` names the role for the grants, and the Job reads it as
+  `HostDatabase:RuntimeRole`. The host runs without the right to change its own schema.
+- The directory's chart runs its host image's `migrate` command as a `pre-install` and `pre-upgrade` hook Job of the
+  same shape. `directory.migrations.database` names the schema owner's connection, and the Job reads it as
+  `ConnectionStrings:directory` or the `DirectoryDatabase` parts; `directory.database` names the runtime role's
+  connection, and the Deployment reads it the same way. `directory.database.runtimeRole` names the role for the grants,
+  and the Job reads it as `DirectoryMigration:RuntimeRole`.
 - `migrations.enabled: false` removes the Job for a deployment whose DBA or pipeline applies a generated idempotent
   script.
 
@@ -176,6 +192,9 @@ rule for every migration author.
 - `hosts/NCode.Identity.OpenId.Host.Database/ExpandOnlyRule.cs`, `ExpandMigrationAttribute.cs`,
   `ContractMigrationAttribute.cs`, `MigrationRunner.cs`, `Migrations/OpenId/` and
   `Migrations/DeveloperDataProtection/`
+- `hosts/NCode.Identity.OpenId.GlobalDirectory.Host/DirectoryDatabase.cs`, `DirectoryMigrateCommand.cs` and
+  `Migrations/Directory/`
+- `src/NCode.Identity.Persistence.Abstractions/MigrationHistoryRules.cs`
 - `tests/NCode.Identity.OpenId.Host.Database.Tests/InitialCreateTests.cs`, `ExpandOnlyRuleTests.cs` and
   `MigrationRunnerTests.cs`
 - `build/dev-db-reset.ps1`
