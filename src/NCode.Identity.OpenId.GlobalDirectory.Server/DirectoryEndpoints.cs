@@ -6,6 +6,7 @@ using System.Text.Json;
 using JetBrains.Annotations;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
@@ -385,7 +386,7 @@ public static class DirectoryEndpoints
             return Forbidden("Only the target cell moves a tenant to itself.");
 
         var result = await directory.MoveAsync(tenantId, fromCell, toCell, cancellationToken);
-        return result.IsMoved ? Results.Ok() : Conflict(result.ConflictDetail);
+        return result.IsMoved ? TypedResults.Ok() : Conflict(result.ConflictDetail);
     }
 
     /// <summary>
@@ -423,7 +424,7 @@ public static class DirectoryEndpoints
             request.ToCell,
             cancellationToken
         );
-        return result.IsOffered ? Results.NoContent() : Conflict(result.ConflictDetail);
+        return result.IsOffered ? TypedResults.NoContent() : Conflict(result.ConflictDetail);
     }
 
     /// <summary>
@@ -526,7 +527,7 @@ public static class DirectoryEndpoints
         var placement = await directory.GetPlacementOrDefaultAsync(tenantId, cancellationToken);
         return placement is null
             ? NotFound($"The directory holds no placement for the tenant '{tenantId}'.")
-            : Results.Ok(placement);
+            : TypedResults.Ok(placement);
     }
 
     /// <summary>
@@ -546,7 +547,7 @@ public static class DirectoryEndpoints
     {
         var isRetired = await directory.IsTenantIdRetiredAsync(tenantId, cancellationToken);
         return isRetired
-            ? Results.Ok()
+            ? TypedResults.Ok()
             : NotFound($"The directory holds no retired tenant '{tenantId}'.");
     }
 
@@ -575,7 +576,7 @@ public static class DirectoryEndpoints
         );
         return holder is null
             ? NotFound($"The directory holds no retired issuer '{issuer}'.")
-            : Results.Ok(holder);
+            : TypedResults.Ok(holder);
     }
 
     #endregion
@@ -656,7 +657,7 @@ public static class DirectoryEndpoints
             return BadRequest(SettingsNotAnObjectDetail);
 
         var result = await writer.PublishAsync(document, cancellationToken);
-        return result.IsDone ? Results.Ok() : BadRequest(result.Detail);
+        return result.IsDone ? TypedResults.Ok() : BadRequest(result.Detail);
     }
 
     /// <summary>
@@ -687,7 +688,7 @@ public static class DirectoryEndpoints
             return forbidden;
 
         await directory.ReleaseAsync(teamId, cancellationToken);
-        return Results.Ok();
+        return TypedResults.Ok();
     }
 
     /// <summary>
@@ -717,7 +718,7 @@ public static class DirectoryEndpoints
             return forbidden;
 
         await directory.RetireAsync(teamId, cancellationToken);
-        return Results.Ok();
+        return TypedResults.Ok();
     }
 
     /// <summary>
@@ -737,7 +738,7 @@ public static class DirectoryEndpoints
     {
         var isRetired = await directory.IsTeamIdRetiredAsync(teamId, cancellationToken);
         return isRetired
-            ? Results.Ok()
+            ? TypedResults.Ok()
             : NotFound($"The directory holds no retired team '{teamId}'.");
     }
 
@@ -757,7 +758,7 @@ public static class DirectoryEndpoints
         var document = await directory.GetOrDefaultAsync(teamId, cancellationToken);
         return document is null
             ? NotFound($"The directory holds no document for the team '{teamId}'.")
-            : Results.Ok(document);
+            : TypedResults.Ok(document);
     }
 
     /// <summary>
@@ -785,7 +786,7 @@ public static class DirectoryEndpoints
             boundedLimit,
             cancellationToken
         );
-        return Results.Ok(changes);
+        return TypedResults.Ok(changes);
     }
 
     #endregion
@@ -820,7 +821,7 @@ public static class DirectoryEndpoints
             return BadRequest(SettingsNotAnObjectDetail);
 
         await directory.PublishAsync(document, cancellationToken);
-        return Results.Ok();
+        return TypedResults.Ok();
     }
 
     /// <summary>
@@ -837,7 +838,7 @@ public static class DirectoryEndpoints
         var document = await directory.GetOrDefaultAsync(cancellationToken);
         return document is null
             ? NotFound("The directory holds no platform document.")
-            : Results.Ok(document);
+            : TypedResults.Ok(document);
     }
 
     #endregion
@@ -914,7 +915,7 @@ public static class DirectoryEndpoints
         }
 
         await directory.RegisterAsync(descriptor, cancellationToken);
-        return Results.Ok();
+        return TypedResults.Ok();
     }
 
     /// <summary>
@@ -929,7 +930,7 @@ public static class DirectoryEndpoints
     )
     {
         var cells = await directory.ListAsync(cancellationToken);
-        return Results.Ok(cells);
+        return TypedResults.Ok(cells);
     }
 
     /// <summary>
@@ -946,7 +947,9 @@ public static class DirectoryEndpoints
     )
     {
         var cell = await directory.GetOrDefaultAsync(name, cancellationToken);
-        return cell is null ? NotFound($"The directory holds no cell '{name}'.") : Results.Ok(cell);
+        return cell is null
+            ? NotFound($"The directory holds no cell '{name}'.")
+            : TypedResults.Ok(cell);
     }
 
     #endregion
@@ -1002,7 +1005,7 @@ public static class DirectoryEndpoints
     /// <c>null</c> when the caller is the control-plane cell and the write proceeds; otherwise the <c>403 Forbidden</c>
     /// problem.
     /// </returns>
-    private static IResult? ForbidUnlessControlPlane(
+    private static ProblemHttpResult? ForbidUnlessControlPlane(
         HttpContext httpContext,
         DirectoryServerOptions options
     ) =>
@@ -1017,7 +1020,7 @@ public static class DirectoryEndpoints
     /// <returns>
     /// <c>null</c> when the team identifier is acceptable; otherwise the <c>400 Bad Request</c> problem.
     /// </returns>
-    private static IResult? ValidateTeamId(string teamId)
+    private static ProblemHttpResult? ValidateTeamId(string teamId)
     {
         if (IsBlank(teamId))
             return BadRequest(TeamRequiredDetail);
@@ -1035,7 +1038,7 @@ public static class DirectoryEndpoints
     /// <returns>
     /// <c>null</c> when the body names no team or an acceptable one; otherwise the <c>400 Bad Request</c> problem.
     /// </returns>
-    private static IResult? ValidateOptionalTeamId(string? teamId)
+    private static ProblemHttpResult? ValidateOptionalTeamId(string? teamId)
     {
         if (teamId is null)
             return null;
@@ -1052,9 +1055,9 @@ public static class DirectoryEndpoints
     /// Builds a <c>403 Forbidden</c> problem document.
     /// </summary>
     /// <param name="detail">The explanation for the caller.</param>
-    /// <returns>The <see cref="IResult"/> that writes the problem document.</returns>
-    private static IResult Forbidden(string detail) =>
-        Results.Problem(
+    /// <returns>The <see cref="ProblemHttpResult"/> that writes the problem document.</returns>
+    private static ProblemHttpResult Forbidden(string detail) =>
+        TypedResults.Problem(
             title: "Forbidden",
             detail: detail,
             statusCode: StatusCodes.Status403Forbidden
@@ -1064,9 +1067,9 @@ public static class DirectoryEndpoints
     /// Builds a <c>404 Not Found</c> problem document for a lookup that finds nothing.
     /// </summary>
     /// <param name="detail">The explanation for the caller.</param>
-    /// <returns>The <see cref="IResult"/> that writes the problem document.</returns>
-    private static IResult NotFound(string? detail) =>
-        Results.Problem(
+    /// <returns>The <see cref="ProblemHttpResult"/> that writes the problem document.</returns>
+    private static ProblemHttpResult NotFound(string? detail) =>
+        TypedResults.Problem(
             title: "Not Found",
             detail: detail,
             statusCode: StatusCodes.Status404NotFound
@@ -1076,9 +1079,9 @@ public static class DirectoryEndpoints
     /// Builds a <c>400 Bad Request</c> problem document.
     /// </summary>
     /// <param name="detail">The explanation for the caller.</param>
-    /// <returns>The <see cref="IResult"/> that writes the problem document.</returns>
-    private static IResult BadRequest(string detail) =>
-        Results.Problem(
+    /// <returns>The <see cref="ProblemHttpResult"/> that writes the problem document.</returns>
+    private static ProblemHttpResult BadRequest(string detail) =>
+        TypedResults.Problem(
             title: "Bad Request",
             detail: detail,
             statusCode: StatusCodes.Status400BadRequest
@@ -1088,9 +1091,9 @@ public static class DirectoryEndpoints
     /// Builds a <c>409 Conflict</c> problem document.
     /// </summary>
     /// <param name="detail">The explanation for the caller.</param>
-    /// <returns>The <see cref="IResult"/> that writes the problem document.</returns>
-    private static IResult Conflict(string? detail) =>
-        Results.Problem(
+    /// <returns>The <see cref="ProblemHttpResult"/> that writes the problem document.</returns>
+    private static ProblemHttpResult Conflict(string? detail) =>
+        TypedResults.Problem(
             title: "Conflict",
             detail: detail,
             statusCode: StatusCodes.Status409Conflict
@@ -1105,7 +1108,7 @@ public static class DirectoryEndpoints
     /// detail.
     /// </returns>
     private static IResult ToResult(ReservationResult result) =>
-        result.IsReserved ? Results.Ok() : Conflict(result.ConflictDetail);
+        result.IsReserved ? TypedResults.Ok() : Conflict(result.ConflictDetail);
 
     /// <summary>
     /// Converts the outcome of a tenant write to its response.
@@ -1118,7 +1121,7 @@ public static class DirectoryEndpoints
     private static IResult ToResult(DirectoryTenantWriteResult result) =>
         result.Outcome switch
         {
-            DirectoryTenantWriteOutcome.Done => Results.Ok(),
+            DirectoryTenantWriteOutcome.Done => TypedResults.Ok(),
             DirectoryTenantWriteOutcome.Forbidden => Forbidden(
                 result.Detail ?? TenantWriteForbiddenDetail
             ),

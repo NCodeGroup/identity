@@ -4,6 +4,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using NCode.Identity.AspNetCore;
@@ -45,11 +46,11 @@ internal sealed class DirectoryAuthenticationEndpointFilter(
     /// authenticate.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> whose response receives the header.</param>
-    /// <returns>The <see cref="IResult"/> that writes the problem document.</returns>
-    private static IResult Unauthorized(HttpContext httpContext)
+    /// <returns>The <see cref="ProblemHttpResult"/> that writes the problem document.</returns>
+    private static ProblemHttpResult Unauthorized(HttpContext httpContext)
     {
         httpContext.Response.Headers.WWWAuthenticate = "Bearer";
-        return Results.Problem(
+        return TypedResults.Problem(
             title: "Unauthorized",
             detail: "A valid access token with the directory scope is required.",
             statusCode: StatusCodes.Status401Unauthorized

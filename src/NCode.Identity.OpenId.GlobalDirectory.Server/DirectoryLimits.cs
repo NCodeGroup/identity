@@ -1,6 +1,9 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using NCode.Identity.OpenId.Persistence;
+using NCode.Identity.OpenId.Tenants;
+
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 
 /// <summary>
@@ -9,20 +12,22 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 internal static class DirectoryLimits
 {
     /// <summary>
-    /// The longest tenant or team identifier the directory stores, in characters.
+    /// The longest tenant or team identifier the directory stores, in characters: the longest identifier the cells'
+    /// identifier rule accepts, <see cref="TenantIdentifierRules.MaxTenantIdLength"/>.
     /// </summary>
-    public const int MaxIdentifierLength = 300;
+    public const int MaxIdentifierLength = TenantIdentifierRules.MaxTenantIdLength;
 
     /// <summary>
-    /// The longest issuer the directory stores, in characters: the same bound as a cell's own issuers.
+    /// The longest issuer the directory stores, in characters: the bound of a cell's own issuers,
+    /// <see cref="OpenIdMaxLengths.Issuer"/>.
     /// </summary>
-    public const int MaxIssuerLength = 1000;
+    public const int MaxIssuerLength = OpenIdMaxLengths.Issuer;
 
     /// <summary>
-    /// The deepest a team is nested, which sizes the column that holds a team path: the same bound as the cell's team
-    /// tree.
+    /// The deepest a team is nested, which sizes the column that holds a team path: the depth of a cell's team tree,
+    /// <see cref="TeamPaths.MaxDepth"/>.
     /// </summary>
-    public const int MaxTeamDepth = 8;
+    public const int MaxTeamDepth = TeamPaths.MaxDepth;
 
     /// <summary>
     /// The longest team path the directory stores, in characters: <see cref="MaxTeamDepth"/> identifiers of at most

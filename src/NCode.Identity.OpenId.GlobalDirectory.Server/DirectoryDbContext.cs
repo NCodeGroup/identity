@@ -15,9 +15,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 public sealed class DirectoryDbContext(DbContextOptions<DirectoryDbContext> options)
     : DbContext(options)
 {
-    // The same bounds as the cell's own identifiers: a tenant or team identifier is at most
-    // DirectoryLimits.MaxIdentifierLength characters, an issuer at most DirectoryLimits.MaxIssuerLength, and a cell
-    // name and a region at most CellLabelRules.MaxLabelLength.
+    // The bounds come from DirectoryLimits, which takes them from the cells' identifier rule and columns; a cell name
+    // and a region are at most CellLabelRules.MaxLabelLength.
     private const int MaxStateLength = 16;
 
     /// <summary>
