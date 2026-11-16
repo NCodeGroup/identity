@@ -42,7 +42,10 @@ public static class RuntimeRolePosture
     /// <param name="isSuperuser">Whether the role is a superuser.</param>
     /// <param name="bypassesRls">Whether the role has <c>BYPASSRLS</c>.</param>
     /// <param name="ownsTenantTables">Whether the role owns tables in the current schema.</param>
-    /// <returns>The violations, in the order superuser, bypass and ownership; empty when the role is subject to row-level security.</returns>
+    /// <returns>
+    /// The violations, in the order superuser, bypass and ownership; empty when the role is subject to row-level
+    /// security.
+    /// </returns>
     public static IReadOnlyList<string> Evaluate(
         bool isSuperuser,
         bool bypassesRls,

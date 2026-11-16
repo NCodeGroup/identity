@@ -121,7 +121,9 @@ internal static partial class LocalDatabase
     /// The role name; it is a valid name according to <see cref="DatabaseRoleNameRules"/>.
     /// </param>
     /// <param name="password">The role's password; it is URL-safe Base64 (<c>A-Z a-z 0-9 - _</c>).</param>
-    /// <exception cref="ArgumentNullException"><paramref name="runtimeRole"/> or <paramref name="password"/> is <c>null</c>.</exception>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="runtimeRole"/> or <paramref name="password"/> is <c>null</c>.
+    /// </exception>
     /// <exception cref="ArgumentException">The role or the password does not match its pattern.</exception>
     private static void ThrowIfInvalid(string runtimeRole, string password)
     {
