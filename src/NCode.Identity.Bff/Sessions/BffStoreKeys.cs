@@ -15,6 +15,21 @@ namespace NCode.Identity.Bff.Sessions;
 internal static class BffStoreKeys
 {
     /// <summary>
+    /// The key of the index whose members list the clients that have sessions.
+    /// </summary>
+    public const string ClientsIndex = "bff:clients";
+
+    /// <summary>
+    /// The format of the UTC day segment of a client's session index member.
+    /// </summary>
+    private const string ClientMemberDayFormat = "yyyy-MM-dd";
+
+    /// <summary>
+    /// The character that separates a client member's day from its client digest.
+    /// </summary>
+    private const char ClientMemberSeparator = ':';
+
+    /// <summary>
     /// Gets the key of a session value.
     /// </summary>
     public static string Session(string storeKey) => "bff:session:" + storeKey;
@@ -42,11 +57,6 @@ internal static class BffStoreKeys
         "bff:sub:" + Digest(issuer, subject);
 
     /// <summary>
-    /// Gets the key of the index whose members list the clients that have sessions.
-    /// </summary>
-    public const string ClientsIndex = "bff:clients";
-
-    /// <summary>
     /// Gets the key of the index of the sessions of a client.
     /// </summary>
     public static string ClientIndex(BffSessionClient client) => ClientIndex(ClientDigest(client));
@@ -70,16 +80,6 @@ internal static class BffStoreKeys
     // See ADR-1443.
     public static DateTimeOffset ClientMemberExpiresAt(DateTimeOffset absoluteExpiresAt) =>
         new DateTimeOffset(absoluteExpiresAt.UtcDateTime.Date, TimeSpan.Zero).AddDays(1);
-
-    /// <summary>
-    /// The format of the UTC day segment of a client's session index member.
-    /// </summary>
-    private const string ClientMemberDayFormat = "yyyy-MM-dd";
-
-    /// <summary>
-    /// The character that separates a client member's day from its client digest.
-    /// </summary>
-    private const char ClientMemberSeparator = ':';
 
     /// <summary>
     /// Gets the member of <see cref="ClientsIndex"/> that lists a client for the UTC day of a session's absolute
