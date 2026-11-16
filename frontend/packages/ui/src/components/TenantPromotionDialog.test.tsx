@@ -149,6 +149,21 @@ describe('TenantPromotionDialog', () => {
     expect(options).toEqual(['dev']);
   });
 
+  it('offers no tenant without a cell as a source of a target in a cell, even one naming the target region', () => {
+    renderDialog({
+      tenants: [
+        { tenantId: 'dev' },
+        { tenantId: 'qa', region: 'eu' },
+        { tenantId: 'staging', cell: 'eu-1', region: 'eu' },
+        { tenantId: 'prod', cell: 'eu-2', region: 'eu' },
+      ],
+    });
+    fireEvent.change(screen.getByTestId('promotion-target'), { target: { value: 'prod' } });
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: /source tenant/i }));
+    const options = screen.getAllByRole('option').map((option) => option.textContent);
+    expect(options).toEqual(['staging (eu-1)']);
+  });
+
   it('lists the changes and enables Promote for a clean preview of the chosen pair', () => {
     const { props } = renderDialog({ report: baseReport });
     expect(screen.queryByTestId('promotion-changes')).not.toBeInTheDocument();
