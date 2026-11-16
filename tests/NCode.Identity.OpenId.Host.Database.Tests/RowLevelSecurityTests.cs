@@ -138,6 +138,35 @@ public sealed class RowLevelSecurityTests
     }
 
     [Fact]
+    public void CreateStatements_WhenAnEntityTypeMapsToAView_EmitsNoStatementForIt()
+    {
+        var builder = new ModelBuilder();
+        builder.Entity<TenantRow>(entity =>
+        {
+            entity.ToTable("Rows", "app");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.NormalizedTenantId);
+        });
+        builder.Entity<TenantViewRow>(entity =>
+        {
+            entity.ToView("RowView", "app");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.NormalizedTenantId);
+        });
+        var model = builder.FinalizeModel();
+        var viewEntity = Assert.Single(
+            model.GetEntityTypes(),
+            x => x.ClrType == typeof(TenantViewRow)
+        );
+        Assert.Null(viewEntity.GetTableName());
+
+        var statements = RowLevelSecurity.CreateStatements(model, Role);
+
+        Assert.Contains("ALTER TABLE \"app\".\"Rows\" ENABLE ROW LEVEL SECURITY", statements);
+        Assert.All(statements, statement => Assert.Contains("\"app\".\"Rows\"", statement));
+    }
+
+    [Fact]
     public void CreateStatements_WhenModelHasNoSequence_EmitsNoSequenceGrant()
     {
         var model = CreateHostModel();
@@ -294,6 +323,13 @@ public sealed class RowLevelSecurityTests
     #endregion
 
     private sealed class TenantRow : ISupportTenantEntity
+    {
+        public long Id { get; set; }
+
+        public string NormalizedTenantId { get; set; } = string.Empty;
+    }
+
+    private sealed class TenantViewRow : ISupportTenantEntity
     {
         public long Id { get; set; }
 
