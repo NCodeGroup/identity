@@ -271,6 +271,7 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
     {
         // The lower teams are published first, so the directory places the first of them top-level.
         var lowestIndex = DirectoryLimits.MaxTeamDepth + 1;
+        var tooDeepTeamId = GetChainTeamId(lowestIndex);
         await PublishChainAsync(3, lowestIndex, CancellationToken.None);
         await PublishChainAsync(1, 1, CancellationToken.None);
         var changesBefore = await ListChangeKeysAsync(CancellationToken.None);
@@ -281,7 +282,7 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
 
         Assert.False(result.IsDone);
         Assert.Equal(
-            $"The team '{GetChainTeamId(lowestIndex)}' cannot be nested deeper than {DirectoryLimits.MaxTeamDepth} levels.",
+            $"The team '{tooDeepTeamId}' cannot be nested deeper than {DirectoryLimits.MaxTeamDepth} levels.",
             result.Detail
         );
         Assert.Null(await Teams.GetOrDefaultAsync(GetChainTeamId(2), CancellationToken.None));
@@ -299,6 +300,7 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
     public async Task PublishAsync_ThroughThePort_WhenTheTeamWouldBeDeeperThanTheLimit_Throws()
     {
         await PublishChainAsync(1, DirectoryLimits.MaxTeamDepth, CancellationToken.None);
+        var tooDeepTeamId = GetChainTeamId(DirectoryLimits.MaxTeamDepth + 1);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await Teams.PublishAsync(
@@ -308,7 +310,7 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
         );
 
         Assert.Equal(
-            $"The team '{GetChainTeamId(DirectoryLimits.MaxTeamDepth + 1)}' cannot be nested deeper than {DirectoryLimits.MaxTeamDepth} levels.",
+            $"The team '{tooDeepTeamId}' cannot be nested deeper than {DirectoryLimits.MaxTeamDepth} levels.",
             exception.Message
         );
     }
