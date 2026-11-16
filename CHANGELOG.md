@@ -4191,27 +4191,34 @@ Until the first stable release, the [Unreleased] section describes the product a
 - **A directory host serves the global directory.** `NCode.Identity.OpenId.GlobalDirectory.Server` maps the endpoints
   under `/directory/v1/` (tenants, teams, the platform document, cells and the change feed) over its own
   `DirectoryDbContext`, and `hosts/NCode.Identity.OpenId.GlobalDirectory.Host` is the deployable, with its own Postgres
-  database, migrations and image (`directory-image.yml`). The change feed holds each team's and the platform's latest
-  change, each carrying the whole document or the retire, so it stays bounded by the number of teams and a cell reading
-  from the start reads every current document. The host accepts unbound bearer tokens of the control-plane cell's issuer
-  (`DirectoryServer:Issuer`) for the audience `urn:ncode:directory` and the scope `directory`, and refuses a token that
-  carries a `cnf` claim. A request that arrives while that issuer cannot be reached is answered `503` with `Retry-After`
-  and the same wait in the problem's `retryAfterSeconds`. Each cell authenticates as the machine client `cell-{name}` of
-  the control-plane cell's root tenant (`private_key_jwt`; `Directory:ClientId` and `Directory:KeyRing`, whose keys
-  `KeyRings:{name}` holds), which `POST /api/platform/clients` registers with a requested `clientId` and its `jwks`. A
-  cell's token request to the control plane ends after `Directory:TokenRequestTimeout` (30 seconds), and a failed
-  request is remembered for `Directory:TokenFailureCacheDuration` (5 seconds). The directory takes platform and team
-  writes only from the control-plane cell (`DirectoryServer:ControlPlaneCell`) and authorizes each tenant write against
-  the tenant's stored record in the transaction that writes it: the cell that holds the tenant and the control-plane
-  cell write it, and only the control-plane cell retires a tenant the directory has no record of; a cell registers only
-  itself, with a management URL that is an absolute `https` URL (or `http` in local development) with no user
-  information, query or fragment, and asks to move a tenant only into itself. The directory refuses a tenant issuer that
-  is not an absolute `https` URL (or `http` on a loopback host) with no user information, query or fragment; a team
-  document that lacks its settings or its root keys, or a platform document that lacks its settings; a team or platform
-  document whose settings are not a JSON object; and a team document that would nest a team deeper than eight levels,
-  the bound of a cell's team tree. A stored team or platform document whose settings are missing or not a JSON object,
-  `null` included, fails the tenant-limit check, which refuses the reservation, and a cell's remote directory adapter
-  fails closed on a document that lacks its settings or its root keys.
+  database, migrations and image (`directory-image.yml`). The host reads its database from the connection string
+  `ConnectionStrings:directory` or the `DirectoryDatabase` parts (`Host`, `Port`, `Name`, `Username`, `Password`),
+  exactly one of which is set, and its `migrate` command applies the migrations, grants the runtime role that
+  `DirectoryMigration:RuntimeRole` names the data access it needs, and refuses a database whose migrations history
+  records a migration the host does not hold, with the recovery of dropping and recreating the directory's database. The
+  change feed holds each team's and the platform's latest change, each carrying the whole document or the retire, so it
+  stays bounded by the number of teams and a cell reading from the start reads every current document. The host accepts
+  unbound bearer tokens of the control-plane cell's issuer (`DirectoryServer:Issuer`) for the audience
+  `urn:ncode:directory` and the scope `directory`, and refuses a token that carries a `cnf` claim. A request that
+  arrives while that issuer cannot be reached is answered `503` with `Retry-After` and the same wait in the problem's
+  `retryAfterSeconds`. Each cell authenticates as the machine client `cell-{name}` of the control-plane cell's root
+  tenant (`private_key_jwt`; `Directory:ClientId` and `Directory:KeyRing`, whose keys `KeyRings:{name}` holds), which
+  `POST /api/platform/clients` registers with a requested `clientId` and its `jwks`. A cell's token request to the
+  control plane ends after `Directory:TokenRequestTimeout` (30 seconds), and a failed request is remembered for
+  `Directory:TokenFailureCacheDuration` (5 seconds). The directory takes platform and team writes only from the
+  control-plane cell (`DirectoryServer:ControlPlaneCell`) and authorizes each tenant write against the tenant's stored
+  record in the transaction that writes it: the cell that holds the tenant and the control-plane cell write it, and only
+  the control-plane cell retires a tenant the directory has no record of; a cell registers only itself, with a
+  management URL that is an absolute `https` URL (or `http` in local development) with no user information, query or
+  fragment, and asks to move a tenant only into itself. The directory refuses a tenant or team identifier that the
+  cells' identifier rule refuses (1 to 63 lowercase letters, digits or hyphens that start and end with a letter or
+  digit, a host label); a tenant issuer that is not an absolute `https` URL (or `http` on a loopback host) with no user
+  information, query or fragment; a team document that lacks its settings or its root keys, or a platform document that
+  lacks its settings; a team or platform document whose settings are not a JSON object; and a team document that would
+  nest a team deeper than eight levels, the bound of a cell's team tree. A stored team or platform document whose
+  settings are missing or not a JSON object, `null` included, fails the tenant-limit check, which refuses the
+  reservation, and a cell's remote directory adapter fails closed on a document that lacks its settings or its root
+  keys.
 
 - **The control plane serves every cell.** The control-plane cell owns platform and team authority, setup and the team
   root keys; every other cell reaches it through remote adapters that fail closed. `IManagementTokenValidator` validates
@@ -4275,13 +4282,17 @@ Until the first stable release, the [Unreleased] section describes the product a
   `directory.enabled` runs the directory host with its own database, `directory.database` (the runtime role's
   connection, which only the directory's Deployment receives, and the role's name), `directory.migrations.database` (the
   schema owner's connection, which only the migration Job receives), `directory.tls` and pre-install migration Job,
-  which migrates as the owner and grants the runtime role data access to the directory's tables. The chart refuses a
-  directory, control-plane issuer or management URL that the host would refuse (an `https` URL, or an `http` URL on a
-  loopback host for the directory and the issuers, with no user information, query, fragment or white space), a
-  `directory.url` with no `cell.controlPlaneIssuer`, the directory client's values (`directory.clientId`,
-  `directory.keyRing` and `directory.keys`) while `directory.url` is empty, and the directory host's values while
-  `directory.enabled` is `false`. The `ci/cell-values.yaml` and `ci/directory-values.yaml` releases are linted and
-  rendered by the `Host chart` workflow.
+  which migrates as the owner and grants the runtime role data access to the directory's tables
+  (`DirectoryMigration:RuntimeRole`). `directory.database` and `directory.migrations.database` each take a Secret that
+  holds the finished connection string (`ConnectionStrings:directory`) or the connection's parts (`DirectoryDatabase`),
+  never both, the keys of a CloudNativePG `<cluster>-app` Secret by default, and an empty key of the owner's falls back
+  to the runtime role's, so a Secret of the same shape needs only its name. The chart refuses a directory, control-plane
+  issuer or management URL that the host would refuse (an `https` URL, or an `http` URL on a loopback host for the
+  directory and the issuers, with no user information, query, fragment or white space), a `directory.url` with no
+  `cell.controlPlaneIssuer`, the directory client's values (`directory.clientId`, `directory.keyRing` and
+  `directory.keys`) while `directory.url` is empty, and the directory host's values while `directory.enabled` is
+  `false`. The `ci/cell-values.yaml` and `ci/directory-values.yaml` releases are linted and rendered by the `Host chart`
+  workflow.
 
 - **A tenant's data carries the cell that wrote it.** `Cell:Name` is stamped on audit records and usage rows, it is the
   tag of the keys a remote key provider creates, and it prefixes every Valkey key, so a cell's records, keys and

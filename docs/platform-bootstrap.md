@@ -326,9 +326,11 @@ client uses `private_key_jwt`, and the cell holds its private keys as a named ke
    and every client of that tenant can request them.
 2. **Run the directory.** Deploy the directory host with `directory.enabled=true`, `directory.issuer` set to the
    control-plane cell's issuer, `directory.controlPlaneCell` set to its name, `directory.allowedHosts`, its own database
-   (`directory.database.existingSecret` for the runtime role named by `directory.database.runtimeRole`, and
-   `directory.migrations.database.existingSecret` for the role that owns its schema)
-   and its serving certificate (`directory.tls.existingSecret`), as the chart's
+   (the runtime role's connection in `directory.database`, whose role `directory.database.runtimeRole` names, and the
+   schema owner's connection in `directory.migrations.database`, each from a Secret that holds the finished connection
+   string, `existingSecret`, or the connection's parts, `directory.database.parts.existingSecret` and
+   `directory.migrations.database.parts.existingSecret`) and its serving certificate
+   (`directory.tls.existingSecret`), as the chart's
    [The cell](../charts/ncode-identity-host/README.md#the-cell) section lists. The directory accepts bearer tokens of
    the control-plane cell's issuer for audience `urn:ncode:directory` and scope `directory`. It runs as one replica,
    and its database is its own, never a cell's.
