@@ -34,6 +34,9 @@ namespace NCode.Identity.OpenId.Accounts.AspNetIdentity;
 /// against the request's tenant. Each operation resolves the scoped <see cref="UserManager{TUser}"/> from a fresh
 /// dependency-injection scope, so this adapter holds no scoped state and its writes commit immediately (they do not
 /// enlist in the OpenID unit of work).
+/// The user manager stores every user with a user name, a normalized user name and a security stamp, so a stored user
+/// without its user name or security stamp is malformed and reading it as a local account throws; an export also
+/// throws for a user without its normalized user name.
 /// </remarks>
 /// <typeparam name="TUser">The ASP.NET Core Identity user type.</typeparam>
 internal sealed class AspNetIdentityLocalAccountStore<TUser>(
@@ -50,6 +53,12 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         CancellationToken cancellationToken
     )
     {
+        var userName = GetRequiredMember(user.UserName, nameof(IdentityUser.UserName), user.Id);
+        var securityStamp = GetRequiredMember(
+            user.SecurityStamp,
+            nameof(IdentityUser.SecurityStamp),
+            user.Id
+        );
         var claims = await userManager.GetClaimsAsync(user);
         var isEnabled =
             !userManager.SupportsUserLockout || !await userManager.IsLockedOutAsync(user);
@@ -59,10 +68,10 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             // The store has restricted the user to the ambient tenant; the grant authenticates against the request's tenant.
             TenantId = string.Empty,
             LocalAccountId = user.Id,
-            UserName = user.UserName ?? string.Empty,
+            UserName = userName,
             Email = user.Email,
             EmailVerified = user.EmailConfirmed,
-            SecurityStamp = user.SecurityStamp ?? string.Empty,
+            SecurityStamp = securityStamp,
             IsEnabled = isEnabled,
             Claims = claims
                 .Select(claim => new PersistedLocalAccountClaim
@@ -226,6 +235,28 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
 
         var errors = string.Join("; ", result.Errors.Select(error => error.Description));
         throw new InvalidOperationException($"Failed to {action}: {errors}");
+    }
+
+    /// <summary>
+    /// Gets a member that ASP.NET Core Identity's user manager stores with every user, and requires that the stored
+    /// user has it.
+    /// </summary>
+    /// <param name="value">The member's value as the user is stored.</param>
+    /// <param name="memberName">The name of the member, which the exception names.</param>
+    /// <param name="localAccountId">The identifier of the stored user, which the exception names.</param>
+    /// <returns>The member's value.</returns>
+    /// <exception cref="InvalidOperationException">The member's value is <c>null</c> or empty.</exception>
+    // See ADR-1395.
+    private static string GetRequiredMember(string? value, string memberName, string localAccountId)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            throw new InvalidOperationException(
+                $"The stored local account '{localAccountId}' has no {memberName}, which ASP.NET Core Identity's user manager stores with every user."
+            );
+        }
+
+        return value;
     }
 
     private IServiceScopeFactory ServiceScopeFactory { get; } = serviceScopeFactory;
@@ -545,6 +576,9 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
     }
 
     /// <inheritdoc />
+    /// <exception cref="InvalidOperationException">
+    /// A stored user of the tenant has no user name, normalized user name or security stamp.
+    /// </exception>
     public async ValueTask<IReadOnlyList<LocalAccountTransferRecord>> ExportAsync(
         CancellationToken cancellationToken
     )
@@ -561,6 +595,17 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         var records = new List<LocalAccountTransferRecord>(users.Count);
         foreach (var user in users)
         {
+            var userName = GetRequiredMember(user.UserName, nameof(IdentityUser.UserName), user.Id);
+            var normalizedUserName = GetRequiredMember(
+                user.NormalizedUserName,
+                nameof(IdentityUser.NormalizedUserName),
+                user.Id
+            );
+            var securityStamp = GetRequiredMember(
+                user.SecurityStamp,
+                nameof(IdentityUser.SecurityStamp),
+                user.Id
+            );
             var passwordHash = await passwordStore.GetPasswordHashAsync(user, cancellationToken);
             var claims = await userManager.GetClaimsAsync(user);
             var isEnabled =
@@ -570,13 +615,13 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
                 new LocalAccountTransferRecord
                 {
                     LocalAccountId = user.Id,
-                    UserName = user.UserName ?? string.Empty,
-                    NormalizedUserName = user.NormalizedUserName ?? string.Empty,
+                    UserName = userName,
+                    NormalizedUserName = normalizedUserName,
                     Email = user.Email,
                     NormalizedEmail = user.NormalizedEmail,
                     EmailVerified = user.EmailConfirmed,
                     PasswordHash = passwordHash,
-                    SecurityStamp = user.SecurityStamp ?? string.Empty,
+                    SecurityStamp = securityStamp,
                     IsEnabled = isEnabled,
                     LockoutEnabled = user.LockoutEnabled,
                     LockoutEnd = user.LockoutEnd,

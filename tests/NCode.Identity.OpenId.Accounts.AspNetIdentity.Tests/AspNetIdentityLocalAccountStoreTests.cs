@@ -773,6 +773,24 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task GetByIdOrDefaultAsync_WhenTheUserHasNoSecurityStamp_ThrowsWithoutReadingItsClaims()
+    {
+        var (store, userManager) = CreateStore();
+        var user = CreateUser();
+        user.SecurityStamp = null;
+        SetupUsers(userManager, user);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await store.GetByIdOrDefaultAsync(LocalAccountId, CancellationToken.None)
+        );
+
+        Assert.Equal(
+            $"The stored local account '{LocalAccountId}' has no {nameof(IdentityUser.SecurityStamp)}, which ASP.NET Core Identity's user manager stores with every user.",
+            exception.Message
+        );
+    }
+
+    [Fact]
     public async Task GetPageAsync_WhenTheQueryIsAsyncOnly_ReturnsMappedPage()
     {
         var (store, userManager) = CreateStore();

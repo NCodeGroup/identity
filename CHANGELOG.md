@@ -6133,6 +6133,13 @@ Until the first stable release, the [Unreleased] section describes the product a
   them with it
   ([ADR-1212](docs/decisions/1212-deleting-a-client-resource-server-principal-or-tenant-removes-what-it-owns.md)).
 
+- **The ASP.NET Core Identity adapter refuses a malformed stored user.** ASP.NET Core Identity's user manager stores
+  every user with a user name, a normalized user name and a security stamp, so the adapter throws
+  `InvalidOperationException`, naming the account, when it reads a stored user without its user name or security stamp
+  as a local account and when it exports a user without any of the three; a tenant move never carries an empty user
+  name or security stamp
+  ([ADR-1395](docs/decisions/1395-grant-payloads-have-one-versioned-serializer-and-a-stored-record-missing-written-members-fails-closed.md)).
+
 - **The BFF's client index names each client only by a digest.** A member of the `bff:clients` index is the UTC day of
   a session's absolute expiry and the client's digest, so the key space of a shared Valkey names no client. Every
   replica reads the same members; retirement leaves out the clients that its frontends are configured as, resolves each

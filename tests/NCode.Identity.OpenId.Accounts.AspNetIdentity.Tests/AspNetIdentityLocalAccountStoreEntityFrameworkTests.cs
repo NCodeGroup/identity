@@ -23,6 +23,8 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
     private const string UserName = "alice";
     private const string LocalAccountId = "user-1";
     private const string TenantId = "tenant-1";
+    private const string StoredNormalizedUserName = "tenant-1|ALICE";
+    private const string StoredSecurityStamp = "stored-stamp";
     private const string ComposedPassword = "caf\u00E9 correct horse battery";
     private const string DecomposedPassword = "cafe\u0301 correct horse battery";
 
@@ -181,6 +183,49 @@ public sealed class AspNetIdentityLocalAccountStoreEntityFrameworkTests : IAsync
 
         Assert.True(result.IsVerified);
         Assert.Equal(LocalAccountId, result.Account.LocalAccountId);
+    }
+
+    #endregion
+
+    #region GetByIdOrDefaultAsync Tests
+
+    [Theory]
+    [InlineData(null, StoredSecurityStamp, nameof(IdentityUser.UserName))]
+    [InlineData(UserName, null, nameof(IdentityUser.SecurityStamp))]
+    public async Task GetByIdOrDefaultAsync_WhenTheStoredUserLacksAMemberTheUserManagerStores_Throws(
+        string? userName,
+        string? securityStamp,
+        string memberName
+    )
+    {
+        await StoredTestTenantUsers.AddAsync(
+            Provider,
+            new TestTenantUser
+            {
+                Id = LocalAccountId,
+                TenantId = TenantId,
+                UserName = userName,
+                NormalizedUserName = StoredNormalizedUserName,
+                SecurityStamp = securityStamp,
+            },
+            CancellationToken.None
+        );
+        var stored = await StoredTestTenantUsers.GetAsync(
+            Provider,
+            LocalAccountId,
+            CancellationToken.None
+        );
+        Assert.Equal(userName, stored.UserName);
+        Assert.Equal(securityStamp, stored.SecurityStamp);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Store.GetByIdOrDefaultAsync(LocalAccountId, CancellationToken.None)
+        );
+
+        Assert.Equal(
+            $"The stored local account '{LocalAccountId}' has no {memberName}, which ASP.NET Core Identity's user manager stores with every user.",
+            exception.Message
+        );
     }
 
     #endregion

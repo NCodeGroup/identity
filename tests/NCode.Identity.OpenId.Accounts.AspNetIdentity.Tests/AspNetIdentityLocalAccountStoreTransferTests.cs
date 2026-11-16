@@ -26,6 +26,10 @@ public sealed class AspNetIdentityLocalAccountStoreTransferTests : IAsyncLifetim
     private const string AccountB = "account-b";
     private const string UserA = "alice";
     private const string UserB = "bob";
+    private const string AccountC = "account-c";
+    private const string UserC = "carol";
+    private const string NormalizedUserC = "tenant-a|CAROL";
+    private const string StoredSecurityStamp = "stored-stamp";
 
     private static byte[] Password { get; } = "correct horse battery staple"u8.ToArray();
 
@@ -147,6 +151,77 @@ public sealed class AspNetIdentityLocalAccountStoreTransferTests : IAsyncLifetim
         var exportedClaim = Assert.Single(record.Claims);
         Assert.Equal("role", exportedClaim.Type);
         Assert.Equal("reader", exportedClaim.Value);
+    }
+
+    [Theory]
+    [InlineData(null, NormalizedUserC, StoredSecurityStamp, nameof(IdentityUser.UserName))]
+    [InlineData(UserC, null, StoredSecurityStamp, nameof(IdentityUser.NormalizedUserName))]
+    [InlineData(UserC, NormalizedUserC, null, nameof(IdentityUser.SecurityStamp))]
+    [InlineData(UserC, NormalizedUserC, "", nameof(IdentityUser.SecurityStamp))]
+    public async Task ExportAsync_WhenAStoredUserLacksAMemberTheUserManagerStores_Throws(
+        string? userName,
+        string? normalizedUserName,
+        string? securityStamp,
+        string memberName
+    )
+    {
+        await StoredTestTenantUsers.AddAsync(
+            Provider,
+            new TestTenantUser
+            {
+                Id = AccountC,
+                TenantId = TenantA,
+                UserName = userName,
+                NormalizedUserName = normalizedUserName,
+                SecurityStamp = securityStamp,
+            },
+            CancellationToken.None
+        );
+        var stored = await StoredTestTenantUsers.GetAsync(
+            Provider,
+            AccountC,
+            CancellationToken.None
+        );
+        Assert.Equal(userName, stored.UserName);
+        Assert.Equal(normalizedUserName, stored.NormalizedUserName);
+        Assert.Equal(securityStamp, stored.SecurityStamp);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await TransferStore.ExportAsync(CancellationToken.None)
+        );
+
+        Assert.Equal(
+            $"The stored local account '{AccountC}' has no {memberName}, which ASP.NET Core Identity's user manager stores with every user.",
+            exception.Message
+        );
+    }
+
+    [Fact]
+    public async Task ExportAsync_WhenAStoredUserHasNoEmailOrPasswordHash_ExportsThemAsNull()
+    {
+        await StoredTestTenantUsers.AddAsync(
+            Provider,
+            new TestTenantUser
+            {
+                Id = AccountC,
+                TenantId = TenantA,
+                UserName = UserC,
+                NormalizedUserName = NormalizedUserC,
+                SecurityStamp = StoredSecurityStamp,
+            },
+            CancellationToken.None
+        );
+
+        var records = await TransferStore.ExportAsync(CancellationToken.None);
+
+        var record = Assert.Single(records);
+        Assert.Equal(AccountC, record.LocalAccountId);
+        Assert.Equal(UserC, record.UserName);
+        Assert.Equal(NormalizedUserC, record.NormalizedUserName);
+        Assert.Equal(StoredSecurityStamp, record.SecurityStamp);
+        Assert.Null(record.Email);
+        Assert.Null(record.NormalizedEmail);
+        Assert.Null(record.PasswordHash);
     }
 
     #endregion
