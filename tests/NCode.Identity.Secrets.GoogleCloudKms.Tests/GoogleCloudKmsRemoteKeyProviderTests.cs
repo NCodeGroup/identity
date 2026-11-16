@@ -10,7 +10,6 @@ using Google.Cloud.Kms.V1;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
-using Microsoft.Extensions.Time.Testing;
 using Moq;
 using NCode.Buffers;
 using NCode.Identity.Secrets.GoogleCloudKms.Facades;
@@ -89,7 +88,7 @@ public class GoogleCloudKmsRemoteKeyProviderTests : BaseTests
 
     private Mock<KeyManagementServiceClient> Client { get; }
 
-    private FakeTimeProvider TimeProvider { get; } = new();
+    private RecordingTimeProvider TimeProvider { get; } = new();
 
     private int VersionGets { get; set; }
 
@@ -602,17 +601,31 @@ public class GoogleCloudKmsRemoteKeyProviderTests : BaseTests
             )
             .AsTask();
 
-        await WaitUntilAsync(() => VersionGets == 1, betweenPolls: null, CancellationToken.None);
+        // The provider counts a read before it starts its delay, so the test waits for the delay itself
+        // before it moves the time.
+        await WaitUntilAsync(
+            () => TimeProvider.DueTimes.Count == 1,
+            betweenPolls: null,
+            CancellationToken.None
+        );
         TimeProvider.Advance(TimeSpan.FromMilliseconds(249));
         await Task.Yield();
         Assert.Equal(1, VersionGets);
         TimeProvider.Advance(TimeSpan.FromMilliseconds(1));
-        await WaitUntilAsync(() => VersionGets == 2, betweenPolls: null, CancellationToken.None);
+        await WaitUntilAsync(
+            () => TimeProvider.DueTimes.Count == 2,
+            betweenPolls: null,
+            CancellationToken.None
+        );
         TimeProvider.Advance(TimeSpan.FromMilliseconds(499));
         await Task.Yield();
         Assert.Equal(2, VersionGets);
         TimeProvider.Advance(TimeSpan.FromMilliseconds(1));
-        await WaitUntilAsync(() => VersionGets == 3, betweenPolls: null, CancellationToken.None);
+        await WaitUntilAsync(
+            () => TimeProvider.DueTimes.Count == 3,
+            betweenPolls: null,
+            CancellationToken.None
+        );
         TimeProvider.Advance(TimeSpan.FromMilliseconds(999));
         await Task.Yield();
         Assert.Equal(3, VersionGets);
@@ -620,6 +633,14 @@ public class GoogleCloudKmsRemoteKeyProviderTests : BaseTests
         var written = await task;
 
         Assert.Equal(4, VersionGets);
+        Assert.Equal(
+            [
+                TimeSpan.FromMilliseconds(250),
+                TimeSpan.FromMilliseconds(500),
+                TimeSpan.FromSeconds(1),
+            ],
+            TimeProvider.DueTimes
+        );
         Assert.Equal(PublicKeySpki, written);
         AssertSettings(sentSettings, GoogleCloudKmsCallSettings.Retrying, CancellationToken.None);
     }
