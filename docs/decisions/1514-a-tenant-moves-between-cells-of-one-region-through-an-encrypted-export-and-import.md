@@ -128,6 +128,13 @@ confirms a move, and shows the stage that failed and what remains.
   authenticates to the directory as its own machine client.
 - The transfer key lives in the target cell's shared expiring value set, so a replica other than the one that issued it
   can take it, and a key that nobody takes expires after an hour.
+- The ASP.NET Core Identity adapter moves a tenant's local accounts one account at a time through `UserManager<TUser>`:
+  its export reads each account's claims with a call of its own, one query per account over ASP.NET Core Identity's
+  Entity Framework store, and its import creates each account with writes of its own. ASP.NET Core Identity's store
+  contracts read and write one user at a time, and the adapter goes through `UserManager<TUser>` so that it works over
+  any ASP.NET Core Identity store; the Entity Framework local-account store reads a tenant's accounts and their claims
+  in a fixed number of queries. Only a move exports and imports a tenant's local accounts, while the tenant is
+  disabled, so the cost is accepted.
 - A failure after the import and before the release leaves the tenant in both cells with the directory naming the
   target. The release at the source finishes it, and nothing serves the source's copy, because the tenant stays
   disabled there.

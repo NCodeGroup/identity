@@ -576,9 +576,15 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// ASP.NET Core Identity's claim store reads the claims of one user at a time, so the export reads each user's
+    /// claims with a call of its own, one query per user over ASP.NET Core Identity's Entity Framework store. Only a
+    /// move exports a tenant's local accounts, while the tenant is disabled, so the cost is accepted.
+    /// </remarks>
     /// <exception cref="InvalidOperationException">
     /// A stored user of the tenant has no user name, normalized user name or security stamp.
     /// </exception>
+    // See ADR-1514.
     public async ValueTask<IReadOnlyList<LocalAccountTransferRecord>> ExportAsync(
         CancellationToken cancellationToken
     )
