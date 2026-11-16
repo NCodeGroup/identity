@@ -20,6 +20,33 @@ namespace NCode.Identity.ManagementConsole;
 [PublicAPI]
 public static class ManagementConsoleEndpointRouteBuilderExtensions
 {
+    /// <summary>
+    /// Maps one management API forwarder, which forwards every request under <paramref name="path"/> to
+    /// <paramref name="destination"/> with the user's access token for the management API and serves only the
+    /// console's frontend.
+    /// </summary>
+    /// <param name="endpoints">The <see cref="IEndpointRouteBuilder"/> instance to map the forwarder to.</param>
+    /// <param name="path">The local path prefix that the forwarder serves.</param>
+    /// <param name="destination">The URL of the management API that the forwarder forwards to.</param>
+    private static void MapManagementApiForwarder(
+        IEndpointRouteBuilder endpoints,
+        string path,
+        string destination
+    )
+    {
+        endpoints
+            .MapBffRemoteApi(
+                path,
+                destination,
+                static api =>
+                {
+                    api.TokenRequirement = BffTokenRequirementNames.User;
+                    api.Resource = ManagementConsoleDefaults.ManagementApiResource;
+                }
+            )
+            .RequireBffFrontend(ManagementConsoleDefaults.FrontendName);
+    }
+
     /// <param name="endpoints">The <see cref="IEndpointRouteBuilder"/> instance to map the endpoints to.</param>
     extension(IEndpointRouteBuilder endpoints)
     {
@@ -60,17 +87,11 @@ public static class ManagementConsoleEndpointRouteBuilderExtensions
                     "ManagementConsole:ManagementApiUrl must be set."
                 );
 
-            endpoints
-                .MapBffRemoteApi(
-                    ManagementConsoleDefaults.ApiPath,
-                    managementApiUrl,
-                    api =>
-                    {
-                        api.TokenRequirement = BffTokenRequirementNames.User;
-                        api.Resource = ManagementConsoleDefaults.ManagementApiResource;
-                    }
-                )
-                .RequireBffFrontend(ManagementConsoleDefaults.FrontendName);
+            MapManagementApiForwarder(
+                endpoints,
+                ManagementConsoleDefaults.ApiPath,
+                managementApiUrl
+            );
 
             foreach (
                 var (cellName, cellUrl) in options.Cells.OrderBy(
@@ -79,17 +100,11 @@ public static class ManagementConsoleEndpointRouteBuilderExtensions
                 )
             )
             {
-                endpoints
-                    .MapBffRemoteApi(
-                        $"{ManagementConsoleDefaults.CellsPath}/{cellName}/api",
-                        cellUrl,
-                        api =>
-                        {
-                            api.TokenRequirement = BffTokenRequirementNames.User;
-                            api.Resource = ManagementConsoleDefaults.ManagementApiResource;
-                        }
-                    )
-                    .RequireBffFrontend(ManagementConsoleDefaults.FrontendName);
+                MapManagementApiForwarder(
+                    endpoints,
+                    $"{ManagementConsoleDefaults.CellsPath}/{cellName}/api",
+                    cellUrl
+                );
             }
 
             var group = endpoints.MapGroup(string.Empty).AllowAnonymous();
