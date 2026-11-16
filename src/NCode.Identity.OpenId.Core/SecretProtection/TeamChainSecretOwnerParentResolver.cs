@@ -21,7 +21,8 @@ namespace NCode.Identity.OpenId.SecretProtection;
 /// <remarks>
 /// A tenant is read from the <see cref="IOpenIdTenantCache"/> when it is cached and from the tenant store when it is
 /// not, and a team is read from the <see cref="IOpenIdTeamCache"/> when it is cached and from the team store when it is
-/// not.
+/// not. A resolution reads the stores through at most one store manager, which it opens only when a read misses its
+/// cache.
 /// </remarks>
 // See ADR-1414.
 internal sealed class TeamChainSecretOwnerParentResolver(
@@ -144,15 +145,7 @@ internal sealed class TeamChainSecretOwnerParentResolver(
                 teamId = lease.Value.TeamId;
             }
 
-            var cached = await TryGetCachedLineageAsync(teamId, cancellationToken);
-            if (cached is not null)
-                return cached;
-
-            await using var teamStoreManager = await StoreManagerFactory.CreateAsync(
-                cancellationToken
-            );
-
-            return await ReadStoredLineageAsync(teamStoreManager, teamId, cancellationToken);
+            return await GetTeamLineageAsync(storeManager: null, teamId, cancellationToken);
         }
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
@@ -180,13 +173,7 @@ internal sealed class TeamChainSecretOwnerParentResolver(
     {
         using var _ = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
 
-        var cached = await TryGetCachedLineageAsync(teamId, cancellationToken);
-        if (cached is not null)
-            return [.. cached.Skip(1)];
-
-        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
-
-        var lineage = await ReadStoredLineageAsync(storeManager, teamId, cancellationToken);
+        var lineage = await GetTeamLineageAsync(storeManager: null, teamId, cancellationToken);
         return [.. lineage.Skip(1)];
     }
 
@@ -194,19 +181,30 @@ internal sealed class TeamChainSecretOwnerParentResolver(
     /// Gets a team and the teams above it, from the team cache when the team is cached and from the team store when it
     /// is not.
     /// </summary>
-    /// <param name="storeManager">The store manager to read the team with when it is not cached.</param>
+    /// <param name="storeManager">The store manager to read the team with when it is not cached, or <c>null</c> to
+    /// read it with one that is opened for that read and disposed after it.</param>
     /// <param name="teamId">The identifier of the team.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The team's identifier followed by the identifiers of the teams above it, nearest first; empty when the
     /// team is not stored.</returns>
     private async ValueTask<IReadOnlyList<string>> GetTeamLineageAsync(
-        IStoreManager storeManager,
+        IStoreManager? storeManager,
         string teamId,
         CancellationToken cancellationToken
     )
     {
         var cached = await TryGetCachedLineageAsync(teamId, cancellationToken);
-        return cached ?? await ReadStoredLineageAsync(storeManager, teamId, cancellationToken);
+        if (cached is not null)
+            return cached;
+
+        if (storeManager is not null)
+            return await ReadStoredLineageAsync(storeManager, teamId, cancellationToken);
+
+        await using var ownedStoreManager = await StoreManagerFactory.CreateAsync(
+            cancellationToken
+        );
+
+        return await ReadStoredLineageAsync(ownedStoreManager, teamId, cancellationToken);
     }
 
     /// <summary>

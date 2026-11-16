@@ -127,7 +127,7 @@ public sealed class TeamChainSecretOwnerParentResolverTests : BaseTests
     }
 
     [Fact]
-    public async Task GetAncestorsAsync_WhenTheTenantIsCached_DoesNotReadTheTenantStore()
+    public async Task GetAncestorsAsync_ACachedTenantWhoseTeamIsCached_OpensNoStoreManager()
     {
         // Strict mocks: no store manager setup, so creating one would fail the test.
         SetupUnscoped();
@@ -146,6 +146,34 @@ public sealed class TeamChainSecretOwnerParentResolverTests : BaseTests
         Assert.Equal(
             [
                 new SecretOwner(SecretOwnerTypes.Team, "acme-web"),
+                new SecretOwner(SecretOwnerTypes.Team, "acme"),
+                SecretOwner.Platform,
+            ],
+            ancestors
+        );
+    }
+
+    [Fact]
+    public async Task GetAncestorsAsync_ACachedTenantWhoseTeamIsNotCached_ReadsTheTeamFromTheTeamStore()
+    {
+        // Strict mocks: no tenant store setup, so reading the tenant store would fail the test.
+        SetupUnscoped();
+        var tenant = CreateMockTenant("acme-web");
+        await using var tenantOwner = AsyncSharedReference.Create(tenant.Object);
+        SetupTenantCacheHit("tenant-a", tenantOwner.AddReference());
+        SetupCacheMiss("acme-web");
+        SetupStoreManager();
+        SetupStoredTeam("acme-web", ancestorTeamIds: ["acme", "acme-eu"]);
+
+        var ancestors = await Resolver.GetAncestorsAsync(
+            SecretOwner.ForTenant("tenant-a"),
+            CancellationToken.None
+        );
+
+        Assert.Equal(
+            [
+                new SecretOwner(SecretOwnerTypes.Team, "acme-web"),
+                new SecretOwner(SecretOwnerTypes.Team, "acme-eu"),
                 new SecretOwner(SecretOwnerTypes.Team, "acme"),
                 SecretOwner.Platform,
             ],
@@ -298,11 +326,15 @@ public sealed class TeamChainSecretOwnerParentResolverTests : BaseTests
 
     private void SetupStoreManager()
     {
+        // A resolution opens at most one store manager and disposes it.
         MockStoreManagerFactory
             .Setup(x => x.CreateAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(MockStoreManager.Object)
-            .Verifiable();
-        MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
+            .Verifiable(Times.Once);
+        MockStoreManager
+            .Setup(x => x.DisposeAsync())
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
     }
 
     private void SetupTenant(string tenantId, string? teamId)
