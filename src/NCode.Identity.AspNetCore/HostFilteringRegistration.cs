@@ -18,6 +18,7 @@ namespace NCode.Identity.AspNetCore;
 /// Safe to leave wired: a host configured for local development (<c>LocalDevelopment:Enabled</c>) may accept any
 /// host.
 /// </remarks>
+// See ADR-1370.
 [PublicAPI]
 public static class HostFilteringRegistration
 {

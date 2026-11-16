@@ -50,8 +50,8 @@ internal sealed class IdentityBffBuilder : ServiceBuilder<IdentityBff>, IIdentit
     /// </summary>
     /// <param name="serviceCollection">The <see cref="IServiceCollection"/> to add services to.</param>
     /// <param name="configuration">
-    /// The configuration whose <c>Bff</c> section configures the BFF and whose <c>KeyRings</c> section configures its
-    /// key rings.
+    /// The configuration whose <c>Bff</c> section configures the BFF, whose <c>KeyRings</c> section configures its
+    /// key rings and whose <c>LocalDevelopment</c> section turns on the relaxations a local inner-loop host needs.
     /// </param>
     public IdentityBffBuilder(IServiceCollection serviceCollection, IConfiguration configuration)
         : base(serviceCollection)
@@ -78,7 +78,8 @@ internal sealed class IdentityBffBuilder : ServiceBuilder<IdentityBff>, IIdentit
             .AddBffLibrary(EventsLibraryBuilder)
             .AddBffConfiguration(configuration);
 
-        // Every BFF host lists its own host names, unless it is configured for local development (ADR-1437).
+        // No deployment serves every Host header, so the composition root, not the host, refuses an empty or wildcard
+        // AllowedHosts unless the host is configured for local development (ADR-1370).
         serviceCollection.AddHostFilteringValidation(configuration);
 
         // Only the composition root knows both the BFF and the protocol client, so it checks the lease against the
