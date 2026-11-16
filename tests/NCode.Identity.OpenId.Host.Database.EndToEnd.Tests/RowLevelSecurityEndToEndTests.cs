@@ -177,9 +177,9 @@ public sealed class RowLevelSecurityEndToEndTests(PostgresFixture fixture)
     }
 
     /// <summary>
-    /// Seeds a team, a tenant and one of its resource servers through the owner connection, which is a superuser and
-    /// so bypasses row-level security. Every call uses fresh identifiers, so tests that share the container never see
-    /// each other's rows.
+    /// Seeds a team, a tenant and one of its resource servers through the owner connection, which is a superuser and so
+    /// bypasses row-level security. Every call uses fresh identifiers, so tests that share the container never see each
+    /// other's rows.
     /// </summary>
     private async ValueTask<(
         string TenantId,

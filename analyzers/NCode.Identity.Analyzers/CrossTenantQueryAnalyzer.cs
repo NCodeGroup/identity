@@ -110,8 +110,8 @@ public sealed class CrossTenantQueryAnalyzer : DiagnosticAnalyzer
     /// </summary>
     /// <param name="expression">The expression that the invocation calls.</param>
     /// <returns>
-    /// The name of the member access or member binding that the expression holds inside any parentheses; otherwise,
-    /// the first token of the expression, which is the method's name when the call names the method alone.
+    /// The name of the member access or member binding that the expression holds inside any parentheses; otherwise, the
+    /// first token of the expression, which is the method's name when the call names the method alone.
     /// </returns>
     private static SyntaxToken GetNameToken(ExpressionSyntax expression)
     {

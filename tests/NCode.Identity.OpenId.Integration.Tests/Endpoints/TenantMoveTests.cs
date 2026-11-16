@@ -18,9 +18,9 @@ namespace NCode.Identity.OpenId.Integration.Tests.Endpoints;
 
 /// <summary>
 /// Moves a disabled tenant between two cells through the management API of each: the receiving cell issues a transfer
-/// key, the sending cell exports the tenant under it, the receiving cell imports the package, the sending cell
-/// releases what it moved, and the receiving cell enables the tenant. The cells share one global directory and one
-/// key store, each cell owns its database, and a tenant moves only within its region.
+/// key, the sending cell exports the tenant under it, the receiving cell imports the package, the sending cell releases
+/// what it moved, and the receiving cell enables the tenant. The cells share one global directory and one key store,
+/// each cell owns its database, and a tenant moves only within its region.
 /// </summary>
 public class TenantMoveTests
 {

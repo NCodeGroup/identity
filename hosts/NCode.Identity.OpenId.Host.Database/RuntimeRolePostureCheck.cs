@@ -10,13 +10,13 @@ namespace NCode.Identity.OpenId.Host.Database;
 
 /// <summary>
 /// Checks, when the host starts and before it accepts traffic, that the Postgres role the host runs as is subject to
-/// row-level security (see <see cref="RuntimeRolePosture"/>). Under the deployment posture a violation stops the
-/// host; under <c>LocalDevelopment:Enabled</c> it logs one warning and the host starts.
+/// row-level security (see <see cref="RuntimeRolePosture"/>). Under the deployment posture a violation stops the host;
+/// under <c>LocalDevelopment:Enabled</c> it logs one warning and the host starts.
 /// </summary>
 /// <param name="reader">The reader of the posture of the role the host connects as.</param>
 /// <param name="localDevelopment">
-/// Whether the host runs as a local inner-loop host (<c>LocalDevelopment:Enabled</c>), which warns instead of
-/// refusing to start.
+/// Whether the host runs as a local inner-loop host (<c>LocalDevelopment:Enabled</c>), which warns instead of refusing
+/// to start.
 /// </param>
 /// <param name="logger">The logger that receives the warning.</param>
 // See ADR-1370.

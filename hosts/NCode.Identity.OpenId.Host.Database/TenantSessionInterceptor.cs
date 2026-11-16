@@ -12,14 +12,14 @@ using NCode.Identity.OpenId.Persistence.Tenants;
 namespace NCode.Identity.OpenId.Host.Database;
 
 /// <summary>
-/// Carries the ambient tenant scope into the Postgres session, so the row-level security policies read the same
-/// scope the global query filter does. Before a command runs, it sets <c>app.tenant_id</c> and <c>app.unscoped</c> on
-/// the command's connection whenever the ambient state differs from the state last applied to that connection. A
-/// connection that opens forgets the state applied to it, so a pooled connection never keeps another request's scope.
-/// Postgres undoes a <c>set_config</c> that ran inside a transaction which rolls back, so a rollback, a rollback to a
-/// savepoint or a failure of that transaction forgets the state applied in it, and the next command sets it again. A
-/// transaction that ends without a commit or a rollback leaves its state recorded, so a command whose transaction is
-/// not the one the state was applied in sets it again; a commit makes the state session-durable.
+/// Carries the ambient tenant scope into the Postgres session, so the row-level security policies read the same scope
+/// the global query filter does. Before a command runs, it sets <c>app.tenant_id</c> and <c>app.unscoped</c> on the
+/// command's connection whenever the ambient state differs from the state last applied to that connection. A connection
+/// that opens forgets the state applied to it, so a pooled connection never keeps another request's scope. Postgres
+/// undoes a <c>set_config</c> that ran inside a transaction which rolls back, so a rollback, a rollback to a savepoint
+/// or a failure of that transaction forgets the state applied in it, and the next command sets it again. A transaction
+/// that ends without a commit or a rollback leaves its state recorded, so a command whose transaction is not the one
+/// the state was applied in sets it again; a commit makes the state session-durable.
 /// </summary>
 /// <param name="ambientTenantAccessor">The accessor that holds the ambient tenant scope.</param>
 [PublicAPI]
@@ -32,8 +32,8 @@ public sealed class TenantSessionInterceptor(IAmbientTenantAccessor ambientTenan
         $"SELECT set_config('{TenantSessionSettings.TenantId}', @t, false), set_config('{TenantSessionSettings.Unscoped}', @u, false)";
 
     /// <summary>
-    /// Creates the command that sets <c>app.tenant_id</c> and <c>app.unscoped</c> for the session, in the
-    /// transaction of the command it precedes so the two run on the same connection state.
+    /// Creates the command that sets <c>app.tenant_id</c> and <c>app.unscoped</c> for the session, in the transaction
+    /// of the command it precedes so the two run on the same connection state.
     /// </summary>
     /// <param name="connection">The connection that runs the command.</param>
     /// <param name="transaction">The transaction to enlist the command in, or <see langword="null"/> when none.</param>
@@ -311,9 +311,9 @@ public sealed class TenantSessionInterceptor(IAmbientTenantAccessor ambientTenan
 
     /// <summary>
     /// Decides whether the ambient state must be sent before a command runs. The state is pending when no state was
-    /// applied to the connection, when the applied state differs from the ambient state, or when the applied state
-    /// was set in a transaction that is not the command's current transaction, which covers a transaction disposed
-    /// without a commit and a command that runs outside the transaction after it.
+    /// applied to the connection, when the applied state differs from the ambient state, or when the applied state was
+    /// set in a transaction that is not the command's current transaction, which covers a transaction disposed without
+    /// a commit and a command that runs outside the transaction after it.
     /// </summary>
     /// <param name="command">The command about to run.</param>
     /// <param name="connection">The connection of the command, when it has one.</param>

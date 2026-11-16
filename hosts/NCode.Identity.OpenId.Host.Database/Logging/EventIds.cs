@@ -7,8 +7,8 @@ namespace NCode.Identity.OpenId.Host.Database.Logging;
 /// Defines the reserved logging event IDs for the <c>NCode.Identity.OpenId.Host.Database</c> project.
 /// </summary>
 /// <remarks>
-/// This project reserves the <c>30000</c>–<c>30999</c> band per the logging conventions. Values are append-only:
-/// never renumber or reuse a shipped identifier.
+/// This project reserves the <c>30000</c>–<c>30999</c> band per the logging conventions. Values are append-only: never
+/// renumber or reuse a shipped identifier.
 /// </remarks>
 internal static class EventIds
 {

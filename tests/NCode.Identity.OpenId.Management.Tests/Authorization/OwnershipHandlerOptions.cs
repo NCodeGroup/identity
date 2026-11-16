@@ -38,8 +38,8 @@ internal sealed class OwnershipHandlerOptions
     public string[]? TeamAncestors { get; init; }
 
     /// <summary>
-    /// Gets the identifier of the team that owns the client a client node names, or <see langword="null"/> for a
-    /// client that no team owns.
+    /// Gets the identifier of the team that owns the client a client node names, or <see langword="null"/> for a client
+    /// that no team owns.
     /// </summary>
     public string? ClientOwningTeamId { get; init; }
 

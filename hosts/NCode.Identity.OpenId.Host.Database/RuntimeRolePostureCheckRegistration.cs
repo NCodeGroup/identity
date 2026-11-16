@@ -9,8 +9,8 @@ using NCode.Identity.OpenId.Host.Database.Facades;
 namespace NCode.Identity.OpenId.Host.Database;
 
 /// <summary>
-/// Registers the startup check that refuses to start the host when the role it connects as is not subject to
-/// row-level security with an <see cref="IServiceCollection"/>.
+/// Registers the startup check that refuses to start the host when the role it connects as is not subject to row-level
+/// security with an <see cref="IServiceCollection"/>.
 /// </summary>
 [PublicAPI]
 public static class RuntimeRolePostureCheckRegistration

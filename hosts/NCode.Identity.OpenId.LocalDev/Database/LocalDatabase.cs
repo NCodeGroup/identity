@@ -40,8 +40,8 @@ internal static partial class LocalDatabase
     /// Creates the statement that makes the runtime role exist with its login attributes and password.
     /// </summary>
     /// <remarks>
-    /// The statement is one <c>DO</c> block, so it is safe on every start: it creates the role when
-    /// <c>pg_roles</c> has none, and otherwise alters the role to the same attributes and password.
+    /// The statement is one <c>DO</c> block, so it is safe on every start: it creates the role when <c>pg_roles</c> has
+    /// none, and otherwise alters the role to the same attributes and password.
     /// </remarks>
     /// <param name="runtimeRole">
     /// The role name; it is a valid name according to <see cref="DatabaseRoleNameRules"/>.

@@ -39,8 +39,8 @@ internal static class TestOpenIdDbContextSetup
     }
 
     /// <summary>
-    /// Finds the team with the given identifier, or seeds a minimal one directly into the context and saves it.
-    /// Returns the team entity.
+    /// Finds the team with the given identifier, or seeds a minimal one directly into the context and saves it. Returns
+    /// the team entity.
     /// </summary>
     public static TeamEntity SeedTeam(
         this OpenIdDbContext dbContext,
@@ -80,8 +80,8 @@ internal static class TestOpenIdDbContextSetup
     }
 
     /// <summary>
-    /// Seeds a minimal persisted tenant directly into the context so tenant-scoped entities can reference it, and
-    /// saves it. Returns the seeded tenant entity.
+    /// Seeds a minimal persisted tenant directly into the context so tenant-scoped entities can reference it, and saves
+    /// it. Returns the seeded tenant entity.
     /// </summary>
     public static TenantEntity SeedTenant(
         this OpenIdDbContext dbContext,

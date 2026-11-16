@@ -12,8 +12,8 @@ using NCode.Identity.Secrets.RemoteKeys;
 namespace NCode.Identity.OpenId.Integration.Tests.Infrastructure;
 
 /// <summary>
-/// A <see cref="BootstrapAdminApplicationFactory"/> whose host stands for one cell of a region. Every factory owns
-/// its database, key ring and root key, so two factories are two cells; the cells of a test share one
+/// A <see cref="BootstrapAdminApplicationFactory"/> whose host stands for one cell of a region. Every factory owns its
+/// database, key ring and root key, so two factories are two cells; the cells of a test share one
 /// <see cref="TestRemoteKeyProvider"/>, which stands for the cloud key store, and one
 /// <see cref="InMemoryTenantDirectory"/>, which stands for the global directory. Each host resolves tenants by host
 /// name beneath the root issuer <c>http://localhost</c>, and provisions the keys of a tenant in the provider.
