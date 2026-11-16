@@ -96,14 +96,8 @@ public sealed class CrossTenantQueryAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        var nameToken = syntax.Expression switch
-        {
-            MemberAccessExpressionSyntax memberAccess => memberAccess.Name.Identifier,
-            MemberBindingExpressionSyntax binding => binding.Name.Identifier,
-            SimpleNameSyntax simpleName => simpleName.Identifier,
-            _ => default,
-        };
-        if (nameToken == default || IsExplained(nameToken))
+        var nameToken = GetNameToken(syntax.Expression);
+        if (IsExplained(syntax.SyntaxTree, nameToken))
         {
             return;
         }
@@ -112,21 +106,35 @@ public sealed class CrossTenantQueryAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
+    /// Finds the token that names the called method in the expression that an invocation calls.
+    /// </summary>
+    /// <param name="expression">The expression that the invocation calls.</param>
+    /// <returns>
+    /// The name of the member access or member binding that the expression holds inside any parentheses; otherwise,
+    /// the first token of the expression, which is the method's name when the call names the method alone.
+    /// </returns>
+    private static SyntaxToken GetNameToken(ExpressionSyntax expression)
+    {
+        return expression switch
+        {
+            ParenthesizedExpressionSyntax parenthesized => GetNameToken(parenthesized.Expression),
+            MemberAccessExpressionSyntax memberAccess => memberAccess.Name.Identifier,
+            MemberBindingExpressionSyntax binding => binding.Name.Identifier,
+            _ => expression.GetFirstToken(),
+        };
+    }
+
+    /// <summary>
     /// Determines whether a <c>// Cross-tenant: &lt;why&gt;</c> comment leads the line of the method name, on the line
     /// directly above the first token of that line.
     /// </summary>
+    /// <param name="tree">The syntax tree that holds the call.</param>
     /// <param name="nameToken">The token that names the called method.</param>
     /// <returns>
     /// <see langword="true" /> when the call carries an explaining comment; otherwise, <see langword="false" />.
     /// </returns>
-    private static bool IsExplained(SyntaxToken nameToken)
+    private static bool IsExplained(SyntaxTree tree, SyntaxToken nameToken)
     {
-        var tree = nameToken.SyntaxTree;
-        if (tree is null)
-        {
-            return false;
-        }
-
         var lines = tree.GetText().Lines;
         var nameLine = lines.GetLineFromPosition(nameToken.SpanStart);
         var firstPosition = FirstNonWhitespacePosition(nameLine);
