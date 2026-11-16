@@ -66,6 +66,14 @@ public static class SecretsLibraryRegistration
                 >()
             );
 
+            // The provider creates keys only in the cloud regions the composition names for the deployment's keys.
+            serviceCollection.TryAddEnumerable(
+                ServiceDescriptor.Singleton<
+                    IPostConfigureOptions<AwsKmsRemoteKeyProviderOptions>,
+                    AwsKmsKeyResidencyOptionsSetup
+                >()
+            );
+
             serviceCollection.TryAddSingleton(TimeProvider.System);
             serviceCollection.TryAddSingleton<IAwsKmsClientFactory, DefaultAwsKmsClientFactory>();
 

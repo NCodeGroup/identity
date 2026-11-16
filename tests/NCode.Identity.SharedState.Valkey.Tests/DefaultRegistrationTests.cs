@@ -7,6 +7,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using NCode.Identity.Registration;
+using NCode.Identity.SharedState.Options;
 using NCode.Identity.SharedState.Valkey.Facades;
 using NCode.Identity.SharedState.Valkey.Options;
 using Xunit;
@@ -124,6 +125,21 @@ public sealed class DefaultRegistrationTests : BaseTests
     }
 
     [Fact]
+    public void AddValkey_WhenConnectionStringConfigured_RegistersTheDeploymentSetup()
+    {
+        var serviceCollection = AddValkey(
+            CreateConfiguration(("ConnectionStrings:valkey", ConnectionString))
+        );
+
+        Assert.Single(
+            serviceCollection,
+            x =>
+                x.ServiceType == typeof(IPostConfigureOptions<ValkeyOptions>)
+                && x.ImplementationType == typeof(ValkeyDeploymentOptionsSetup)
+        );
+    }
+
+    [Fact]
     public async Task AddValkey_WhenNoKeyPrefixConfigured_UsesTheDefault()
     {
         var serviceCollection = AddValkey(
@@ -152,6 +168,22 @@ public sealed class DefaultRegistrationTests : BaseTests
 
         Assert.Equal(
             "tenant-a:",
+            provider.GetRequiredService<IOptions<ValkeyOptions>>().Value.KeyPrefix
+        );
+    }
+
+    [Fact]
+    public async Task AddValkey_WhenADeploymentIsNamed_AppendsItToTheKeyPrefix()
+    {
+        var serviceCollection = AddValkey(
+            CreateConfiguration(("ConnectionStrings:valkey", ConnectionString))
+        );
+        serviceCollection.Configure<SharedStateOptions>(options => options.Deployment = "cell-a");
+
+        await using var provider = serviceCollection.BuildServiceProvider();
+
+        Assert.Equal(
+            "ncode-identity:cell-a:",
             provider.GetRequiredService<IOptions<ValkeyOptions>>().Value.KeyPrefix
         );
     }

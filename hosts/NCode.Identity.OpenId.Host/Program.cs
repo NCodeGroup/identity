@@ -136,9 +136,6 @@ identityServer.AddFrontendBootstrap(configuration);
 // in-process, which is correct only for a single replica (ADR-1164).
 identityServer.SharedStateLibraryBuilder.AddValkey(configuration);
 
-// Every Valkey key and channel carries the cell's name, and a KMS key outside the cell's cloud regions is refused.
-serviceCollection.AddCellOptionsSetups();
-
 var entityFrameworkPersistence =
     serviceCollection.AddEntityFrameworkCorePersistence<OpenIdDbContext>();
 
