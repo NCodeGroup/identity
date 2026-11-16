@@ -18,24 +18,16 @@ public class DirectoryUrlsTests : BaseTests
     }
 
     [Theory]
+    [InlineData("not a url")]
+    [InlineData("directory.example:8443")]
     [InlineData("user:secret@directory.example")]
     [InlineData("user:secret@directory.example:8443/path")]
     [InlineData("https:\\\\user:secret@directory.example")]
-    public void Describe_WhenTheTextIsACredentialPairWithoutAScheme_ReturnsAFixedText(string value)
+    public void Describe_WhenTheTextIsNotWrittenAsAUrl_ReturnsAFixedText(string value)
     {
         var result = DirectoryUrls.Describe(value);
 
         Assert.Equal("<not an absolute URL>", result);
-    }
-
-    [Theory]
-    [InlineData("not a url")]
-    [InlineData("directory.example:8443")]
-    public void Describe_WhenTheTextHoldsNoAtSign_ReturnsTheText(string value)
-    {
-        var result = DirectoryUrls.Describe(value);
-
-        Assert.Equal(value, result);
     }
 
     [Theory]

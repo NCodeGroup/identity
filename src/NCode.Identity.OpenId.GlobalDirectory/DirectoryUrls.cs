@@ -17,13 +17,13 @@ internal static class DirectoryUrls
     /// <param name="value">The configured URL or issuer.</param>
     /// <returns>
     /// The scheme, host, port and path when <paramref name="value"/> is written as an absolute URL, that is, as its
-    /// scheme followed by <c>://</c> and an authority; otherwise, the value when it holds no <c>@</c>; otherwise, a
-    /// fixed text.
+    /// scheme followed by <c>://</c> and an authority; an empty string when it is <see langword="null"/> or empty;
+    /// otherwise, a fixed text.
     /// </returns>
     /// <remarks>
     /// The text as written decides, because <see cref="AbsoluteUri.TryParse"/> also reads text such as
-    /// <c>user:secret@host</c> as a scheme followed by an opaque remainder, and printing that would print the
-    /// credentials.
+    /// <c>user:secret@host</c> as a scheme followed by an opaque remainder. A text that is not written as a URL may
+    /// be anything an operator pasted into the setting, a secret included, so it is never printed.
     /// </remarks>
     public static string Describe(string? value)
     {
@@ -44,6 +44,6 @@ internal static class DirectoryUrls
         if (string.IsNullOrEmpty(value))
             return string.Empty;
 
-        return value.Contains('@', StringComparison.Ordinal) ? NotAnAbsoluteUrl : value;
+        return NotAnAbsoluteUrl;
     }
 }
