@@ -20,6 +20,7 @@ NCode.Identity.Persistence.ISupportResource.ResourceType.get -> string!
 NCode.Identity.Persistence.MaxLengths
 NCode.Identity.Persistence.MigrationHistoryRules
 NCode.Identity.Persistence.PostCommitWork
+NCode.Identity.Persistence.PostgresConnectionRules
 NCode.Identity.Persistence.PostgresIdentifiers
 NCode.Identity.Persistence.ResourceTypes
 NCode.Identity.Persistence.RuntimeRoleGrants
@@ -28,6 +29,7 @@ static NCode.Identity.Persistence.DatabaseRoleNameRules.RequireRuntimeRole(strin
 static NCode.Identity.Persistence.MigrationHistoryRules.FindUnknownMigrations(System.Collections.Generic.IEnumerable<string!>! appliedMigrations, System.Collections.Generic.IEnumerable<string!>! migrations) -> System.Collections.Generic.IReadOnlyList<string!>!
 static NCode.Identity.Persistence.PostCommitWork.RunAsync<TState>(System.TimeProvider! timeProvider, System.Func<TState, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>! step, TState state) -> System.Threading.Tasks.ValueTask
 static NCode.Identity.Persistence.PostCommitWork.Timeout.get -> System.TimeSpan
+static NCode.Identity.Persistence.PostgresConnectionRules.Resolve(Microsoft.Extensions.Configuration.IConfiguration! configuration, string! connectionStringName, string! sectionName) -> string?
 static NCode.Identity.Persistence.PostgresIdentifiers.QualifiedName(string? schema, string! name) -> string!
 static NCode.Identity.Persistence.PostgresIdentifiers.Quote(string! identifier) -> string!
 static NCode.Identity.Persistence.RuntimeRoleGrants.CreateStatements(string! runtimeRole, System.Collections.Generic.IEnumerable<NCode.Identity.Persistence.DatabaseObjectName>! tables, System.Collections.Generic.IEnumerable<NCode.Identity.Persistence.DatabaseObjectName>! sequences) -> System.Collections.Generic.IReadOnlyList<string!>!
