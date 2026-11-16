@@ -4,43 +4,12 @@
 using Microsoft.EntityFrameworkCore;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Entities;
 using NCode.Identity.OpenId.Persistence;
-using NCode.Identity.Persistence;
 using Xunit;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 
 public class DirectoryLimitsTests
 {
-    #region MaxIdentifierLength Tests
-
-    [Fact]
-    public void MaxIdentifierLength_Always_EqualsTheCellsResourceIdLength()
-    {
-        Assert.Equal(MaxLengths.ResourceId, DirectoryLimits.MaxIdentifierLength);
-    }
-
-    #endregion
-
-    #region MaxIssuerLength Tests
-
-    [Fact]
-    public void MaxIssuerLength_Always_EqualsTheCellsIssuerLength()
-    {
-        Assert.Equal(OpenIdMaxLengths.Issuer, DirectoryLimits.MaxIssuerLength);
-    }
-
-    #endregion
-
-    #region MaxTeamDepth Tests
-
-    [Fact]
-    public void MaxTeamDepth_Always_EqualsTheCellsTeamDepth()
-    {
-        Assert.Equal(TeamPaths.MaxDepth, DirectoryLimits.MaxTeamDepth);
-    }
-
-    #endregion
-
     #region MaxTeamPathLength Tests
 
     [Fact]

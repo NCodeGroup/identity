@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
+using NCode.Identity.OpenId.Tenants;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 
@@ -86,16 +87,28 @@ public static class DirectoryEndpoints
         $"A cell and its region are each 1 to {CellLabelRules.MaxLabelLength} lowercase letters, digits or hyphens that "
         + "start with a letter and end with a letter or digit.";
 
-    private static string TooLongDetail =>
-        $"A tenant identifier is at most {DirectoryLimits.MaxIdentifierLength} characters, and an issuer at most "
-        + $"{DirectoryLimits.MaxIssuerLength}.";
+    /// <summary>
+    /// Gets the problem detail that a tenant route answers with when a tenant identifier is not one that
+    /// <see cref="TenantIdentifierRules.IsValidTenantId"/> accepts.
+    /// </summary>
+    private static string InvalidTenantIdDetail =>
+        $"The tenant identifier must be 1 to {TenantIdentifierRules.MaxTenantIdLength} lowercase letters, digits or "
+        + "hyphens that starts and ends with a letter or digit.";
 
     /// <summary>
     /// Gets the problem detail that a route answers with when a team identifier, in the route or the request body, is
-    /// longer than the directory stores.
+    /// not one that <see cref="TenantIdentifierRules.IsValidTenantId"/> accepts.
     /// </summary>
-    private static string TeamTooLongDetail =>
-        $"A team identifier is at most {DirectoryLimits.MaxIdentifierLength} characters.";
+    private static string InvalidTeamIdDetail =>
+        $"The team identifier must be 1 to {TenantIdentifierRules.MaxTenantIdLength} lowercase letters, digits or "
+        + "hyphens that starts and ends with a letter or digit.";
+
+    /// <summary>
+    /// Gets the problem detail that a tenant route answers with when an issuer it writes is longer than the directory
+    /// stores.
+    /// </summary>
+    private static string IssuerTooLongDetail =>
+        $"An issuer is at most {DirectoryLimits.MaxIssuerLength} characters.";
 
     /// <summary>
     /// Maps the tenant routes: reserving, placing, releasing, moving, retiring and changing the issuer of a tenant, and
@@ -119,6 +132,7 @@ public static class DirectoryEndpoints
             .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
         group
             .MapPost("{tenantId}/release", ReleaseTenantAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict);
@@ -149,9 +163,11 @@ public static class DirectoryEndpoints
             .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
         group
             .MapGet("{tenantId}", GetTenantPlacementAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound);
         group
             .MapGet("retired-ids/{tenantId}", GetRetiredTenantIdAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound);
         group
             .MapGet("retired-issuers", GetRetiredIssuerAsync)
@@ -186,9 +202,11 @@ public static class DirectoryEndpoints
             .ProducesProblem(StatusCodes.Status403Forbidden);
         group
             .MapGet("{teamId}/retired", GetRetiredTeamIdAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound);
         group
             .MapGet("{teamId}/document", GetTeamDocumentAsync)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound);
         group.MapGet("changes", ListChangesAsync).ProducesProblem(StatusCodes.Status400BadRequest);
     }
@@ -237,10 +255,11 @@ public static class DirectoryEndpoints
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
     /// <c>200 OK</c> when the tenant is reserved; <c>400 Bad Request</c> when a field is blank, the cell is not a
-    /// <see cref="CellLabelRules"/> label, the tenant, its issuer or its team is longer than the directory stores, or
-    /// the issuer is not a service URL that <see cref="AbsoluteUri.TryParseServiceUrl"/> accepts; <c>403 Forbidden</c>
-    /// when the cell is not the caller; <c>409 Conflict</c> when the identifier or the issuer is taken, the team has no
-    /// record, or a <c>max_tenants</c> limit refuses the reservation or cannot be read.
+    /// <see cref="CellLabelRules"/> label, the tenant or its team is not a <see cref="TenantIdentifierRules"/>
+    /// identifier, the issuer is longer than the directory stores, or the issuer is not a service URL that
+    /// <see cref="AbsoluteUri.TryParseServiceUrl"/> accepts; <c>403 Forbidden</c> when the cell is not the caller;
+    /// <c>409 Conflict</c> when the identifier or the issuer is taken, the team has no record, or a <c>max_tenants</c>
+    /// limit refuses the reservation or cannot be read.
     /// </returns>
     private static async ValueTask<IResult> ReserveTenantAsync(
         TenantReservation reservation,
@@ -261,11 +280,11 @@ public static class DirectoryEndpoints
         if (!CellLabelRules.IsValidLabel(reservation.Cell))
             return BadRequest(InvalidCellLabelDetail);
 
-        if (
-            IsOverLong(reservation.TenantId, DirectoryLimits.MaxIdentifierLength)
-            || IsOverLong(reservation.Issuer, DirectoryLimits.MaxIssuerLength)
-        )
-            return BadRequest(TooLongDetail);
+        if (!TenantIdentifierRules.IsValidTenantId(reservation.TenantId))
+            return BadRequest(InvalidTenantIdDetail);
+
+        if (IsOverLong(reservation.Issuer, DirectoryLimits.MaxIssuerLength))
+            return BadRequest(IssuerTooLongDetail);
 
         if (IsMalformedIssuer(reservation.Issuer))
             return BadRequest(InvalidIssuerDetail);
@@ -289,10 +308,11 @@ public static class DirectoryEndpoints
     /// <param name="directory">The <see cref="ITenantDirectory"/> that holds the placement.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the tenant is placed; <c>400 Bad Request</c> when the tenant or its issuer is blank or longer
-    /// than the directory stores, the issuer is not a service URL that <see cref="AbsoluteUri.TryParseServiceUrl"/>
-    /// accepts, or the cell or its region is not a <see cref="CellLabelRules"/> label; <c>403 Forbidden</c> when the
-    /// cell is not the caller; <c>409 Conflict</c> when the identifier or the issuer belongs to another tenant.
+    /// <c>200 OK</c> when the tenant is placed; <c>400 Bad Request</c> when the tenant or its issuer is blank, the
+    /// tenant is not a <see cref="TenantIdentifierRules"/> identifier, the issuer is longer than the directory stores
+    /// or is not a service URL that <see cref="AbsoluteUri.TryParseServiceUrl"/> accepts, or the cell or its region is
+    /// not a <see cref="CellLabelRules"/> label; <c>403 Forbidden</c> when the cell is not the caller;
+    /// <c>409 Conflict</c> when the identifier or the issuer belongs to another tenant.
     /// </returns>
     private static async ValueTask<IResult> PlaceTenantAsync(
         TenantPlacement placement,
@@ -304,11 +324,11 @@ public static class DirectoryEndpoints
         if (IsBlank(placement.TenantId) || IsBlank(placement.Issuer))
             return BadRequest("The tenant and its issuer are required.");
 
-        if (
-            IsOverLong(placement.TenantId, DirectoryLimits.MaxIdentifierLength)
-            || IsOverLong(placement.Issuer, DirectoryLimits.MaxIssuerLength)
-        )
-            return BadRequest(TooLongDetail);
+        if (!TenantIdentifierRules.IsValidTenantId(placement.TenantId))
+            return BadRequest(InvalidTenantIdDetail);
+
+        if (IsOverLong(placement.Issuer, DirectoryLimits.MaxIssuerLength))
+            return BadRequest(IssuerTooLongDetail);
 
         if (IsMalformedIssuer(placement.Issuer))
             return BadRequest(InvalidIssuerDetail);
@@ -337,7 +357,8 @@ public static class DirectoryEndpoints
     /// </param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the reservation is released; otherwise the problem document of the write outcome, and
+    /// <c>200 OK</c> when the reservation is released; <c>400 Bad Request</c> when the tenant is not a
+    /// <see cref="TenantIdentifierRules"/> identifier; otherwise the problem document of the write outcome, and
     /// <c>403 Forbidden</c> when the caller is not a cell.
     /// </returns>
     private static async ValueTask<IResult> ReleaseTenantAsync(
@@ -347,6 +368,9 @@ public static class DirectoryEndpoints
         CancellationToken cancellationToken
     )
     {
+        if (!TenantIdentifierRules.IsValidTenantId(tenantId))
+            return BadRequest(InvalidTenantIdDetail);
+
         if (DirectoryCaller.GetCell(httpContext.User) is not { } callerCell)
             return Forbidden(TenantWriteForbiddenDetail);
 
@@ -365,9 +389,10 @@ public static class DirectoryEndpoints
     /// <param name="directory">The <see cref="ITenantDirectory"/> that holds the placement.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the tenant is moved; <c>400 Bad Request</c> when a cell is missing or is not a
-    /// <see cref="CellLabelRules"/> label; <c>403 Forbidden</c> when the target cell is not the caller;
-    /// <c>409 Conflict</c> when the directory refuses the move.
+    /// <c>200 OK</c> when the tenant is moved; <c>400 Bad Request</c> when the tenant is not a
+    /// <see cref="TenantIdentifierRules"/> identifier, or a cell is missing or is not a <see cref="CellLabelRules"/>
+    /// label; <c>403 Forbidden</c> when the target cell is not the caller; <c>409 Conflict</c> when the directory
+    /// refuses the move.
     /// </returns>
     private static async ValueTask<IResult> MoveTenantAsync(
         string tenantId,
@@ -378,6 +403,9 @@ public static class DirectoryEndpoints
         CancellationToken cancellationToken
     )
     {
+        if (!TenantIdentifierRules.IsValidTenantId(tenantId))
+            return BadRequest(InvalidTenantIdDetail);
+
         if (!CellLabelRules.IsValidLabel(fromCell) || !CellLabelRules.IsValidLabel(toCell))
             return BadRequest(InvalidCellLabelDetail);
 
@@ -398,9 +426,10 @@ public static class DirectoryEndpoints
     /// <param name="directory">The <see cref="ITenantDirectory"/> that holds the placement and the offer.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>204 No Content</c> when the offer is recorded; <c>400 Bad Request</c> when the target cell is missing or is
-    /// not a <see cref="CellLabelRules"/> label; <c>403 Forbidden</c> when the tenant has no placement or the caller
-    /// does not hold it; <c>409 Conflict</c> when the directory refuses the offer.
+    /// <c>204 No Content</c> when the offer is recorded; <c>400 Bad Request</c> when the tenant is not a
+    /// <see cref="TenantIdentifierRules"/> identifier, or the target cell is missing or is not a
+    /// <see cref="CellLabelRules"/> label; <c>403 Forbidden</c> when the tenant has no placement or the caller does not
+    /// hold it; <c>409 Conflict</c> when the directory refuses the offer.
     /// </returns>
     private static async ValueTask<IResult> OfferTenantMoveAsync(
         string tenantId,
@@ -410,6 +439,9 @@ public static class DirectoryEndpoints
         CancellationToken cancellationToken
     )
     {
+        if (!TenantIdentifierRules.IsValidTenantId(tenantId))
+            return BadRequest(InvalidTenantIdDetail);
+
         if (!CellLabelRules.IsValidLabel(request.ToCell))
             return BadRequest(InvalidCellLabelDetail);
 
@@ -437,10 +469,10 @@ public static class DirectoryEndpoints
     /// </param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the tenant is retired; <c>400 Bad Request</c> when the tenant is blank, the tenant or its
-    /// issuer is longer than the directory stores, or the issuer is not a service URL that
-    /// <see cref="AbsoluteUri.TryParseServiceUrl"/> accepts; <c>403 Forbidden</c> when the caller is not a cell;
-    /// otherwise the problem document of the write outcome.
+    /// <c>200 OK</c> when the tenant is retired; <c>400 Bad Request</c> when the tenant is blank or is not a
+    /// <see cref="TenantIdentifierRules"/> identifier, the issuer is longer than the directory stores, or the issuer is
+    /// not a service URL that <see cref="AbsoluteUri.TryParseServiceUrl"/> accepts; <c>403 Forbidden</c> when the
+    /// caller is not a cell; otherwise the problem document of the write outcome.
     /// </returns>
     private static async ValueTask<IResult> RetireTenantAsync(
         TenantRetirement retirement,
@@ -452,11 +484,11 @@ public static class DirectoryEndpoints
         if (IsBlank(retirement.TenantId))
             return BadRequest(TenantRequiredDetail);
 
-        if (
-            IsOverLong(retirement.TenantId, DirectoryLimits.MaxIdentifierLength)
-            || IsOverLong(retirement.Issuer, DirectoryLimits.MaxIssuerLength)
-        )
-            return BadRequest(TooLongDetail);
+        if (!TenantIdentifierRules.IsValidTenantId(retirement.TenantId))
+            return BadRequest(InvalidTenantIdDetail);
+
+        if (IsOverLong(retirement.Issuer, DirectoryLimits.MaxIssuerLength))
+            return BadRequest(IssuerTooLongDetail);
 
         if (IsMalformedIssuer(retirement.Issuer))
             return BadRequest(InvalidIssuerDetail);
@@ -478,10 +510,11 @@ public static class DirectoryEndpoints
     /// </param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the issuer is changed; <c>400 Bad Request</c> when the tenant is blank, the tenant, the
-    /// issuer or the previous issuer is longer than the directory stores, or the issuer is not a service URL that
-    /// <see cref="AbsoluteUri.TryParseServiceUrl"/> accepts; <c>403 Forbidden</c> when the caller is not a cell;
-    /// otherwise the problem document of the write outcome, such as <c>404 Not Found</c> for an unknown tenant.
+    /// <c>200 OK</c> when the issuer is changed; <c>400 Bad Request</c> when the tenant is blank or is not a
+    /// <see cref="TenantIdentifierRules"/> identifier, the issuer or the previous issuer is longer than the directory
+    /// stores, or the issuer is not a service URL that <see cref="AbsoluteUri.TryParseServiceUrl"/> accepts;
+    /// <c>403 Forbidden</c> when the caller is not a cell; otherwise the problem document of the write outcome, such as
+    /// <c>404 Not Found</c> for an unknown tenant.
     /// </returns>
     private static async ValueTask<IResult> ChangeTenantIssuerAsync(
         TenantIssuerChange change,
@@ -493,12 +526,14 @@ public static class DirectoryEndpoints
         if (IsBlank(change.TenantId))
             return BadRequest(TenantRequiredDetail);
 
+        if (!TenantIdentifierRules.IsValidTenantId(change.TenantId))
+            return BadRequest(InvalidTenantIdDetail);
+
         if (
-            IsOverLong(change.TenantId, DirectoryLimits.MaxIdentifierLength)
-            || IsOverLong(change.Issuer, DirectoryLimits.MaxIssuerLength)
+            IsOverLong(change.Issuer, DirectoryLimits.MaxIssuerLength)
             || IsOverLong(change.PreviousIssuer, DirectoryLimits.MaxIssuerLength)
         )
-            return BadRequest(TooLongDetail);
+            return BadRequest(IssuerTooLongDetail);
 
         // The previous issuer is only compared with the stored one, so only the issuer the tenant takes is judged.
         if (IsMalformedIssuer(change.Issuer))
@@ -517,13 +552,19 @@ public static class DirectoryEndpoints
     /// <param name="tenantId">The tenant identifier from the route.</param>
     /// <param name="directory">The <see cref="ITenantDirectory"/> that holds the placement.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-    /// <returns><c>200 OK</c> with the placement, or a <c>404 Not Found</c> problem when the tenant has none.</returns>
+    /// <returns>
+    /// <c>200 OK</c> with the placement; <c>400 Bad Request</c> when the tenant is not a
+    /// <see cref="TenantIdentifierRules"/> identifier; or a <c>404 Not Found</c> problem when the tenant has none.
+    /// </returns>
     private static async ValueTask<IResult> GetTenantPlacementAsync(
         string tenantId,
         ITenantDirectory directory,
         CancellationToken cancellationToken
     )
     {
+        if (!TenantIdentifierRules.IsValidTenantId(tenantId))
+            return BadRequest(InvalidTenantIdDetail);
+
         var placement = await directory.GetPlacementOrDefaultAsync(tenantId, cancellationToken);
         return placement is null
             ? NotFound($"The directory holds no placement for the tenant '{tenantId}'.")
@@ -537,7 +578,8 @@ public static class DirectoryEndpoints
     /// <param name="directory">The <see cref="ITenantDirectory"/> that holds the retired identifiers.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the identifier is retired, or a <c>404 Not Found</c> problem when it is not.
+    /// <c>200 OK</c> when the identifier is retired; <c>400 Bad Request</c> when the tenant is not a
+    /// <see cref="TenantIdentifierRules"/> identifier; or a <c>404 Not Found</c> problem when it is not retired.
     /// </returns>
     private static async ValueTask<IResult> GetRetiredTenantIdAsync(
         string tenantId,
@@ -545,6 +587,9 @@ public static class DirectoryEndpoints
         CancellationToken cancellationToken
     )
     {
+        if (!TenantIdentifierRules.IsValidTenantId(tenantId))
+            return BadRequest(InvalidTenantIdDetail);
+
         var isRetired = await directory.IsTenantIdRetiredAsync(tenantId, cancellationToken);
         return isRetired
             ? TypedResults.Ok()
@@ -592,9 +637,9 @@ public static class DirectoryEndpoints
     /// <param name="directory">The <see cref="ITeamDirectory"/> that holds the reservation.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the team is reserved; <c>400 Bad Request</c> when the team is blank or longer than the
-    /// directory stores; <c>403 Forbidden</c> when the caller is not the control-plane cell; <c>409 Conflict</c> when
-    /// the identifier is taken.
+    /// <c>200 OK</c> when the team is reserved; <c>400 Bad Request</c> when the team is blank or is not a
+    /// <see cref="TenantIdentifierRules"/> identifier; <c>403 Forbidden</c> when the caller is not the control-plane
+    /// cell; <c>409 Conflict</c> when the identifier is taken.
     /// </returns>
     private static async ValueTask<IResult> ReserveTeamAsync(
         string teamId,
@@ -626,8 +671,9 @@ public static class DirectoryEndpoints
     /// <returns>
     /// <c>200 OK</c> when the document is published; <c>403 Forbidden</c> when the caller is not the control-plane
     /// cell; <c>400 Bad Request</c> when the document lacks its team, display name, settings or root keys, names a
-    /// blank parent team, names a team or a parent team longer than the directory stores, names a team other than the
-    /// route's, holds settings that are not a JSON object, or would nest a team deeper than the directory stores.
+    /// blank parent team, names a team or a parent team that is not a <see cref="TenantIdentifierRules"/> identifier,
+    /// names a team other than the route's, holds settings that are not a JSON object, or would nest a team deeper than
+    /// the directory stores.
     /// </returns>
     private static async ValueTask<IResult> PublishTeamAsync(
         string teamId,
@@ -644,8 +690,8 @@ public static class DirectoryEndpoints
         if (IsBlank(document.TeamId) || IsBlank(document.DisplayName))
             return BadRequest("The team and its display name are required.");
 
-        if (IsOverLong(document.TeamId, DirectoryLimits.MaxIdentifierLength))
-            return BadRequest(TeamTooLongDetail);
+        if (!TenantIdentifierRules.IsValidTenantId(document.TeamId))
+            return BadRequest(InvalidTeamIdDetail);
 
         if (ValidateOptionalTeamId(document.ParentTeamId) is { } invalidParent)
             return invalidParent;
@@ -670,8 +716,9 @@ public static class DirectoryEndpoints
     /// <param name="directory">The <see cref="ITeamDirectory"/> that holds the reservation.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the team is released; <c>400 Bad Request</c> when the team is blank or longer than the
-    /// directory stores; or <c>403 Forbidden</c> when the caller is not the control-plane cell.
+    /// <c>200 OK</c> when the team is released; <c>400 Bad Request</c> when the team is blank or is not a
+    /// <see cref="TenantIdentifierRules"/> identifier; or <c>403 Forbidden</c> when the caller is not the control-plane
+    /// cell.
     /// </returns>
     private static async ValueTask<IResult> ReleaseTeamAsync(
         string teamId,
@@ -700,8 +747,9 @@ public static class DirectoryEndpoints
     /// <param name="directory">The <see cref="ITeamDirectory"/> that holds the retired identifiers.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the team is retired; <c>400 Bad Request</c> when the team is blank or longer than the
-    /// directory stores; or <c>403 Forbidden</c> when the caller is not the control-plane cell.
+    /// <c>200 OK</c> when the team is retired; <c>400 Bad Request</c> when the team is blank or is not a
+    /// <see cref="TenantIdentifierRules"/> identifier; or <c>403 Forbidden</c> when the caller is not the control-plane
+    /// cell.
     /// </returns>
     private static async ValueTask<IResult> RetireTeamAsync(
         string teamId,
@@ -728,7 +776,8 @@ public static class DirectoryEndpoints
     /// <param name="directory">The <see cref="ITeamDirectory"/> that holds the retired identifiers.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the identifier is retired, or a <c>404 Not Found</c> problem when it is not.
+    /// <c>200 OK</c> when the identifier is retired; <c>400 Bad Request</c> when the team is blank or is not a
+    /// <see cref="TenantIdentifierRules"/> identifier; or a <c>404 Not Found</c> problem when it is not retired.
     /// </returns>
     private static async ValueTask<IResult> GetRetiredTeamIdAsync(
         string teamId,
@@ -736,6 +785,9 @@ public static class DirectoryEndpoints
         CancellationToken cancellationToken
     )
     {
+        if (ValidateTeamId(teamId) is { } invalid)
+            return invalid;
+
         var isRetired = await directory.IsTeamIdRetiredAsync(teamId, cancellationToken);
         return isRetired
             ? TypedResults.Ok()
@@ -748,13 +800,19 @@ public static class DirectoryEndpoints
     /// <param name="teamId">The team identifier from the route.</param>
     /// <param name="directory">The <see cref="ITeamDirectory"/> that holds the document.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-    /// <returns><c>200 OK</c> with the document, or a <c>404 Not Found</c> problem when the team has none.</returns>
+    /// <returns>
+    /// <c>200 OK</c> with the document; <c>400 Bad Request</c> when the team is blank or is not a
+    /// <see cref="TenantIdentifierRules"/> identifier; or a <c>404 Not Found</c> problem when the team has none.
+    /// </returns>
     private static async ValueTask<IResult> GetTeamDocumentAsync(
         string teamId,
         ITeamDirectory directory,
         CancellationToken cancellationToken
     )
     {
+        if (ValidateTeamId(teamId) is { } invalid)
+            return invalid;
+
         var document = await directory.GetOrDefaultAsync(teamId, cancellationToken);
         return document is null
             ? NotFound($"The directory holds no document for the team '{teamId}'.")
@@ -1014,7 +1072,7 @@ public static class DirectoryEndpoints
             : Forbidden("Only the control-plane cell writes the platform and the teams.");
 
     /// <summary>
-    /// Refuses a team identifier from a route that is blank or longer than the directory stores.
+    /// Refuses a team identifier from a route that is blank or is not a <see cref="TenantIdentifierRules"/> identifier.
     /// </summary>
     /// <param name="teamId">The team identifier from the route.</param>
     /// <returns>
@@ -1025,14 +1083,15 @@ public static class DirectoryEndpoints
         if (IsBlank(teamId))
             return BadRequest(TeamRequiredDetail);
 
-        return IsOverLong(teamId, DirectoryLimits.MaxIdentifierLength)
-            ? BadRequest(TeamTooLongDetail)
-            : null;
+        return TenantIdentifierRules.IsValidTenantId(teamId)
+            ? null
+            : BadRequest(InvalidTeamIdDetail);
     }
 
     /// <summary>
     /// Refuses a team identifier that a request body names, such as the team of a tenant reservation or the parent of a
-    /// team document, when it is blank or longer than the directory stores. A body that names no team passes.
+    /// team document, when it is blank or is not a <see cref="TenantIdentifierRules"/> identifier. A body that names no
+    /// team passes.
     /// </summary>
     /// <param name="teamId">The team identifier from the request body, or <c>null</c> when it names none.</param>
     /// <returns>
@@ -1046,9 +1105,9 @@ public static class DirectoryEndpoints
         if (IsBlank(teamId))
             return BadRequest(BlankTeamDetail);
 
-        return IsOverLong(teamId, DirectoryLimits.MaxIdentifierLength)
-            ? BadRequest(TeamTooLongDetail)
-            : null;
+        return TenantIdentifierRules.IsValidTenantId(teamId)
+            ? null
+            : BadRequest(InvalidTeamIdDetail);
     }
 
     /// <summary>

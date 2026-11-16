@@ -19,6 +19,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.Client;
+using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Registration;
 using Xunit;
 
@@ -56,8 +57,13 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         $"A cell's kind is at most {DirectoryLimits.MaxCellKindLength} characters and its management URL at most "
         + $"{DirectoryLimits.MaxManagementUrlLength}.";
 
-    private static string TeamTooLongDetail =>
-        $"A team identifier is at most {DirectoryLimits.MaxIdentifierLength} characters.";
+    private static string InvalidTenantIdDetail =>
+        $"The tenant identifier must be 1 to {TenantIdentifierRules.MaxTenantIdLength} lowercase letters, digits or "
+        + "hyphens that starts and ends with a letter or digit.";
+
+    private static string InvalidTeamIdDetail =>
+        $"The team identifier must be 1 to {TenantIdentifierRules.MaxTenantIdLength} lowercase letters, digits or "
+        + "hyphens that starts and ends with a letter or digit.";
 
     private MockRepository Mocks { get; } = new(MockBehavior.Strict);
 
@@ -420,11 +426,20 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         var response = await ReserveTenantAsync(tenantId, TenantIssuer);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Contains(
-            $"at most {DirectoryLimits.MaxIdentifierLength} characters",
-            await ReadProblemDetailAsync(response),
-            StringComparison.Ordinal
-        );
+        Assert.Equal(InvalidTenantIdDetail, await ReadProblemDetailAsync(response));
+        var reserveResponse = await ReserveTenantAsync(TenantId, TenantIssuer);
+        Assert.Equal(HttpStatusCode.OK, reserveResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task ReserveTenant_WhenTheTenantIdIsNotAHostLabel_AnswersBadRequest()
+    {
+        Authenticate();
+
+        var response = await ReserveTenantAsync("Tenant_A", TenantIssuer);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(InvalidTenantIdDetail, await ReadProblemDetailAsync(response));
         var reserveResponse = await ReserveTenantAsync(TenantId, TenantIssuer);
         Assert.Equal(HttpStatusCode.OK, reserveResponse.StatusCode);
     }
@@ -438,7 +453,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         var response = await ReserveTenantAsync(TenantId, TenantIssuer, teamId);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Equal(TeamTooLongDetail, await ReadProblemDetailAsync(response));
+        Assert.Equal(InvalidTeamIdDetail, await ReadProblemDetailAsync(response));
         var reserveResponse = await ReserveTenantAsync(TenantId, TenantIssuer);
         Assert.Equal(HttpStatusCode.OK, reserveResponse.StatusCode);
     }
@@ -517,6 +532,27 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task PlaceTenant_WhenTheTenantIdIsNotAHostLabel_AnswersBadRequest()
+    {
+        Authenticate();
+
+        var response = await Client.PostAsJsonAsync(
+            "/directory/v1/tenants/place",
+            new TenantPlacement
+            {
+                TenantId = "Tenant_A",
+                Issuer = TenantIssuer,
+                Cell = CellName,
+                Region = "region-a",
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(InvalidTenantIdDetail, await ReadProblemDetailAsync(response));
+    }
+
+    [Fact]
     public async Task PlaceTenant_ThenGet_AnswersThePlacementInCamelCase()
     {
         Authenticate();
@@ -589,6 +625,17 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetTenant_WhenTheTenantIdIsNotAHostLabel_AnswersBadRequest()
+    {
+        Authenticate();
+
+        var response = await Client.GetAsync("/directory/v1/tenants/Tenant_A");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(InvalidTenantIdDetail, await ReadProblemDetailAsync(response));
+    }
+
+    [Fact]
     public async Task ReleaseTenant_WhenReserved_FreesTheIdentifier()
     {
         Authenticate();
@@ -602,6 +649,17 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, releaseResponse.StatusCode);
         Assert.Equal(HttpStatusCode.OK, reserveResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task ReleaseTenant_WhenTheTenantIdIsNotAHostLabel_AnswersBadRequest()
+    {
+        Authenticate();
+
+        var response = await ReleaseTenantAsync("Tenant_A");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(InvalidTenantIdDetail, await ReadProblemDetailAsync(response));
     }
 
     [Fact]
@@ -648,6 +706,17 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         var response = await Client.GetAsync("/directory/v1/tenants/retired-issuers");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task RetiredTenant_WhenTheTenantIdIsNotAHostLabel_AnswersBadRequest()
+    {
+        Authenticate();
+
+        var response = await Client.GetAsync("/directory/v1/tenants/retired-ids/Tenant_A");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(InvalidTenantIdDetail, await ReadProblemDetailAsync(response));
     }
 
     [Fact]
@@ -704,6 +773,22 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         var response = await RetireTenantAsync(tenantId);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(InvalidTenantIdDetail, await ReadProblemDetailAsync(response));
+        var issuerResponse = await Client.GetAsync(
+            $"/directory/v1/tenants/retired-issuers?issuer={Uri.EscapeDataString(TenantIssuer)}"
+        );
+        Assert.Equal(HttpStatusCode.NotFound, issuerResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task RetireTenant_WhenTheTenantIdIsNotAHostLabel_AnswersBadRequest()
+    {
+        Authenticate();
+
+        var response = await RetireTenantAsync("Tenant_A");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(InvalidTenantIdDetail, await ReadProblemDetailAsync(response));
         var issuerResponse = await Client.GetAsync(
             $"/directory/v1/tenants/retired-issuers?issuer={Uri.EscapeDataString(TenantIssuer)}"
         );
@@ -732,6 +817,17 @@ public class DirectoryEndpointsTests : IAsyncLifetime
             $"/directory/v1/tenants/retired-issuers?issuer={Uri.EscapeDataString(TenantIssuer)}"
         );
         Assert.Equal(HttpStatusCode.NotFound, issuerResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task ChangeIssuer_WhenTheTenantIdIsNotAHostLabel_AnswersBadRequest()
+    {
+        Authenticate();
+
+        var response = await ChangeIssuerAsync("Tenant_A");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(InvalidTenantIdDetail, await ReadProblemDetailAsync(response));
     }
 
     [Theory]
@@ -1348,6 +1444,23 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task MoveTenant_WhenTheTenantIdIsNotAHostLabel_AnswersBadRequest()
+    {
+        await SeedPlacedTenantAsync("region-a");
+        await OfferMoveAsync("a", "b");
+        Authenticate(clientId: "cell-b");
+
+        var response = await Client.PostAsync(
+            "/directory/v1/tenants/Tenant_A/move?fromCell=a&toCell=b",
+            content: null
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(InvalidTenantIdDetail, await ReadProblemDetailAsync(response));
+        Assert.Equal("a", await GetPlacedCellAsync());
+    }
+
+    [Fact]
     public async Task MoveTenant_WhenThePlacementIsInAnotherCell_AnswersConflictWithTheDetail()
     {
         await SeedPlacedTenantAsync("region-a");
@@ -1439,6 +1552,22 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task OfferMove_WhenTheTenantIdIsNotAHostLabel_AnswersBadRequest()
+    {
+        await SeedPlacedTenantAsync("region-a");
+        Authenticate(clientId: "cell-a");
+
+        var response = await Client.PostAsJsonAsync(
+            "/directory/v1/tenants/Tenant_A/move-offers",
+            new TenantMoveOfferRequest { ToCell = "b" },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(InvalidTenantIdDetail, await ReadProblemDetailAsync(response));
+    }
+
+    [Fact]
     public async Task OfferMove_WhenTheCellsAreInDifferentRegions_AnswersConflictWithTheDetail()
     {
         await SeedPlacedTenantAsync("region-b");
@@ -1523,7 +1652,18 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         );
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Equal(TeamTooLongDetail, await ReadProblemDetailAsync(response));
+        Assert.Equal(InvalidTeamIdDetail, await ReadProblemDetailAsync(response));
+    }
+
+    [Fact]
+    public async Task ReserveTeam_WhenTheTeamIdIsNotAHostLabel_AnswersBadRequest()
+    {
+        AuthenticateAsControlPlane();
+
+        var response = await Client.PostAsync("/directory/v1/teams/Team_A/reserve", content: null);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(InvalidTeamIdDetail, await ReadProblemDetailAsync(response));
     }
 
     [Fact]
@@ -1626,7 +1766,29 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         );
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Equal(TeamTooLongDetail, await ReadProblemDetailAsync(response));
+        Assert.Equal(InvalidTeamIdDetail, await ReadProblemDetailAsync(response));
+    }
+
+    [Fact]
+    public async Task PublishTeam_WhenTheTeamIdIsNotAHostLabel_AnswersBadRequest()
+    {
+        AuthenticateAsControlPlane();
+
+        var response = await Client.PutAsJsonAsync(
+            "/directory/v1/teams/Team_A/document",
+            new TeamDocument
+            {
+                TeamId = "Team_A",
+                DisplayName = "Team A",
+                IsDisabled = false,
+                Settings = JsonElement.Parse("{}"),
+                RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(InvalidTeamIdDetail, await ReadProblemDetailAsync(response));
     }
 
     [Fact]
@@ -1649,7 +1811,32 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         );
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Equal(TeamTooLongDetail, await ReadProblemDetailAsync(response));
+        Assert.Equal(InvalidTeamIdDetail, await ReadProblemDetailAsync(response));
+    }
+
+    [Fact]
+    public async Task PublishTeam_WhenTheParentTeamIdIsNotAHostLabel_AnswersBadRequest()
+    {
+        AuthenticateAsControlPlane();
+
+        var response = await Client.PutAsJsonAsync(
+            $"/directory/v1/teams/{TeamId}/document",
+            new TeamDocument
+            {
+                TeamId = TeamId,
+                DisplayName = "Team One",
+                IsDisabled = false,
+                ParentTeamId = "Team_A",
+                Settings = JsonElement.Parse("{}"),
+                RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(InvalidTeamIdDetail, await ReadProblemDetailAsync(response));
+        var getResponse = await Client.GetAsync($"/directory/v1/teams/{TeamId}/document");
+        Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
     }
 
     [Theory]
@@ -1819,6 +2006,17 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetTeamDocument_WhenTheTeamIdIsNotAHostLabel_AnswersBadRequest()
+    {
+        Authenticate();
+
+        var response = await Client.GetAsync("/directory/v1/teams/Team_A/document");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(InvalidTeamIdDetail, await ReadProblemDetailAsync(response));
+    }
+
+    [Fact]
     public async Task RetiredTeam_BeforeAndAfterRetire_AnswersNotFoundThenOk()
     {
         AuthenticateAsControlPlane();
@@ -1830,6 +2028,17 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.NotFound, before.StatusCode);
         Assert.Equal(HttpStatusCode.OK, after.StatusCode);
+    }
+
+    [Fact]
+    public async Task RetiredTeam_WhenTheTeamIdIsNotAHostLabel_AnswersBadRequest()
+    {
+        Authenticate();
+
+        var response = await Client.GetAsync("/directory/v1/teams/Team_A/retired");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(InvalidTeamIdDetail, await ReadProblemDetailAsync(response));
     }
 
     [Fact]
@@ -1863,7 +2072,18 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         );
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Equal(TeamTooLongDetail, await ReadProblemDetailAsync(response));
+        Assert.Equal(InvalidTeamIdDetail, await ReadProblemDetailAsync(response));
+    }
+
+    [Fact]
+    public async Task ReleaseTeam_WhenTheTeamIdIsNotAHostLabel_AnswersBadRequest()
+    {
+        AuthenticateAsControlPlane();
+
+        var response = await Client.PostAsync("/directory/v1/teams/Team_A/release", content: null);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(InvalidTeamIdDetail, await ReadProblemDetailAsync(response));
     }
 
     [Fact]
@@ -1954,7 +2174,18 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         );
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Equal(TeamTooLongDetail, await ReadProblemDetailAsync(response));
+        Assert.Equal(InvalidTeamIdDetail, await ReadProblemDetailAsync(response));
+    }
+
+    [Fact]
+    public async Task RetireTeam_WhenTheTeamIdIsNotAHostLabel_AnswersBadRequest()
+    {
+        AuthenticateAsControlPlane();
+
+        var response = await Client.PostAsync("/directory/v1/teams/Team_A/retire", content: null);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(InvalidTeamIdDetail, await ReadProblemDetailAsync(response));
     }
 
     [Fact]
