@@ -786,11 +786,14 @@ jobs:
           refuse --set directory.issuer=http://id.example.com
           refuse --set directory.controlPlaneCell=
           refuse --set directory.database.existingSecret=
+          # A directory connection is one form: a connection string or the parts of an operator's Secret (ADR-1509).
+          refuse --set directory.database.parts.existingSecret=directory-app
           refuse --set directory.database.connectionStringKey=
+          refuse --set directory.database.existingSecret= --set directory.database.parts.existingSecret=directory-app --set directory.database.parts.passwordKey=
           refuse --set directory.database.runtimeRole=
           refuse --set directory.database.runtimeRole=Bad-Role
+          # The schema owner's connection is required, and an empty key of it falls back to the runtime role's.
           refuse --set directory.migrations.database.existingSecret=
-          refuse --set directory.migrations.database.connectionStringKey=
           refuse --set directory.tls.existingSecret=
 
       - name: Run the directory's migration Job under the operator's ServiceAccount
@@ -830,16 +833,30 @@ jobs:
           }
           deployment="$(render templates/directory-deployment.yaml)"
           expect "$deployment" 'type: Recreate' 'DirectoryServer__Issuer' 'DirectoryServer__ControlPlaneCell' \
-            'name: ConnectionStrings__directory$' 'secretName: directory-tls' 'automountServiceAccountToken: false'
-          # The Deployment carries the runtime role's connection and never the owner's.
-          reject "$deployment" 'ConnectionStrings__directory-migration' 'DirectoryDatabase__RuntimeRole'
+            'name: ConnectionStrings__directory$' 'name: directory-database$' 'secretName: directory-tls' \
+            'automountServiceAccountToken: false'
+          # The Deployment carries the runtime role's connection and never the owner's, and not the role's name.
+          reject "$deployment" 'directory-database-owner' 'DirectoryMigration__RuntimeRole'
           job="$(render templates/directory-migration-job.yaml \
             --set-json 'directory.extraEnv=[{"name":"PGSSLMODE","value":"verify-full"}]')"
-          expect "$job" '- migrate' 'ConnectionStrings__directory-migration' 'DirectoryDatabase__RuntimeRole' \
-            'helm.sh/hook: pre-install,pre-upgrade' 'name: ASPNETCORE_ENVIRONMENT' 'name: OTEL_RESOURCE_ATTRIBUTES' \
-            'name: PGSSLMODE'
+          expect "$job" '- migrate' 'name: ConnectionStrings__directory$' 'name: directory-database-owner' \
+            'DirectoryMigration__RuntimeRole' 'helm.sh/hook: pre-install,pre-upgrade' 'name: ASPNETCORE_ENVIRONMENT' \
+            'name: OTEL_RESOURCE_ATTRIBUTES' 'name: PGSSLMODE'
           # The migration Job carries the owner's connection, never the runtime role's, and no server setting.
-          reject "$job" 'name: ConnectionStrings__directory$' 'name: AllowedHosts' 'name: DirectoryServer__'
+          reject "$job" 'name: directory-database$' 'name: AllowedHosts' 'name: DirectoryServer__'
+          # A parts Secret reaches each pod as one variable per part, the runtime role's Secret the Deployment and the
+          # owner's the Job, and no connection string is passed.
+          parts=(--set directory.database.existingSecret= --set directory.database.parts.existingSecret=directory-app \
+            --set directory.migrations.database.existingSecret= \
+            --set directory.migrations.database.parts.existingSecret=directory-owner)
+          partsDeployment="$(render templates/directory-deployment.yaml "${parts[@]}")"
+          expect "$partsDeployment" 'name: DirectoryDatabase__Host' 'name: DirectoryDatabase__Password' \
+            'name: directory-app$'
+          reject "$partsDeployment" 'ConnectionStrings__directory' 'directory-owner'
+          partsJob="$(render templates/directory-migration-job.yaml "${parts[@]}")"
+          expect "$partsJob" 'name: DirectoryDatabase__Host' 'name: DirectoryDatabase__Password' \
+            'name: directory-owner$' 'DirectoryMigration__RuntimeRole'
+          reject "$partsJob" 'ConnectionStrings__directory' 'directory-app'
           # Both directory pods carry the backup location when it is set, and neither carries one when it is not.
           reject "$deployment" 'ncode.io/backup-location'
           reject "$job" 'ncode.io/backup-location'
