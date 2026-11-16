@@ -47,6 +47,11 @@ public static class DirectoryEndpoints
     private const string TeamRequiredDetail = "The team is required.";
 
     /// <summary>
+    /// The problem detail that a route answers with when its request body names a team whose identifier is blank.
+    /// </summary>
+    private const string BlankTeamDetail = "A team identifier is not blank.";
+
+    /// <summary>
     /// The problem detail that a publish route answers with when the document's settings are not a JSON object.
     /// </summary>
     private const string SettingsNotAnObjectDetail = "The document's settings are a JSON object.";
@@ -77,8 +82,8 @@ public static class DirectoryEndpoints
         + $"{DirectoryLimits.MaxIssuerLength}.";
 
     /// <summary>
-    /// Gets the problem detail that a team route answers with when a team identifier is longer than the directory
-    /// stores.
+    /// Gets the problem detail that a route answers with when a team identifier, in the route or the request body, is
+    /// longer than the directory stores.
     /// </summary>
     private static string TeamTooLongDetail =>
         $"A team identifier is at most {DirectoryLimits.MaxIdentifierLength} characters.";
@@ -217,15 +222,15 @@ public static class DirectoryEndpoints
     /// <summary>
     /// Reserves a tenant identifier and its issuer for the calling cell. A cell reserves a tenant only for itself.
     /// </summary>
-    /// <param name="reservation">The tenant, its issuer and its cell.</param>
+    /// <param name="reservation">The tenant, its issuer, the team that owns it, if any, and its cell.</param>
     /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
     /// <param name="directory">The <see cref="ITenantDirectory"/> that holds the reservation.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
     /// <c>200 OK</c> when the tenant is reserved; <c>400 Bad Request</c> when a field is blank, the cell is not a
-    /// <see cref="CellLabelRules"/> label, or the tenant or its issuer is longer than the directory stores;
+    /// <see cref="CellLabelRules"/> label, or the tenant, its issuer or its team is longer than the directory stores;
     /// <c>403 Forbidden</c> when the cell is not the caller; <c>409 Conflict</c> when the identifier or the issuer is
-    /// taken.
+    /// taken, the team has no record, or a <c>max_tenants</c> limit refuses the reservation or cannot be read.
     /// </returns>
     private static async ValueTask<IResult> ReserveTenantAsync(
         TenantReservation reservation,
@@ -251,6 +256,9 @@ public static class DirectoryEndpoints
             || IsOverLong(reservation.Issuer, DirectoryLimits.MaxIssuerLength)
         )
             return BadRequest(TooLongDetail);
+
+        if (ValidateOptionalTeamId(reservation.TeamId) is { } invalidTeam)
+            return invalidTeam;
 
         // A cell reserves a tenant only for itself.
         if (!IsCaller(httpContext, reservation.Cell))
@@ -594,9 +602,9 @@ public static class DirectoryEndpoints
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
     /// <c>200 OK</c> when the document is published; <c>403 Forbidden</c> when the caller is not the control-plane
-    /// cell; <c>400 Bad Request</c> when the document lacks its team or display name, names a team or a parent team
-    /// longer than the directory stores, names a team other than the route's, holds settings that are not a JSON
-    /// object, or would nest a team deeper than the directory stores.
+    /// cell; <c>400 Bad Request</c> when the document lacks its team or display name, names a blank parent team,
+    /// names a team or a parent team longer than the directory stores, names a team other than the route's, holds
+    /// settings that are not a JSON object, or would nest a team deeper than the directory stores.
     /// </returns>
     private static async ValueTask<IResult> PublishTeamAsync(
         string teamId,
@@ -613,11 +621,11 @@ public static class DirectoryEndpoints
         if (IsBlank(document.TeamId) || IsBlank(document.DisplayName))
             return BadRequest("The team and its display name are required.");
 
-        if (
-            IsOverLong(document.TeamId, DirectoryLimits.MaxIdentifierLength)
-            || IsOverLong(document.ParentTeamId, DirectoryLimits.MaxIdentifierLength)
-        )
+        if (IsOverLong(document.TeamId, DirectoryLimits.MaxIdentifierLength))
             return BadRequest(TeamTooLongDetail);
+
+        if (ValidateOptionalTeamId(document.ParentTeamId) is { } invalidParent)
+            return invalidParent;
 
         if (!string.Equals(teamId, document.TeamId, StringComparison.OrdinalIgnoreCase))
             return BadRequest("The team of the document is not the team of the route.");
@@ -979,6 +987,27 @@ public static class DirectoryEndpoints
     {
         if (IsBlank(teamId))
             return BadRequest(TeamRequiredDetail);
+
+        return IsOverLong(teamId, DirectoryLimits.MaxIdentifierLength)
+            ? BadRequest(TeamTooLongDetail)
+            : null;
+    }
+
+    /// <summary>
+    /// Refuses a team identifier that a request body names, such as the team of a tenant reservation or the parent
+    /// of a team document, when it is blank or longer than the directory stores. A body that names no team passes.
+    /// </summary>
+    /// <param name="teamId">The team identifier from the request body, or <c>null</c> when it names none.</param>
+    /// <returns>
+    /// <c>null</c> when the body names no team or an acceptable one; otherwise the <c>400 Bad Request</c> problem.
+    /// </returns>
+    private static IResult? ValidateOptionalTeamId(string? teamId)
+    {
+        if (teamId is null)
+            return null;
+
+        if (IsBlank(teamId))
+            return BadRequest(BlankTeamDetail);
 
         return IsOverLong(teamId, DirectoryLimits.MaxIdentifierLength)
             ? BadRequest(TeamTooLongDetail)

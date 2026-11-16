@@ -42,6 +42,8 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
     private const string SettingsNotAnObjectDetail = "The document's settings are a JSON object.";
 
+    private const string BlankTeamDetail = "A team identifier is not blank.";
+
     private static JsonSerializerOptions WebOptions { get; } = new(JsonSerializerDefaults.Web);
 
     private static string CellTooLongDetail =>
@@ -177,6 +179,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     private async ValueTask<HttpResponseMessage> ReserveTenantAsync(
         string tenantId,
         string issuer,
+        string? teamId = null,
         CancellationToken cancellationToken = default
     ) =>
         await Client.PostAsJsonAsync(
@@ -185,6 +188,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
             {
                 TenantId = tenantId,
                 Issuer = issuer,
+                TeamId = teamId,
                 Cell = CellName,
             },
             WebOptions,
@@ -405,6 +409,35 @@ public class DirectoryEndpointsTests : IAsyncLifetime
             await ReadProblemDetailAsync(response),
             StringComparison.Ordinal
         );
+        var reserveResponse = await ReserveTenantAsync(TenantId, TenantIssuer);
+        Assert.Equal(HttpStatusCode.OK, reserveResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task ReserveTenant_WhenTheTeamIdIsOverMaxLength_AnswersBadRequest()
+    {
+        Authenticate();
+        var teamId = new string('t', DirectoryLimits.MaxIdentifierLength + 1);
+
+        var response = await ReserveTenantAsync(TenantId, TenantIssuer, teamId);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(TeamTooLongDetail, await ReadProblemDetailAsync(response));
+        var reserveResponse = await ReserveTenantAsync(TenantId, TenantIssuer);
+        Assert.Equal(HttpStatusCode.OK, reserveResponse.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task ReserveTenant_WhenTheTeamIdIsBlank_AnswersBadRequest(string teamId)
+    {
+        Authenticate();
+
+        var response = await ReserveTenantAsync(TenantId, TenantIssuer, teamId);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(BlankTeamDetail, await ReadProblemDetailAsync(response));
         var reserveResponse = await ReserveTenantAsync(TenantId, TenantIssuer);
         Assert.Equal(HttpStatusCode.OK, reserveResponse.StatusCode);
     }
@@ -732,7 +765,11 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     {
         Authenticate();
 
-        var response = await ReserveTenantAsync(TenantId, OtherTenantIssuer, cancellationToken);
+        var response = await ReserveTenantAsync(
+            TenantId,
+            OtherTenantIssuer,
+            cancellationToken: cancellationToken
+        );
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.Equal(
@@ -1451,6 +1488,31 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(TeamTooLongDetail, await ReadProblemDetailAsync(response));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task PublishTeam_WhenTheParentTeamIdIsBlank_AnswersBadRequest(string parentTeamId)
+    {
+        AuthenticateAsControlPlane();
+
+        var response = await Client.PutAsJsonAsync(
+            $"/directory/v1/teams/{TeamId}/document",
+            new TeamDocument
+            {
+                TeamId = TeamId,
+                DisplayName = "Team One",
+                IsDisabled = false,
+                ParentTeamId = parentTeamId,
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(BlankTeamDetail, await ReadProblemDetailAsync(response));
+        var getResponse = await Client.GetAsync($"/directory/v1/teams/{TeamId}/document");
+        Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
     }
 
     [Theory]
