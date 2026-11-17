@@ -66,11 +66,18 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
    holds, and the control-plane cell writes any tenant. A tenant with no record is retired only by the control-plane
    cell, and a release of an unknown tenant writes nothing. Retirement and an issuer change retire the stored issuer,
    and an issuer change names the issuer the tenant holds.
+   Each write of the directory runs again when the acknowledgement of its commit is lost, so a write that runs again
+   recognizes its own committed result: a tenant reservation that the calling cell holds for the same issuer and team,
+   before the tenant is placed, a team reservation that is not yet published, and a move of a tenant already placed in
+   the target cell each succeed. A placement names the tenant, its issuer and its cell, and its region is the region
+   that the cell registered with the directory.
 3. **One cell runs on its own.** The directory is three ports (tenants, teams, cells). A local adapter over the cell's
    own retired-identifier tables is the default and needs no extra service, so a single deployment is a platform of one
    cell. A remote adapter, selected by `Directory:Url`, calls the directory service over HTTP with a client-credentials
    token and fails closed. The directory accepts the cells' unbound bearer tokens only and answers `401` to a token that
-   carries a `cnf` claim, because it checks no proof of possession.
+   carries a `cnf` claim, because it checks no proof of possession. A cell that sets `Directory:Url` refuses to start
+   unless `Directory:ClientId` is `cell-` followed by `Cell:Name` and `Cell:ManagementUrl` is set, because the directory
+   knows a cell by that machine client and the cell registers its management URL with the directory.
 4. **The control plane lives in one control-plane cell.** The platform and team authority, platform and team settings,
    setup and the team root keys are held by the cell that sets `Cell:IsControlPlane`. Every other cell reaches the
    control plane through remote adapters that validate management tokens against its issuer and ask its authority
@@ -89,7 +96,15 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
    delivers again changes nothing. A team document always carries its settings and its root keys, and the platform
    document its settings, which are an empty object or map when there are none. The directory refuses a document that
    lacks one with `400`, a stored document that lacks one fails its read, and a cell's remote adapter fails closed on a
-   document that lacks one, so a missing member never reads as no settings, no tenant limit or no root key.
+   document that lacks one, so a missing member never reads as no settings, no tenant limit or no root key. A team's
+   change always follows the latest change of each of its ancestors: each publish of a team lists every published team
+   beneath it again, in path order with each parent before its children, with a new sequence and its document unchanged,
+   in the publish's transaction, so a team published before its parent is listed again after the parent. A cell that
+   reads a team whose parent team it does not mirror writes nothing, logs it and counts the change as applied, and
+   applies the team when the directory lists it again after its parent. The directory refuses with `422` a team or
+   platform document whose JSON is larger than 64 KiB (`DirectoryLimits.MaxDocumentBytes`), and fills a page of changes
+   until the next change would take the page's documents past 768 KiB (`DirectoryLimits.MaxChangePageBytes`), with at
+   least one change, so a page fits the 1 MiB that a cell reads from one response.
 6. **Tenant scoping fails closed inside a cell.** The ambient tenant has three states: unset, a tenant, and unscoped
    with a stated reason. The global query filter matches a tenant-bound row only when the scope is unscoped or names the
    row's tenant, so a query with no scope matches nothing, and every caller that reads across tenants opens an explicit,
@@ -194,6 +209,8 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
   compliance isolation runs a dedicated cell.
 - The directory is a dependency of tenant and team creation and deletion, and of the change feed that delivers team
   documents. Serving never depends on it, and an unreachable directory blocks creation with `503`.
+- Each publish of a team lists every published team beneath it again, so every other cell rewrites those teams' rows and
+  evicts their caches once more; a team tree changes rarely, and the feed stays bounded by the number of teams.
 - The directory stores each team and platform document, and the document that each change carries, as the family's
   schema-versioned envelope `{ "$ver": N, "$payload": { ... } }`, written and read only through
   `IPersistedPayloadSerializer`

@@ -353,10 +353,12 @@ client uses `private_key_jwt`, and the cell holds its private keys as a named ke
    cell requests the scopes `directory` and `control-plane` in its token requests, and the system resource servers of
    step 1 are available to every client of the tenant.
 5. **Deploy the cell** with the directory client's values: `directory.url`, `directory.clientId` (`cell-{name}`),
-   `directory.keyRing` and `directory.keys` (`directory.keys.pemSecret` or `directory.keys.remoteKeys`), and
-   `cell.controlPlaneIssuer` set to the control-plane cell's issuer. The host reads them as `Directory:Url`,
-   `Directory:ClientId`, `Directory:KeyRing` and `KeyRings:{name}`, where `{name}` is the key ring's name, and the key
-   ring signs the client's assertions. Values of the chart are in its
+   `directory.keyRing` and `directory.keys` (`directory.keys.pemSecret` or `directory.keys.remoteKeys`),
+   `cell.controlPlaneIssuer` set to the control-plane cell's issuer, and `cell.managementUrl` set to the URL of the
+   cell's management API, which the cell registers with the directory. The host reads them as `Directory:Url`,
+   `Directory:ClientId`, `Directory:KeyRing`, `Cell:ManagementUrl` and `KeyRings:{name}`, where `{name}` is the key
+   ring's name, and the key ring signs the client's assertions. The host refuses to start when `Directory:ClientId` is
+   not `cell-` followed by `Cell:Name` or `Cell:ManagementUrl` is empty. Values of the chart are in its
    [The cell](../charts/ncode-identity-host/README.md#the-cell) section; its `database` and `migrations.database`
    values are the cell's own two roles and are never the directory's.
 
