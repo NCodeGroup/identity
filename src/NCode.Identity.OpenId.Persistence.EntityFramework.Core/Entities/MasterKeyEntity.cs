@@ -37,6 +37,13 @@ public sealed class MasterKeyEntity : ISupportConcurrencyToken
     private const int RootKeyIdMaxLength = 2048;
 
     /// <summary>
+    /// Specifies the maximum length of <see cref="RootKeyAccessBinding"/>: an owner type, a colon and an owner
+    /// identifier.
+    /// </summary>
+    private const int RootKeyAccessBindingMaxLength =
+        OwnerTypeMaxLength + 1 + MaxLengths.ResourceId;
+
+    /// <summary>
     /// Specifies the maximum length of <see cref="RootWrappedKey"/> and <see cref="RecoveryWrappedKey"/>.
     /// </summary>
     private const int WrappedKeyMaxLength = 4096;
@@ -125,6 +132,15 @@ public sealed class MasterKeyEntity : ISupportConcurrencyToken
     [Unicode(false)]
     [MaxLength(PersistedOwnerRootKey.MaxAccessIdentityLength)]
     public required string? RootKeyAccessIdentity { get; set; }
+
+    /// <summary>
+    /// Gets or sets the access binding, the normalized <c>type:id</c> of the owner of the owner root key, with which
+    /// <see cref="RootKeyAccessIdentity"/> reached the key when it wrapped <see cref="RootWrappedKey"/>, or <c>null</c>
+    /// when no access identity reached it.
+    /// </summary>
+    [Unicode(false)]
+    [MaxLength(RootKeyAccessBindingMaxLength)]
+    public required string? RootKeyAccessBinding { get; set; }
 
     /// <summary>
     /// Gets or sets the base64url encoded master key as wrapped by the root key provider.

@@ -257,6 +257,7 @@ public sealed class TenantStoreCellRemovalTests : IDisposable
                     RootKeyId = "root-key",
                     RootKeyReference = null,
                     RootKeyAccessIdentity = null,
+                    RootKeyAccessBinding = null,
                     RootWrappedKey = "wrapped-key",
                     RecoveryKeyId = null,
                     RecoveryWrappedKey = null,

@@ -58,6 +58,7 @@ internal class MasterKeyStore(
             RootKeyId = item.RootKeyId,
             RootKeyReference = item.RootKeyReference,
             RootKeyAccessIdentity = item.RootKeyAccessIdentity,
+            RootKeyAccessBinding = item.RootKeyAccessBinding,
             RootWrappedKey = item.RootWrappedKey,
             RecoveryKeyId = item.RecoveryKeyId,
             RecoveryWrappedKey = item.RecoveryWrappedKey,
@@ -99,6 +100,7 @@ internal class MasterKeyStore(
         entity.RootKeyId = item.RootKeyId;
         entity.RootKeyReference = item.RootKeyReference;
         entity.RootKeyAccessIdentity = item.RootKeyAccessIdentity;
+        entity.RootKeyAccessBinding = item.RootKeyAccessBinding;
         entity.RootWrappedKey = item.RootWrappedKey;
         entity.RecoveryKeyId = item.RecoveryKeyId;
         entity.RecoveryWrappedKey = item.RecoveryWrappedKey;
@@ -344,6 +346,7 @@ internal class MasterKeyStore(
             RootKeyId = entity.RootKeyId,
             RootKeyReference = entity.RootKeyReference,
             RootKeyAccessIdentity = entity.RootKeyAccessIdentity,
+            RootKeyAccessBinding = entity.RootKeyAccessBinding,
             RootWrappedKey = entity.RootWrappedKey,
             RecoveryKeyId = entity.RecoveryKeyId,
             RecoveryWrappedKey = entity.RecoveryWrappedKey,
