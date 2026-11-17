@@ -318,6 +318,9 @@ NCode.Identity.OpenId.Persistence.Stores.IClientStore.RemoveAsync(string! client
 NCode.Identity.OpenId.Persistence.Stores.IClientStore.RemoveSecretAsync(string! clientId, string! secretId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 NCode.Identity.OpenId.Persistence.Stores.IClientStore.UpdateSecretAsync(string! clientId, NCode.Identity.Secrets.Persistence.DataContracts.PersistedSecret! persistedSecret, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Persistence.Stores.IClientStore.UpdateSettingsAsync(NCode.Identity.OpenId.Persistence.DataContracts.PersistedClientSettings! persistedClientSettings, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.Persistence.Stores.IDirectoryFeedCheckpointStore
+NCode.Identity.OpenId.Persistence.Stores.IDirectoryFeedCheckpointStore.GetAppliedSequenceAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<long>
+NCode.Identity.OpenId.Persistence.Stores.IDirectoryFeedCheckpointStore.RecordAppliedSequenceAsync(long sequence, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Persistence.Stores.IFederatedIdentityStore
 NCode.Identity.OpenId.Persistence.Stores.IFederatedIdentityStore.AddAsync(NCode.Identity.OpenId.Persistence.DataContracts.PersistedFederatedIdentity! identity, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Persistence.Stores.IFederatedIdentityStore.GetByIssuerSubjectAsync(string! issuer, string! subject, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Persistence.DataContracts.PersistedFederatedIdentity?>

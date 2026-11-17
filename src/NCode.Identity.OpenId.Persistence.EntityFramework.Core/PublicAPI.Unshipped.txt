@@ -1,4 +1,5 @@
 #nullable enable
+const NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.DirectoryFeedCheckpointEntity.SingletonKey = "directory-feed" -> string!
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.DefaultRegistration
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.DefaultRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!)
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.DefaultRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).AddEntityFrameworkCorePersistence<TDbContext>() -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Persistence.StoreManagerLibrary>!
@@ -112,6 +113,14 @@ NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ConsentEntity.Te
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ConsentEntity.TenantId.init -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ConsentEntity.UpdatedWhen.get -> System.DateTimeOffset
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ConsentEntity.UpdatedWhen.set -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.DirectoryFeedCheckpointEntity
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.DirectoryFeedCheckpointEntity.AppliedSequence.get -> long
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.DirectoryFeedCheckpointEntity.AppliedSequence.set -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.DirectoryFeedCheckpointEntity.ConcurrencyToken.get -> string!
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.DirectoryFeedCheckpointEntity.ConcurrencyToken.set -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.DirectoryFeedCheckpointEntity.DirectoryFeedCheckpointEntity() -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.DirectoryFeedCheckpointEntity.Key.get -> string!
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.DirectoryFeedCheckpointEntity.Key.init -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.FederatedIdentityEntity
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.FederatedIdentityEntity.ConcurrencyToken.get -> string!
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.FederatedIdentityEntity.ConcurrencyToken.set -> void
