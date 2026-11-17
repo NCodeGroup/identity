@@ -51,6 +51,11 @@ public static class DefaultRegistration
 
             serviceCollection.AddStore<TDbContext, IPlatformStore, PlatformStore>();
             serviceCollection.AddStore<TDbContext, IInstanceSetupStore, InstanceSetupStore>();
+            serviceCollection.AddStore<
+                TDbContext,
+                IDirectoryFeedCheckpointStore,
+                DirectoryFeedCheckpointStore
+            >();
             serviceCollection.AddStore<TDbContext, ITenantStore, TenantStore>();
             serviceCollection.AddStore<TDbContext, ITeamStore, TeamStore>();
             serviceCollection.AddStore<TDbContext, IClientStore, ClientStore>();
