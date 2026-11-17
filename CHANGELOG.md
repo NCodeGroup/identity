@@ -2990,13 +2990,13 @@ Until the first stable release, the [Unreleased] section describes the product a
   management API, with the user's DPoP-bound `urn:ncode:management` token. `ManagementConsole:Cells` maps each other
   cell's name to its management URL, and `/management/cells/{cell}/api/*` forwards to that cell the same way, each
   forwarder a sibling of the control plane's because the BFF maps a request path to one remote API; the console lists
-  the cell names in `/config/bootstrap.json`. The console is the confidential client `mgmt-console` of the control-plane
-  tenant
-  (`private_key_jwt`, PAR, DPoP, back-channel logout) and listens on `https://localhost:5005` under the AppHost, which
-  generates the console's keys per machine. The host refuses a missing or wildcard `AllowedHosts` unless
-  `LocalDevelopment:Enabled` is set, trusts forwarded headers only from the proxies its `ForwardedHeaders` section
-  names, and sends `Strict-Transport-Security` unless that switch is set. The console's
-  `ManagementConsole:Branding:FaviconUrl` (absolute `https`) replaces the family's tab icon the same way
+  the cell names in `/config/bootstrap.json` and refuses a document whose `cells` is present but is not a list of cell
+  names. The console is the confidential client `mgmt-console` of the control-plane tenant (`private_key_jwt`, PAR,
+  DPoP, back-channel logout) and listens on `https://localhost:5005` under the AppHost, which generates the console's
+  keys per machine. The host refuses a missing or wildcard `AllowedHosts` unless `LocalDevelopment:Enabled` is set,
+  trusts forwarded headers only from the proxies its `ForwardedHeaders` section names, and sends
+  `Strict-Transport-Security` unless that switch is set. The console's `ManagementConsole:Branding:FaviconUrl` (absolute
+  `https`) replaces the family's tab icon the same way
   ([#158](https://github.com/NCodeGroup/identity/issues/158),
   [#611](https://github.com/NCodeGroup/identity/issues/611),
   [#745](https://github.com/NCodeGroup/identity/issues/745),
@@ -4178,17 +4178,17 @@ Until the first stable release, the [Unreleased] section describes the product a
 - **Tenancy runs as cells under one global directory.** A cell is a host with its own database, Valkey and KMS keys, in
   one region, and a platform is many independent cells under a small global directory that reserves tenant and team
   identifiers platform-wide, places each tenant in a cell and publishes team documents; it holds no personal data. A
-  cell names itself through `Cell` (`CellOptions`: `Name`, `Region`, `Kind` of `shared` or `dedicated`, `CloudRegions`,
-  `ManagementUrl`, `IsControlPlane` and `ControlPlane:Issuer`), and a cell that is not the control plane, or that sets
-  `Directory:Url`, names the control plane's issuer. `NCode.Identity.OpenId.GlobalDirectory.Abstractions` holds the
-  ports `ITenantDirectory` (reserve, place, release, retire, change an issuer, find a placement, move between cells of
-  one region), `ITeamDirectory` (reserve, release, publish, retire, get, list changes after a sequence),
-  `IPlatformDirectory` and `ICellDirectory`, their records and `DirectoryUnavailableException`. A cell runs on its own
-  with the local adapters over its own database and no extra service, and `Directory:Url` selects the remote adapters of
-  `NCode.Identity.OpenId.GlobalDirectory`, which fail closed with `503` and `Retry-After` on a transport failure, a
-  timeout or a `5xx`. Creating a tenant reserves its identifier (a team's `max_tenants` is enforced there), saves the
-  tenant and places it, releasing the reservation on failure; serving a tenant's requests never calls the directory,
-  because the cell's own tenant row is authoritative
+  cell names itself through `Cell` (`CellOptions`: `Name`, `Region`, `Kind` of `shared`, `dedicated` or `sovereign`,
+  `CloudRegions`, `ManagementUrl`, `IsControlPlane` and `ControlPlane:Issuer`), and a cell that is not the control
+  plane, or that sets `Directory:Url`, names the control plane's issuer.
+  `NCode.Identity.OpenId.GlobalDirectory.Abstractions` holds the ports `ITenantDirectory` (reserve, place, release,
+  retire, change an issuer, find a placement, move between cells of one region), `ITeamDirectory` (reserve, release,
+  publish, retire, get, list changes after a sequence), `IPlatformDirectory` and `ICellDirectory`, their records and
+  `DirectoryUnavailableException`. A cell runs on its own with the local adapters over its own database and no extra
+  service, and `Directory:Url` selects the remote adapters of `NCode.Identity.OpenId.GlobalDirectory`, which fail closed
+  with `503` and `Retry-After` on a transport failure, a timeout or a `5xx`. Creating a tenant reserves its identifier
+  (a team's `max_tenants` is enforced there), saves the tenant and places it, releasing the reservation on failure;
+  serving a tenant's requests never calls the directory, because the cell's own tenant row is authoritative
   ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
 
 - **A directory host serves the global directory.** `NCode.Identity.OpenId.GlobalDirectory.Server` maps the endpoints
@@ -6150,15 +6150,16 @@ Until the first stable release, the [Unreleased] section describes the product a
   end in `.Tests` or `.TestSupport`
   ([ADR-1018](docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)).
 
-- **ASP.NET Core Identity users belong to one tenant.** An `IdentityUser` of the adapter implements `ITenantBoundUser`,
-  its `TenantId` is stamped when the store creates it, and a user of another tenant is not found. A
-  `TenantLookupNormalizer` prefixes each normalized name and email with `{normalizedTenantId}|`, so a user name is
-  unique per tenant, and it throws when no tenant scope is set. The host's Identity schema sizes `UserName` and `Email`
-  to `AccountMaxLengths.UserName` and `AccountMaxLengths.Email`, and `NormalizedUserName` and `NormalizedEmail` to
-  `AccountMaxLengths.NormalizedUserName` and `AccountMaxLengths.NormalizedEmail`, which add the 64-character tenant
-  prefix; for an Entity Framework Core model, `HasTenantLookupLengths()` in the opt-in
-  `NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore` package sizes the four with one call. A local
-  account and its claims reference their tenant through a foreign key, and deleting a tenant erases them with it
+- **ASP.NET Core Identity users belong to one tenant.** An `IdentityUser` of the adapter implements `ITenantBoundUser`
+  (in `NCode.Identity.OpenId.Accounts.Abstractions`), its `TenantId` is stamped when the store creates it, and a user of
+  another tenant is not found. A `TenantLookupNormalizer` prefixes each normalized name and email with
+  `{normalizedTenantId}|`, so a user name is unique per tenant, and it throws when no tenant scope is set. The host's
+  Identity schema sizes `UserName` and `Email` to `AccountMaxLengths.UserName` and `AccountMaxLengths.Email`, and
+  `NormalizedUserName` and `NormalizedEmail` to `AccountMaxLengths.NormalizedUserName` and
+  `AccountMaxLengths.NormalizedEmail`, which add the 64-character tenant prefix; for an Entity Framework Core model,
+  `HasTenantLookupLengths()` in the opt-in `NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore` package
+  sizes the four with one call. A local account and its claims reference their tenant through a foreign key, and
+  deleting a tenant erases them with it
   ([ADR-1212](docs/decisions/1212-deleting-a-client-resource-server-principal-or-tenant-removes-what-it-owns.md)).
 
 - **The ASP.NET Core Identity adapter refuses a malformed stored user.** ASP.NET Core Identity's user manager stores
