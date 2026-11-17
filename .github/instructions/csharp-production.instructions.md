@@ -762,13 +762,16 @@ than inlining the rationale.
   `IOpenIdContextFactory.CreateForBackgroundAsync` in its own DI scope.** The context has no endpoint, connection or
   user, and it is disposed before the scope. See
   [ADR-1223](../../docs/decisions/1223-a-session-that-ends-unused-is-terminated-once-in-the-background.md).
-- ✅ **A query that reads across tenants says why, and its caller opens an unscoped scope.** Every
+- ✅ **A query that reads across tenants says why, runs only in an unscoped scope, and its caller opens one.** Every
   `IgnoreQueryFilters()` call from `Microsoft.EntityFrameworkCore` carries a `// Cross-tenant: <why>` comment on the
   line directly above the line that holds the call: above its statement, or above its `.IgnoreQueryFilters()` line in
-  a fluent chain. A caller that must read across tenants opens `IAmbientTenantAccessor.BeginUnscoped(reason)` rather
-  than bypassing the filter, because a tenant-bound store fails closed when no ambient tenant is set. `NCID0004`, from
-  `analyzers/NCode.Identity.Analyzers`, fails the build of every project on a call without that comment, and skips an
-  assembly whose name ends in `.Tests` or `.TestSupport`
+  a fluent chain. The public store method that holds the call first calls `OpenIdDbContext.EnsureUnscoped`, which
+  throws outside an unscoped scope, because row-level security filters the query by the session's tenant although it
+  ignores the query filter. Its caller opens `IAmbientTenantAccessor.BeginUnscoped(reason)` around exactly that call,
+  and around the save of a removal it stages, and a read that stays within one tenant runs in
+  `BeginScope(tenantId)` instead of ignoring the filter. `NCID0004`, from `analyzers/NCode.Identity.Analyzers`, fails
+  the build of every project on a call without that comment, and skips an assembly whose name ends in `.Tests` or
+  `.TestSupport`
   ([ADR-1018](../../docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)).
 - 👁 **Read a stored grant's payload through `IPersistedGrantService` or `IGrantPayloadProtector`, never from
   `ProtectedPayload` directly.** A grant's `ProtectedPayload` is an `nce1.` envelope over the schema-versioned document

@@ -88,6 +88,18 @@ resolution and tenant management read them inside an unscoped scope. The platfor
 reason: the background services, the tenant resolver, the tenant provisioner, migrations and design-time tooling. A
 code path that needs another tenant's rows therefore says so, and the reason is visible in review and at run time.
 
+A store method that reads or writes across tenants calls `IgnoreQueryFilters()` and first calls
+`OpenIdDbContext.EnsureUnscoped`, which throws `InvalidOperationException` unless the scope is unscoped. Row-level
+security filters such a query by the session's tenant although it ignores the query filter, so under a tenant scope
+the method would see one tenant's rows, and with no scope none. The methods are
+`IRoleAssignmentStore.GetByPrincipalAsync` and `RemoveByPrincipalAsync`, `IClientStore.GetByPrincipalOrDefaultAsync`,
+`ITeamStore.RemoveAsync` and `HasDependentsAsync`, and `ITenantStore.RemoveAsync` and `RemoveFromCellAsync`. A caller
+in a tenant scope opens `BeginUnscoped(reason)` around exactly that call, and around the save of a removal it stages,
+because row-level security also hides another tenant's row from a `DELETE`. A read that stays within one tenant runs
+in that tenant's scope instead of ignoring the filter: the rewrap of a tenant's grants and secrets, the polling
+refresh of a tenant's keys and settings, instance setup's staging of the control-plane tenant's rows, and the session
+check of an access token, which the management API makes before it opens a scope.
+
 ### Opening the scope on the protocol surface
 
 `OpenIdEnvironmentEndpointFilter`, on the protocol and interactive endpoint groups, resolves and materializes the
@@ -124,7 +136,8 @@ Direct construction in tests and tooling opens an explicit scope, a tenant scope
 The analyzer `NCID0004` (`CrossTenantQueryAnalyzer`, in `NCode.Identity.Analyzers`) reports an `IgnoreQueryFilters()`
 call unless a `// Cross-tenant: <why>` comment sits on the line directly above the line that holds the call: above its
 statement, or above its `.IgnoreQueryFilters()` line in a fluent chain. Bypassing the filter in a query is therefore
-explained at the call site. The analyzer skips assemblies whose names end in `.Tests` or `.TestSupport`.
+explained at the call site. The analyzer skips assemblies whose names end in `.Tests` or `.TestSupport`. The store
+method that holds the call runs only in an unscoped scope.
 
 ### Row-level security
 
@@ -135,6 +148,8 @@ Postgres enforces the same rule below the application. Every table of an `ISuppo
 ```sql
 current_setting('app.unscoped', true) = 'on' OR "NormalizedTenantId" = current_setting('app.tenant_id', true)
 ```
+
+The policy applies to every query of the runtime role, one that calls `IgnoreQueryFilters()` included.
 
 - `RowLevelSecurity`, in the host database project, generates the statements from the EF model. The migration worker
   applies them after migrating, idempotently (it drops the policy if it exists, then creates it), and grants the runtime
@@ -223,6 +238,8 @@ current_setting('app.unscoped', true) = 'on' OR "NormalizedTenantId" = current_s
   resolution, tenant management, the control-plane routes, background services and tooling, and each opens
   `BeginUnscoped` with a reason.
 - Every `IgnoreQueryFilters()` call carries a `// Cross-tenant:` explanation, or the build reports `NCID0004`.
+- A cross-tenant store method throws outside an unscoped scope, so a hermetic test catches a caller that forgot one, and
+  a Postgres end-to-end test reads role assignments across tenants under row-level security.
 - The host needs two database credentials, the owner's for migrations and the runtime role's for serving, and it
   refuses a runtime role that bypasses row-level security under the deployment posture.
 - Each pooled connection carries the ambient state of its current command, set by `TenantSessionInterceptor` at the
