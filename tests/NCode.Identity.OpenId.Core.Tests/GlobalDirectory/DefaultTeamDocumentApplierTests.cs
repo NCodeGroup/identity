@@ -1081,6 +1081,48 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
     }
 
     [Fact]
+    public async Task RetireAsync_WhenTheRowCarriesTheRetirementsSequence_ChangesNothing()
+    {
+        using var cts = new CancellationTokenSource();
+        var cancellationToken = cts.Token;
+        SetupUnscoped();
+        SetupStoreManager();
+        MockTeamStore
+            .Setup(x => x.GetOrDefaultAsync(TeamId, cancellationToken))
+            .ReturnsAsync(CreateStoredTeam(directorySequence: 9))
+            .Verifiable();
+
+        await Applier.RetireAsync(TeamId, 9, cancellationToken);
+
+        Assert.Empty(Logger.Collector.GetSnapshot());
+    }
+
+    [Fact]
+    public async Task RetireAsync_WhenTheStoreDoesNotDisableTheTeam_ChangesNothing()
+    {
+        using var cts = new CancellationTokenSource();
+        var cancellationToken = cts.Token;
+        SetupUnscoped();
+        SetupStoreManager();
+        MockTeamStore
+            .Setup(x => x.GetOrDefaultAsync(TeamId, cancellationToken))
+            .ReturnsAsync(CreateStoredTeam())
+            .Verifiable();
+        MockTeamStore
+            .Setup(x => x.HasDependentsAsync(TeamId, cancellationToken))
+            .ReturnsAsync(true)
+            .Verifiable();
+        MockTeamStore
+            .Setup(x => x.DisableRetiredAsync(TeamId, 9, cancellationToken))
+            .ReturnsAsync(false)
+            .Verifiable();
+
+        await Applier.RetireAsync(TeamId, 9, cancellationToken);
+
+        Assert.Empty(Logger.Collector.GetSnapshot());
+    }
+
+    [Fact]
     public async Task RetireAsync_WhenSomethingNamesTheTeam_DisablesItAndLogsAWarning()
     {
         using var cts = new CancellationTokenSource();
@@ -1096,13 +1138,8 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
             .ReturnsAsync(true)
             .Verifiable();
         MockTeamStore
-            .Setup(x =>
-                x.UpdateAsync(
-                    It.Is<PersistedTeam>(team => team.TeamId == TeamId && team.IsDisabled),
-                    cancellationToken
-                )
-            )
-            .Returns(ValueTask.CompletedTask)
+            .Setup(x => x.DisableRetiredAsync(TeamId, 9, cancellationToken))
+            .ReturnsAsync(true)
             .Verifiable();
         SetupSave(cancellationToken);
         SetupCommand(settingsChanged: false);
@@ -1357,13 +1394,14 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
             )
             .Verifiable();
 
-    private static PersistedTeam CreateStoredTeam() =>
+    private static PersistedTeam CreateStoredTeam(long directorySequence = 0) =>
         new()
         {
             TeamId = TeamId,
             ConcurrencyToken = "token-1",
             IsDisabled = false,
             DisplayName = "Acme",
+            DirectorySequence = directorySequence,
             Settings = new PersistedTeamSettings
             {
                 TeamId = TeamId,

@@ -20,16 +20,18 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// Provides the default implementation of <see cref="ITeamDocumentApplier"/>. It mirrors a published team document into
 /// the team's row, or removes the row of a retired team, then sends a <see cref="TeamChangedCommand"/> so caches evict
 /// the team. A team that tenants or teams still name is disabled instead of removed, because the cell refuses to delete
-/// a team that something names. The root key that the document holds for the cell's region is mirrored into the team's
-/// owner root key, which rewraps the master keys of the team's tenants in this cell, unless the team is disabled: a
-/// disabled team keeps the owner root key it has, and the document that enables it again mirrors its key. A removed
-/// team's owner root key is removed, and a team disabled because something names it keeps its key; a removed team's key
-/// that fails to go is removed by the next reconcile. Reconciling brings the owner root key of every enabled mirrored
-/// team to the reference its row holds for the region, which applies a key that failed its probe or its rotation
-/// cooldown once it can be, and removes the owner root key of a team that has no row. The team row is committed before
-/// the command and the root key follow, each in a step of its own on a token bounded by
-/// <see cref="PostCommitWork.Timeout"/>, so the caller's cancellation drops neither, and a command or a root key that
-/// fails or that the bound cuts is logged and never fails the committed write.
+/// a team that something names, and its row records the retirement's sequence. A retirement whose sequence the team's
+/// row already carries or exceeds changes nothing, so a change that the directory delivers again is applied once. The
+/// root key that the document holds for the cell's region is mirrored into the team's owner root key, which rewraps the
+/// master keys of the team's tenants in this cell, unless the team is disabled: a disabled team keeps the owner root
+/// key it has, and the document that enables it again mirrors its key. A removed team's owner root key is removed, and
+/// a team disabled because something names it keeps its key; a removed team's key that fails to go is removed by the
+/// next reconcile. Reconciling brings the owner root key of every enabled mirrored team to the reference its row holds
+/// for the region, which applies a key that failed its probe or its rotation cooldown once it can be, and removes the
+/// owner root key of a team that has no row. The team row is committed before the command and the root key follow, each
+/// in a step of its own on a token bounded by <see cref="PostCommitWork.Timeout"/>, so the caller's cancellation drops
+/// neither, and a command or a root key that fails or that the bound cuts is logged and never fails the committed
+/// write.
 /// </summary>
 // See ADR-1351, ADR-1411 and ADR-1416.
 internal sealed class DefaultTeamDocumentApplier(
@@ -374,6 +376,11 @@ internal sealed class DefaultTeamDocumentApplier(
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// A team whose row carries the retirement's sequence or a later one changes nothing, so a retirement that the
+    /// directory delivers again is not written, announced or logged twice. A team that something names is disabled with
+    /// the retirement's sequence in one store command, which records the sequence on its row.
+    /// </remarks>
     public async ValueTask RetireAsync(
         string teamId,
         long sequence,
@@ -388,13 +395,14 @@ internal sealed class DefaultTeamDocumentApplier(
             var store = storeManager.GetStore<ITeamStore>();
 
             var persistedTeam = await store.GetOrDefaultAsync(teamId, cancellationToken);
-            if (persistedTeam is null)
+            if (persistedTeam is null || persistedTeam.DirectorySequence >= sequence)
                 return;
 
             if (await store.HasDependentsAsync(teamId, cancellationToken))
             {
-                persistedTeam.IsDisabled = true;
-                await store.UpdateAsync(persistedTeam, cancellationToken);
+                if (!await store.DisableRetiredAsync(teamId, sequence, cancellationToken))
+                    return;
+
                 Logger.DirectoryRetiredTeamHasDependents(teamId, sequence);
             }
             else
