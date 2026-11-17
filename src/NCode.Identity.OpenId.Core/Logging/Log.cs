@@ -490,4 +490,15 @@ internal static partial class Log
         this ILogger logger,
         Exception exception
     );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryTeamParentNotMirrored,
+        Level = LogLevel.Information,
+        Message = "The team '{TeamId}' names the parent team '{ParentTeamId}', which this cell does not mirror; the team is applied when the directory lists it again after its parent"
+    )]
+    internal static partial void DirectoryTeamParentNotMirrored(
+        this ILogger logger,
+        string teamId,
+        string parentTeamId
+    );
 }

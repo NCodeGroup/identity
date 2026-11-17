@@ -123,4 +123,10 @@ internal static class EventIds
     /// cell's replicas failed.
     /// </summary>
     public const int DirectoryPlatformChangeNotSent = Base + 49;
+
+    /// <summary>
+    /// Identifies the informational message that a team document names a parent team the cell does not mirror, so the
+    /// cell applies the team when the directory lists it again after its parent.
+    /// </summary>
+    public const int DirectoryTeamParentNotMirrored = Base + 50;
 }

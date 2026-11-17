@@ -245,6 +245,47 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
     }
 
     [Fact]
+    public async Task ApplyAsync_WhenTheParentIsNotMirrored_LogsAndWritesNothing()
+    {
+        SetupUnscoped();
+        SetupStoreManager();
+        MockTeamStore
+            .Setup(x => x.GetOrDefaultAsync("parent", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PersistedTeam?)null)
+            .Verifiable();
+        var document = CreateDocument("""{"flag":true}""", sequence: 8) with
+        {
+            ParentTeamId = "parent",
+        };
+
+        // Strict mocks: no settings read, mirror, save, command or root key call is set up, so any would fail the test.
+        await Applier.ApplyAsync(document, CancellationToken.None);
+
+        var record = Assert.Single(Logger.Collector.GetSnapshot());
+        Assert.Equal(LogLevel.Information, record.Level);
+        Assert.Equal(EventIds.DirectoryTeamParentNotMirrored, record.Id.Id);
+    }
+
+    [Fact]
+    public async Task ApplyAsync_WhenTheParentIsMirrored_MirrorsTheTeam()
+    {
+        SetupApplied(It.IsAny<CancellationToken>());
+        SetupRootKey(current: null);
+        MockTeamStore
+            .Setup(x => x.GetOrDefaultAsync("parent", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateRootKeyTeam("parent"))
+            .Verifiable();
+        var document = CreateDocument("""{"flag":true}""", sequence: 8) with
+        {
+            ParentTeamId = "parent",
+        };
+
+        await Applier.ApplyAsync(document, CancellationToken.None);
+
+        Assert.Empty(Logger.Collector.GetSnapshot());
+    }
+
+    [Fact]
     public async Task ApplyAsync_WhenTheRegionHasANewRootKey_SetsTheTeamsOwnerRootKey()
     {
         using var cts = new CancellationTokenSource();

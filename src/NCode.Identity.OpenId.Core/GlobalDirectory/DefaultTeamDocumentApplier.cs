@@ -31,7 +31,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// owner root key of a team that has no row. The team row is committed before the command and the root key follow, each
 /// in a step of its own on a token bounded by <see cref="PostCommitWork.Timeout"/>, so the caller's cancellation drops
 /// neither, and a command or a root key that fails or that the bound cuts is logged and never fails the committed
-/// write.
+/// write. A document whose parent team the cell does not mirror writes nothing and is logged; the directory lists the
+/// team again after its parent's latest change, which applies it.
 /// </summary>
 // See ADR-1351, ADR-1411 and ADR-1416.
 internal sealed class DefaultTeamDocumentApplier(
@@ -97,6 +98,15 @@ internal sealed class DefaultTeamDocumentApplier(
         await using (var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken))
         {
             var store = storeManager.GetStore<ITeamStore>();
+
+            if (
+                document.ParentTeamId is { } parentTeamId
+                && await store.GetOrDefaultAsync(parentTeamId, cancellationToken) is null
+            )
+            {
+                Logger.DirectoryTeamParentNotMirrored(document.TeamId, parentTeamId);
+                return;
+            }
 
             var storedSettings = await store.GetSettingsOrDefaultAsync(
                 document.TeamId,
