@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 {
     [DbContext(typeof(OpenIdDbContext))]
-    [Migration("20261114183344_InitialCreate")]
+    [Migration("20261117000619_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -513,6 +513,28 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnique();
 
                     b.ToTable("Consents", (string)null);
+                });
+
+            modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.DirectoryFeedCheckpointEntity", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(300)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<long>("AppliedSequence")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(50)");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("DirectoryFeedCheckpoint", (string)null);
                 });
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.FederatedIdentityEntity", b =>

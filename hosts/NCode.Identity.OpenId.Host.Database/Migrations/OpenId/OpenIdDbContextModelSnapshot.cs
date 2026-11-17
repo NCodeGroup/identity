@@ -512,6 +512,28 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     b.ToTable("Consents", (string)null);
                 });
 
+            modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.DirectoryFeedCheckpointEntity", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(300)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<long>("AppliedSequence")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(50)");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("DirectoryFeedCheckpoint", (string)null);
+                });
+
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.FederatedIdentityEntity", b =>
                 {
                     b.Property<long>("Id")

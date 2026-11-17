@@ -38,6 +38,19 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 });
 
             migrationBuilder.CreateTable(
+                name: "DirectoryFeedCheckpoint",
+                columns: table => new
+                {
+                    Key = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
+                    AppliedSequence = table.Column<long>(type: "bigint", nullable: false),
+                    ConcurrencyToken = table.Column<string>(type: "character varying(50)", unicode: false, maxLength: 50, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_DirectoryFeedCheckpoint", x => x.Key);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "InstanceSetup",
                 columns: table => new
                 {
@@ -1215,6 +1228,9 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             migrationBuilder.DropTable(
                 name: "Consents");
+
+            migrationBuilder.DropTable(
+                name: "DirectoryFeedCheckpoint");
 
             migrationBuilder.DropTable(
                 name: "FederatedIdentities");
