@@ -1054,6 +1054,48 @@ internal class TenantApiEndpointHandler(
         );
 
     /// <summary>
+    /// Answers the problem that stops a delete in this cell while the global directory places the tenant in another
+    /// cell: a move took the tenant there, and this cell's copy is released with <c>release-moved</c>, which destroys
+    /// no remote key that the moved tenant uses. A directory that cannot be reached answers
+    /// <c>503 Service Unavailable</c>.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The problem, or <see langword="null"/> when the directory places the tenant in this cell or in no
+    /// cell.</returns>
+    // See ADR-1514.
+    private async ValueTask<ProblemHttpResult?> GetPlacedElsewhereProblemOrDefaultAsync(
+        HttpContext httpContext,
+        string tenantId,
+        CancellationToken cancellationToken
+    )
+    {
+        TenantPlacement? placement;
+        try
+        {
+            placement = await TenantDirectory.GetPlacementOrDefaultAsync(
+                tenantId,
+                cancellationToken
+            );
+        }
+        catch (DirectoryUnavailableException)
+        {
+            return DirectoryUnavailableProblem(httpContext);
+        }
+
+        if (placement is null || placement.Cell == CellOptions.Name)
+        {
+            return null;
+        }
+
+        return TypedResults.Problem(
+            detail: $"The global directory places the tenant '{tenantId}' in the cell '{placement.Cell}'. Release this cell's copy with release-moved.",
+            statusCode: StatusCodes.Status409Conflict
+        );
+    }
+
+    /// <summary>
     /// Previews the address of an existing OpenID tenant: the issuer and mutual-TLS endpoint-alias authority it has, and
     /// every reason it could not be served there. A caller checks a change to a tenant's addresses with it before making
     /// the change; the same rules judge the write itself.
@@ -1438,8 +1480,8 @@ internal class TenantApiEndpointHandler(
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="204">The tenant was deleted.</response>
     /// <response code="404">The tenant does not exist.</response>
-    /// <response code="409">The tenant is required by the deployment, still has clients or resource servers, or has deletion protection enabled, and cannot be deleted.</response>
-    /// <response code="503">The tenant was deleted but the global directory cannot be reached to retire its identifier and issuer; the response carries Retry-After.</response>
+    /// <response code="409">The tenant is required by the deployment, still has clients or resource servers, or has deletion protection enabled, and cannot be deleted; or the global directory places it in another cell, and this cell's copy is released with release-moved.</response>
+    /// <response code="503">The global directory cannot be reached to read the tenant's placement, and nothing is deleted; or the tenant was deleted but the directory cannot be reached to retire its identifier and issuer. The response carries Retry-After.</response>
     [EndpointName("api/tenants/delete")]
     internal virtual async ValueTask<IResult> DeleteTenantAsync(
         HttpContext httpContext,
@@ -1464,6 +1506,18 @@ internal class TenantApiEndpointHandler(
         if (tenant is null)
         {
             return ManagementProblems.ResourceNotFound();
+        }
+
+        if (
+            await GetPlacedElsewhereProblemOrDefaultAsync(
+                httpContext,
+                tenantId,
+                cancellationToken
+            ) is
+            { } placedElsewhere
+        )
+        {
+            return placedElsewhere;
         }
 
         // Core preconditions (no-dependents) are asserted by the validator (ADR-1014).
