@@ -15,6 +15,7 @@ using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
+using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Management.Transfers;
 using NCode.Identity.OpenId.Persistence.DataContracts;
@@ -620,6 +621,7 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
         SetupRecipientKey();
         SetupStore(CreateTenant(isDisabled: true));
         SetupOffer(MoveOfferResult.Conflict("The cells are in different regions."));
+        SetupPlacement(CellName);
 
         var result = await Handler.ExportTenantAsync(
             CreateHttpContext(),
@@ -631,6 +633,68 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
         Assert.Equal("The cells are in different regions.", problem.ProblemDetails.Detail);
+        Assert.False(
+            problem.ProblemDetails.Extensions.ContainsKey(ManagementProblemMembers.PlacedCell)
+        );
+    }
+
+    [Fact]
+    public async Task ExportTenantAsync_WhenTheDirectoryPlacesTheTenantInAnotherCell_ReturnsConflictNamingThatCell()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupImportAccepted();
+        SetupRecipientKey();
+        SetupStore(CreateTenant(isDisabled: true));
+        SetupOffer(
+            MoveOfferResult.Conflict("The tenant 'tenant-1' is not placed in the cell 'cell-a'.")
+        );
+        SetupPlacement(TargetCell);
+
+        var result = await Handler.ExportTenantAsync(
+            CreateHttpContext(),
+            TenantId,
+            CreateRequest(),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+        Assert.Equal(
+            "The tenant 'tenant-1' is not placed in the cell 'cell-a'.",
+            problem.ProblemDetails.Detail
+        );
+        Assert.Equal(
+            TargetCell,
+            problem.ProblemDetails.Extensions[ManagementProblemMembers.PlacedCell]
+        );
+    }
+
+    [Fact]
+    public async Task ExportTenantAsync_WhenTheOfferIsRefusedAndThePlacementCannotBeRead_ReturnsConflictWithoutAPlacedCell()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupImportAccepted();
+        SetupRecipientKey();
+        SetupStore(CreateTenant(isDisabled: true));
+        SetupOffer(MoveOfferResult.Conflict("The cells are in different regions."));
+        MockTenantDirectory
+            .Setup(x => x.GetPlacementOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()))
+            .Throws(new DirectoryUnavailableException("The directory is unreachable."))
+            .Verifiable();
+
+        var result = await Handler.ExportTenantAsync(
+            CreateHttpContext(),
+            TenantId,
+            CreateRequest(),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+        Assert.Equal("The cells are in different regions.", problem.ProblemDetails.Detail);
+        Assert.False(
+            problem.ProblemDetails.Extensions.ContainsKey(ManagementProblemMembers.PlacedCell)
+        );
     }
 
     [Fact]

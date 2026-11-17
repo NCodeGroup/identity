@@ -19,6 +19,7 @@ using NCode.Identity.Jose.Credentials;
 using NCode.Identity.OpenId.Authentication.Clients;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
+using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Management.Transfers;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -228,7 +229,7 @@ internal class TenantTransferApiEndpointHandler(
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="200">The export, a compact <c>JWE</c> to the recipient key, which names the target cell.</response>
     /// <response code="404">The tenant does not exist.</response>
-    /// <response code="409">The tenant is not disabled, or the directory refuses to record the offer of the tenant to the target cell.</response>
+    /// <response code="409">The tenant is not disabled, or the directory refuses to record the offer of the tenant to the target cell; when the directory places the tenant in another cell, the problem's <c>placedCell</c> names that cell.</response>
     /// <response code="422">The target cell is not a valid cell name, the recipient key is refused, or it is not an elliptic curve key on <c>P-256</c> for encryption, or the tenant's package is over the 64 MiB ceiling of a tenant move.</response>
     /// <response code="503">The global directory is unavailable; nothing is exported.</response>
     [EndpointName("api/tenants/export/create")]
@@ -314,10 +315,7 @@ internal class TenantTransferApiEndpointHandler(
 
         if (!offer.IsOffered)
         {
-            return TypedResults.Problem(
-                detail: offer.ConflictDetail,
-                statusCode: StatusCodes.Status409Conflict
-            );
+            return await OfferConflictAsync(tenantId, offer.ConflictDetail, cancellationToken);
         }
 
         var sections = new List<TenantTransferSection>(TenantTransferContributors.Count);
@@ -359,6 +357,43 @@ internal class TenantTransferApiEndpointHandler(
         );
 
         return TypedResults.Ok(new TenantExportResource { Package = package });
+    }
+
+    // Answers an offer that the directory refuses. A directory that places the tenant in another cell has a move behind
+    // it, so the answer names that cell in placedCell and the caller releases this cell's copy instead of exporting it
+    // again. A placement that cannot be read leaves the member out.
+    private async ValueTask<IResult> OfferConflictAsync(
+        string tenantId,
+        string detail,
+        CancellationToken cancellationToken
+    )
+    {
+        TenantPlacement? placement;
+        try
+        {
+            placement = await TenantDirectory.GetPlacementOrDefaultAsync(
+                tenantId,
+                cancellationToken
+            );
+        }
+        catch (DirectoryUnavailableException)
+        {
+            placement = null;
+        }
+
+        var extensions =
+            placement is not null && placement.Cell != CellOptions.Name
+                ? new Dictionary<string, object?>
+                {
+                    [ManagementProblemMembers.PlacedCell] = placement.Cell,
+                }
+                : null;
+
+        return TypedResults.Problem(
+            detail: detail,
+            statusCode: StatusCodes.Status409Conflict,
+            extensions: extensions
+        );
     }
 
     // Imports the recipient's public key under the client-key policy and accepts only an elliptic curve key on P-256
