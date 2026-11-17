@@ -112,6 +112,23 @@ export function parseBootstrapDocument(raw: unknown): BootstrapDocument {
   };
 }
 
+/**
+ * Reads the names of the cells a host forwards to. An absent value names none; a present value must be a list of
+ * non-blank names, so a malformed list fails instead of hiding cells.
+ */
+function parseCells(raw: unknown): readonly string[] {
+  if (raw === undefined) {
+    return [];
+  }
+  if (
+    !Array.isArray(raw) ||
+    !raw.every((cell) => typeof cell === 'string' && cell.trim().length > 0)
+  ) {
+    throw new RuntimeConfigError("Bootstrap document field 'cells' must be a list of cell names.");
+  }
+  return raw as string[];
+}
+
 /** Validates and normalizes the bootstrap document a BFF-served surface's host publishes. */
 export function parseBffBootstrapDocument(raw: unknown): BffBootstrapDocument {
   if (raw === null || typeof raw !== 'object') {
@@ -145,9 +162,7 @@ export function parseBffBootstrapDocument(raw: unknown): BffBootstrapDocument {
 
   const branding = parseBrandingConfig(doc.branding);
 
-  const cells = Array.isArray(doc.cells)
-    ? doc.cells.filter((cell): cell is string => typeof cell === 'string' && cell.trim() !== '')
-    : [];
+  const cells = parseCells(doc.cells);
 
   return {
     apiBaseUrl,
