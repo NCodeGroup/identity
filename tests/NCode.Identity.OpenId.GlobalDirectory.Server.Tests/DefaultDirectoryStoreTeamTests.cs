@@ -235,6 +235,36 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
     }
 
     [Fact]
+    public async Task PublishAsync_WhenTheParentIsPublishedAgain_ListsTheChildAfterIt()
+    {
+        await PublishTeamAsync("team-p");
+        await PublishTeamAsync("team-c", parentTeamId: "team-p");
+
+        await PublishTeamAsync("team-p");
+
+        var changes = await Teams.ListChangesAsync(0, 10, CancellationToken.None);
+        Assert.Equal([3L, 4L], changes.Select(change => change.Sequence));
+        Assert.Equal(["team-p", "team-c"], changes.Select(change => change.TeamId));
+        Assert.Equal("team-p", changes[1].Document?.ParentTeamId);
+        var child = await Teams.GetOrDefaultAsync("team-c", CancellationToken.None);
+        Assert.NotNull(child);
+        Assert.Equal(4, child.Sequence);
+    }
+
+    [Fact]
+    public async Task PublishAsync_WhenAChildIsPublishedBeforeItsParent_ListsItsSubtreeAfterTheParent()
+    {
+        await PublishTeamAsync("team-c", parentTeamId: "team-p");
+        await PublishTeamAsync("team-g", parentTeamId: "team-c");
+
+        await PublishTeamAsync("team-p");
+
+        var changes = await Teams.ListChangesAsync(0, 10, CancellationToken.None);
+        Assert.Equal([3L, 4L, 5L], changes.Select(change => change.Sequence));
+        Assert.Equal(["team-p", "team-c", "team-g"], changes.Select(change => change.TeamId));
+    }
+
+    [Fact]
     public async Task PublishAsync_WhenTheTeamIsAtTheDepthLimit_Publishes()
     {
         await PublishChainAsync(1, DirectoryLimits.MaxTeamDepth, CancellationToken.None);

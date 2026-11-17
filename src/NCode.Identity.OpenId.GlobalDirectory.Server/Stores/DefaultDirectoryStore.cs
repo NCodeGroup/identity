@@ -1170,6 +1170,58 @@ internal sealed class DefaultDirectoryStore(
     }
 
     /// <summary>
+    /// Lists every published team beneath a team again after the team's own change, in path order with each parent
+    /// before its children, so a team's change always follows the latest change of each of its ancestors: each gets a
+    /// change with the next sequence that carries its document unchanged, its previous change is deleted, and its row
+    /// takes the new sequence.
+    /// </summary>
+    /// <param name="dbContext">The <see cref="DirectoryDbContext"/> that tracks the changes.</param>
+    /// <param name="teamPath">The normalized path of the team that is published.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    // See ADR-1411.
+    private static async ValueTask ResequenceDescendantsAsync(
+        DirectoryDbContext dbContext,
+        string teamPath,
+        CancellationToken cancellationToken
+    )
+    {
+        var descendants = await dbContext
+            .Teams.Where(entity =>
+                entity.State == TeamRecord.StatePublished
+                && entity.NormalizedPath != teamPath
+                && entity.NormalizedPath.StartsWith(teamPath)
+            )
+            .ToListAsync(cancellationToken);
+        if (descendants.Count == 0)
+        {
+            return;
+        }
+
+        var previousSequences = descendants.ConvertAll(team => team.Sequence);
+        await dbContext
+            .Changes.Where(entity => previousSequences.Contains(entity.Sequence))
+            .ExecuteDeleteAsync(cancellationToken);
+
+        // A path is a prefix of its descendants' paths, so each parent sorts before its children.
+        foreach (
+            var descendant in descendants.OrderBy(
+                team => team.NormalizedPath,
+                StringComparer.Ordinal
+            )
+        )
+        {
+            var change = new DirectoryChangeRecord
+            {
+                Sequence = await NextSequenceAsync(dbContext, cancellationToken),
+                TeamId = descendant.TeamId,
+                DocumentJson = descendant.DocumentJson,
+            };
+            dbContext.Changes.Add(change);
+            descendant.Sequence = change.Sequence;
+        }
+    }
+
+    /// <summary>
     /// Counts the teams of a normalized team path, so <c>/a/b/</c> holds two.
     /// </summary>
     /// <param name="normalizedPath">The normalized path of a team.</param>
@@ -1455,6 +1507,10 @@ internal sealed class DefaultDirectoryStore(
                             GetTeamTooDeepDetail(tooDeepTeamId)
                         );
                     }
+
+                    // The re-pathed rows are saved before the subtree query reads their new paths.
+                    await dbContext.SaveChangesAsync(token);
+                    await ResequenceDescendantsAsync(dbContext, teamPath, token);
 
                     await dbContext.SaveChangesAsync(token);
                     await transaction.CommitAsync(token);

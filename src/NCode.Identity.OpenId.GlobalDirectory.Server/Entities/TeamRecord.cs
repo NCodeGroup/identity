@@ -47,8 +47,8 @@ public sealed class TeamRecord
     /// <summary>
     /// Gets or sets the normalized team path: the normalized identifiers of the teams from the top-level team down to
     /// this team, each followed by <c>/</c>, after a leading <c>/</c> (such as <c>/acme/acme-web/</c>). A team and
-    /// every team beneath it share the team's path as a prefix. The directory sets it when the team is published and
-    /// never changes it afterwards.
+    /// every team beneath it share the team's path as a prefix. The directory sets it when the team is published, and
+    /// re-paths the team and its subtree beneath its parent when the parent is published after it.
     /// </summary>
     // See ADR-1426.
     public required string NormalizedPath { get; set; }
@@ -72,8 +72,8 @@ public sealed class TeamRecord
     public string? DocumentJson { get; set; }
 
     /// <summary>
-    /// Gets or sets the sequence that the directory assigned to the published document, or <c>0</c> when none is
-    /// published.
+    /// Gets or sets the sequence of the team's latest change in the feed: its publish, a publish of a team above it, or
+    /// its retire; <c>0</c> when the team has none.
     /// </summary>
     public long Sequence { get; set; }
 }
