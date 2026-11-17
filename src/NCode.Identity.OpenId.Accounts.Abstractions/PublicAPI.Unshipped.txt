@@ -60,6 +60,9 @@ NCode.Identity.OpenId.Accounts.Stores.ILocalAccountTransferStore
 NCode.Identity.OpenId.Accounts.Stores.ILocalAccountTransferStore.ExportAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord!>!>
 NCode.Identity.OpenId.Accounts.Stores.ILocalAccountTransferStore.ImportAsync(System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord!>! records, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Accounts.Stores.ILocalAccountTransferStore.RemoveAllAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.Accounts.Stores.ITenantBoundUser
+NCode.Identity.OpenId.Accounts.Stores.ITenantBoundUser.TenantId.get -> string!
+NCode.Identity.OpenId.Accounts.Stores.ITenantBoundUser.TenantId.set -> void
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.AccessFailedCount.get -> int
 NCode.Identity.OpenId.Accounts.Stores.LocalAccountTransferRecord.AccessFailedCount.init -> void
