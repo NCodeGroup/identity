@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using NCode.Identity.OpenId.Management.Auditing;
+using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Management.Endpoints.Clients;
 using NCode.Identity.OpenId.Persistence.DataContracts;
@@ -58,6 +59,11 @@ internal class ClientGrantPromotionContributor(IHostManagedClientChecker hostMan
                     Action = promotion.Action,
                 }
             );
+
+            if (promotion.Action != TenantPromotionActions.Unchanged)
+            {
+                await AddOwningNodeAuthorityAsync(context, promotion.ClientId, cancellationToken);
+            }
         }
     }
 
@@ -101,6 +107,30 @@ internal class ClientGrantPromotionContributor(IHostManagedClientChecker hostMan
                 promotion.Target.Scopes = [.. promotion.Source.Scopes];
                 await store.UpdateAsync(promotion.Target, cancellationToken);
             }
+        }
+    }
+
+    // A grant to a machine client widens what its principal may do, which needs Create at the node that owns it. See
+    // ADR-1466.
+    private static async ValueTask AddOwningNodeAuthorityAsync(
+        TenantPromotionContext context,
+        string clientId,
+        CancellationToken cancellationToken
+    )
+    {
+        var clientStore = context.StoreManager.GetStore<IClientStore>();
+
+        PersistedClient? client;
+        using (context.BeginTargetScope())
+        {
+            client = await clientStore.GetOrDefaultAsync(clientId, cancellationToken);
+        }
+
+        if (client is { OwningNodeType: { } owningNodeType, OwningNodeId: { } owningNodeId })
+        {
+            context.AddRequiredCreateAuthority(
+                ResourceNode.For(client.TenantId, owningNodeType, owningNodeId)
+            );
         }
     }
 

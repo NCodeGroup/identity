@@ -107,8 +107,8 @@ public sealed class TenantPromotionContext
     public IReadOnlyList<TenantPromotionLimitChange> ChangedLimits => ChangedLimitList;
 
     /// <summary>
-    /// Gets the nodes at which the caller needs <c>Create</c> authority because the promotion changes an existing
-    /// target client whose principal holds role assignments there.
+    /// Gets the nodes at which the caller needs <c>Create</c> authority because the promotion writes a grant of a
+    /// target machine client that the node owns.
     /// </summary>
     public IReadOnlyList<ISupportTenantId> RequiredCreateAuthorities => RequiredCreateAuthorityList;
 
@@ -212,8 +212,8 @@ public sealed class TenantPromotionContext
     }
 
     /// <summary>
-    /// Records a node at which the caller needs <c>Create</c> authority because the promotion changes an existing
-    /// target client whose principal holds role assignments there.
+    /// Records a node at which the caller needs <c>Create</c> authority because the promotion writes a grant of a
+    /// target machine client that the node owns.
     /// </summary>
     /// <param name="node">The node.</param>
     public void AddRequiredCreateAuthority(ISupportTenantId node)
