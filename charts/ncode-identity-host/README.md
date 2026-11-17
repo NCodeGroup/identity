@@ -156,7 +156,7 @@ it, and the chart renders them as the `Cell` section the host binds:
   replica and release that shares the cell's database uses it;
 - `cell.region`, required, the region the cell runs in, in the same form (`Cell__Region`). Tenants of one region move
   between its cells;
-- `cell.kind` (default `shared`), an open name such as `shared` or `dedicated` (`Cell__Kind`);
+- `cell.kind` (default `shared`), an open name such as `shared`, `dedicated` or `sovereign` (`Cell__Kind`);
 - `cell.cloudRegions` (default empty), the cloud regions the cell's infrastructure spans, rendered as
   `Cell__CloudRegions__<i>` (the KMS adapters refuse a key outside them);
 - `cell.managementUrl`, the absolute URL at which the cell's management API is reachable, rendered when set

@@ -34,7 +34,7 @@ cell:
   name: ""
   # The region the cell runs in, in the same form as the name. Tenants of one region move between its cells. Required.
   region: ""
-  # The kind of the cell, such as shared or dedicated.
+  # The kind of the cell, such as shared, dedicated or sovereign.
   kind: shared
   # The cloud regions the cell's infrastructure spans. The KMS adapters refuse a key outside them.
   cloudRegions: []

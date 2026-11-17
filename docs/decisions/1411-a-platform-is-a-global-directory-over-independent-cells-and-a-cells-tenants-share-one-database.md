@@ -49,7 +49,7 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
 1. **A cell is the unit of deployment and of residency.** A cell is one host with one physical database and one
    `OpenIdDbContext`, one Valkey and its own KMS keys, in one region. The tenants of a cell, their child resources and
    the cell's copy of its teams form one connected graph with ordinary foreign keys. A cell has a name, a region, a kind
-   (`shared` or `dedicated`, an open vocabulary
+   (`shared`, `dedicated` or `sovereign`, an open vocabulary
    ([ADR-1150](1150-vocabularies-are-open-unless-provably-closed.md))), the cloud regions its keys may live in and a
    management URL, bound from `Cell`. A tenant lives in exactly one cell, and its data stays in that cell's region.
    Serving a tenant's requests never calls the directory, because the cell's own tenant row is authoritative for
