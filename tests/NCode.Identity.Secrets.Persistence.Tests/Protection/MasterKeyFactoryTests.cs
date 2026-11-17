@@ -522,12 +522,13 @@ public class MasterKeyFactoryTests : BaseTests
     private static PersistedOwnerRootKey CreateRootKey(
         string state = OwnerRootKeyStates.Active,
         string reference = "kms://tenant-a/root",
-        string? accessIdentity = null
+        string? accessIdentity = null,
+        SecretOwner? owner = null
     ) =>
         new()
         {
-            OwnerType = Owner.OwnerType,
-            OwnerId = Owner.OwnerId,
+            OwnerType = (owner ?? Owner).OwnerType,
+            OwnerId = (owner ?? Owner).OwnerId,
             KeyWrapperName = "fake-kms",
             KeyReference = reference,
             AccessIdentity = accessIdentity,
@@ -546,13 +547,40 @@ public class MasterKeyFactoryTests : BaseTests
         var created = await factory.CreateAsync(
             SecretOwner.ForTenant("Acme"),
             version: 1,
-            CreateRootKey(accessIdentity: "test-identity-acme"),
+            CreateRootKey(
+                accessIdentity: "test-identity-acme",
+                owner: SecretOwner.ForTenant("Acme")
+            ),
             CancellationToken.None
         );
         using var key = created.Key;
 
         Assert.Equal("test-identity-acme", created.Row.RootKeyAccessIdentity);
+        Assert.Equal("tenant:acme", created.Row.RootKeyAccessBinding);
         Assert.Equal(new KeyAccess("test-identity-acme", "tenant:acme"), fake.LastWrapAccess);
+    }
+
+    [Fact]
+    public async Task Create_TeamRootKeyWithAnAccessIdentity_WrapsThroughTheTeamsBindingAndRecordsIt()
+    {
+        var fake = new FakeReferencedKeyWrapper();
+        Catalog.Setup(x => x.GetReferenced("fake-kms")).Returns(fake).Verifiable();
+        var factory = CreateFactory(DisabledRecovery);
+
+        var created = await factory.CreateAsync(
+            SecretOwner.ForTenant("Acme"),
+            version: 1,
+            CreateRootKey(
+                accessIdentity: "test-identity-team",
+                owner: new SecretOwner(SecretOwnerTypes.Team, "Team-A")
+            ),
+            CancellationToken.None
+        );
+        using var key = created.Key;
+
+        Assert.Equal("test-identity-team", created.Row.RootKeyAccessIdentity);
+        Assert.Equal("team:team-a", created.Row.RootKeyAccessBinding);
+        Assert.Equal(new KeyAccess("test-identity-team", "team:team-a"), fake.LastWrapAccess);
     }
 
     [Fact]
@@ -571,6 +599,7 @@ public class MasterKeyFactoryTests : BaseTests
         using var key = created.Key;
 
         Assert.Null(created.Row.RootKeyAccessIdentity);
+        Assert.Null(created.Row.RootKeyAccessBinding);
         Assert.Null(fake.LastWrapAccess);
     }
 
@@ -583,7 +612,10 @@ public class MasterKeyFactoryTests : BaseTests
         var created = await factory.CreateAsync(
             SecretOwner.ForTenant("Acme"),
             version: 1,
-            CreateRootKey(accessIdentity: "test-identity-acme"),
+            CreateRootKey(
+                accessIdentity: "test-identity-acme",
+                owner: SecretOwner.ForTenant("Acme")
+            ),
             CancellationToken.None
         );
         using var createdKey = created.Key;
@@ -616,6 +648,7 @@ public class MasterKeyFactoryTests : BaseTests
         );
 
         Assert.Equal("test-identity-a", wraps.RootKeyAccessIdentity);
+        Assert.Equal("tenant:tenant-a", wraps.RootKeyAccessBinding);
         Assert.Equal(new KeyAccess("test-identity-a", "tenant:tenant-a"), fake.LastWrapAccess);
     }
 

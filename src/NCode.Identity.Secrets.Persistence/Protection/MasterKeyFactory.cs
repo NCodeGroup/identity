@@ -16,11 +16,13 @@ namespace NCode.Identity.Secrets.Persistence.Protection;
 /// </summary>
 /// <remarks>
 /// <para>
-/// A new master key is 32 random bytes that are wrapped by the root of its owner, bound to the identifier and the
-/// owner of the master key. The root of an owner is the root key the owner brings, when it has an active one, and
-/// otherwise the configured root key provider, with a recovery copy under the recovery public key when one is
-/// configured. A master key under an owner root key has no recovery copy. The row records a key-check value that binds
-/// the identifier, the owner and the version to the key material.
+/// A new master key is 32 random bytes that are wrapped by the root of its owner, bound to the identifier and the owner
+/// of the master key. The root of an owner is the root key the owner brings, when it has an active one, and otherwise
+/// the configured root key provider, with a recovery copy under the recovery public key when one is configured. A
+/// master key under an owner root key has no recovery copy. An owner root key that an access identity reaches is
+/// reached with the binding of the root key's owner, which the row records, because the nearest root key of a tenant
+/// can be its team's. The row records a key-check value that binds the identifier, the owner and the version to the key
+/// material.
 /// </para>
 /// <para>
 /// Every temporary copy of the key material is zeroed before a method returns, and no exception message contains key
@@ -92,6 +94,7 @@ internal class MasterKeyFactory(
             RootKeyId = wraps.Root.KeyId,
             RootKeyReference = wraps.RootKeyReference,
             RootKeyAccessIdentity = wraps.RootKeyAccessIdentity,
+            RootKeyAccessBinding = wraps.RootKeyAccessBinding,
             RootWrappedKey = wraps.Root.Ciphertext,
             RecoveryKeyId = wraps.Recovery?.KeyId,
             RecoveryWrappedKey = wraps.Recovery?.Ciphertext,
@@ -382,11 +385,9 @@ internal class MasterKeyFactory(
         if (ownerRoot is not null)
         {
             var referenced = Catalog.GetReferenced(ownerRoot.KeyWrapperName);
+            var access = OwnerRootKeyAccess.For(ownerRoot.Owner, ownerRoot.AccessIdentity);
             var wrappedUnderOwnerRoot = await referenced.WrapAsync(
-                new ReferencedKey(
-                    ownerRoot.KeyReference,
-                    OwnerRootKeyAccess.For(owner, ownerRoot.AccessIdentity)
-                ),
+                new ReferencedKey(ownerRoot.KeyReference, access),
                 material,
                 context,
                 cancellationToken
@@ -396,6 +397,7 @@ internal class MasterKeyFactory(
                 wrappedUnderOwnerRoot,
                 ownerRoot.KeyReference,
                 ownerRoot.AccessIdentity,
+                access?.Binding,
                 Recovery: null,
                 ClearsRecovery: true
             );
@@ -411,6 +413,7 @@ internal class MasterKeyFactory(
             wrapped,
             RootKeyReference: null,
             RootKeyAccessIdentity: null,
+            RootKeyAccessBinding: null,
             recoveryWrapped,
             ClearsRecovery: false
         );
