@@ -162,32 +162,43 @@ and `tenant.released` in `<source>` and `tenant.imported` in `<target>` ([audit 
 ## Recovering from a failed stage
 
 Each stage is safe to repeat until the release. The console runs the four calls in order, stops at the first failure,
-and names the stage that failed and the stages that remain. Its Retry runs the move again from the stage that failed,
-or from the transfer key after a failed import, because the import spends it. It reports a failure before the release
-as "the tenant has not moved and is still at the source", and a failure of the release as "the tenant is imported and
-the source still holds it until it is released".
+and names the stage that failed, why it failed and the stages that remain. Closing the dialog keeps a failed move:
+reopening it shows the failure and its Retry, which runs the move again from the stage that failed, or from the transfer
+key after a failed import, because the import spends it. When the export answers `409` with `placedCell`, the console
+says that the directory already places the tenant in that cell and offers Release, which runs only the release at
+`<source>`. Closing the dialog after a completed move opens the tenant in the cell it moved to.
 
 - **Before the import** (stages 1 to 3). Nothing is placed or written in `<target>`. Repeat the stage. The disable is
   idempotent. An export has no effect on the tenant, so repeating it only writes another `tenant.exported` record. A
-  transfer key that has expired, been used or been refused needs another one from stage 2, and then another export, because
-  a package opens only with the key it was sealed to.
-- **The import is refused or fails** (`409`, `422`, `503`, or an error). The import removes what it wrote: each section's
-  records and the tenant's master keys in `<target>`, and it puts the remote keys it retagged back under `<source>`'s tag.
-  An import refused by the directory therefore leaves `<target>` without the tenant, the directory placement unchanged
-  and the tenant disabled in `<source>`. The transfer key is taken before the import reads the package, so a failed
-  import spends it: fix the cause, then repeat from stage 2 (another transfer key, another export, the import). To abandon the
-  move, enable the tenant in `<source>`.
+  transfer key that has expired, been used or been refused needs another one from stage 2, and then another export,
+  because a package opens only with the key it was sealed to.
+- **The import is refused or fails** (`409`, `413`, `422`, `503`, or an error). Unless it answers that the outcome of
+  the move is unknown, the import removes what it wrote: each section's records and the tenant's master keys in
+  `<target>`, and it puts the remote keys it retagged back under `<source>`'s tag. Such an import leaves `<target>`
+  without the tenant, the directory placement in `<source>` and the tenant disabled in `<source>`. The transfer key is
+  taken before the import reads the package, so a failed import spends it: fix the cause, then repeat from stage 2
+  (another transfer key, another export, the import). To abandon the move, enable the tenant in `<source>`.
   - `409` because the directory places the tenant in `<target>`: an import of it already completed. Release at
     `<source>` instead. A tenant that `<target>` holds while the directory places it in `<source>` is the residue of an
     import that stopped before its move, and the next import removes those rows before it imports.
   - `409` from the directory: register both cells in the directory, or choose a `<target>` of the tenant's region.
+  - `413` for the ceiling: the tenant's package is over a move's 64 MiB, which the export also refuses with `422`, and
+    the tenant cannot move until it is smaller.
   - `422` for a region: choose a `<target>` of the package's region.
-  - `503`: restore the directory, then repeat from stage 2.
+  - `422` for a root key or a remote key: give `<target>` the provider, the location or the cloud region that the key
+    needs, or choose another `<target>` ([before you start](#0-before-you-start)).
+  - `503` that says the directory is unavailable: restore the directory, then repeat from stage 2.
+  - `503` that says the outcome of the move is unknown: `<target>` keeps what it imported, and the remote keys keep
+    `<target>`'s tag. Finish the move instead of abandoning it: repeat from stage 2. When the directory moved the
+    tenant, the export answers `409` whose `placedCell` names `<target>`, and only the release (stage 5) remains.
+    Otherwise the export and the import run again, and the import clears `<target>`'s copy before it imports. The
+    release at `<source>` reads the placement itself, so it never removes the last copy.
 - **The import succeeded and the release did not** (`503`, `409`, an error, or a lost connection). The tenant is in both
   cells and the directory names `<target>`. `<source>`'s copy stays disabled, so nothing serves it. Repeat the release
   until it answers `204`. A `503` means the directory is unreachable, so nothing was released. A `409` means the
   directory does not name another cell, so check the placement before anything else. A partial release is repeated the
-  same way, and a repeat after `204` answers `404`.
+  same way, and a repeat after `204` answers `404`. Deleting `<source>`'s copy instead answers `409` and names
+  `<target>`, and deletes nothing.
 - **DNS and the enable** (stages 6 and 7) are repeatable. A tenant that does not serve from `<target>` after the enable
   is disabled again with stage 1's call at `<target>`, while the hostname and the cell's logs are checked.
 
