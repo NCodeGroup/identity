@@ -9,6 +9,7 @@ using NCode.Identity.OpenId.Authentication.Persistence;
 using NCode.Identity.OpenId.Authentication.Sessions;
 using NCode.Identity.OpenId.Authentication.Settings;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.Secrets.Keys;
 
@@ -25,11 +26,13 @@ namespace NCode.Identity.OpenId.Authentication.Tokens;
 // See ADR-1167 (closing the follow-ups of ADR-1154 and ADR-1158, and the introspection clause of ADR-1112).
 internal class DefaultIssuedTokenValidator(
     IJwtValidator jwtValidator,
-    ISessionService sessionService
+    ISessionService sessionService,
+    IAmbientTenantAccessor ambientTenantAccessor
 ) : IIssuedTokenValidator
 {
     private IJwtValidator JwtValidator { get; } = jwtValidator;
     private ISessionService SessionService { get; } = sessionService;
+    private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
 
     /// <inheritdoc />
     public async ValueTask<JwtValidationResult> ValidateAccessTokenAsync(
@@ -186,6 +189,9 @@ internal class DefaultIssuedTokenValidator(
             return false;
         }
 
+        // The management API authenticates its caller before it opens a tenant scope, so the session grant is read in
+        // the scope of the tenant that issued the token. See ADR-1018.
+        using var tenantScope = AmbientTenantAccessor.BeginScope(openIdContext.Tenant.TenantId);
         var session = await SessionService.GetOrDefaultAsync(
             openIdContext,
             sessionId,

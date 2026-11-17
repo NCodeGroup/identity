@@ -8,6 +8,7 @@ using NCode.Identity.OpenId.Authentication.Persistence;
 using NCode.Identity.OpenId.Authentication.Sessions;
 using NCode.Identity.OpenId.Authentication.Tokens;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Secrets.Collections;
@@ -41,22 +42,26 @@ public class DefaultIssuedTokenValidatorTests : BaseTests
     private Mock<IJwtValidator> MockJwtValidator { get; }
     private Mock<ISessionService> MockSessionService { get; }
     private Mock<OpenIdContext> MockContext { get; }
+    private Mock<OpenIdTenant> MockTenant { get; }
+    private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
     private Mock<IReadOnlySettingCollection> MockSettings { get; }
     private SecretKey TenantKey { get; }
     private SecretKey ReaderKey { get; }
     private DefaultIssuedTokenValidator Validator { get; }
     private JwtValidationParameters? CapturedParameters { get; set; }
+    private bool IsTenantScoped { get; set; }
 
     public DefaultIssuedTokenValidatorTests()
     {
         MockJwtValidator = CreateStrictMock<IJwtValidator>();
         MockSessionService = CreateStrictMock<ISessionService>();
         MockContext = CreateStrictMock<OpenIdContext>();
+        MockTenant = CreateStrictMock<OpenIdTenant>();
+        MockAmbientTenantAccessor = CreateStrictMock<IAmbientTenantAccessor>();
         MockSettings = CreateStrictMock<IReadOnlySettingCollection>();
         TenantKey = CreateLooseMock<SecretKey>().Object;
         ReaderKey = CreateLooseMock<SecretKey>().Object;
 
-        var mockTenant = CreateStrictMock<OpenIdTenant>();
         var mockSettingsProvider = CreateStrictMock<IReadOnlySettingCollectionProvider>();
         var mockSecretsProvider = CreateStrictMock<ISecretKeyCollectionProvider>();
         var mockTenantKeys = CreateLooseMock<ISecretKeyCollection>();
@@ -65,13 +70,13 @@ public class DefaultIssuedTokenValidatorTests : BaseTests
             .Setup(x => x.GetEnumerator())
             .Returns(() => ((IEnumerable<SecretKey>)[TenantKey]).GetEnumerator());
 
-        MockContext.SetupGet(x => x.Tenant).Returns(mockTenant.Object).Verifiable();
-        mockTenant.SetupGet(x => x.Issuer).Returns(Issuer).Verifiable();
-        mockTenant
+        MockContext.SetupGet(x => x.Tenant).Returns(MockTenant.Object).Verifiable();
+        MockTenant.SetupGet(x => x.Issuer).Returns(Issuer).Verifiable();
+        MockTenant
             .SetupGet(x => x.SettingsProvider)
             .Returns(mockSettingsProvider.Object)
             .Verifiable();
-        mockTenant
+        MockTenant
             .SetupGet(x => x.SecretsProvider)
             .Returns(mockSecretsProvider.Object)
             .Verifiable();
@@ -80,7 +85,8 @@ public class DefaultIssuedTokenValidatorTests : BaseTests
 
         Validator = new DefaultIssuedTokenValidator(
             MockJwtValidator.Object,
-            MockSessionService.Object
+            MockSessionService.Object,
+            MockAmbientTenantAccessor.Object
         );
     }
 
@@ -126,11 +132,23 @@ public class DefaultIssuedTokenValidatorTests : BaseTests
             .ReturnsAsync(result)
             .Verifiable();
 
-    private void SetupSession(PersistedGrantStatus? status) =>
+    private void SetupSession(PersistedGrantStatus? status)
+    {
+        MockTenant.SetupGet(x => x.TenantId).Returns("tenant-1").Verifiable();
+
+        var scope = CreateStrictMock<IDisposable>();
+        scope.Setup(x => x.Dispose()).Callback(() => IsTenantScoped = false).Verifiable();
+        MockAmbientTenantAccessor
+            .Setup(x => x.BeginScope("tenant-1"))
+            .Callback(() => IsTenantScoped = true)
+            .Returns(scope.Object)
+            .Verifiable();
+
         MockSessionService
             .Setup(x =>
                 x.GetOrDefaultAsync(MockContext.Object, SessionId, It.IsAny<CancellationToken>())
             )
+            .Callback(() => Assert.True(IsTenantScoped))
             .ReturnsAsync(
                 status is { } value
                     ? new PersistedGrant<SessionGrant>
@@ -154,6 +172,7 @@ public class DefaultIssuedTokenValidatorTests : BaseTests
                     : null
             )
             .Verifiable();
+    }
 
     private static JwtValidationResult ValidWithSession() =>
         TestJwtValidationResults.Valid(
