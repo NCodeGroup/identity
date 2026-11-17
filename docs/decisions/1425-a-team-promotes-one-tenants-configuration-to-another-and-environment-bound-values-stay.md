@@ -46,7 +46,11 @@ keys, principals and environment-bound values stay with their environment.**
    the source tenant's cell and posts it inline to the target tenant's cell.
 3. **A promotion stays within one region.** A document whose region is not the target cell's region is refused with
    `422` and nothing is written. Cells of one region share a promotion; across regions a tenant's configuration is
-   entered again, because a tenant's data stays in its region.
+   entered again, because a tenant's data stays in its region. A document is untrusted input. The control-plane tenant
+   is never a promotion target, because it holds the platform's machine clients and the cells' clients (`422`). A
+   document that names a client whose `clientId` breaks the `client_id` rule (`ClientIdRules`) or starts with `cell-`,
+   the namespace that the directory and the control plane read as a cell's machine client, is refused with `422` before
+   planning.
 4. **What is copied, and what is never copied.** The tenant's settings document, every non-system resource server (its
    name, `isDisabled`, settings and non-system scopes), every client no `IHostManagedClientPolicy` names in the source
    tenant (`isDisabled`, settings and the resource server it acts for), and every client grant of a promoted client are
@@ -104,10 +108,11 @@ keys, principals and environment-bound values stay with their environment.**
     clients and resource servers is creation authority: `TeamAdmin` at the team, the target's `TenantAdmin`, or
     `GlobalAdmin`. Then the target tenant must exist, and a source tenant of the cell must exist and belong to the
     target's team, else `404`, and then the limit rule applies.
-    Then a promotion that changes an existing target client whose principal holds role assignments needs `Create` at
-    each node those assignments are held at, the authority any change to that client needs
+    Then a promotion that writes a grant of a target machine client needs `Create` at the client's owning node, the
+    authority any change to that client needs
     ([ADR-1466](1466-a-client-is-its-own-principal-and-a-machine-client-acts-only-within-its-owning-node.md)); without it, preview and
-    promote answer `403` and nothing is written.
+    promote answer `403` and nothing is written. A promotion changes no target machine client itself: it refuses one
+    with an error.
 11. **Contributors.** The public strategy collection `ITenantPromotionContributor` (`Order`, `PlanAsync`, `ApplyAsync`)
    over `TenantPromotionContext` is open by registration
    ([ADR-1150](1150-vocabularies-are-open-unless-provably-closed.md),

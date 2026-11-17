@@ -309,8 +309,8 @@ internal class TenantPromotionApiEndpointHandler(
 
     // Refuses before reading, reads the target tenant and the source document, plans the promotion, then refuses it
     // when the caller lacks the authority it needs: Update at the node above each changed limit (ADR-1418), then
-    // Create at each node whose role-holding client it changes (ADR-1466). Only a promotion that no check refused
-    // reaches completeAsync, while the unit of work is still open.
+    // Create at the owning node of each machine client whose grant it writes (ADR-1466). Only a promotion that no
+    // check refused reaches completeAsync, while the unit of work is still open.
     private async ValueTask<IResult> PlanPromotionAsync(
         HttpContext httpContext,
         string tenantId,
@@ -460,8 +460,8 @@ internal class TenantPromotionApiEndpointHandler(
         return null;
     }
 
-    // Changing a target client whose principal holds role assignments needs the authority to grant those roles, so the
-    // caller needs Create at each node the roles are held at.
+    // A grant to a target machine client widens what its principal may do, so the caller needs Create at the node that
+    // owns the client.
     private async ValueTask<IResult?> GetCustodyRefusalOrDefaultAsync(
         HttpContext httpContext,
         TenantPromotionContext context,
