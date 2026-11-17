@@ -150,6 +150,27 @@ public sealed class TeamRootKeyApiEndpointHandlerTests : IDisposable
             .ReturnsAsync(AuthorizationResult.Success())
             .Verifiable();
 
+    private void SetupAuthorizationFailure(
+        IAuthorizationRequirement operation,
+        Action<object?> capture
+    ) =>
+        MockAuthorizationService
+            .Setup(x =>
+                x.AuthorizeAsync(
+                    It.IsAny<ClaimsPrincipal>(),
+                    It.IsAny<object?>(),
+                    It.Is<IEnumerable<IAuthorizationRequirement>>(requirements =>
+                        requirements.Contains(operation)
+                    )
+                )
+            )
+            .Callback(
+                (ClaimsPrincipal _, object? resource, IEnumerable<IAuthorizationRequirement> _) =>
+                    capture(resource)
+            )
+            .ReturnsAsync(AuthorizationResult.Failed())
+            .Verifiable();
+
     private void SetupCanBringRootKey() =>
         MockOwnerRootKeyManager
             .Setup(x => x.CanBringRootKey(TeamOwner, out It.Ref<string?>.IsAny))
@@ -412,9 +433,62 @@ public sealed class TeamRootKeyApiEndpointHandlerTests : IDisposable
         Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
     }
 
+    [Fact]
+    public async Task ListRootKeysAsync_WhenForbidden_ReturnsForbiddenWithoutReadingTheTeam()
+    {
+        SetupAuthorizationFailure(Operations.Read, _ => { });
+
+        var result = await Handler.ListRootKeysAsync(
+            CreateHttpContext(),
+            TeamId,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
+    }
+
     #endregion
 
     #region SetRootKeyAsync Tests
+
+    [Fact]
+    public async Task SetRootKeyAsync_WhenForbidden_ReturnsForbiddenWithoutReadingTheTeam()
+    {
+        SetupAuthorizationFailure(Operations.Update, _ => { });
+
+        var result = await Handler.SetRootKeyAsync(
+            CreateHttpContext(),
+            TeamId,
+            OwnRegion,
+            CreateRequest(),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task SetRootKeyAsync_WhenAuthorizing_AuthorizesAtTheTeamsNodeInTheControlPlaneTenant()
+    {
+        object? authorizedResource = null;
+        SetupAuthorizationFailure(Operations.Update, resource => authorizedResource = resource);
+
+        await Handler.SetRootKeyAsync(
+            CreateHttpContext(),
+            TeamId,
+            OwnRegion,
+            CreateRequest(),
+            CancellationToken.None
+        );
+
+        var node = Assert.IsType<ResourceNode>(authorizedResource);
+        Assert.Equal(
+            (ControlPlaneTenantId, ResourceNodeTypes.Team, TeamId),
+            (node.TenantId, node.ResourceType, node.ResourceId)
+        );
+    }
 
     [Fact]
     public async Task SetRootKeyAsync_ForThisCellsRegion_AppliesTheKeyWritesAndPublishesIt()
@@ -655,6 +729,22 @@ public sealed class TeamRootKeyApiEndpointHandlerTests : IDisposable
     #region RemoveRootKeyAsync Tests
 
     [Fact]
+    public async Task RemoveRootKeyAsync_WhenForbidden_ReturnsForbiddenWithoutReadingTheTeam()
+    {
+        SetupAuthorizationFailure(Operations.Update, _ => { });
+
+        var result = await Handler.RemoveRootKeyAsync(
+            CreateHttpContext(),
+            TeamId,
+            OwnRegion,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
+    }
+
+    [Fact]
     public async Task RemoveRootKeyAsync_ForThisCellsRegion_RemovesTheKeyWritesAndPublishesIt()
     {
         SetupAuthorization(Operations.Update);
@@ -783,6 +873,22 @@ public sealed class TeamRootKeyApiEndpointHandlerTests : IDisposable
     #endregion
 
     #region ValidateRootKeyAsync Tests
+
+    [Fact]
+    public async Task ValidateRootKeyAsync_WhenForbidden_ReturnsForbiddenWithoutReadingTheTeam()
+    {
+        SetupAuthorizationFailure(Operations.Update, _ => { });
+
+        var result = await Handler.ValidateRootKeyAsync(
+            CreateHttpContext(),
+            TeamId,
+            OwnRegion,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
+    }
 
     [Fact]
     public async Task ValidateRootKeyAsync_ForThisCellsRegion_ReturnsTheKeyAsProbed()
