@@ -780,6 +780,53 @@ public class DefaultMasterKeyRewrapperTests : BaseTests
     }
 
     [Fact]
+    public async Task Rewrap_ARowOfATenantWhoseTeamKeyHasAnAccessIdentity_MovesUnderItWithTheTeamsBinding()
+    {
+        var row = await CreateRowAsync(
+            CreateRecovery(configured: true),
+            version: 1,
+            CancellationToken.None
+        );
+        Assert.NotNull(row.RecoveryWrappedKey);
+        var team = new SecretOwner(SecretOwnerTypes.Team, "team-a");
+        var teamKey = CreateOwnerRootKey(owner: team);
+        teamKey.AccessIdentity = "test-identity-team";
+        OwnerRootKey = teamKey;
+        SetupAncestors(team, SecretOwner.Platform);
+        SetupOldProvider();
+        SetupReferenced();
+
+        // The tenant has no key, so the unit of work that lists its rows also reads its team's.
+        var (listStore, _) = EnqueueStoreManager(maxRootKeyReads: 2);
+        listStore
+            .Setup(x => x.ListAsync(Owner, It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<IReadOnlyList<PersistedMasterKey>>([row]))
+            .Verifiable();
+        SetupSave(row);
+        using var recovery = CreateRecovery(configured: true);
+
+        var result = await CreateRewrapper(recovery)
+            .RewrapAsync(Request(nonconformingOnly: true), CancellationToken.None);
+
+        var access = new KeyAccess("test-identity-team", "team:team-a");
+        Assert.Equal(new MasterKeyRewrapResult(1, 1, 0, 0), result);
+        Assert.Equal(teamKey.KeyReference, row.RootKeyReference);
+        Assert.Equal("test-identity-team", row.RootKeyAccessIdentity);
+        Assert.Equal("team:team-a", row.RootKeyAccessBinding);
+        Assert.Equal(access, Referenced.LastWrapAccess);
+
+        // The row unwraps through the identity with the team's binding, which it records.
+        var verify = CreateStrictMock<IKeyWrapperCatalog>();
+        verify.Setup(x => x.GetReferenced(Referenced.Name)).Returns(Referenced).Verifiable();
+        using var key = await new MasterKeyFactory(verify.Object, recovery, Time).UnwrapAsync(
+            row,
+            CancellationToken.None
+        );
+        Assert.Equal(row.KeyId, key.KeyId);
+        Assert.Equal(access, Referenced.LastUnwrapAccess);
+    }
+
+    [Fact]
     public async Task Rewrap_ARowOfAnUnboundOwner_MovesUnderTheDeploymentRootWithARecoveryCopy()
     {
         var row = await CreateOwnerRootedRowAsync(

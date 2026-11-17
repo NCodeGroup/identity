@@ -627,6 +627,52 @@ public class MasterKeyFactoryTests : BaseTests
     }
 
     [Fact]
+    public async Task Unwrap_RowUnderATeamRootKeyWithAnAccessIdentity_UnwrapsThroughTheTeamsBinding()
+    {
+        var fake = new FakeReferencedKeyWrapper();
+        Catalog.Setup(x => x.GetReferenced("fake-kms")).Returns(fake).Verifiable();
+        var factory = CreateFactory(DisabledRecovery);
+        var created = await factory.CreateAsync(
+            SecretOwner.ForTenant("Acme"),
+            version: 1,
+            CreateRootKey(
+                accessIdentity: "test-identity-team",
+                owner: new SecretOwner(SecretOwnerTypes.Team, "Team-A")
+            ),
+            CancellationToken.None
+        );
+        using var createdKey = created.Key;
+
+        using var unwrapped = await factory.UnwrapAsync(created.Row, CancellationToken.None);
+
+        Assert.Equal(createdKey.Material.ToArray(), unwrapped.Material.ToArray());
+        Assert.Equal(new KeyAccess("test-identity-team", "team:team-a"), fake.LastUnwrapAccess);
+    }
+
+    [Fact]
+    public async Task Unwrap_RowWithAnAccessIdentityAndNoBinding_ThrowsCryptographicException()
+    {
+        var fake = new FakeReferencedKeyWrapper();
+        Catalog.Setup(x => x.GetReferenced("fake-kms")).Returns(fake).Verifiable();
+        var factory = CreateFactory(DisabledRecovery);
+        var created = await factory.CreateAsync(
+            SecretOwner.ForTenant("Acme"),
+            version: 1,
+            CreateRootKey(
+                accessIdentity: "test-identity-acme",
+                owner: SecretOwner.ForTenant("Acme")
+            ),
+            CancellationToken.None
+        );
+        using var createdKey = created.Key;
+        created.Row.RootKeyAccessBinding = null;
+
+        await Assert.ThrowsAsync<CryptographicException>(async () =>
+            await factory.UnwrapAsync(created.Row, CancellationToken.None)
+        );
+    }
+
+    [Fact]
     public async Task Wrap_OwnerRootKeyWithAnAccessIdentity_ReturnsTheIdentity()
     {
         var fake = new FakeReferencedKeyWrapper();
@@ -795,26 +841,54 @@ public class MasterKeyFactoryTests : BaseTests
     }
 
     [Fact]
-    public void Conforms_OwnerRootKeyWithAnAccessIdentity_RequiresTheSameIdentity()
+    public void Conforms_OwnerRootKeyWithAnAccessIdentity_RequiresTheSameIdentityAndTheKeyOwnersBinding()
     {
         var rootKey = CreateRootKey(accessIdentity: "test-identity-a");
 
         Assert.True(
             MasterKeyFactory.Conforms(
-                CreateRow("kms://tenant-a/root", accessIdentity: "test-identity-a"),
+                CreateRow(
+                    "kms://tenant-a/root",
+                    accessIdentity: "test-identity-a",
+                    accessBinding: "tenant:tenant-a"
+                ),
                 rootKey
             )
         );
         Assert.False(
             MasterKeyFactory.Conforms(
-                CreateRow("kms://tenant-a/root", accessIdentity: "test-identity-b"),
+                CreateRow(
+                    "kms://tenant-a/root",
+                    accessIdentity: "test-identity-b",
+                    accessBinding: "tenant:tenant-a"
+                ),
+                rootKey
+            )
+        );
+        Assert.False(
+            MasterKeyFactory.Conforms(
+                CreateRow(
+                    "kms://tenant-a/root",
+                    accessIdentity: "test-identity-a",
+                    accessBinding: "team:team-a"
+                ),
+                rootKey
+            )
+        );
+        Assert.False(
+            MasterKeyFactory.Conforms(
+                CreateRow("kms://tenant-a/root", accessIdentity: "test-identity-a"),
                 rootKey
             )
         );
         Assert.False(MasterKeyFactory.Conforms(CreateRow("kms://tenant-a/root"), rootKey));
         Assert.False(
             MasterKeyFactory.Conforms(
-                CreateRow("kms://tenant-a/root", accessIdentity: "test-identity-a"),
+                CreateRow(
+                    "kms://tenant-a/root",
+                    accessIdentity: "test-identity-a",
+                    accessBinding: "tenant:tenant-a"
+                ),
                 CreateRootKey()
             )
         );
@@ -902,7 +976,8 @@ public class MasterKeyFactoryTests : BaseTests
     private static PersistedMasterKey CreateRow(
         string? rootKeyReference,
         string provider = "fake-kms",
-        string? accessIdentity = null
+        string? accessIdentity = null,
+        string? accessBinding = null
     ) =>
         new()
         {
@@ -915,6 +990,7 @@ public class MasterKeyFactoryTests : BaseTests
             RootKeyId = "id",
             RootKeyReference = rootKeyReference,
             RootKeyAccessIdentity = accessIdentity,
+            RootKeyAccessBinding = accessBinding,
             RootWrappedKey = "wrapped",
             KeyCheck = "check",
         };

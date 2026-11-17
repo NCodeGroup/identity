@@ -120,7 +120,8 @@ internal class MasterKeyFactory(
     /// </exception>
     /// <exception cref="CryptographicException">
     /// Thrown when the root key provider cannot unwrap the master key, when the unwrapped key does not have the size of
-    /// a master key, or when the key-check value of the row does not match the unwrapped key.
+    /// a master key, when the key-check value of the row does not match the unwrapped key, or when the row names an
+    /// access identity without an access binding.
     /// </exception>
     public async ValueTask<MasterKey> UnwrapAsync(
         PersistedMasterKey row,
@@ -164,10 +165,12 @@ internal class MasterKeyFactory(
         else
         {
             // See ADR-1414.
-            var access = new KeyAccess(
-                row.RootKeyAccessIdentity,
-                OwnerRootKeyAccess.GetBinding(owner)
-            );
+            var binding =
+                row.RootKeyAccessBinding
+                ?? throw new CryptographicException(
+                    $"The master key '{row.KeyId}' of owner '{owner}' names an access identity and no access binding."
+                );
+            var access = new KeyAccess(row.RootKeyAccessIdentity, binding);
             await Catalog
                 .GetReferenced(row.RootKeyProvider)
                 .UnwrapAsync(wrappedKey, access, context, destination, cancellationToken);
@@ -285,8 +288,8 @@ internal class MasterKeyFactory(
 
     /// <summary>
     /// Determines whether a persisted master key is wrapped under the root of its owner. With an owner root key that is
-    /// the key itself, reached through the same access identity, and no recovery copy; without one, or while it is being
-    /// removed, it is the deployment's root key.
+    /// the key itself, reached through the same access identity with the binding of the key's owner, and no recovery
+    /// copy; without one, or while it is being removed, it is the deployment's root key.
     /// </summary>
     /// <param name="row">The persisted master key.</param>
     /// <param name="rootKey">The root key the owner brings, or <see langword="null"/> when it has none.</param>
@@ -296,12 +299,19 @@ internal class MasterKeyFactory(
         ArgumentNullException.ThrowIfNull(row);
 
         if (!IsOwnerRooted(rootKey))
-            return row.RootKeyReference is null && row.RootKeyAccessIdentity is null;
+            return row.RootKeyReference is null
+                && row.RootKeyAccessIdentity is null
+                && row.RootKeyAccessBinding is null;
 
         return IsUnderKey(row, rootKey)
             && string.Equals(
                 row.RootKeyAccessIdentity,
                 rootKey.AccessIdentity,
+                StringComparison.Ordinal
+            )
+            && string.Equals(
+                row.RootKeyAccessBinding,
+                OwnerRootKeyAccess.For(rootKey.Owner, rootKey.AccessIdentity)?.Binding,
                 StringComparison.Ordinal
             )
             && row.RecoveryKeyId is null
