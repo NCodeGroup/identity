@@ -1,7 +1,9 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Text;
 using System.Net;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -49,6 +51,52 @@ public class ManagementCallerAuthenticationTests
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task GetCaller_WhenTheTokensSessionWasRevoked_IsAnUnauthorizedProblem()
+    {
+        const string clientId = "it-revoked-session";
+        const string redirectUri = "https://client.example/callback";
+        const string userName = "it-revoked-session-user";
+        const string password = "it-revoked-session-password";
+        using var factory = new BootstrapAdminApplicationFactory();
+        await factory.SeedLocalAccountAsync(userName, password, CancellationToken.None);
+        await factory.SeedPublicClientAsync(clientId, [redirectUri], CancellationToken.None);
+        using var caller = await factory.CreateManagementUserClientAsync(
+            clientId,
+            redirectUri,
+            userName,
+            password,
+            "openid read:clients",
+            CancellationToken.None
+        );
+        var token = caller.DefaultRequestHeaders.Authorization!.Parameter!;
+        var sessionId = JsonSerializer
+            .Deserialize<JsonElement>(Base64Url.DecodeFromChars(token.Split('.')[1]))
+            .GetProperty("sid")
+            .GetString();
+
+        using var beforeRevocation = await caller.GetAsync("/api/me");
+        var beforeBody = await beforeRevocation.Content.ReadAsStringAsync();
+        Assert.True(beforeRevocation.StatusCode == HttpStatusCode.OK, beforeBody);
+
+        using var administrator = await factory.CreateAdministratorClientAsync(
+            CancellationToken.None
+        );
+        using var revocation = await administrator.DeleteAsync(
+            $"/api/tenants/{HostApplicationFactory.TenantId}/sessions/{sessionId}"
+        );
+        var revocationBody = await revocation.Content.ReadAsStringAsync();
+        Assert.True(revocation.StatusCode == HttpStatusCode.NoContent, revocationBody);
+
+        using var afterRevocation = await caller.GetAsync("/api/me");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, afterRevocation.StatusCode);
+        Assert.Equal(
+            "application/problem+json",
+            afterRevocation.Content.Headers.ContentType?.MediaType
+        );
     }
 
     #endregion
