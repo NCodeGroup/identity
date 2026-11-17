@@ -59,11 +59,11 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
     private static string InvalidTenantIdDetail =>
         $"The tenant identifier must be 1 to {TenantIdentifierRules.MaxTenantIdLength} lowercase letters, digits or "
-        + "hyphens that starts and ends with a letter or digit.";
+        + "hyphens that start and end with a letter or digit.";
 
     private static string InvalidTeamIdDetail =>
         $"The team identifier must be 1 to {TenantIdentifierRules.MaxTenantIdLength} lowercase letters, digits or "
-        + "hyphens that starts and ends with a letter or digit.";
+        + "hyphens that start and end with a letter or digit.";
 
     private MockRepository Mocks { get; } = new(MockBehavior.Strict);
 

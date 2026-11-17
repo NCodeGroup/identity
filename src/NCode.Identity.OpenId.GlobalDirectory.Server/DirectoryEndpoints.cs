@@ -93,7 +93,7 @@ public static class DirectoryEndpoints
     /// </summary>
     private static string InvalidTenantIdDetail =>
         $"The tenant identifier must be 1 to {TenantIdentifierRules.MaxTenantIdLength} lowercase letters, digits or "
-        + "hyphens that starts and ends with a letter or digit.";
+        + "hyphens that start and end with a letter or digit.";
 
     /// <summary>
     /// Gets the problem detail that a route answers with when a team identifier, in the route or the request body, is
@@ -101,7 +101,7 @@ public static class DirectoryEndpoints
     /// </summary>
     private static string InvalidTeamIdDetail =>
         $"The team identifier must be 1 to {TenantIdentifierRules.MaxTenantIdLength} lowercase letters, digits or "
-        + "hyphens that starts and ends with a letter or digit.";
+        + "hyphens that start and end with a letter or digit.";
 
     /// <summary>
     /// Gets the problem detail that a tenant route answers with when an issuer it writes is longer than the directory
