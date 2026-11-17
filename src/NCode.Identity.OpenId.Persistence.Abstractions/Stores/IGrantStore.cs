@@ -143,7 +143,7 @@ public interface IGrantStore : IStore<PersistedGrant>
 
     /// <summary>
     /// Gets a single page of the protected payloads of the grants of a tenant, ordered by their identifier, using
-    /// keyset (cursor) pagination.
+    /// keyset (cursor) pagination. It reads in the ambient tenant scope, which the caller opens for the tenant.
     /// </summary>
     /// <param name="tenantId">The identifier of the tenant whose grants are read. An unknown tenant has none.</param>
     /// <param name="payloadPrefixes">The texts that a protected payload must start with to be returned, so that only the
@@ -163,7 +163,8 @@ public interface IGrantStore : IStore<PersistedGrant>
     );
 
     /// <summary>
-    /// Replaces the protected payload of a grant, leaving every other member as it is.
+    /// Replaces the protected payload of a grant, leaving every other member as it is. It finds the grant in the
+    /// ambient tenant scope.
     /// </summary>
     /// <param name="value">The payload to write, carrying the concurrency token it was read with.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
