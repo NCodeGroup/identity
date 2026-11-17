@@ -114,7 +114,7 @@ public sealed class CellOptionsValidatorTests
     {
         // Cell kinds are an open vocabulary.
         var options = CreateOptions();
-        options.Kind = "sovereign";
+        options.Kind = "edge";
 
         var result = CreateValidator().Validate(name: null, options);
 

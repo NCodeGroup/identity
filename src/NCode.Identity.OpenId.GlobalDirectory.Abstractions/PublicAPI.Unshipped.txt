@@ -1,5 +1,6 @@
 const NCode.Identity.OpenId.GlobalDirectory.CellKinds.Dedicated = "dedicated" -> string!
 const NCode.Identity.OpenId.GlobalDirectory.CellKinds.Shared = "shared" -> string!
+const NCode.Identity.OpenId.GlobalDirectory.CellKinds.Sovereign = "sovereign" -> string!
 const NCode.Identity.OpenId.GlobalDirectory.CellOptions.SectionName = "Cell" -> string!
 const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.CellClientIdPrefix = "cell-" -> string!
 const NCode.Identity.OpenId.GlobalDirectory.GlobalDirectoryProtocol.ControlPlaneAudience = "urn:ncode:control-plane" -> string!

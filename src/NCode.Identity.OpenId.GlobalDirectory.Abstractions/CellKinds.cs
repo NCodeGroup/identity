@@ -21,4 +21,10 @@ public static class CellKinds
     /// A cell that is dedicated to the tenants of one team.
     /// </summary>
     public const string Dedicated = "dedicated";
+
+    /// <summary>
+    /// A cell that runs in a cloud account of its own, which may be the customer's, or under another operator, for the
+    /// tenants of one team.
+    /// </summary>
+    public const string Sovereign = "sovereign";
 }
