@@ -6468,7 +6468,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   created sign-only or decrypt-only and, on Azure Key Vault and Google Cloud KMS, hardware-protected by default; logs
   carry key identifiers only; and the server destroys only the KMS keys it created; a key it created but could not read,
   check or record is destroyed at once, and a KMS response that names another key or algorithm, or fails its checksum,
-  is refused. A sweep destroys only keys tagged with its deployment, older than its grace period, that no stored secret
+  is refused. A sweep destroys only keys tagged with its cell's name, older than its grace period, that no stored secret
   names, and each destruction stays recoverable for the service's window. A protocol client's or a BFF's key ring holds
   only a remote key's public half, a BFF does not start with a remote key whose public half its KMS does not return or
   that does not prove it holds the private half, and neither creates nor destroys a KMS key
