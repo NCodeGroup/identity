@@ -76,6 +76,11 @@ public static class DirectoryEndpoints
         + "query or fragment.";
 
     /// <summary>
+    /// Gets the options that serialize a document as the change feed carries it, which measure its size.
+    /// </summary>
+    private static JsonSerializerOptions WebOptions { get; } = new(JsonSerializerDefaults.Web);
+
+    /// <summary>
     /// Gets the problem detail that the cell registration route answers with when the kind or the management URL is
     /// longer than the directory stores.
     /// </summary>
@@ -186,7 +191,8 @@ public static class DirectoryEndpoints
             .MapPut("{teamId}/document", PublishTeamAsync)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status403Forbidden)
-            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
         group
             .MapPost("{teamId}/release", ReleaseTeamAsync)
             .ProducesProblem(StatusCodes.Status400BadRequest)
@@ -217,7 +223,8 @@ public static class DirectoryEndpoints
             .MapPut("document", PublishPlatformAsync)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status403Forbidden)
-            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
         group
             .MapGet("document", GetPlatformDocumentAsync)
             .ProducesProblem(StatusCodes.Status404NotFound);
@@ -666,7 +673,8 @@ public static class DirectoryEndpoints
     /// cell; <c>400 Bad Request</c> when the document lacks its team, display name, settings or root keys, names a
     /// blank parent team, names a team or a parent team that is not a <see cref="TenantIdentifierRules"/> identifier,
     /// names a team other than the route's, holds settings that are not a JSON object, or would nest a team deeper than
-    /// the directory stores.
+    /// the directory stores; or <c>422 Unprocessable Entity</c> when the JSON of the document is longer than
+    /// <see cref="DirectoryLimits.MaxDocumentBytes"/> bytes.
     /// </returns>
     private static async ValueTask<IResult> PublishTeamAsync(
         string teamId,
@@ -694,6 +702,9 @@ public static class DirectoryEndpoints
 
         if (document.Settings.ValueKind != JsonValueKind.Object)
             return BadRequest(SettingsNotAnObjectDetail);
+
+        if (RefuseOversizedDocument(document) is { } oversized)
+            return oversized;
 
         var result = await writer.PublishAsync(document, cancellationToken);
         return result.IsDone ? TypedResults.Ok() : BadRequest(result.Detail);
@@ -854,8 +865,9 @@ public static class DirectoryEndpoints
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
     /// <c>200 OK</c> when the document is published; <c>403 Forbidden</c> when the caller is not the control-plane
-    /// cell; or <c>400 Bad Request</c> when the document lacks its settings or holds settings that are not a JSON
-    /// object.
+    /// cell; <c>400 Bad Request</c> when the document lacks its settings or holds settings that are not a JSON object;
+    /// or <c>422 Unprocessable Entity</c> when the JSON of the document is longer than
+    /// <see cref="DirectoryLimits.MaxDocumentBytes"/> bytes.
     /// </returns>
     private static async ValueTask<IResult> PublishPlatformAsync(
         PlatformDocument document,
@@ -870,6 +882,9 @@ public static class DirectoryEndpoints
 
         if (document.Settings.ValueKind != JsonValueKind.Object)
             return BadRequest(SettingsNotAnObjectDetail);
+
+        if (RefuseOversizedDocument(document) is { } oversized)
+            return oversized;
 
         await directory.PublishAsync(document, cancellationToken);
         return TypedResults.Ok();
@@ -1104,6 +1119,25 @@ public static class DirectoryEndpoints
     }
 
     /// <summary>
+    /// Refuses a team or platform document whose JSON, as the change feed carries it, is longer than
+    /// <see cref="DirectoryLimits.MaxDocumentBytes"/> bytes.
+    /// </summary>
+    /// <typeparam name="TDocument">The type of the document to measure.</typeparam>
+    /// <param name="document">The document that a publish route received.</param>
+    /// <returns>
+    /// <c>null</c> when the document is within the limit; otherwise the <c>422 Unprocessable Entity</c> problem.
+    /// </returns>
+    private static ProblemHttpResult? RefuseOversizedDocument<TDocument>(TDocument document)
+    {
+        var size = JsonSerializer.SerializeToUtf8Bytes(document, WebOptions).Length;
+        return size > DirectoryLimits.MaxDocumentBytes
+            ? UnprocessableEntity(
+                $"The document is {size} bytes, and a published document is at most {DirectoryLimits.MaxDocumentBytes} bytes."
+            )
+            : null;
+    }
+
+    /// <summary>
     /// Builds a <c>403 Forbidden</c> problem document.
     /// </summary>
     /// <param name="detail">The explanation for the caller.</param>
@@ -1149,6 +1183,18 @@ public static class DirectoryEndpoints
             title: "Conflict",
             detail: detail,
             statusCode: StatusCodes.Status409Conflict
+        );
+
+    /// <summary>
+    /// Builds a <c>422 Unprocessable Entity</c> problem document.
+    /// </summary>
+    /// <param name="detail">The explanation for the caller.</param>
+    /// <returns>The <see cref="ProblemHttpResult"/> that writes the problem document.</returns>
+    private static ProblemHttpResult UnprocessableEntity(string detail) =>
+        TypedResults.Problem(
+            title: "Unprocessable Entity",
+            detail: detail,
+            statusCode: StatusCodes.Status422UnprocessableEntity
         );
 
     /// <summary>

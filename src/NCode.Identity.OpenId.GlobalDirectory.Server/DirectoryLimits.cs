@@ -7,7 +7,8 @@ using NCode.Identity.OpenId.Tenants;
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 
 /// <summary>
-/// Provides the bounds of the values the directory stores, which its schema and its options validation share.
+/// Provides the bounds of the values the directory stores, which its schema and its options validation share, and the
+/// bounds of the documents it publishes.
 /// </summary>
 internal static class DirectoryLimits
 {
@@ -44,4 +45,10 @@ internal static class DirectoryLimits
     /// The most characters a cell's management URL holds.
     /// </summary>
     public const int MaxManagementUrlLength = 2000;
+
+    /// <summary>
+    /// The most bytes that the JSON of a published team or platform document holds, so a page of the change feed holds
+    /// whole documents within the response a cell reads.
+    /// </summary>
+    public const int MaxDocumentBytes = 64 * 1024;
 }

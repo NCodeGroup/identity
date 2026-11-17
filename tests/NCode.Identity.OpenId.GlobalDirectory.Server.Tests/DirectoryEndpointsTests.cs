@@ -1947,6 +1947,35 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task PublishTeam_WhenTheDocumentIsLargerThanTheLimit_AnswersUnprocessableEntity()
+    {
+        AuthenticateAsControlPlane();
+
+        var response = await Client.PutAsJsonAsync(
+            $"/directory/v1/teams/{TeamId}/document",
+            new TeamDocument
+            {
+                TeamId = TeamId,
+                DisplayName = "Team One",
+                IsDisabled = false,
+                Settings = JsonElement.Parse(
+                    $$"""{"note":"{{new string('a', DirectoryLimits.MaxDocumentBytes)}}"}"""
+                ),
+                RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Contains(
+            $"at most {DirectoryLimits.MaxDocumentBytes} bytes",
+            await ReadProblemDetailAsync(response)
+        );
+        var getResponse = await Client.GetAsync($"/directory/v1/teams/{TeamId}/document");
+        Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
+    }
+
+    [Fact]
     public async Task PublishTeam_WhenTheTeamWouldBeNestedDeeperThanTheLimit_AnswersBadRequest()
     {
         AuthenticateAsControlPlane();
@@ -2292,6 +2321,31 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(SettingsNotAnObjectDetail, await ReadProblemDetailAsync(response));
+        var getResponse = await Client.GetAsync("/directory/v1/platform/document");
+        Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task PublishPlatformDocument_WhenTheDocumentIsLargerThanTheLimit_AnswersUnprocessableEntity()
+    {
+        AuthenticateAsControlPlane();
+
+        var response = await Client.PutAsJsonAsync(
+            "/directory/v1/platform/document",
+            new PlatformDocument
+            {
+                Settings = JsonElement.Parse(
+                    $$"""{"note":"{{new string('a', DirectoryLimits.MaxDocumentBytes)}}"}"""
+                ),
+            },
+            WebOptions
+        );
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Contains(
+            $"at most {DirectoryLimits.MaxDocumentBytes} bytes",
+            await ReadProblemDetailAsync(response)
+        );
         var getResponse = await Client.GetAsync("/directory/v1/platform/document");
         Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
     }
