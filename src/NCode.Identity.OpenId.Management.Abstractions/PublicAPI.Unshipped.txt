@@ -24,6 +24,7 @@ const NCode.Identity.OpenId.Management.Contracts.ManagementProblemMembers.Docume
 const NCode.Identity.OpenId.Management.Contracts.ManagementProblemMembers.KeyReference = "keyReference" -> string!
 const NCode.Identity.OpenId.Management.Contracts.ManagementProblemMembers.OwnerId = "ownerId" -> string!
 const NCode.Identity.OpenId.Management.Contracts.ManagementProblemMembers.OwnerType = "ownerType" -> string!
+const NCode.Identity.OpenId.Management.Contracts.ManagementProblemMembers.PlacedCell = "placedCell" -> string!
 const NCode.Identity.OpenId.Management.Contracts.ManagementProblemMembers.Provider = "provider" -> string!
 const NCode.Identity.OpenId.Management.Contracts.ManagementProblemMembers.RetryAfterSeconds = "retryAfterSeconds" -> string!
 const NCode.Identity.OpenId.Management.Contracts.ManagementProblemMembers.SettingsScope = "settingsScope" -> string!

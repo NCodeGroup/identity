@@ -52,4 +52,9 @@ public static class ManagementProblemMembers
     /// The description of the document error that the problem concerns.
     /// </summary>
     public const string DocumentError = "documentError";
+
+    /// <summary>
+    /// The name of the cell that the global directory places the tenant in, which the problem concerns.
+    /// </summary>
+    public const string PlacedCell = "placedCell";
 }
