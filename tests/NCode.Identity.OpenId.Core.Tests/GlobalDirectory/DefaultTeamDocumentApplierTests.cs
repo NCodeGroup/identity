@@ -1199,27 +1199,6 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
 
     #endregion
 
-    #region GetAppliedSequenceAsync Tests
-
-    [Fact]
-    public async Task GetAppliedSequenceAsync_ReturnsTheHighestMirroredSequence()
-    {
-        using var cts = new CancellationTokenSource();
-        var cancellationToken = cts.Token;
-        SetupUnscoped();
-        SetupStoreManager();
-        MockTeamStore
-            .Setup(x => x.GetMaxDirectorySequenceAsync(cancellationToken))
-            .ReturnsAsync(42L)
-            .Verifiable();
-
-        var result = await Applier.GetAppliedSequenceAsync(cancellationToken);
-
-        Assert.Equal(42L, result);
-    }
-
-    #endregion
-
     private static TeamDocument CreateDocument(string settingsJson, long sequence) =>
         new()
         {

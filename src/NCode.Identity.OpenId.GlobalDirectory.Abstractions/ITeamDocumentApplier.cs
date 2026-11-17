@@ -6,8 +6,9 @@ using JetBrains.Annotations;
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
-/// Applies the team changes of the directory's change feed to the cell's team rows. Register a custom implementation to
-/// replace the default behavior.
+/// Applies the team changes of the directory's change feed to the cell's team rows. The feed's position lives in
+/// <see cref="IDirectoryFeedCheckpoint"/>, not in the team rows. Register a custom implementation to replace the
+/// default behavior.
 /// </summary>
 [PublicAPI]
 public interface ITeamDocumentApplier
@@ -43,12 +44,4 @@ public interface ITeamDocumentApplier
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     ValueTask ReconcileRootKeysAsync(CancellationToken cancellationToken);
-
-    /// <summary>
-    /// Gets the highest sequence of the directory's change feed that the team rows carry.
-    /// </summary>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the highest applied
-    /// sequence, or <c>0</c> when none is applied.</returns>
-    ValueTask<long> GetAppliedSequenceAsync(CancellationToken cancellationToken);
 }

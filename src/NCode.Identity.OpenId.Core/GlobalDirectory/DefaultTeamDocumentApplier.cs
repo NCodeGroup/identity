@@ -418,14 +418,4 @@ internal sealed class DefaultTeamDocumentApplier(
         if (isRemoved)
             await MirrorRootKeyAsync(teamId, null, cancellationToken);
     }
-
-    /// <inheritdoc />
-    public async ValueTask<long> GetAppliedSequenceAsync(CancellationToken cancellationToken)
-    {
-        using var _ = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
-
-        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
-        var store = storeManager.GetStore<ITeamStore>();
-        return await store.GetMaxDirectorySequenceAsync(cancellationToken);
-    }
 }
