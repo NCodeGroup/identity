@@ -16,8 +16,8 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
 /// servers, and rewrites only the protected value of a secret.
 /// </summary>
 /// <remarks>
-/// This store does not save changes. The caller's store manager commits them. The queries ignore the tenant-scoping
-/// filter because the owner names the tenant explicitly.
+/// This store does not save changes. The caller's store manager commits them. The caller opens the owner tenant's
+/// scope, so the tenant-scoping filter confines the queries to that tenant's join rows.
 /// </remarks>
 // See ADR-1407.
 internal class SecretEnvelopeStore(IStoreProvider storeProvider, OpenIdDbContext openIdDbContext)
@@ -142,12 +142,9 @@ internal class SecretEnvelopeStore(IStoreProvider storeProvider, OpenIdDbContext
         )
         {
             // Extension properties cannot appear in an expression tree, so the join rows are taken beforehand.
-            // Cross-tenant: the secrets of a tenant are found through the join rows of the tenant, its clients and its resource servers.
-            var tenantSecrets = DbContext.TenantSecrets.IgnoreQueryFilters();
-            // Cross-tenant: the secrets of a tenant are found through the join rows of the tenant, its clients and its resource servers.
-            var clientSecrets = DbContext.ClientSecrets.IgnoreQueryFilters();
-            // Cross-tenant: the secrets of a tenant are found through the join rows of the tenant, its clients and its resource servers.
-            var resourceServerSecrets = DbContext.ResourceServerSecrets.IgnoreQueryFilters();
+            var tenantSecrets = DbContext.TenantSecrets;
+            var clientSecrets = DbContext.ClientSecrets;
+            var resourceServerSecrets = DbContext.ResourceServerSecrets;
 
             return DbContext
                 .Secrets.AsNoTracking()
@@ -173,9 +170,7 @@ internal class SecretEnvelopeStore(IStoreProvider storeProvider, OpenIdDbContext
         var token = Guid.NewGuid().ToString("N");
 
         var tenant = await DbContext
-            // Cross-tenant: the owner of a secret is found from the secret alone, before its tenant is known.
-            .TenantSecrets.IgnoreQueryFilters()
-            .Where(join => join.SecretId == secretId)
+            .TenantSecrets.Where(join => join.SecretId == secretId)
             .Select(join => join.Tenant)
             .FirstOrDefaultAsync(cancellationToken);
         if (tenant is not null)
@@ -185,9 +180,7 @@ internal class SecretEnvelopeStore(IStoreProvider storeProvider, OpenIdDbContext
         }
 
         var client = await DbContext
-            // Cross-tenant: the owner of a secret is found from the secret alone, before its tenant is known.
-            .ClientSecrets.IgnoreQueryFilters()
-            .Where(join => join.SecretId == secretId)
+            .ClientSecrets.Where(join => join.SecretId == secretId)
             .Select(join => join.Client)
             .FirstOrDefaultAsync(cancellationToken);
         if (client is not null)
@@ -197,9 +190,7 @@ internal class SecretEnvelopeStore(IStoreProvider storeProvider, OpenIdDbContext
         }
 
         var resourceServer = await DbContext
-            // Cross-tenant: the owner of a secret is found from the secret alone, before its tenant is known.
-            .ResourceServerSecrets.IgnoreQueryFilters()
-            .Where(join => join.SecretId == secretId)
+            .ResourceServerSecrets.Where(join => join.SecretId == secretId)
             .Select(join => join.ResourceServer)
             .FirstOrDefaultAsync(cancellationToken);
         if (resourceServer is not null)
