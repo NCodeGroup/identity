@@ -234,7 +234,7 @@ internal sealed class DefaultDirectoryStore(
 
     /// <inheritdoc />
     async ValueTask<ReservationResult> ITenantDirectory.PlaceAsync(
-        TenantPlacement placement,
+        TenantPlacementRequest placement,
         CancellationToken cancellationToken
     )
     {

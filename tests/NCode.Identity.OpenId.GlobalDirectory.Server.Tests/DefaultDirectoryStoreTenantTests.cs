@@ -64,12 +64,11 @@ public sealed class DefaultDirectoryStoreTenantTests : DefaultDirectoryStoreTest
         CancellationToken cancellationToken = default
     ) =>
         Tenants.PlaceAsync(
-            new TenantPlacement
+            new TenantPlacementRequest
             {
                 TenantId = tenantId,
                 Issuer = issuer,
                 Cell = cell,
-                Region = CellRegion,
             },
             cancellationToken
         );

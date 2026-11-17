@@ -474,35 +474,6 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task PlaceTenant_WhenTheRegionIsNotACellLabel_Returns400()
-    {
-        Authenticate();
-        var cellResponse = await Client.PutAsJsonAsync(
-            $"/directory/v1/cells/{CellName}",
-            CreateCell(CellName),
-            WebOptions
-        );
-        Assert.Equal(HttpStatusCode.OK, cellResponse.StatusCode);
-        await ReserveTenantAsync(TenantId, TenantIssuer);
-
-        var response = await Client.PostAsJsonAsync(
-            "/directory/v1/tenants/place",
-            new TenantPlacement
-            {
-                TenantId = TenantId,
-                Issuer = TenantIssuer,
-                Cell = CellName,
-                Region = "West-Europe",
-            },
-            WebOptions
-        );
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var getResponse = await Client.GetAsync($"/directory/v1/tenants/{TenantId}");
-        Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
-    }
-
-    [Fact]
     public async Task PlaceTenant_WhenTheIssuerIsOverMaxLength_AnswersBadRequest()
     {
         Authenticate();
@@ -516,12 +487,11 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
         var response = await Client.PostAsJsonAsync(
             "/directory/v1/tenants/place",
-            new TenantPlacement
+            new TenantPlacementRequest
             {
                 TenantId = TenantId,
                 Issuer = "https://op.example/" + new string('i', DirectoryLimits.MaxIssuerLength),
                 Cell = CellName,
-                Region = "region-a",
             },
             WebOptions
         );
@@ -538,12 +508,11 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
         var response = await Client.PostAsJsonAsync(
             "/directory/v1/tenants/place",
-            new TenantPlacement
+            new TenantPlacementRequest
             {
                 TenantId = "Tenant_A",
                 Issuer = TenantIssuer,
                 Cell = CellName,
-                Region = "region-a",
             },
             WebOptions
         );
@@ -566,12 +535,11 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
         var placeResponse = await Client.PostAsJsonAsync(
             "/directory/v1/tenants/place",
-            new TenantPlacement
+            new TenantPlacementRequest
             {
                 TenantId = TenantId,
                 Issuer = TenantIssuer,
                 Cell = CellName,
-                Region = "region-a",
             },
             WebOptions
         );
@@ -597,12 +565,11 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
         var response = await Client.PostAsJsonAsync(
             "/directory/v1/tenants/place",
-            new TenantPlacement
+            new TenantPlacementRequest
             {
                 TenantId = TenantId,
                 Issuer = TenantIssuer,
                 Cell = CellName,
-                Region = "region-a",
             },
             WebOptions
         );
@@ -876,12 +843,11 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
         var response = await Client.PostAsJsonAsync(
             "/directory/v1/tenants/place",
-            new TenantPlacement
+            new TenantPlacementRequest
             {
                 TenantId = TenantId,
                 Issuer = "https://op.example/tenant-1?x=1",
                 Cell = CellName,
-                Region = "region-a",
             },
             WebOptions
         );
@@ -1069,12 +1035,11 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
         var response = await Client.PostAsJsonAsync(
             "/directory/v1/tenants/place",
-            new TenantPlacement
+            new TenantPlacementRequest
             {
                 TenantId = TenantId,
                 Issuer = TenantIssuer,
                 Cell = CellName,
-                Region = "region-a",
             },
             WebOptions
         );
@@ -1093,12 +1058,11 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
         var response = await Client.PostAsJsonAsync(
             "/directory/v1/tenants/place",
-            new TenantPlacement
+            new TenantPlacementRequest
             {
                 TenantId = TenantId,
                 Issuer = TenantIssuer,
                 Cell = CellName,
-                Region = "region-a",
             },
             WebOptions
         );
@@ -1322,12 +1286,11 @@ public class DirectoryEndpointsTests : IAsyncLifetime
             cancellationToken
         );
         await tenants.PlaceAsync(
-            new TenantPlacement
+            new TenantPlacementRequest
             {
                 TenantId = TenantId,
                 Issuer = TenantIssuer,
                 Cell = "a",
-                Region = "region-a",
             },
             cancellationToken
         );

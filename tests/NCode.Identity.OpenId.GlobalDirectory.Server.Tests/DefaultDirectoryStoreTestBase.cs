@@ -124,12 +124,11 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
         Assert.True(result.IsReserved);
 
         var placementResult = await Tenants.PlaceAsync(
-            new TenantPlacement
+            new TenantPlacementRequest
             {
                 TenantId = tenantId,
                 Issuer = issuer,
                 Cell = CellName,
-                Region = CellRegion,
             },
             cancellationToken
         );

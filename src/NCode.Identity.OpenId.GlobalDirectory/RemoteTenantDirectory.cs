@@ -40,7 +40,7 @@ internal sealed class RemoteTenantDirectory(DirectoryHttpClient client) : ITenan
 
     /// <inheritdoc />
     public async ValueTask<ReservationResult> PlaceAsync(
-        TenantPlacement placement,
+        TenantPlacementRequest placement,
         CancellationToken cancellationToken
     )
     {

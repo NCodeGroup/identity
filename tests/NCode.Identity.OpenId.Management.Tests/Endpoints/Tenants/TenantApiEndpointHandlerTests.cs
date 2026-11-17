@@ -3992,10 +3992,8 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         MockTenantDirectory
             .Setup(x =>
                 x.PlaceAsync(
-                    It.Is<TenantPlacement>(placement =>
-                        placement.TenantId == "acme"
-                        && placement.Cell == "cell-1"
-                        && placement.Region == "us"
+                    It.Is<TenantPlacementRequest>(placement =>
+                        placement.TenantId == "acme" && placement.Cell == "cell-1"
                     ),
                     It.IsAny<CancellationToken>()
                 )
@@ -4222,7 +4220,9 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
         MockTenantDirectory
-            .Setup(x => x.PlaceAsync(It.IsAny<TenantPlacement>(), It.IsAny<CancellationToken>()))
+            .Setup(x =>
+                x.PlaceAsync(It.IsAny<TenantPlacementRequest>(), It.IsAny<CancellationToken>())
+            )
             .ThrowsAsync(new DirectoryUnavailableException("The directory is unreachable."))
             .Verifiable();
 
@@ -4263,7 +4263,9 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
         MockTenantDirectory
-            .Setup(x => x.PlaceAsync(It.IsAny<TenantPlacement>(), It.IsAny<CancellationToken>()))
+            .Setup(x =>
+                x.PlaceAsync(It.IsAny<TenantPlacementRequest>(), It.IsAny<CancellationToken>())
+            )
             .ReturnsAsync(ReservationResult.Conflict("The tenant 'acme' is not reserved."))
             .Verifiable();
 
@@ -4308,7 +4310,9 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
         MockTenantDirectory
-            .Setup(x => x.PlaceAsync(It.IsAny<TenantPlacement>(), It.IsAny<CancellationToken>()))
+            .Setup(x =>
+                x.PlaceAsync(It.IsAny<TenantPlacementRequest>(), It.IsAny<CancellationToken>())
+            )
             .ReturnsAsync(ReservationResult.Conflict("The tenant 'acme' is not reserved."))
             .Verifiable();
 

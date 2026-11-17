@@ -115,7 +115,7 @@ public sealed class InMemoryTenantDirectory : ITenantDirectory
 
     /// <inheritdoc />
     public ValueTask<ReservationResult> PlaceAsync(
-        TenantPlacement placement,
+        TenantPlacementRequest placement,
         CancellationToken cancellationToken
     )
     {

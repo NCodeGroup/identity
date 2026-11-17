@@ -484,12 +484,11 @@ public sealed class LocalTenantDirectoryTests : IDisposable
     public async Task PlaceAsync_WhenCalled_IsReservedAndWritesNothing()
     {
         var result = await Directory.PlaceAsync(
-            new TenantPlacement
+            new TenantPlacementRequest
             {
                 TenantId = TenantId,
                 Issuer = Issuer,
                 Cell = CellName,
-                Region = CellRegion,
             },
             CancellationToken.None
         );

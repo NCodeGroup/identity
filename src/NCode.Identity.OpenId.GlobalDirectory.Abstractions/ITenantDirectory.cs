@@ -30,13 +30,13 @@ public interface ITenantDirectory
     /// Places a tenant that the placement's cell reserved under the placement's issuer, once the cell holds the
     /// tenant's row. The placement is refused when nothing reserved the tenant, when the tenant is retired, or when the
     /// reservation belongs to another cell or issuer; placing a tenant already placed in that cell under that issuer
-    /// succeeds.
+    /// succeeds. The directory takes the placement's region from the cell's registration.
     /// </summary>
-    /// <param name="placement">The <see cref="TenantPlacement"/> to record.</param>
+    /// <param name="placement">The <see cref="TenantPlacementRequest"/> to record.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>A <see cref="ReservationResult"/> that is reserved, or a conflict with its detail.</returns>
     ValueTask<ReservationResult> PlaceAsync(
-        TenantPlacement placement,
+        TenantPlacementRequest placement,
         CancellationToken cancellationToken
     );
 

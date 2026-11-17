@@ -301,21 +301,22 @@ public static class DirectoryEndpoints
     }
 
     /// <summary>
-    /// Places a tenant in the calling cell and records the cell's region. A cell places a tenant only in itself.
+    /// Places a tenant in the calling cell; its region is the region the cell registered. A cell places a tenant only
+    /// in itself.
     /// </summary>
-    /// <param name="placement">The tenant, its issuer, its cell and its region.</param>
+    /// <param name="placement">The tenant, its issuer and its cell.</param>
     /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
     /// <param name="directory">The <see cref="ITenantDirectory"/> that holds the placement.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
     /// <c>200 OK</c> when the tenant is placed; <c>400 Bad Request</c> when the tenant or its issuer is blank, the
     /// tenant is not a <see cref="TenantIdentifierRules"/> identifier, the issuer is longer than the directory stores
-    /// or is not a service URL that <see cref="AbsoluteUri.TryParseServiceUrl"/> accepts, or the cell or its region is
-    /// not a <see cref="CellLabelRules"/> label; <c>403 Forbidden</c> when the cell is not the caller;
-    /// <c>409 Conflict</c> when the identifier or the issuer belongs to another tenant.
+    /// or is not a service URL that <see cref="AbsoluteUri.TryParseServiceUrl"/> accepts, or the cell is not a
+    /// <see cref="CellLabelRules"/> label; <c>403 Forbidden</c> when the cell is not the caller; <c>409 Conflict</c>
+    /// when the identifier or the issuer belongs to another tenant.
     /// </returns>
     private static async ValueTask<IResult> PlaceTenantAsync(
-        TenantPlacement placement,
+        TenantPlacementRequest placement,
         HttpContext httpContext,
         ITenantDirectory directory,
         CancellationToken cancellationToken
@@ -333,10 +334,7 @@ public static class DirectoryEndpoints
         if (IsMalformedIssuer(placement.Issuer))
             return BadRequest(InvalidIssuerDetail);
 
-        if (
-            !CellLabelRules.IsValidLabel(placement.Cell)
-            || !CellLabelRules.IsValidLabel(placement.Region)
-        )
+        if (!CellLabelRules.IsValidLabel(placement.Cell))
             return BadRequest(InvalidCellLabelDetail);
 
         // A cell places a tenant only in itself.

@@ -297,12 +297,11 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
         Assert.Null(await Tenants.GetPlacementOrDefaultAsync(TenantId, CancellationToken.None));
 
         var placeResult = await Tenants.PlaceAsync(
-            new TenantPlacement
+            new TenantPlacementRequest
             {
                 TenantId = TenantId,
                 Issuer = TenantIssuer,
                 Cell = CellName,
-                Region = Region,
             },
             CancellationToken.None
         );

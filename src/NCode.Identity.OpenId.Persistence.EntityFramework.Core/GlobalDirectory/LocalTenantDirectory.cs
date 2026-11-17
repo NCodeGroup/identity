@@ -112,7 +112,7 @@ internal sealed class LocalTenantDirectory(
 
     /// <inheritdoc />
     public ValueTask<ReservationResult> PlaceAsync(
-        TenantPlacement placement,
+        TenantPlacementRequest placement,
         CancellationToken cancellationToken
     )
     {

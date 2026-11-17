@@ -975,12 +975,11 @@ internal class TenantApiEndpointHandler(
             isInserted = true;
 
             var placementResult = await TenantDirectory.PlaceAsync(
-                new TenantPlacement
+                new TenantPlacementRequest
                 {
                     TenantId = tenant.TenantId,
                     Issuer = issuer,
                     Cell = CellOptions.Name,
-                    Region = CellOptions.Region,
                 },
                 cancellationToken
             );
