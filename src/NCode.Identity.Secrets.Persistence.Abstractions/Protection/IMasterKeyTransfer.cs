@@ -45,7 +45,10 @@ public interface IMasterKeyTransfer
 
     /// <summary>
     /// Stores the master keys of a package for an owner: the root key the owner brings first, then each master key,
-    /// wrapped under the nearest root key of the owner, with its identifier and version.
+    /// wrapped under the nearest root key of the owner, with its identifier and version. The root key the owner brings
+    /// passes the checks that <see cref="IOwnerRootKeyManager.SetAsync"/> applies, a registered policy that lets the
+    /// owner bring one and an allowed key wrapper with a key reference and an access identity that fit it, the cell's
+    /// cloud regions included; a refused root key stores nothing.
     /// </summary>
     /// <param name="owner">The <see cref="SecretOwner"/> that the master keys belong to, which must be the owner that
     /// the package was exported for.</param>
@@ -54,7 +57,7 @@ public interface IMasterKeyTransfer
     /// decrypts the package.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the number of master
-    /// keys that were stored.</returns>
+    /// keys that were stored, or the reason that the root key the package brings is refused.</returns>
     /// <exception cref="System.Security.Cryptography.CryptographicException">
     /// Thrown when the package does not decrypt with the recipient key.
     /// </exception>

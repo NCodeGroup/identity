@@ -463,7 +463,10 @@ NCode.Identity.Secrets.Persistence.Protection.MasterKeyRewrapResult.Verified.ini
 NCode.Identity.Secrets.Persistence.Protection.MasterKeyTransferResult
 NCode.Identity.Secrets.Persistence.Protection.MasterKeyTransferResult.Count.get -> int
 NCode.Identity.Secrets.Persistence.Protection.MasterKeyTransferResult.Count.init -> void
+NCode.Identity.Secrets.Persistence.Protection.MasterKeyTransferResult.IsImported.get -> bool
 NCode.Identity.Secrets.Persistence.Protection.MasterKeyTransferResult.MasterKeyTransferResult(int Count) -> void
+NCode.Identity.Secrets.Persistence.Protection.MasterKeyTransferResult.RefusalDetail.get -> string?
+NCode.Identity.Secrets.Persistence.Protection.MasterKeyTransferResult.RefusalDetail.init -> void
 NCode.Identity.Secrets.Persistence.Protection.ProtectedValueRewrapResult
 NCode.Identity.Secrets.Persistence.Protection.ProtectedValueRewrapResult.Failed.get -> int
 NCode.Identity.Secrets.Persistence.Protection.ProtectedValueRewrapResult.Failed.init -> void
