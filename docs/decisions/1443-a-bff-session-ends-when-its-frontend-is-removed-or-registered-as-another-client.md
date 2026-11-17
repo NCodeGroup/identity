@@ -57,10 +57,11 @@ client; and a background pass on one replica ends every stored session whose fro
 5. **One caller ends a session.** A session ends through an atomic take of its record, so when a request and the pass
    end one session at once, only the caller whose take removed it audits and counts it.
 6. **Failures retry.** A replica that cannot take the lease leaves the frontend to the one that holds it and runs the
-   pass again after `Bff:SessionRetirement:RetryDelay` (a minute by default). A store failure is logged as event
-   19014, any other failure of a pass is logged the same way so the service keeps running, and a session that cannot
-   be ended is logged as event 19015 while the pass ends the client's other sessions. In each case the pass runs
-   again after the delay or at the next change.
+   pass again after `Bff:SessionRetirement:RetryDelay` (a minute by default). A store failure is logged as event 19014,
+   any other failure of a pass is logged the same way so the service keeps running, and a session whose record cannot be
+   read, whose key cannot be forgotten or that cannot be ended, for any reason but a store failure, is logged as event
+   19015 while the pass goes on with the client's other sessions. In each case the pass runs again after the delay or at
+   the next change.
 7. **Restarts and interruptions converge.** The pass reads the store, not a remembered set, so a frontend removed by
    restarting the replicas is reconciled at their next start, and a pass that a crash interrupted runs again at the
    next start or change.
