@@ -139,18 +139,19 @@ internal class TenantImportApiEndpointHandler(
 
     /// <summary>
     /// Imports a tenant that another cell exported, and moves the tenant's placement in the global directory to this
-    /// cell. The tenant stays disabled.
+    /// cell. A move that the directory does not confirm is read back from the placement before anything is undone. The
+    /// tenant stays disabled.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
     /// <param name="request">
     /// The <see cref="TenantImportRequest"/> that names the transfer key and carries the package.
     /// </param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <response code="200">The tenant is imported and placed in this cell.</response>
-    /// <response code="409">The directory places the tenant in this cell or in no cell, or refuses the move. Nothing the import wrote remains.</response>
+    /// <response code="200">The tenant is imported and placed in this cell, also after a move that the directory did not confirm.</response>
+    /// <response code="409">The directory places the tenant in this cell or in no cell, or refuses the move while it still places the tenant in the source cell. Nothing the import wrote remains.</response>
     /// <response code="413">The request is larger than the ceiling of a tenant move, 64 MiB and 64 KiB.</response>
     /// <response code="422">The transfer key is unknown, expired or already used, the package is not sealed to a transfer key, the package does not decrypt with it or is malformed, its format version is not one this cell imports, its region is not this cell's region, or it is offered to another cell.</response>
-    /// <response code="503">The global directory is unavailable. Nothing the import wrote remains.</response>
+    /// <response code="503">The global directory is unavailable before the import writes anything, or at a move after which it still places the tenant in the source cell, and nothing the import wrote remains; or the outcome of the move is unknown, and this cell keeps what the import wrote.</response>
     [EndpointName("api/tenant-imports/create")]
     internal virtual async ValueTask<IResult> ImportTenantAsync(
         HttpContext httpContext,
@@ -295,15 +296,14 @@ internal class TenantImportApiEndpointHandler(
             await RemoveImportedAsync(tenantId, contributors, CancellationToken.None);
         }
 
-        // Each contributor and the master key transfer commit on their own, so a failure at any later point removes
-        // what was written and puts the remote keys back under the source cell's tag before the answer.
+        // Each contributor and the master key transfer commit on their own, so a failure before the move removes what
+        // was written and puts the remote keys back under the source cell's tag before the answer.
         var retagged = new List<(IRemoteKeyProvider Provider, string KeyId)>();
-        IResult? failure = null;
+        IResult? failure;
         try
         {
-            failure = await ImportAndMoveAsync(
+            failure = await ImportAndRetagAsync(
                 tenantId,
-                sourceCell,
                 masterKeys,
                 privateKey,
                 contributors,
@@ -311,10 +311,6 @@ internal class TenantImportApiEndpointHandler(
                 retagged,
                 cancellationToken
             );
-        }
-        catch (DirectoryUnavailableException)
-        {
-            failure = DirectoryUnavailableProblem(httpContext);
         }
         catch
         {
@@ -340,12 +336,29 @@ internal class TenantImportApiEndpointHandler(
             return failure;
         }
 
-        await using (var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken))
+        var moveFailure = await MoveToThisCellAsync(
+            httpContext,
+            tenantId,
+            sourceCell,
+            contributors,
+            retagged,
+            cancellationToken
+        );
+        if (moveFailure is not null)
+        {
+            return moveFailure;
+        }
+
+        // The directory places the tenant in this cell whatever the request's cancellation, so the import is read and
+        // audited to the end.
+        await using (
+            var storeManager = await StoreManagerFactory.CreateAsync(CancellationToken.None)
+        )
         {
             var imported =
                 await storeManager
                     .GetStore<ITenantStore>()
-                    .GetOrDefaultAsync(tenantId, cancellationToken)
+                    .GetOrDefaultAsync(tenantId, CancellationToken.None)
                 ?? throw new InvalidOperationException(
                     $"The imported tenant '{tenantId}' is not stored."
                 );
@@ -367,12 +380,11 @@ internal class TenantImportApiEndpointHandler(
         );
     }
 
-    // Imports each section in order, then the master keys, retags the remote keys that the imported secrets reference
-    // to this cell, and moves the placement. A failure that the caller should answer is returned; nothing is returned
-    // when the tenant is imported and moved.
-    private async ValueTask<IResult?> ImportAndMoveAsync(
+    // Imports each section in order, then the master keys, and retags the remote keys that the imported secrets
+    // reference to this cell. A failure that the caller should answer is returned; nothing is returned when the tenant
+    // is imported and its keys are retagged.
+    private async ValueTask<IResult?> ImportAndRetagAsync(
         string tenantId,
-        string sourceCell,
         string masterKeys,
         SecretKey privateKey,
         List<ITenantTransferContributor> contributors,
@@ -423,19 +435,106 @@ internal class TenantImportApiEndpointHandler(
             retagged.Add((provider, keyId));
         }
 
-        var move = await TenantDirectory.MoveAsync(
-            tenantId,
-            sourceCell,
-            CellOptions.Name,
-            cancellationToken
-        );
+        return null;
+    }
 
-        return move.IsMoved
-            ? null
-            : TypedResults.Problem(
+    // Moves the tenant's placement to this cell. The directory can commit a move that it does not confirm, such as one
+    // whose acknowledgement a timeout loses or whose transaction a retry runs again, so a move that answers a conflict,
+    // cannot be reached, is cancelled or fails is read back from the placement: a placement in this cell completes the
+    // import, a placement in the source cell undoes it and answers the move's own failure, and any other answer keeps
+    // what the import wrote and reports that the outcome is unknown. Nothing is returned when the tenant is placed here.
+    private async ValueTask<IResult?> MoveToThisCellAsync(
+        HttpContext httpContext,
+        string tenantId,
+        string sourceCell,
+        List<ITenantTransferContributor> contributors,
+        List<(IRemoteKeyProvider Provider, string KeyId)> retagged,
+        CancellationToken cancellationToken
+    )
+    {
+        IResult refusal;
+        try
+        {
+            var move = await TenantDirectory.MoveAsync(
+                tenantId,
+                sourceCell,
+                CellOptions.Name,
+                cancellationToken
+            );
+            if (move.IsMoved)
+            {
+                return null;
+            }
+
+            refusal = TypedResults.Problem(
                 detail: move.ConflictDetail,
                 statusCode: StatusCodes.Status409Conflict
             );
+        }
+        catch (DirectoryUnavailableException)
+        {
+            refusal = DirectoryUnavailableProblem(httpContext);
+        }
+        catch
+        {
+            var thrownOutcome = await ReadMoveOutcomeAsync(tenantId, sourceCell);
+            if (thrownOutcome is false)
+            {
+                await RollbackAsync(
+                    tenantId,
+                    sourceCell,
+                    contributors,
+                    retagged,
+                    CancellationToken.None
+                );
+                throw;
+            }
+
+            return thrownOutcome is true ? null : MoveUnknownProblem(httpContext);
+        }
+
+        var outcome = await ReadMoveOutcomeAsync(tenantId, sourceCell);
+        if (outcome is false)
+        {
+            await RollbackAsync(
+                tenantId,
+                sourceCell,
+                contributors,
+                retagged,
+                CancellationToken.None
+            );
+            return refusal;
+        }
+
+        return outcome is true ? null : MoveUnknownProblem(httpContext);
+    }
+
+    // Reads where the directory places the tenant after a move that it did not confirm, on a token of its own so the
+    // read runs whatever the request's cancellation: true when it places the tenant in this cell, false when it places
+    // it in the source cell, and null when it places it in another cell or in none, or cannot be reached.
+    [SuppressMessage(
+        "Design",
+        "NCID0003",
+        Justification = "The read must complete whatever the caller does, so it runs on its own token and takes none (ADR-1496)."
+    )]
+    private async ValueTask<bool?> ReadMoveOutcomeAsync(string tenantId, string sourceCell)
+    {
+        TenantPlacement? placement;
+        try
+        {
+            placement = await TenantDirectory.GetPlacementOrDefaultAsync(
+                tenantId,
+                CancellationToken.None
+            );
+        }
+        catch (DirectoryUnavailableException)
+        {
+            return null;
+        }
+
+        return placement?.Cell == CellOptions.Name ? true
+            : placement?.Cell == sourceCell ? false
+            : (bool?)null;
     }
 
     // Puts the retagged remote keys back under the source cell's tag, so that this cell's sweep does not destroy keys
@@ -650,6 +749,18 @@ internal class TenantImportApiEndpointHandler(
             {
                 Status = StatusCodes.Status503ServiceUnavailable,
                 Detail = "The global directory is unavailable. Retry the request.",
+            }
+        );
+
+    private static ProblemHttpResult MoveUnknownProblem(HttpContext httpContext) =>
+        RetryAfterProblem.Create(
+            httpContext,
+            TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds),
+            new ProblemDetails
+            {
+                Status = StatusCodes.Status503ServiceUnavailable,
+                Detail =
+                    "The outcome of the move is unknown. Read the tenant's placement in the global directory before releasing it at the source; a repeated import clears this cell's copy.",
             }
         );
 }

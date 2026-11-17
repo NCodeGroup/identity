@@ -354,21 +354,43 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
             .Verifiable(Times.Exactly(readImportedTenant ? 2 : 1));
     }
 
+    private static TenantPlacement CreatePlacement(string cell) =>
+        new()
+        {
+            TenantId = TenantId,
+            Issuer = "https://issuer.example.com",
+            Cell = cell,
+            Region = Region,
+        };
+
     private void SetupPlacement(string? cell = SourceCell) =>
         MockTenantDirectory
             .Setup(x => x.GetPlacementOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(
-                cell is null
-                    ? null
-                    : new TenantPlacement
-                    {
-                        TenantId = TenantId,
-                        Issuer = "https://issuer.example.com",
-                        Cell = cell,
-                        Region = Region,
-                    }
-            )
+            .ReturnsAsync(cell is null ? null : CreatePlacement(cell))
             .Verifiable();
+
+    // The directory places the tenant in the source cell before the import, and answers the read after an unconfirmed
+    // move with reread. The tokens of the two reads are returned.
+    private List<CancellationToken> SetupPlacementThenReread(
+        Func<ValueTask<TenantPlacement?>> reread
+    )
+    {
+        var tokens = new List<CancellationToken>();
+        MockTenantDirectory
+            .Setup(x => x.GetPlacementOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()))
+            .Returns(
+                (string _, CancellationToken token) =>
+                {
+                    tokens.Add(token);
+                    return tokens.Count == 1
+                        ? new ValueTask<TenantPlacement?>(CreatePlacement(SourceCell))
+                        : reread();
+                }
+            )
+            .Verifiable(Times.Exactly(2));
+
+        return tokens;
+    }
 
     // The contributors import in order, and the core contributor reports one remote key.
     private void SetupContributorImports()
@@ -464,6 +486,46 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
                 Calls.Add("move");
                 return new ValueTask<MoveResult>(result);
             })
+            .Verifiable();
+
+    // The move fails in a way that the directory does not confirm: failure names a refusal, an unreachable directory, a
+    // cancellation or any other failure.
+    private void SetupUnconfirmedMove(string failure) =>
+        MockTenantDirectory
+            .Setup(x => x.MoveAsync(TenantId, SourceCell, CellName, It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                Calls.Add("move");
+                return failure switch
+                {
+                    "refused" => new ValueTask<MoveResult>(
+                        MoveResult.Conflict("The offer is consumed.")
+                    ),
+                    "unavailable" => ValueTask.FromException<MoveResult>(
+                        new DirectoryUnavailableException("The directory is unreachable.")
+                    ),
+                    "cancelled" => ValueTask.FromException<MoveResult>(
+                        new OperationCanceledException()
+                    ),
+                    _ => ValueTask.FromException<MoveResult>(
+                        new InvalidOperationException("The move failed.")
+                    ),
+                };
+            })
+            .Verifiable();
+
+    private void SetupImportedAudit() =>
+        MockManagementAuditRecorder
+            .Setup(x =>
+                x.RecordTenantChangedAsync(
+                    It.IsAny<HttpContext>(),
+                    TeamId,
+                    TenantId,
+                    "imported",
+                    It.IsAny<JsonElement?>()
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
     // The rollback removes the contributors' rows in reverse order, then the tenant with its master keys.
@@ -980,12 +1042,12 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task ImportTenantAsync_WhenTheDirectoryRefusesTheMove_RemovesWhatItImportedAndReturnsConflict()
+    public async Task ImportTenantAsync_WhenTheDirectoryRefusesTheMoveAndPlacesTheTenantInTheSource_RemovesWhatItImportedAndReturnsConflict()
     {
         SetupAuthorization(AuthorizationResult.Success());
         SetupPackage();
         SetupStore();
-        SetupPlacement();
+        SetupPlacementThenReread(() => new(CreatePlacement(SourceCell)));
         SetupContributorImports();
         SetupMasterKeyImport();
         SetupProvider();
@@ -1021,21 +1083,18 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task ImportTenantAsync_WhenTheDirectoryIsUnavailableAtTheMove_RemovesWhatItImportedAndReturnsServiceUnavailable()
+    public async Task ImportTenantAsync_WhenTheDirectoryIsUnavailableAtTheMoveAndPlacesTheTenantInTheSource_RemovesWhatItImportedAndReturnsServiceUnavailable()
     {
         SetupAuthorization(AuthorizationResult.Success());
         SetupPackage();
         SetupStore();
-        SetupPlacement();
+        SetupPlacementThenReread(() => new(CreatePlacement(SourceCell)));
         SetupContributorImports();
         SetupMasterKeyImport();
         SetupProvider();
         SetupRetag(CellName);
         SetupRetag(SourceCell);
-        MockTenantDirectory
-            .Setup(x => x.MoveAsync(TenantId, SourceCell, CellName, It.IsAny<CancellationToken>()))
-            .Throws(new DirectoryUnavailableException("The directory is unreachable."))
-            .Verifiable();
+        SetupUnconfirmedMove("unavailable");
         SetupRollbackRemovals();
 
         var httpContext = CreateHttpContext(authenticated: true);
@@ -1049,17 +1108,55 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
         Assert.Equal(StatusCodes.Status503ServiceUnavailable, problem.StatusCode);
         Assert.True(httpContext.Response.Headers.ContainsKey("Retry-After"));
         Assert.Equal(
+            "The global directory is unavailable. Retry the request.",
+            problem.ProblemDetails.Detail
+        );
+        Assert.Equal(
             [
                 "import-core",
                 "import-accounts",
                 "import-master-keys",
                 $"retag-{CellName}",
+                "move",
                 $"retag-{SourceCell}",
                 "remove-accounts",
                 "remove-core",
                 "remove-tenant",
                 "save",
             ],
+            Calls
+        );
+    }
+
+    [Theory]
+    [InlineData("refused")]
+    [InlineData("unavailable")]
+    [InlineData("cancelled")]
+    [InlineData("failed")]
+    public async Task ImportTenantAsync_WhenTheMoveIsUnconfirmedAndTheDirectoryPlacesTheTenantInThisCell_CompletesTheImport(
+        string failure
+    )
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupPackage();
+        SetupStore(readImportedTenant: true);
+        SetupPlacementThenReread(() => new(CreatePlacement(CellName)));
+        SetupContributorImports();
+        SetupMasterKeyImport();
+        SetupProvider();
+        SetupRetag(CellName);
+        SetupUnconfirmedMove(failure);
+        SetupImportedAudit();
+
+        var result = await Handler.ImportTenantAsync(
+            CreateHttpContext(authenticated: true),
+            CreateRequest(),
+            CancellationToken.None
+        );
+
+        Assert.IsType<Ok<TenantImportResource>>(result);
+        Assert.Equal(
+            ["import-core", "import-accounts", "import-master-keys", $"retag-{CellName}", "move"],
             Calls
         );
     }
