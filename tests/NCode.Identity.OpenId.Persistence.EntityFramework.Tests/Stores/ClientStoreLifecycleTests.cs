@@ -233,7 +233,7 @@ public sealed class ClientStoreLifecycleTests : IDisposable
     }
 
     [Fact]
-    public async Task RemoveAsync_RemovesTheRoleAssignmentsTheClientsPrincipalHolds()
+    public async Task RemoveAsync_LeavesTheRoleAssignmentsTheClientsPrincipalHolds()
     {
         await SeedClientAsync([], CancellationToken.None);
         var client = await Store.GetOrDefaultAsync(ClientId, CancellationToken.None);
@@ -265,7 +265,7 @@ public sealed class ClientStoreLifecycleTests : IDisposable
             .Select(entity => entity.AssignmentId)
             .OrderBy(assignmentId => assignmentId)
             .ToListAsync();
-        Assert.Equal(["assign-2"], remaining);
+        Assert.Equal(["assign-1", "assign-2"], remaining);
     }
 
     [Fact]
