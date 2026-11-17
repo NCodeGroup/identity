@@ -160,4 +160,43 @@ public sealed class OpenIdDbContextTests : IDisposable
     }
 
     #endregion
+
+    #region EnsureUnscoped Tests
+
+    [Fact]
+    public async Task EnsureUnscoped_WhenTheScopeIsATenantScope_ThrowsNamingTheOperation()
+    {
+        var dbContext = await CreateSeededDbContextAsync(CancellationToken.None);
+        AmbientTenantId = "tenant-1";
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            dbContext.EnsureUnscoped("TestStore.ReadAsync")
+        );
+
+        Assert.Equal(
+            "TestStore.ReadAsync reads across tenants and runs only in an unscoped scope (IAmbientTenantAccessor.BeginUnscoped).",
+            exception.Message
+        );
+    }
+
+    [Fact]
+    public async Task EnsureUnscoped_WhenTheScopeIsUnset_Throws()
+    {
+        var dbContext = await CreateSeededDbContextAsync(CancellationToken.None);
+
+        Assert.Throws<InvalidOperationException>(() =>
+            dbContext.EnsureUnscoped("TestStore.ReadAsync")
+        );
+    }
+
+    [Fact]
+    public async Task EnsureUnscoped_WhenTheScopeIsUnscoped_DoesNotThrow()
+    {
+        var dbContext = await CreateSeededDbContextAsync(CancellationToken.None);
+        AmbientIsUnscoped = true;
+
+        Assert.Null(Record.Exception(() => dbContext.EnsureUnscoped("TestStore.ReadAsync")));
+    }
+
+    #endregion
 }

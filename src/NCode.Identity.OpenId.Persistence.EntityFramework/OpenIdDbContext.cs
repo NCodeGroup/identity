@@ -41,6 +41,30 @@ public class OpenIdDbContext(
     /// </summary>
     public bool IsUnscoped => AmbientTenantAccessor.IsUnscoped;
 
+    /// <summary>
+    /// Throws unless tenant-bound data access is explicitly unscoped. A store method that reads or writes across
+    /// tenants with <c>IgnoreQueryFilters()</c> calls it first: Postgres row-level security filters every query of the
+    /// runtime role by the session's tenant, those that ignore the query filter included, so outside an unscoped scope
+    /// the method would see one tenant's rows or none.
+    /// </summary>
+    /// <param name="operation">
+    /// The store method that reads across tenants, such as <c>RoleAssignmentStore.GetByPrincipalAsync</c>, which the
+    /// message names.
+    /// </param>
+    /// <exception cref="InvalidOperationException">Thrown when the ambient scope is unset or a tenant
+    /// scope.</exception>
+    public void EnsureUnscoped(string operation)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operation);
+
+        if (!IsUnscoped)
+        {
+            throw new InvalidOperationException(
+                $"{operation} reads across tenants and runs only in an unscoped scope (IAmbientTenantAccessor.BeginUnscoped)."
+            );
+        }
+    }
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
