@@ -125,6 +125,7 @@
         <Project Path="tests/NCode.Identity.Jwk.Tests/NCode.Identity.Jwk.Tests.csproj" />
         <Project Path="tests/NCode.Identity.Jwt.Tests/NCode.Identity.Jwt.Tests.csproj" />
         <Project Path="tests/NCode.Identity.ManagementConsole.Tests/NCode.Identity.ManagementConsole.Tests.csproj" />
+        <Project Path="tests/NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore.Tests/NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore.Tests.csproj" />
         <Project Path="tests/NCode.Identity.OpenId.Accounts.AspNetIdentity.Tests/NCode.Identity.OpenId.Accounts.AspNetIdentity.Tests.csproj" />
         <Project Path="tests/NCode.Identity.OpenId.Accounts.Tests/NCode.Identity.OpenId.Accounts.Tests.csproj" />
         <Project Path="tests/NCode.Identity.OpenId.Accounts.Management.Tests/NCode.Identity.OpenId.Accounts.Management.Tests.csproj" />
