@@ -8,12 +8,22 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Tests;
 
 public class DirectoryClientStartupCheckTests : BaseTests
 {
-    private static DirectoryClientStartupCheck CreateCheck(string? directoryUrl, string? issuer) =>
+    private static DirectoryClientStartupCheck CreateCheck(
+        string? directoryUrl,
+        string? issuer,
+        string? clientId = "cell-eu-1",
+        string managementUrl = "https://manage.eu-1.example"
+    ) =>
         new(
             Options.Create(
-                new CellOptions { ControlPlane = new ControlPlaneOptions { Issuer = issuer } }
+                new CellOptions
+                {
+                    Name = "eu-1",
+                    ManagementUrl = managementUrl,
+                    ControlPlane = new ControlPlaneOptions { Issuer = issuer },
+                }
             ),
-            Options.Create(new DirectoryClientOptions { Url = directoryUrl })
+            Options.Create(new DirectoryClientOptions { Url = directoryUrl, ClientId = clientId })
         );
 
     #region StartingAsync Tests
@@ -77,6 +87,57 @@ public class DirectoryClientStartupCheckTests : BaseTests
         Assert.Contains("https://issuer.example/path", exception.Message);
         Assert.DoesNotContain("secret", exception.Message);
         Assert.DoesNotContain("q=x", exception.Message);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("cell-eu-2")]
+    [InlineData("CELL-EU-1")]
+    public async Task StartingAsync_DirectoryUrlAndAnotherClientId_ThrowsNamingTheSettings(
+        string? clientId
+    )
+    {
+        var check = CreateCheck("https://directory.example", "https://issuer.example", clientId);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            check.StartingAsync(CancellationToken.None)
+        );
+
+        Assert.Contains("Directory:ClientId", exception.Message);
+        Assert.Contains("Cell:Name", exception.Message);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    public async Task StartingAsync_DirectoryUrlAndNoManagementUrl_ThrowsNamingTheSetting(
+        string managementUrl
+    )
+    {
+        var check = CreateCheck(
+            "https://directory.example",
+            "https://issuer.example",
+            managementUrl: managementUrl
+        );
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            check.StartingAsync(CancellationToken.None)
+        );
+
+        Assert.Contains("Cell:ManagementUrl", exception.Message);
+    }
+
+    [Fact]
+    public async Task StartingAsync_NoDirectoryUrlAndNoCellIdentity_Completes()
+    {
+        var check = CreateCheck(
+            directoryUrl: null,
+            "https://issuer.example",
+            clientId: null,
+            managementUrl: ""
+        );
+
+        await check.StartingAsync(CancellationToken.None);
     }
 
     #endregion

@@ -42,7 +42,8 @@ public sealed class CellOptions
     public string[] CloudRegions { get; set; } = [];
 
     /// <summary>
-    /// Gets or sets the absolute URL at which the cell's management API is reachable.
+    /// Gets or sets the absolute URL at which the cell's management API is reachable, which the cell registers with the
+    /// directory. A cell that sets <c>Directory:Url</c> requires it.
     /// </summary>
     public string ManagementUrl { get; set; } = string.Empty;
 
