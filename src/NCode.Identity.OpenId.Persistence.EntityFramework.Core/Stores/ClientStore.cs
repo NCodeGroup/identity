@@ -251,6 +251,8 @@ internal class ClientStore(
         CancellationToken cancellationToken
     )
     {
+        DbContext.EnsureUnscoped($"{nameof(ClientStore)}.{nameof(GetByPrincipalOrDefaultAsync)}");
+
         var normalizedPrincipalId = Normalize(principalId);
 
         // A principal is unique across tenants (the unique index on the normalized principal), so at most one row
