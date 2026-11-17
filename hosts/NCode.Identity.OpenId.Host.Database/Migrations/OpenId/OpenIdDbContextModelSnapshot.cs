@@ -878,6 +878,11 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     b.Property<DateTimeOffset?>("RetiredWhen")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("RootKeyAccessBinding")
+                        .HasMaxLength(351)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(351)");
+
                     b.Property<string>("RootKeyAccessIdentity")
                         .HasMaxLength(1024)
                         .IsUnicode(false)

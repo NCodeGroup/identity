@@ -84,6 +84,7 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     RootKeyId = table.Column<string>(type: "character varying(2048)", unicode: false, maxLength: 2048, nullable: false),
                     RootKeyReference = table.Column<string>(type: "character varying(2048)", unicode: false, maxLength: 2048, nullable: true),
                     RootKeyAccessIdentity = table.Column<string>(type: "character varying(1024)", unicode: false, maxLength: 1024, nullable: true),
+                    RootKeyAccessBinding = table.Column<string>(type: "character varying(351)", unicode: false, maxLength: 351, nullable: true),
                     RootWrappedKey = table.Column<string>(type: "character varying(4096)", unicode: false, maxLength: 4096, nullable: false),
                     RecoveryKeyId = table.Column<string>(type: "character varying(100)", unicode: false, maxLength: 100, nullable: true),
                     RecoveryWrappedKey = table.Column<string>(type: "character varying(4096)", unicode: false, maxLength: 4096, nullable: true),
