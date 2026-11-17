@@ -12,7 +12,7 @@ public class TenantLimitRulesTests : BaseTests
     #region MaxTenantsSettingName Tests
 
     [Fact]
-    public void MaxTenantsSettingName_IsTheOpenIdSettingName()
+    public void MaxTenantsSettingName_Always_EqualsTheOpenIdSettingName()
     {
         Assert.Equal(OpenIdSettingNames.MaxTenants, TenantLimitRules.MaxTenantsSettingName);
     }

@@ -19,9 +19,7 @@ public static class TenantLimitRules
     /// The name of the setting that bounds the tenants of a team and of every team beneath it, on a team or the
     /// platform.
     /// </summary>
-    /// <remarks>
-    /// It is the value of <c>OpenIdSettingNames.MaxTenants</c>, which the directory abstractions do not reference.
-    /// </remarks>
+    // The value of OpenIdSettingNames.MaxTenants, which the directory abstractions do not reference.
     public const string MaxTenantsSettingName = "max_tenants";
 
     /// <summary>
