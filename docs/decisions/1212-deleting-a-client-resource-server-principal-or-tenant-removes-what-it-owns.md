@@ -23,7 +23,13 @@ that leaves a dependent behind (issue [#250](https://github.com/NCodeGroup/ident
 1. **A client is removed with everything that exists for it.** Deleting a client removes its secrets with their key
    material, its grants to resource servers, its consents, every role assignment at its resource node, ownership
    included, and every grant issued to it: its authorization codes, tokens, pushed authorization requests, device and
-   CIBA grants, and its registration access token. Only authorization blocks the delete.
+   CIBA grants, and its registration access token. It also removes every role assignment its principal holds, in every
+   tenant: `ClientStore.RemoveAsync` removes the rows of the client's tenant, and the management API's client deletion
+   removes the principal's assignments with `IRoleAssignmentStore.RemoveByPrincipalAsync` in an unscoped scope
+   ([ADR-1018](1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)), saved in
+   that scope; only a machine client's principal holds one
+   ([ADR-1466](1466-a-client-is-its-own-principal-and-a-machine-client-acts-only-within-its-owning-node.md)). Only
+   authorization blocks the delete.
 2. **A tenant is refused while it holds an operator's records, and is otherwise removed with everything it owns.** A
    tenant that holds a client or a non-system resource server is refused with `409 Conflict`: those are records an
    operator created, and the delete would otherwise destroy them. Everything else the tenant owns is removed in
@@ -44,7 +50,7 @@ that leaves a dependent behind (issue [#250](https://github.com/NCodeGroup/ident
 5. **A deregistration relies on the store alone.** `DELETE` of a dynamically registered client
    ([ADR-1192](1192-dynamic-client-registration-rides-the-client-and-grant-stores-authorized-by-single-use-initial-access-tokens.md))
    removes the client through `IClientStore.RemoveAsync`, which removes its secrets and its registration access token
-   with it.
+   with it. A dynamically registered client is no machine client, so its principal holds no role.
 6. **A resource server is removed with its scopes, its secrets and every role assignment at its node.** The management
    API allows the deletion of a resource server
    ([ADR-1026](1026-resource-servers-own-scopes-settings-and-keys-and-decide-a-clients-scopes-and-token-audiences.md)).
@@ -52,10 +58,11 @@ that leaves a dependent behind (issue [#250](https://github.com/NCodeGroup/ident
    (`OpenIdResourceTypes`), and by the normalized identifier in the resource's tenant, so the management delete and the
    deregistration of a dynamically registered client both remove them.
 7. **A principal is removed with every role assignment it holds, in every tenant.**
-   `FederatedPrincipalStore.RemoveAsync` removes the role assignments whose normalized principal identifier is the
-   principal's, in every tenant, because the identifier of a principal is global. `TenantStore.RemoveAsync` also removes
-   the assignments that the principals of the deleted tenant hold in other tenants. A principal is also removed with
-   its consents and grants in its tenant, after the termination of its sessions
+   `FederatedPrincipalStore.RemoveAsync` removes the principal with its consents and grants in its tenant. The
+   local-account deletion that removes the principal removes the role assignments it holds with
+   `IRoleAssignmentStore.RemoveByPrincipalAsync`, which reads by the global principal identifier across tenants and so
+   runs in an unscoped scope (ADR-1018). `TenantStore.RemoveAsync` also removes the assignments that the principals of
+   the deleted tenant hold in other tenants. The removal of a principal follows the termination of its sessions
    ([ADR-1229](1229-a-blocked-disabled-or-deleted-end-user-loses-its-sessions-and-is-refused-with-access-denied.md)).
 8. **The last owner of a resource can be deleted.** Deletion is erasure, and the resource stays manageable through roles
    at the nodes of its ancestors.
@@ -82,8 +89,9 @@ that leaves a dependent behind (issue [#250](https://github.com/NCodeGroup/ident
   the console already guard it.
 - **Refuse a client while it has secrets.** Rejected: the secrets of a client exist only for it, as the keys of a tenant
   do ([ADR-1169](1169-every-tenant-is-provisioned-with-a-persisted-key-for-each-configured-algorithm-it-uses.md)), and Auth0 and Keycloak delete them with it.
-- **Remove what the owner owns in the stores' own unit of work (chosen).** The deleting store removes every dependent
-  through the change tracker, so a delete either removes the owner with everything it owns or fails whole.
+- **Remove what the owner owns in the stores' own unit of work (chosen).** The deleting stores remove every dependent
+  through the change tracker in one unit of work, so a delete either removes the owner with everything it owns or fails
+  whole.
 
 ## Consequences
 
@@ -114,6 +122,8 @@ that leaves a dependent behind (issue [#250](https://github.com/NCodeGroup/ident
   — dynamic client registration and its deregistration.
 - [ADR-1018](1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md) —
   tenant-bound data access is scoped at the persistence layer.
+- [ADR-1466](1466-a-client-is-its-own-principal-and-a-machine-client-acts-only-within-its-owning-node.md) — only a
+  machine client's principal holds a role assignment.
 - [ADR-1026](1026-resource-servers-own-scopes-settings-and-keys-and-decide-a-clients-scopes-and-token-audiences.md) —
   resource servers and their deletion.
 - [ADR-1229](1229-a-blocked-disabled-or-deleted-end-user-loses-its-sessions-and-is-refused-with-access-denied.md) — a deleted account's sessions end first.
@@ -121,5 +131,6 @@ that leaves a dependent behind (issue [#250](https://github.com/NCodeGroup/ident
 - Code: `NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores.ClientStore`,
   `NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores.ResourceServerStore`,
   `NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores.FederatedPrincipalStore`,
+  `NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores.RoleAssignmentStore`,
   `NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores.TenantStore`,
   `NCode.Identity.OpenId.Authentication.Endpoints.Registration.DefaultClientRegistrationEndpointHandler`.
