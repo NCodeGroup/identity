@@ -16,7 +16,9 @@ public interface ITeamDocumentApplier
     /// <summary>
     /// Applies a published team document: it inserts or updates the team's row, announces the change so caches evict
     /// the team, and mirrors the root key the document holds for the cell's region into the team's owner root key,
-    /// unless the team is disabled. A document whose sequence the row already carries or exceeds changes nothing.
+    /// unless the team is disabled. A document whose sequence the row already carries or exceeds changes nothing. A
+    /// document whose parent team the cell does not mirror changes nothing and is logged, because the directory lists
+    /// the team again after its parent's latest change.
     /// </summary>
     /// <param name="document">The <see cref="TeamDocument"/> to apply.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>

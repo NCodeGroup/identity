@@ -16,7 +16,9 @@ public interface ITenantDirectory
     /// <summary>
     /// Reserves the tenant identifier and issuer for a tenant about to be created. The reservation is refused when
     /// another tenant holds the identifier or the issuer, when either is retired, or when the team already holds the
-    /// most tenants its <c>max_tenants</c> setting allows.
+    /// most tenants its <c>max_tenants</c> setting allows. Reserving again for the cell, issuer and team of a
+    /// reservation that is held and not yet placed succeeds, so a reservation that runs again after it took effect is
+    /// not refused.
     /// </summary>
     /// <param name="reservation">The <see cref="TenantReservation"/> describing the identifiers to reserve.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
@@ -94,7 +96,8 @@ public interface ITenantDirectory
     /// Moves a placed tenant from one cell to another cell of the same region. The move consumes the source cell's
     /// unexpired offer of the tenant to the target cell, and is refused without one. The move is also refused when the
     /// tenant is not placed in the source cell, when either cell is not registered, or when the cells are in different
-    /// regions.
+    /// regions. Moving a tenant that is already placed in the target cell succeeds, so a move that runs again after it
+    /// took effect is not refused.
     /// </summary>
     /// <param name="tenantId">The identifier of the tenant.</param>
     /// <param name="fromCell">The name of the cell that holds the tenant.</param>

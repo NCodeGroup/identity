@@ -14,8 +14,9 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 public interface ITeamDirectory
 {
     /// <summary>
-    /// Reserves the identifier of a team about to be created. The reservation is refused when the identifier is held or
-    /// retired.
+    /// Reserves the identifier of a team about to be created. The reservation is refused when a published team holds
+    /// the identifier or it is retired. Reserving an identifier whose reservation is held and not yet published
+    /// succeeds, so a reservation that runs again after it took effect is not refused.
     /// </summary>
     /// <param name="teamId">The identifier of the team.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
@@ -63,7 +64,8 @@ public interface ITeamDirectory
     ValueTask<TeamDocument?> GetOrDefaultAsync(string teamId, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Lists the changes to team documents that follow the specified sequence, in ascending order of sequence.
+    /// Lists the changes to team documents that follow the specified sequence, in ascending order of sequence. A team's
+    /// change always follows the latest change of each of its ancestors.
     /// </summary>
     /// <param name="after">
     /// The sequence of the last change the caller has applied, or <c>0</c> for every change.
@@ -72,7 +74,8 @@ public interface ITeamDirectory
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>
     /// The <see cref="DirectoryChange"/> entries after <paramref name="after"/>, at most <paramref name="limit"/> of
-    /// them.
+    /// them, and fewer when an implementation bounds the size of a page, which still holds at least one change; none
+    /// only when no change follows <paramref name="after"/>.
     /// </returns>
     ValueTask<IReadOnlyList<DirectoryChange>> ListChangesAsync(
         long after,
