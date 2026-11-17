@@ -495,12 +495,11 @@ internal class ResourceServerStore(
             resourceServerEntity.Secrets.Select(resourceServerSecret => resourceServerSecret.Secret)
         );
 
-        // The role assignments at the resource server's node are removed with it. See ADR-1212.
+        // The role assignments at the resource server's node are stored under its tenant and removed with it.
+        // See ADR-1212.
         DbContext.RoleAssignments.RemoveRange(
             await DbContext
-                // Cross-tenant: the assignments at the resource server's node are removed with it whatever the ambient tenant is.
-                .RoleAssignments.IgnoreQueryFilters()
-                .Where(entity =>
+                .RoleAssignments.Where(entity =>
                     entity.TenantId == tenantKey
                     && entity.ResourceType == OpenIdResourceTypes.ResourceServer
                     && entity.NormalizedResourceId == normalizedResourceServerId
