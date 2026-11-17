@@ -145,8 +145,8 @@ internal class AwsKmsKeyWrapper(
 
     /// <inheritdoc />
     /// <exception cref="ArgumentException">
-    /// Thrown when the key reference of <paramref name="referencedKey"/> is not the ARN of a KMS key or alias, or its
-    /// access identity is set and is not the ARN of an IAM role.
+    /// Thrown when the key reference of <paramref name="referencedKey"/> is not the ARN of a KMS key or alias in an
+    /// allowed region, or its access identity is set and is not the ARN of an IAM role.
     /// </exception>
     public async ValueTask<WrappedKey> WrapAsync(
         ReferencedKey referencedKey,
@@ -157,21 +157,18 @@ internal class AwsKmsKeyWrapper(
     {
         ArgumentNullException.ThrowIfNull(referencedKey);
 
-        if (!AwsKmsKeyArn.IsValid(referencedKey.KeyReference))
+        if (!TryValidateKeyReference(referencedKey.KeyReference, out var failure))
         {
-            throw new ArgumentException(
-                "The key reference is not the ARN of a KMS key or alias.",
-                nameof(referencedKey)
-            );
+            throw new ArgumentException($"The key reference {failure}.", nameof(referencedKey));
         }
 
         if (
             referencedKey.Access is { } access
-            && !TryValidateAccessIdentity(access.Identity, out _)
+            && !TryValidateAccessIdentity(access.Identity, out var accessFailure)
         )
         {
             throw new ArgumentException(
-                "The access identity is not the ARN of an IAM role.",
+                $"The access identity {accessFailure}.",
                 nameof(referencedKey)
             );
         }

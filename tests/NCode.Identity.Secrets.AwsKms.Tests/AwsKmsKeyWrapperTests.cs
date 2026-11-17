@@ -321,6 +321,28 @@ public class AwsKmsKeyWrapperTests : BaseTests
     }
 
     [Fact]
+    public async Task WrapAsync_ReferencedKeyOutsideTheAllowedRegions_ThrowsWithoutCallingTheClient()
+    {
+        var key = RandomNumberGenerator.GetBytes(32);
+        var context = "root-context"u8.ToArray();
+        var provider = CreateProvider(KeyArn, "us-west-2");
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+            provider
+                .WrapAsync(
+                    new ReferencedKey(AliasOtherRegion, null),
+                    key,
+                    context,
+                    CancellationToken.None
+                )
+                .AsTask()
+        );
+
+        Assert.Equal("referencedKey", exception.ParamName);
+        Assert.Contains("allowed AWS regions", exception.Message);
+    }
+
+    [Fact]
     public async Task WrapAsync_ReferencedKeyWithAccess_RunsTheCallThroughTheAccess()
     {
         var key = RandomNumberGenerator.GetBytes(32);
