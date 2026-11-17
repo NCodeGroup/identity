@@ -148,8 +148,9 @@ public class OwnershipHandlerTests : IDisposable
             cancellationToken
         );
 
-    // The answer of the control plane for a caller that holds these assignments: the platform roles, the roles at the
-    // requested team and the teams above it, and the principal the subject resolves to.
+    // The answer of the control plane for a caller that holds these assignments: the platform roles, the roles held at
+    // exactly the requested team, and the principal the subject resolves to. The roles a team inherits from the teams
+    // above it are the control plane's to fold in, which LocalControlPlaneAuthorityTests covers.
     private static ControlPlaneAuthority Answer(
         ControlPlaneAuthorityRequest request,
         IReadOnlyList<PersistedRoleAssignment> assignments,
@@ -161,10 +162,6 @@ public class OwnershipHandlerTests : IDisposable
             return ControlPlaneAuthority.None;
         }
 
-        string[] teamChain = request.TeamId is null
-            ? []
-            : [request.TeamId, .. options.TeamAncestors ?? []];
-
         var platformRoles = assignments
             .Where(assignment => assignment.ResourceType == ResourceNodeTypes.Platform)
             .Select(assignment => assignment.RoleName)
@@ -173,7 +170,11 @@ public class OwnershipHandlerTests : IDisposable
         var teamRoles = assignments
             .Where(assignment =>
                 assignment.ResourceType == ResourceNodeTypes.Team
-                && teamChain.Contains(assignment.ResourceId, StringComparer.OrdinalIgnoreCase)
+                && string.Equals(
+                    assignment.ResourceId,
+                    request.TeamId,
+                    StringComparison.OrdinalIgnoreCase
+                )
             )
             .Select(assignment => assignment.RoleName)
             .Distinct()
@@ -379,36 +380,6 @@ public class OwnershipHandlerTests : IDisposable
             ClientNode(),
             CreateSubject(),
             [Assignment(BuiltInRoles.TeamAdmin, ResourceNodeTypes.Team, TeamId)],
-            CancellationToken.None
-        );
-
-        Assert.True(succeeded);
-    }
-
-    [Fact]
-    public async Task HandleRequirementAsync_WhenTeamAdminAtTheParentOfTheTenantsTeam_Succeeds()
-    {
-        var succeeded = await HandleAsync(
-            Operations.Update,
-            ClientNode(),
-            CreateSubject(),
-            [Assignment(BuiltInRoles.TeamAdmin, ResourceNodeTypes.Team, "parent-team")],
-            new OwnershipHandlerOptions { TeamAncestors = ["parent-team"] },
-            CancellationToken.None
-        );
-
-        Assert.True(succeeded);
-    }
-
-    [Fact]
-    public async Task HandleRequirementAsync_WhenCreateOnAChildTeamNodeAndTeamAdminAtItsParent_Succeeds()
-    {
-        var succeeded = await HandleAsync(
-            Operations.Create,
-            TeamNode(),
-            CreateSubject(),
-            [Assignment(BuiltInRoles.TeamAdmin, ResourceNodeTypes.Team, "parent-team")],
-            new OwnershipHandlerOptions { ReadsTenant = false, TeamAncestors = ["parent-team"] },
             CancellationToken.None
         );
 
