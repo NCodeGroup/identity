@@ -67,8 +67,8 @@ keys sealed to the same key. The audit record `tenant.exported` records the expo
 | ------ | -------------------------------------------------------------------------------------------------------------------- |
 | `200`  | The package.                                                                                                         |
 | `404`  | The tenant does not exist in `<source>`.                                                                             |
-| `409`  | The tenant is not disabled, or the directory refuses the move offer (the tenant is not placed in `<source>`, a cell is not registered, or the cells are in different regions). |
-| `422`  | The key is not a `JWK` of an elliptic curve key on `P-256` for encryption, or it is refused; or `targetCell` is not a valid cell name. |
+| `409`  | The tenant is not disabled, or the directory refuses the move offer (the tenant is not placed in `<source>`, a cell is not registered, or the cells are in different regions). When the directory places the tenant in another cell, the problem's `placedCell` names that cell: a move there completed, and only the release (stage 5) remains. |
+| `422`  | The key is not a `JWK` of an elliptic curve key on `P-256` for encryption, or it is refused; `targetCell` is not a valid cell name; or the tenant's package is over a move's 64 MiB, and the move offer that the export recorded expires unused. |
 | `503`  | The directory is unavailable, with a `Retry-After` header. No package is made.                                       |
 
 The package names its target cell, and only that cell imports it. Only the holder of the transfer key's private half,
@@ -77,28 +77,32 @@ shell history and files, and hand it straight to the import.
 
 ## 4. Import the tenant into the target
 
-Run at `<target>`: `POST <target-api>/api/tenant-imports` with the body `{ "kid": <the transfer key's kid>,
-"package": <the package> }`. The import takes the transfer key, decrypts the package, imports each section of the
-tenant's records, stores the master keys under `<target>`'s own root keys, points the remote keys that the tenant's
-secrets reference at `<target>`, and asks the directory to move the tenant's placement from `<source>` to `<target>`,
-which it does only for `<target>` calling on the unexpired move offer that the export recorded (any other caller gets
-`403`). The tenant stays disabled in `<target>`. The audit record `tenant.imported` names the source cell.
+Run at `<target>`: `POST <target-api>/api/tenant-imports` with the body `{ "kid": <the transfer key's kid>, "package":
+<the package> }`. The import takes the transfer key, checks that the package's header names `ECDH-ES+A256KW` and
+`A256GCM`, decrypts it, imports each section of the tenant's records, stores the master keys under `<target>`'s own root
+keys, points the remote keys that the tenant's secrets reference at `<target>`, and asks the directory to move the
+tenant's placement from `<source>` to `<target>`, which it does only for `<target>` calling on the unexpired move offer
+that the export recorded (any other caller gets `403`). The directory can commit a move that it does not confirm, so
+when the move answers a conflict, cannot be reached, is cancelled or fails, the import reads the placement back: a
+placement in `<target>` completes the import, a placement in `<source>` undoes it, and any other answer leaves the
+outcome unknown. The tenant stays disabled in `<target>`. The audit record `tenant.imported` names the source cell.
 
 | Status | Meaning                                                                                                                                                                                                                                                                                                         |
 | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `200`  | The tenant is imported and placed in `<target>`.                                                                                                                                                                                                                                                                |
-| `409`  | The directory places the tenant in no cell or already in `<target>`; or the directory refuses the move (the tenant is not placed in `<source>`, `<source>` holds no unexpired move offer to `<target>`, a cell is not registered, or the cells are in different regions). Nothing the import wrote remains.                                                              |
-| `422`  | The transfer key is unknown, expired or already used; the package does not decrypt with it or is malformed; its region is not `<target>`'s region; it names a target cell other than `<target>`; it has a section that `<target>` does not import; or the tenant's secrets reference a remote key of a provider that `<target>` does not register.              |
-| `503`  | The directory is unavailable, with a `Retry-After` header. Nothing the import wrote remains.                                                                                                                                                                                                                    |
+| `200`  | The tenant is imported and placed in `<target>`, also when the directory committed a move that it did not confirm. |
+| `409`  | The directory places the tenant in no cell or already in `<target>`; or the directory refuses the move and still places the tenant in `<source>` (`<source>` holds no unexpired move offer to `<target>`, a cell is not registered, or the cells are in different regions). Nothing the import wrote remains. |
+| `413`  | The request is larger than a move's 64 MiB and 64 KiB. Nothing is imported. |
+| `422`  | The `kid` is empty, or the transfer key is unknown, expired or already used; the package is not sealed to a transfer key (its header does not name `ECDH-ES+A256KW` and `A256GCM`), does not decrypt with the key or is malformed; its region is not `<target>`'s region; it names a target cell other than `<target>`; it has a section that `<target>` does not import; the root key that the tenant brings fails `<target>`'s root-key checks; or the tenant's secrets reference a remote key of a provider that `<target>` does not register, or one outside the location that `<target>`'s provider uses. Nothing the import wrote remains. |
+| `503`  | The directory is unavailable, with a `Retry-After` header, before the import writes anything, or at a move after which the directory still places the tenant in `<source>`; nothing the import wrote remains. Or the outcome of the move is unknown, also with a `Retry-After` header: the directory cannot be read back or places the tenant in neither cell, and `<target>` keeps what the import wrote ([recovering](#recovering-from-a-failed-stage)). |
 
 **Verify:** `GET <target-api>/api/tenants/<tenant>` answers `200` with `isDisabled` `true`.
 
 ## 5. Release the tenant at the source
 
 Run at `<source>`: `POST <source-api>/api/tenants/<tenant>/release-moved`. The route proceeds only when the directory
-places the tenant in another cell. It removes the tenant's records and master keys from `<source>`. It destroys no remote
-key, because `<target>` holds the tenant's keys, and it retires no identifier or issuer, because the tenant lives on.
-The audit record `tenant.released` names the target cell.
+places the tenant in another cell. It removes the tenant's records and master keys from `<source>`. It destroys no
+remote key, because `<target>` holds the tenant's keys, and it retires no identifier or issuer, because the tenant lives
+on. The audit record `tenant.released` names the target cell.
 
 | Status | Meaning                                                                                  |
 | ------ | ---------------------------------------------------------------------------------------- |
@@ -107,7 +111,9 @@ The audit record `tenant.released` names the target cell.
 | `409`  | The directory does not place the tenant in another cell.                                 |
 | `503`  | The directory is unavailable, with a `Retry-After` header. Nothing is released.          |
 
-The route never releases on a guess: it reads the placement from the directory each time.
+The route never releases on a guess: it reads the placement from the directory each time. While the directory places the
+tenant in another cell, deleting the tenant or one of its secrets at `<source>` answers `409` and names that cell, so
+the release, which destroys no remote key, is the only way to remove `<source>`'s copy.
 
 **Verify:** `GET <source-api>/api/tenants/<tenant>` answers `404`.
 
@@ -142,7 +148,7 @@ token with its secret.
 | The tenant's own secrets and its tenant-level role assignments                                                          | The same.                                                                                        |
 | Its local accounts, with their claims, password hashes and security stamps                                              | The section is sensitive and travels only inside the encrypted package.                          |
 | Its master keys                                                                                                          | Sealed to the transfer key, then stored under `<target>`'s nearest root key (the tenant's own when it carries one). |
-| Its remote keys in a key management service                                                                              | They stay where they are and carry `<target>`'s tag, so `<source>`'s key sweep skips them.       |
+| Its remote keys in a key management service                                                                              | They stay where they are, in the location that `<target>`'s provider uses, and carry `<target>`'s tag, so `<source>`'s key sweep skips them. |
 
 | Not carried                                                                | What follows                                                                                  |
 | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
