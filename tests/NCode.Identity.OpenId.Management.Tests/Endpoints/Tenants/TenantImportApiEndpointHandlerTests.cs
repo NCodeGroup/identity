@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers;
+using System.Buffers.Text;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -10,8 +11,11 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Jose;
+using NCode.Identity.Jose.Algorithms;
+using NCode.Identity.Jose.Credentials;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
@@ -22,6 +26,8 @@ using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
+using NCode.Identity.Secrets;
+using NCode.Identity.Secrets.KeyMaterial;
 using NCode.Identity.Secrets.Keys;
 using NCode.Identity.Secrets.Persistence.Protection;
 using NCode.Identity.Secrets.RemoteKeys;
@@ -87,21 +93,7 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
         MockCoreContributor.Setup(x => x.Name).Returns("core");
         MockAccountsContributor.Setup(x => x.Name).Returns("accounts");
 
-        Handler = new TenantImportApiEndpointHandler(
-            MockStoreManagerFactory.Object,
-            MockAuthorizationService.Object,
-            MockCryptoService.Object,
-            MockTenantTransferKeyService.Object,
-            [MockAccountsContributor.Object, MockCoreContributor.Object],
-            MockMasterKeyTransfer.Object,
-            MockJoseSerializer.Object,
-            MockRemoteKeyProviderCatalog.Object,
-            MockTenantDirectory.Object,
-            MockManagementAuditRecorder.Object,
-            Microsoft.Extensions.Options.Options.Create(
-                new CellOptions { Name = CellName, Region = Region }
-            )
-        );
+        Handler = CreateHandler(MockJoseSerializer.Object);
     }
 
     public void Dispose()
@@ -110,6 +102,23 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
     }
 
     #region Helpers
+
+    private TenantImportApiEndpointHandler CreateHandler(IJoseSerializer joseSerializer) =>
+        new(
+            MockStoreManagerFactory.Object,
+            MockAuthorizationService.Object,
+            MockCryptoService.Object,
+            MockTenantTransferKeyService.Object,
+            [MockAccountsContributor.Object, MockCoreContributor.Object],
+            MockMasterKeyTransfer.Object,
+            joseSerializer,
+            MockRemoteKeyProviderCatalog.Object,
+            MockTenantDirectory.Object,
+            MockManagementAuditRecorder.Object,
+            Microsoft.Extensions.Options.Options.Create(
+                new CellOptions { Name = CellName, Region = Region }
+            )
+        );
 
     private static HttpContext CreateHttpContext(bool authenticated)
     {
@@ -211,6 +220,73 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
         }
 
         return JsonSerializer.SerializeToUtf8Bytes(payload);
+    }
+
+    // The real key factory, algorithms and serializer seal and open a package; only the stores and services are mocked.
+    private static ServiceProvider CreateJoseServiceProvider()
+    {
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddLogging();
+        serviceCollection.AddSecretsLibrary().AddJoseLibrary();
+        return serviceCollection.BuildServiceProvider();
+    }
+
+    // The transfer key is an ECDH P-256 key under the key identifier the request names.
+    private static EccSecretKey CreateTransferKey(IServiceProvider serviceProvider)
+    {
+        using var ecdh = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
+        return serviceProvider
+            .GetRequiredService<ISecretKeyFactory>()
+            .CreateEccPkcs8(
+                new KeyMetadata
+                {
+                    KeyId = Kid,
+                    Use = "enc",
+                    Algorithm = "ECDH-ES+A256KW",
+                },
+                ecdh.ExportPkcs8PrivateKey()
+            );
+    }
+
+    // Seals the payload of an export to the transfer key, as the export does.
+    private static async ValueTask<string> SealAsync(
+        IServiceProvider serviceProvider,
+        SecretKey transferKey,
+        CancellationToken cancellationToken
+    )
+    {
+        var collection = serviceProvider
+            .GetRequiredService<IAlgorithmCollectionProvider>()
+            .Collection;
+        Assert.True(
+            collection.TryGetKeyManagementAlgorithm(
+                AlgorithmCodes.KeyManagement.EcdhEsAes256,
+                out var keyManagement
+            )
+        );
+        Assert.True(
+            collection.TryGetAuthenticatedEncryptionAlgorithm(
+                AlgorithmCodes.AuthenticatedEncryption.Aes256Gcm,
+                out var encryption
+            )
+        );
+
+        var encoder = serviceProvider
+            .GetRequiredService<IJoseSerializer>()
+            .CreateEncoder(
+                new JoseEncryptionOptions(encryption!)
+                {
+                    Recipients =
+                    [
+                        new JoseRecipientOptions(
+                            new JoseKeyManagementCredentials(transferKey, keyManagement!)
+                        ),
+                    ],
+                }
+            );
+
+        ReadOnlyMemory<byte> payload = CreatePayload();
+        return await encoder.EncodeAsync(payload, cancellationToken);
     }
 
     // The cell takes the transfer key, and the serializer decrypts the package to the payload.
@@ -622,6 +698,72 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
             CreateRequest(),
             CancellationToken.None
         );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status422UnprocessableEntity, problem.StatusCode);
+        Assert.Equal(
+            "The tenant package is not sealed to a transfer key.",
+            problem.ProblemDetails.Detail
+        );
+    }
+
+    [Fact]
+    public async Task ImportTenantAsync_WhenARealPackageHasATamperedTag_ReturnsUnprocessableEntity()
+    {
+        await using var serviceProvider = CreateJoseServiceProvider();
+        var transferKey = CreateTransferKey(serviceProvider);
+        var package = await SealAsync(serviceProvider, transferKey, CancellationToken.None);
+
+        // The authentication tag is the fifth segment of a compact JWE.
+        var segments = package.Split('.');
+        segments[4] = (segments[4][0] == 'A' ? 'B' : 'A') + segments[4][1..];
+
+        SetupAuthorization(AuthorizationResult.Success());
+        MockTenantTransferKeyService
+            .Setup(x => x.TakeAsync(Kid, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(transferKey)
+            .Verifiable();
+
+        var result = await CreateHandler(serviceProvider.GetRequiredService<IJoseSerializer>())
+            .ImportTenantAsync(
+                CreateHttpContext(authenticated: true),
+                new TenantImportRequest { Kid = Kid, Package = string.Join('.', segments) },
+                CancellationToken.None
+            );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status422UnprocessableEntity, problem.StatusCode);
+        Assert.Equal(
+            "The package does not decrypt with the transfer key.",
+            problem.ProblemDetails.Detail
+        );
+    }
+
+    [Fact]
+    public async Task ImportTenantAsync_WhenARealPackageNamesRsaOaep_ReturnsUnprocessableEntityWithoutDecrypting()
+    {
+        await using var serviceProvider = CreateJoseServiceProvider();
+        var transferKey = CreateTransferKey(serviceProvider);
+        var package = await SealAsync(serviceProvider, transferKey, CancellationToken.None);
+
+        // The protected header is the first segment of a compact JWE.
+        var segments = package.Split('.');
+        segments[0] = Base64Url.EncodeToString(
+            JsonSerializer.SerializeToUtf8Bytes(new { alg = "RSA-OAEP", enc = "A256GCM" })
+        );
+
+        SetupAuthorization(AuthorizationResult.Success());
+        MockTenantTransferKeyService
+            .Setup(x => x.TakeAsync(Kid, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(transferKey)
+            .Verifiable();
+
+        var result = await CreateHandler(serviceProvider.GetRequiredService<IJoseSerializer>())
+            .ImportTenantAsync(
+                CreateHttpContext(authenticated: true),
+                new TenantImportRequest { Kid = Kid, Package = string.Join('.', segments) },
+                CancellationToken.None
+            );
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status422UnprocessableEntity, problem.StatusCode);
