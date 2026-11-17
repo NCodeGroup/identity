@@ -38,23 +38,25 @@ and the docs say "tenant root key" or "team root key". A team's key is held per 
    master keys protect the Data Protection key ring and the host's own data. `ControlPlaneTenantRootKeyPolicy` refuses
    the control-plane tenant, which authenticates the management API
    ([ADR-1191](1191-a-management-request-is-authenticated-by-the-control-plane-tenant-and-scoped-by-its-routes-tenant.md)),
-   because a revoked key would lock out its administrators. `PUT` on either answers `400`. A consumer refuses further
-   owners by registering its own `IOwnerRootKeyPolicy`.
+   because a revoked key would lock out its administrators. `PUT` on either answers `400`, and the import of a moved
+   tenant's root key applies the same policies
+   ([ADR-1514](1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md)). A consumer
+   refuses further owners by registering its own `IOwnerRootKeyPolicy`.
 3. **The provider is any registered referenced key wrapper, and the operator opts in per provider.**
    `SecretProtection:OwnerRootKeys:Providers` is empty by default. `ValidationInterval` (default one hour, between one
    minute and one day) and `RetryInterval` (default one minute, between one second and `ValidationInterval`) are
-   validated at start. The list governs `PUT` only: an owner bound to a provider that leaves it keeps working. A listed
-   provider that is not a registered referenced wrapper stops the host. The chart renders
-   `secretProtection.ownerRootKeys.providers` as `SecretProtection__OwnerRootKeys__Providers__<i>` and mounts a
+   validated at start. The list governs `PUT` and the import of a moved tenant's root key: an owner bound to a provider
+   that leaves it keeps working. A listed provider that is not a registered referenced wrapper stops the host. The chart
+   renders `secretProtection.ownerRootKeys.providers` as `SecretProtection__OwnerRootKeys__Providers__<i>` and mounts a
    provider's credentials when it is the root provider or is listed.
 4. **`IReferencedKeyWrapper : IKeyWrapper` wraps under a named key.** It lives in `NCode.Identity.Secrets.Abstractions`,
    namespace `NCode.Identity.Secrets.KeyWrapping`, and has four members:
-   - `TryValidateKeyReference` checks the syntax of a reference only and returns a phrase that follows the field name
-     when it fails;
+   - `TryValidateKeyReference` checks the syntax of a reference, and for the AWS and Google adapters that the key lies
+     in an allowed cloud region or location, and returns a phrase that follows the field name when it fails;
    - `TryValidateAccessIdentity(string, out string? failure)` is the same syntax check for an access identity;
    - `WrapAsync(ReferencedKey, key, context, cancellationToken)` wraps under the named key with the same binding, checks
-     and error mapping as the configured wrap, and throws `ArgumentException` for a reference that fails the syntax
-     check;
+     and error mapping as the configured wrap, and throws `ArgumentException` for a reference that
+     `TryValidateKeyReference` refuses or an access identity that `TryValidateAccessIdentity` refuses;
    - `UnwrapAsync(WrappedKey, KeyAccess, context, destination, cancellationToken)` unwraps through the access the row
      records.
 

@@ -82,16 +82,20 @@ listed key that no stored secret names and that is older than a grace period.**
 9. **Every destruction stays recoverable for the service's window.** AWS schedules a pending deletion, Azure disables
    the version and Google schedules the destruction.
 10. **Permissions.** AWS needs `kms:ListKeys`, `kms:ListResourceTags` and `kms:DescribeKey`, with
-    `kms:ScheduleKeyDeletion` conditioned on the `ncode-identity:deployment` resource tag and `kms:CreateKey` and
-    `kms:TagResource` on the request tag; `kms:ListKeys` names no resource, so it takes no condition, and a bound key
-    carries no deployment tag, so the deletion grant does not reach it. Azure takes a vault of its own and a custom
-    role without delete or purge, because a role assignment cannot be conditioned on a key's tags. Google takes a key ring of its own with
-    `cloudkms.cryptoKeys.list` and `cloudkms.cryptoKeyVersions.list`, because a grant on a key ring covers every crypto
-    key in it.
-11. **A move retags the tenant's keys.** A tenant moves between cells of one region (ADR-1514), and its remote keys
-    stay in the key management service. The move calls
-    `IRemoteKeyProvider.RetagKeyAsync` on each of them so that the key carries the target cell's tag, and the source
-    cell's sweep, which lists only keys of its own name, never destroys them.
+    `kms:ScheduleKeyDeletion` conditioned on the `ncode-identity:deployment` resource tag being the cell's name,
+    `kms:CreateKey` on the request tag being the cell's name, and `kms:TagResource` on the request tag being the name of
+    a cell of its region, so a tenant move tags a key to the target cell and back; `kms:ListKeys` names no resource, so
+    it takes no condition, and a bound key carries no deployment tag, so the deletion grant does not reach it. Azure
+    takes a vault of its own, or one vault for the cells of a region that move tenants between them, and a custom role
+    without delete or purge, because a role assignment cannot be conditioned on a key's tags. Google takes a key ring of
+    its own, or one for the cells of a region that move tenants between them, with `cloudkms.cryptoKeys.list` and
+    `cloudkms.cryptoKeyVersions.list`, and `cloudkms.cryptoKeys.get` and `cloudkms.cryptoKeys.update` for a move's
+    retag, because a grant on a key ring covers every crypto key in it.
+11. **A move retags the tenant's keys.** A tenant moves between cells of one region (ADR-1514), and its remote keys stay
+    in the key management service. The move calls `IRemoteKeyProvider.RetagKeyAsync` on each of them so that the key
+    carries the target cell's tag, and the source cell's sweep, which lists only keys of its own name, never destroys
+    them. The import refuses a key that lies outside the location that the target cell's provider uses
+    (`IRemoteKeyProvider.IsInLocation`), because the target cell's sweep lists only that location.
 12. **A key stays in the cell's cloud regions.** `Cell:CloudRegions` bounds the regions a cell uses. The AWS KMS adapter
     refuses a key ARN whose region is not listed, and the Google Cloud KMS adapter refuses a key location that is not
     listed, so the sweep and a created key stay inside them.
