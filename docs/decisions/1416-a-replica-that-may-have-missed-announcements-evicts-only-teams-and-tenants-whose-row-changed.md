@@ -68,11 +68,15 @@ and tenant it serves with the store's and evicts only those whose token differs 
 10. **The team change feed evicts mirrored teams.** A cell other than the control-plane cell holds each team as a row
     that `DirectoryChangeFeedService` mirrors from the team documents the directory publishes
     ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
-    The service polls the directory's changes after the last sequence it applied, writes each document into its team
-    row, which regenerates the row's token, and broadcasts `team-changed` for each team it wrote, so every replica of
-    the cell evicts the team, the teams beneath it and their tenants exactly as an announcement does. A replica that
-    misses that announcement finds the mirrored row's token changed and evicts the team through item 5. The service
-    takes no part in a tenant's change, and serving a tenant never calls the directory.
+    The service polls the directory's changes after the highest sequence the cell applied, which the cell keeps in its
+    `DirectoryFeedCheckpoint` row and the service raises after each page, so a retirement that leaves no row behind is
+    not listed again. It writes each document into its team row, which regenerates the row's token, and broadcasts
+    `team-changed` for each team it wrote, so every replica of the cell evicts the team, the teams beneath it and their
+    tenants exactly as an announcement does. A replica that misses that announcement finds the mirrored row's token
+    changed and evicts the team through item 5. A change that loses a concurrency race is applied again, up to three
+    attempts, and a retirement of a team that something names disables its row and records the retirement's sequence on
+    it, so a retirement the directory delivers again changes nothing. The service takes no part in a tenant's change,
+    and serving a tenant never calls the directory.
 
 ## Options considered
 

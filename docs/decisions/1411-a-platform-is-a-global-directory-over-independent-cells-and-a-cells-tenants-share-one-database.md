@@ -81,10 +81,13 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
    serialize on the row, the commit order equals the sequence order, and a reader that has seen a sequence never misses
    a smaller one. The feed holds each team's and the platform's latest change, each carrying the whole document or the
    retire, so it stays bounded by the number of teams, and a cell reading from the start reads every current document.
-   A team document always carries its settings and its root keys, and the platform document its settings, which are
-   an empty object or map when there are none. The directory refuses a document that lacks one with `400`, a stored
-   document that lacks one fails its read, and a cell's remote adapter fails closed on a document that lacks one, so a
-   missing member never reads as no settings, no tenant limit or no root key.
+   A cell keeps the highest feed sequence it applied in its `DirectoryFeedCheckpoint` row and reads after it, so a
+   retirement that leaves no row behind is not listed again. A change that loses a concurrency race is applied again, up
+   to three attempts, and a retirement records its sequence on the disabled team row, so a retirement the directory
+   delivers again changes nothing. A team document always carries its settings and its root keys, and the platform
+   document its settings, which are an empty object or map when there are none. The directory refuses a document that
+   lacks one with `400`, a stored document that lacks one fails its read, and a cell's remote adapter fails closed on a
+   document that lacks one, so a missing member never reads as no settings, no tenant limit or no root key.
 6. **Tenant scoping fails closed inside a cell.** The ambient tenant has three states: unset, a tenant, and unscoped
    with a stated reason. The global query filter matches a tenant-bound row only when the scope is unscoped or names the
    row's tenant, so a query with no scope matches nothing, and every caller that reads across tenants opens an explicit,

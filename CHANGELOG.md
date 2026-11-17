@@ -3331,10 +3331,12 @@ Until the first stable release, the [Unreleased] section describes the product a
   `TenantChangedHandler`, `TeamChangedHandler` and `PlatformSettingsChangedHandler` evict, read back and announce a committed change each on its
   own 30-second token, so a client that disconnects does not skip the announcement and a store or Valkey timeout does
   not fail a write that has already committed; a failed refresh or announcement is logged, and a failed eviction is
-  still announced. A cell's directory change feed sends a mirrored team's change and mirrors its owner root key, each
-  on its own 30-second token, once it commits the team's row, so a host that stops after the commit skips neither and
-  a key-service call that hangs ends after 30 seconds; a mirror that fails is logged and redone by the team's next
-  document or the feed's root-key reconcile ([#485](https://github.com/NCodeGroup/identity/issues/485),
+  still announced. A cell's directory change feed reads the highest sequence it applied from the cell's
+  `DirectoryFeedCheckpoint` row and applies a change that loses a concurrency race again, up to three attempts. It sends
+  a mirrored team's change and mirrors its owner root key, each on its own 30-second token, once it commits the team's
+  row, so a host that stops after the commit skips neither and a key-service call that hangs ends after 30 seconds; a
+  mirror that fails is logged and redone by the team's next document or the feed's root-key reconcile
+  ([#485](https://github.com/NCodeGroup/identity/issues/485),
   [ADR-1351](docs/decisions/1351-work-that-follows-a-committed-change-runs-on-its-own-bounded-token.md)).
 
 - **Protocol-endpoint metrics.** The protocol endpoints tag ASP.NET Core's `http.server.request.duration` with
@@ -4114,11 +4116,12 @@ Until the first stable release, the [Unreleased] section describes the product a
   identifier, so no team identifier is reused anywhere on the platform. Every other cell mirrors the team documents
   into its own team rows through a change feed, so a tenant's cell reads its team from its own database, and the routes
   that manage a team itself are mapped only on the control-plane cell, while a cell creates and lists its own tenants
-  under the team. Every
-  tenant belongs to exactly one team and never changes its team: `POST /api/teams/{teamId}/tenants` creates a tenant
-  under its team
-  and `GET /api/teams/{teamId}/tenants` lists them, `TenantResource` carries `teamId`, and the platform's own team
-  (`TenantResolution:Root:TeamId`, default `platform`) holds the root tenant and every tenant a strategy creates
+  under the team. A cell keeps the highest sequence it applied in its `DirectoryFeedCheckpoint` row, applies a change
+  that loses a concurrency race again, up to three attempts, and records a retirement's sequence on the disabled row, so
+  a retirement the directory delivers again changes nothing. Every tenant belongs to exactly one team and never changes
+  its team: `POST /api/teams/{teamId}/tenants` creates a tenant under its team and `GET /api/teams/{teamId}/tenants`
+  lists them, `TenantResource` carries `teamId`, and the platform's own team (`TenantResolution:Root:TeamId`, default
+  `platform`) holds the root tenant and every tenant a strategy creates
   ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
 
 - **A team can nest beneath a parent team.** `POST /api/teams/{teamId}/teams` creates a team beneath its parent and
