@@ -216,12 +216,9 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
     // The cell takes the transfer key, and the serializer decrypts the package to the payload.
     private void SetupPackage(byte[]? payload = null)
     {
-        MockTenantTransferKeyService
-            .Setup(x => x.TakeAsync(Kid, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(MockPrivateKey.Object)
-            .Verifiable();
-
-        MockJoseSerializer.Setup(x => x.Parse(PackageText)).Returns(MockToken.Object).Verifiable();
+        SetupToken(
+            JsonSerializer.SerializeToElement(new { alg = "ECDH-ES+A256KW", enc = "A256GCM" })
+        );
 
         MockJoseSerializer
             .Setup(x =>
@@ -240,6 +237,19 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
                 }
             )
             .Verifiable();
+    }
+
+    // The cell takes the transfer key, and the serializer parses the package to a token with the protected header.
+    private void SetupToken(JsonElement header)
+    {
+        MockTenantTransferKeyService
+            .Setup(x => x.TakeAsync(Kid, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(MockPrivateKey.Object)
+            .Verifiable();
+
+        MockJoseSerializer.Setup(x => x.Parse(PackageText)).Returns(MockToken.Object).Verifiable();
+
+        MockToken.Setup(x => x.Header).Returns(header).Verifiable();
     }
 
     // The store holds no tenant of the identifier before the import, and the imported tenant afterwards.
@@ -588,6 +598,37 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status422UnprocessableEntity, problem.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("RSA-OAEP", "A256GCM")]
+    [InlineData("dir", "A256GCM")]
+    [InlineData("ECDH-ES+A256KW", "A128GCM")]
+    [InlineData("ES256", null)]
+    public async Task ImportTenantAsync_WhenThePackageIsNotSealedToATransferKey_ReturnsUnprocessableEntityWithoutDecrypting(
+        string alg,
+        string? enc
+    )
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupToken(
+            enc is null
+                ? JsonSerializer.SerializeToElement(new { alg })
+                : JsonSerializer.SerializeToElement(new { alg, enc })
+        );
+
+        var result = await Handler.ImportTenantAsync(
+            CreateHttpContext(authenticated: true),
+            CreateRequest(),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status422UnprocessableEntity, problem.StatusCode);
+        Assert.Equal(
+            "The tenant package is not sealed to a transfer key.",
+            problem.ProblemDetails.Detail
+        );
     }
 
     [Fact]

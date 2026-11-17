@@ -17,6 +17,7 @@ using NCode.Identity.AspNetCore;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.Jose;
+using NCode.Identity.Jose.Algorithms;
 using NCode.Identity.Jose.Exceptions;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
@@ -145,7 +146,7 @@ internal class TenantImportApiEndpointHandler(
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="200">The tenant is imported and placed in this cell.</response>
     /// <response code="409">The directory places the tenant in this cell or in no cell, or refuses the move. Nothing the import wrote remains.</response>
-    /// <response code="422">The transfer key is unknown, expired or already used, the package does not decrypt with it or is malformed, its format version is not one this cell imports, its region is not this cell's region, or it is offered to another cell.</response>
+    /// <response code="422">The transfer key is unknown, expired or already used, the package is not sealed to a transfer key, the package does not decrypt with it or is malformed, its format version is not one this cell imports, its region is not this cell's region, or it is offered to another cell.</response>
     /// <response code="503">The global directory is unavailable. Nothing the import wrote remains.</response>
     [EndpointName("api/tenant-imports/create")]
     internal virtual async ValueTask<IResult> ImportTenantAsync(
@@ -178,8 +179,19 @@ internal class TenantImportApiEndpointHandler(
             return Unprocessable("The transfer key is unknown, expired or already used.");
         }
 
+        var token = ParsePackageOrDefault(request.Package);
+        if (token is null)
+        {
+            return Unprocessable("The package does not decrypt with the transfer key.");
+        }
+
+        if (!IsSealedToTransferKey(token))
+        {
+            return Unprocessable("The tenant package is not sealed to a transfer key.");
+        }
+
         var decodedPackage = await DecodePackageOrDefaultAsync(
-            request.Package,
+            token,
             privateKey,
             cancellationToken
         );
@@ -461,10 +473,53 @@ internal class TenantImportApiEndpointHandler(
         await storeManager.SaveChangesAsync(cancellationToken);
     }
 
-    // Decrypts the package with the transfer key. A package that does not parse, or that the key does not decrypt,
-    // yields nothing.
+    // Parses the package. A package that is not a JOSE token yields nothing.
+    private JoseToken? ParsePackageOrDefault(string package)
+    {
+        try
+        {
+            return JoseSerializer.Parse(package);
+        }
+        catch (Exception exception) when (IsPackageFailure(exception))
+        {
+            return null;
+        }
+    }
+
+    // The export seals every package to a transfer key with ECDH-ES+A256KW and A256GCM, so a package whose protected
+    // header names anything else is refused before the transfer key decrypts it: a key management algorithm that
+    // does not fit the transfer key would only fail.
+    private static bool IsSealedToTransferKey(JoseToken token) =>
+        token.Header.ValueKind == JsonValueKind.Object
+        && HasHeaderValue(
+            token.Header,
+            JoseClaimNames.Header.Alg,
+            AlgorithmCodes.KeyManagement.EcdhEsAes256
+        )
+        && HasHeaderValue(
+            token.Header,
+            JoseClaimNames.Header.Enc,
+            AlgorithmCodes.AuthenticatedEncryption.Aes256Gcm
+        );
+
+    private static bool HasHeaderValue(JsonElement header, string name, string value) =>
+        header.TryGetProperty(name, out var property)
+        && property.ValueKind == JsonValueKind.String
+        && property.ValueEquals(value);
+
+    // A package that is not a JOSE token, that the transfer key does not decrypt, or whose algorithm cannot use the
+    // transfer key, which the serializer reports with an ArgumentException.
+    private static bool IsPackageFailure(Exception exception) =>
+        exception
+            is JoseException
+                or CryptographicException
+                or FormatException
+                or JsonException
+                or ArgumentException;
+
+    // Decrypts the parsed package with the transfer key. A package that the key does not decrypt yields nothing.
     private async ValueTask<JsonElement?> DecodePackageOrDefaultAsync(
-        string package,
+        JoseToken token,
         SecretKey privateKey,
         CancellationToken cancellationToken
     )
@@ -473,18 +528,11 @@ internal class TenantImportApiEndpointHandler(
         try
         {
             using var decoded = BufferFactory.CreatePooledBufferWriter(isSensitive: true);
-            var token = JoseSerializer.Parse(package);
             await JoseSerializer.DecodeAsync(token, privateKey, decoded, cancellationToken);
             payload = decoded.AsReadOnlySequence.ToArray();
             return JsonElement.Parse(payload);
         }
-        catch (Exception exception)
-            when (exception
-                    is JoseException
-                        or CryptographicException
-                        or FormatException
-                        or JsonException
-            )
+        catch (Exception exception) when (IsPackageFailure(exception))
         {
             return null;
         }
