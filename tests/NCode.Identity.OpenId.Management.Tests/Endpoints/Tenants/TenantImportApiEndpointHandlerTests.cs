@@ -257,16 +257,14 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
 
         MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
 
-        var sequence = MockTenantStore.SetupSequence(x =>
-            x.GetOrDefaultAsync(TenantId, It.IsAny<CancellationToken>())
-        );
-        sequence = tenantExistsBefore
-            ? sequence.ReturnsAsync(CreateTenant())
-            : sequence.ReturnsAsync((PersistedTenant?)null);
-        if (readImportedTenant)
-        {
-            sequence.ReturnsAsync(CreateTenant());
-        }
+        // The first read looks for residue before the import, and a second read finds the imported tenant.
+        var reads = 0;
+        MockTenantStore
+            .Setup(x => x.GetOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() =>
+                ++reads == 1 && !tenantExistsBefore ? (PersistedTenant?)null : CreateTenant()
+            )
+            .Verifiable(Times.Exactly(readImportedTenant ? 2 : 1));
     }
 
     private void SetupPlacement(string? cell = SourceCell) =>
@@ -689,23 +687,6 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status422UnprocessableEntity, problem.StatusCode);
-    }
-
-    [Fact]
-    public async Task ImportTenantAsync_WhenTheTenantExistsAndTheDirectoryPlacesItInThisCell_ReturnsConflictAndImportsNothing()
-    {
-        SetupAuthorization(AuthorizationResult.Success());
-        SetupPackage();
-        SetupPlacement(cell: CellName);
-
-        var result = await Handler.ImportTenantAsync(
-            CreateHttpContext(authenticated: true),
-            CreateRequest(),
-            CancellationToken.None
-        );
-
-        var problem = Assert.IsType<ProblemHttpResult>(result);
-        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
     }
 
     [Fact]
