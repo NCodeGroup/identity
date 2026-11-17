@@ -3,6 +3,7 @@
 
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Xunit;
 
 namespace NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore;
@@ -36,6 +37,18 @@ public sealed class TenantBoundUserModelTests
             AccountMaxLengths.NormalizedEmail,
             GetMaxLength(dbContext, nameof(TestTenantUser.NormalizedEmail))
         );
+    }
+
+    [Fact]
+    public void HasTenantLookupLengths_WhenTheBuilderIsNull_Throws()
+    {
+        EntityTypeBuilder<TestTenantUser> builder = null!;
+
+        var exception = Assert.Throws<ArgumentNullException>(() =>
+            builder.HasTenantLookupLengths()
+        );
+
+        Assert.Equal("builder", exception.ParamName);
     }
 
     #endregion

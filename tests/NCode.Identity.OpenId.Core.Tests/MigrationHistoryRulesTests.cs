@@ -52,5 +52,25 @@ public class MigrationHistoryRulesTests
         Assert.Empty(result);
     }
 
+    [Fact]
+    public void FindUnknownMigrations_WhenTheAppliedMigrationsAreNull_Throws()
+    {
+        var exception = Assert.Throws<ArgumentNullException>(() =>
+            MigrationHistoryRules.FindUnknownMigrations(null!, [First])
+        );
+
+        Assert.Equal("appliedMigrations", exception.ParamName);
+    }
+
+    [Fact]
+    public void FindUnknownMigrations_WhenTheMigrationsAreNull_Throws()
+    {
+        var exception = Assert.Throws<ArgumentNullException>(() =>
+            MigrationHistoryRules.FindUnknownMigrations([First], null!)
+        );
+
+        Assert.Equal("migrations", exception.ParamName);
+    }
+
     #endregion
 }
