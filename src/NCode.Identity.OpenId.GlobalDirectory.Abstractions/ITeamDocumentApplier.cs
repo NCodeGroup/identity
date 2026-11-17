@@ -26,7 +26,9 @@ public interface ITeamDocumentApplier
     /// <summary>
     /// Applies the retirement of a team: it removes the team's row, or disables it when tenants or teams still name it,
     /// and announces the change so caches evict the team. A removed team's owner root key is removed, and a disabled
-    /// team keeps it. A team without a row changes nothing.
+    /// team keeps it. A team without a row, or whose row already carries the retirement's sequence or a later one,
+    /// changes nothing, so a retirement that the directory delivers again is not written, announced or logged twice. A
+    /// disabled team records the retirement's sequence on its row.
     /// </summary>
     /// <param name="teamId">The identifier of the retired team.</param>
     /// <param name="sequence">The sequence of the directory change that retired the team.</param>
