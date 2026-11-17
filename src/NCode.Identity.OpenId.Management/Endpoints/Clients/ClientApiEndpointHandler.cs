@@ -93,6 +93,12 @@ internal class ClientApiEndpointHandler(
 ) : BaseOwnableApiEndpointHandler, IEndpointProvider
 {
     /// <summary>
+    /// The reason of the unscoped scope in which the handler removes the role assignments of a deleted client's
+    /// principal.
+    /// </summary>
+    internal const string PrincipalRoleRemovalReason = "client principal role removal";
+
+    /// <summary>
     /// Gets the entropy, in bits, of the secret that replaces a rotated shared secret.
     /// </summary>
     /// <remarks>
@@ -1206,7 +1212,16 @@ internal class ClientApiEndpointHandler(
         var resourceValues = ToResourceValues(ToClientResource(client));
 
         await store.RemoveAsync(clientId, cancellationToken);
-        await storeManager.SaveChangesAsync(cancellationToken);
+
+        // The role assignments the client's principal holds are stored under every tenant it holds a role in, so they
+        // are removed, and the removal is saved, in an unscoped scope. See ADR-1018 and ADR-1466.
+        using (AmbientTenantAccessor.BeginUnscoped(PrincipalRoleRemovalReason))
+        {
+            await storeManager
+                .GetStore<IRoleAssignmentStore>()
+                .RemoveByPrincipalAsync(client.PrincipalId, cancellationToken);
+            await storeManager.SaveChangesAsync(cancellationToken);
+        }
 
         await ManagementAuditRecorder.RecordClientChangedAsync(
             httpContext,

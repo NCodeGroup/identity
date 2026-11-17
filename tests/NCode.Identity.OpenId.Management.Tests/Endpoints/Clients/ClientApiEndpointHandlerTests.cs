@@ -5717,14 +5717,16 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
     #region DeleteClientAsync Tests
 
     [Fact]
-    public async Task DeleteClientAsync_WhenPreconditionsPass_ReturnsNoContent()
+    public async Task DeleteClientAsync_WhenPreconditionsPass_RemovesThePrincipalsRolesAndSavesUnscoped()
     {
         SetupAuthorizeDelete(error: null);
         SetupClientChangedAudit();
         SetupStore();
+        var client = CreateClient("client-ct");
+        client.PrincipalId = "principal-1";
         MockClientStore
             .Setup(x => x.GetOrDefaultAsync(ClientId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(CreateClient("client-ct"))
+            .ReturnsAsync(client)
             .Verifiable();
         MockClientValidator
             .Setup(x =>
@@ -5740,8 +5742,30 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
             .Setup(x => x.RemoveAsync(ClientId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(true)
             .Verifiable();
+
+        // The principal's assignments are stored under every tenant it holds a role in, so they are removed and the
+        // removal is saved in an unscoped scope.
+        var isUnscoped = false;
+        var unscoped = MockRepository.Create<IDisposable>();
+        unscoped.Setup(x => x.Dispose()).Callback(() => isUnscoped = false).Verifiable();
+        MockAmbientTenantAccessor
+            .Setup(x => x.BeginUnscoped(ClientApiEndpointHandler.PrincipalRoleRemovalReason))
+            .Callback(() => isUnscoped = true)
+            .Returns(unscoped.Object)
+            .Verifiable();
+        var roleAssignmentStore = MockRepository.Create<IRoleAssignmentStore>();
+        MockStoreManager
+            .Setup(x => x.GetStore<IRoleAssignmentStore>())
+            .Returns(roleAssignmentStore.Object)
+            .Verifiable();
+        roleAssignmentStore
+            .Setup(x => x.RemoveByPrincipalAsync("principal-1", It.IsAny<CancellationToken>()))
+            .Callback(() => Assert.True(isUnscoped))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
         MockStoreManager
             .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Callback(() => Assert.True(isUnscoped))
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
