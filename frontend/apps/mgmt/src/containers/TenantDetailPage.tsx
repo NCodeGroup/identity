@@ -138,6 +138,7 @@ function TenantMoveAction({ tenantId }: TenantTabProps) {
       <TenantMoveDialog
         open={isOpen}
         tenantId={tenantId}
+        isDisabled={isDisabled}
         sourceCell={cell}
         cells={cells.data ?? []}
         operations={operations}

@@ -41,6 +41,8 @@ export type TenantMoveDialogOperations = TenantMoveOperations;
 export type TenantMoveDialogProps = {
   readonly open: boolean;
   readonly tenantId: string;
+  /** Whether the tenant is disabled, which a move requires. */
+  readonly isDisabled: boolean;
   /** The cell the tenant lives in. */
   readonly sourceCell: string;
   /**
@@ -75,8 +77,9 @@ function stagesOf(sourceCell: string, targetCell: string): readonly Stage[] {
 /**
  * Move dialog for a disabled tenant: pick another cell of the tenant's region, then run the four stages of a move in
  * order (a transfer key from the receiving cell, the export from the tenant's cell, the import into the receiving cell
- * and the release at the tenant's cell), showing each stage. A failure stops the run and names the failed stage and
- * what remains; Retry resumes from the failed stage, so the stages that finished do not run again, except after a
+ * and the release at the tenant's cell), showing each stage. An enabled tenant starts no move: the dialog says to
+ * disable it first, while Retry of a move under way is not gated. A failure stops the run and names the failed stage
+ * and what remains; Retry resumes from the failed stage, so the stages that finished do not run again, except after a
  * failed import, which spends the transfer key, so Retry then runs from the transfer key. The chosen cell and the
  * progress are local because the dialog runs the sequence itself; the calls are the container's to supply, so this
  * package holds no store.
@@ -84,6 +87,7 @@ function stagesOf(sourceCell: string, targetCell: string): readonly Stage[] {
 export function TenantMoveDialog({
   open,
   tenantId,
+  isDisabled,
   sourceCell,
   cells,
   operations,
@@ -165,6 +169,11 @@ export function TenantMoveDialog({
           {targets.length === 0 && (
             <Alert severity="info" data-testid="move-no-cells">
               The region of {sourceCell} has no other cell.
+            </Alert>
+          )}
+          {!isDisabled && !hasStarted && (
+            <Alert severity="warning" data-testid="move-enabled">
+              Disable {tenantId} before moving it.
             </Alert>
           )}
           <TextField
@@ -255,7 +264,7 @@ export function TenantMoveDialog({
                       void handleMove(target);
                     }
               }
-              disabled={target === undefined || hasStarted}
+              disabled={target === undefined || hasStarted || !isDisabled}
               data-testid="move-confirm"
             >
               {isRunning ? 'Moving…' : 'Move'}

@@ -39,6 +39,7 @@ function renderDialog(overrides: Partial<TenantMoveDialogProps> = {}) {
   const props: TenantMoveDialogProps = {
     open: true,
     tenantId: 'acme',
+    isDisabled: true,
     sourceCell: 'eu-1',
     cells,
     operations: createOperations(),
@@ -82,10 +83,26 @@ describe('TenantMoveDialog', () => {
   it('disables Move until a cell is chosen', () => {
     renderDialog();
     expect(screen.getByTestId('move-confirm')).toBeDisabled();
+    expect(screen.queryByTestId('move-enabled')).not.toBeInTheDocument();
 
     choose('eu-2');
 
     expect(screen.getByTestId('move-confirm')).toBeEnabled();
+  });
+
+  it('does not start a move of an enabled tenant', () => {
+    const operations = createOperations();
+    renderDialog({ isDisabled: false, operations });
+
+    choose('eu-2');
+    fireEvent.click(screen.getByTestId('move-confirm'));
+
+    expect(screen.getByTestId('move-enabled')).toHaveTextContent('Disable acme before moving it.');
+    expect(screen.getByTestId('move-confirm')).toBeDisabled();
+    expect(operations.createTransferKey).not.toHaveBeenCalled();
+    expect(operations.exportTenant).not.toHaveBeenCalled();
+    expect(operations.importTenant).not.toHaveBeenCalled();
+    expect(operations.releaseMovedTenant).not.toHaveBeenCalled();
   });
 
   it('runs the transfer key, the export, the import and the release in order', async () => {
@@ -356,6 +373,7 @@ describe('TenantMoveDialog', () => {
     const props: TenantMoveDialogProps = {
       open: true,
       tenantId: 'acme',
+      isDisabled: true,
       sourceCell: 'eu-1',
       cells,
       operations: createOperations(),
@@ -377,6 +395,7 @@ describe('TenantMoveDialog', () => {
     const props: TenantMoveDialogProps = {
       open: true,
       tenantId: 'acme',
+      isDisabled: true,
       sourceCell: 'eu-1',
       cells,
       operations: {

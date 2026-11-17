@@ -28,6 +28,7 @@ const meta: Meta<typeof TenantMoveDialog> = {
   args: {
     open: true,
     tenantId: 'acme',
+    isDisabled: true,
     sourceCell: 'eu-1',
     cells,
     operations: succeeding,
@@ -46,6 +47,10 @@ async function startMove(): Promise<void> {
 }
 
 export const Default: Story = {};
+
+export const EnabledTenant: Story = {
+  args: { isDisabled: false },
+};
 
 export const NoOtherCell: Story = {
   args: { sourceCell: 'us-1' },
