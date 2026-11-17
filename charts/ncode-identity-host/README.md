@@ -818,12 +818,12 @@ proves the key before it stores it: AWS `kms:GetPublicKey` plus `kms:Sign`, `kms
 as the key's algorithm says, Azure `Key Vault Crypto User` on the key, Google `cloudkms.cryptoKeyVersions.viewPublicKey`
 plus `.useToSign` or `.useToDecrypt`. A provider without its location needs only these.
 
-Scope the identity to the deployment's keys: on AWS, condition `kms:ScheduleKeyDeletion` on
-`aws:ResourceTag/ncode-identity:deployment` equal to the deployment name, and `kms:CreateKey` and `kms:TagResource` on
-`aws:RequestTag/ncode-identity:deployment`, so it creates and destroys only keys of its deployment (`kms:ListKeys`
-names no resource, and a bound key carries no such tag); on Azure, a role assignment cannot be conditioned on a key's
-tags, so give each deployment a vault of its own and a custom role without delete and purge; on Google, a grant on a key
-ring covers every crypto key in it, so give each deployment a key ring of its own.
+Scope the identity to the cell's keys: on AWS, condition `kms:ScheduleKeyDeletion` on
+`aws:ResourceTag/ncode-identity:deployment` equal to the cell's name (`cell.name`), and `kms:CreateKey` and
+`kms:TagResource` on `aws:RequestTag/ncode-identity:deployment` equal to it, so it creates and destroys only keys of its
+cell (`kms:ListKeys` names no resource, and a bound key carries no such tag); on Azure, a role assignment cannot be
+conditioned on a key's tags, so give each cell a vault of its own and a custom role without delete and purge; on
+Google, a grant on a key ring covers every crypto key in it, so give each cell a key ring of its own.
 
 **Choosing a provider.** A tenant, a team or the platform selects a provider with the setting
 `tenant_key_provider`, whose value is empty (local keys) or an enabled provider with its location: `aws-kms`,

@@ -121,12 +121,12 @@ sign-only or decrypt-only keys and destroys only the keys it created. The deploy
 - Google: `cloudkms.cryptoKeys.create` and `cloudkms.cryptoKeys.list`, and `cloudkms.cryptoKeyVersions.create`, `.list`,
   `.get`, `.viewPublicKey`, `.useToSign`, `.useToDecrypt` and `.destroy` on the key ring.
 
-Scope the identity to the deployment's keys: on AWS, condition `kms:ScheduleKeyDeletion` on
-`aws:ResourceTag/ncode-identity:deployment` equal to the deployment name, and `kms:CreateKey` and `kms:TagResource` on
-`aws:RequestTag/ncode-identity:deployment`, so it creates and destroys only keys of its deployment (`kms:ListKeys`
-names no resource, and a bound key carries no such tag); on Azure, a role assignment cannot be conditioned on a key's
-tags, so give each deployment a vault of its own and a custom role without delete and purge; on Google, a grant on a key
-ring covers every crypto key in it, so give each deployment a key ring of its own.
+Scope the identity to the cell's keys: on AWS, condition `kms:ScheduleKeyDeletion` on
+`aws:ResourceTag/ncode-identity:deployment` equal to the cell's name (`Cell:Name`), and `kms:CreateKey` and
+`kms:TagResource` on `aws:RequestTag/ncode-identity:deployment` equal to it, so it creates and destroys only keys of its
+cell (`kms:ListKeys` names no resource, and a bound key carries no such tag); on Azure, a role assignment cannot be
+conditioned on a key's tags, so give each cell a vault of its own and a custom role without delete and purge; on
+Google, a grant on a key ring covers every crypto key in it, so give each cell a key ring of its own.
 
 The management API creates a tenant's key in a registered provider with `POST /api/tenants/{tenantId}/secrets/remote`
 and binds a key that a provider already holds, once it proves it signs or decrypts, with

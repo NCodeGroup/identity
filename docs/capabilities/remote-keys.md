@@ -397,17 +397,18 @@ as the key's row says, Azure `Key Vault Crypto User` on the key, Google `cloudkm
 
 A key ring's remote key needs the permissions of a bound key, because the host reads and proves it when it starts.
 
-**Scoping the identity to the deployment's keys.**
+**Scoping the identity to the cell's keys.**
 
-- **AWS:** condition `kms:ScheduleKeyDeletion` on `aws:ResourceTag/ncode-identity:deployment` equal to the deployment
-  name, and `kms:CreateKey` and `kms:TagResource` on `aws:RequestTag/ncode-identity:deployment` equal to it, so the
-  identity can create and destroy only keys of its deployment. `kms:ListKeys` names no resource, and a bound key carries
-  no such tag, so its own operation stays unconditioned.
-- **Azure:** a role assignment cannot be conditioned on a key's tags, so give each deployment a vault of its own. A
+- **AWS:** condition `kms:ScheduleKeyDeletion` on `aws:ResourceTag/ncode-identity:deployment` equal to the cell's name
+  (`Cell:Name`, which the host sets as `SecretProtection:RemoteKeys:Deployment`), and `kms:CreateKey` and
+  `kms:TagResource` on `aws:RequestTag/ncode-identity:deployment` equal to it, so the identity can create and destroy
+  only keys of its cell. `kms:ListKeys` names no resource, and a bound key carries no such tag, so its own operation
+  stays unconditioned.
+- **Azure:** a role assignment cannot be conditioned on a key's tags, so give each cell a vault of its own. A
   custom role with `Microsoft.KeyVault/vaults/keys/read`, `Microsoft.KeyVault/vaults/keys/create/action`,
   `Microsoft.KeyVault/vaults/keys/update/action`, `Microsoft.KeyVault/vaults/keys/sign/action` and
   `Microsoft.KeyVault/vaults/keys/unwrap/action` grants what the server calls and leaves out delete and purge.
-- **Google:** a grant on a key ring covers every crypto key in it, so give each deployment a key ring of its own.
+- **Google:** a grant on a key ring covers every crypto key in it, so give each cell a key ring of its own.
 
 The server creates sign-only or decrypt-only keys, hardware-protected by default on Azure and Google, and destroys only
 the keys it created. Its logs carry identifiers only, never an input, a digest, a signature, a content key or a shared
