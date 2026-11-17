@@ -161,8 +161,11 @@ current_setting('app.unscoped', true) = 'on' OR "NormalizedTenantId" = current_s
 ### Tenants of ASP.NET Core Identity and the BFF
 
 - **Local accounts.** `LocalAccountEntity` and `LocalAccountClaimEntity` carry a foreign key to `TenantEntity`, shaped
-  like `ClientEntity`: `TenantId`, the `Tenant` navigation and the denormalized `NormalizedTenantId`, with cascade
-  delete. Deleting a tenant deletes its accounts, and the accounts are scoped by the same filter and policy.
+  like `ClientEntity`: `TenantId`, the `Tenant` navigation and the denormalized `NormalizedTenantId`. The key restricts
+  deletes, as every foreign key of `OpenIdDbContext` does, and the tenant store erases a tenant's accounts and their
+  claims with it
+  ([ADR-1212](1212-deleting-a-client-resource-server-principal-or-tenant-removes-what-it-owns.md)). The accounts are
+  scoped by the same filter and policy.
 - **Identity users.** An ASP.NET Core Identity user is bound to a tenant. `TUser` is `ITenantBoundUser` and exposes
   `TenantId`. `TenantLookupNormalizer` prefixes normalized names and emails with `{normalizedTenantId}|` and throws when
   no tenant scope is set. The host's Identity schema sizes `UserName` and `Email` to `AccountMaxLengths.UserName` and
