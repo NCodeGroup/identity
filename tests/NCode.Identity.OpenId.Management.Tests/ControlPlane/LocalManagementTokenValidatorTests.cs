@@ -51,7 +51,13 @@ public sealed class LocalManagementTokenValidatorTests : IDisposable
         MockMediator
             .Setup(x =>
                 x.SendAsync<AuthenticateAccessTokenCommand, AuthenticateAccessTokenDisposition>(
-                    It.IsAny<AuthenticateAccessTokenCommand>(),
+                    It.Is<AuthenticateAccessTokenCommand>(command =>
+                        command.OpenIdContext == MockContext.Object
+                        && command.AccessToken == "access-token"
+                        && command.RequiredAudiences.SequenceEqual(
+                            new[] { OpenIdConstants.SystemResourceServerIdentifiers.Management }
+                        )
+                    ),
                     It.IsAny<CancellationToken>()
                 )
             )
