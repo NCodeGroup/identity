@@ -37,6 +37,7 @@ public sealed class AspNetIdentityLocalAccountStoreTransferTests : IAsyncLifetim
         static (_, _) => ValueTask.FromResult(false);
 
     private ServiceProvider Provider { get; }
+    private SaveChangesCounter SaveCounter { get; } = new();
     private TestAmbientTenantAccessor Accessor { get; } = new();
     private IDisposable TenantScope { get; }
     private ILocalAccountStore Store { get; }
@@ -50,7 +51,7 @@ public sealed class AspNetIdentityLocalAccountStoreTransferTests : IAsyncLifetim
         serviceCollection.AddSingleton<IAmbientTenantAccessor>(Accessor);
         var databaseName = Guid.NewGuid().ToString("N");
         serviceCollection.AddDbContext<IdentityDbContext<TestTenantUser>>(options =>
-            options.UseInMemoryDatabase(databaseName)
+            options.UseInMemoryDatabase(databaseName).AddInterceptors(SaveCounter)
         );
         serviceCollection
             .AddIdentityCore<TestTenantUser>()
@@ -293,6 +294,28 @@ public sealed class AspNetIdentityLocalAccountStoreTransferTests : IAsyncLifetim
         var imported = Assert.Single(account.Claims);
         Assert.Equal("role", imported.Type);
         Assert.Equal("reader", imported.Value);
+    }
+
+    [Fact]
+    public async Task ImportAsync_WhenTheRecordsHaveClaims_WritesEachAccountTwice()
+    {
+        var claim = new PersistedLocalAccountClaim { Type = "role", Value = "reader" };
+
+        await TransferStore.ImportAsync(
+            [CreateRecord(AccountA, UserA, claim), CreateRecord(AccountB, UserB, claim)],
+            CancellationToken.None
+        );
+
+        Assert.Equal(4, SaveCounter.Count);
+        foreach (var localAccountId in new[] { AccountA, AccountB })
+        {
+            var account = await Store.GetByIdOrDefaultAsync(localAccountId, CancellationToken.None);
+            Assert.NotNull(account);
+            Assert.Equal("imported-stamp", account.SecurityStamp);
+            var imported = Assert.Single(account.Claims);
+            Assert.Equal("role", imported.Type);
+            Assert.Equal("reader", imported.Value);
+        }
     }
 
     [Fact]

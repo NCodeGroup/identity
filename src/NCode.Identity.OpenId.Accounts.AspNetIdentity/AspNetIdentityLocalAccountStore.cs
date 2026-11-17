@@ -178,6 +178,12 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             "The configured ASP.NET Core Identity store does not store passwords, which a local account's password requires."
         );
 
+    private static IUserClaimStore<TUser> GetClaimStore(IServiceProvider serviceProvider) =>
+        serviceProvider.GetRequiredService<IUserStore<TUser>>() as IUserClaimStore<TUser>
+        ?? throw new NotSupportedException(
+            "The configured ASP.NET Core Identity store does not store claims, which a local account's claims require."
+        );
+
     private static NormalizingPasswordHasher<TUser> GetPasswordHasher(
         UserManager<TUser> userManager
     ) =>
@@ -665,6 +671,13 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// The user manager creates each account, which issues a new security stamp, and one update then writes the
+    /// record's security stamp, lockout state and claims, so each account takes two writes. ASP.NET Core Identity's
+    /// store contracts write one user at a time. Only a move imports a tenant's local accounts, while the tenant is
+    /// disabled, so the cost is accepted.
+    /// </remarks>
+    // See ADR-1514.
     public async ValueTask ImportAsync(
         IReadOnlyList<LocalAccountTransferRecord> records,
         CancellationToken cancellationToken
@@ -673,6 +686,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
         var passwordStore = GetPasswordStore(scope.ServiceProvider);
+        IUserClaimStore<TUser>? claimStore = null;
 
         var tenantId = GetRequiredTenantId();
         foreach (var record in records)
@@ -705,7 +719,8 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             ThrowIfFailed(await userManager.CreateAsync(user), "import the local account");
 
             // Creating a user issues a new security stamp, so the stamp and the lockout state of the record are
-            // applied after it.
+            // applied after it, together with the claims, which the claim store stages on the context the user
+            // manager saves.
             user.SecurityStamp = record.SecurityStamp;
             if (userManager.SupportsUserLockout)
             {
@@ -714,21 +729,20 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
                 user.AccessFailedCount = record.AccessFailedCount;
             }
 
-            ThrowIfFailed(
-                await userManager.UpdateAsync(user),
-                "import the security stamp and lockout state of the local account"
-            );
-
             if (record.Claims.Count > 0)
             {
-                ThrowIfFailed(
-                    await userManager.AddClaimsAsync(
-                        user,
-                        record.Claims.Select(claim => new Claim(claim.Type, claim.Value))
-                    ),
-                    "import the local-account claims"
+                claimStore ??= GetClaimStore(scope.ServiceProvider);
+                await claimStore.AddClaimsAsync(
+                    user,
+                    record.Claims.Select(claim => new Claim(claim.Type, claim.Value)),
+                    cancellationToken
                 );
             }
+
+            ThrowIfFailed(
+                await userManager.UpdateAsync(user),
+                "import the security stamp, lockout state and claims of the local account"
+            );
         }
     }
 
