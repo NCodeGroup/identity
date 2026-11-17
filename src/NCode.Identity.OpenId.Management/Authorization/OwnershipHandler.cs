@@ -9,6 +9,7 @@ using NCode.Identity.Jose;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Persistence;
+using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence.Stores;
@@ -40,6 +41,11 @@ internal sealed class OwnershipHandler(
     IAuthorityChainResolver authorityChainResolver
 ) : AuthorizationHandler<IAuthorizationRequirement, ISupportTenantId>
 {
+    /// <summary>
+    /// The reason of the unscoped scope in which the handler reads the caller's role assignments.
+    /// </summary>
+    internal const string UnscopedReason = "ownership authorization";
+
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IControlPlaneAuthority ControlPlaneAuthority { get; } = controlPlaneAuthority;
     private IAuthorityChainResolver AuthorityChainResolver { get; } = authorityChainResolver;
@@ -138,7 +144,14 @@ internal sealed class OwnershipHandler(
         );
 
         var store = storeManager.GetStore<IRoleAssignmentStore>();
-        var assignments = await store.GetByPrincipalAsync(principalId, cancellationToken);
+        IReadOnlyList<PersistedRoleAssignment> assignments;
+
+        // A principal's assignments are stored under the tenant of each node that holds them, so they are read across
+        // tenants. See ADR-1018.
+        using (AmbientTenantAccessor.BeginUnscoped(UnscopedReason))
+        {
+            assignments = await store.GetByPrincipalAsync(principalId, cancellationToken);
+        }
 
         foreach (var assignment in assignments)
         {

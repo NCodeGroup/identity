@@ -303,11 +303,25 @@ public class OwnershipHandlerTests : IDisposable
                     .ReturnsAsync(CreateTeam(storedTeamId, options.TeamAncestors ?? []));
             }
 
+            var isUnscoped = false;
+            var unscoped = MockRepository.Create<IDisposable>();
+            unscoped.Setup(x => x.Dispose()).Callback(() => isUnscoped = false);
+            ambient
+                .Setup(x => x.BeginUnscoped(OwnershipHandler.UnscopedReason))
+                .Callback(() => isUnscoped = true)
+                .Returns(unscoped.Object);
+
             var store = MockRepository.Create<IRoleAssignmentStore>();
             manager.Setup(x => x.GetStore<IRoleAssignmentStore>()).Returns(store.Object);
             store
                 .Setup(x =>
                     x.GetByPrincipalAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())
+                )
+                .Callback(() =>
+                    Assert.True(
+                        isUnscoped,
+                        "The caller's assignments were read outside an unscoped scope."
+                    )
                 )
                 .ReturnsAsync(assignments.ToList());
         }
