@@ -44,6 +44,66 @@ describe('apiErrorMessage', () => {
     expect(apiErrorMessage({ status: 502, data: 'Bad Gateway' })).toMatch(/HTTP 502/);
   });
 
+  it('prefers the field messages of a validation problem to its detail', () => {
+    expect(
+      apiErrorMessage({
+        status: 400,
+        data: {
+          detail: 'One or more validation errors occurred.',
+          errors: {
+            provider: ['The provider is not supported.'],
+            reference: ['The reference is required.', 'The reference is too long.'],
+          },
+        },
+      }),
+    ).toBe('The provider is not supported. The reference is required. The reference is too long.');
+  });
+
+  it('falls back to the detail when the validation errors hold no message', () => {
+    expect(
+      apiErrorMessage({
+        status: 400,
+        data: { detail: 'One or more validation errors occurred.', errors: {} },
+      }),
+    ).toBe('One or more validation errors occurred.');
+  });
+
+  it('ignores an entry among the field messages that is not a string', () => {
+    expect(
+      apiErrorMessage({
+        status: 400,
+        data: { errors: { reference: ['The reference is required.', 7, null, { text: 'x' }] } },
+      }),
+    ).toBe('The reference is required.');
+  });
+
+  it('ignores a field whose messages are not a list', () => {
+    expect(
+      apiErrorMessage({
+        status: 400,
+        data: { errors: { provider: 'The provider is not supported.', reference: ['Required.'] } },
+      }),
+    ).toBe('Required.');
+  });
+
+  it('ignores an errors list, which names no field', () => {
+    expect(
+      apiErrorMessage({
+        status: 409,
+        data: { detail: 'The promotion conflicts.', errors: [{ detail: 'x' }] },
+      }),
+    ).toBe('The promotion conflicts.');
+  });
+
+  it('appends the wait to the field messages of a validation problem', () => {
+    expect(
+      apiErrorMessage({
+        status: 429,
+        data: { errors: { name: ['The name is taken.'] }, retryAfterSeconds: 30 },
+      }),
+    ).toBe('The name is taken. Try again in 30 seconds.');
+  });
+
   it('returns the fallback for a transport failure with no HTTP status', () => {
     expect(apiErrorMessage({ status: 'FETCH_ERROR', error: 'TypeError: Failed to fetch' })).toBe(
       'Something went wrong.',
