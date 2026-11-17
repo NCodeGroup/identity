@@ -679,6 +679,17 @@ internal class AwsKmsRemoteKeyProvider(
     }
 
     /// <inheritdoc />
+    public bool IsInLocation(string keyId)
+    {
+        ArgumentNullException.ThrowIfNull(keyId);
+
+        var region = ProviderOptions.Value.Region;
+        return !string.IsNullOrEmpty(region)
+            && AwsKmsKeyArn.IsValid(keyId)
+            && string.Equals(AwsKmsKeyArn.GetRegion(keyId), region, StringComparison.Ordinal);
+    }
+
+    /// <inheritdoc />
     /// <exception cref="InvalidOperationException">
     /// Thrown when the configured region is not set.
     /// </exception>

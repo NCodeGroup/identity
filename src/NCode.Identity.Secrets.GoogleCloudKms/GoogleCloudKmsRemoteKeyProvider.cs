@@ -492,6 +492,19 @@ internal class GoogleCloudKmsRemoteKeyProvider(
     }
 
     /// <inheritdoc />
+    public bool IsInLocation(string keyId)
+    {
+        ArgumentNullException.ThrowIfNull(keyId);
+
+        var keyRing = ProviderOptions.Value.KeyRing;
+        return GoogleCloudKmsKeyName.IsKeyRingName(keyRing)
+            && GoogleCloudKmsKeyName.IsCryptoKeyVersionName(keyId)
+            && GoogleCloudKmsKeyName
+                .GetCryptoKeyName(keyId)
+                .StartsWith(keyRing + "/cryptoKeys/", StringComparison.Ordinal);
+    }
+
+    /// <inheritdoc />
     /// <exception cref="InvalidOperationException">
     /// Thrown when the configured key ring is not a Cloud KMS key ring name.
     /// </exception>

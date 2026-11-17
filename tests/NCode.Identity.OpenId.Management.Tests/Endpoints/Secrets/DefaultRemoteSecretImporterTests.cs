@@ -496,6 +496,8 @@ public sealed class DefaultRemoteSecretImporterTests : IAsyncLifetime
             return ValueTask.CompletedTask;
         }
 
+        public bool IsInLocation(string keyId) => throw new NotSupportedException();
+
         public ValueTask<int> DecryptAsync(
             RemoteDecryptionRequest request,
             Memory<byte> plaintext,

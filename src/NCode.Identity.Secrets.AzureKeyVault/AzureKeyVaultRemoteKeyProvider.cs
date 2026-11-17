@@ -487,6 +487,23 @@ internal class AzureKeyVaultRemoteKeyProvider(
     }
 
     /// <inheritdoc />
+    public bool IsInLocation(string keyId)
+    {
+        ArgumentNullException.ThrowIfNull(keyId);
+
+        var vaultUri = ProviderOptions.Value.VaultUri;
+        return Uri.TryCreate(vaultUri, UriKind.Absolute, out var vault)
+            && AzureKeyVaultKeyId.IsKeyVersionId(keyId)
+            && Uri.Compare(
+                new Uri(keyId),
+                vault,
+                UriComponents.SchemeAndServer,
+                UriFormat.SafeUnescaped,
+                StringComparison.OrdinalIgnoreCase
+            ) == 0;
+    }
+
+    /// <inheritdoc />
     /// <exception cref="InvalidOperationException">
     /// Thrown when the configured vault URI is not set.
     /// </exception>

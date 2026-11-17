@@ -212,6 +212,9 @@ internal sealed class FakeRemoteKeyProvider
     }
 
     /// <inheritdoc />
+    public bool IsInLocation(string keyId) => throw new NotSupportedException();
+
+    /// <inheritdoc />
     public void Dispose()
     {
         SigningKey.Dispose();

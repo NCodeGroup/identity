@@ -412,6 +412,10 @@ public sealed class TestRemoteKeyProvider
     }
 
     /// <inheritdoc />
+    // Every key the provider holds lies in its one location.
+    public bool IsInLocation(string keyId) => Keys.ContainsKey(keyId);
+
+    /// <inheritdoc />
     public void Dispose()
     {
         foreach (var keyId in Keys.Keys)
