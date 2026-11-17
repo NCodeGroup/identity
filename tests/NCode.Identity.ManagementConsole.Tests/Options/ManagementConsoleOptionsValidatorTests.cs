@@ -300,6 +300,23 @@ public class ManagementConsoleOptionsValidatorTests : BaseTests
         Assert.True(result.Succeeded);
     }
 
+    [Fact]
+    public void Validate_WhenTwoCellNamesDifferOnlyInCase_FailsForTheNameThatIsNotACellLabel()
+    {
+        var options = CreateValidOptions();
+        options.Cells["eu-1"] = "https://eu-1.example.com/api";
+        options.Cells["EU-1"] = "https://eu-1.example.com/api";
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Equal(2, options.Cells.Count);
+        Assert.Contains(
+            "ManagementConsole:Cells:EU-1 must be named with a cell name",
+            result.Failures?.Single() ?? string.Empty
+        );
+    }
+
     [Theory]
     [InlineData("", "")]
     [InlineData("eu-1.example.com/api", "eu-1.example.com/api")]

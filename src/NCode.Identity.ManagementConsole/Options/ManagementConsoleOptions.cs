@@ -24,7 +24,7 @@ public sealed class ManagementConsoleOptions
     /// <see cref="ManagementApiUrl"/>, <c>/api</c> on the cell's origin. The console forwards the browser's calls for a
     /// cell to its URL. The configuration key is <c>ManagementConsole:Cells</c>.
     /// </summary>
-    public Dictionary<string, string> Cells { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, string> Cells { get; set; } = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Gets or sets the directory of the built <c>apps/mgmt</c> bundle, relative to the content root or absolute. The
