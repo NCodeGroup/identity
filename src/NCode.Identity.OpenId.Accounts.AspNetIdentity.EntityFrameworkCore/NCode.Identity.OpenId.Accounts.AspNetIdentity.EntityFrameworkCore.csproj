@@ -14,7 +14,6 @@
 
     <ItemGroup>
         <ProjectReference Include="..\NCode.Identity.OpenId.Accounts.Abstractions\NCode.Identity.OpenId.Accounts.Abstractions.csproj" />
-        <ProjectReference Include="..\NCode.Identity.OpenId.Accounts.AspNetIdentity\NCode.Identity.OpenId.Accounts.AspNetIdentity.csproj" />
     </ItemGroup>
 
     <ItemGroup>
