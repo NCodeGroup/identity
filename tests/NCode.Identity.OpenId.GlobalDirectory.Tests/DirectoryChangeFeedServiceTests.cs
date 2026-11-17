@@ -155,7 +155,7 @@ public class DirectoryChangeFeedServiceTests : BaseTests
     #region RunAsync Tests
 
     [Fact]
-    public async Task RunAsync_TakesALeaseKeyedByThePollWindowThatExpiresAtTheWindowsEnd()
+    public async Task RunAsync_Always_TakesALeaseKeyedByThePollWindowThatExpiresAtItsEnd()
     {
         var windowStart = TimeProvider.GetUtcNow();
         var window = windowStart.UtcTicks / PollInterval.Ticks;
