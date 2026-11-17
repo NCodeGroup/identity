@@ -9,6 +9,7 @@ using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
 
@@ -17,8 +18,26 @@ namespace NCode.Identity.OpenId.Management;
 public class DefaultResourceOwnershipServiceTests : IDisposable
 {
     private MockRepository MockRepository { get; } = new(MockBehavior.Strict);
+    private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
+
+    public DefaultResourceOwnershipServiceTests()
+    {
+        MockAmbientTenantAccessor = MockRepository.Create<IAmbientTenantAccessor>();
+    }
 
     public void Dispose() => MockRepository.Verify();
+
+    private DefaultResourceOwnershipService CreateService(
+        ICryptoService cryptoService,
+        IControlPlaneAuthority controlPlaneAuthority,
+        IAuthorityChainResolver authorityChainResolver
+    ) =>
+        new(
+            cryptoService,
+            controlPlaneAuthority,
+            authorityChainResolver,
+            MockAmbientTenantAccessor.Object
+        );
 
     private static OpenIdContext CreateContext() =>
         Mock.Of<OpenIdContext>(context =>
@@ -73,6 +92,16 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
         PersistedClient? client
     )
     {
+        // A principal's client is looked up across tenants, in an unscoped scope.
+        var isUnscoped = false;
+        var unscoped = MockRepository.Create<IDisposable>();
+        unscoped.Setup(x => x.Dispose()).Callback(() => isUnscoped = false).Verifiable();
+        MockAmbientTenantAccessor
+            .Setup(x => x.BeginUnscoped(DefaultResourceOwnershipService.UnscopedReason))
+            .Callback(() => isUnscoped = true)
+            .Returns(unscoped.Object)
+            .Verifiable();
+
         var clientStore = MockRepository.Create<IClientStore>();
         storeManager
             .Setup(x => x.GetStore<IClientStore>())
@@ -80,6 +109,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
             .Verifiable();
         clientStore
             .Setup(x => x.GetByPrincipalOrDefaultAsync(principalId, It.IsAny<CancellationToken>()))
+            .Callback(() => Assert.True(isUnscoped))
             .ReturnsAsync(client)
             .Verifiable();
     }
@@ -114,7 +144,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
 
         SetupClientByPrincipal(storeManager, "subject-1", null);
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             crypto.Object,
             authority.Object,
             Mock.Of<IAuthorityChainResolver>()
@@ -170,7 +200,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
 
         SetupClientByPrincipal(storeManager, "principal-99", null);
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             crypto.Object,
             authority.Object,
             Mock.Of<IAuthorityChainResolver>()
@@ -220,7 +250,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
 
         SetupClientByPrincipal(storeManager, "principal-1", null);
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             crypto.Object,
             authority.Object,
             Mock.Of<IAuthorityChainResolver>()
@@ -253,7 +283,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
         SetupClientByPrincipal(storeManager, "client-principal", ordinaryClient);
 
         // No role assignment store or crypto setups: a strict-mock failure would mean an owner was written.
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             MockRepository.Create<ICryptoService>().Object,
             authority.Object,
             MockRepository.Create<IAuthorityChainResolver>().Object
@@ -303,7 +333,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
 
         SetupClientByPrincipal(storeManager, "principal-1", null);
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             crypto.Object,
             authority.Object,
             Mock.Of<IAuthorityChainResolver>()
@@ -336,7 +366,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
             .Verifiable();
 
         // No store or crypto setups: a strict-mock failure would mean an assignment was written.
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             MockRepository.Create<ICryptoService>().Object,
             authority.Object,
             Mock.Of<IAuthorityChainResolver>()
@@ -360,7 +390,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
     {
         var authority = CreateAuthority(null);
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             MockRepository.Create<ICryptoService>().Object,
             authority.Object,
             Mock.Of<IAuthorityChainResolver>()
@@ -389,7 +419,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
         var user = CreateCaller();
         user.Identities.Single().RemoveClaim(user.FindFirst(missingClaim));
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             MockRepository.Create<ICryptoService>().Object,
             MockRepository.Create<IControlPlaneAuthority>().Object,
             Mock.Of<IAuthorityChainResolver>()
@@ -419,7 +449,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
             .Throws(new DirectoryUnavailableException("unavailable"))
             .Verifiable();
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             MockRepository.Create<ICryptoService>().Object,
             authority.Object,
             Mock.Of<IAuthorityChainResolver>()
@@ -444,7 +474,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
     public async Task AddOwnerAsync_WhenThePrincipalIdIsEmpty_Throws(string? principalId)
     {
         // No store or crypto setups: a strict-mock failure would mean an assignment was written.
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             MockRepository.Create<ICryptoService>().Object,
             MockRepository.Create<IControlPlaneAuthority>().Object,
             Mock.Of<IAuthorityChainResolver>()
@@ -506,7 +536,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
             .ReturnsAsync([Owner("p1", "a1"), nonOwner, Owner("p3", "a3")])
             .Verifiable();
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             Mock.Of<ICryptoService>(),
             Mock.Of<IControlPlaneAuthority>(),
             Mock.Of<IAuthorityChainResolver>()
@@ -557,7 +587,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
 
         SetupClientByPrincipal(storeManager, "p2", null);
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             crypto.Object,
             Mock.Of<IControlPlaneAuthority>(),
             Mock.Of<IAuthorityChainResolver>()
@@ -603,7 +633,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
         // No AddAsync/crypto setups: a strict-mock failure would mean a duplicate owner was written.
         SetupClientByPrincipal(storeManager, "p1", null);
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             Mock.Of<ICryptoService>(),
             Mock.Of<IControlPlaneAuthority>(),
             Mock.Of<IAuthorityChainResolver>()
@@ -643,7 +673,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
             .ReturnsAsync([Owner("p1", "a1")])
             .Verifiable();
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             Mock.Of<ICryptoService>(),
             Mock.Of<IControlPlaneAuthority>(),
             Mock.Of<IAuthorityChainResolver>()
@@ -682,7 +712,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
             .Verifiable();
 
         // No RemoveAsync setup: a strict-mock failure would mean the last owner was removed.
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             Mock.Of<ICryptoService>(),
             Mock.Of<IControlPlaneAuthority>(),
             Mock.Of<IAuthorityChainResolver>()
@@ -726,7 +756,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             Mock.Of<ICryptoService>(),
             Mock.Of<IControlPlaneAuthority>(),
             Mock.Of<IAuthorityChainResolver>()
@@ -768,7 +798,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             Mock.Of<ICryptoService>(),
             Mock.Of<IControlPlaneAuthority>(),
             Mock.Of<IAuthorityChainResolver>()
@@ -833,7 +863,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
         SetupClientByPrincipal(storeManager, "p1", null);
 
         // No AddAsync/crypto setups: a strict-mock failure would mean a duplicate was written.
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             Mock.Of<ICryptoService>(),
             Mock.Of<IControlPlaneAuthority>(),
             Mock.Of<IAuthorityChainResolver>()
@@ -860,7 +890,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
         SetupClientByPrincipal(storeManager, "p1", null);
 
         // No AddAsync/crypto setups: a strict-mock failure would mean a duplicate was written.
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             Mock.Of<ICryptoService>(),
             Mock.Of<IControlPlaneAuthority>(),
             Mock.Of<IAuthorityChainResolver>()
@@ -899,7 +929,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
 
         SetupClientByPrincipal(storeManager, "p1", null);
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             crypto.Object,
             Mock.Of<IControlPlaneAuthority>(),
             Mock.Of<IAuthorityChainResolver>()
@@ -952,7 +982,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
         SetupClientByPrincipal(storeManager, "p1", ordinaryClient);
 
         // No role assignment store or crypto setups: a strict-mock failure would mean a role was read or written.
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             MockRepository.Create<ICryptoService>().Object,
             Mock.Of<IControlPlaneAuthority>(),
             MockRepository.Create<IAuthorityChainResolver>().Object
@@ -995,7 +1025,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             crypto.Object,
             Mock.Of<IControlPlaneAuthority>(),
             authorityChain.Object
@@ -1028,7 +1058,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
         );
 
         // No role assignment store or crypto setups: a strict-mock failure would mean a role was read or written.
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             MockRepository.Create<ICryptoService>().Object,
             Mock.Of<IControlPlaneAuthority>(),
             authorityChain.Object
@@ -1067,7 +1097,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
             .Verifiable();
 
         // No authority chain setups: a platform machine client holds a role anywhere.
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             crypto.Object,
             Mock.Of<IControlPlaneAuthority>(),
             MockRepository.Create<IAuthorityChainResolver>().Object
@@ -1100,7 +1130,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             Mock.Of<ICryptoService>(),
             Mock.Of<IControlPlaneAuthority>(),
             Mock.Of<IAuthorityChainResolver>()
@@ -1131,7 +1161,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             Mock.Of<ICryptoService>(),
             Mock.Of<IControlPlaneAuthority>(),
             Mock.Of<IAuthorityChainResolver>()
@@ -1156,7 +1186,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
     {
         var (storeManager, _) = CreateStore(Assignment("p1", "a1", BuiltInRoles.Owner));
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             Mock.Of<ICryptoService>(),
             Mock.Of<IControlPlaneAuthority>(),
             Mock.Of<IAuthorityChainResolver>()

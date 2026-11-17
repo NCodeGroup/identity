@@ -8,6 +8,7 @@ using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Management.Authorization;
@@ -18,12 +19,19 @@ namespace NCode.Identity.OpenId.Management.Authorization;
 internal class DefaultResourceOwnershipService(
     ICryptoService cryptoService,
     IControlPlaneAuthority controlPlaneAuthority,
-    IAuthorityChainResolver authorityChainResolver
+    IAuthorityChainResolver authorityChainResolver,
+    IAmbientTenantAccessor ambientTenantAccessor
 ) : IResourceOwnershipService
 {
+    /// <summary>
+    /// The reason of the unscoped scope in which the service looks up the machine client of a principal.
+    /// </summary>
+    internal const string UnscopedReason = "machine client lookup";
+
     private ICryptoService CryptoService { get; } = cryptoService;
     private IControlPlaneAuthority ControlPlaneAuthority { get; } = controlPlaneAuthority;
     private IAuthorityChainResolver AuthorityChainResolver { get; } = authorityChainResolver;
+    private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
 
     /// <inheritdoc />
     public async ValueTask<PersistedRoleAssignment?> AssignCreatorAsync(
@@ -287,7 +295,15 @@ internal class DefaultResourceOwnershipService(
     )
     {
         var clientStore = storeManager.GetStore<IClientStore>();
-        var client = await clientStore.GetByPrincipalOrDefaultAsync(principalId, cancellationToken);
+        PersistedClient? client;
+
+        // A principal names at most one client, in any tenant, so its client is looked up across tenants.
+        // See ADR-1018 and ADR-1466.
+        using (AmbientTenantAccessor.BeginUnscoped(UnscopedReason))
+        {
+            client = await clientStore.GetByPrincipalOrDefaultAsync(principalId, cancellationToken);
+        }
+
         if (client is null)
         {
             return true;
