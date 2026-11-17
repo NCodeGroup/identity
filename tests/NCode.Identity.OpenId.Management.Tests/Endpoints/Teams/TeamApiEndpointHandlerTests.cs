@@ -1302,8 +1302,9 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateTeamAsync_WhenTheDirectoryIsUnavailableOnPublish_ReleasesTheReservationAndReturns503()
+    public async Task CreateTeamAsync_WhenTheDirectoryIsUnavailableOnPublish_RemovesTheTeamReleasesTheReservationAndReturns503()
     {
+        var calls = new List<string>();
         SetupCreateAuthorization(null);
         SetupStore();
         SetupCreateValidation(null);
@@ -1315,7 +1316,16 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
             .Verifiable();
         SetupSave();
         SetupPublishUnavailable();
-        SetupRelease();
+        MockTeamStore
+            .Setup(x => x.RemoveAsync(TeamId, CancellationToken.None))
+            .Callback(() => calls.Add("remove"))
+            .ReturnsAsync(true)
+            .Verifiable();
+        MockTeamDirectory
+            .Setup(x => x.ReleaseAsync(TeamId, CancellationToken.None))
+            .Callback(() => calls.Add("release"))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
 
         var httpContext = CreateHttpContext(authenticated: true);
 
@@ -1326,6 +1336,7 @@ public sealed class TeamApiEndpointHandlerTests : IDisposable
         );
 
         AssertDirectoryUnavailable(result, httpContext);
+        Assert.Equal(["remove", "release"], calls);
     }
 
     [Fact]

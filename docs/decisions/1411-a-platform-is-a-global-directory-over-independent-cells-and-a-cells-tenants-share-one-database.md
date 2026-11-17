@@ -60,10 +60,12 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
    placements, cells and team documents, and nothing about a person. Creating a tenant reserves its identifier,
    inserts the tenant and then places it, and a failure after the insert removes the inserted tenant and then releases
    the reservation, so the directory never frees an identifier whose row still exists; creation fails closed with `503`
-   when the directory is unreachable. The directory authorizes a tenant write against the stored record in the
-   transaction that writes it: a cell writes the tenants it holds, and the control-plane cell writes any tenant. A
-   tenant with no record is retired only by the control-plane cell, and a release of an unknown tenant writes nothing.
-   Retirement and an issuer change retire the stored issuer, and an issuer change names the issuer the tenant holds.
+   when the directory is unreachable. Creating a team reserves its identifier, inserts the team and then publishes its
+   document, and a failure after the insert removes the inserted team and then releases the reservation. The directory
+   authorizes a tenant write against the stored record in the transaction that writes it: a cell writes the tenants it
+   holds, and the control-plane cell writes any tenant. A tenant with no record is retired only by the control-plane
+   cell, and a release of an unknown tenant writes nothing. Retirement and an issuer change retire the stored issuer,
+   and an issuer change names the issuer the tenant holds.
 3. **One cell runs on its own.** The directory is three ports (tenants, teams, cells). A local adapter over the cell's
    own retired-identifier tables is the default and needs no extra service, so a single deployment is a platform of one
    cell. A remote adapter, selected by `Directory:Url`, calls the directory service over HTTP with a client-credentials

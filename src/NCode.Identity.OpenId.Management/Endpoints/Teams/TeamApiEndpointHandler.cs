@@ -580,7 +580,8 @@ internal class TeamApiEndpointHandler(
 
     /// <summary>
     /// Creates a team through the directory as a saga: reserves the team's identifier, inserts the team, then publishes
-    /// the team's document. The reservation is released when the creation fails before the document is published.
+    /// the team's document. When the creation fails after the team's row commits, the row is removed and then the
+    /// reservation released.
     /// </summary>
     /// <param name="team">The <see cref="PersistedTeam"/> to create.</param>
     /// <param name="store">The <see cref="ITeamStore"/> that inserts the team.</param>
@@ -608,6 +609,7 @@ internal class TeamApiEndpointHandler(
             );
         }
 
+        var isInserted = false;
         var isPublished = false;
         try
         {
@@ -616,6 +618,7 @@ internal class TeamApiEndpointHandler(
             // The team row commits first: the creator's assignments are rows the team owns, and the stores resolve an
             // owning resource from the database rather than the change tracker.
             await storeManager.SaveChangesAsync(cancellationToken);
+            isInserted = true;
 
             await TeamDirectory.PublishAsync(ToTeamDocument(team), cancellationToken);
             isPublished = true;
@@ -624,21 +627,44 @@ internal class TeamApiEndpointHandler(
         {
             if (!isPublished)
             {
-                // The release compensates a creation that failed, so it runs even when the request was canceled. The
-                // failure that brought the creation here is the one that surfaces, so a directory that cannot be
-                // reached for the release does not replace it.
                 try
                 {
-                    await TeamDirectory.ReleaseAsync(team.TeamId, CancellationToken.None);
+                    if (isInserted)
+                    {
+                        await RemoveCreatedTeamAsync(team.TeamId, CancellationToken.None);
+                    }
                 }
-                catch (DirectoryUnavailableException)
+                finally
                 {
-                    // The creation's own failure surfaces.
+                    // The release comes after the removal, so the directory never frees an identifier whose row still
+                    // exists. The release compensates a creation that failed, so it runs even when the request was
+                    // canceled. The failure that brought the creation here is the one that surfaces, so a directory
+                    // that cannot be reached for the release does not replace it.
+                    try
+                    {
+                        await TeamDirectory.ReleaseAsync(team.TeamId, CancellationToken.None);
+                    }
+                    catch (DirectoryUnavailableException)
+                    {
+                        // The creation's own failure surfaces.
+                    }
                 }
             }
         }
 
         return null;
+    }
+
+    // The removal compensates a creation that failed after its row committed, so it runs on a store manager of its own
+    // even when the request was canceled: the caller passes a token that is never canceled.
+    private async ValueTask RemoveCreatedTeamAsync(
+        string teamId,
+        CancellationToken cancellationToken
+    )
+    {
+        await using var cleanup = await StoreManagerFactory.CreateAsync(cancellationToken);
+        await cleanup.GetStore<ITeamStore>().RemoveAsync(teamId, cancellationToken);
+        await cleanup.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>
