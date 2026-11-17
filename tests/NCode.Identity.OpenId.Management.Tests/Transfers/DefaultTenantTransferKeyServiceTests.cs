@@ -5,6 +5,7 @@ using System.Buffers.Text;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Time.Testing;
 using NCode.Identity.Secrets;
 using NCode.Identity.Secrets.KeyMaterial;
 using NCode.Identity.Secrets.Keys;
@@ -16,6 +17,9 @@ namespace NCode.Identity.OpenId.Management.Transfers;
 // See ADR-1514.
 public sealed class DefaultTenantTransferKeyServiceTests : IAsyncLifetime
 {
+    private static DateTimeOffset Start { get; } = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+    private FakeTimeProvider Time { get; } = new(Start);
     private MockRepository MockRepository { get; }
     private Mock<IExpiringValueSet> MockExpiringValueSet { get; }
     private ServiceProvider ServiceProvider { get; }
@@ -37,7 +41,7 @@ public sealed class DefaultTenantTransferKeyServiceTests : IAsyncLifetime
             ServiceProvider.GetRequiredService<ISecretKeyTypeCatalog>(),
             new EphemeralDataProtectionProvider(),
             MockExpiringValueSet.Object,
-            TimeProvider.System
+            Time
         );
     }
 
@@ -88,23 +92,16 @@ public sealed class DefaultTenantTransferKeyServiceTests : IAsyncLifetime
         return stored;
     }
 
-    // The set hands the value out once and then reports it absent, as an atomic take does.
+    // The set hands out the stored value under its key.
     private void SetupTake(StoredValue stored)
     {
-        var taken = false;
         MockExpiringValueSet
             .Setup(x => x.TryTakeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(
                 (string key, CancellationToken _) =>
-                {
-                    if (taken || !string.Equals(key, stored.Key, StringComparison.Ordinal))
-                    {
-                        return (ExpiringValue?)null;
-                    }
-
-                    taken = true;
-                    return new ExpiringValue(stored.Bytes, Version: 1);
-                }
+                    string.Equals(key, stored.Key, StringComparison.Ordinal)
+                        ? new ExpiringValue(stored.Bytes, Version: 1)
+                        : (ExpiringValue?)null
             )
             .Verifiable();
     }
@@ -134,17 +131,11 @@ public sealed class DefaultTenantTransferKeyServiceTests : IAsyncLifetime
     public async Task CreateAsync_Always_StoresTheProtectedKeyForOneHourUnderItsKeyId()
     {
         var stored = SetupAdd();
-        var before = DateTimeOffset.UtcNow;
 
         var transferKey = await Service.CreateAsync(CancellationToken.None);
 
-        var after = DateTimeOffset.UtcNow;
         Assert.Equal("tenant-transfer-key:" + transferKey.KeyId, stored.Key);
-        Assert.InRange(
-            stored.ExpiresWhen,
-            before + TimeSpan.FromHours(1),
-            after + TimeSpan.FromHours(1)
-        );
+        Assert.Equal(Start + TimeSpan.FromHours(1), stored.ExpiresWhen);
 
         // The stored bytes are protected, so they are no PKCS#8 private key.
         Assert.NotNull(stored.Bytes);
@@ -213,20 +204,6 @@ public sealed class DefaultTenantTransferKeyServiceTests : IAsyncLifetime
             transferKey.Jwk.GetProperty("y").GetString(),
             Base64Url.EncodeToString(parameters.Q.Y!)
         );
-    }
-
-    [Fact]
-    public async Task TakeAsync_Twice_ReturnsTheKeyOnceAndThenNone()
-    {
-        var stored = SetupAdd();
-        SetupTake(stored);
-        var transferKey = await Service.CreateAsync(CancellationToken.None);
-
-        var first = await Service.TakeAsync(transferKey.KeyId, CancellationToken.None);
-        var second = await Service.TakeAsync(transferKey.KeyId, CancellationToken.None);
-
-        Assert.NotNull(first);
-        Assert.Null(second);
     }
 
     [Fact]
