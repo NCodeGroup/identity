@@ -165,7 +165,8 @@ internal sealed class BootstrapAdminSeedHandler(
     }
 
     // The role that confers every management authority (ADR-1417) is held at the platform node, in the control-plane
-    // tenant, as a persisted assignment; it is added only when the client does not already hold it.
+    // tenant, as a persisted assignment; it is added only when the client does not already hold it. The seed runs in
+    // the tenant's scope, so the assignments at the platform node are read there.
     private async ValueTask EnsureGlobalAdminAsync(
         IRoleAssignmentStore store,
         string tenantId,
@@ -173,9 +174,18 @@ internal sealed class BootstrapAdminSeedHandler(
         CancellationToken cancellationToken
     )
     {
-        var assignments = await store.GetByPrincipalAsync(principalId, cancellationToken);
+        var assignments = await store.GetByResourceAsync(
+            ResourceNodeTypes.Platform,
+            OpenIdConstants.PlatformResourceId,
+            cancellationToken
+        );
         var isAssigned = assignments.Any(assignment =>
-            string.Equals(assignment.RoleName, BuiltInRoles.GlobalAdmin, StringComparison.Ordinal)
+            string.Equals(assignment.PrincipalId, principalId, StringComparison.Ordinal)
+            && string.Equals(
+                assignment.RoleName,
+                BuiltInRoles.GlobalAdmin,
+                StringComparison.Ordinal
+            )
             && string.Equals(
                 assignment.ResourceType,
                 ResourceNodeTypes.Platform,

@@ -186,17 +186,22 @@ public class BootstrapAdminSeedHandlerTests : SecretProtectionTestBase
         return mockStoreManager.Object;
     }
 
-    // The control plane reads the bootstrap client's platform role from the principal's assignments. A strict store
-    // without an AddAsync setup refuses an assignment that would be written.
+    // The seed reads the assignments at the platform node in the tenant's scope. A strict store without an AddAsync
+    // setup refuses an assignment that would be written.
     private Mock<IRoleAssignmentStore> CreateRoleAssignmentStore(
-        string principalId,
         IReadOnlyList<PersistedRoleAssignment> existing,
         Action<PersistedRoleAssignment>? onAdd = null
     )
     {
         var mockStore = CreateStrictMock<IRoleAssignmentStore>();
         mockStore
-            .Setup(x => x.GetByPrincipalAsync(principalId, It.IsAny<CancellationToken>()))
+            .Setup(x =>
+                x.GetByResourceAsync(
+                    ResourceNodeTypes.Platform,
+                    OpenIdConstants.PlatformResourceId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
             .ReturnsAsync(existing)
             .Verifiable();
         if (onAdd is not null)
@@ -215,12 +220,15 @@ public class BootstrapAdminSeedHandlerTests : SecretProtectionTestBase
         return mockStore;
     }
 
-    private static PersistedRoleAssignment CreatePlatformAssignment(string roleName) =>
+    private static PersistedRoleAssignment CreatePlatformAssignment(
+        string roleName,
+        string principalId
+    ) =>
         new()
         {
             TenantId = WorkloadTenantId,
             AssignmentId = "existing-assignment",
-            PrincipalId = BootstrapPrincipalId,
+            PrincipalId = principalId,
             RoleName = roleName,
             ResourceType = ResourceNodeTypes.Platform,
             ResourceId = OpenIdConstants.PlatformResourceId,
@@ -318,7 +326,6 @@ public class BootstrapAdminSeedHandlerTests : SecretProtectionTestBase
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
         var mockAssignmentStore = CreateRoleAssignmentStore(
-            BootstrapPrincipalId,
             [],
             assignment => addedAssignment = assignment
         );
@@ -425,7 +432,6 @@ public class BootstrapAdminSeedHandlerTests : SecretProtectionTestBase
             .Verifiable();
         PersistedRoleAssignment? addedAssignment = null;
         var mockAssignmentStore = CreateRoleAssignmentStore(
-            BootstrapPrincipalId,
             [],
             assignment => addedAssignment = assignment
         );
@@ -469,10 +475,12 @@ public class BootstrapAdminSeedHandlerTests : SecretProtectionTestBase
     }
 
     [Theory]
-    [InlineData(BuiltInRoles.GlobalAdmin, false)]
-    [InlineData(BuiltInRoles.TeamAdmin, true)]
+    [InlineData(BuiltInRoles.GlobalAdmin, BootstrapPrincipalId, false)]
+    [InlineData(BuiltInRoles.TeamAdmin, BootstrapPrincipalId, true)]
+    [InlineData(BuiltInRoles.GlobalAdmin, "another-principal", true)]
     public async Task HandleAsync_WhenClientExists_AssignsGlobalAdminOnlyWhenItIsNotAlreadyHeld(
         string heldRole,
+        string holderId,
         bool expectsAssignment
     )
     {
@@ -519,8 +527,7 @@ public class BootstrapAdminSeedHandlerTests : SecretProtectionTestBase
         // A strict store without an AddAsync setup refuses a duplicate of the assignment the client already holds.
         PersistedRoleAssignment? addedAssignment = null;
         var mockAssignmentStore = CreateRoleAssignmentStore(
-            BootstrapPrincipalId,
-            [CreatePlatformAssignment(heldRole)],
+            [CreatePlatformAssignment(heldRole, holderId)],
             expectsAssignment ? assignment => addedAssignment = assignment : null
         );
 
