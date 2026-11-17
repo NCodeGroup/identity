@@ -24,6 +24,7 @@ using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Endpoints;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Settings;
@@ -56,6 +57,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
     private Mock<IEffectiveSettingsResolver> MockEffectiveSettingsResolver { get; }
     private Mock<IPasswordPolicy> MockPasswordPolicy { get; }
     private Mock<IPostCommitSecurityEffects> MockPostCommitSecurityEffects { get; }
+    private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
     private LocalAccountApiEndpointHandler Handler { get; }
     private List<string> Calls { get; } = [];
 
@@ -77,6 +79,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         MockEffectiveSettingsResolver = MockRepository.Create<IEffectiveSettingsResolver>();
         MockPasswordPolicy = MockRepository.Create<IPasswordPolicy>();
         MockPostCommitSecurityEffects = MockRepository.Create<IPostCommitSecurityEffects>();
+        MockAmbientTenantAccessor = MockRepository.Create<IAmbientTenantAccessor>();
 
         var localAccountPasswords = new LocalAccountPasswords(
             MockEffectiveSettingsResolver.Object,
@@ -97,7 +100,8 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             MockSessionService.Object,
             MockOpenIdContextFactory.Object,
             localAccountPasswords,
-            MockPostCommitSecurityEffects.Object
+            MockPostCommitSecurityEffects.Object,
+            MockAmbientTenantAccessor.Object
         );
     }
 
