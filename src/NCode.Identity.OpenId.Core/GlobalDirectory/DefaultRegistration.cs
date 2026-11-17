@@ -17,7 +17,8 @@ internal static class DefaultRegistration
     extension(IServiceBuilder<OpenIdCoreLibrary> builder)
     {
         /// <summary>
-        /// Configures the services that mirror the directory's team and platform documents into the cell's rows.
+        /// Configures the services that mirror the directory's team and platform documents into the cell's rows and
+        /// record the highest sequence of the directory's change feed that the cell has applied.
         /// </summary>
         /// <returns>The <see cref="IServiceBuilder{T}"/> instance for method chaining.</returns>
         public IServiceBuilder<OpenIdCoreLibrary> AddDirectoryMirrorServices()
@@ -29,6 +30,10 @@ internal static class DefaultRegistration
             builder.ServiceCollection.TryAddSingleton<
                 IPlatformDocumentApplier,
                 DefaultPlatformDocumentApplier
+            >();
+            builder.ServiceCollection.TryAddSingleton<
+                IDirectoryFeedCheckpoint,
+                DefaultDirectoryFeedCheckpoint
             >();
 
             return builder;

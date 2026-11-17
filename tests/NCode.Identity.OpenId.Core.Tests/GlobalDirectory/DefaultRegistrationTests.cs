@@ -47,6 +47,21 @@ public sealed class DefaultRegistrationTests : BaseTests
     }
 
     [Fact]
+    public void AddDirectoryMirrorServices_Always_RegistersTheDefaultFeedCheckpointAsASingleton()
+    {
+        var serviceCollection = new ServiceCollection();
+
+        CreateBuilder(serviceCollection).AddDirectoryMirrorServices();
+
+        var descriptor = Assert.Single(
+            serviceCollection,
+            x => x.ServiceType == typeof(IDirectoryFeedCheckpoint)
+        );
+        Assert.Equal(typeof(DefaultDirectoryFeedCheckpoint), descriptor.ImplementationType);
+        Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
+    }
+
+    [Fact]
     public void AddDirectoryMirrorServices_WhenATeamApplierIsRegistered_KeepsIt()
     {
         var serviceCollection = new ServiceCollection();
@@ -76,6 +91,22 @@ public sealed class DefaultRegistrationTests : BaseTests
             x => x.ServiceType == typeof(IPlatformDocumentApplier)
         );
         Assert.Same(platformDocumentApplier, descriptor.ImplementationInstance);
+    }
+
+    [Fact]
+    public void AddDirectoryMirrorServices_WhenAFeedCheckpointIsRegistered_KeepsIt()
+    {
+        var serviceCollection = new ServiceCollection();
+        var feedCheckpoint = CreateStrictMock<IDirectoryFeedCheckpoint>().Object;
+        serviceCollection.AddSingleton(feedCheckpoint);
+
+        CreateBuilder(serviceCollection).AddDirectoryMirrorServices();
+
+        var descriptor = Assert.Single(
+            serviceCollection,
+            x => x.ServiceType == typeof(IDirectoryFeedCheckpoint)
+        );
+        Assert.Same(feedCheckpoint, descriptor.ImplementationInstance);
     }
 
     [Fact]

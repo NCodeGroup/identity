@@ -56,6 +56,9 @@ NCode.Identity.OpenId.GlobalDirectory.ICellDirectory
 NCode.Identity.OpenId.GlobalDirectory.ICellDirectory.GetOrDefaultAsync(string! name, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.CellDescriptor?>
 NCode.Identity.OpenId.GlobalDirectory.ICellDirectory.ListAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.GlobalDirectory.CellDescriptor!>!>
 NCode.Identity.OpenId.GlobalDirectory.ICellDirectory.RegisterAsync(NCode.Identity.OpenId.GlobalDirectory.CellDescriptor! descriptor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.GlobalDirectory.IDirectoryFeedCheckpoint
+NCode.Identity.OpenId.GlobalDirectory.IDirectoryFeedCheckpoint.GetAppliedSequenceAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<long>
+NCode.Identity.OpenId.GlobalDirectory.IDirectoryFeedCheckpoint.RecordAppliedSequenceAsync(long sequence, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.GlobalDirectory.IPlatformDirectory
 NCode.Identity.OpenId.GlobalDirectory.IPlatformDirectory.GetOrDefaultAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.PlatformDocument?>
 NCode.Identity.OpenId.GlobalDirectory.IPlatformDirectory.PublishAsync(NCode.Identity.OpenId.GlobalDirectory.PlatformDocument! document, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
