@@ -13,6 +13,7 @@ using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.Environments;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Platform;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Teams;
@@ -30,7 +31,8 @@ namespace NCode.Identity.OpenId.Tenants;
 /// Provides the default implementation of the <see cref="IOpenIdTenantFactory"/> abstraction. Tenant selection is
 /// delegated to the shared <see cref="ITenantResolver"/>; this type seeds the resolved <see cref="PersistedTenant"/>
 /// through the <see cref="ITenantProvisioner"/> and materializes the <see cref="OpenIdTenant"/> (settings, secrets,
-/// issuer, base address) from it, and caches it. A tenant is always published under its own issuer.
+/// issuer, base address) from it, and caches it. A tenant is always published under its own issuer. Its keys and
+/// settings are refreshed by polling, in the tenant's scope.
 /// </summary>
 [PublicAPI]
 public class DefaultOpenIdTenantFactory(
@@ -45,9 +47,12 @@ public class DefaultOpenIdTenantFactory(
     ISecretKeyCollectionProviderFactory secretKeyCollectionProviderFactory,
     ICollectionDataSourceFactory collectionDataSourceFactory,
     IEffectiveSettingsResolver effectiveSettingsResolver,
-    IOpenIdTeamProvider teamProvider
+    IOpenIdTeamProvider teamProvider,
+    IAmbientTenantAccessor ambientTenantAccessor
 ) : IOpenIdTenantFactory
 {
+    private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
+
     /// <summary>
     /// Gets the <see cref="ITenantResolver"/> used to resolve the ambient tenant for the current request.
     /// </summary>
@@ -505,6 +510,9 @@ public class DefaultOpenIdTenantFactory(
     {
         var persistedTenant = state.PersistedTenant;
 
+        // The polling timer runs outside any request, so the tenant's rows are read in its own scope. See ADR-1018.
+        using var tenantScope = AmbientTenantAccessor.BeginScope(persistedTenant.TenantId);
+
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<ITenantStore>();
 
@@ -653,6 +661,9 @@ public class DefaultOpenIdTenantFactory(
         CancellationToken cancellationToken
     )
     {
+        // The polling timer runs outside any request, so the tenant's rows are read in its own scope. See ADR-1018.
+        using var tenantScope = AmbientTenantAccessor.BeginScope(persistedTenant.TenantId);
+
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<ITenantStore>();
 

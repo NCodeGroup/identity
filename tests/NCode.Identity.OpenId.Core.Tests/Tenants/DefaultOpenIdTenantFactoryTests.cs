@@ -15,6 +15,7 @@ using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.Environments;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Platform;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Teams;
@@ -50,7 +51,8 @@ public sealed class DefaultOpenIdTenantFactoryTests
             mocks.Create<ISecretKeyCollectionProviderFactory>().Object,
             mocks.Create<ICollectionDataSourceFactory>().Object,
             mocks.Create<IEffectiveSettingsResolver>().Object,
-            teamProvider ?? mocks.Create<IOpenIdTeamProvider>().Object
+            teamProvider ?? mocks.Create<IOpenIdTeamProvider>().Object,
+            mocks.Create<IAmbientTenantAccessor>().Object
         );
 
     private static Mock<IOpenIdTeamProvider> CreateTeamProvider(
@@ -1070,7 +1072,8 @@ public sealed class DefaultOpenIdTenantFactoryTests
             mocks.Create<ISecretKeyCollectionProviderFactory>().Object,
             mocks.Create<ICollectionDataSourceFactory>().Object,
             mocks.Create<IEffectiveSettingsResolver>().Object,
-            teamProvider
+            teamProvider,
+            mocks.Create<IAmbientTenantAccessor>().Object
         )
     {
         protected override ValueTask<
@@ -1115,7 +1118,8 @@ public sealed class DefaultOpenIdTenantFactoryTests
         ISecretProtectorProvider? secretProtectorProvider = null,
         IEffectiveSettingsResolver? effectiveSettingsResolver = null,
         IReadOnlySettingCollectionProviderFactory? settingCollectionProviderFactory = null,
-        ICollectionDataSourceFactory? collectionDataSourceFactory = null
+        ICollectionDataSourceFactory? collectionDataSourceFactory = null,
+        IAmbientTenantAccessor? ambientTenantAccessor = null
     )
         : DefaultOpenIdTenantFactory(
             mocks.Create<ITenantResolver>().Object,
@@ -1130,7 +1134,8 @@ public sealed class DefaultOpenIdTenantFactoryTests
             mocks.Create<ISecretKeyCollectionProviderFactory>().Object,
             collectionDataSourceFactory ?? mocks.Create<ICollectionDataSourceFactory>().Object,
             effectiveSettingsResolver ?? mocks.Create<IEffectiveSettingsResolver>().Object,
-            mocks.Create<IOpenIdTeamProvider>().Object
+            mocks.Create<IOpenIdTeamProvider>().Object,
+            ambientTenantAccessor ?? mocks.Create<IAmbientTenantAccessor>().Object
         )
     {
         public ValueTask<
