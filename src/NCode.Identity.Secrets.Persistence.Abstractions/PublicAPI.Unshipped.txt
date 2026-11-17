@@ -489,6 +489,8 @@ NCode.Identity.Secrets.Persistence.DataContracts.PersistedOwnerRootKey.AccessIde
 NCode.Identity.Secrets.Persistence.DataContracts.PersistedOwnerRootKey.AccessIdentity.set -> void
 NCode.Identity.Secrets.Persistence.DataContracts.PersistedMasterKey.RootKeyAccessIdentity.get -> string?
 NCode.Identity.Secrets.Persistence.DataContracts.PersistedMasterKey.RootKeyAccessIdentity.set -> void
+NCode.Identity.Secrets.Persistence.DataContracts.PersistedMasterKey.RootKeyAccessBinding.get -> string?
+NCode.Identity.Secrets.Persistence.DataContracts.PersistedMasterKey.RootKeyAccessBinding.set -> void
 NCode.Identity.Secrets.Persistence.Protection.MasterKeyInfo.RootKeyAccessIdentity.get -> string?
 NCode.Identity.Secrets.Persistence.Protection.MasterKeyInfo.RootKeyAccessIdentity.init -> void
 NCode.Identity.Secrets.Persistence.DataContracts.PersistedOwnerRootKey.ConcurrencyToken.get -> string!

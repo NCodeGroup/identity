@@ -83,6 +83,14 @@ public sealed class PersistedMasterKey : ISupportConcurrencyToken
     public string? RootKeyAccessIdentity { get; set; }
 
     /// <summary>
+    /// Gets or sets the access binding of the owner of the root key that wraps <see cref="RootWrappedKey"/>, its
+    /// normalized <c>type:id</c> such as <c>team:platform</c>, or <c>null</c> when <see cref="RootKeyAccessIdentity"/>
+    /// is <c>null</c>. Unwrapping reaches the key through the access identity with this binding.
+    /// </summary>
+    // See ADR-1414.
+    public string? RootKeyAccessBinding { get; set; }
+
+    /// <summary>
     /// Gets or sets the master key as wrapped by the root key provider, encoded as base64url.
     /// </summary>
     public required string RootWrappedKey { get; set; }
