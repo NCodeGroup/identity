@@ -28,6 +28,10 @@ public sealed class TenantSessionInterceptor(IAmbientTenantAccessor ambientTenan
         IDbCommandInterceptor,
         IDbTransactionInterceptor
 {
+    /// <summary>
+    /// The statement that sets <c>app.tenant_id</c> and <c>app.unscoped</c> for the session, taking the tenant value as
+    /// parameter <c>@t</c> and the unscoped value as parameter <c>@u</c>.
+    /// </summary>
     private const string SetConfigCommandText =
         $"SELECT set_config('{TenantSessionSettings.TenantId}', @t, false), set_config('{TenantSessionSettings.Unscoped}', @u, false)";
 
@@ -69,11 +73,23 @@ public sealed class TenantSessionInterceptor(IAmbientTenantAccessor ambientTenan
         return parameter;
     }
 
+    /// <summary>
+    /// Gets the state last applied to each open connection, with the transaction it was applied in, or with no
+    /// transaction once that transaction committed, so a command on a connection that already holds the ambient state
+    /// sets nothing. A connection that opens removes its entry, and so does a rollback, a rollback to a savepoint or a
+    /// failure of the transaction that applied it. The table holds a connection weakly, so a connection that is gone
+    /// leaves no entry behind.
+    /// </summary>
     private ConditionalWeakTable<
         DbConnection,
         StrongBox<(string Tenant, string Unscoped, DbTransaction? Transaction)>
     > AppliedStates { get; } = new();
 
+    /// <summary>
+    /// Gets the connection of each transaction that applied a state, so a transaction that rolls back, rolls back to a
+    /// savepoint or fails finds the connection whose state it must clear. A commit removes the entry, and the table
+    /// holds a transaction weakly, so a transaction that is gone leaves no entry behind.
+    /// </summary>
     private ConditionalWeakTable<DbTransaction, DbConnection> AppliedTransactions { get; } = new();
 
     #region Connection
