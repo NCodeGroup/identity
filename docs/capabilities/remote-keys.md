@@ -25,7 +25,7 @@
 | 9   | **A host that cannot serve a key does not start.** A registered provider that has no mapping for a provisioned signature or encryption key stops the host, and a stored remote key that cannot be read stops its tenant from loading.  |
 | 10  | **A bound key proves itself.** A key an operator brings is stored only after it signs a challenge that the supplied public half verifies, or decrypts a challenge that the server encrypts to the supplied public half, and the server never destroys it. |
 | 11  | **Every content key is unwrapped by the KMS and authenticated by the JWE's tag.** The server sends the encrypted content key, or the sender's ephemeral public key, to the service, and a result that is not the sender's key fails at the tag. |
-| 12  | **A KMS key no stored secret names is swept.** A background job destroys, after a grace period, every key the deployment created that no stored secret references, and audits each destruction. |
+| 12  | **A KMS key no stored secret names is swept.** A background job destroys, after a grace period, every key the cell created that no stored secret references, and audits each destruction. |
 
 ## Why this matters
 
@@ -215,16 +215,16 @@ such as a BFF, needs no `SecretProtection:RemoteKeys`.
 | `azure-key-vault`           | `SecretProtection:RemoteKeyProviders:AzureKeyVault`      | `VaultUri` (optional: where keys are created); `HardwareProtected` (default `true`)      |
 | `google-cloud-kms`          | `SecretProtection:RemoteKeyProviders:GoogleCloudKms`     | `KeyRing` (optional: where keys are created); `HardwareProtected` (default `true`)       |
 
-The deployment names itself through `Cell:Name` and tunes the sweep ([Orphaned keys](#orphaned-keys)) in
+The cell names itself through `Cell:Name` and tunes the sweep ([Orphaned keys](#orphaned-keys)) in
 `SecretProtection:RemoteKeys`, which binds strictly. The `SecretProtection` section recognizes the `RemoteKeys` and
 `RemoteKeyProviders` children.
 
-| Setting                                  | Default  | Meaning                                                                                                              |
-| ---------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------- |
-| `SecretProtection:RemoteKeys:Deployment` | `Cell:Name` | The tag of the keys this deployment creates, which the host derives from `Cell:Name`. A value that differs from `Cell:Name` is refused. |
-| `SweepEnabled`                           | `true`   | Turns the sweep of orphaned keys on or off.                                                                          |
-| `SweepInterval`                          | one day  | How often the sweep runs: at least one minute, at most the timer maximum.                                            |
-| `SweepGracePeriod`                       | one day  | How old a key is before the sweep may destroy it: between one hour and 365 days.                                     |
+| Setting                                  | Default     | Meaning                                                                                                                           |
+| ---------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `SecretProtection:RemoteKeys:Deployment` | `Cell:Name` | The tag of the keys this cell creates, which the host derives from `Cell:Name`. A value that differs from `Cell:Name` is refused. |
+| `SweepEnabled`                           | `true`      | Turns the sweep of orphaned keys on or off.                                                                                       |
+| `SweepInterval`                          | one day     | How often the sweep runs: at least one minute, at most the timer maximum.                                                         |
+| `SweepGracePeriod`                       | one day     | How old a key is before the sweep may destroy it: between one hour and 365 days.                                                  |
 
 The reference host's Helm chart configures them with the `secretProtection.remoteKeyProviders` values
 (`awsKms.enabled`, `region` and `pendingWindowInDays`, `azureKeyVault.enabled`, `vaultUri` and `hardwareProtected`,
@@ -305,17 +305,17 @@ A key that a seed, a rollover or a management create made can end up with no sto
 that lost its commit race or whose process crashed, or a destruction that failed. A background job finds such keys and
 destroys them.
 
-- **A deployment names itself.** The host derives `SecretProtection:RemoteKeys:Deployment` from `Cell:Name`, and the
-  chart sets `Cell:Name` from `cell.name`. The name tags every created key
-  (`ncode-identity:deployment` on AWS, `ncode-identity-deployment` on Azure tags and Google crypto key labels) and is
-  hashed first into the key's `ncid-` group name, so deployments that share an AWS account, a vault or a key ring never
-  share a group and never sweep each other's keys. A deployment is one database of stored secrets: every replica and
-  release that shares the database uses its name, and no other deployment in the same AWS account, vault or key ring
-  uses it, because each deployment destroys every key of its name that its own database does not name.
-- **Each service lists the deployment's keys.** The provider lists the enabled keys (key versions) in its configured
-  location that carry an `ncid-` group and the deployment, as a stream. AWS lists the region's keys, reads their tags
-  and describes each (customer-managed and `Enabled`); Azure lists the keys named `ncid-*`, then their enabled versions
-  tagged with the deployment; Google lists the key ring's crypto keys labelled with the deployment and an `ncid-`
+- **A cell names itself.** The host derives `SecretProtection:RemoteKeys:Deployment` from `Cell:Name`, and the chart
+  sets `Cell:Name` from `cell.name`. The name tags every created key (`ncode-identity:deployment` on AWS,
+  `ncode-identity-deployment` on Azure tags and Google crypto key labels) and is hashed first into the key's `ncid-`
+  group name, so cells that share an AWS account, a vault or a key ring never share a group and never sweep each other's
+  keys. A cell is one database of stored secrets: every replica and release that shares the database uses its name, and
+  no other cell in the same AWS account, vault or key ring uses it, because each cell destroys every key of its name
+  that its own database does not name.
+- **Each service lists the cell's keys.** The provider lists the enabled keys (key versions) in its configured location
+  that carry an `ncid-` group and the cell's name, as a stream. AWS lists the region's keys, reads their tags and
+  describes each (customer-managed and `Enabled`); Azure lists the keys named `ncid-*`, then their enabled versions
+  tagged with the cell's name; Google lists the key ring's crypto keys labelled with the cell's name and an `ncid-`
   group, then their `ENABLED` versions. A key whose tags cannot be read is skipped.
 - **A hosted service dispatches the sweep.** `RemoteKeySweepService` waits for the platform, then at start and every
   `SweepInterval`, under the shared-state lease `remote-key-sweep:platform` that lasts half the interval, dispatches one
@@ -363,7 +363,7 @@ rows as a tenant's keys.
   needs it and the request rate fits the quota. A per-session ephemeral DPoP key never goes to a KMS.
 - **The key is the operator's.** Neither a protocol client nor a BFF creates, tags or destroys a KMS key, and no stored
   secret names it, so the sweep ([Orphaned keys](#orphaned-keys)) never lists it unless it carries an `ncid-` group name
-  and the deployment's tag. Give it neither, and keep it in a scope of its own.
+  and the cell's tag. Give it neither, and keep it in a scope of its own.
 - **The Helm chart holds the management console's keys.** `managementConsole.keyRings.client` and `.dpop` name each key
   ring's PEM Secret and remote keys, the chart registers each vendor a remote key names, and the console reaches it
   through its own workload identity under `managementConsole.secretProtection`; see
@@ -423,7 +423,7 @@ the ECDH shared secret of one message passes through the replica, never the key.
 - **A KMS outage stops issuance for the tenants whose keys it holds, and the decryption of tokens sent to them.**
   Verification, the key set and every tenant with local keys continue.
 - **A key created by a seed or a rollover that loses its commit race stays in the service until the sweep.** It is
-  unused and tagged with its group and the deployment; the sweep destroys it after the grace period
+  unused and tagged with its group and the cell's name; the sweep destroys it after the grace period
   ([Orphaned keys](#orphaned-keys)).
 - **A key whose tags cannot be read is never swept.** A provider that strips tags leaves its keys in place.
 - **A Google crypto key is permanent.** Its versions are destroyed, the crypto key stays.
