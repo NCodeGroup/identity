@@ -150,7 +150,7 @@ internal class TenantImportApiEndpointHandler(
     /// <response code="200">The tenant is imported and placed in this cell, also after a move that the directory did not confirm.</response>
     /// <response code="409">The directory places the tenant in this cell or in no cell, or refuses the move while it still places the tenant in the source cell. Nothing the import wrote remains.</response>
     /// <response code="413">The request is larger than the ceiling of a tenant move, 64 MiB and 64 KiB.</response>
-    /// <response code="422">The transfer key is unknown, expired or already used, the package is not sealed to a transfer key, the package does not decrypt with it or is malformed, its format version is not one this cell imports, its region is not this cell's region, or it is offered to another cell.</response>
+    /// <response code="422">The kid is empty, or the transfer key is unknown, expired or already used; the package is not sealed to a transfer key, does not decrypt with it or is malformed, its format version is not one this cell imports, its region is not this cell's region, it is offered to another cell, or it has a section that this cell does not import; the tenant's root key is refused; or a remote key that the tenant's secrets reference belongs to a provider that this cell does not register or lies outside the location this cell uses.</response>
     /// <response code="503">The global directory is unavailable before the import writes anything, or at a move after which it still places the tenant in the source cell, and nothing the import wrote remains; or the outcome of the move is unknown, and this cell keeps what the import wrote.</response>
     [EndpointName("api/tenant-imports/create")]
     internal virtual async ValueTask<IResult> ImportTenantAsync(
@@ -406,15 +406,21 @@ internal class TenantImportApiEndpointHandler(
             remoteKeys.UnionWith(result.RemoteKeys);
         }
 
-        await MasterKeyTransfer.ImportAsync(
+        var transfer = await MasterKeyTransfer.ImportAsync(
             SecretOwner.ForTenant(tenantId),
             masterKeys,
             privateKey,
             cancellationToken
         );
 
+        if (!transfer.IsImported)
+        {
+            return Unprocessable($"The tenant's root key is refused. {transfer.RefusalDetail}");
+        }
+
         // Every provider is found before any key is retagged, so a key that this cell cannot retag refuses the import
-        // while no key has changed.
+        // while no key has changed, and so does a key outside the location this cell's provider uses, which this
+        // cell's sweep would never list.
         var providers = new List<(IRemoteKeyProvider Provider, string KeyId)>(remoteKeys.Count);
         foreach (var remoteKey in remoteKeys)
         {
@@ -422,6 +428,13 @@ internal class TenantImportApiEndpointHandler(
             {
                 return Unprocessable(
                     $"The tenant's secrets reference a remote key of provider '{remoteKey.Provider}', which this cell does not register."
+                );
+            }
+
+            if (!provider.IsInLocation(remoteKey.KeyId))
+            {
+                return Unprocessable(
+                    $"The remote key '{remoteKey.KeyId}' of provider '{remoteKey.Provider}' is outside the location this cell uses."
                 );
             }
 

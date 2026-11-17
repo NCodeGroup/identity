@@ -442,7 +442,7 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
             .Verifiable();
     }
 
-    private void SetupMasterKeyImport() =>
+    private void SetupMasterKeyImport(MasterKeyTransferResult? result = null) =>
         MockMasterKeyTransfer
             .Setup(x =>
                 x.ImportAsync(
@@ -455,16 +455,22 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
             .Returns(() =>
             {
                 Calls.Add("import-master-keys");
-                return new ValueTask<MasterKeyTransferResult>(new MasterKeyTransferResult(1));
+                return new ValueTask<MasterKeyTransferResult>(
+                    result ?? new MasterKeyTransferResult(1)
+                );
             })
             .Verifiable();
 
-    private void SetupProvider()
+    private void SetupProvider(bool isInLocation = true)
     {
         IRemoteKeyProvider? provider = MockRemoteKeyProvider.Object;
         MockRemoteKeyProviderCatalog
             .Setup(x => x.TryGetProvider(RemoteKeyProviderNames.AwsKms, out provider))
             .Returns(true)
+            .Verifiable();
+        MockRemoteKeyProvider
+            .Setup(x => x.IsInLocation(RemoteKeyId))
+            .Returns(isInLocation)
             .Verifiable();
     }
 
@@ -1324,6 +1330,83 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status422UnprocessableEntity, problem.StatusCode);
+        Assert.Equal(
+            [
+                "import-core",
+                "import-accounts",
+                "import-master-keys",
+                "remove-accounts",
+                "remove-core",
+                "remove-tenant",
+                "save",
+            ],
+            Calls
+        );
+    }
+
+    [Fact]
+    public async Task ImportTenantAsync_WhenTheTenantsRootKeyIsRefused_RemovesWhatItImportedAndReturnsUnprocessableEntity()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupPackage();
+        SetupStore();
+        SetupPlacement();
+        SetupContributorImports();
+        SetupMasterKeyImport(
+            new MasterKeyTransferResult(0) { RefusalDetail = "The owner cannot bring a root key." }
+        );
+        SetupRollbackRemovals();
+
+        var result = await Handler.ImportTenantAsync(
+            CreateHttpContext(authenticated: true),
+            CreateRequest(),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status422UnprocessableEntity, problem.StatusCode);
+        Assert.Equal(
+            "The tenant's root key is refused. The owner cannot bring a root key.",
+            problem.ProblemDetails.Detail
+        );
+        Assert.Equal(
+            [
+                "import-core",
+                "import-accounts",
+                "import-master-keys",
+                "remove-accounts",
+                "remove-core",
+                "remove-tenant",
+                "save",
+            ],
+            Calls
+        );
+    }
+
+    [Fact]
+    public async Task ImportTenantAsync_WhenARemoteKeyIsOutsideTheCellsLocation_RemovesWhatItImportedAndReturnsUnprocessableEntity()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupPackage();
+        SetupStore();
+        SetupPlacement();
+        SetupContributorImports();
+        SetupMasterKeyImport();
+        SetupProvider(isInLocation: false);
+        SetupRollbackRemovals();
+
+        var result = await Handler.ImportTenantAsync(
+            CreateHttpContext(authenticated: true),
+            CreateRequest(),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status422UnprocessableEntity, problem.StatusCode);
+        Assert.Equal(
+            $"The remote key '{RemoteKeyId}' of provider '{RemoteKeyProviderNames.AwsKms}' is outside the location this cell uses.",
+            problem.ProblemDetails.Detail
+        );
         Assert.Equal(
             [
                 "import-core",
