@@ -372,6 +372,28 @@ public class GoogleCloudKmsKeyWrapperTests : BaseTests
     }
 
     [Fact]
+    public async Task WrapAsync_ReferencedKeyOutsideTheAllowedLocations_ThrowsWithoutCallingTheClient()
+    {
+        var key = RandomNumberGenerator.GetBytes(32);
+        var context = "root-context"u8.ToArray();
+        var provider = CreateProvider(CryptoKeyName, "us-central1");
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+            provider
+                .WrapAsync(
+                    new ReferencedKey(TenantCryptoKeyName, null),
+                    key,
+                    context,
+                    CancellationToken.None
+                )
+                .AsTask()
+        );
+
+        Assert.Equal("referencedKey", exception.ParamName);
+        Assert.Contains("allowed locations", exception.Message);
+    }
+
+    [Fact]
     public async Task WrapAsync_ReferencedKeyWithAccess_RunsTheCallThroughTheAccess()
     {
         var key = RandomNumberGenerator.GetBytes(32);
