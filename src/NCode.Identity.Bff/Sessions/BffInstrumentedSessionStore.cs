@@ -111,6 +111,18 @@ internal sealed class BffInstrumentedSessionStore(IBffSessionStore inner, BffMet
         );
 
     /// <inheritdoc />
+    public ValueTask ForgetEndedSessionAsync(
+        BffSessionClient client,
+        string storeKey,
+        CancellationToken cancellationToken
+    ) =>
+        MeasureAsync(
+            BffMetrics.ForgetEndedSessionOperation,
+            token => Inner.ForgetEndedSessionAsync(client, storeKey, token),
+            cancellationToken
+        );
+
+    /// <inheritdoc />
     public ValueTask<bool> TryAddTransactionAsync(
         string transactionKey,
         ReadOnlyMemory<byte> protectedTransaction,

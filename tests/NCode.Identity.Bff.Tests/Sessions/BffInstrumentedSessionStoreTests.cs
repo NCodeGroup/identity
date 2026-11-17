@@ -187,6 +187,22 @@ public sealed class BffInstrumentedSessionStoreTests : BaseTests
     }
 
     [Fact]
+    public async Task ForgetEndedSessionAsync_WhenTheStoreCompletes_RecordsTheOperation()
+    {
+        var client = new BffSessionClient(BffTestFrontends.Name, "https://op.example", "client-1");
+        MockStore
+            .Setup(x =>
+                x.ForgetEndedSessionAsync(client, "store-key", It.IsAny<CancellationToken>())
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+        await Store.ForgetEndedSessionAsync(client, "store-key", CancellationToken.None);
+
+        AssertOperationRecorded(BffMetrics.ForgetEndedSessionOperation, errorType: null);
+    }
+
+    [Fact]
     public async Task ReleaseRefreshLeaseAsync_WhenTheStoreCompletes_RecordsTheOperation()
     {
         var lease = new BffRefreshLease("lease-key", "owner-1");

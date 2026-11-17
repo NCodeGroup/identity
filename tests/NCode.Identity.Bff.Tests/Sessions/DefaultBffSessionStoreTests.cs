@@ -947,6 +947,48 @@ public class DefaultBffSessionStoreTests : BaseTests
 
     #endregion
 
+    #region ForgetEndedSessionAsync Tests
+
+    [Fact]
+    public async Task ForgetEndedSessionAsync_Always_RemovesOnlyThatKeyFromTheClientsIndex()
+    {
+        var client = CreateClient();
+        MockIndexes
+            .Setup(x =>
+                x.RemoveMemberAsync(
+                    BffStoreKeys.ClientIndex(client),
+                    StoreKey,
+                    CancellationToken.None
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
+
+        await Store.ForgetEndedSessionAsync(client, StoreKey, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task ForgetEndedSessionAsync_StoreFails_ThrowsBffStoreUnavailableException()
+    {
+        var client = CreateClient();
+        MockIndexes
+            .Setup(x =>
+                x.RemoveMemberAsync(
+                    BffStoreKeys.ClientIndex(client),
+                    StoreKey,
+                    CancellationToken.None
+                )
+            )
+            .ThrowsAsync(new InvalidOperationException("boom"))
+            .Verifiable(Times.Once);
+
+        await Assert.ThrowsAsync<BffStoreUnavailableException>(async () =>
+            await Store.ForgetEndedSessionAsync(client, StoreKey, CancellationToken.None)
+        );
+    }
+
+    #endregion
+
     #region Transaction Tests
 
     [Fact]

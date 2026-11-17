@@ -50,6 +50,7 @@ internal sealed class BffMetrics
     internal const string FindBySubjectOperation = "find_by_subject";
     internal const string FindClientsOperation = "find_clients";
     internal const string FindByClientOperation = "find_by_client";
+    internal const string ForgetEndedSessionOperation = "forget_ended_session";
     internal const string AddTransactionOperation = "add_transaction";
     internal const string TakeTransactionOperation = "take_transaction";
     internal const string AcquireRefreshLeaseOperation = "acquire_refresh_lease";

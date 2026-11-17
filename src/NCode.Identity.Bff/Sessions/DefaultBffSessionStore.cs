@@ -323,6 +323,27 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
     }
 
     /// <inheritdoc />
+    public async ValueTask ForgetEndedSessionAsync(
+        BffSessionClient client,
+        string storeKey,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            await indexes.RemoveMemberAsync(
+                BffStoreKeys.ClientIndex(client),
+                storeKey,
+                cancellationToken
+            );
+        }
+        catch (Exception exception) when (IsStoreFailure(exception, cancellationToken))
+        {
+            throw Unavailable(exception);
+        }
+    }
+
+    /// <inheritdoc />
     public async ValueTask<bool> TryAddTransactionAsync(
         string transactionKey,
         ReadOnlyMemory<byte> protectedTransaction,
