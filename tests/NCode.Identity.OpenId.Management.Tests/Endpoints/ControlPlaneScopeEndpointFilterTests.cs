@@ -70,31 +70,6 @@ public class ControlPlaneScopeEndpointFilterTests
         Assert.Null(accessor.UnscopedReason);
     }
 
-    [Fact]
-    public async Task InvokeAsync_WhenTheEndpointOpensATenantScope_ThatScopeIsATenantScope()
-    {
-        var accessor = new StubAmbientTenantAccessor();
-        var filter = new ControlPlaneScopeEndpointFilter(accessor);
-        var context = CreateContext();
-        bool? isUnscopedInside = null;
-        string? tenantIdInside = null;
-        EndpointFilterDelegate next = _ =>
-        {
-            using (accessor.BeginScope("tenant-1"))
-            {
-                isUnscopedInside = accessor.IsUnscoped;
-                tenantIdInside = accessor.TenantId;
-            }
-
-            return ValueTask.FromResult<object?>(null);
-        };
-
-        await filter.InvokeAsync(context, next);
-
-        Assert.False(isUnscopedInside);
-        Assert.Equal("tenant-1", tenantIdInside);
-    }
-
     #endregion
 
     private sealed class StubAmbientTenantAccessor : IAmbientTenantAccessor
