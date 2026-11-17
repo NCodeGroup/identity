@@ -1161,6 +1161,125 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
         );
     }
 
+    [Theory]
+    [InlineData("refused")]
+    [InlineData("unavailable")]
+    [InlineData("cancelled")]
+    [InlineData("failed")]
+    public async Task ImportTenantAsync_WhenTheMoveIsUnconfirmedAndThePlacementCannotBeRead_KeepsWhatItImportedAndReturnsServiceUnavailable(
+        string failure
+    )
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupPackage();
+        SetupStore();
+        var tokens = SetupPlacementThenReread(() =>
+            ValueTask.FromException<TenantPlacement?>(
+                new DirectoryUnavailableException("The directory is unreachable.")
+            )
+        );
+        SetupContributorImports();
+        SetupMasterKeyImport();
+        SetupProvider();
+        SetupRetag(CellName);
+        SetupUnconfirmedMove(failure);
+
+        using var source = new CancellationTokenSource();
+        var httpContext = CreateHttpContext(authenticated: true);
+        var result = await Handler.ImportTenantAsync(httpContext, CreateRequest(), source.Token);
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, problem.StatusCode);
+        Assert.True(httpContext.Response.Headers.ContainsKey("Retry-After"));
+        Assert.Equal(
+            "The outcome of the move is unknown. Read the tenant's placement in the global directory before releasing it at the source; a repeated import clears this cell's copy.",
+            problem.ProblemDetails.Detail
+        );
+        Assert.Equal(
+            ["import-core", "import-accounts", "import-master-keys", $"retag-{CellName}", "move"],
+            Calls
+        );
+        Assert.True(tokens[0].CanBeCanceled);
+        Assert.False(tokens[1].CanBeCanceled);
+    }
+
+    [Theory]
+    [InlineData("cell-c")]
+    [InlineData(null)]
+    public async Task ImportTenantAsync_WhenTheMoveIsRefusedAndTheDirectoryPlacesTheTenantElsewhere_KeepsWhatItImportedAndReturnsServiceUnavailable(
+        string? cell
+    )
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupPackage();
+        SetupStore();
+        SetupPlacementThenReread(() => new(cell is null ? null : CreatePlacement(cell)));
+        SetupContributorImports();
+        SetupMasterKeyImport();
+        SetupProvider();
+        SetupRetag(CellName);
+        SetupUnconfirmedMove("refused");
+
+        var httpContext = CreateHttpContext(authenticated: true);
+        var result = await Handler.ImportTenantAsync(
+            httpContext,
+            CreateRequest(),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, problem.StatusCode);
+        Assert.True(httpContext.Response.Headers.ContainsKey("Retry-After"));
+        Assert.Equal(
+            "The outcome of the move is unknown. Read the tenant's placement in the global directory before releasing it at the source; a repeated import clears this cell's copy.",
+            problem.ProblemDetails.Detail
+        );
+        Assert.Equal(
+            ["import-core", "import-accounts", "import-master-keys", $"retag-{CellName}", "move"],
+            Calls
+        );
+    }
+
+    [Fact]
+    public async Task ImportTenantAsync_WhenTheMoveIsCancelledAndTheDirectoryPlacesTheTenantInTheSource_RemovesWhatItImportedAndRethrows()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupPackage();
+        SetupStore();
+        SetupPlacementThenReread(() => new(CreatePlacement(SourceCell)));
+        SetupContributorImports();
+        SetupMasterKeyImport();
+        SetupProvider();
+        SetupRetag(CellName);
+        SetupRetag(SourceCell);
+        SetupUnconfirmedMove("cancelled");
+        SetupRollbackRemovals();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+            await Handler.ImportTenantAsync(
+                CreateHttpContext(authenticated: true),
+                CreateRequest(),
+                CancellationToken.None
+            )
+        );
+
+        Assert.Equal(
+            [
+                "import-core",
+                "import-accounts",
+                "import-master-keys",
+                $"retag-{CellName}",
+                "move",
+                $"retag-{SourceCell}",
+                "remove-accounts",
+                "remove-core",
+                "remove-tenant",
+                "save",
+            ],
+            Calls
+        );
+    }
+
     [Fact]
     public async Task ImportTenantAsync_WhenTheDirectoryIsUnavailableForThePlacement_ReturnsServiceUnavailableAndImportsNothing()
     {
