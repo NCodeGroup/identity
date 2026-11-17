@@ -1236,6 +1236,33 @@ public class AzureKeyVaultRemoteKeyProviderTests : BaseTests
 
     #endregion
 
+    #region IsInLocation Tests
+
+    [Theory]
+    [InlineData(KeyVersionId, true)]
+    [InlineData("https://CONTOSO.vault.azure.net/keys/ncode-key/" + Version, true)]
+    [InlineData("https://fabrikam.vault.azure.net/keys/ncode-key/" + Version, false)]
+    [InlineData("https://contoso.vault.azure.net/keys/ncode-key", false)]
+    public void IsInLocation_ByTheKeysVault_IsTrueOnlyInTheConfiguredVault(
+        string keyId,
+        bool expected
+    )
+    {
+        var provider = CreateProvider();
+
+        Assert.Equal(expected, provider.IsInLocation(keyId));
+    }
+
+    [Fact]
+    public void IsInLocation_WhenNoVaultIsConfigured_IsFalse()
+    {
+        var provider = CreateProvider(vaultUri: null);
+
+        Assert.False(provider.IsInLocation(KeyVersionId));
+    }
+
+    #endregion
+
     #region ListKeysAsync Tests
 
     private static DateTimeOffset CreatedOn { get; } = new(2026, 1, 2, 3, 4, 5, TimeSpan.Zero);

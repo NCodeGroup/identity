@@ -1625,6 +1625,39 @@ public class GoogleCloudKmsRemoteKeyProviderTests : BaseTests
 
     #endregion
 
+    #region IsInLocation Tests
+
+    [Theory]
+    [InlineData(SignKeyName, true)]
+    [InlineData(
+        "projects/my-project/locations/us-central1/keyRings/other/cryptoKeys/signing/cryptoKeyVersions/7",
+        false
+    )]
+    [InlineData(
+        "projects/my-project/locations/us-central1/keyRings/ncode-identity-2/cryptoKeys/signing/cryptoKeyVersions/7",
+        false
+    )]
+    [InlineData(KeyRing + "/cryptoKeys/signing", false)]
+    public void IsInLocation_ByTheKeysKeyRing_IsTrueOnlyInTheConfiguredKeyRing(
+        string keyId,
+        bool expected
+    )
+    {
+        var provider = CreateProvider();
+
+        Assert.Equal(expected, provider.IsInLocation(keyId));
+    }
+
+    [Fact]
+    public void IsInLocation_WhenNoKeyRingIsConfigured_IsFalse()
+    {
+        var provider = CreateProvider(keyRing: null);
+
+        Assert.False(provider.IsInLocation(SignKeyName));
+    }
+
+    #endregion
+
     #region ListKeysAsync Tests
 
     private static DateTimeOffset CreatedWhen { get; } = new(2026, 1, 2, 3, 4, 5, TimeSpan.Zero);

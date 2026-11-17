@@ -1595,6 +1595,32 @@ public class AwsKmsRemoteKeyProviderTests : BaseTests
 
     #endregion
 
+    #region IsInLocation Tests
+
+    [Theory]
+    [InlineData(KeyArn, true)]
+    [InlineData(OtherRegionKeyArn, false)]
+    [InlineData("not-an-arn", false)]
+    public void IsInLocation_ByTheKeysRegion_IsTrueOnlyInTheConfiguredRegion(
+        string keyId,
+        bool expected
+    )
+    {
+        var provider = CreateProvider();
+
+        Assert.Equal(expected, provider.IsInLocation(keyId));
+    }
+
+    [Fact]
+    public void IsInLocation_WhenNoRegionIsConfigured_IsFalse()
+    {
+        var provider = CreateProvider(region: null);
+
+        Assert.False(provider.IsInLocation(KeyArn));
+    }
+
+    #endregion
+
     #region ListKeysAsync Tests
 
     private static DateTime CreationDate { get; } = new(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc);
