@@ -54,6 +54,11 @@ internal class CallerApiEndpointHandler(
     IOptions<CellOptions> cellOptions
 ) : IEndpointProvider
 {
+    /// <summary>
+    /// The reason of the unscoped scope in which the handler reads the caller's role assignments.
+    /// </summary>
+    internal const string UnscopedReason = "caller role assignments";
+
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IAuthorizationService AuthorizationService { get; } = authorizationService;
     private IControlPlaneAuthority ControlPlaneAuthority { get; } = controlPlaneAuthority;
@@ -321,8 +326,16 @@ internal class CallerApiEndpointHandler(
             return (null, []);
         }
 
-        var store = storeManager.GetStore<IRoleAssignmentStore>();
-        var assignments = await store.GetByPrincipalAsync(principalId, cancellationToken);
+        IReadOnlyList<PersistedRoleAssignment> assignments;
+
+        // A principal's assignments are stored under the tenant of each node that holds them, so they are read across
+        // tenants. See ADR-1018.
+        using (AmbientTenantAccessor.BeginUnscoped(UnscopedReason))
+        {
+            var store = storeManager.GetStore<IRoleAssignmentStore>();
+            assignments = await store.GetByPrincipalAsync(principalId, cancellationToken);
+        }
+
         return (principalId, assignments);
     }
 

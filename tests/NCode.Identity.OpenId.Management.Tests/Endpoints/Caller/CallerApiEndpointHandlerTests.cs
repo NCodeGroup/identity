@@ -132,6 +132,16 @@ public sealed class CallerApiEndpointHandlerTests : IDisposable
 
     private void SetupAssignments(params PersistedRoleAssignment[] assignments)
     {
+        // A principal's assignments are read across tenants, in an unscoped scope.
+        var isUnscoped = false;
+        var unscoped = MockRepository.Create<IDisposable>();
+        unscoped.Setup(x => x.Dispose()).Callback(() => isUnscoped = false).Verifiable();
+        MockAmbientTenantAccessor
+            .Setup(x => x.BeginUnscoped(CallerApiEndpointHandler.UnscopedReason))
+            .Callback(() => isUnscoped = true)
+            .Returns(unscoped.Object)
+            .Verifiable();
+
         var store = MockRepository.Create<IRoleAssignmentStore>();
         MockStoreManager
             .Setup(x => x.GetStore<IRoleAssignmentStore>())
@@ -139,6 +149,7 @@ public sealed class CallerApiEndpointHandlerTests : IDisposable
             .Verifiable();
         store
             .Setup(x => x.GetByPrincipalAsync(PrincipalId, It.IsAny<CancellationToken>()))
+            .Callback(() => Assert.True(isUnscoped))
             .ReturnsAsync(assignments)
             .Verifiable();
     }
