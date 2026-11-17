@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -330,6 +331,28 @@ public sealed class CoreTenantTransferContributorTests : IDisposable
         return await CreateContributor().ExportAsync(TenantId, cancellationToken);
     }
 
+    // Points one record group of an exported section at another tenant.
+    private static TenantTransferSection WithAnotherTenant(
+        TenantTransferSection section,
+        string group
+    )
+    {
+        var document = JsonNode.Parse(section.Json.GetRawText())!.AsObject();
+        var record = group switch
+        {
+            "tenant" => document["tenant"]!,
+            "settings" => document["tenant"]!["settings"]!,
+            "secrets" => document["tenant"]!["secrets"]!,
+            _ => document[group]![0]!,
+        };
+        record["tenantId"] = "tenant-2";
+        return new TenantTransferSection
+        {
+            Name = section.Name,
+            Json = JsonSerializer.SerializeToElement(document),
+        };
+    }
+
     #endregion
 
     #region Properties Tests
@@ -462,6 +485,28 @@ public sealed class CoreTenantTransferContributorTests : IDisposable
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await CreateContributor().ImportAsync("tenant-2", section, CancellationToken.None)
         );
+    }
+
+    [Theory]
+    [InlineData("tenant")]
+    [InlineData("settings")]
+    [InlineData("secrets")]
+    [InlineData("resourceServers")]
+    [InlineData("clients")]
+    [InlineData("clientGrants")]
+    [InlineData("roleAssignments")]
+    public async Task ImportAsync_WhenARecordGroupHoldsAnotherTenant_ThrowsBeforeAnyStoreWrite(
+        string group
+    )
+    {
+        var section = await ExportSectionAsync(CancellationToken.None);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await CreateContributor()
+                .ImportAsync(TenantId, WithAnotherTenant(section, group), CancellationToken.None)
+        );
+
+        Assert.Contains("holds a record of tenant 'tenant-2'", exception.Message);
     }
 
     [Fact]
