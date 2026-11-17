@@ -6,6 +6,7 @@ using Moq;
 using NCode.Identity.OpenId.Core.Tests;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.SecretProtection;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.Persistence.Protection;
@@ -22,13 +23,16 @@ public sealed class GrantPayloadValueSourceTests : BaseTests
     private static IReadOnlySet<Guid> OldKeys { get; } = new HashSet<Guid> { OldKey };
 
     private Mock<IStoreManagerFactory> StoreManagerFactory { get; }
+    private Mock<IAmbientTenantAccessor> AmbientTenantAccessor { get; }
     private Queue<IStoreManager> StoreManagers { get; } = new();
     private FakeRewrapProvider Provider { get; } = new(ActiveKey);
     private bool StoreManagerFactorySetUp { get; set; }
+    private bool IsTenantScoped { get; set; }
 
     public GrantPayloadValueSourceTests()
     {
         StoreManagerFactory = CreateStrictMock<IStoreManagerFactory>();
+        AmbientTenantAccessor = CreateStrictMock<IAmbientTenantAccessor>();
     }
 
     protected override void Dispose(bool disposing)
@@ -40,7 +44,12 @@ public sealed class GrantPayloadValueSourceTests : BaseTests
     }
 
     private GrantPayloadValueSource CreateSource() =>
-        new(StoreManagerFactory.Object, Provider, NullLogger<GrantPayloadValueSource>.Instance);
+        new(
+            StoreManagerFactory.Object,
+            AmbientTenantAccessor.Object,
+            Provider,
+            NullLogger<GrantPayloadValueSource>.Instance
+        );
 
     private (Mock<IGrantStore> Store, Mock<IStoreManager> Manager) EnqueueManager()
     {
@@ -51,11 +60,23 @@ public sealed class GrantPayloadValueSourceTests : BaseTests
                 .Setup(x => x.CreateAsync(It.IsAny<CancellationToken>()))
                 .Returns(() => new ValueTask<IStoreManager>(StoreManagers.Dequeue()))
                 .Verifiable();
+
+            var scope = CreateStrictMock<IDisposable>();
+            scope.Setup(x => x.Dispose()).Callback(() => IsTenantScoped = false).Verifiable();
+            AmbientTenantAccessor
+                .Setup(x => x.BeginScope(Tenant.OwnerId))
+                .Callback(() => IsTenantScoped = true)
+                .Returns(scope.Object)
+                .Verifiable();
         }
 
         var store = CreateStrictMock<IGrantStore>();
         var manager = CreateStrictMock<IStoreManager>();
-        manager.Setup(x => x.GetStore<IGrantStore>()).Returns(store.Object).Verifiable();
+        manager
+            .Setup(x => x.GetStore<IGrantStore>())
+            .Callback(() => Assert.True(IsTenantScoped))
+            .Returns(store.Object)
+            .Verifiable();
         manager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
         StoreManagers.Enqueue(manager.Object);
         return (store, manager);
@@ -115,9 +136,10 @@ public sealed class GrantPayloadValueSourceTests : BaseTests
             .Returns(new ValueTask<bool>(exists))
             .Verifiable();
 
-    private static void SetupSave(Mock<IStoreManager> manager) =>
+    private void SetupSave(Mock<IStoreManager> manager) =>
         manager
             .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Callback(() => Assert.True(IsTenantScoped))
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
