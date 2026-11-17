@@ -25,7 +25,9 @@ edits.**
 
 1. **One width, 120, for C# `///` and TypeScript JSDoc.** Each paragraph fills its lines with as many whole words as
    fit, and no line runs past 120 columns. A `{@link …}` and a backtick code span count as one word, and a code block
-   is neither checked nor reflowed.
+   is neither checked nor reflowed. Two C# forms may run past 120 columns on one line: the standard
+   `<param name="cancellationToken">` sentence, which reads the same on every member, and a `<response>` element, whose
+   text is the response description in the served OpenAPI document.
 2. **`build/doc-comment-fill.ps1` checks the paragraphs a change adds or edits.** It measures from the merge base of
    `HEAD` and `-Base`, and `-Fix` reflows the paragraphs it reports. `-All` checks every paragraph in scope.
 3. **The Definition of Done runs it as a build-free stage.** The `doc comment fill` stage of `build/dod.ps1` runs the
