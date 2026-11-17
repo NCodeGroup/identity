@@ -487,6 +487,8 @@ internal class TeamStore(
     /// <inheritdoc />
     public async ValueTask<bool> RemoveAsync(string teamId, CancellationToken cancellationToken)
     {
+        DbContext.EnsureUnscoped($"{nameof(TeamStore)}.{nameof(RemoveAsync)}");
+
         var teamEntity = await GetEntityOrDefaultAsync(teamId, cancellationToken);
         if (teamEntity is null)
         {
@@ -694,6 +696,8 @@ internal class TeamStore(
         CancellationToken cancellationToken
     )
     {
+        DbContext.EnsureUnscoped($"{nameof(TeamStore)}.{nameof(HasDependentsAsync)}");
+
         var teamEntity = await GetEntityOrDefaultAsync(teamId, cancellationToken);
         if (teamEntity is null)
         {

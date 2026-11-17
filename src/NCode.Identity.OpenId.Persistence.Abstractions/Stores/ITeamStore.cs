@@ -163,22 +163,26 @@ public interface ITeamStore : IStore<PersistedTeam>
 
     /// <summary>
     /// Removes an OpenId Team from the store. The removal is rejected while any tenant or team still belongs to the
-    /// team. Removing a team retires its identifier, so it is never reissued.
+    /// team. Removing a team retires its identifier, so it is never reissued. It reads across tenants, so it runs only
+    /// in an unscoped scope.
     /// </summary>
     /// <param name="teamId">The identifier of the OpenId Team to remove.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c>
     /// if the team was removed; otherwise <c>false</c> when no matching team existed.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when a tenant, team or machine client still belongs to the team.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when a tenant, team or machine client still belongs to the
+    /// team, or when the ambient scope is not unscoped.</exception>
     ValueTask<bool> RemoveAsync(string teamId, CancellationToken cancellationToken);
 
     /// <summary>
     /// Determines whether an OpenId Team still has dependents: any tenant, team or machine client that belongs to it.
+    /// It reads across tenants, so it runs only in an unscoped scope.
     /// </summary>
     /// <param name="teamId">The identifier of the OpenId Team.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c>
     /// when any tenant, team or machine client belongs to the team; otherwise <c>false</c> (including when no such team exists).</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the ambient scope is not unscoped.</exception>
     ValueTask<bool> HasDependentsAsync(string teamId, CancellationToken cancellationToken);
 
     /// <summary>

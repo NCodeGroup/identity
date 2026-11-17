@@ -7,6 +7,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.DataContracts;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Stores;
@@ -357,11 +358,65 @@ public sealed class TeamStoreLifecycleTests : IDisposable
     }
 
     [Fact]
+    public async Task RemoveAsync_WhenTheScopeIsATenantScope_Throws()
+    {
+        var ambient = new SwitchableAmbientTenantAccessor();
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton<IAmbientTenantAccessor>(ambient);
+        serviceCollection.AddTestOpenIdDbContext(options =>
+            options.UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
+        );
+        await using var provider = serviceCollection.BuildServiceProvider();
+        var dbContext = provider.GetRequiredService<OpenIdDbContext>();
+        var store = new TeamStore(
+            Mock.Of<IStoreProvider>(),
+            provider.GetRequiredService<IIdGenerator<long>>(),
+            dbContext,
+            TestPayloadSerializer.Instance
+        );
+
+        using var scope = ambient.BeginScope("tenant-1");
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await store.RemoveAsync(TeamId, CancellationToken.None)
+        );
+
+        Assert.StartsWith("TeamStore.RemoveAsync reads across tenants", exception.Message);
+    }
+
+    [Fact]
     public async Task HasDependentsAsync_WhenATenantExists_ReturnsTrue()
     {
         await SeedTenantInTeamAsync(CancellationToken.None);
 
         Assert.True(await Store.HasDependentsAsync(TeamId, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task HasDependentsAsync_WhenTheScopeIsATenantScope_Throws()
+    {
+        var ambient = new SwitchableAmbientTenantAccessor();
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton<IAmbientTenantAccessor>(ambient);
+        serviceCollection.AddTestOpenIdDbContext(options =>
+            options.UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
+        );
+        await using var provider = serviceCollection.BuildServiceProvider();
+        var dbContext = provider.GetRequiredService<OpenIdDbContext>();
+        var store = new TeamStore(
+            Mock.Of<IStoreProvider>(),
+            provider.GetRequiredService<IIdGenerator<long>>(),
+            dbContext,
+            TestPayloadSerializer.Instance
+        );
+
+        using var scope = ambient.BeginScope("tenant-1");
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await store.HasDependentsAsync(TeamId, CancellationToken.None)
+        );
+
+        Assert.StartsWith("TeamStore.HasDependentsAsync reads across tenants", exception.Message);
     }
 
     [Fact]
