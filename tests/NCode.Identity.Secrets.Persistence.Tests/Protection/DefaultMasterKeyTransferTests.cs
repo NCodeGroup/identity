@@ -221,6 +221,7 @@ public class DefaultMasterKeyTransferTests : BaseTests
         Assert.Equal(rootKey.KeyWrapperName, row.RootKeyProvider);
         Assert.Equal(rootKey.KeyReference, row.RootKeyReference);
         Assert.Equal(rootKey.AccessIdentity, row.RootKeyAccessIdentity);
+        Assert.Equal("tenant:tenant-a", row.RootKeyAccessBinding);
         Assert.Null(row.RecoveryKeyId);
         Assert.Null(row.RecoveryWrappedKey);
         Assert.Equal(1, sourceReferenced.WrapCount);

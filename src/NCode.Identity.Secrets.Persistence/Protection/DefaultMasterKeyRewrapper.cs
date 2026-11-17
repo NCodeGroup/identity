@@ -296,6 +296,7 @@ internal sealed class DefaultMasterKeyRewrapper(
         row.RootKeyId = wraps.Root.KeyId;
         row.RootKeyReference = wraps.RootKeyReference;
         row.RootKeyAccessIdentity = wraps.RootKeyAccessIdentity;
+        row.RootKeyAccessBinding = wraps.RootKeyAccessBinding;
         row.RootWrappedKey = wraps.Root.Ciphertext;
 
         if (wraps.ClearsRecovery)

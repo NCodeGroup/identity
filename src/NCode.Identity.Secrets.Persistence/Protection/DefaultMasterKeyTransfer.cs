@@ -291,6 +291,7 @@ internal sealed class DefaultMasterKeyTransfer(
             RootKeyId = wraps.Root.KeyId,
             RootKeyReference = wraps.RootKeyReference,
             RootKeyAccessIdentity = wraps.RootKeyAccessIdentity,
+            RootKeyAccessBinding = wraps.RootKeyAccessBinding,
             RootWrappedKey = wraps.Root.Ciphertext,
             RecoveryKeyId = wraps.Recovery?.KeyId,
             RecoveryWrappedKey = wraps.Recovery?.Ciphertext,
