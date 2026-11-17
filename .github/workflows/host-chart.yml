@@ -173,6 +173,8 @@ jobs:
           refuse --set directory.database.runtimeRole=ncode_directory_app
           refuse --set directory.database.existingSecret=directory-database
           refuse --set directory.migrations.database.existingSecret=directory-database-owner
+          refuse --set directory.database.parts.existingSecret=directory-app
+          refuse --set directory.migrations.database.parts.existingSecret=directory-owner
           refuse --set directory.image.tag=1.0.0
           refuse --set directory.serviceAccount.name=directory-sa
           # A cell's management URL is https.
@@ -794,6 +796,8 @@ jobs:
           refuse --set directory.database.runtimeRole=Bad-Role
           # The schema owner's connection is required, and an empty key of it falls back to the runtime role's.
           refuse --set directory.migrations.database.existingSecret=
+          # A connection is one form for the owner too.
+          refuse --set directory.migrations.database.parts.existingSecret=directory-owner
           refuse --set directory.tls.existingSecret=
 
       - name: Run the directory's migration Job under the operator's ServiceAccount
