@@ -204,6 +204,64 @@ public sealed class RoleAssignmentStoreTests : IDisposable
         var loaded = await Store.GetOrDefaultAsync("assign-1", CancellationToken.None);
         Assert.Null(loaded);
     }
+
+    [Fact]
+    public async Task RemoveByPrincipalAsync_WhenUnscoped_RemovesTheAssignmentsOfThePrincipalInEveryTenant()
+    {
+        await SeedTenantAsync(CancellationToken.None);
+        DbContext.SeedTenant(Provider.GetRequiredService<IIdGenerator<long>>(), "tenant-2");
+
+        using var scope = Ambient.BeginUnscoped("test");
+
+        await Store.AddAsync(
+            CreateAssignment("assign-1", Subject, "Owner", "client", "client-1"),
+            CancellationToken.None
+        );
+        await Store.AddAsync(
+            new PersistedRoleAssignment
+            {
+                TenantId = "tenant-2",
+                AssignmentId = "assign-2",
+                PrincipalId = Subject,
+                RoleName = "TeamAdmin",
+                ResourceType = "team",
+                ResourceId = "platform",
+                ConcurrencyToken = string.Empty,
+            },
+            CancellationToken.None
+        );
+        await Store.AddAsync(
+            CreateAssignment("assign-3", "other", "Owner", "client", "client-3"),
+            CancellationToken.None
+        );
+        await DbContext.SaveChangesAsync();
+        DbContext.ChangeTracker.Clear();
+
+        await Store.RemoveByPrincipalAsync(Subject, CancellationToken.None);
+        await DbContext.SaveChangesAsync();
+
+        var remaining = await DbContext
+            .RoleAssignments.Select(entity => entity.AssignmentId)
+            .ToListAsync();
+        Assert.Equal(["assign-3"], remaining);
+    }
+
+    [Fact]
+    public async Task RemoveByPrincipalAsync_WhenTheScopeIsATenantScope_Throws()
+    {
+        await SeedTenantAsync(CancellationToken.None);
+
+        using var scope = Ambient.BeginScope(TenantId);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Store.RemoveByPrincipalAsync(Subject, CancellationToken.None)
+        );
+
+        Assert.Equal(
+            "RoleAssignmentStore.RemoveByPrincipalAsync reads across tenants and runs only in an unscoped scope (IAmbientTenantAccessor.BeginUnscoped).",
+            exception.Message
+        );
+    }
 }
 
 /// <summary>
