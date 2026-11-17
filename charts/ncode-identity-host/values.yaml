@@ -211,8 +211,8 @@ apiReference:
 # parts.existingSecret, a Secret holding the connection's parts, as a Postgres operator writes it; never both. The role
 # the connection logs in as must not own the tables, be a superuser or bypass row-level security.
 database:
-  # The runtime role's name. Required. The migration Job grants the role access to the tables after it migrates, and
-  # the pods connect as it.
+  # The runtime role's name. Required while migrations.enabled is true, when the migration Job grants the role access to
+  # the tables after it migrates, and may be empty otherwise. The pods connect as it.
   runtimeRole: ""
   existingSecret: ""
   connectionStringKey: connection-string

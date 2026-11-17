@@ -18,8 +18,8 @@ The chart takes no secret values. It references Secrets you create in the releas
 - `migrations.database.existingSecret` or `migrations.database.parts.existingSecret`: the schema owner's connection,
   read only by the migration Job, in the same two forms. The role has the right to create and change the schema; the
   runtime role does not.
-- `database.runtimeRole`: the name of the runtime role, a value rather than a Secret. The migration Job grants the role
-  access to the tables.
+- `database.runtimeRole`: the name of the runtime role, a value rather than a Secret. Required while
+  `migrations.enabled` is `true`, when the migration Job grants the role access to the tables.
 - `secretProtection.local.keySecret`: a Secret holding the local root key under the `key` key (base64url, 32 bytes).
   The root key encrypts every stored secret and the Data Protection key ring, so back it up and never change it in
   place; see [Secret protection](#secret-protection).
