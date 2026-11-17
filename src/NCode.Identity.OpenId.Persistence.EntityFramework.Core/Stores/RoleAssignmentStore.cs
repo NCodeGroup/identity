@@ -145,6 +145,24 @@ internal class RoleAssignmentStore(
     }
 
     /// <inheritdoc />
+    public async ValueTask RemoveByPrincipalAsync(
+        string principalId,
+        CancellationToken cancellationToken
+    )
+    {
+        DbContext.EnsureUnscoped($"{nameof(RoleAssignmentStore)}.{nameof(RemoveByPrincipalAsync)}");
+
+        var normalizedPrincipalId = Normalize(principalId);
+        DbContext.RoleAssignments.RemoveRange(
+            await DbContext
+                // Cross-tenant: a principal holds role assignments at the nodes of any tenant.
+                .RoleAssignments.IgnoreQueryFilters()
+                .Where(entity => entity.NormalizedPrincipalId == normalizedPrincipalId)
+                .ToListAsync(cancellationToken)
+        );
+    }
+
+    /// <inheritdoc />
     public async ValueTask<IReadOnlyList<PersistedRoleAssignment>> GetByResourceAsync(
         string resourceType,
         string resourceId,
