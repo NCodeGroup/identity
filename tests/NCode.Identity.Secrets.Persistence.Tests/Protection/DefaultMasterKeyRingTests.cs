@@ -844,7 +844,8 @@ public class DefaultMasterKeyRingTests : BaseTests
             options.Version,
             CreateRootKey(
                 keyReference: options.KeyReference ?? RootKeyReference,
-                accessIdentity: options.AccessIdentity
+                accessIdentity: options.AccessIdentity,
+                owner: options.RootKeyOwner
             ),
             cancellationToken
         );
@@ -1272,6 +1273,42 @@ public class DefaultMasterKeyRingTests : BaseTests
         await Assert.ThrowsAsync<OwnerRootKeyUnavailableException>(async () =>
             await ring.GetProtectorAsync(Owner, [], CancellationToken.None)
         );
+    }
+
+    [Fact]
+    public async Task GetProtector_DueValidationWithRowsUnderTwoBindings_UnwrapsOnceForEachBinding()
+    {
+        const string identity = "test-identity-a";
+        var wrapper = new IdentityRecordingKeyWrapper(Referenced);
+        var factory = CreateOwnerRootFactory(wrapper);
+        var row1 = await CreateOwnerRootedRowAsync(
+            factory,
+            new OwnerRootedRowOptions
+            {
+                Version = 1,
+                AccessIdentity = identity,
+                RootKeyOwner = new SecretOwner(SecretOwnerTypes.Team, "team-a"),
+            },
+            CancellationToken.None
+        );
+        var row2 = await CreateOwnerRootedRowAsync(
+            factory,
+            new OwnerRootedRowOptions { Version = 2, AccessIdentity = identity },
+            CancellationToken.None
+        );
+        string[] protectedValues = [CreateEnvelopeFor(row1.KeyId)];
+        ExpectLoadWithRows(row2, CreateRootKey(accessIdentity: identity), row1);
+        using var ring = CreateOwnerRootRing(factory);
+        await ring.GetProtectorAsync(Owner, protectedValues, CancellationToken.None);
+        Assert.Equal(2, wrapper.UnwrapAccesses.Count);
+
+        // The active row validates its binding and the row under the other binding validates its own.
+        Time.Advance(TimeSpan.FromHours(1));
+        ExpectLoadWithRows(row2, CreateRootKey(accessIdentity: identity), row1);
+        await ring.GetProtectorAsync(Owner, [], CancellationToken.None);
+        string[] expectedBindings = ["team:team-a", "tenant:tenant-a"];
+        var validated = wrapper.UnwrapAccesses.Skip(2).Select(access => access.Binding);
+        Assert.Equal(expectedBindings, validated.Order(StringComparer.Ordinal).ToArray());
     }
 
     [Fact]
