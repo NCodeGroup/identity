@@ -10,6 +10,7 @@ using NCode.Identity.OpenId.Integration.Tests.Infrastructure;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Persistence;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Setup;
 using NCode.Identity.OpenId.Setup.Contracts;
 using NCode.Identity.Persistence.Stores;
@@ -279,6 +280,9 @@ public class InstanceSetupTests
         Assert.Equal(RootUserName, root.UserName);
 
         using var scope = factory.Services.CreateScope();
+        using var unscoped = scope
+            .ServiceProvider.GetRequiredService<IAmbientTenantAccessor>()
+            .BeginUnscoped("test");
         await using var storeManager = await scope
             .ServiceProvider.GetRequiredService<IStoreManagerFactory>()
             .CreateAsync(CancellationToken.None);

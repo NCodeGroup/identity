@@ -187,6 +187,8 @@ internal class RoleAssignmentStore(
         CancellationToken cancellationToken
     )
     {
+        DbContext.EnsureUnscoped($"{nameof(RoleAssignmentStore)}.{nameof(GetByPrincipalAsync)}");
+
         var normalizedPrincipalId = Normalize(principalId);
 
         // Authority is inherited across tenants, so a principal's assignments are read wherever they are stored.

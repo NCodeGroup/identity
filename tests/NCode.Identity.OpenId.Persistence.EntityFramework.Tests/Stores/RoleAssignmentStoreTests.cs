@@ -145,6 +145,7 @@ public sealed class RoleAssignmentStoreTests : IDisposable
         );
         await DbContext.SaveChangesAsync();
 
+        using var scope = Ambient.BeginUnscoped("test");
         var forPrincipal = await Store.GetByPrincipalAsync(Subject, CancellationToken.None);
 
         Assert.Equal(2, forPrincipal.Count);
@@ -153,7 +154,7 @@ public sealed class RoleAssignmentStoreTests : IDisposable
 
     // See ADR-1411
     [Fact]
-    public async Task GetByPrincipalAsync_ReadsAssignmentsOfEveryTenant()
+    public async Task GetByPrincipalAsync_WhenUnscoped_ReadsAssignmentsOfEveryTenant()
     {
         await SeedTenantAsync(CancellationToken.None);
         DbContext.SeedTenant(Provider.GetRequiredService<IIdGenerator<long>>(), "tenant-2");
@@ -177,12 +178,29 @@ public sealed class RoleAssignmentStoreTests : IDisposable
         );
         await DbContext.SaveChangesAsync();
 
-        using var scope = Ambient.BeginScope("tenant-2");
+        using var scope = Ambient.BeginUnscoped("test");
         var forPrincipal = await Store.GetByPrincipalAsync(Subject, CancellationToken.None);
 
         Assert.Equal(2, forPrincipal.Count);
         Assert.Contains(forPrincipal, assignment => assignment.TenantId == TenantId);
         Assert.Contains(forPrincipal, assignment => assignment.TenantId == "tenant-2");
+    }
+
+    [Fact]
+    public async Task GetByPrincipalAsync_WhenTheScopeIsATenantScope_Throws()
+    {
+        await SeedTenantAsync(CancellationToken.None);
+
+        using var scope = Ambient.BeginScope(TenantId);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Store.GetByPrincipalAsync(Subject, CancellationToken.None)
+        );
+
+        Assert.Equal(
+            "RoleAssignmentStore.GetByPrincipalAsync reads across tenants and runs only in an unscoped scope (IAmbientTenantAccessor.BeginUnscoped).",
+            exception.Message
+        );
     }
 
     [Fact]
