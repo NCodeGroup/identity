@@ -4,6 +4,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
@@ -104,7 +105,7 @@ internal class TenantPromotionApiEndpointHandler(
     /// <response code="400">The request names its source in neither or both of the two ways, or names the target as its source.</response>
     /// <response code="403">The caller lacks the authority the promotion needs.</response>
     /// <response code="404">A tenant does not exist, or the source is not a tenant of the target's team.</response>
-    /// <response code="422">The source document comes from another region.</response>
+    /// <response code="422">The target is the control-plane tenant, or the source document comes from another region or names a client identifier a promotion does not create.</response>
     [EndpointName("api/tenants/promotions/preview")]
     internal virtual async ValueTask<IResult> PreviewPromotionAsync(
         HttpContext httpContext,
@@ -138,7 +139,7 @@ internal class TenantPromotionApiEndpointHandler(
     /// <response code="404">A tenant does not exist, or the source is not a tenant of the target's team.</response>
     /// <response code="409">The promotion has errors, so nothing was written.</response>
     /// <response code="412">Another change wrote the target first.</response>
-    /// <response code="422">The source document comes from another region.</response>
+    /// <response code="422">The target is the control-plane tenant, or the source document comes from another region or names a client identifier a promotion does not create.</response>
     [EndpointName("api/tenants/promotions/create")]
     internal virtual async ValueTask<IResult> PromoteAsync(
         HttpContext httpContext,
@@ -228,6 +229,22 @@ internal class TenantPromotionApiEndpointHandler(
         if (targetFailure is not null)
         {
             return targetFailure;
+        }
+
+        // The control-plane tenant holds the platform's machine clients and the cells' clients, which the directory and
+        // the control plane trust by identifier, so no configuration is promoted into it. See ADR-1425 and ADR-1466.
+        if (
+            string.Equals(
+                tenantId,
+                httpContext.GetOpenIdContext().Tenant.TenantId,
+                StringComparison.OrdinalIgnoreCase
+            )
+        )
+        {
+            return TypedResults.Problem(
+                detail: "The control-plane tenant is not a promotion target.",
+                statusCode: StatusCodes.Status422UnprocessableEntity
+            );
         }
 
         if (!hasSourceTenantId)
@@ -335,6 +352,12 @@ internal class TenantPromotionApiEndpointHandler(
             return sourceRefusal ?? ManagementProblems.ResourceNotFound();
         }
 
+        var clientIdRefusal = GetClientIdRefusalOrDefault(sourceDocument);
+        if (clientIdRefusal is not null)
+        {
+            return clientIdRefusal;
+        }
+
         var openIdContext = httpContext.GetOpenIdContext();
         var context = new TenantPromotionContext
         {
@@ -372,6 +395,33 @@ internal class TenantPromotionApiEndpointHandler(
         }
 
         return await completeAsync(teamId, context, cancellationToken);
+    }
+
+    // A promotion creates a client under the identifier the document names, and an uploaded document is untrusted, so
+    // every identifier meets the rule a requested one meets and stays out of the cells' namespace. See ADR-1466.
+    private static ProblemHttpResult? GetClientIdRefusalOrDefault(
+        TenantConfigurationDocument document
+    )
+    {
+        var prefix = GlobalDirectoryProtocol.CellClientIdPrefix;
+
+        foreach (var client in document.Clients)
+        {
+            if (
+                ClientIdRules.IsValid(client.ClientId)
+                && !client.ClientId.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                continue;
+            }
+
+            return TypedResults.Problem(
+                detail: $"The configuration document names the client '{client.ClientId}', whose identifier a promotion does not create: a client_id is 1 to {ClientIdRules.MaxLength} unreserved characters and does not start with '{prefix}'.",
+                statusCode: StatusCodes.Status422UnprocessableEntity
+            );
+        }
+
+        return null;
     }
 
     // Groups the changed limits by the node above their document, in the order they were recorded, and returns the first

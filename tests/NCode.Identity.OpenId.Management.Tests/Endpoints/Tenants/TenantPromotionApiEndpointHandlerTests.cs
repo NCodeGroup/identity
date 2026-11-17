@@ -449,6 +449,50 @@ public sealed class TenantPromotionApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task PreviewPromotionAsync_WhenTheTargetIsTheControlPlaneTenant_ReturnsUnprocessableEntityBeforeAnyRead()
+    {
+        SetupAuthorize(
+            ControlPlaneTenantId,
+            ResourceNodeTypes.Tenant,
+            ControlPlaneTenantId,
+            Operations.Create,
+            AuthorizationResult.Success()
+        );
+
+        // Strict mocks: no store factory setup, so reading the control-plane tenant would fail the test.
+        var result = await PreviewAsync(CreateInlineRequest(), ControlPlaneTenantId);
+
+        AssertProblem(result, StatusCodes.Status422UnprocessableEntity);
+    }
+
+    [Theory]
+    [InlineData("cell-eu-1")]
+    [InlineData("CELL-eu-1")]
+    [InlineData("bad id")]
+    public async Task PreviewPromotionAsync_WhenTheDocumentNamesAClientIdAPromotionDoesNotCreate_ReturnsUnprocessableEntityWithoutPlanning(
+        string clientId
+    )
+    {
+        SetupRouteAuthorization(hasSourceTenant: false);
+        SetupTargetStore(CreateTenant(TargetTenantId));
+        var document = CreateDocument();
+        document.Clients.Add(
+            new TenantConfigurationClient
+            {
+                ClientId = clientId,
+                IsDisabled = false,
+                ResourceServerId = null,
+                Settings = JsonElement.Parse("""{"a":1}"""),
+            }
+        );
+
+        // Strict mocks: no PlanAsync setup, so planning a document that names the identifier would fail the test.
+        var result = await PreviewAsync(CreateInlineRequest(document));
+
+        AssertProblem(result, StatusCodes.Status422UnprocessableEntity);
+    }
+
+    [Fact]
     public async Task PreviewPromotionAsync_WhenPlannedFromASourceTenant_ReturnsTheReportWithoutApplying()
     {
         SetupRouteAuthorization(hasSourceTenant: true);
