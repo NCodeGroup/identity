@@ -1604,10 +1604,22 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ReserveTeam_WhenHeld_AnswersConflictWithTheDetail()
+    public async Task ReserveTeam_WhenPublished_AnswersConflictWithTheDetail()
     {
         AuthenticateAsControlPlane();
         await Client.PostAsync($"/directory/v1/teams/{TeamId}/reserve", content: null);
+        await Client.PutAsJsonAsync(
+            $"/directory/v1/teams/{TeamId}/document",
+            new TeamDocument
+            {
+                TeamId = TeamId,
+                DisplayName = "Team One",
+                IsDisabled = false,
+                Settings = JsonElement.Parse("{}"),
+                RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
+            },
+            WebOptions
+        );
 
         var response = await Client.PostAsync(
             $"/directory/v1/teams/{TeamId}/reserve",

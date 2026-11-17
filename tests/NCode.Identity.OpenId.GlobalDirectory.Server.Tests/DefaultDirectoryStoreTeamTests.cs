@@ -21,14 +21,25 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
     }
 
     [Fact]
-    public async Task ReserveAsync_WhenTheIdentifierIsHeld_ConflictsWithTheHeldIdentifierText()
+    public async Task ReserveAsync_WhenTheTeamIsPublished_ConflictsWithTheHeldIdentifierText()
     {
-        Assert.True((await Teams.ReserveAsync("team-1", CancellationToken.None)).IsReserved);
+        await PublishTeamAsync("team-1");
 
         var result = await Teams.ReserveAsync("TEAM-1", CancellationToken.None);
 
         Assert.False(result.IsReserved);
         Assert.Equal("Another team already has the identifier 'TEAM-1'.", result.ConflictDetail);
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenTheReservationIsRetriedAfterItCommitted_IsReserved()
+    {
+        Assert.True((await Teams.ReserveAsync("team-1", CancellationToken.None)).IsReserved);
+
+        var result = await Teams.ReserveAsync("TEAM-1", CancellationToken.None);
+
+        Assert.True(result.IsReserved);
+        Assert.Null(await Teams.GetOrDefaultAsync("team-1", CancellationToken.None));
     }
 
     [Fact]

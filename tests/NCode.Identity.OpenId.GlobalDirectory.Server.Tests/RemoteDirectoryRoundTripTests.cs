@@ -493,9 +493,20 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ReserveAsync_WhenATeamIsReservedTwice_ConflictsTheSecondTime()
+    public async Task ReserveAsync_WhenTheTeamIsPublished_Conflicts()
     {
         Assert.True((await Teams.ReserveAsync("team-1", CancellationToken.None)).IsReserved);
+        await Teams.PublishAsync(
+            new TeamDocument
+            {
+                TeamId = "team-1",
+                DisplayName = "Team team-1",
+                IsDisabled = false,
+                Settings = JsonElement.Parse("{}"),
+                RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
+            },
+            CancellationToken.None
+        );
 
         var result = await Teams.ReserveAsync("team-1", CancellationToken.None);
 

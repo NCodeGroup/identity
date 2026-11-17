@@ -1376,6 +1376,14 @@ internal sealed class DefaultDirectoryStore(
                         );
                     }
 
+                    if (existingState == TeamRecord.StateReserved)
+                    {
+                        // Only the control-plane cell reserves a team, so a reservation that no publish has consumed
+                        // is the caller's own, which a reservation that runs again after its commit's acknowledgement
+                        // is lost finds.
+                        return ReservationResult.Reserved();
+                    }
+
                     if (existingState is not null)
                     {
                         return ReservationResult.Conflict(
