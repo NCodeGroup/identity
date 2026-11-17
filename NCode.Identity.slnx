@@ -55,6 +55,7 @@
         <Project Path="src/NCode.Identity.ManagementConsole/NCode.Identity.ManagementConsole.csproj" />
         <Project Path="src/NCode.Identity.OpenId.Abstractions/NCode.Identity.OpenId.Abstractions.csproj" />
         <Project Path="src/NCode.Identity.OpenId.Accounts.Abstractions/NCode.Identity.OpenId.Accounts.Abstractions.csproj" />
+        <Project Path="src/NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore/NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore.csproj" />
         <Project Path="src/NCode.Identity.OpenId.Accounts.AspNetIdentity/NCode.Identity.OpenId.Accounts.AspNetIdentity.csproj" />
         <Project Path="src/NCode.Identity.OpenId.Accounts.Authentication/NCode.Identity.OpenId.Accounts.Authentication.csproj" />
         <Project Path="src/NCode.Identity.OpenId.Accounts.Management.Abstractions/NCode.Identity.OpenId.Accounts.Management.Abstractions.csproj" />
