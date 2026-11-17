@@ -312,6 +312,7 @@ internal sealed class LocalAccountStore(
 
         foreach (var record in records)
         {
+            // Another store's export carries its own normalized forms, so this store derives them, as AddAsync does.
             var entity = new LocalAccountEntity
             {
                 Id = NextId(),
@@ -321,9 +322,9 @@ internal sealed class LocalAccountStore(
                 LocalAccountId = record.LocalAccountId,
                 NormalizedLocalAccountId = Normalize(record.LocalAccountId),
                 UserName = record.UserName,
-                NormalizedUserName = record.NormalizedUserName,
+                NormalizedUserName = Normalize(record.UserName),
                 Email = record.Email,
-                NormalizedEmail = record.NormalizedEmail,
+                NormalizedEmail = Normalize(record.Email),
                 EmailVerified = record.EmailVerified,
                 PasswordHash = record.PasswordHash,
                 SecurityStamp = record.SecurityStamp,

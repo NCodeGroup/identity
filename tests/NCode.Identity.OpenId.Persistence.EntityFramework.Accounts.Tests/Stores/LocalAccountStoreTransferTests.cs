@@ -215,6 +215,38 @@ public sealed class LocalAccountStoreTransferTests : IDisposable
     }
 
     [Fact]
+    public async Task ImportAsync_WhenTheRecordCarriesAnotherStoresNormalizedNames_StoresTheNamesThisStoreNormalizes()
+    {
+        var record = new LocalAccountTransferRecord
+        {
+            LocalAccountId = AccountA,
+            UserName = "Alice",
+            NormalizedUserName = "TENANT-A|ALICE",
+            Email = "Alice@Example.com",
+            NormalizedEmail = "TENANT-A|ALICE@EXAMPLE.COM",
+            EmailVerified = true,
+            PasswordHash = "plain:" + Convert.ToBase64String(Password),
+            SecurityStamp = "stamp",
+            IsEnabled = true,
+            LockoutEnabled = false,
+            LockoutEnd = null,
+            AccessFailedCount = 0,
+            Claims = [],
+        };
+
+        Accessor.TenantId = TenantB;
+        await Store.ImportAsync([record], CancellationToken.None);
+        await SaveAndDetachAsync(CancellationToken.None);
+
+        var entity = await DbContext
+            .Set<LocalAccountEntity>()
+            .SingleAsync(x => x.LocalAccountId == AccountA, CancellationToken.None);
+        Assert.Equal("alice", entity.NormalizedUserName);
+        Assert.Equal("alice@example.com", entity.NormalizedEmail);
+        Assert.NotNull(await Store.GetByUserNameOrDefaultAsync("ALICE", CancellationToken.None));
+    }
+
+    [Fact]
     public async Task ImportAsync_WhenNoTenantScopeIsSet_Throws()
     {
         var record = new LocalAccountTransferRecord
