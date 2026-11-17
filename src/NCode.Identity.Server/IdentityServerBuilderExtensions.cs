@@ -15,6 +15,7 @@ using NCode.Identity.OpenId.Authentication.OutboundHttp;
 using NCode.Identity.OpenId.Authentication.Persistence;
 using NCode.Identity.OpenId.Authentication.Sessions;
 using NCode.Identity.OpenId.Authentication.Usage;
+using NCode.Identity.OpenId.Client;
 using NCode.Identity.OpenId.Client.KeyRings;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Setup;
@@ -308,7 +309,7 @@ public static class IdentityServerBuilderExtensions
             // The client library loads the named key rings, and the directory client reads the global directory with
             // one of them when Directory:Url is set.
             builder.OpenIdClientLibraryBuilder.AddOpenIdClientKeyRings(
-                configuration.GetSection("KeyRings")
+                configuration.GetSection(OpenIdClientDefaults.KeyRingsSectionName)
             );
             builder.OpenIdClientLibraryBuilder.AddOpenIdDirectoryClient(configuration);
 
