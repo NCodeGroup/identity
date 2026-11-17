@@ -24,6 +24,11 @@ internal sealed class LocalControlPlaneAuthority(
     IAuthorityChainResolver authorityChainResolver
 ) : IControlPlaneAuthority
 {
+    /// <summary>
+    /// The reason of the unscoped scope in which the authority reads the principal's role assignments.
+    /// </summary>
+    internal const string UnscopedReason = "control-plane authority";
+
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
     private ITenantResolver TenantResolver { get; } = tenantResolver;
@@ -59,9 +64,16 @@ internal sealed class LocalControlPlaneAuthority(
             return ControlPlaneAuthority.None;
         }
 
-        var assignments = await storeManager
-            .GetStore<IRoleAssignmentStore>()
-            .GetByPrincipalAsync(principalId, cancellationToken);
+        IReadOnlyList<PersistedRoleAssignment> assignments;
+
+        // A principal's assignments are stored under the tenant of each node that holds them, so they are read across
+        // tenants. See ADR-1018.
+        using (AmbientTenantAccessor.BeginUnscoped(UnscopedReason))
+        {
+            assignments = await storeManager
+                .GetStore<IRoleAssignmentStore>()
+                .GetByPrincipalAsync(principalId, cancellationToken);
+        }
 
         var platformAssignments = assignments
             .Where(assignment =>
