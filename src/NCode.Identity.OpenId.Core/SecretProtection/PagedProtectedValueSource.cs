@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using NCode.Identity.OpenId.Logging;
 using NCode.Identity.OpenId.Persistence.DataContracts;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.Persistence.Protection;
 
@@ -15,11 +16,14 @@ namespace NCode.Identity.OpenId.SecretProtection;
 /// owner over every requested master key reads only the rows whose value starts with one of the keys' prefixes, picks
 /// those whose value names a requested key, rewraps them with one protector per page, and writes the page in its own
 /// unit of work. A value that cannot be rewrapped is counted failed and the others of its page are written; a page that
-/// another writer changed is read and rewrapped again, a few times at most, and then counted failed.
+/// another writer changed is read and rewrapped again, a few times at most, and then counted failed. An owner's values
+/// are rows of its tenant, so each page is read, rewrapped and saved in the tenant's scope; an owner that is not a
+/// tenant holds none.
 /// </summary>
 // See ADR-1407.
 internal abstract class PagedProtectedValueSource(
     IStoreManagerFactory storeManagerFactory,
+    IAmbientTenantAccessor ambientTenantAccessor,
     ISecretProtectorProvider protectorProvider,
     ILogger logger
 ) : IProtectedValueSource
@@ -29,6 +33,8 @@ internal abstract class PagedProtectedValueSource(
     private const int MaxAttempts = 3;
 
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
+
+    private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
 
     private ISecretProtectorProvider ProtectorProvider { get; } = protectorProvider;
 
@@ -74,7 +80,7 @@ internal abstract class PagedProtectedValueSource(
         CancellationToken cancellationToken
     )
     {
-        if (!Handles(owner) || masterKeyIds.Count == 0)
+        if (!Handles(owner) || owner.TenantId is not { } tenantId || masterKeyIds.Count == 0)
             return ProtectedValueRewrapResult.None;
 
         var prefixes = GetPrefixes(masterKeyIds);
@@ -86,6 +92,7 @@ internal abstract class PagedProtectedValueSource(
         {
             (var pageRewrapped, var pageFailed, cursor) = await RewrapPageAsync(
                 owner,
+                tenantId,
                 masterKeyIds,
                 prefixes,
                 cursor,
@@ -106,7 +113,7 @@ internal abstract class PagedProtectedValueSource(
     )
     {
         var found = new HashSet<Guid>();
-        if (!Handles(owner) || masterKeyIds.Count == 0)
+        if (!Handles(owner) || owner.TenantId is not { } tenantId || masterKeyIds.Count == 0)
             return found;
 
         var prefixes = GetPrefixes(masterKeyIds);
@@ -114,6 +121,7 @@ internal abstract class PagedProtectedValueSource(
         string? cursor = null;
         do
         {
+            using var tenantScope = AmbientTenantAccessor.BeginScope(tenantId);
             await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
             var page = await GetPageAsync(
                 storeManager,
@@ -155,6 +163,7 @@ internal abstract class PagedProtectedValueSource(
     // cursor of the next page.
     private async ValueTask<(int Rewrapped, int Failed, string? NextCursor)> RewrapPageAsync(
         SecretOwner owner,
+        string tenantId,
         IReadOnlySet<Guid> masterKeyIds,
         IReadOnlyCollection<string> prefixes,
         string? cursor,
@@ -163,6 +172,8 @@ internal abstract class PagedProtectedValueSource(
     {
         for (var attempt = 1; ; attempt++)
         {
+            // An owner's values are rows of its tenant, read, rewrapped and saved in the tenant's scope. See ADR-1018.
+            using var tenantScope = AmbientTenantAccessor.BeginScope(tenantId);
             await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
             var page = await GetPageAsync(
                 storeManager,
