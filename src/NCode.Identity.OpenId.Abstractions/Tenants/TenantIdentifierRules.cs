@@ -8,8 +8,8 @@ using JetBrains.Annotations;
 namespace NCode.Identity.OpenId.Tenants;
 
 /// <summary>
-/// Contains the rule for the form of a tenant identifier: 1 to 63 lowercase letters, digits or hyphens that starts and
-/// ends with a letter or digit. A team's identifier follows the same form.
+/// Contains the rule for the form of a tenant identifier: 1 to 63 lowercase letters, digits or hyphens that start and
+/// end with a letter or digit. A team's identifier follows the same form.
 /// </summary>
 // See ADR-1411
 [PublicAPI]

@@ -107,8 +107,8 @@ public interface ITenantResolver
 
     /// <summary>
     /// Validates that a tenant with the specified identifier and issuer can be served: the identifier is 1 to 63
-    /// lowercase letters, digits, or hyphens that starts and ends with a letter or digit; the issuer, when present, is
-    /// an absolute <c>https</c> URL (<c>http</c> only for a loopback host) with no user information, query, or fragment;
+    /// lowercase letters, digits, or hyphens that start and end with a letter or digit; the issuer, when present, is an
+    /// absolute <c>https</c> URL (<c>http</c> only for a loopback host) with no user information, query, or fragment;
     /// no other tenant holds the issuer, and it is not the root tenant's own address; and the configured
     /// <see cref="ITenantStrategy"/> can route a request to the tenant beneath that issuer, which for every tenant it
     /// serves means the tenant needs one. Call it wherever a tenant's identifier or issuer is written, so a tenant can

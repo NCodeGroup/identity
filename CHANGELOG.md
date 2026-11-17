@@ -2436,7 +2436,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   [#278](https://github.com/NCodeGroup/identity/issues/278)).
 
 - **A tenant is named by whoever creates it.** `POST /api/teams/{teamId}/tenants` requires `CreateTenantRequest.TenantId`: 1 to 63
-  lowercase letters, digits or hyphens that starts and ends with a letter or digit, and never changes. It reads the same
+  lowercase letters, digits or hyphens that start and end with a letter or digit, and never changes. It reads the same
   in the management API (`/api/tenants/acme`), in a path tenant's issuer (`https://op.example/acme`) and in a host
   tenant's hostname (`acme.auth.example`), so a path tenant can be created with its issuer in one request; `displayName`
   is the editable label. The configured root tenant ID and `StaticSingle:TenantId` must have the same form or the host

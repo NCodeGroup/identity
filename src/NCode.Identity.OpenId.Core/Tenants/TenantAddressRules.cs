@@ -22,7 +22,7 @@ internal static partial class TenantAddressRules
     /// Contains the requirement a tenant identifier must meet, phrased to complete a sentence such as "must be …".
     /// </summary>
     public const string TenantIdRequirement =
-        "1 to 63 lowercase letters, digits, or hyphens that starts and ends with a letter or digit, and is not api, "
+        "1 to 63 lowercase letters, digits, or hyphens that start and end with a letter or digit, and is not api, "
         + "bff, health, openapi, scalar or setup";
 
     /// <summary>

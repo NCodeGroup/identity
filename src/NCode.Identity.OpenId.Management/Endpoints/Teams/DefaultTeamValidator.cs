@@ -106,7 +106,7 @@ internal class DefaultTeamValidator(
             {
                 StatusCode = StatusCodes.Status400BadRequest,
                 Detail =
-                    "The team id must be 1 to 63 lowercase letters, digits or hyphens that starts and ends with a letter or digit.",
+                    "The team id must be 1 to 63 lowercase letters, digits or hyphens that start and end with a letter or digit.",
             };
         }
 

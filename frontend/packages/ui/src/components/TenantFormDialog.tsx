@@ -91,8 +91,8 @@ export const emptyTenantFormValues: TenantFormValues = {
 };
 
 /**
- * The tenant ID rule the server enforces, mirrored here only to guide input: 1 to 63 lowercase
- * letters, digits, or hyphens that starts and ends with a letter or digit.
+ * The tenant ID rule the server enforces, mirrored here only to guide input: 1 to 63 lowercase letters, digits, or
+ * hyphens that start and end with a letter or digit.
  */
 const tenantIdPattern = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 

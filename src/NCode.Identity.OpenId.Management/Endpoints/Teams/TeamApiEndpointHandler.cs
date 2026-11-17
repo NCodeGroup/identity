@@ -396,7 +396,7 @@ internal class TeamApiEndpointHandler(
     /// <param name="request">The <see cref="CreateTeamRequest"/> describing the team to create.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="201">The created team.</response>
-    /// <response code="400">The team identifier is not 1 to 63 lowercase letters, digits or hyphens that starts and ends with a letter or digit, the display name is missing, or the settings are not valid for a team.</response>
+    /// <response code="400">The team identifier is not 1 to 63 lowercase letters, digits or hyphens that start and end with a letter or digit, the display name is missing, or the settings are not valid for a team.</response>
     /// <response code="409">A team with the identifier already exists, or the identifier belonged to a deleted team and cannot be reused.</response>
     [EndpointName("api/teams/create")]
     internal virtual async ValueTask<IResult> CreateTeamAsync(
@@ -413,7 +413,7 @@ internal class TeamApiEndpointHandler(
     /// <param name="request">The <see cref="CreateTeamRequest"/> describing the team to create.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="201">The created team.</response>
-    /// <response code="400">The team identifier is not 1 to 63 lowercase letters, digits or hyphens that starts and ends with a letter or digit, the display name is missing, or the settings are not valid for a team.</response>
+    /// <response code="400">The team identifier is not 1 to 63 lowercase letters, digits or hyphens that start and end with a letter or digit, the display name is missing, or the settings are not valid for a team.</response>
     /// <response code="403">The caller lacks <c>Create</c> at the parent team.</response>
     /// <response code="404">The parent team does not exist.</response>
     /// <response code="409">The parent is the platform's own team, a team with the identifier already exists, the identifier belonged to a deleted team and cannot be reused, the team would be nested too deep, or a team above it holds its maximum number of teams.</response>

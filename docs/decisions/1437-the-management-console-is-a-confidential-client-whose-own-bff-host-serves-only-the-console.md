@@ -86,10 +86,9 @@ management API at `/api` on the origin of its authority.**
      the BFF maps a path to one remote API. Both forwards carry the same `user` token requirement, frontend and
      antiforgery check, and the cell validates the token against the control plane
      ([ADR-1191](1191-a-management-request-is-authenticated-by-the-control-plane-tenant-and-scoped-by-its-routes-tenant.md)).
-   - `ManagementConsole:Cells` maps each cell name, 1 to 31 lowercase letters, digits or hyphens that starts with a
-     letter and ends with a letter or digit, to its management URL. Each URL passes the same check as
-     `ManagementApiUrl`, and the console maps one forwarder per entry at start. The bootstrap document lists the
-     cell names.
+   - `ManagementConsole:Cells` maps each cell name, 1 to 31 lowercase letters, digits or hyphens that start with a
+     letter and end with a letter or digit, to its management URL. Each URL passes the same check as `ManagementApiUrl`,
+     and the console maps one forwarder per entry at start. The bootstrap document lists the cell names.
    - The control plane's `GET api/cells` supplies each cell's region and kind for display. It never returns a
      management URL: the console's own configuration holds those.
    - The Tenants page queries every cell, merges the lists and shows each tenant's cell and region. A cell that does not

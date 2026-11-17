@@ -52,10 +52,10 @@ export type TenantEnvironmentResource = {
 };
 
 /**
- * Mirror of `CreateTenantRequest`. The tenant id is chosen by its creator and cannot change: 1 to 63
- * lowercase letters, digits, or hyphens that starts and ends with a letter or digit. `settings` is
- * the initial JSON settings object (empty by default; settings have their own PATCH endpoint). A `null`
- * issuer or mTLS endpoint alias takes the one the server's tenant strategy derives for the tenant.
+ * Mirror of `CreateTenantRequest`. The tenant id is chosen by its creator and cannot change: 1 to 63 lowercase letters,
+ * digits, or hyphens that start and end with a letter or digit. `settings` is the initial JSON settings object (empty
+ * by default; settings have their own PATCH endpoint). A `null` issuer or mTLS endpoint alias takes the one the
+ * server's tenant strategy derives for the tenant.
  */
 export type CreateTenantRequest = {
   readonly tenantId: string;

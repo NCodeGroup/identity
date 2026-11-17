@@ -16,7 +16,7 @@ public sealed class CreateTenantRequest
 {
     /// <summary>
     /// Gets the identifier for the tenant: a name its creator chooses, which cannot be changed once the tenant exists.
-    /// It is 1 to 63 lowercase letters, digits, or hyphens that starts and ends with a letter or digit, so it is equally
+    /// It is 1 to 63 lowercase letters, digits, or hyphens that start and end with a letter or digit, so it is equally
     /// valid as a URL path segment and as a hostname label. It addresses the tenant in the management API and, when
     /// tenants are served by path, is the final segment of the tenant's issuer.
     /// </summary>

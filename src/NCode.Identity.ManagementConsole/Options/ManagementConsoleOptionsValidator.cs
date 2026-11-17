@@ -87,7 +87,7 @@ internal sealed class ManagementConsoleOptionsValidator(LocalDevelopmentMode loc
             if (!CellLabelRules.IsValidLabel(cellName))
             {
                 failures.Add(
-                    $"{cellKey} must be named with a cell name of 1 to {CellLabelRules.MaxLabelLength} lower-case letters, digits and hyphens that starts with a letter and ends with a letter or digit; the name is '{cellName}'."
+                    $"{cellKey} must be named with a cell name of 1 to {CellLabelRules.MaxLabelLength} lower-case letters, digits and hyphens that start with a letter and end with a letter or digit; the name is '{cellName}'."
                 );
             }
 
