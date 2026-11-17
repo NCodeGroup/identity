@@ -6088,8 +6088,10 @@ Until the first stable release, the [Unreleased] section describes the product a
   frontend's `Authority` and `ClientId`; a request or connection ends one whose frontend is configured with another
   (`client_changed`), a removed frontend's sessions answer no request, and a background pass on one replica, at start
   and after every change, ends every stored session of a removed or re-registered frontend (`frontend_removed`,
-  `client_changed`) through the store's client index (`IBffSessionStore.FindClientsAsync`, `FindByClientAsync`), under a
-  lease and retry delay that `Bff:SessionRetirement` configures
+  `client_changed`) through the store's client index (`IBffSessionStore.FindClientsAsync`, `FindByClientAsync`), forgets
+  the key of a session whose record is gone from its client's index so that no later pass reads it again
+  (`IBffSessionStore.ForgetEndedSessionAsync`), and runs under a lease and retry delay that `Bff:SessionRetirement`
+  configures
   ([#602](https://github.com/NCodeGroup/identity/issues/602),
   [ADR-1443](docs/decisions/1443-a-bff-session-ends-when-its-frontend-is-removed-or-registered-as-another-client.md)).
 
@@ -6167,9 +6169,9 @@ Until the first stable release, the [Unreleased] section describes the product a
 
 - **The BFF's client index names each client only by a digest.** A member of the `bff:clients` index is the UTC day of
   a session's absolute expiry and the client's digest, so the key space of a shared Valkey names no client. Every
-  replica reads the same members; retirement leaves out the clients that its frontends are configured as, resolves each
-  other digest through the plaintext client of a readable session in that client's index, and a member it cannot
-  resolve expires on its own.
+  replica reads the same members, and each member has a value, `bff:client-member:<member>`, that holds the plaintext
+  client and expires with the member. Retirement reads one value per member and no session, leaves out the clients that
+  its frontends are configured as, and a member whose value is missing or holds another client expires on its own.
 
 - **Only a cell's own machine client reaches the directory and the control plane.** The directory and control-plane
   endpoints accept a bearer token for the audience `urn:ncode:directory` or `urn:ncode:control-plane` with the matching

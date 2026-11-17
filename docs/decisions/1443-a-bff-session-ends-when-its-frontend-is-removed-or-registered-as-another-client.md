@@ -33,23 +33,26 @@ client; and a background pass on one replica ends every stored session whose fro
    ends it with the reason `client_changed` (`BffSessionEndReasons.ClientChanged`) and deletes the cookie. A connection
    makes the same check when it revalidates, and a connection whose frontend is gone ends.
 3. **The store indexes sessions by client.** `IBffSessionStore.FindClientsAsync` lists the distinct clients
-   (`BffSessionClient`: frontend, authority and client id) that have stored sessions, and `FindByClientAsync` lists the
-   store keys of one client's sessions; a store adapter implements both. The default store keeps one `bff:client:`
-   index per client, keyed by digests of the length-prefixed values, and one `bff:clients` index whose members are the
-   UTC day of its sessions' absolute expiry and the client's digest. Every replica reads the same members, a member
-   names a client only by its digest, and each member expires at the end of its day, so adding a session never
-   shortens how long its client stays listed. Retirement leaves out the clients that its frontends are configured as,
-   by digest, resolves each other digest through the plaintext client of a readable session in that client's index,
-   and skips a member it cannot resolve, which expires on its own. A session stays in its client's index until its
-   absolute expiry, after its record has ended at its idle expiry, so the default store reads the sessions of an
-   index eight at a time, concurrently, and stops at the first round that holds a readable one.
+   (`BffSessionClient`: frontend, authority and client id) that have stored sessions, `FindByClientAsync` lists the
+   store keys of one client's sessions, and `ForgetEndedSessionAsync` removes the key of a session whose record is gone
+   from its client's index; a store adapter implements all three. The default store keeps one `bff:client:` index per
+   client, keyed by digests of the length-prefixed values, and one `bff:clients` index whose members are the UTC day of
+   its sessions' absolute expiry and the client's digest. Every replica reads the same members, and each member
+   expires at the end of its day, so adding a session never shortens how long its client stays listed. Each member has
+   a value of its own, `bff:client-member:<member>`, that holds the plaintext client and expires with the member, so
+   the members and the keys name a client only by its digest, and `FindClientsAsync` reads one value per member and no
+   session. It leaves out the clients that its frontends are configured as, by digest, without reading their values,
+   reads the value of each other member until its client is listed, and skips a member whose value is missing or holds
+   another client, which expires on its own. A session stays in its client's index until its absolute expiry, after its
+   record has ended at its idle expiry, so the key of an ended session stays listed until a pass forgets it.
 4. **A pass reconciles the store with the set.** `BffSessionRetirementService` runs `BffSessionRetirement` when the
    host starts and after every change of the set. For each stored client whose frontend is gone, or is configured as
    another client, the pass takes the store lease `retire:<frontend>` for `Bff:SessionRetirement:LeaseDuration` (five
    minutes by default) and ends each matching session as `frontend_removed` (`BffSessionEndReasons.FrontendRemoved`)
-   or `client_changed`, recording the session-ended audit event and logging event 19013. The pass names the clients
-   that its frontends are configured as to the store, which skips their digests without reading their indexes, so a
-   pass over a set that matches the store reads only `bff:clients`.
+   or `client_changed`, recording the session-ended audit event and logging event 19013. A key of the client's index
+   whose record is already gone is forgotten through `ForgetEndedSessionAsync`, so no later pass reads it again. The
+   pass names the clients that its frontends are configured as to the store, which skips their digests without reading
+   their values, so a pass over a set that matches the store reads only `bff:clients`.
 5. **One caller ends a session.** A session ends through an atomic take of its record, so when a request and the pass
    end one session at once, only the caller whose take removed it audits and counts it.
 6. **Failures retry.** A replica that cannot take the lease leaves the frontend to the one that holds it and runs the
@@ -75,23 +78,28 @@ client; and a background pass on one replica ends every stored session whose fro
 - **Binding a session to its frontend's name only.** Rejected: a frontend registered as another client would serve
   claims and tokens that its client never issued.
 - **Naming each client in the members of `bff:clients`.** Rejected: the key space of a shared Valkey would name every
-  frontend, authority and client id.
-- **Reading an index's sessions one at a time, stopping after a few that cannot be read, or reading only the first.**
-  Rejected: read one at a time, an index of sessions that idle expiry ended costs a round trip per session on each
-  pass that reads it, and an index's members have no order, so stopping early or reading only the first would skip a
-  client whose readable session comes late and leave its sessions, refresh tokens included, unretired.
-- **Reading an index's sessions in one multi-key command.** Rejected: session keys share no hash tag, so a clustered
-  Valkey spreads one client's sessions over its nodes and no one command names them all; the reads of a round go out
-  together over the connection the replica shares.
+  frontend, authority and client id. A member's value holds them instead, as a session record's metadata does.
+- **Resolving a member's client through a readable session in the client's index.** Rejected: a session stays in its
+  client's index after its record has ended at its idle expiry, so listing the clients reads the ended sessions of
+  every index again on each pass, and an index's members have no order, so stopping early would skip a client whose
+  readable session comes late and leave its sessions, refresh tokens included, unretired. One multi-key command cannot
+  read them either, because session keys share no hash tag and a clustered Valkey spreads one client's sessions over
+  its nodes.
+- **Having `FindByClientAsync` drop the keys whose records are gone.** Rejected: a query stays free of writes, and the
+  pass, which holds the lease and reads each record, removes a key through `ForgetEndedSessionAsync` when it finds the
+  record gone.
 - **Recording the client in the session metadata, refusing a mismatch on each request and retiring stored sessions in
-  a leased background pass over a client index** (chosen).
+  a leased background pass over a client index whose members each have a value that holds the client** (chosen).
 
 ## Consequences
 
 - Removing a frontend ends its users' sessions: each replica serves none of them once it applies the change, and the
   pass removes them from the store.
 - Registering a frontend as another client signs its users out.
-- A store adapter implements `FindClientsAsync` and `FindByClientAsync`.
+- A store adapter implements `FindClientsAsync`, `FindByClientAsync` and `ForgetEndedSessionAsync`.
+- Listing the stored clients reads one value per member of `bff:clients` and no session, however many sessions a
+  client has.
+- A pass reads the record of an ended session once, because it forgets the session's key from its client's index.
 
 ## References
 

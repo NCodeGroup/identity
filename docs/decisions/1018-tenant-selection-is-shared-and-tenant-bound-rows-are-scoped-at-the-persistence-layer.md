@@ -171,8 +171,9 @@ current_setting('app.unscoped', true) = 'on' OR "NormalizedTenantId" = current_s
   create and treats a user of another tenant as not found, so one tenant's `alice` and another's are different users.
 - **BFF client members.** A member of the `bff:clients` index is the UTC day of a session's absolute expiry and the
   client's digest, `<yyyy-MM-dd>:<digest>`, so the index names a client only by a digest. Every replica reads the same
-  members. Retirement leaves out the clients that its frontends are configured as, resolves each other digest through
-  the plaintext client of a readable session in that client's index, and an unresolvable member expires on its own.
+  members. Each member has a value, `bff:client-member:<member>`, that holds the plaintext client and expires with the
+  member, and retirement reads one value per member and no session. It leaves out the clients that its frontends are
+  configured as, and a member whose value is missing or holds another client expires on its own.
 
 ## Options considered
 
