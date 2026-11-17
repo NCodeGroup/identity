@@ -20,7 +20,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// before and after, so caches evict the settings. The platform row is committed before the command, which runs on its
 /// own bounded token, so a command that fails is logged and never fails the committed write.
 /// </summary>
-// See ADR-1411, ADR-1169, ADR-1412 and ADR-1351.
+// See ADR-1411, ADR-1412 and ADR-1351.
 internal sealed class DefaultPlatformDocumentApplier(
     IStoreManagerFactory storeManagerFactory,
     IServiceScopeFactory serviceScopeFactory,
