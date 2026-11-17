@@ -403,4 +403,29 @@ public class RemoteTenantDirectoryTests : RemoteDirectoryTestBase
     }
 
     #endregion
+
+    #region GetRetiredIssuerHolderOrDefaultAsync Tests
+
+    [Fact]
+    public async Task GetRetiredIssuerHolderOrDefaultAsync_WhenTheDirectoryAnswersOk_GetsTheRetiredIssuersRouteAndReturnsTheHolder()
+    {
+        var handler = StubHttpMessageHandler.Respond(HttpStatusCode.OK, "\"tenant-1\"");
+        var directory = new RemoteTenantDirectory(CreateClient(handler));
+
+        var result = await directory.GetRetiredIssuerHolderOrDefaultAsync(
+            "https://op.example/tenant-1",
+            CancellationToken.None
+        );
+
+        Assert.Equal("tenant-1", result);
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Get, request.Method);
+        Assert.Equal("/directory/v1/retired-issuers", request.RequestUri?.AbsolutePath);
+        Assert.Equal(
+            "?issuer=https://op.example/tenant-1",
+            Uri.UnescapeDataString(request.RequestUri?.Query ?? string.Empty)
+        );
+    }
+
+    #endregion
 }

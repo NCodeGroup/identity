@@ -17,9 +17,9 @@ using NCode.Identity.OpenId.Tenants;
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 
 /// <summary>
-/// Maps the global directory API under <c>/directory/v1/</c>: the tenant, team, platform and cell routes that the
-/// remote adapters of <c>NCode.Identity.OpenId.GlobalDirectory</c> call. Every route requires a bearer access token for
-/// the audience <see cref="GlobalDirectoryProtocol.DirectoryAudience"/> with the scope
+/// Maps the global directory API under <c>/directory/v1/</c>: the tenant, retired-issuer, team, platform and cell
+/// routes that the remote adapters of <c>NCode.Identity.OpenId.GlobalDirectory</c> call. Every route requires a bearer
+/// access token for the audience <see cref="GlobalDirectoryProtocol.DirectoryAudience"/> with the scope
 /// <see cref="GlobalDirectoryProtocol.DirectoryScope"/>, checked before the route runs, its bodies are confidential so
 /// HTTP logging never writes them, and every failure, a lookup that finds nothing included, is an RFC 9457 problem
 /// document: a missing resource is a <c>404 Not Found</c> problem, never an empty body. Every write is bound to the
@@ -112,8 +112,7 @@ public static class DirectoryEndpoints
 
     /// <summary>
     /// Maps the tenant routes: reserving, placing, releasing, moving, retiring and changing the issuer of a tenant, and
-    /// reading a placement, a retired identifier or a retired issuer. Each route declares the problem documents that it
-    /// can answer.
+    /// reading a placement or a retired identifier. Each route declares the problem documents that it can answer.
     /// </summary>
     /// <param name="group">The <see cref="RouteGroupBuilder"/> of <c>/directory/v1/tenants</c>.</param>
     private static void MapTenants(RouteGroupBuilder group)
@@ -167,10 +166,6 @@ public static class DirectoryEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound);
         group
             .MapGet("retired-ids/{tenantId}", GetRetiredTenantIdAsync)
-            .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status404NotFound);
-        group
-            .MapGet("retired-issuers", GetRetiredIssuerAsync)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound);
     }
@@ -1207,6 +1202,10 @@ public static class DirectoryEndpoints
                 .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
 
             MapTenants(group.MapGroup("tenants"));
+            group
+                .MapGet("retired-issuers", GetRetiredIssuerAsync)
+                .ProducesProblem(StatusCodes.Status400BadRequest)
+                .ProducesProblem(StatusCodes.Status404NotFound);
             MapTeams(group.MapGroup("teams"));
             MapPlatform(group.MapGroup("platform"));
             MapCells(group.MapGroup("cells"));

@@ -19,6 +19,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.Client;
+using NCode.Identity.OpenId.GlobalDirectory.Server.Entities;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Registration;
 using Xunit;
@@ -603,6 +604,39 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetTenant_WhenTheTenantIsNamedRetiredIssuers_AnswersItsPlacement()
+    {
+        const string tenantId = "retired-issuers";
+        const string issuer = "https://op.example/retired-issuers";
+        Authenticate();
+        var cellResponse = await Client.PutAsJsonAsync(
+            $"/directory/v1/cells/{CellName}",
+            CreateCell(CellName),
+            WebOptions
+        );
+        Assert.Equal(HttpStatusCode.OK, cellResponse.StatusCode);
+        var reserveResponse = await ReserveTenantAsync(tenantId, issuer);
+        Assert.Equal(HttpStatusCode.OK, reserveResponse.StatusCode);
+        var placeResponse = await Client.PostAsJsonAsync(
+            "/directory/v1/tenants/place",
+            new TenantPlacementRequest
+            {
+                TenantId = tenantId,
+                Issuer = issuer,
+                Cell = CellName,
+            },
+            WebOptions
+        );
+        Assert.Equal(HttpStatusCode.OK, placeResponse.StatusCode);
+
+        var response = await Client.GetAsync($"/directory/v1/tenants/{tenantId}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var placement = await ReadAsync<TenantPlacement>(response);
+        Assert.Equal(tenantId, placement.TenantId);
+    }
+
+    [Fact]
     public async Task ReleaseTenant_WhenReserved_FreesTheIdentifier()
     {
         Authenticate();
@@ -642,7 +676,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         );
         var idResponse = await Client.GetAsync($"/directory/v1/tenants/retired-ids/{TenantId}");
         var issuerResponse = await Client.GetAsync(
-            $"/directory/v1/tenants/retired-issuers?issuer={Uri.EscapeDataString(TenantIssuer)}"
+            $"/directory/v1/retired-issuers?issuer={Uri.EscapeDataString(TenantIssuer)}"
         );
 
         Assert.Equal(HttpStatusCode.OK, retireResponse.StatusCode);
@@ -658,7 +692,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
         var idResponse = await Client.GetAsync($"/directory/v1/tenants/retired-ids/{TenantId}");
         var issuerResponse = await Client.GetAsync(
-            $"/directory/v1/tenants/retired-issuers?issuer={Uri.EscapeDataString(TenantIssuer)}"
+            $"/directory/v1/retired-issuers?issuer={Uri.EscapeDataString(TenantIssuer)}"
         );
 
         Assert.Equal(HttpStatusCode.NotFound, idResponse.StatusCode);
@@ -670,7 +704,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     {
         Authenticate();
 
-        var response = await Client.GetAsync("/directory/v1/tenants/retired-issuers");
+        var response = await Client.GetAsync("/directory/v1/retired-issuers");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -742,7 +776,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(InvalidTenantIdDetail, await ReadProblemDetailAsync(response));
         var issuerResponse = await Client.GetAsync(
-            $"/directory/v1/tenants/retired-issuers?issuer={Uri.EscapeDataString(TenantIssuer)}"
+            $"/directory/v1/retired-issuers?issuer={Uri.EscapeDataString(TenantIssuer)}"
         );
         Assert.Equal(HttpStatusCode.NotFound, issuerResponse.StatusCode);
     }
@@ -757,7 +791,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(InvalidTenantIdDetail, await ReadProblemDetailAsync(response));
         var issuerResponse = await Client.GetAsync(
-            $"/directory/v1/tenants/retired-issuers?issuer={Uri.EscapeDataString(TenantIssuer)}"
+            $"/directory/v1/retired-issuers?issuer={Uri.EscapeDataString(TenantIssuer)}"
         );
         Assert.Equal(HttpStatusCode.NotFound, issuerResponse.StatusCode);
     }
@@ -781,7 +815,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var issuerResponse = await Client.GetAsync(
-            $"/directory/v1/tenants/retired-issuers?issuer={Uri.EscapeDataString(TenantIssuer)}"
+            $"/directory/v1/retired-issuers?issuer={Uri.EscapeDataString(TenantIssuer)}"
         );
         Assert.Equal(HttpStatusCode.NotFound, issuerResponse.StatusCode);
     }
@@ -883,7 +917,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(InvalidIssuerDetail, await ReadProblemDetailAsync(response));
         var issuerResponse = await Client.GetAsync(
-            $"/directory/v1/tenants/retired-issuers?issuer={Uri.EscapeDataString(TenantIssuer)}"
+            $"/directory/v1/retired-issuers?issuer={Uri.EscapeDataString(TenantIssuer)}"
         );
         Assert.Equal(HttpStatusCode.NotFound, issuerResponse.StatusCode);
     }
@@ -907,7 +941,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var issuerResponse = await Client.GetAsync(
-            $"/directory/v1/tenants/retired-issuers?issuer={Uri.EscapeDataString(TenantIssuer)}"
+            $"/directory/v1/retired-issuers?issuer={Uri.EscapeDataString(TenantIssuer)}"
         );
         Assert.Equal(HttpStatusCode.OK, issuerResponse.StatusCode);
     }
@@ -929,7 +963,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         var idResponse = await Client.GetAsync($"/directory/v1/tenants/retired-ids/{TenantId}");
         Assert.Equal(HttpStatusCode.NotFound, idResponse.StatusCode);
         var issuerResponse = await Client.GetAsync(
-            $"/directory/v1/tenants/retired-issuers?issuer={Uri.EscapeDataString(issuer)}"
+            $"/directory/v1/retired-issuers?issuer={Uri.EscapeDataString(issuer)}"
         );
         Assert.Equal(HttpStatusCode.NotFound, issuerResponse.StatusCode);
     }
@@ -2112,12 +2146,15 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         );
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-        AuthenticateAsControlPlane();
-        var reserve = await Client.PostAsync(
-            $"/directory/v1/teams/{TeamId}/reserve",
-            content: null
-        );
-        Assert.Equal(HttpStatusCode.Conflict, reserve.StatusCode);
+        await using var dbContext = await App!
+            .Services.GetRequiredService<IDbContextFactory<DirectoryDbContext>>()
+            .CreateDbContextAsync();
+        var state = await dbContext
+            .Teams.AsNoTracking()
+            .Where(team => team.TeamId == TeamId)
+            .Select(team => team.State)
+            .SingleAsync();
+        Assert.Equal(TeamRecord.StateReserved, state);
     }
 
     [Fact]
