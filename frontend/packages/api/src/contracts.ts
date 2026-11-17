@@ -233,7 +233,7 @@ export type TeamResource = {
 export type CellResource = {
   readonly name: string;
   readonly region: string;
-  /** The cell's kind, such as `shared` or `dedicated`. */
+  /** The cell's kind, such as `shared`, `dedicated` or `sovereign`. */
   readonly kind: string;
   readonly isControlPlane: boolean;
 };

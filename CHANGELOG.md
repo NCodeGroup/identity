@@ -1149,17 +1149,19 @@ Until the first stable release, the [Unreleased] section describes the product a
   [ADR-1485](docs/decisions/1485-the-host-chart-enables-server-kms-vendors-and-holds-console-key-rings-under-the-consoles-identity.md)).
 
 - **A background job destroys the KMS keys that no stored secret names.** Every key the server creates in a KMS carries
-  the deployment that `Cell:Name` names, from which the host derives `SecretProtection:RemoteKeys:Deployment`
-  (the chart sets it from `cell.name`), and its group name hashes the deployment, so
-  deployments that share an AWS account, a vault or a key ring, each under a name of its own, never share or sweep each
+  the cell's name, `Cell:Name` (the chart sets it from `cell.name`), as `SecretProtection:RemoteKeys:Deployment`, which
+  the host sets from `Cell:Name` and refuses to configure to another value, and its group name hashes the cell's name,
+  so cells that share an AWS account, a vault or a key ring, each under a name of its own, never share or sweep each
   other's keys. At start and every `SecretProtection:RemoteKeys:SweepInterval` (one day), one replica dispatches
   a `RemoteKeySweepJob` per provider that creates keys through the dispatch port, logging a provider whose dispatch
-  fails and dispatching the others; the job lists the deployment's keys older than `SweepGracePeriod` (one day, between
+  fails and dispatching the others; the job lists the cell's keys older than `SweepGracePeriod` (one day, between
   one hour and 365 days) through `IRemoteKeyProvider.ListKeysAsync`, then reads the references every stored secret holds
   (`IRemoteKeyReferenceStore`), and destroys each key none names through `IRemoteSecretDestroyer.DestroyKeyAsync`,
   recording `remote_key.destroyed` with the reason `orphaned` in the control-plane tenant; `SweepEnabled` turns it off.
-  The Helm chart's `secretProtection.remoteKeys` sets the deployment and the sweep, and rendering fails for a release
-  whose enabled remote key provider has its region, vault URI or key ring, and so creates keys, without a deployment
+  The Helm chart's `secretProtection.remoteKeys` sets `sweepEnabled` (`true`), `sweepInterval` and `sweepGracePeriod`
+  (each `1.00:00:00`), which it renders as `SecretProtection__RemoteKeys__SweepEnabled`, `__SweepInterval` and
+  `__SweepGracePeriod`, and rendering fails for a release that sets a remote key provider's region, vault URI or key
+  ring while that provider's `enabled` is `false`
   ([#654](https://github.com/NCodeGroup/identity/issues/654), [#704](https://github.com/NCodeGroup/identity/issues/704),
   [#725](https://github.com/NCodeGroup/identity/issues/725),
   [ADR-1478](docs/decisions/1478-a-background-job-destroys-the-key-management-service-keys-that-no-stored-secret-names.md),
