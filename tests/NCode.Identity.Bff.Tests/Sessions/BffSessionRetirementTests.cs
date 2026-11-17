@@ -95,6 +95,12 @@ public class BffSessionRetirementTests : BaseTests
             .ReturnsAsync(record)
             .Verifiable();
 
+    private void SetupForget(BffSessionClient client, string key) =>
+        Store
+            .Setup(x => x.ForgetEndedSessionAsync(client, key, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
+
     private void SetupAcquire(string frontend, BffRefreshLease? lease) =>
         Store
             .Setup(x =>
@@ -228,7 +234,7 @@ public class BffSessionRetirementTests : BaseTests
     }
 
     [Fact]
-    public async Task RetireAsync_RecordAlreadyGone_SkipsIt()
+    public async Task RetireAsync_RecordAlreadyGone_ForgetsItsKeyAndEndsTheRest()
     {
         var client = CurrentClient with { Frontend = RemovedFrontend };
         var remaining = CreateMetadata(client);
@@ -237,12 +243,52 @@ public class BffSessionRetirementTests : BaseTests
         SetupAcquire(RemovedFrontend, lease);
         SetupFindByClient(client, "key-1", "key-2");
         SetupGet("key-1", null);
+        SetupForget(client, "key-1");
         SetupGet("key-2", CreateRecord("key-2", remaining));
         SetupEnd("key-2", remaining, BffSessionEndReasons.FrontendRemoved);
         SetupRelease(lease);
         var retirement = CreateRetirement();
 
         Assert.True(await retirement.RetireAsync(CreateSet(), CancellationToken.None));
+
+        Manager.Verify(
+            x =>
+                x.EndAsync(
+                    null,
+                    "key-1",
+                    It.IsAny<BffSessionMetadata>(),
+                    It.IsAny<string>(),
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Never
+        );
+    }
+
+    [Fact]
+    public async Task RetireAsync_ReadableRecord_EndsItAndDoesNotForgetIt()
+    {
+        var client = CurrentClient with { Frontend = RemovedFrontend };
+        var metadata = CreateMetadata(client);
+        var lease = new BffRefreshLease("retire:" + RemovedFrontend, "owner");
+        SetupFindClients(client);
+        SetupAcquire(RemovedFrontend, lease);
+        SetupFindByClient(client, "key-1");
+        SetupGet("key-1", CreateRecord("key-1", metadata));
+        SetupEnd("key-1", metadata, BffSessionEndReasons.FrontendRemoved);
+        SetupRelease(lease);
+        var retirement = CreateRetirement();
+
+        Assert.True(await retirement.RetireAsync(CreateSet(), CancellationToken.None));
+
+        Store.Verify(
+            x =>
+                x.ForgetEndedSessionAsync(
+                    It.IsAny<BffSessionClient>(),
+                    It.IsAny<string>(),
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Never
+        );
     }
 
     [Fact]

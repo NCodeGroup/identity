@@ -31,7 +31,8 @@ internal class BffSessionRetirement(
 )
 {
     /// <summary>
-    /// Ends the stored sessions of the frontends that the set removed or configured as another client.
+    /// Ends the stored sessions of the frontends that the set removed or configured as another client, and forgets the
+    /// key of a session whose record is already gone, so a later pass does not read it again.
     /// </summary>
     /// <param name="frontends">The set of frontends that the BFF serves.</param>
     /// <param name="cancellationToken">The token to cancel the pass.</param>
@@ -109,7 +110,10 @@ internal class BffSessionRetirement(
         {
             var record = await store.GetAsync(key, cancellationToken);
             if (record is null)
+            {
+                await store.ForgetEndedSessionAsync(client, key, cancellationToken);
                 continue;
+            }
 
             var metadata = record.Metadata;
             var recordReason = GetEndReason(metadata.Client, frontends);
