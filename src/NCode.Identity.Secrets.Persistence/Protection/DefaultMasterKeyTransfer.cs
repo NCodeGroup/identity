@@ -26,15 +26,19 @@ namespace NCode.Identity.Secrets.Persistence.Protection;
 /// same path that loads it for use, so a key that does not match its key-check value never leaves the source.
 /// </para>
 /// <para>
-/// An import stores the root key of the owner first and then each master key, wrapped under the root key the package
-/// brings or else under the nearest root key of the owner, in one unit of work. The identifier and the version of each
-/// master key are kept, so a value that a master key protected stays readable. The material of every key lives in
-/// sensitive memory and is zeroed after use; no key material is logged.
+/// An import refuses a root key that the checks of <see cref="IOwnerRootKeyManager.SetAsync"/> refuse, and stores
+/// nothing then. Otherwise it stores the root key of the owner first and then each master key, wrapped under the root
+/// key the package brings or else under the nearest root key of the owner, in one unit of work. The identifier and the
+/// version of each master key are kept, so a value that a master key protected stays readable. The material of every
+/// key lives in sensitive memory and is zeroed after use; no key material is logged.
 /// </para>
 /// </remarks>
 /// <param name="factory">The factory that unwraps and wraps master keys.</param>
 /// <param name="nearestRootKeyResolver">
 /// The resolver that finds the root key that wraps the master keys of an owner.
+/// </param>
+/// <param name="ownerRootKeyManager">
+/// The manager whose policies and key wrappers judge the root key that a package brings.
 /// </param>
 /// <param name="storeManagerFactory">The factory that opens the unit of work for the stores.</param>
 /// <param name="joseSerializer">The serializer that encrypts and decrypts the package.</param>
@@ -43,6 +47,7 @@ namespace NCode.Identity.Secrets.Persistence.Protection;
 internal sealed class DefaultMasterKeyTransfer(
     MasterKeyFactory factory,
     INearestOwnerRootKeyResolver nearestRootKeyResolver,
+    IOwnerRootKeyManager ownerRootKeyManager,
     IStoreManagerFactory storeManagerFactory,
     IJoseSerializer joseSerializer,
     IAlgorithmCollectionProvider algorithmCollectionProvider
@@ -57,6 +62,8 @@ internal sealed class DefaultMasterKeyTransfer(
     private MasterKeyFactory Factory { get; } = factory;
 
     private INearestOwnerRootKeyResolver NearestRootKeyResolver { get; } = nearestRootKeyResolver;
+
+    private IOwnerRootKeyManager OwnerRootKeyManager { get; } = ownerRootKeyManager;
 
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
 
@@ -145,6 +152,24 @@ internal sealed class DefaultMasterKeyTransfer(
             throw new InvalidOperationException(
                 $"The master key transfer package is for another owner than '{key}'."
             );
+        }
+
+        // The root key that the package brings passes the checks that setting it would, so a move cannot wrap master keys
+        // under a key that this cell does not allow, such as a key outside its cloud regions.
+        if (
+            imported.RootKey is { } bringing
+            && OwnerRootKeyRequestValidation.GetRefusalOrDefault(
+                OwnerRootKeyManager,
+                key,
+                new OwnerRootKeyRequest(bringing.KeyWrapperName, bringing.KeyReference)
+                {
+                    AccessIdentity = bringing.AccessIdentity,
+                }
+            )
+                is { } refusal
+        )
+        {
+            return new MasterKeyTransferResult(0) { RefusalDetail = refusal.Reason };
         }
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);

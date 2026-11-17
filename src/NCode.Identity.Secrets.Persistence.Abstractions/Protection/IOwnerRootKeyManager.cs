@@ -13,9 +13,10 @@ namespace NCode.Identity.Secrets.Persistence.Protection;
 /// </summary>
 /// <remarks>
 /// Which owners can bring a root key is decided by the registered <see cref="IOwnerRootKeyPolicy"/> implementations,
-/// which govern <see cref="SetAsync"/> only: the master keys of the <c>platform</c> owner, for example, are always wrapped
-/// by the deployment's root key, so it cannot bring one. Setting or changing the key rotates the owner's master key
-/// and rewraps the retired ones under the key; removing it moves the master keys back under the deployment's root key
+/// which govern <see cref="SetAsync"/> and the import of a moved tenant's root key through
+/// <see cref="IMasterKeyTransfer"/>: the master keys of the <c>platform</c> owner, for example, are always wrapped by
+/// the deployment's root key, so it cannot bring one. Setting or changing the key rotates the owner's master key and
+/// rewraps the retired ones under the key; removing it moves the master keys back under the deployment's root key
 /// without rotating. Every registered <see cref="IOwnerRootKeyChangeObserver"/> learns of a state change after it is
 /// committed.
 /// </remarks>

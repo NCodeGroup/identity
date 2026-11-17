@@ -44,6 +44,7 @@ public class DefaultMasterKeyTransferTests : BaseTests
     private Mock<SecretKey> WrongKey { get; }
     private Mock<JoseToken> Token { get; }
     private Mock<ISecretOwnerParentResolver> Parents { get; }
+    private Mock<IOwnerRootKeyManager> OwnerRootKeyManager { get; }
     private FakeJoseEncoder Encoder { get; } = new();
 
     public DefaultMasterKeyTransferTests()
@@ -58,6 +59,7 @@ public class DefaultMasterKeyTransferTests : BaseTests
         WrongKey = CreateStrictMock<SecretKey>();
         Token = CreateStrictMock<JoseToken>();
         Parents = CreateStrictMock<ISecretOwnerParentResolver>();
+        OwnerRootKeyManager = CreateStrictMock<IOwnerRootKeyManager>();
     }
 
     protected override void Dispose(bool disposing)
@@ -194,6 +196,7 @@ public class DefaultMasterKeyTransferTests : BaseTests
         var stored = SetupAdd(importCell);
         SetupSave(importCell);
         SetupImport();
+        SetupRootKeyAccepted(rootKey);
 
         var result = await CreateTransfer(importCatalog, importCell.Factory)
             .ImportAsync(Owner, package, PrivateKey.Object, CancellationToken.None);
@@ -256,6 +259,74 @@ public class DefaultMasterKeyTransferTests : BaseTests
             .ImportAsync(Owner, package, PrivateKey.Object, CancellationToken.None);
 
         Assert.Equal(new MasterKeyTransferResult(0), result);
+    }
+
+    [Fact]
+    public async Task Import_ARootKeyWhoseReferenceTheCellRefuses_ReturnsTheRefusalBeforeOpeningAUnitOfWork()
+    {
+        const string refusal =
+            "The key reference must be the ARN of a KMS key or alias in one of the allowed AWS regions: us-west-2.";
+        var (package, rootKey) = await ExportRootedAsync(CancellationToken.None);
+        SetupImport();
+
+        string? reason = null;
+        string? failure = refusal;
+        OwnerRootKeyManager
+            .Setup(x => x.CanBringRootKey(Owner, out reason))
+            .Returns(true)
+            .Verifiable();
+        OwnerRootKeyManager
+            .Setup(x =>
+                x.TryValidateKeyReference(rootKey.KeyWrapperName, rootKey.KeyReference, out failure)
+            )
+            .Returns(false)
+            .Verifiable();
+
+        var transfer = CreateTransfer(
+            CreateStrictMock<IKeyWrapperCatalog>(),
+            CreateStrictMock<IStoreManagerFactory>()
+        );
+
+        var result = await transfer.ImportAsync(
+            Owner,
+            package,
+            PrivateKey.Object,
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsImported);
+        Assert.Equal(0, result.Count);
+        Assert.Equal(refusal, result.RefusalDetail);
+    }
+
+    [Fact]
+    public async Task Import_ARootKeyOfAnOwnerAPolicyRefuses_ReturnsTheRefusalBeforeOpeningAUnitOfWork()
+    {
+        const string refusal = "The owner cannot bring a root key.";
+        var (package, _) = await ExportRootedAsync(CancellationToken.None);
+        SetupImport();
+
+        string? reason = refusal;
+        OwnerRootKeyManager
+            .Setup(x => x.CanBringRootKey(Owner, out reason))
+            .Returns(false)
+            .Verifiable();
+
+        var transfer = CreateTransfer(
+            CreateStrictMock<IKeyWrapperCatalog>(),
+            CreateStrictMock<IStoreManagerFactory>()
+        );
+
+        var result = await transfer.ImportAsync(
+            Owner,
+            package,
+            PrivateKey.Object,
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsImported);
+        Assert.Equal(0, result.Count);
+        Assert.Equal(refusal, result.RefusalDetail);
     }
 
     [Fact]
@@ -344,6 +415,7 @@ public class DefaultMasterKeyTransferTests : BaseTests
         new(
             new MasterKeyFactory(catalog.Object, Recovery, Time),
             new DefaultNearestOwnerRootKeyResolver(Parents.Object),
+            OwnerRootKeyManager.Object,
             storeManagerFactory.Object,
             Jose.Object,
             Algorithms.Object
@@ -506,6 +578,53 @@ public class DefaultMasterKeyTransferTests : BaseTests
         SetupList(cell);
         SetupFind(cell, rootKey: null);
         return await ExportAsync(CreateStrictMock<IKeyWrapperCatalog>(), cell, cancellationToken);
+    }
+
+    // Exports an owner with its own root key and one master key wrapped under it.
+    private async ValueTask<(string Package, PersistedOwnerRootKey RootKey)> ExportRootedAsync(
+        CancellationToken cancellationToken
+    )
+    {
+        var wrapper = new FakeReferencedKeyWrapper();
+        var rootKey = CreateRootKey(wrapper.Name);
+
+        var catalog = CreateStrictMock<IKeyWrapperCatalog>();
+        catalog.Setup(x => x.GetReferenced(wrapper.Name)).Returns(wrapper).Verifiable();
+        var key = await CreateKeyAsync(catalog, 1, rootKey, cancellationToken);
+
+        var cell = CreateCell();
+        SetupList(cell, key.Row);
+        SetupFind(cell, rootKey);
+
+        var package = await ExportAsync(catalog, cell, cancellationToken);
+        return (package, rootKey);
+    }
+
+    // The manager lets the owner bring the root key and accepts its key reference and its access identity.
+    private void SetupRootKeyAccepted(PersistedOwnerRootKey rootKey)
+    {
+        string? reason = null;
+        string? failure = null;
+        OwnerRootKeyManager
+            .Setup(x => x.CanBringRootKey(Owner, out reason))
+            .Returns(true)
+            .Verifiable();
+        OwnerRootKeyManager
+            .Setup(x =>
+                x.TryValidateKeyReference(rootKey.KeyWrapperName, rootKey.KeyReference, out failure)
+            )
+            .Returns(true)
+            .Verifiable();
+        OwnerRootKeyManager
+            .Setup(x =>
+                x.TryValidateAccessIdentity(
+                    rootKey.KeyWrapperName,
+                    rootKey.AccessIdentity!,
+                    out failure
+                )
+            )
+            .Returns(true)
+            .Verifiable();
     }
 
     private async ValueTask<CreatedMasterKey> CreateKeyAsync(
