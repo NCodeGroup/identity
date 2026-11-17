@@ -518,17 +518,6 @@ internal class TeamStore(
     }
 
     /// <inheritdoc />
-    public async ValueTask<long> GetMaxDirectorySequenceAsync(CancellationToken cancellationToken)
-    {
-        var maxSequence = await DbContext.Teams.MaxAsync(
-            team => (long?)team.DirectorySequence,
-            cancellationToken
-        );
-
-        return maxSequence ?? 0;
-    }
-
-    /// <inheritdoc />
     public async ValueTask<bool> MirrorAsync(
         PersistedTeam persistedTeam,
         CancellationToken cancellationToken
@@ -639,6 +628,27 @@ internal class TeamStore(
         DbContext.Teams.Update(teamEntity);
 
         persistedTeam.Settings.ConcurrencyToken = teamEntity.SettingsConcurrencyToken;
+
+        return true;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<bool> DisableRetiredAsync(
+        string teamId,
+        long directorySequence,
+        CancellationToken cancellationToken
+    )
+    {
+        var teamEntity = await GetEntityOrDefaultAsync(teamId, cancellationToken);
+        if (teamEntity is null || teamEntity.DirectorySequence >= directorySequence)
+        {
+            return false;
+        }
+
+        // Set only these two columns and do not call Update, so that only they are written. The interceptor regenerates
+        // the row ConcurrencyToken on save (ADR-1012).
+        teamEntity.IsDisabled = true;
+        teamEntity.DirectorySequence = directorySequence;
 
         return true;
     }

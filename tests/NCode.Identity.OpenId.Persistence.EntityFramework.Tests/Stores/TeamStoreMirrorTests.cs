@@ -532,24 +532,65 @@ public sealed class TeamStoreMirrorTests : IDisposable
 
     #endregion
 
-    #region GetMaxDirectorySequenceAsync Tests
+    #region DisableRetiredAsync Tests
 
     [Fact]
-    public async Task GetMaxDirectorySequenceAsync_WhenNoTeamIsStored_ReturnsZero()
+    public async Task DisableRetiredAsync_WhenTheRowIsOlder_DisablesItAndRecordsTheSequence()
     {
-        var result = await Store.GetMaxDirectorySequenceAsync(CancellationToken.None);
+        await MirrorAsync(CreateTeam("acme", null, sequence: 1, displayName: "Acme"));
+        var before = await Store.GetOrDefaultAsync("acme", CancellationToken.None);
+        Assert.NotNull(before);
+        DbContext.ChangeTracker.Clear();
 
-        Assert.Equal(0, result);
+        var isDisabled = await Store.DisableRetiredAsync("acme", 5, CancellationToken.None);
+        await SaveAndClearAsync(CancellationToken.None);
+
+        Assert.True(isDisabled);
+        var team = await Store.GetOrDefaultAsync("acme", CancellationToken.None);
+        Assert.NotNull(team);
+        Assert.True(team.IsDisabled);
+        Assert.Equal(5, team.DirectorySequence);
+        Assert.Equal("Acme", team.DisplayName);
+        Assert.NotEqual(before.ConcurrencyToken, team.ConcurrencyToken);
     }
 
     [Fact]
-    public async Task GetMaxDirectorySequenceAsync_WhenTeamsAreStored_ReturnsTheHighestSequence()
+    public async Task DisableRetiredAsync_WhenTheRowCarriesTheSequence_ReturnsFalse()
     {
-        await SeedTreeAsync();
+        await MirrorAsync(CreateTeam("acme", null, sequence: 5));
 
-        var result = await Store.GetMaxDirectorySequenceAsync(CancellationToken.None);
+        var isDisabled = await Store.DisableRetiredAsync("acme", 5, CancellationToken.None);
+        await SaveAndClearAsync(CancellationToken.None);
 
-        Assert.Equal(5, result);
+        Assert.False(isDisabled);
+        var team = await Store.GetOrDefaultAsync("acme", CancellationToken.None);
+        Assert.NotNull(team);
+        Assert.False(team.IsDisabled);
+        Assert.Equal(5, team.DirectorySequence);
+    }
+
+    [Fact]
+    public async Task DisableRetiredAsync_WhenTheRowIsNewer_ReturnsFalse()
+    {
+        await MirrorAsync(CreateTeam("acme", null, sequence: 7));
+
+        var isDisabled = await Store.DisableRetiredAsync("acme", 5, CancellationToken.None);
+        await SaveAndClearAsync(CancellationToken.None);
+
+        Assert.False(isDisabled);
+        var team = await Store.GetOrDefaultAsync("acme", CancellationToken.None);
+        Assert.NotNull(team);
+        Assert.False(team.IsDisabled);
+        Assert.Equal(7, team.DirectorySequence);
+    }
+
+    [Fact]
+    public async Task DisableRetiredAsync_WhenTheTeamIsMissing_ReturnsFalse()
+    {
+        var isDisabled = await Store.DisableRetiredAsync("acme", 5, CancellationToken.None);
+
+        Assert.False(isDisabled);
+        Assert.Null(await Store.GetOrDefaultAsync("acme", CancellationToken.None));
     }
 
     #endregion

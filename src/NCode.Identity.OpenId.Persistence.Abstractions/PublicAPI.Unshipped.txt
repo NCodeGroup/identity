@@ -396,7 +396,7 @@ NCode.Identity.OpenId.Persistence.Stores.IPlatformStore
 NCode.Identity.OpenId.Persistence.Stores.IPlatformStore.GetOrDefaultAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Persistence.DataContracts.PersistedPlatform?>
 NCode.Identity.OpenId.Persistence.Stores.IPlatformStore.GetSettingsOrDefaultAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Persistence.DataContracts.PersistedPlatformSettings?>
 NCode.Identity.OpenId.Persistence.Stores.IPlatformStore.UpdateSettingsAsync(NCode.Identity.OpenId.Persistence.DataContracts.PersistedPlatformSettings! persistedPlatformSettings, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-NCode.Identity.OpenId.Persistence.Stores.ITeamStore.GetMaxDirectorySequenceAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<long>
+NCode.Identity.OpenId.Persistence.Stores.ITeamStore.DisableRetiredAsync(string! teamId, long directorySequence, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 NCode.Identity.OpenId.Persistence.Stores.ITeamStore.MirrorAsync(NCode.Identity.OpenId.Persistence.DataContracts.PersistedTeam! persistedTeam, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 NCode.Identity.OpenId.Persistence.Stores.ITeamStore.UpdateRootKeysAsync(NCode.Identity.OpenId.Persistence.DataContracts.PersistedTeam! persistedTeam, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Persistence.Stores.ITenantStore

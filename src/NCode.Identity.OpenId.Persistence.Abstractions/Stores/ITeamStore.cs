@@ -182,15 +182,6 @@ public interface ITeamStore : IStore<PersistedTeam>
     ValueTask<bool> HasDependentsAsync(string teamId, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Gets the highest directory sequence that the teams' rows carry, which is the position in the directory's change
-    /// feed that this store has applied.
-    /// </summary>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the highest
-    /// <see cref="PersistedTeam.DirectorySequence"/>, or <c>0</c> when no team exists.</returns>
-    ValueTask<long> GetMaxDirectorySequenceAsync(CancellationToken cancellationToken);
-
-    /// <summary>
     /// Upserts the team named by the persisted team's <c>TeamId</c> from a team document that the directory published.
     /// The team row is left as it is when its <see cref="PersistedTeam.DirectorySequence"/> is at or above the
     /// document's. Otherwise a missing row is inserted, its display name, settings, parent and path are set from the
@@ -205,4 +196,22 @@ public interface ITeamStore : IStore<PersistedTeam>
     /// <exception cref="InvalidOperationException">Thrown when the parent team does not exist, or when the team or a
     /// team beneath it would be nested deeper than <see cref="TeamPaths.MaxDepth"/> levels.</exception>
     ValueTask<bool> MirrorAsync(PersistedTeam persistedTeam, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Disables the mirrored team that the directory retired and records the retirement's sequence on its row, so a
+    /// retirement the directory delivers again changes nothing. The team row is left as it is when it is missing or
+    /// already carries a sequence at or above the retirement's. This method does not save; the caller's store manager
+    /// does.
+    /// </summary>
+    /// <param name="teamId">The identifier of the OpenId Team that the directory retired.</param>
+    /// <param name="directorySequence">The directory sequence of the retirement.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c> when the
+    /// team was disabled; otherwise <c>false</c> when no such team exists or its row already carries a sequence at or
+    /// above <paramref name="directorySequence"/>.</returns>
+    ValueTask<bool> DisableRetiredAsync(
+        string teamId,
+        long directorySequence,
+        CancellationToken cancellationToken
+    );
 }
