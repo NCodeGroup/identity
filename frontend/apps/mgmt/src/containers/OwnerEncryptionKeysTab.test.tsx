@@ -591,6 +591,21 @@ describe('OwnerEncryptionKeysTab root key', () => {
     expect(calls.some((c) => c.method === 'POST' && c.url === `${rootKeyUrl}/validate`)).toBe(true);
   });
 
+  it('says what a validation of the root key found', async () => {
+    installFetch((url, method) =>
+      url === `${rootKeyUrl}/validate` && method === 'POST'
+        ? jsonResponse({ ...rootKey, state: 'unavailable', failure: 'The key was revoked.' })
+        : jsonResponse(withRootKey),
+    );
+
+    renderTab(tenant, 'tenant');
+    fireEvent.click(await screen.findByTestId('root-key-validate'));
+
+    expect(await screen.findByTestId('root-key-validate-result')).toHaveTextContent(
+      'The root key is unavailable: The key was revoked.',
+    );
+  });
+
   it('reports a failed validation', async () => {
     installFetch((_url, method) =>
       method === 'POST'
@@ -621,6 +636,25 @@ describe('OwnerEncryptionKeysTab root key', () => {
     expect(await screen.findByTestId('root-key-none')).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByTestId('confirm-accept')).not.toBeInTheDocument());
     expect(calls.some((c) => c.method === 'DELETE' && c.url === rootKeyUrl)).toBe(true);
+  });
+
+  it("says the keys are back under the deployment's root key after a removal", async () => {
+    let current: EncryptionKeysResource = withRootKey;
+    installFetch((url, method) => {
+      if (url === rootKeyUrl && method === 'DELETE') {
+        current = withoutRootKey;
+        return new Response(null, { status: 204 });
+      }
+      return jsonResponse(current);
+    });
+
+    renderTab(tenant, 'tenant');
+    fireEvent.click(await screen.findByTestId('root-key-remove'));
+    fireEvent.click(await screen.findByTestId('confirm-accept'));
+
+    expect(await screen.findByTestId('root-key-remove-result')).toHaveTextContent(
+      "The keys are back under the deployment's root key.",
+    );
   });
 
   it('shows the root key as removing while keys remain under it', async () => {

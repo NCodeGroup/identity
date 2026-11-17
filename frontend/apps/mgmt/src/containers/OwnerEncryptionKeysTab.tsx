@@ -14,17 +14,9 @@ import {
   useValidateTenantRootKeyMutation,
   type ApiError,
 } from '@ncode/store';
-import {
-  ConfirmDialog,
-  DataStateBoundary,
-  EncryptionKeyTable,
-  EncryptionRootKeyCard,
-  EncryptionRootKeyFormDialog,
-  emptyEncryptionRootKeyFormValues,
-  type EncryptionRootKeyFormValues,
-} from '@ncode/ui';
+import { ConfirmDialog, DataStateBoundary, EncryptionKeyTable } from '@ncode/ui';
 import { useTenantCell } from '../tenantCell.js';
-import { rootKeyErrorMessage } from '../rootKeyErrorMessage.js';
+import { RootKeySection } from './RootKeySection.js';
 
 export type OwnerEncryptionKeysTabProps = {
   readonly owner: EncryptionKeyOwner;
@@ -53,95 +45,20 @@ function TenantRootKeySection({
   const [removeRootKey, { isLoading: isRemoving }] = useRemoveTenantRootKeyMutation();
   const [validateRootKey, { isLoading: isValidating }] = useValidateTenantRootKeyMutation();
   const cell = useTenantCell();
-  const [setting, setSetting] = useState(false);
-  const [setError, setSetError] = useState<string | undefined>(undefined);
-  const [removing, setRemoving] = useState(false);
-  const [removeError, setRemoveError] = useState<string | undefined>(undefined);
-  const [validateError, setValidateError] = useState<string | undefined>(undefined);
-
-  const closeSet = () => {
-    setSetting(false);
-    setSetError(undefined);
-  };
-
-  const closeRemove = () => {
-    setRemoving(false);
-    setRemoveError(undefined);
-  };
-
-  const handleSet = async (values: EncryptionRootKeyFormValues) => {
-    setSetError(undefined);
-    try {
-      await setRootKey({ tenantId, body: values, cell }).unwrap();
-      closeSet();
-    } catch (failure) {
-      setSetError(rootKeyErrorMessage(failure));
-    }
-  };
-
-  const handleRemove = async () => {
-    setRemoveError(undefined);
-    try {
-      await removeRootKey({ tenantId, cell }).unwrap();
-      closeRemove();
-    } catch (failure) {
-      setRemoveError(rootKeyErrorMessage(failure));
-    }
-  };
-
-  const handleValidate = async () => {
-    setValidateError(undefined);
-    try {
-      await validateRootKey({ tenantId, cell }).unwrap();
-    } catch (failure) {
-      setValidateError(rootKeyErrorMessage(failure));
-    }
-  };
 
   return (
-    <>
-      {validateError && (
-        <Alert severity="error" data-testid="root-key-validate-error">
-          {validateError}
-        </Alert>
-      )}
-      <EncryptionRootKeyCard
-        ownerLabel="tenant"
-        rootKey={rootKey}
-        canSet={providers.length > 0}
-        isBusy={isSetting || isRemoving || isValidating}
-        onSet={() => setSetting(true)}
-        onValidate={() => void handleValidate()}
-        onRemove={() => setRemoving(true)}
-      />
-      <EncryptionRootKeyFormDialog
-        open={setting}
-        ownerLabel="tenant"
-        initialValues={{
-          ...emptyEncryptionRootKeyFormValues,
-          provider: rootKey?.provider ?? emptyEncryptionRootKeyFormValues.provider,
-          keyReference: rootKey?.keyReference ?? emptyEncryptionRootKeyFormValues.keyReference,
-          accessIdentity:
-            rootKey?.accessIdentity ?? emptyEncryptionRootKeyFormValues.accessIdentity,
-        }}
-        providers={providers}
-        accessBinding={accessBinding}
-        isSubmitting={isSetting}
-        error={setError}
-        onSubmit={(values) => void handleSet(values)}
-        onCancel={closeSet}
-      />
-      <ConfirmDialog
-        open={removing}
-        title="Remove root key"
-        message="The keys are rewrapped under the deployment's root key. Any that cannot be unwrapped yet are retried in the background, and the root key is removed once none remains under it."
-        confirmLabel="Remove"
-        isBusy={isRemoving}
-        error={removeError}
-        onConfirm={() => void handleRemove()}
-        onCancel={closeRemove}
-      />
-    </>
+    <RootKeySection
+      ownerLabel="tenant"
+      rootKey={rootKey}
+      providers={providers}
+      accessBinding={accessBinding}
+      isSetting={isSetting}
+      isRemoving={isRemoving}
+      isValidating={isValidating}
+      onSet={(values) => setRootKey({ tenantId, body: values, cell }).unwrap()}
+      onRemove={() => removeRootKey({ tenantId, cell }).unwrap()}
+      onValidate={() => validateRootKey({ tenantId, cell }).unwrap()}
+    />
   );
 }
 
