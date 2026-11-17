@@ -6,7 +6,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NCode.Identity.OpenId.Host.Database.EndToEnd.Tests.Infrastructure;
 using NCode.Identity.OpenId.Persistence.EntityFramework;
+using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
+using NCode.Identity.Persistence.Stores;
 using Npgsql;
 using Xunit;
 
@@ -114,6 +116,43 @@ public sealed class RowLevelSecurityEndToEndTests(PostgresFixture fixture)
         );
 
         Assert.Equal(RlsViolationSqlState, exception.SqlState);
+    }
+
+    #endregion
+
+    #region RoleAssignmentStore Tests
+
+    [Fact]
+    public async Task GetByPrincipalAsync_Unscoped_ReadsTheAssignmentsOfEveryTenant()
+    {
+        var tenantA = await SeedTenantAsync(CancellationToken.None);
+        var tenantB = await SeedTenantAsync(CancellationToken.None);
+        var principalId = $"rls-{Guid.NewGuid():N}";
+        await SeedRoleAssignmentAsync(
+            tenantA.TenantId,
+            tenantA.TenantRowId,
+            principalId,
+            CancellationToken.None
+        );
+        await SeedRoleAssignmentAsync(
+            tenantB.TenantId,
+            tenantB.TenantRowId,
+            principalId,
+            CancellationToken.None
+        );
+        var accessor = new TestAmbientTenantAccessor();
+        using var scope = accessor.BeginUnscoped("end-to-end test");
+        await using var context = CreateContext(accessor);
+        var store = fixture.ServiceProvider.GetRequiredService<
+            Func<IStoreProvider, OpenIdDbContext, IRoleAssignmentStore>
+        >()(new TestStoreProvider(fixture.ServiceProvider), context);
+
+        var assignments = await store.GetByPrincipalAsync(principalId, CancellationToken.None);
+
+        Assert.Equal(
+            new[] { tenantA.TenantId, tenantB.TenantId }.Order(),
+            assignments.Select(x => x.TenantId).Order()
+        );
     }
 
     #endregion
@@ -229,6 +268,56 @@ public sealed class RowLevelSecurityEndToEndTests(PostgresFixture fixture)
         await command.ExecuteNonQueryAsync(cancellationToken);
 
         return (tenantId, tenantRowId, resourceServerId);
+    }
+
+    /// <summary>
+    /// Seeds an <c>Owner</c> assignment of the principal at the tenant node through the owner connection, which is a
+    /// superuser and so bypasses row-level security.
+    /// </summary>
+    private async ValueTask SeedRoleAssignmentAsync(
+        string tenantId,
+        long tenantRowId,
+        string principalId,
+        CancellationToken cancellationToken
+    )
+    {
+        var roleAssignmentId = Random.Shared.NextInt64(1, long.MaxValue);
+        var assignmentId = $"rls-{Guid.NewGuid():N}";
+
+        await using var connection = new NpgsqlConnection(fixture.OwnerConnectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = new NpgsqlCommand(
+            """
+            INSERT INTO "RoleAssignments" (
+                "Id", "TenantId", "NormalizedTenantId", "AssignmentId", "NormalizedAssignmentId",
+                "PrincipalId", "NormalizedPrincipalId", "RoleName", "NormalizedRoleName", "ResourceType",
+                "ResourceId", "NormalizedResourceId", "ConcurrencyToken")
+            VALUES (
+                @roleAssignmentId, @tenantRowId, @tenantId, @assignmentId, @assignmentId,
+                @principalId, @principalId, 'Owner', 'owner', 'tenant',
+                @tenantId, @tenantId, 'c');
+            """,
+            connection
+        );
+        command.Parameters.AddWithValue("roleAssignmentId", roleAssignmentId);
+        command.Parameters.AddWithValue("tenantRowId", tenantRowId);
+        command.Parameters.AddWithValue("tenantId", tenantId);
+        command.Parameters.AddWithValue("assignmentId", assignmentId);
+        command.Parameters.AddWithValue("principalId", principalId);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// An <see cref="IStoreProvider"/> that resolves services from a provider and serves no store, because the store a
+    /// test builds reads through its own context and never asks for another store.
+    /// </summary>
+    private sealed class TestStoreProvider(IServiceProvider services) : IStoreProvider
+    {
+        public object? GetService(Type serviceType) => services.GetService(serviceType);
+
+        public TStore GetStore<TStore>()
+            where TStore : IStore => throw new NotSupportedException();
     }
 
     /// <summary>
