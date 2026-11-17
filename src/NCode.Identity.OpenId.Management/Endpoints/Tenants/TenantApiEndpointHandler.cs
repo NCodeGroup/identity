@@ -335,6 +335,7 @@ internal class TenantApiEndpointHandler(
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status412PreconditionFailed);
 
         tenants
@@ -2492,6 +2493,8 @@ internal class TenantApiEndpointHandler(
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="204">The secret was deleted.</response>
     /// <response code="404">The tenant or the secret does not exist.</response>
+    /// <response code="409">The global directory places the tenant in another cell, and this cell's copy is released with release-moved.</response>
+    /// <response code="503">The global directory cannot be reached to read the tenant's placement; the response carries Retry-After.</response>
     [EndpointName("api/tenants/secrets/delete")]
     internal virtual async ValueTask<IResult> DeleteSecretAsync(
         HttpContext httpContext,
@@ -2519,6 +2522,18 @@ internal class TenantApiEndpointHandler(
         if (secret is null)
         {
             return ManagementProblems.ResourceNotFound();
+        }
+
+        if (
+            await GetPlacedElsewhereProblemOrDefaultAsync(
+                httpContext,
+                tenantId,
+                cancellationToken
+            ) is
+            { } placedElsewhere
+        )
+        {
+            return placedElsewhere;
         }
 
         var secretValues = ToResourceValues(ToSecretResource(secret));

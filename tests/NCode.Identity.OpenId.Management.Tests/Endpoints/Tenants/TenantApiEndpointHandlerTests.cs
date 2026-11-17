@@ -217,6 +217,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     private void SetupDeleteSecretStore(out PersistedSecret secret)
     {
         SetupStore();
+        SetupTenantPlacement(CellName);
         secret = CreatePersistedSecret();
         MockTenantStore
             .Setup(x =>
@@ -2764,7 +2765,11 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         "/tenants/{tenantId}/secrets/{secretId}",
         new[] { 400, 401, 403, 404, 412, 415 }
     )]
-    [InlineData("DELETE", "/tenants/{tenantId}/secrets/{secretId}", new[] { 401, 403, 404, 412 })]
+    [InlineData(
+        "DELETE",
+        "/tenants/{tenantId}/secrets/{secretId}",
+        new[] { 401, 403, 404, 409, 412 }
+    )]
     [InlineData("GET", "/tenants/{tenantId}/encryption-keys", new[] { 401, 403, 404 })]
     [InlineData(
         "POST",
@@ -3110,6 +3115,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         SetupTenantChangedAnnouncement();
         SetupTenantSecretChangedAudit();
         SetupStore();
+        SetupTenantPlacement(CellName);
         MockTenantStore
             .Setup(x =>
                 x.GetSecretOrDefaultAsync(TenantId, "secret-1", It.IsAny<CancellationToken>())
@@ -3194,6 +3200,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         SetupTenantChangedAnnouncement();
         SetupTenantSecretChangedAudit();
         SetupStore();
+        SetupTenantPlacement(CellName);
         MockTenantStore
             .Setup(x =>
                 x.GetSecretOrDefaultAsync(TenantId, "secret-1", It.IsAny<CancellationToken>())
@@ -3288,6 +3295,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         IReadOnlyCollection<PersistedSecret>? destroyed = null;
         SetupRemoteSecretDestroy(removed => destroyed = removed);
         SetupStore();
+        SetupTenantPlacement(CellName);
         var secret = CreatePersistedSecret();
         MockTenantStore
             .Setup(x =>
@@ -3411,6 +3419,75 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         );
 
         Assert.IsType<ProblemHttpResult>(result);
+        MockRemoteSecretDestroyer.Verify(
+            x => x.DestroyAsync(It.IsAny<IReadOnlyCollection<PersistedSecret>>()),
+            Times.Never
+        );
+    }
+
+    [Fact]
+    public async Task DeleteSecretAsync_WhenTheDirectoryPlacesTheTenantInAnotherCell_ReturnsConflictAndDestroysNothing()
+    {
+        SetupStore();
+        MockTenantStore
+            .Setup(x =>
+                x.GetSecretOrDefaultAsync(TenantId, "secret-1", It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(CreatePersistedSecret())
+            .Verifiable();
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupTenantPlacement("cell-2");
+
+        var result = await Handler.DeleteSecretAsync(
+            CreateHttpContext(authenticated: true),
+            TenantId,
+            "secret-1",
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+        Assert.Equal(
+            "The global directory places the tenant 'tenant-1' in the cell 'cell-2'. Release this cell's copy with release-moved.",
+            problem.ProblemDetails.Detail
+        );
+        MockRemoteSecretDestroyer.Verify(
+            x => x.DestroyAsync(It.IsAny<IReadOnlyCollection<PersistedSecret>>()),
+            Times.Never
+        );
+    }
+
+    [Fact]
+    public async Task DeleteSecretAsync_WhenTheDirectoryIsUnavailableForThePlacement_ReturnsServiceUnavailableAndDestroysNothing()
+    {
+        SetupStore();
+        MockTenantStore
+            .Setup(x =>
+                x.GetSecretOrDefaultAsync(TenantId, "secret-1", It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(CreatePersistedSecret())
+            .Verifiable();
+        SetupAuthorization(AuthorizationResult.Success());
+        MockTenantDirectory
+            .Setup(x => x.GetPlacementOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new DirectoryUnavailableException("The directory is unreachable."))
+            .Verifiable();
+
+        var httpContext = CreateHttpContext(authenticated: true);
+
+        var result = await Handler.DeleteSecretAsync(
+            httpContext,
+            TenantId,
+            "secret-1",
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, problem.StatusCode);
+        Assert.Equal(
+            $"{GlobalDirectoryProtocol.UnavailableRetryAfterSeconds}",
+            httpContext.Response.Headers.RetryAfter.ToString()
+        );
         MockRemoteSecretDestroyer.Verify(
             x => x.DestroyAsync(It.IsAny<IReadOnlyCollection<PersistedSecret>>()),
             Times.Never
