@@ -55,11 +55,13 @@ without the cookie.**
    ([ADR-1443](1443-a-bff-session-ends-when-its-frontend-is-removed-or-registered-as-another-client.md)) need it without
    the handle.
 6. **The store seam.** `IBffSessionStore` is a public, replaceable service. It holds opaque records, the `sid`, `sub`
-   and client membership indexes, login transactions and refresh leases, so a replacement only ever sees ciphertext and
-   cannot skip the encryption. The default store prefixes its keys `bff:session:`, `bff:txn:` and `bff:lease:`. Index
-   keys are `bff:sid:` or `bff:sub:` plus base64url(SHA-256) of the length-prefixed issuer and value, and `bff:client:`
-   plus the same digest of the frontend and the digest of the authority and the client id,
-   with `bff:clients` listing the clients, so a value an attacker supplies cannot make a key ambiguous or unbounded.
+   and client membership indexes, the plaintext client of each member of `bff:clients`, login transactions and refresh
+   leases, so a replacement only ever sees a payload as ciphertext and cannot skip the encryption. The default store
+   prefixes its keys `bff:session:`, `bff:txn:` and `bff:lease:`. Index keys are `bff:sid:` or `bff:sub:` plus
+   base64url(SHA-256) of the length-prefixed issuer and value, and `bff:client:` plus the same digest of the frontend
+   and the digest of the authority and the client id, with `bff:clients` listing the clients and `bff:client-member:`
+   plus a member of that list (its UTC day and the client digest) holding that client in plaintext, so the key space
+   names no client and a value an attacker supplies cannot make a key ambiguous or unbounded.
    Any adapter exception surfaces as `BffStoreUnavailableException`, which is answered with `503`, never `401`
    ([ADR-1292](1292-the-bffs-cookie-authenticates-only-guarded-endpoints-which-refuse-cross-site-requests-and-reload-cookieless-navigations.md)).
 7. **The login transaction** (issuer, redirect URI, PKCE verifier, nonce, return URL, the DPoP `jkt`, `max_age` and the

@@ -18,7 +18,8 @@ Four forces shape the answer:
 - Replicas apply a change at different moments, and a change made by restarting the replicas is seen by none of them
   as a change.
 - Correctness never depends on process-local state, and work proportional to the sessions never runs inside a request.
-- The store is a replaceable seam that only ever holds opaque records and their indexes
+- The store is a replaceable seam that holds the session records, which it treats as opaque, their indexes, and a
+  value per listed client that names the client in plaintext, as a record's readable metadata does
   ([ADR-1290](1290-the-bff-keeps-each-session-as-an-encrypted-server-side-record-under-a-cookie-handle.md)).
 
 ## Decision

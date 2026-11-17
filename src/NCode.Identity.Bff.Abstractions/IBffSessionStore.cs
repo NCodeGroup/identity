@@ -111,7 +111,7 @@ public interface IBffSessionStore
 
     /// <summary>
     /// Removes the key of a session whose record is gone from the index of its client, so a later search of the
-    /// client's sessions no longer returns it.
+    /// client's sessions does not return it.
     /// </summary>
     /// <param name="client">The client that the session was issued to.</param>
     /// <param name="storeKey">The key of the session, whose record is gone.</param>
