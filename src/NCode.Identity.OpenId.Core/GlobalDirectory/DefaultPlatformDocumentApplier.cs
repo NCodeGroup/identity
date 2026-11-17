@@ -86,16 +86,4 @@ internal sealed class DefaultPlatformDocumentApplier(
             );
         }
     }
-
-    /// <inheritdoc />
-    public async ValueTask<long> GetAppliedSequenceAsync(CancellationToken cancellationToken)
-    {
-        using var _ = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
-
-        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
-        var store = storeManager.GetStore<IPlatformStore>();
-
-        var persistedPlatform = await store.GetOrDefaultAsync(cancellationToken);
-        return persistedPlatform?.DirectorySequence ?? 0;
-    }
 }

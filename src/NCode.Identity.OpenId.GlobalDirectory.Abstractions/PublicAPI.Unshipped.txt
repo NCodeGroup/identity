@@ -64,7 +64,6 @@ NCode.Identity.OpenId.GlobalDirectory.IPlatformDirectory.GetOrDefaultAsync(Syste
 NCode.Identity.OpenId.GlobalDirectory.IPlatformDirectory.PublishAsync(NCode.Identity.OpenId.GlobalDirectory.PlatformDocument! document, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.GlobalDirectory.IPlatformDocumentApplier
 NCode.Identity.OpenId.GlobalDirectory.IPlatformDocumentApplier.ApplyAsync(NCode.Identity.OpenId.GlobalDirectory.PlatformDocument! document, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-NCode.Identity.OpenId.GlobalDirectory.IPlatformDocumentApplier.GetAppliedSequenceAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<long>
 NCode.Identity.OpenId.GlobalDirectory.ITeamDirectory
 NCode.Identity.OpenId.GlobalDirectory.ITeamDirectory.GetOrDefaultAsync(string! teamId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.TeamDocument?>
 NCode.Identity.OpenId.GlobalDirectory.ITeamDirectory.IsTeamIdRetiredAsync(string! teamId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>

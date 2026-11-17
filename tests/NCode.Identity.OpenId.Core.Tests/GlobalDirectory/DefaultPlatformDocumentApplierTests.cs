@@ -213,51 +213,6 @@ public sealed class DefaultPlatformDocumentApplierTests : BaseTests
 
     #endregion
 
-    #region GetAppliedSequenceAsync Tests
-
-    [Fact]
-    public async Task GetAppliedSequenceAsync_WhenNoPlatformIsStored_ReturnsZero()
-    {
-        SetupUnscoped();
-        SetupStoreManager();
-        MockPlatformStore
-            .Setup(x => x.GetOrDefaultAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync((PersistedPlatform?)null)
-            .Verifiable();
-
-        var result = await Applier.GetAppliedSequenceAsync(CancellationToken.None);
-
-        Assert.Equal(0L, result);
-    }
-
-    [Fact]
-    public async Task GetAppliedSequenceAsync_WhenAPlatformIsStored_ReturnsItsSequence()
-    {
-        SetupUnscoped();
-        SetupStoreManager();
-        MockPlatformStore
-            .Setup(x => x.GetOrDefaultAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(
-                new PersistedPlatform
-                {
-                    ConcurrencyToken = "token-1",
-                    DirectorySequence = 11,
-                    Settings = new PersistedPlatformSettings
-                    {
-                        ConcurrencyToken = "settings-token-1",
-                        Value = JsonElement.Parse("{}"),
-                    },
-                }
-            )
-            .Verifiable();
-
-        var result = await Applier.GetAppliedSequenceAsync(CancellationToken.None);
-
-        Assert.Equal(11L, result);
-    }
-
-    #endregion
-
     private void SetupUnscoped() =>
         MockAmbientTenantAccessor
             .Setup(x => x.BeginUnscoped(UnscopedReason))
