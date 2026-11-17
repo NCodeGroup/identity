@@ -228,18 +228,12 @@ internal sealed class DefaultOwnerRootKeyManager(
         var keyReference = request.KeyReference;
         var accessIdentity = request.AccessIdentity;
 
-        if (!CanBringRootKey(key, out var notAllowed))
-            throw new OwnerRootKeyNotAllowedException(key, notAllowed);
-
-        if (!TryValidateKeyReference(keyWrapperName, keyReference, out var failure))
-            throw new ArgumentException(failure, nameof(request));
-
-        if (
-            accessIdentity is not null
-            && !TryValidateAccessIdentity(keyWrapperName, accessIdentity, out failure)
-        )
+        if (OwnerRootKeyRequestValidation.GetRefusalOrDefault(this, key, request) is { } refusal)
         {
-            throw new ArgumentException(failure, nameof(request));
+            if (refusal.IsOwnerRefused)
+                throw new OwnerRootKeyNotAllowedException(key, refusal.Reason);
+
+            throw new ArgumentException(refusal.Reason, nameof(request));
         }
 
         var (binding, rows) = await ReadAsync(key, cancellationToken);
