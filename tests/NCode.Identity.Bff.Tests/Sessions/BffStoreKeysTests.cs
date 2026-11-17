@@ -131,6 +131,43 @@ public class BffStoreKeysTests : BaseTests
 
     #endregion
 
+    #region ClientMemberValue Tests
+
+    [Fact]
+    public void ClientMemberValue_Always_PrefixesTheMember()
+    {
+        var client = new BffSessionClient("web", "https://op.example", "client-1");
+        var member = BffStoreKeys.ClientMember(
+            client,
+            new DateTimeOffset(2030, 5, 6, 12, 0, 0, TimeSpan.Zero)
+        );
+
+        var result = BffStoreKeys.ClientMemberValue(member);
+
+        Assert.Equal("bff:client-member:2030-05-06:" + BffStoreKeys.ClientDigest(client), result);
+    }
+
+    [Fact]
+    public void ClientMemberValue_DifferentMembers_Differ()
+    {
+        var client = new BffSessionClient("web", "https://op.example", "client-1");
+        var first = BffStoreKeys.ClientMember(
+            client,
+            new DateTimeOffset(2030, 5, 6, 12, 0, 0, TimeSpan.Zero)
+        );
+        var second = BffStoreKeys.ClientMember(
+            client,
+            new DateTimeOffset(2030, 5, 7, 12, 0, 0, TimeSpan.Zero)
+        );
+
+        Assert.NotEqual(
+            BffStoreKeys.ClientMemberValue(first),
+            BffStoreKeys.ClientMemberValue(second)
+        );
+    }
+
+    #endregion
+
     #region SessionIdIndex Tests
 
     [Fact]

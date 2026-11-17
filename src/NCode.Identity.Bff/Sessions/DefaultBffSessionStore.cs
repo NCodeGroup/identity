@@ -14,11 +14,6 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
     : IBffSessionStore
 {
     /// <summary>
-    /// The number of session records that one round of a client's resolution reads concurrently.
-    /// </summary>
-    private const int ClientResolutionReadsPerRound = 8;
-
-    /// <summary>
     /// Encodes a refresh lease's owner token as UTF-8 into sensitive pooled memory that is zeroed when the returned
     /// lease is disposed. The bytes live in <see cref="ReadOnlyMemory{T}"/> because they cross an <c>await</c>.
     /// </summary>
@@ -96,10 +91,24 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
                 metadata.AbsoluteExpiresAt,
                 cancellationToken
             );
+
+            var member = BffStoreKeys.ClientMember(client, metadata.AbsoluteExpiresAt);
+            var memberExpiresAt = BffStoreKeys.ClientMemberExpiresAt(metadata.AbsoluteExpiresAt);
+            using var clientLease = BffSessionClientSerializer.Serialize(
+                client,
+                out var clientValue
+            );
+            // A value that is already present holds the same client, so it stays.
+            await values.TryAddAsync(
+                BffStoreKeys.ClientMemberValue(member),
+                clientValue,
+                memberExpiresAt,
+                cancellationToken
+            );
             await indexes.AddMemberAsync(
                 BffStoreKeys.ClientsIndex,
-                BffStoreKeys.ClientMember(client, metadata.AbsoluteExpiresAt),
-                BffStoreKeys.ClientMemberExpiresAt(metadata.AbsoluteExpiresAt),
+                member,
+                memberExpiresAt,
                 cancellationToken
             );
 
@@ -261,7 +270,7 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
             );
 
             var clients = new List<BffSessionClient>();
-            var digests = new HashSet<string>(
+            var resolved = new HashSet<string>(
                 except.Select(BffStoreKeys.ClientDigest),
                 StringComparer.Ordinal
             );
@@ -269,17 +278,23 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
             {
                 if (
                     !BffStoreKeys.TryParseClientMember(member, out var digest)
-                    || !digests.Add(digest)
+                    || resolved.Contains(digest)
                 )
                     continue;
 
-                var indexKey = BffStoreKeys.ClientIndex(digest);
-                var storeKeys = await indexes.GetMembersAsync(indexKey, cancellationToken);
+                var stored = await values.GetAsync(
+                    BffStoreKeys.ClientMemberValue(member),
+                    cancellationToken
+                );
                 if (
-                    await TryResolveClientAsync(storeKeys, cancellationToken) is { } client
-                    && BffStoreKeys.ClientIndex(client) == indexKey
+                    stored is not { } found
+                    || BffSessionClientSerializer.Deserialize(found.Value.Span) is not { } client
+                    || BffStoreKeys.ClientDigest(client) != digest
                 )
-                    clients.Add(client);
+                    continue;
+
+                resolved.Add(digest);
+                clients.Add(client);
             }
 
             return clients;
@@ -407,38 +422,5 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
         {
             throw Unavailable(exception);
         }
-    }
-
-    /// <summary>
-    /// Reads the client from the first readable session record among the members of a client's index. A round reads the
-    /// records of the next <see cref="ClientResolutionReadsPerRound"/> members concurrently, in member order, and the
-    /// first round that holds a readable record ends the search with the first readable record of that round.
-    /// </summary>
-    /// <param name="storeKeys">The store keys of the sessions in the client's index.</param>
-    /// <param name="cancellationToken">A token that cancels the reads.</param>
-    /// <returns>The client of the first readable record; otherwise, <see langword="null"/>.</returns>
-    private async ValueTask<BffSessionClient?> TryResolveClientAsync(
-        IReadOnlyList<string> storeKeys,
-        CancellationToken cancellationToken
-    )
-    {
-        for (var offset = 0; offset < storeKeys.Count; offset += ClientResolutionReadsPerRound)
-        {
-            var reads = new Task<BffSessionRecord?>[
-                Math.Min(ClientResolutionReadsPerRound, storeKeys.Count - offset)
-            ];
-            for (var index = 0; index < reads.Length; index++)
-            {
-                reads[index] = GetAsync(storeKeys[offset + index], cancellationToken).AsTask();
-            }
-
-            foreach (var record in await Task.WhenAll(reads))
-            {
-                if (record is not null)
-                    return record.Metadata.Client;
-            }
-        }
-
-        return null;
     }
 }

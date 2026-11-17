@@ -94,6 +94,14 @@ internal static class BffStoreKeys
         + ClientDigest(client);
 
     /// <summary>
+    /// Gets the key of the value that holds the plaintext client of a member of <see cref="ClientsIndex"/>, which
+    /// expires with that member.
+    /// </summary>
+    /// <param name="member">The member of <see cref="ClientsIndex"/>.</param>
+    /// <returns>The key.</returns>
+    public static string ClientMemberValue(string member) => "bff:client-member:" + member;
+
+    /// <summary>
     /// Reads the client digest of a member of <see cref="ClientsIndex"/>.
     /// </summary>
     /// <param name="member">The member.</param>

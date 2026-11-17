@@ -17,6 +17,7 @@ namespace NCode.Identity.Bff.Serialization;
 )]
 [JsonSerializable(typeof(BffSessionMetadata))]
 [JsonSerializable(typeof(BffSessionPayload))]
+[JsonSerializable(typeof(BffSessionClient))]
 [JsonSerializable(typeof(BffProblem))]
 [JsonSerializable(typeof(BffLoginTransaction))]
 internal sealed partial class BffJsonContext : JsonSerializerContext;
