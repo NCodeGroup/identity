@@ -293,8 +293,7 @@ internal sealed class DefaultInstanceSetupService(
                 );
         }
 
-        // The writes below span the platform's singleton setup row and the control-plane tenant's rows, so they run
-        // unscoped with a reason; every row they stage still names the control-plane tenant explicitly.
+        // The platform's singleton setup row is read and written unscoped. See ADR-1018.
         using var unscopedScope = AmbientTenantAccessor.BeginUnscoped("instance setup");
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
@@ -304,86 +303,90 @@ internal sealed class DefaultInstanceSetupService(
         if (existing is { IsInitialized: true })
             return CreateAlreadySetUpResult();
 
-        var creation = await LocalAccountCreator.StageAsync(
-            storeManager,
-            tenantId,
-            new CreateLocalAccountRequest
-            {
-                UserName = root.UserName,
-                Password = password,
-                Email = root.Email,
-                EmailVerified = false,
-                IsEnabled = true,
-            },
-            cancellationToken
-        );
-        if (!creation.Succeeded)
-            return new InstanceSetupResult { Error = creation.Error };
-
-        await StageGlobalAdminAsync(
-            storeManager,
-            tenantId,
-            creation.PrincipalId,
-            cancellationToken
-        );
-
+        string principalId;
         string? consoleClientId = null;
-        if (consoleRegistration is { } registration)
-        {
-            var clientCreation = await ClientCreator.StageAsync(
-                storeManager,
-                new ClientCreationRequest
-                {
-                    TenantId = tenantId,
-                    ClientId = registration.ClientId,
-                    IsDisabled = false,
-                    Settings = CreateManagementConsoleSettings(registration.BaseUrl),
-                    Jwks = JsonSerializer.Deserialize<JsonElement>(registration.Jwks),
-                },
-                cancellationToken
-            );
-            if (!clientCreation.Succeeded)
-                return CreateClientFailureResult(clientCreation, "management console's client");
-
-            consoleClientId = clientCreation.Client.ClientId;
-        }
-
         string? automationClientId = null;
-        if (automationRegistration is { } automationClient)
-        {
-            // A machine client lives in the control-plane tenant and is owned by the platform node, as the management
-            // API creates it, so the creator requires it to be limited to the client_credentials grant.
-            var machineCreation = await ClientCreator.StageAsync(
-                storeManager,
-                new ClientCreationRequest
-                {
-                    TenantId = tenantId,
-                    ClientId = automationClient.ClientId,
-                    IsDisabled = false,
-                    OwningNodeType = OpenIdResourceTypes.Platform,
-                    OwningNodeId = OpenIdConstants.PlatformResourceId,
-                    Settings = CreateAutomationSettings(),
-                    Jwks = JsonSerializer.Deserialize<JsonElement>(automationClient.Jwks),
-                },
-                cancellationToken
-            );
-            if (!machineCreation.Succeeded)
-                return CreateClientFailureResult(machineCreation, "automation client");
 
-            await StageGlobalAdminAsync(
+        // The control-plane tenant's rows are staged in its own tenant scope, inside the unscoped one, so a
+        // tenant-bound store finds and names them in that tenant alone.
+        using (AmbientTenantAccessor.BeginScope(tenantId))
+        {
+            var creation = await LocalAccountCreator.StageAsync(
                 storeManager,
                 tenantId,
-                machineCreation.Client.PrincipalId,
+                new CreateLocalAccountRequest
+                {
+                    UserName = root.UserName,
+                    Password = password,
+                    Email = root.Email,
+                    EmailVerified = false,
+                    IsEnabled = true,
+                },
                 cancellationToken
             );
+            if (!creation.Succeeded)
+                return new InstanceSetupResult { Error = creation.Error };
 
-            automationClientId = machineCreation.Client.ClientId;
+            principalId = creation.PrincipalId;
+
+            await StageGlobalAdminAsync(storeManager, tenantId, principalId, cancellationToken);
+
+            if (consoleRegistration is { } registration)
+            {
+                var clientCreation = await ClientCreator.StageAsync(
+                    storeManager,
+                    new ClientCreationRequest
+                    {
+                        TenantId = tenantId,
+                        ClientId = registration.ClientId,
+                        IsDisabled = false,
+                        Settings = CreateManagementConsoleSettings(registration.BaseUrl),
+                        Jwks = JsonSerializer.Deserialize<JsonElement>(registration.Jwks),
+                    },
+                    cancellationToken
+                );
+                if (!clientCreation.Succeeded)
+                    return CreateClientFailureResult(clientCreation, "management console's client");
+
+                consoleClientId = clientCreation.Client.ClientId;
+            }
+
+            if (automationRegistration is { } automationClient)
+            {
+                // A machine client lives in the control-plane tenant and is owned by the platform node, as the
+                // management API creates it, so the creator requires it to be limited to the client_credentials grant.
+                var machineCreation = await ClientCreator.StageAsync(
+                    storeManager,
+                    new ClientCreationRequest
+                    {
+                        TenantId = tenantId,
+                        ClientId = automationClient.ClientId,
+                        IsDisabled = false,
+                        OwningNodeType = OpenIdResourceTypes.Platform,
+                        OwningNodeId = OpenIdConstants.PlatformResourceId,
+                        Settings = CreateAutomationSettings(),
+                        Jwks = JsonSerializer.Deserialize<JsonElement>(automationClient.Jwks),
+                    },
+                    cancellationToken
+                );
+                if (!machineCreation.Succeeded)
+                    return CreateClientFailureResult(machineCreation, "automation client");
+
+                await StageGlobalAdminAsync(
+                    storeManager,
+                    tenantId,
+                    machineCreation.Client.PrincipalId,
+                    cancellationToken
+                );
+
+                automationClientId = machineCreation.Client.ClientId;
+            }
         }
 
         var setup = existing ?? InstanceSetupRecords.Create();
         setup.IsInitialized = true;
         setup.InitializedAt = TimeProvider.GetUtcNow();
-        setup.InitializedByPrincipalId = creation.PrincipalId;
+        setup.InitializedByPrincipalId = principalId;
         setup.TokenHash = null;
         setup.TokenIssuedAt = null;
         setup.TokenExpiresAt = null;
@@ -419,7 +422,7 @@ internal sealed class DefaultInstanceSetupService(
             throw;
         }
 
-        Logger.RootAdministratorCreated(tenantId, creation.PrincipalId);
+        Logger.RootAdministratorCreated(tenantId, principalId);
 
         if (consoleClientId is not null)
             Logger.InstanceSetupClientRegistered(consoleClientId, tenantId);
@@ -433,7 +436,7 @@ internal sealed class DefaultInstanceSetupService(
             Root = new CreateRootResponse
             {
                 TenantId = tenantId,
-                PrincipalId = creation.PrincipalId,
+                PrincipalId = principalId,
                 UserName = root.UserName,
                 ManagementConsoleClientId = consoleClientId,
                 ManagementConsoleBaseUrl = consoleRegistration?.BaseUrl,

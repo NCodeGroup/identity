@@ -49,6 +49,7 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
     private Mock<IServiceProvider> MockServiceProvider { get; }
     private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
     private Mock<IDisposable> MockTenantScope { get; }
+    private Mock<IDisposable> MockStagingScope { get; }
     private Mock<ILocalAccountCreator> MockLocalAccountCreator { get; }
     private Mock<IClientCreator> MockClientCreator { get; }
     private Mock<ICryptoService> MockCryptoService { get; }
@@ -69,6 +70,7 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
         MockServiceProvider = MockRepository.Create<IServiceProvider>();
         MockAmbientTenantAccessor = MockRepository.Create<IAmbientTenantAccessor>();
         MockTenantScope = MockRepository.Create<IDisposable>();
+        MockStagingScope = MockRepository.Create<IDisposable>();
         MockLocalAccountCreator = MockRepository.Create<ILocalAccountCreator>();
         MockClientCreator = MockRepository.Create<IClientCreator>();
         MockCryptoService = MockRepository.Create<ICryptoService>();
@@ -301,6 +303,16 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
 
     private void SetupCreator(LocalAccountCreation creation)
     {
+        MockAmbientTenantAccessor
+            .Setup(x => x.BeginScope(TenantId))
+            .Callback(() => CallLog.Add("staging scope"))
+            .Returns(MockStagingScope.Object)
+            .Verifiable(Times.Once());
+        MockStagingScope
+            .Setup(x => x.Dispose())
+            .Callback(() => CallLog.Add("staging scope ended"))
+            .Verifiable(Times.Once());
+
         MockLocalAccountCreator
             .Setup(x =>
                 x.StageAsync(
@@ -378,7 +390,9 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
 
     private void SetupSave(Exception? exception = null)
     {
-        var setup = MockStoreManager.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()));
+        var setup = MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Callback(() => CallLog.Add("save"));
 
         if (exception is null)
             setup.Returns(ValueTask.CompletedTask).Verifiable(Times.Once());
@@ -546,7 +560,10 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
         var result = await CreateService().SetUpAsync(CreateRequest(), CancellationToken.None);
 
         Assert.True(result.Succeeded);
-        Assert.Equal(["tenant", "account"], CallLog);
+        Assert.Equal(
+            ["tenant", "staging scope", "account", "staging scope ended", "save"],
+            CallLog
+        );
         Assert.Equal(TenantId, result.Root.TenantId);
         Assert.Equal(PrincipalId, result.Root.PrincipalId);
         Assert.Equal(UserName, result.Root.UserName);
@@ -770,7 +787,10 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
         Assert.Equal(ConsoleClientId, result.Root.ManagementConsoleClientId);
         Assert.Equal(ConsoleClientId, clientState["ClientId"]);
         Assert.Equal(TenantId, clientState["TenantId"]);
-        Assert.Equal(["tenant", "account", "client"], CallLog);
+        Assert.Equal(
+            ["tenant", "staging scope", "account", "client", "staging scope ended", "save"],
+            CallLog
+        );
         Assert.True(row.IsInitialized);
 
         Assert.NotNull(staged);
@@ -906,7 +926,10 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
 
         Assert.True(result.Succeeded);
         Assert.Null(result.Root.ManagementConsoleClientId);
-        Assert.Equal(["tenant", "account"], CallLog);
+        Assert.Equal(
+            ["tenant", "staging scope", "account", "staging scope ended", "save"],
+            CallLog
+        );
     }
 
     [Fact]
@@ -1010,7 +1033,10 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
         Assert.Equal(AutomationClientId, clientState["ClientId"]);
         Assert.Equal(TenantId, clientState["TenantId"]);
         Assert.Null(result.Root.ManagementConsoleClientId);
-        Assert.Equal(["tenant", "account", "client"], CallLog);
+        Assert.Equal(
+            ["tenant", "staging scope", "account", "client", "staging scope ended", "save"],
+            CallLog
+        );
         Assert.True(row.IsInitialized);
 
         Assert.NotNull(staged);
@@ -1134,7 +1160,10 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
 
         Assert.True(result.Succeeded);
         Assert.Null(result.AutomationClientId);
-        Assert.Equal(["tenant", "account"], CallLog);
+        Assert.Equal(
+            ["tenant", "staging scope", "account", "staging scope ended", "save"],
+            CallLog
+        );
     }
 
     #endregion
