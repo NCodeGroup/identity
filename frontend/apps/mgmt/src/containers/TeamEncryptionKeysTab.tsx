@@ -1,8 +1,7 @@
-import { useMemo, useState } from 'react';
-import Alert from '@mui/material/Alert';
+import { useMemo } from 'react';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import type { EncryptionRootKeyResource, TeamRootKeyResource } from '@ncode/api';
+import type { TeamRootKeyResource } from '@ncode/api';
 import {
   useListCellsQuery,
   useListTeamRootKeysQuery,
@@ -10,15 +9,8 @@ import {
   useSetTeamRootKeyMutation,
   useValidateTeamRootKeyMutation,
 } from '@ncode/store';
-import {
-  ConfirmDialog,
-  DataStateBoundary,
-  EncryptionRootKeyCard,
-  EncryptionRootKeyFormDialog,
-  emptyEncryptionRootKeyFormValues,
-  type EncryptionRootKeyFormValues,
-} from '@ncode/ui';
-import { rootKeyErrorMessage } from '../rootKeyErrorMessage.js';
+import { DataStateBoundary } from '@ncode/ui';
+import { RootKeySection } from './RootKeySection.js';
 
 export type TeamEncryptionKeysTabProps = {
   readonly teamId: string;
@@ -47,126 +39,24 @@ function TeamRegionRootKeySection({
   const [setRootKey, { isLoading: isSetting }] = useSetTeamRootKeyMutation();
   const [removeRootKey, { isLoading: isRemoving }] = useRemoveTeamRootKeyMutation();
   const [validateRootKey, { isLoading: isValidating }] = useValidateTeamRootKeyMutation();
-  const [setting, setSetting] = useState(false);
-  const [setError, setSetError] = useState<string | undefined>(undefined);
-  const [removing, setRemoving] = useState(false);
-  const [removeError, setRemoveError] = useState<string | undefined>(undefined);
-  const [validated, setValidated] = useState<EncryptionRootKeyResource | undefined>(undefined);
-  const [validateError, setValidateError] = useState<string | undefined>(undefined);
-  const [removal, setRemoval] = useState<
-    { readonly rootKey: EncryptionRootKeyResource | null } | undefined
-  >(undefined);
-
-  const clearNotices = () => {
-    setValidated(undefined);
-    setValidateError(undefined);
-    setRemoval(undefined);
-  };
-
-  const closeSet = () => {
-    setSetting(false);
-    setSetError(undefined);
-  };
-
-  const closeRemove = () => {
-    setRemoving(false);
-    setRemoveError(undefined);
-  };
-
-  const handleSet = async (values: EncryptionRootKeyFormValues) => {
-    setSetError(undefined);
-    try {
-      await setRootKey({ teamId, region, body: values }).unwrap();
-      clearNotices();
-      closeSet();
-    } catch (failure) {
-      setSetError(rootKeyErrorMessage(failure));
-    }
-  };
-
-  const handleRemove = async () => {
-    setRemoveError(undefined);
-    try {
-      const remaining = await removeRootKey({ teamId, region }).unwrap();
-      clearNotices();
-      setRemoval({ rootKey: remaining });
-      closeRemove();
-    } catch (failure) {
-      setRemoveError(rootKeyErrorMessage(failure));
-    }
-  };
-
-  const handleValidate = async () => {
-    clearNotices();
-    try {
-      setValidated(await validateRootKey({ teamId, region }).unwrap());
-    } catch (failure) {
-      setValidateError(rootKeyErrorMessage(failure));
-    }
-  };
 
   return (
     <Stack spacing={1.5} data-testid={`team-root-key-region-${region}`}>
       <Typography variant="h6" component="h4" data-testid="team-root-key-region">
         {region}
       </Typography>
-      {validateError && (
-        <Alert severity="error" data-testid="root-key-validate-error">
-          {validateError}
-        </Alert>
-      )}
-      {validated && (
-        <Alert
-          severity={validated.state === 'active' ? 'success' : 'error'}
-          data-testid="team-root-key-validate-result"
-        >
-          {validated.failure
-            ? `The root key in ${region} is ${validated.state}: ${validated.failure}`
-            : `The root key in ${region} is ${validated.state}.`}
-        </Alert>
-      )}
-      {removal && (
-        <Alert severity="info" data-testid="team-root-key-remove-result">
-          {removal.rootKey === null
-            ? `The keys in ${region} are back under the deployment's root key.`
-            : `The keys in ${region} are still being rewrapped under the deployment's root key, and the root key is removed once none remains under it.`}
-        </Alert>
-      )}
-      <EncryptionRootKeyCard
+      <RootKeySection
         ownerLabel="team"
+        region={region}
         rootKey={rootKey ?? null}
-        canSet={providers.length > 0}
-        isBusy={isSetting || isRemoving || isValidating}
-        onSet={() => setSetting(true)}
-        onValidate={() => void handleValidate()}
-        onRemove={() => setRemoving(true)}
-      />
-      <EncryptionRootKeyFormDialog
-        open={setting}
-        ownerLabel="team"
-        initialValues={{
-          ...emptyEncryptionRootKeyFormValues,
-          provider: rootKey?.provider ?? emptyEncryptionRootKeyFormValues.provider,
-          keyReference: rootKey?.keyReference ?? emptyEncryptionRootKeyFormValues.keyReference,
-          accessIdentity:
-            rootKey?.accessIdentity ?? emptyEncryptionRootKeyFormValues.accessIdentity,
-        }}
         providers={providers}
         accessBinding={accessBinding}
-        isSubmitting={isSetting}
-        error={setError}
-        onSubmit={(values) => void handleSet(values)}
-        onCancel={closeSet}
-      />
-      <ConfirmDialog
-        open={removing}
-        title={`Remove root key in ${region}`}
-        message="The keys are rewrapped under the deployment's root key. Any that cannot be unwrapped yet are retried in the background, and the root key is removed once none remains under it."
-        confirmLabel="Remove"
-        isBusy={isRemoving}
-        error={removeError}
-        onConfirm={() => void handleRemove()}
-        onCancel={closeRemove}
+        isSetting={isSetting}
+        isRemoving={isRemoving}
+        isValidating={isValidating}
+        onSet={(values) => setRootKey({ teamId, region, body: values }).unwrap()}
+        onRemove={() => removeRootKey({ teamId, region }).unwrap()}
+        onValidate={() => validateRootKey({ teamId, region }).unwrap()}
       />
     </Stack>
   );

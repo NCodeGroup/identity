@@ -289,7 +289,7 @@ describe('TeamEncryptionKeysTab', () => {
     const eu = within(await screen.findByTestId('team-root-key-region-eu-west'));
     fireEvent.click(await eu.findByTestId('root-key-validate'));
 
-    expect(await eu.findByTestId('team-root-key-validate-result')).toHaveTextContent(
+    expect(await eu.findByTestId('root-key-validate-result')).toHaveTextContent(
       'The root key in eu-west is unavailable: The key was revoked.',
     );
     expect(
@@ -310,7 +310,7 @@ describe('TeamEncryptionKeysTab', () => {
     const eu = within(await screen.findByTestId('team-root-key-region-eu-west'));
     fireEvent.click(await eu.findByTestId('root-key-validate'));
 
-    expect(await eu.findByTestId('team-root-key-validate-result')).toHaveTextContent(
+    expect(await eu.findByTestId('root-key-validate-result')).toHaveTextContent(
       'The root key in eu-west is active.',
     );
   });
@@ -359,7 +359,7 @@ describe('TeamEncryptionKeysTab', () => {
     fireEvent.click(await screen.findByTestId('confirm-accept'));
 
     expect(await eu.findByTestId('root-key-none')).toBeInTheDocument();
-    expect(eu.getByTestId('team-root-key-remove-result')).toHaveTextContent(
+    expect(eu.getByTestId('root-key-remove-result')).toHaveTextContent(
       "The keys in eu-west are back under the deployment's root key.",
     );
     await waitFor(() => expect(screen.queryByTestId('confirm-accept')).not.toBeInTheDocument());
@@ -381,7 +381,7 @@ describe('TeamEncryptionKeysTab', () => {
     fireEvent.click(await eu.findByTestId('root-key-remove'));
     fireEvent.click(await screen.findByTestId('confirm-accept'));
 
-    expect(await eu.findByTestId('team-root-key-remove-result')).toHaveTextContent(
+    expect(await eu.findByTestId('root-key-remove-result')).toHaveTextContent(
       'The keys in eu-west are still being rewrapped',
     );
   });
