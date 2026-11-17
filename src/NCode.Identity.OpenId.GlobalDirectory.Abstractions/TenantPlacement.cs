@@ -29,7 +29,8 @@ public sealed record TenantPlacement
     public required string Cell { get; init; }
 
     /// <summary>
-    /// Gets the region of the cell that holds the tenant.
+    /// Gets the region that the cell holding the tenant registered with the directory, or an empty string until that
+    /// cell registers.
     /// </summary>
     public required string Region { get; init; }
 }
