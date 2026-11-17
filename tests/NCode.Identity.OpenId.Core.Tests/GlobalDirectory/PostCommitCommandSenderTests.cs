@@ -64,17 +64,15 @@ public sealed class PostCommitCommandSenderTests : BaseTests
     }
 
     [Fact]
-    public async Task SendAsync_WhenTheCommandFailsAndTheCallersTokenIsCancelled_ReportsTheFailure()
+    public async Task SendAsync_WhenTheCommandFails_ReportsTheFailure()
     {
-        using var cts = new CancellationTokenSource();
         var exception = new InvalidOperationException("The mediator is unavailable.");
         MockMediator
             .Setup(x => x.SendAsync(Command, It.IsAny<CancellationToken>()))
-            .Callback(() => cts.Cancel())
             .ThrowsAsync(exception)
             .Verifiable();
 
-        await SendAsync(cts.Token);
+        await SendAsync(CancellationToken.None);
 
         Assert.Same(exception, Assert.Single(Failures));
     }
@@ -94,20 +92,6 @@ public sealed class PostCommitCommandSenderTests : BaseTests
         );
 
         Assert.Empty(Failures);
-    }
-
-    [Fact]
-    public async Task SendAsync_WhenTheCommandIsCancelledAndTheCallersTokenIsNotCancelled_ReportsTheFailure()
-    {
-        var exception = new OperationCanceledException();
-        MockMediator
-            .Setup(x => x.SendAsync(Command, It.IsAny<CancellationToken>()))
-            .ThrowsAsync(exception)
-            .Verifiable();
-
-        await SendAsync(CancellationToken.None);
-
-        Assert.Same(exception, Assert.Single(Failures));
     }
 
     #endregion

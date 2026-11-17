@@ -42,25 +42,20 @@ internal static class PostCommitCommandSender
     )
         where TCommand : struct, ICommand
     {
-        try
-        {
-            await PostCommitWork.RunAsync(
-                timeProvider,
-                static async (state, token) =>
-                {
-                    await using var scope = state.ServiceScopeFactory.CreateAsyncScope();
-                    var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-                    await mediator.SendAsync(state.Command, token);
-                },
-                (ServiceScopeFactory: serviceScopeFactory, Command: command)
-            );
-        }
-        catch (Exception exception)
-            when (exception is not OperationCanceledException
-                || !cancellationToken.IsCancellationRequested
-            )
-        {
-            onFailure(exception);
-        }
+        await IsolatedStep.RunAsync(
+            () =>
+                PostCommitWork.RunAsync(
+                    timeProvider,
+                    static async (state, token) =>
+                    {
+                        await using var scope = state.ServiceScopeFactory.CreateAsyncScope();
+                        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+                        await mediator.SendAsync(state.Command, token);
+                    },
+                    (ServiceScopeFactory: serviceScopeFactory, Command: command)
+                ),
+            onFailure,
+            cancellationToken
+        );
     }
 }

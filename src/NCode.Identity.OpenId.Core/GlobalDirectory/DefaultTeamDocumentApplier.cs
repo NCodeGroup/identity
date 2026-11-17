@@ -356,24 +356,17 @@ internal sealed class DefaultTeamDocumentApplier(
     /// <param name="cancellationToken">
     /// The <see cref="CancellationToken"/> of the caller, whose cancellation propagates.
     /// </param>
-    private async ValueTask RunRootKeyWorkAsync(
+    private ValueTask RunRootKeyWorkAsync(
         string teamId,
         Func<ValueTask> work,
         CancellationToken cancellationToken
-    )
-    {
-        try
-        {
-            await work();
-        }
-        catch (Exception exception)
-            when (exception is not OperationCanceledException
-                || !cancellationToken.IsCancellationRequested
-            )
-        {
-            Logger.DirectoryTeamRootKeyNotApplied(teamId, CellOptions.Region, exception);
-        }
-    }
+    ) =>
+        IsolatedStep.RunAsync(
+            work,
+            exception =>
+                Logger.DirectoryTeamRootKeyNotApplied(teamId, CellOptions.Region, exception),
+            cancellationToken
+        );
 
     /// <inheritdoc />
     /// <remarks>
