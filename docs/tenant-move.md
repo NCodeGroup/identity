@@ -9,8 +9,8 @@
   [Run the cells of a platform](platform-bootstrap.md#9-run-the-cells-of-a-platform).
 
 A tenant keeps its identifier and its issuer when it moves, so its clients, its relying parties and the tokens it issued
-are unaffected. Only the cell that serves it changes. A tenant lives in exactly one cell, and its data stays in that cell's
-region, so a tenant never moves across regions: create a tenant in the other region instead.
+are unaffected. Only the cell that serves it changes. A tenant lives in exactly one cell, and its data stays in that
+cell's region, so a tenant never moves across regions: create a tenant in the other region instead.
 
 | Placeholder    | Meaning                                                                      |
 | -------------- | ---------------------------------------------------------------------------- |
@@ -35,6 +35,20 @@ relative to the API of the cell that each stage names.
 - **A directory that knows both cells.** The move changes the tenant's placement in the global directory, so both cells
   reach the same directory (`Directory:Url`) and are registered in it. A platform of one cell has no other cell to move
   a tenant to: the local directory adapter answers every move with a conflict.
+- **A tenant within a move's ceiling.** A tenant travels as one package of at most 64 MiB, its local accounts included,
+  and the import admits a request body of at most 64 MiB and 64 KiB. The export refuses a larger tenant with `422`, and
+  a proxy in front of `<target>`'s management API admits a request body of that size.
+- **The target can use and retag the tenant's keys.** A tenant's remote keys stay in the key management service: the
+  import tags each with `<target>`'s name, and an import that `<target>` undoes tags each back with `<source>`'s name.
+  Each key lies where `<target>`'s sweep lists keys, in `<target>`'s AWS account and region, its Key Vault or its Cloud
+  KMS key ring, and the import refuses a key outside `<target>`'s region, vault or key ring with `422`, so the cells of
+  a region that move tenants share that location. On each key, `<target>`'s identity needs the key's own operation, as
+  for a key it binds, and the right to tag the key with either cell's name: on AWS `kms:TagResource` whose
+  `aws:RequestTag/ncode-identity:deployment` condition lists the names of the region's cells, on Azure
+  `Microsoft.KeyVault/vaults/keys/read` and `Microsoft.KeyVault/vaults/keys/update/action` on the region's vault, and on
+  Google `cloudkms.cryptoKeys.get` and `cloudkms.cryptoKeys.update` on the region's key ring ([scoping the
+  identity](capabilities/remote-keys.md#permissions)). A root key that the tenant brings passes `<target>`'s root-key
+  checks, an allowed provider and a key in `<target>`'s cloud regions among them, or the import answers `422`.
 - **A window with the tenant unavailable.** The tenant serves no request from the disable until it is enabled in
   `<target>`. Choose a time for it, and have the DNS change ready.
 
