@@ -625,6 +625,8 @@ NCode.Identity.Secrets.Persistence.Protection.OwnerRootKeyProbeException.KeyWrap
 NCode.Identity.Secrets.Persistence.Protection.OwnerRootKeyProbeException.Owner.get -> NCode.Identity.Secrets.Persistence.Protection.SecretOwner
 NCode.Identity.Secrets.Persistence.Protection.MasterKeyRewrapRequest.NonconformingOnly.get -> bool
 NCode.Identity.Secrets.Persistence.Protection.MasterKeyRewrapRequest.NonconformingOnly.init -> void
+NCode.Identity.Secrets.Persistence.Protection.MasterKeyRewrapRequest.IncludeDescendants.get -> bool
+NCode.Identity.Secrets.Persistence.Protection.MasterKeyRewrapRequest.IncludeDescendants.init -> void
 NCode.Identity.Secrets.Persistence.Protection.MasterKeyInfo.RootKeyReference.get -> string?
 NCode.Identity.Secrets.Persistence.Protection.MasterKeyInfo.RootKeyReference.init -> void
 NCode.Identity.Secrets.Persistence.Protection.MasterKeyStatus.RootKey.get -> NCode.Identity.Secrets.Persistence.Protection.OwnerRootKeyInfo?
