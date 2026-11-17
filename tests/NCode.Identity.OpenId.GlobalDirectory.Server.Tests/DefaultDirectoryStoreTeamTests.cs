@@ -3,6 +3,7 @@
 
 using System.Collections.Immutable;
 using System.Text.Json;
+using NCode.Buffers;
 using Xunit;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
@@ -605,11 +606,57 @@ public sealed class DefaultDirectoryStoreTeamTests : DefaultDirectoryStoreTestBa
         );
     }
 
+    [Fact]
+    public async Task ListChangesAsync_WhenTheDocumentsExceedThePageBudget_ReturnsTheChangesThatFit()
+    {
+        for (var index = 10; index < 30; index++)
+        {
+            await Teams.PublishAsync(
+                CreateNoteDocument($"team-{index}", 60000),
+                CancellationToken.None
+            );
+        }
+
+        var documentJson = await ReadChangeDocumentJsonAsync(1);
+        Assert.NotNull(documentJson);
+        var documentBytes = SecureEncoding.UTF8.GetByteCount(documentJson);
+
+        var changes = await Teams.ListChangesAsync(0, 100, CancellationToken.None);
+
+        Assert.Equal(DirectoryLimits.MaxChangePageBytes / documentBytes, changes.Count);
+        Assert.Equal(1, changes[0].Sequence);
+    }
+
+    [Fact]
+    public async Task ListChangesAsync_WhenTheFirstChangeExceedsThePageBudget_ReturnsItAlone()
+    {
+        await PublishTeamAsync("team-1");
+        await PublishTeamAsync("team-2");
+        await ReplaceChangeDocumentJsonAsync(
+            1,
+            $$$$"""{"$ver":1,"$payload":{"teamId":"team-1","displayName":"team-1","isDisabled":false,"settings":{"note":"{{{{new string('a', DirectoryLimits.MaxChangePageBytes)}}}}"},"rootKeys":{}}}"""
+        );
+
+        var changes = await Teams.ListChangesAsync(0, 10, CancellationToken.None);
+
+        Assert.Equal([1L], changes.Select(change => change.Sequence));
+    }
+
     #endregion
 
     #region Helpers
 
     private static string GetChainTeamId(int index) => $"chain-{index}";
+
+    private static TeamDocument CreateNoteDocument(string teamId, int noteLength) =>
+        new()
+        {
+            TeamId = teamId,
+            DisplayName = teamId,
+            IsDisabled = false,
+            Settings = JsonElement.Parse($$"""{"note":"{{new string('a', noteLength)}}"}"""),
+            RootKeys = ImmutableDictionary<string, TeamRootKeyReference>.Empty,
+        };
 
     private static TeamDocument CreateChainDocument(int index) =>
         new()

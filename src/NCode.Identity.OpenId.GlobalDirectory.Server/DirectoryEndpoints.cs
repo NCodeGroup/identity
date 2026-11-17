@@ -826,7 +826,8 @@ public static class DirectoryEndpoints
     /// <summary>
     /// Lists the entries of the team change feed that follow a sequence number, in sequence order. The sequence number
     /// is raised to zero and the page size is clamped to a range of one to the maximum page size, so an out-of-range
-    /// query value is bounded and never rejected.
+    /// query value is bounded and never rejected. A page holds changes whose documents total at most
+    /// <see cref="DirectoryLimits.MaxChangePageBytes"/>, and at least one change.
     /// </summary>
     /// <param name="directory">The <see cref="ITeamDirectory"/> that holds the change feed.</param>
     /// <param name="after">The sequence number after which the listing starts.</param>

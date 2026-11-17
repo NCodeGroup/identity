@@ -5,6 +5,7 @@ using System.Data;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using NCode.Buffers;
 using NCode.Identity.Json;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Entities;
 
@@ -1734,8 +1735,19 @@ internal sealed class DefaultDirectoryStore(
             .ToListAsync(cancellationToken);
 
         var changes = new List<DirectoryChange>(records.Count);
+        long pageBytes = 0;
         foreach (var record in records)
         {
+            var documentBytes = record.DocumentJson is null
+                ? 0
+                : SecureEncoding.UTF8.GetByteCount(record.DocumentJson);
+            if (changes.Count > 0 && pageBytes + documentBytes > DirectoryLimits.MaxChangePageBytes)
+            {
+                break;
+            }
+
+            pageBytes += documentBytes;
+
             if (record.TeamId is null)
             {
                 changes.Add(

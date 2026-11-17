@@ -51,4 +51,10 @@ internal static class DirectoryLimits
     /// whole documents within the response a cell reads.
     /// </summary>
     public const int MaxDocumentBytes = 64 * 1024;
+
+    /// <summary>
+    /// The most bytes of documents that one page of the change feed holds, unless its first change alone holds more:
+    /// below the 1 MiB that a cell reads from one response, with room for the rest of each change.
+    /// </summary>
+    public const int MaxChangePageBytes = 768 * 1024;
 }
