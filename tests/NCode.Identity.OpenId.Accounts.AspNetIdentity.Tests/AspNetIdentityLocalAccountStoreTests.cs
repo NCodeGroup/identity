@@ -1197,6 +1197,73 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         Assert.Contains("does not support lockout", exception.Message);
     }
 
+    [Fact]
+    public async Task ImportAsync_WhenARecordHasClaimsAndTheUserStoreDoesNotStoreClaims_Throws()
+    {
+        var (store, userManager) = CreateStore(userStore: CreatePasswordStore().Object);
+        userManager.SetupGet(x => x.SupportsUserLockout).Returns(false).Verifiable();
+        userManager
+            .Setup(x => x.CreateAsync(It.IsAny<TestTenantUser>()))
+            .ReturnsAsync(IdentityResult.Success)
+            .Verifiable();
+        var record = new LocalAccountTransferRecord
+        {
+            LocalAccountId = LocalAccountId,
+            UserName = UserName,
+            NormalizedUserName = UserName,
+            Email = null,
+            NormalizedEmail = null,
+            EmailVerified = false,
+            PasswordHash = null,
+            SecurityStamp = SecurityStamp,
+            IsEnabled = true,
+            LockoutEnabled = false,
+            LockoutEnd = null,
+            AccessFailedCount = 0,
+            Claims = [new PersistedLocalAccountClaim { Type = "role", Value = "admin" }],
+        };
+
+        // The user manager is strict and sets up no UpdateAsync, so an update after the refusal would fail the test.
+        var exception = await Assert.ThrowsAsync<NotSupportedException>(async () =>
+            await store.ImportAsync([record], CancellationToken.None)
+        );
+
+        Assert.Contains("does not store claims", exception.Message);
+    }
+
+    [Fact]
+    public async Task ImportAsync_WhenNoRecordHasClaimsAndTheUserStoreDoesNotStoreClaims_ImportsTheAccount()
+    {
+        var (store, userManager) = CreateStore(userStore: CreatePasswordStore().Object);
+        userManager.SetupGet(x => x.SupportsUserLockout).Returns(false).Verifiable();
+        userManager
+            .Setup(x => x.CreateAsync(It.IsAny<TestTenantUser>()))
+            .ReturnsAsync(IdentityResult.Success)
+            .Verifiable();
+        userManager
+            .Setup(x => x.UpdateAsync(It.IsAny<TestTenantUser>()))
+            .ReturnsAsync(IdentityResult.Success)
+            .Verifiable();
+        var record = new LocalAccountTransferRecord
+        {
+            LocalAccountId = LocalAccountId,
+            UserName = UserName,
+            NormalizedUserName = UserName,
+            Email = null,
+            NormalizedEmail = null,
+            EmailVerified = false,
+            PasswordHash = null,
+            SecurityStamp = SecurityStamp,
+            IsEnabled = true,
+            LockoutEnabled = false,
+            LockoutEnd = null,
+            AccessFailedCount = 0,
+            Claims = [],
+        };
+
+        await store.ImportAsync([record], CancellationToken.None);
+    }
+
     #endregion
 
     #region GetPageAsync Tests
