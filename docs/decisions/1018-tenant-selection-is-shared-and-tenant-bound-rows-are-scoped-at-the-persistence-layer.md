@@ -167,8 +167,11 @@ current_setting('app.unscoped', true) = 'on' OR "NormalizedTenantId" = current_s
   `TenantId`. `TenantLookupNormalizer` prefixes normalized names and emails with `{normalizedTenantId}|` and throws when
   no tenant scope is set. The host's Identity schema sizes `UserName` and `Email` to `AccountMaxLengths.UserName` and
   `AccountMaxLengths.Email`, and `NormalizedUserName` and `NormalizedEmail` to `AccountMaxLengths.NormalizedUserName`
-  and `AccountMaxLengths.NormalizedEmail`, which add the 64-character tenant prefix. The store stamps `TenantId` on
-  create and treats a user of another tenant as not found, so one tenant's `alice` and another's are different users.
+  and `AccountMaxLengths.NormalizedEmail`, which add the 64-character tenant prefix. For an Entity Framework Core
+  model, `HasTenantLookupLengths()` in the opt-in `NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore`
+  package makes that one call, tested over a real `IdentityDbContext` model, while the adapter stays store-agnostic. The
+  store stamps `TenantId` on create and treats a user of another tenant as not found, so one tenant's `alice` and
+  another's are different users.
 - **BFF client members.** A member of the `bff:clients` index is the UTC day of a session's absolute expiry and the
   client's digest, `<yyyy-MM-dd>:<digest>`, so the index names a client only by a digest. Every replica reads the same
   members. Each member has a value, `bff:client-member:<member>`, that holds the plaintext client and expires with the

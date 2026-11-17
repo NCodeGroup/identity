@@ -6156,8 +6156,9 @@ Until the first stable release, the [Unreleased] section describes the product a
   unique per tenant, and it throws when no tenant scope is set. The host's Identity schema sizes `UserName` and `Email`
   to `AccountMaxLengths.UserName` and `AccountMaxLengths.Email`, and `NormalizedUserName` and `NormalizedEmail` to
   `AccountMaxLengths.NormalizedUserName` and `AccountMaxLengths.NormalizedEmail`, which add the 64-character tenant
-  prefix. A local account and its claims reference their tenant through a foreign key, and deleting a tenant erases
-  them with it
+  prefix; for an Entity Framework Core model, `HasTenantLookupLengths()` in the opt-in
+  `NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore` package sizes the four with one call. A local
+  account and its claims reference their tenant through a foreign key, and deleting a tenant erases them with it
   ([ADR-1212](docs/decisions/1212-deleting-a-client-resource-server-principal-or-tenant-removes-what-it-owns.md)).
 
 - **The ASP.NET Core Identity adapter refuses a malformed stored user.** ASP.NET Core Identity's user manager stores

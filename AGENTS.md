@@ -78,6 +78,8 @@ compiles it and no gate tests it
   [ADR-1276](docs/decisions/1276-the-oauth-and-openid-connect-wire-vocabulary-lives-in-a-dependency-free-package.md))
 - **Accounts** — `NCode.Identity.OpenId.Accounts(.Abstractions)` (local accounts behind one store seam),
   `NCode.Identity.OpenId.Accounts.AspNetIdentity` (the local-account store over ASP.NET Core Identity),
+  `NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore` (the Entity Framework Core model configuration of
+  that store's columns),
   `NCode.Identity.OpenId.Accounts.Authentication` (the password grant and interactive credential verification against
   local accounts) and `NCode.Identity.OpenId.Accounts.Management(.Abstractions)` (the management API's local-account
   endpoints)
