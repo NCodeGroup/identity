@@ -14,6 +14,7 @@ using NCode.Identity.OpenId.Authentication.Clients;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
+using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Management.Transfers;
 using NCode.Identity.OpenId.Persistence.DataContracts;
@@ -33,6 +34,7 @@ namespace NCode.Identity.OpenId.Management.Endpoints.Tenants;
 public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
 {
     private const string TenantId = "tenant-1";
+    private const string ControlPlaneTenantId = "platform";
     private const string TeamId = "team-1";
     private const string Region = "us-east";
     private const string CellName = "cell-a";
@@ -124,7 +126,8 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
             Mock.Of<IOpenIdContextFeature>(feature =>
                 feature.OpenIdContext
                 == Mock.Of<OpenIdContext>(context =>
-                    context.Tenant == Mock.Of<OpenIdTenant>(tenant => tenant.TenantId == "platform")
+                    context.Tenant
+                    == Mock.Of<OpenIdTenant>(tenant => tenant.TenantId == ControlPlaneTenantId)
                 )
             )
         );
@@ -173,19 +176,38 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
             EncodedValue = "spki-value",
         }.Build();
 
-    private void SetupAuthorization(AuthorizationResult result) =>
+    private sealed class CapturedAuthorization
+    {
+        public object? Resource { get; set; }
+        public IAuthorizationRequirement[] Requirements { get; set; } = [];
+    }
+
+    private CapturedAuthorization SetupAuthorization(AuthorizationResult result)
+    {
+        var captured = new CapturedAuthorization();
         MockAuthorizationService
             .Setup(x =>
                 x.AuthorizeAsync(
                     It.IsAny<ClaimsPrincipal>(),
                     It.IsAny<object?>(),
-                    It.Is<IEnumerable<IAuthorizationRequirement>>(requirements =>
-                        requirements.Contains(Operations.Update)
-                    )
+                    It.IsAny<IEnumerable<IAuthorizationRequirement>>()
                 )
+            )
+            .Callback(
+                (
+                    ClaimsPrincipal _,
+                    object? resource,
+                    IEnumerable<IAuthorizationRequirement> requirements
+                ) =>
+                {
+                    captured.Resource = resource;
+                    captured.Requirements = requirements.ToArray();
+                }
             )
             .ReturnsAsync(result)
             .Verifiable();
+        return captured;
+    }
 
     private void SetupStore(PersistedTenant? tenant)
     {
@@ -736,6 +758,26 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task ExportTenantAsync_Always_RequestsUpdateOnThePlatformNode()
+    {
+        var captured = SetupAuthorization(AuthorizationResult.Failed());
+
+        await Handler.ExportTenantAsync(
+            CreateHttpContext(),
+            TenantId,
+            CreateRequest(),
+            CancellationToken.None
+        );
+
+        Assert.Same(Operations.Update, Assert.Single(captured.Requirements));
+        var node = Assert.IsType<ResourceNode>(captured.Resource);
+        Assert.Equal(
+            (ControlPlaneTenantId, ResourceNodeTypes.Platform, OpenIdConstants.PlatformResourceId),
+            (node.TenantId, node.ResourceType, node.ResourceId)
+        );
+    }
+
+    [Fact]
     public async Task ExportTenantAsync_WhenTheCallerIsNotAuthorized_ReturnsForbiddenBeforeReadingAnything()
     {
         SetupAuthorization(AuthorizationResult.Failed());
@@ -895,6 +937,25 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
             Times.Once
         );
         MockTenantStore.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task ReleaseMovedTenantAsync_Always_RequestsUpdateOnThePlatformNode()
+    {
+        var captured = SetupAuthorization(AuthorizationResult.Failed());
+
+        await Handler.ReleaseMovedTenantAsync(
+            CreateHttpContext(),
+            TenantId,
+            CancellationToken.None
+        );
+
+        Assert.Same(Operations.Update, Assert.Single(captured.Requirements));
+        var node = Assert.IsType<ResourceNode>(captured.Resource);
+        Assert.Equal(
+            (ControlPlaneTenantId, ResourceNodeTypes.Platform, OpenIdConstants.PlatformResourceId),
+            (node.TenantId, node.ResourceType, node.ResourceId)
+        );
     }
 
     [Fact]
