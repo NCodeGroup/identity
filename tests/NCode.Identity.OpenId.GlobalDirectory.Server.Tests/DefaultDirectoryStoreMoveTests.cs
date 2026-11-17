@@ -216,6 +216,33 @@ public sealed class DefaultDirectoryStoreMoveTests : DefaultDirectoryStoreTestBa
     }
 
     [Fact]
+    public async Task MoveAsync_WhenTheMoveIsRetriedAfterItCommitted_IsMoved()
+    {
+        await RegisterCellAsync(CellName, CellRegion);
+        await RegisterCellAsync(TargetCellName, CellRegion);
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+        await OfferMoveAsync(CellName, TargetCellName);
+        var first = await Tenants.MoveAsync(
+            TenantId,
+            CellName,
+            TargetCellName,
+            CancellationToken.None
+        );
+
+        var second = await Tenants.MoveAsync(
+            TenantId,
+            CellName,
+            TargetCellName,
+            CancellationToken.None
+        );
+
+        Assert.True(first.IsMoved);
+        Assert.True(second.IsMoved);
+        Assert.Equal(TargetCellName, (await ReadTenantAsync(TenantId))?.Cell);
+        Assert.Null(await ReadMoveOfferAsync(TenantId));
+    }
+
+    [Fact]
     public async Task MoveAsync_WithoutOffer_Conflicts()
     {
         await RegisterCellAsync(CellName, CellRegion);

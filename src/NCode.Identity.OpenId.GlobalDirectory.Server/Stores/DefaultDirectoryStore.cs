@@ -409,6 +409,16 @@ internal sealed class DefaultDirectoryStore(
                         );
                     }
 
+                    // A move that runs again after its commit's acknowledgement is lost finds the tenant in the
+                    // target cell, which the route allows only as the caller, with the offer consumed.
+                    if (
+                        string.Equals(tenant.Cell, toCell, StringComparison.Ordinal)
+                        && !string.Equals(fromCell, toCell, StringComparison.Ordinal)
+                    )
+                    {
+                        return MoveResult.Moved();
+                    }
+
                     if (!string.Equals(tenant.Cell, fromCell, StringComparison.Ordinal))
                     {
                         return MoveResult.Conflict(

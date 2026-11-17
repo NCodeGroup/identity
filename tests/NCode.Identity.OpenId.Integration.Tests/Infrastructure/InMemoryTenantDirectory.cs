@@ -329,6 +329,15 @@ public sealed class InMemoryTenantDirectory : ITenantDirectory
                 );
             }
 
+            // A move that runs again after its commit's acknowledgement is lost finds the tenant in the target cell.
+            if (
+                string.Equals(entry.Cell, toCell, StringComparison.Ordinal)
+                && !string.Equals(fromCell, toCell, StringComparison.Ordinal)
+            )
+            {
+                return ValueTask.FromResult(MoveResult.Moved());
+            }
+
             if (!string.Equals(entry.Cell, fromCell, StringComparison.Ordinal))
             {
                 return ValueTask.FromResult(
