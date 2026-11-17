@@ -19,7 +19,7 @@ Four forces shape the answer:
   as a change.
 - Correctness never depends on process-local state, and work proportional to the sessions never runs inside a request.
 - The store is a replaceable seam that holds the session records, which it treats as opaque, their indexes, and a
-  value per listed client that names the client in plaintext, as a record's readable metadata does
+  value per member of the client list that names the client in plaintext, as a record's readable metadata does
   ([ADR-1290](1290-the-bff-keeps-each-session-as-an-encrypted-server-side-record-under-a-cookie-handle.md)).
 
 ## Decision
@@ -108,5 +108,5 @@ client; and a background pass on one replica ends every stored session whose fro
 - [ADR-1290](1290-the-bff-keeps-each-session-as-an-encrypted-server-side-record-under-a-cookie-handle.md),
   [ADR-1293](1293-the-bff-ends-sessions-by-a-guarded-logout-form-post-and-by-back-channel-logout-through-indexes.md),
   [ADR-1442](1442-a-bff-serves-the-frontends-its-configuration-lists-each-selected-per-request-by-an-open-rule.md)
-- `src/NCode.Identity.Bff/Sessions/BffSessionRetirement.cs`, `src/NCode.Identity.Bff/Sessions/DefaultBffSessionStore.cs`,
-  `src/NCode.Identity.Bff.Abstractions/IBffSessionStore.cs`
+- `src/NCode.Identity.Bff/Sessions/BffSessionRetirement.cs`,
+  `src/NCode.Identity.Bff/Sessions/DefaultBffSessionStore.cs`, `src/NCode.Identity.Bff.Abstractions/IBffSessionStore.cs`
