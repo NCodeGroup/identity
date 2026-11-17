@@ -18,7 +18,10 @@ namespace NCode.Identity.OpenId.Accounts.AspNetIdentity;
 /// <see cref="AccountMaxLengths.NormalizedUserName"/> characters, <c>NormalizedEmail</c> to at least
 /// <see cref="AccountMaxLengths.NormalizedEmail"/>, and <c>UserName</c> and <c>Email</c> to at least
 /// <see cref="AccountMaxLengths.UserName"/> and <see cref="AccountMaxLengths.Email"/>; the default Entity Framework
-/// Core model of ASP.NET Core Identity sizes all four at 256, which is shorter.
+/// Core model of ASP.NET Core Identity sizes all four at 256, which is shorter. An Entity Framework Core store sizes
+/// the four columns with <c>HasTenantLookupLengths()</c> from
+/// <c>NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore</c>; another store sizes them to
+/// <see cref="AccountMaxLengths"/> itself.
 /// </remarks>
 /// <param name="ambientTenantAccessor">
 /// The ambient tenant accessor that supplies the tenant of the current scope.

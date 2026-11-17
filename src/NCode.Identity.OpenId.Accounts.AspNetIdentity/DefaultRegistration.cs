@@ -108,7 +108,10 @@ public static class DefaultRegistration
         /// <c>NormalizedUserName</c> to at least <see cref="AccountMaxLengths.NormalizedUserName"/> characters,
         /// <c>NormalizedEmail</c> to at least <see cref="AccountMaxLengths.NormalizedEmail"/>, and <c>UserName</c> and
         /// <c>Email</c> to at least <see cref="AccountMaxLengths.UserName"/> and <see cref="AccountMaxLengths.Email"/>;
-        /// the default Entity Framework Core model of ASP.NET Core Identity sizes all four at 256, which is shorter.
+        /// the default Entity Framework Core model of ASP.NET Core Identity sizes all four at 256, which is shorter. An
+        /// Entity Framework Core store sizes the four columns with <c>HasTenantLookupLengths()</c> from
+        /// <c>NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore</c>; another store sizes them to
+        /// <see cref="AccountMaxLengths"/> itself.
         /// </summary>
         /// <typeparam name="TUser">The ASP.NET Core Identity user type.</typeparam>
         /// <returns>The <see cref="IServiceBuilder{T}"/> proving a local-account store is registered.</returns>
