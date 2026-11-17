@@ -541,6 +541,29 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
     }
 
     [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task ImportTenantAsync_WhenTheKidIsEmpty_ReturnsUnprocessableEntityWithoutTakingAKey(
+        string kid
+    )
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+
+        var result = await Handler.ImportTenantAsync(
+            CreateHttpContext(authenticated: true),
+            new TenantImportRequest { Kid = kid, Package = PackageText },
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status422UnprocessableEntity, problem.StatusCode);
+        Assert.Equal(
+            "The transfer key is unknown, expired or already used.",
+            problem.ProblemDetails.Detail
+        );
+    }
+
+    [Theory]
     [InlineData(typeof(CryptographicException))]
     [InlineData(typeof(FormatException))]
     public async Task ImportTenantAsync_WhenThePackageDoesNotDecrypt_ReturnsUnprocessableEntity(

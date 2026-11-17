@@ -166,6 +166,12 @@ internal class TenantImportApiEndpointHandler(
             return authorizationFailure;
         }
 
+        // TakeAsync refuses an empty kid, and no transfer key has one.
+        if (string.IsNullOrWhiteSpace(request.Kid))
+        {
+            return Unprocessable("The transfer key is unknown, expired or already used.");
+        }
+
         var privateKey = await TenantTransferKeyService.TakeAsync(request.Kid, cancellationToken);
         if (privateKey is null)
         {
