@@ -118,21 +118,55 @@ internal sealed class DefaultDirectoryStore(
                     var tenantId = reservation.TenantId;
                     var normalizedTenantId = Normalize(tenantId);
                     var normalizedIssuer = Normalize(reservation.Issuer);
+                    var normalizedTeamId = reservation.TeamId is { } requestedTeamId
+                        ? Normalize(requestedTeamId)
+                        : null;
 
-                    var existingState = await dbContext
+                    var existing = await dbContext
                         .Tenants.AsNoTracking()
                         .Where(entity => entity.NormalizedTenantId == normalizedTenantId)
-                        .Select(entity => entity.State)
+                        .Select(entity => new
+                        {
+                            entity.State,
+                            entity.Cell,
+                            entity.NormalizedIssuer,
+                            entity.NormalizedTeamId,
+                        })
                         .SingleOrDefaultAsync(cancellationToken);
-                    if (existingState == TenantRecord.StateRetired)
+                    if (existing?.State == TenantRecord.StateRetired)
                     {
                         return ReservationResult.Conflict(
                             $"The tenant identifier '{tenantId}' belonged to a deleted tenant and is never reissued."
                         );
                     }
 
-                    if (existingState is not null)
+                    if (existing is not null)
                     {
+                        // A reservation that runs again after its commit's acknowledgement is lost finds its own
+                        // record: the calling cell holds it for the same issuer and team, and no placement has
+                        // consumed it.
+                        if (
+                            existing.State == TenantRecord.StateReserved
+                            && string.Equals(
+                                existing.Cell,
+                                reservation.Cell,
+                                StringComparison.Ordinal
+                            )
+                            && string.Equals(
+                                existing.NormalizedIssuer,
+                                normalizedIssuer,
+                                StringComparison.Ordinal
+                            )
+                            && string.Equals(
+                                existing.NormalizedTeamId,
+                                normalizedTeamId,
+                                StringComparison.Ordinal
+                            )
+                        )
+                        {
+                            return ReservationResult.Reserved();
+                        }
+
                         return ReservationResult.Conflict(
                             $"Another tenant already has the identifier '{tenantId}'."
                         );
@@ -161,10 +195,8 @@ internal sealed class DefaultDirectoryStore(
                         return ReservationResult.Conflict(retiredIssuerDetail);
                     }
 
-                    string? normalizedTeamId = null;
                     if (reservation.TeamId is { } teamId)
                     {
-                        normalizedTeamId = Normalize(teamId);
                         var fullTeamDetail = await FindTeamAtLimitAsync(
                             dbContext,
                             teamId,

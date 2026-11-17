@@ -64,6 +64,74 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
     }
 
     [Fact]
+    public async Task ReserveAsync_WhenTheReservationIsRetriedAfterItCommitted_IsReserved()
+    {
+        await PublishTeamAsync("team-1", maxTenants: 1);
+        Assert.True((await ReserveAsync(TenantId, Issuer, teamId: "team-1")).IsReserved);
+
+        var result = await ReserveAsync(TenantId, Issuer, teamId: "team-1");
+
+        Assert.True(result.IsReserved);
+        Assert.Null(result.ConflictDetail);
+        var record = await ReadTenantAsync(TenantId);
+        Assert.NotNull(record);
+        Assert.Equal(TenantRecord.StateReserved, record.State);
+        Assert.Equal(CellName, record.Cell);
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenAnotherCellHoldsTheReservation_ConflictsWithTheHeldIdentifierText()
+    {
+        Assert.True((await ReserveAsync(TenantId, Issuer)).IsReserved);
+
+        var result = await Tenants.ReserveAsync(
+            new TenantReservation
+            {
+                TenantId = TenantId,
+                Issuer = Issuer,
+                Cell = "cell-b",
+            },
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsReserved);
+        Assert.Equal(
+            $"Another tenant already has the identifier '{TenantId}'.",
+            result.ConflictDetail
+        );
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenTheTenantIsPlaced_ConflictsWithTheHeldIdentifierText()
+    {
+        await ReserveAndPlaceAsync(TenantId, Issuer);
+
+        var result = await ReserveAsync(TenantId, Issuer);
+
+        Assert.False(result.IsReserved);
+        Assert.Equal(
+            $"Another tenant already has the identifier '{TenantId}'.",
+            result.ConflictDetail
+        );
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenTheReservationNamesAnotherTeam_ConflictsWithTheHeldIdentifierText()
+    {
+        await PublishTeamAsync("team-1");
+        await PublishTeamAsync("team-2");
+        Assert.True((await ReserveAsync(TenantId, Issuer, teamId: "team-1")).IsReserved);
+
+        var result = await ReserveAsync(TenantId, Issuer, teamId: "team-2");
+
+        Assert.False(result.IsReserved);
+        Assert.Equal(
+            $"Another tenant already has the identifier '{TenantId}'.",
+            result.ConflictDetail
+        );
+    }
+
+    [Fact]
     public async Task ReserveAsync_WhenTheIssuerIsHeld_ConflictsWithTheHeldIssuerText()
     {
         Assert.True((await ReserveAsync(TenantId, Issuer)).IsReserved);
