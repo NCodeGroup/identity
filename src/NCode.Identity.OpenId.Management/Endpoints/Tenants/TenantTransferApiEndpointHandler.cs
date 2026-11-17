@@ -229,7 +229,7 @@ internal class TenantTransferApiEndpointHandler(
     /// <response code="200">The export, a compact <c>JWE</c> to the recipient key, which names the target cell.</response>
     /// <response code="404">The tenant does not exist.</response>
     /// <response code="409">The tenant is not disabled, or the directory refuses to record the offer of the tenant to the target cell.</response>
-    /// <response code="422">The target cell is not a valid cell name, the recipient key is refused, or it is not an elliptic curve key on <c>P-256</c> for encryption.</response>
+    /// <response code="422">The target cell is not a valid cell name, the recipient key is refused, or it is not an elliptic curve key on <c>P-256</c> for encryption, or the tenant's package is over the 64 MiB ceiling of a tenant move.</response>
     /// <response code="503">The global directory is unavailable; nothing is exported.</response>
     [EndpointName("api/tenants/export/create")]
     internal virtual async ValueTask<IResult> ExportTenantAsync(
@@ -340,6 +340,15 @@ internal class TenantTransferApiEndpointHandler(
             recipient,
             cancellationToken
         );
+
+        // A compact JWE is ASCII, so its length is its size in bytes. The offer recorded above expires unused.
+        if (package.Length > TenantTransferLimits.MaxPackageBytes)
+        {
+            return TypedResults.Problem(
+                detail: $"The tenant's package is {package.Length} bytes, over the {TenantTransferLimits.MaxPackageBytes}-byte limit of a tenant move.",
+                statusCode: StatusCodes.Status422UnprocessableEntity
+            );
+        }
 
         await ManagementAuditRecorder.RecordTenantChangedAsync(
             httpContext,

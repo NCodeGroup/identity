@@ -487,13 +487,15 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
     {
         public byte[] Payload { get; set; } = [];
 
+        public string Package { get; set; } = PackageText;
+
         public override ValueTask<string> EncodeAsync(
             ReadOnlyMemory<byte> payload,
             CancellationToken cancellationToken
         )
         {
             Payload = payload.ToArray();
-            return new ValueTask<string>(PackageText);
+            return new ValueTask<string>(Package);
         }
 
         public override ValueTask EncodeAsync(
@@ -580,6 +582,34 @@ public sealed class TenantTransferApiEndpointHandlerTests : IDisposable
         );
         Assert.Equal("accounts", sections[1].GetProperty("name").GetString());
         Assert.Equal(3, sections[1].GetProperty("json").GetProperty("count").GetInt32());
+    }
+
+    [Fact]
+    public async Task ExportTenantAsync_WhenThePackageIsOverTheCeiling_ReturnsUnprocessableEntityAndAuditsNothing()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupImportAccepted();
+        var recipient = SetupRecipientKey();
+        SetupStore(CreateTenant(isDisabled: true));
+        SetupOffer(MoveOfferResult.Offered());
+        SetupContributors();
+        SetupMasterKeys(recipient);
+        SetupEncoder(recipient);
+        Encoder.Package = new string('a', 67_108_865);
+
+        var result = await Handler.ExportTenantAsync(
+            CreateHttpContext(),
+            TenantId,
+            CreateRequest(),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status422UnprocessableEntity, problem.StatusCode);
+        Assert.Equal(
+            "The tenant's package is 67108865 bytes, over the 67108864-byte limit of a tenant move.",
+            problem.ProblemDetails.Detail
+        );
     }
 
     [Fact]
