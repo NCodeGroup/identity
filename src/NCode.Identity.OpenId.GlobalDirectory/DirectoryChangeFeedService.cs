@@ -5,21 +5,25 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.GlobalDirectory.Logging;
+using NCode.Identity.Persistence.Stores;
 using NCode.Identity.SharedState;
 
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
 /// Mirrors the global directory's team and platform documents into the cell when the host starts and then every
-/// <see cref="DirectoryClientOptions.PollInterval"/>: it reads the highest sequence the cell has applied, pages
-/// <see cref="ITeamDirectory.ListChangesAsync"/> until a page is empty, applies each team change through
-/// <see cref="ITeamDocumentApplier"/> and each platform change through <see cref="IPlatformDocumentApplier"/>. One
-/// replica runs each pass, under a lease on the shared-state port keyed by the poll window. The replica that holds the
-/// lease also reconciles every mirrored team's root key for the cell's region through
-/// <see cref="ITeamDocumentApplier.ReconcileRootKeysAsync"/> after the change pages, on its first pass and then once
-/// <c>RootKeyReconcileInterval</c> has passed, so a key that failed its probe or its rotation cooldown is applied once
-/// it can be. A directory that cannot be reached throws <see cref="DirectoryUnavailableException"/>, which is logged
-/// and waits for the next interval, and so does any other pass that fails.
+/// <see cref="DirectoryClientOptions.PollInterval"/>: it reads the highest sequence the cell has applied from
+/// <see cref="IDirectoryFeedCheckpoint"/>, pages <see cref="ITeamDirectory.ListChangesAsync"/> until a page is empty,
+/// applies each team change through <see cref="ITeamDocumentApplier"/> and each platform change through
+/// <see cref="IPlatformDocumentApplier"/>, and raises the checkpoint to the last change it applied after each page, so
+/// a change that leaves no row behind is not listed again. A change that loses a concurrency race is applied again,
+/// which reads its rows again, at most <see cref="ConcurrencyAttempts"/> times. One replica runs each pass, under a
+/// lease on the shared-state port keyed by the poll window. The replica that holds the lease also reconciles every
+/// mirrored team's root key for the cell's region through <see cref="ITeamDocumentApplier.ReconcileRootKeysAsync"/>
+/// after the change pages, on its first pass and then once <c>RootKeyReconcileInterval</c> has passed, so a key that
+/// failed its probe or its rotation cooldown is applied once it can be. A directory that cannot be reached throws
+/// <see cref="DirectoryUnavailableException"/>, which is logged and waits for the next interval, and so does any other
+/// pass that fails.
 /// </summary>
 /// <remarks>
 /// The service does nothing when <see cref="CellOptions.IsControlPlane"/> is <c>true</c>, because the control-plane
@@ -30,6 +34,7 @@ internal sealed class DirectoryChangeFeedService(
     ITeamDirectory teamDirectory,
     ITeamDocumentApplier teamDocumentApplier,
     IPlatformDocumentApplier platformDocumentApplier,
+    IDirectoryFeedCheckpoint feedCheckpoint,
     IExpiringKeySet expiringKeySet,
     IOptions<CellOptions> cellOptions,
     IOptions<DirectoryClientOptions> directoryClientOptions,
@@ -48,6 +53,11 @@ internal sealed class DirectoryChangeFeedService(
     internal const int PageSize = 100;
 
     /// <summary>
+    /// The most times that one change is applied while it keeps losing a concurrency race.
+    /// </summary>
+    internal const int ConcurrencyAttempts = 3;
+
+    /// <summary>
     /// The time that must pass before this replica reconciles the mirrored teams' root keys again.
     /// </summary>
     internal static TimeSpan RootKeyReconcileInterval { get; } = TimeSpan.FromMinutes(15);
@@ -55,6 +65,7 @@ internal sealed class DirectoryChangeFeedService(
     private ITeamDirectory TeamDirectory { get; } = teamDirectory;
     private ITeamDocumentApplier TeamDocumentApplier { get; } = teamDocumentApplier;
     private IPlatformDocumentApplier PlatformDocumentApplier { get; } = platformDocumentApplier;
+    private IDirectoryFeedCheckpoint FeedCheckpoint { get; } = feedCheckpoint;
     private IExpiringKeySet ExpiringKeySet { get; } = expiringKeySet;
     private IOptions<CellOptions> CellOptionsAccessor { get; } = cellOptions;
     private IOptions<DirectoryClientOptions> Options { get; } = directoryClientOptions;
@@ -116,8 +127,9 @@ internal sealed class DirectoryChangeFeedService(
 
     /// <summary>
     /// Runs one pass unless another replica holds the lease of the current poll window: applies the directory's changes
-    /// after the highest sequence the cell has applied, page by page, then reconciles the mirrored teams' root keys
-    /// when <see cref="RootKeyReconcileInterval"/> has passed.
+    /// after the highest sequence the cell has applied, page by page, raises the checkpoint to the last change applied
+    /// after each page, then reconciles the mirrored teams' root keys when <see cref="RootKeyReconcileInterval"/> has
+    /// passed. A change that loses a concurrency race is applied again, up to <see cref="ConcurrencyAttempts"/> times.
     /// </summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
@@ -132,11 +144,7 @@ internal sealed class DirectoryChangeFeedService(
         if (!await ExpiringKeySet.TryAddAsync(windowKey, leaseExpiresWhen, cancellationToken))
             return;
 
-        var teamSequence = await TeamDocumentApplier.GetAppliedSequenceAsync(cancellationToken);
-        var platformSequence = await PlatformDocumentApplier.GetAppliedSequenceAsync(
-            cancellationToken
-        );
-        var after = Math.Max(teamSequence, platformSequence);
+        var after = await FeedCheckpoint.GetAppliedSequenceAsync(cancellationToken);
 
         while (true)
         {
@@ -157,6 +165,11 @@ internal sealed class DirectoryChangeFeedService(
                 after = Math.Max(after, change.Sequence);
             }
 
+            // The checkpoint, not the rows, holds the feed's position, because a change can leave no row behind. It is
+            // raised also when a change failed part-way, so the next pass starts after the changes that applied.
+            if (after > previous)
+                await FeedCheckpoint.RecordAppliedSequenceAsync(after, cancellationToken);
+
             // Changes apply in sequence order, so none after a failed one applies in this pass.
             if (!allApplied)
                 break;
@@ -170,8 +183,9 @@ internal sealed class DirectoryChangeFeedService(
     }
 
     /// <summary>
-    /// Applies one change of the feed. A change that fails is logged and ends the pass's changes, but not the pass: the
-    /// root keys are still reconciled.
+    /// Applies one change of the feed, again while it loses a concurrency race, up to <see cref="ConcurrencyAttempts"/>
+    /// times. A change that fails is logged and ends the pass's changes, but not the pass: the root keys are still
+    /// reconciled.
     /// </summary>
     /// <param name="change">The <see cref="DirectoryChange"/> to apply.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
@@ -183,16 +197,23 @@ internal sealed class DirectoryChangeFeedService(
         CancellationToken cancellationToken
     )
     {
-        try
+        for (var attempt = 1; ; attempt++)
         {
-            await ApplyAsync(change, cancellationToken);
-            return true;
-        }
-        // A timeout throws OperationCanceledException with the token untouched; only a cancelled token is shutdown.
-        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
-        {
-            Logger.DirectoryChangeApplyFailed(exception, change.Sequence);
-            return false;
+            try
+            {
+                await ApplyAsync(change, cancellationToken);
+                return true;
+            }
+            // A timeout throws OperationCanceledException with the token untouched; only a cancelled token is shutdown.
+            catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                // Each attempt goes through the applier, which opens a new store manager and reads the rows again.
+                if (exception is StoreConcurrencyException && attempt < ConcurrencyAttempts)
+                    continue;
+
+                Logger.DirectoryChangeApplyFailed(exception, change.Sequence);
+                return false;
+            }
         }
     }
 

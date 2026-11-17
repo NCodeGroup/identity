@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using Moq;
+using NCode.Identity.Persistence.Stores;
 using NCode.Identity.SharedState;
 using Xunit;
 
@@ -27,6 +28,8 @@ public class DirectoryChangeFeedServiceTests : BaseTests
 
     private Mock<IPlatformDocumentApplier> PlatformDocumentApplierMock { get; }
 
+    private Mock<IDirectoryFeedCheckpoint> FeedCheckpointMock { get; }
+
     private Mock<IExpiringKeySet> ExpiringKeySetMock { get; }
 
     public DirectoryChangeFeedServiceTests()
@@ -34,6 +37,7 @@ public class DirectoryChangeFeedServiceTests : BaseTests
         TeamDirectoryMock = CreateStrictMock<ITeamDirectory>();
         TeamDocumentApplierMock = CreateStrictMock<ITeamDocumentApplier>();
         PlatformDocumentApplierMock = CreateStrictMock<IPlatformDocumentApplier>();
+        FeedCheckpointMock = CreateStrictMock<IDirectoryFeedCheckpoint>();
         ExpiringKeySetMock = CreateStrictMock<IExpiringKeySet>();
     }
 
@@ -42,6 +46,7 @@ public class DirectoryChangeFeedServiceTests : BaseTests
             TeamDirectoryMock.Object,
             TeamDocumentApplierMock.Object,
             PlatformDocumentApplierMock.Object,
+            FeedCheckpointMock.Object,
             ExpiringKeySetMock.Object,
             Options.Create(new CellOptions { IsControlPlane = isControlPlane }),
             Options.Create(new DirectoryClientOptions { PollInterval = PollInterval }),
@@ -67,17 +72,29 @@ public class DirectoryChangeFeedServiceTests : BaseTests
     private static bool IsWindowLeaseKey(string key) =>
         key.StartsWith($"{DirectoryChangeFeedService.LeasePurpose}:", StringComparison.Ordinal);
 
-    private void SetupAppliedSequences(long teamSequence, long platformSequence)
-    {
-        TeamDocumentApplierMock
+    private void SetupLeases(int count) =>
+        ExpiringKeySetMock
+            .Setup(x =>
+                x.TryAddAsync(
+                    It.Is<string>(key => IsWindowLeaseKey(key)),
+                    It.IsAny<DateTimeOffset>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(true)
+            .Verifiable(Times.Exactly(count));
+
+    private void SetupAppliedSequence(long sequence) =>
+        FeedCheckpointMock
             .Setup(x => x.GetAppliedSequenceAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(teamSequence)
+            .ReturnsAsync(sequence)
             .Verifiable(Times.Once);
-        PlatformDocumentApplierMock
-            .Setup(x => x.GetAppliedSequenceAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(platformSequence)
+
+    private void SetupRecordedSequence(long sequence) =>
+        FeedCheckpointMock
+            .Setup(x => x.RecordAppliedSequenceAsync(sequence, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
             .Verifiable(Times.Once);
-    }
 
     private void SetupPage(long after, params DirectoryChange[] changes) =>
         TeamDirectoryMock
@@ -107,21 +124,8 @@ public class DirectoryChangeFeedServiceTests : BaseTests
 
     private void SetupEmptyPasses(int count)
     {
-        ExpiringKeySetMock
-            .Setup(x =>
-                x.TryAddAsync(
-                    It.Is<string>(key => IsWindowLeaseKey(key)),
-                    It.IsAny<DateTimeOffset>(),
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .ReturnsAsync(true)
-            .Verifiable(Times.Exactly(count));
-        TeamDocumentApplierMock
-            .Setup(x => x.GetAppliedSequenceAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(0)
-            .Verifiable(Times.Exactly(count));
-        PlatformDocumentApplierMock
+        SetupLeases(count);
+        FeedCheckpointMock
             .Setup(x => x.GetAppliedSequenceAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(0)
             .Verifiable(Times.Exactly(count));
@@ -180,10 +184,12 @@ public class DirectoryChangeFeedServiceTests : BaseTests
         var third = CreateTeamDocument("team-c", 12);
 
         SetupLease(true);
-        SetupAppliedSequences(teamSequence: 7, platformSequence: 5);
+        SetupAppliedSequence(7);
         SetupPage(7, TeamChange(8, first), TeamChange(9, second));
         SetupPage(9, TeamChange(12, third));
         SetupPage(12);
+        SetupRecordedSequence(9);
+        SetupRecordedSequence(12);
         SetupReconcile(Times.Once());
         TeamDocumentApplierMock
             .Setup(x => x.ApplyAsync(first, It.IsAny<CancellationToken>()))
@@ -209,9 +215,10 @@ public class DirectoryChangeFeedServiceTests : BaseTests
         var platform = new PlatformDocument { Settings = JsonElement.Parse("{}"), Sequence = 4 };
 
         SetupLease(true);
-        SetupAppliedSequences(teamSequence: 0, platformSequence: 3);
+        SetupAppliedSequence(3);
         SetupPage(3, new DirectoryChange { Sequence = 4, Platform = platform });
         SetupPage(4);
+        SetupRecordedSequence(4);
         SetupReconcile(Times.Once());
         PlatformDocumentApplierMock
             .Setup(x => x.ApplyAsync(platform, It.IsAny<CancellationToken>()))
@@ -227,9 +234,10 @@ public class DirectoryChangeFeedServiceTests : BaseTests
     public async Task RunAsync_WhenATeamChangeHasNoDocument_RetiresTheTeam()
     {
         SetupLease(true);
-        SetupAppliedSequences(teamSequence: 2, platformSequence: 0);
+        SetupAppliedSequence(2);
         SetupPage(2, new DirectoryChange { Sequence = 3, TeamId = "team-a" });
         SetupPage(3);
+        SetupRecordedSequence(3);
         SetupReconcile(Times.Once());
         TeamDocumentApplierMock
             .Setup(x => x.RetireAsync("team-a", 3, It.IsAny<CancellationToken>()))
@@ -284,7 +292,7 @@ public class DirectoryChangeFeedServiceTests : BaseTests
     public async Task RunAsync_WhenTheDirectoryIsUnavailable_DoesNotThrow()
     {
         SetupLease(true);
-        SetupAppliedSequences(teamSequence: 0, platformSequence: 0);
+        SetupAppliedSequence(0);
         TeamDirectoryMock
             .Setup(x =>
                 x.ListChangesAsync(
@@ -307,7 +315,7 @@ public class DirectoryChangeFeedServiceTests : BaseTests
         var document = CreateTeamDocument("team-a", 1);
 
         SetupLease(true);
-        SetupAppliedSequences(teamSequence: 0, platformSequence: 0);
+        SetupAppliedSequence(0);
         SetupPage(0, TeamChange(1, document));
         SetupReconcile(Times.Once());
         TeamDocumentApplierMock
@@ -327,7 +335,7 @@ public class DirectoryChangeFeedServiceTests : BaseTests
         var second = CreateTeamDocument("team-b", 2);
 
         SetupLease(true);
-        SetupAppliedSequences(teamSequence: 0, platformSequence: 0);
+        SetupAppliedSequence(0);
         SetupPage(0, TeamChange(1, first), TeamChange(2, second));
         SetupReconcile(Times.Once());
         TeamDocumentApplierMock
@@ -341,6 +349,155 @@ public class DirectoryChangeFeedServiceTests : BaseTests
 
         using var service = CreateService();
 
+        await service.RunAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenAPageApplies_RecordsItsLastSequence()
+    {
+        var first = CreateTeamDocument("team-a", 4);
+        var second = CreateTeamDocument("team-b", 6);
+        var third = CreateTeamDocument("team-c", 9);
+
+        SetupLease(true);
+        SetupAppliedSequence(3);
+        SetupPage(3, TeamChange(4, first), TeamChange(6, second), TeamChange(9, third));
+        SetupPage(9);
+        SetupRecordedSequence(9);
+        SetupReconcile(Times.Once());
+        foreach (var document in new[] { first, second, third })
+        {
+            TeamDocumentApplierMock
+                .Setup(x => x.ApplyAsync(document, It.IsAny<CancellationToken>()))
+                .Returns(ValueTask.CompletedTask)
+                .Verifiable(Times.Once);
+        }
+
+        using var service = CreateService();
+
+        await service.RunAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenAChangeFailsAfterOthersApplied_RecordsTheLastApplied()
+    {
+        var first = CreateTeamDocument("team-a", 1);
+        var second = CreateTeamDocument("team-b", 2);
+        var third = CreateTeamDocument("team-c", 3);
+
+        SetupLease(true);
+        SetupAppliedSequence(0);
+        SetupPage(0, TeamChange(1, first), TeamChange(2, second), TeamChange(3, third));
+        SetupRecordedSequence(2);
+        SetupReconcile(Times.Once());
+        TeamDocumentApplierMock
+            .Setup(x => x.ApplyAsync(first, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
+        TeamDocumentApplierMock
+            .Setup(x => x.ApplyAsync(second, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
+        TeamDocumentApplierMock
+            .Setup(x => x.ApplyAsync(third, It.IsAny<CancellationToken>()))
+            .Returns(() => throw new InvalidOperationException("The row cannot be written."))
+            .Verifiable(Times.Once);
+
+        using var service = CreateService();
+
+        await service.RunAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenAChangeLosesAConcurrencyRace_AppliesItAgain()
+    {
+        var document = CreateTeamDocument("team-a", 1);
+        var attempts = 0;
+
+        SetupLease(true);
+        SetupAppliedSequence(0);
+        SetupPage(0, TeamChange(1, document));
+        SetupPage(1);
+        SetupRecordedSequence(1);
+        SetupReconcile(Times.Once());
+        TeamDocumentApplierMock
+            .Setup(x => x.ApplyAsync(document, It.IsAny<CancellationToken>()))
+            .Returns(() =>
+                ++attempts < 2
+                    ? ValueTask.FromException(new StoreConcurrencyException("The row changed."))
+                    : ValueTask.CompletedTask
+            )
+            .Verifiable(Times.Exactly(2));
+
+        using var service = CreateService();
+
+        await service.RunAsync(CancellationToken.None);
+
+        Assert.Equal(2, attempts);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenAChangeLosesThreeRaces_StopsThePassAtIt()
+    {
+        var first = CreateTeamDocument("team-a", 1);
+        var second = CreateTeamDocument("team-b", 2);
+
+        SetupLease(true);
+        SetupAppliedSequence(0);
+        SetupPage(0, TeamChange(1, first), TeamChange(2, second));
+        SetupReconcile(Times.Once());
+        TeamDocumentApplierMock
+            .Setup(x => x.ApplyAsync(first, It.IsAny<CancellationToken>()))
+            .Returns(() =>
+                ValueTask.FromException(new StoreConcurrencyException("The row changed."))
+            )
+            .Verifiable(Times.Exactly(DirectoryChangeFeedService.ConcurrencyAttempts));
+        TeamDocumentApplierMock
+            .Setup(x => x.ApplyAsync(second, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Never);
+
+        using var service = CreateService();
+
+        await service.RunAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenTheNewestChangeIsARetirement_DoesNotApplyItAgain()
+    {
+        var recorded = 2L;
+
+        SetupLeases(2);
+        SetupPage(2, new DirectoryChange { Sequence = 3, TeamId = "team-a" });
+        SetupReconcile(Times.Once());
+        TeamDirectoryMock
+            .Setup(x =>
+                x.ListChangesAsync(
+                    3,
+                    DirectoryChangeFeedService.PageSize,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync([])
+            .Verifiable(Times.Exactly(2));
+        FeedCheckpointMock
+            .Setup(x => x.GetAppliedSequenceAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => recorded)
+            .Verifiable(Times.Exactly(2));
+        FeedCheckpointMock
+            .Setup(x => x.RecordAppliedSequenceAsync(3, It.IsAny<CancellationToken>()))
+            .Callback<long, CancellationToken>((sequence, _) => recorded = sequence)
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
+        TeamDocumentApplierMock
+            .Setup(x => x.RetireAsync("team-a", 3, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
+
+        using var service = CreateService();
+
+        await service.RunAsync(CancellationToken.None);
+        TimeProvider.Advance(PollInterval);
         await service.RunAsync(CancellationToken.None);
     }
 
