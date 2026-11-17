@@ -501,6 +501,66 @@ public class DirectoryChangeFeedServiceTests : BaseTests
         await service.RunAsync(CancellationToken.None);
     }
 
+    [Fact]
+    public async Task RunAsync_WhenAChildPrecedesItsParent_AppliesBothWhenTheDirectoryListsThemAgain()
+    {
+        var child = CreateTeamDocument("team-c", 3) with { ParentTeamId = "team-p" };
+        var parent = CreateTeamDocument("team-p", 5);
+        var childAgain = CreateTeamDocument("team-c", 6) with { ParentTeamId = "team-p" };
+        var recorded = 2L;
+        var listings = 0;
+
+        SetupLeases(2);
+        SetupReconcile(Times.Once());
+        SetupPage(2, TeamChange(3, child));
+        SetupPage(6);
+        TeamDirectoryMock
+            .Setup(x =>
+                x.ListChangesAsync(
+                    3,
+                    DirectoryChangeFeedService.PageSize,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(() =>
+                ++listings < 2
+                    ? (IReadOnlyList<DirectoryChange>)[]
+                    : [TeamChange(5, parent), TeamChange(6, childAgain)]
+            )
+            .Verifiable(Times.Exactly(2));
+        FeedCheckpointMock
+            .Setup(x => x.GetAppliedSequenceAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => recorded)
+            .Verifiable(Times.Exactly(2));
+        FeedCheckpointMock
+            .Setup(x =>
+                x.RecordAppliedSequenceAsync(It.IsAny<long>(), It.IsAny<CancellationToken>())
+            )
+            .Callback<long, CancellationToken>((sequence, _) => recorded = sequence)
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Exactly(2));
+        TeamDocumentApplierMock
+            .Setup(x => x.ApplyAsync(child, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
+        TeamDocumentApplierMock
+            .Setup(x => x.ApplyAsync(parent, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
+        TeamDocumentApplierMock
+            .Setup(x => x.ApplyAsync(childAgain, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
+
+        using var service = CreateService();
+
+        await service.RunAsync(CancellationToken.None);
+        TimeProvider.Advance(PollInterval);
+        await service.RunAsync(CancellationToken.None);
+
+        Assert.Equal(6, recorded);
+    }
+
     #endregion
 
     #region StartAsync Tests
