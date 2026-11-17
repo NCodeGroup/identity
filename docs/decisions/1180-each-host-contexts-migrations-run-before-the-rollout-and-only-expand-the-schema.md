@@ -17,9 +17,9 @@ step. During a rolling update the previous and the next release run side by side
 previous release without running a migration, because no hook runs on rollback and EF Core cannot safely reverse every
 migration. So a migration must leave the previous release working.
 
-The host has two database contexts, the OpenId context and the DeveloperDataProtection context. Nothing is shipped, so
-no database exists that a migration chain must carry forward: a model change can re-scaffold a context's single
-migration instead of stacking a new one on it.
+A cell's host has two database contexts, the OpenId context and the DeveloperDataProtection context, and the global
+directory's host has one, the directory context. Nothing is shipped, so no database exists that a migration chain must
+carry forward: a model change can re-scaffold a context's single migration instead of stacking a new one on it.
 
 ## Decision
 
@@ -93,8 +93,9 @@ The statements are not migrations, so `InitialCreateTests` and the expand-only r
 
 ### The expand-only rule
 
-`ExpandOnlyRule.Check(Migration)` judges every `[Migration]` of both contexts with no registration step;
-`ExpandOnlyRuleTests.HostMigration_WhenChecked_KeepsThePreviousReleaseWorking` runs it over all of them. It reads EF Core
+`ExpandOnlyRule.Check(Migration)` judges every `[Migration]` of the cell's two contexts with no registration step;
+`ExpandOnlyRuleTests.HostMigration_WhenChecked_KeepsThePreviousReleaseWorking` runs it over all of them, and
+`DirectoryInitialCreateTests` runs the same rule over the directory's `InitialCreate`. It reads EF Core
 `MigrationOperation` objects, so it does not scan text:
 
 - `FindContractingOperations` reports each operation that ADR-0143 item 5 lists as contracting, naming the table and the

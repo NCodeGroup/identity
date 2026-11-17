@@ -299,7 +299,8 @@ required, carries `[ContractMigration("why")]`, whose reason says why nothing re
 carries both markers fails.
 
 The Definition of Done fails if the model has changes no migration captures (`dotnet ef migrations
-has-pending-model-changes`, run for both contexts), so scaffold the migration before pushing.
+has-pending-model-changes`, run for the cell's two contexts and the directory's), so scaffold the migration before
+pushing.
 
 ## Purging / resetting the local database
 

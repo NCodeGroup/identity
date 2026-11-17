@@ -80,8 +80,9 @@ host never does and serves as a separate runtime role, and the build fails on dr
   `OpenIdDbContext`, so the published library imposes no `DataProtectionKeys` table.
 - **A drift gate.** The `ef model drift` step of `build/dod.ps1` runs
   `dotnet ef migrations has-pending-model-changes --no-build` against the Database project, as project and startup
-  project, for `OpenIdDbContext` and `DeveloperDataProtectionDbContext`. A model change without its migration fails
-  pre-push and in CI.
+  project, for `OpenIdDbContext` and `DeveloperDataProtectionDbContext`, and against
+  `hosts/NCode.Identity.OpenId.GlobalDirectory.Host`, as project and startup project, for `DirectoryDbContext`. A model
+  change without its migration fails pre-push and in CI.
 - **Migrations are generated code.** Everything under `Migrations/` is `generated_code = true` in `.editorconfig` and
   listed in `.csharpierignore`. Hand-written types such as `ExpandOnlyRule` stay outside that folder.
 
