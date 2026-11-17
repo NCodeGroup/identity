@@ -95,13 +95,25 @@ public class TenantLimitRulesTests : BaseTests
     #region GetEffectiveLimit Tests
 
     [Theory]
-    [InlineData(null, null, null)]
-    [InlineData(5, null, 5)]
-    [InlineData(null, 3, 3)]
     [InlineData(5, 3, 3)]
     [InlineData(2, 7, 2)]
     [InlineData(0, 4, 0)]
-    public void GetEffectiveLimit_ReturnsTheLesserLimitAndTreatsAnUnsetLimitAsUnlimited(
+    public void GetEffectiveLimit_WhenBothAreSet_ReturnsTheLesser(
+        int? platformLimit,
+        int? teamLimit,
+        int? expected
+    )
+    {
+        var effectiveLimit = TenantLimitRules.GetEffectiveLimit(platformLimit, teamLimit);
+
+        Assert.Equal(expected, effectiveLimit);
+    }
+
+    [Theory]
+    [InlineData(null, null, null)]
+    [InlineData(5, null, 5)]
+    [InlineData(null, 3, 3)]
+    public void GetEffectiveLimit_WhenOneIsUnset_ReturnsTheOther(
         int? platformLimit,
         int? teamLimit,
         int? expected
