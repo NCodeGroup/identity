@@ -46,6 +46,9 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
 ) : ILocalAccountStore, ILocalAccountTransferStore
     where TUser : IdentityUser, ITenantBoundUser, new()
 {
+    private const string LockoutUnsupportedMessage =
+        "The configured ASP.NET Core Identity store does not support lockout, which is required to disable a local account.";
+
     private static async ValueTask<PersistedLocalAccount> MapAsync(
         UserManager<TUser> userManager,
         TUser user,
@@ -105,12 +108,7 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         CancellationToken cancellationToken
     )
     {
-        if (!userManager.SupportsUserLockout)
-        {
-            throw new NotSupportedException(
-                "The configured ASP.NET Core Identity store does not support lockout, which is required to disable a local account."
-            );
-        }
+        ThrowIfLockoutUnsupported(userManager);
 
         ThrowIfFailed(
             await userManager.SetLockoutEnabledAsync(user, enabled: true),
@@ -238,6 +236,19 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
     }
 
     /// <summary>
+    /// Requires that the ASP.NET Core Identity store supports lockout, which is how a disabled local account is stored.
+    /// </summary>
+    /// <param name="userManager">The <see cref="UserManager{TUser}"/> whose store is checked.</param>
+    /// <exception cref="NotSupportedException">The store has no lockout support.</exception>
+    private static void ThrowIfLockoutUnsupported(UserManager<TUser> userManager)
+    {
+        if (!userManager.SupportsUserLockout)
+        {
+            throw new NotSupportedException(LockoutUnsupportedMessage);
+        }
+    }
+
+    /// <summary>
     /// Gets a member that ASP.NET Core Identity's user manager stores with every user, and requires that the stored
     /// user has it.
     /// </summary>
@@ -284,6 +295,13 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
     {
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
+
+        // A disabled account is stored as a lockout, so a store without lockout support refuses it before any user is
+        // created.
+        if (!account.IsEnabled)
+        {
+            ThrowIfLockoutUnsupported(userManager);
+        }
 
         // The id is assigned by the orchestrating create handler (it is also the self-issued identity's subject), so it
         // must be carried onto the Identity user rather than letting the store generate its own.
@@ -659,11 +677,9 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         var tenantId = GetRequiredTenantId();
         foreach (var record in records)
         {
-            if (!record.IsEnabled && !userManager.SupportsUserLockout)
+            if (!record.IsEnabled)
             {
-                throw new NotSupportedException(
-                    "The configured ASP.NET Core Identity store does not support lockout, which is required to disable a local account."
-                );
+                ThrowIfLockoutUnsupported(userManager);
             }
 
             // The user manager derives the normalized names under the ambient tenant, so they are the names the

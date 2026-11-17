@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NCode.Identity.OpenId.Accounts.DataContracts;
+using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Accounts.AspNetIdentity;
@@ -890,6 +891,24 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task AddAsync_WhenTheAccountIsDisabledAndLockoutIsUnsupported_ThrowsBeforeCreatingIt()
+    {
+        var (store, userManager) = CreateStore();
+        userManager.SetupGet(x => x.SupportsUserLockout).Returns(false).Verifiable();
+
+        // The user manager is strict and sets up no CreateAsync, so a created user would fail the test.
+        var exception = await Assert.ThrowsAsync<NotSupportedException>(async () =>
+            await store.AddAsync(
+                CreateAccount(isEnabled: false),
+                password: null,
+                CancellationToken.None
+            )
+        );
+
+        Assert.Contains("does not support lockout", exception.Message);
+    }
+
+    [Fact]
     public async Task AddAsync_WhenAPasswordIsGivenAndTheUserManagersHasherDoesNotNormalize_Throws()
     {
         var passwordHasher = CreatePasswordHasher();
@@ -975,6 +994,29 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
 
         // Confirmation is applied after SetEmailAsync (which resets it).
         Assert.True(user.EmailConfirmed);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenDisablingAndLockoutIsUnsupported_ThrowsNotSupported()
+    {
+        var (store, userManager) = CreateStore();
+        var user = CreateUser();
+        SetupUsers(userManager, user);
+        userManager
+            .Setup(x => x.SetUserNameAsync(user, UserName))
+            .ReturnsAsync(IdentityResult.Success)
+            .Verifiable();
+        userManager
+            .Setup(x => x.SetEmailAsync(user, "alice@example.com"))
+            .ReturnsAsync(IdentityResult.Success)
+            .Verifiable();
+        userManager.SetupGet(x => x.SupportsUserLockout).Returns(false).Verifiable();
+
+        var exception = await Assert.ThrowsAsync<NotSupportedException>(async () =>
+            await store.UpdateAsync(CreateAccount(isEnabled: false), CancellationToken.None)
+        );
+
+        Assert.Contains("does not support lockout", exception.Message);
     }
 
     #endregion
@@ -1118,6 +1160,41 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             [new PersistedLocalAccountClaim { Type = "role", Value = "admin" }],
             CancellationToken.None
         );
+    }
+
+    #endregion
+
+    #region ImportAsync Tests
+
+    [Fact]
+    public async Task ImportAsync_WhenARecordIsDisabledAndLockoutIsUnsupported_ThrowsBeforeCreatingIt()
+    {
+        var passwordStore = CreatePasswordStore();
+        var (store, userManager) = CreateStore(userStore: passwordStore.Object);
+        userManager.SetupGet(x => x.SupportsUserLockout).Returns(false).Verifiable();
+        var record = new LocalAccountTransferRecord
+        {
+            LocalAccountId = LocalAccountId,
+            UserName = UserName,
+            NormalizedUserName = UserName,
+            Email = null,
+            NormalizedEmail = null,
+            EmailVerified = false,
+            PasswordHash = null,
+            SecurityStamp = SecurityStamp,
+            IsEnabled = false,
+            LockoutEnabled = false,
+            LockoutEnd = null,
+            AccessFailedCount = 0,
+            Claims = [],
+        };
+
+        // The user manager is strict and sets up no CreateAsync, so a created user would fail the test.
+        var exception = await Assert.ThrowsAsync<NotSupportedException>(async () =>
+            await store.ImportAsync([record], CancellationToken.None)
+        );
+
+        Assert.Contains("does not support lockout", exception.Message);
     }
 
     #endregion
