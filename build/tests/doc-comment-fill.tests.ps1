@@ -300,12 +300,13 @@ try {
     Assert-Problems 'a CRLF line ending is not part of a line width' $repository @()
 
     $repository = New-Repository 'missing-base' @{ 'src/A/Widget.cs' = New-CSharp }
+    # A child process, so the checker's throw stays in it. A wrapped error is joined onto one line.
     $output = (& pwsh -NoProfile -NonInteractive -File $checker -Root $repository -Base 'refs/heads/missing' 2>&1 | Out-String)
     if ($LASTEXITCODE -eq 0) {
         throw 'Test ''a missing merge base fails'' expected a non-zero exit code.'
     }
     $expected = "Cannot find the merge base of HEAD and 'refs/heads/missing'. Fetch it first (git fetch origin)."
-    if (-not ($output -replace '\s+', ' ').Contains($expected, [StringComparison]::Ordinal)) {
+    if (-not (($output -replace '\r?\n\s+\|\s?', ' ') -replace '\s+', ' ').Contains($expected, [StringComparison]::Ordinal)) {
         throw "Test 'a missing merge base fails' expected '$expected', got '$output'."
     }
     $testCount++
