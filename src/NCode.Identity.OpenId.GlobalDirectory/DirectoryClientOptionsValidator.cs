@@ -72,6 +72,13 @@ internal sealed class DirectoryClientOptionsValidator : IValidateOptions<Directo
             );
         }
 
+        if (!TimerPeriod.IsValid(options.RequestTimeout))
+        {
+            failures.Add(
+                $"{Prefix}:{nameof(DirectoryClientOptions.RequestTimeout)} '{options.RequestTimeout}' must be a time span from {TimerPeriod.MinValue} to {TimerPeriod.MaxValue}."
+            );
+        }
+
         if (!TimerPeriod.IsValid(options.TokenFailureCacheDuration))
         {
             failures.Add(

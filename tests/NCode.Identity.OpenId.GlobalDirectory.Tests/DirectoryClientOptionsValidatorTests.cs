@@ -184,6 +184,19 @@ public class DirectoryClientOptionsValidatorTests : BaseTests
     }
 
     [Fact]
+    public void Validate_WhenTheRequestTimeoutIsNotATimerPeriod_FailsNamingTheKey()
+    {
+        var options = CreateOptions();
+        options.RequestTimeout = TimeSpan.Zero;
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        var failure = Assert.Single(result.Failures);
+        Assert.Contains("Directory:RequestTimeout", failure);
+    }
+
+    [Fact]
     public void Validate_WhenTheTokenFailureCacheDurationIsNotATimerPeriod_FailsNamingTheKey()
     {
         var options = CreateOptions();

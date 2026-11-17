@@ -4,6 +4,7 @@
 using System.Net;
 using Microsoft.Extensions.Options;
 using Moq;
+using NCode.Identity.OpenId.Client;
 using Xunit;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Tests;
@@ -134,5 +135,75 @@ public class DirectoryHttpClientTests : RemoteDirectoryTestBase
         Assert.Same(expected, exception);
     }
 
+    [Fact]
+    public async Task SendAsync_WhenTheBodyStallsPastTheRequestTimeout_ThrowsDirectoryUnavailable()
+    {
+        var handler = new StubHttpMessageHandler(
+            (_, _) =>
+                Task.FromResult(
+                    new HttpResponseMessage(HttpStatusCode.OK) { Content = new StalledContent() }
+                )
+        );
+        var factoryMock = CreateStrictMock<IHttpClientFactory>();
+        factoryMock
+            .Setup(x => x.CreateClient(OpenIdClientDefaults.HttpClientName))
+            .Returns(new HttpClient(handler))
+            .Verifiable(Times.Once);
+        var tokenSourceMock = CreateStrictMock<ICellTokenSource>();
+        tokenSourceMock
+            .Setup(x =>
+                x.GetAccessTokenAsync(
+                    GlobalDirectoryProtocol.DirectoryAudience,
+                    GlobalDirectoryProtocol.DirectoryScope,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(new ValueTask<string>(AccessToken))
+            .Verifiable(Times.Once);
+        var client = new DirectoryHttpClient(
+            factoryMock.Object,
+            tokenSourceMock.Object,
+            Options.Create(
+                new DirectoryClientOptions
+                {
+                    Url = BaseUrl,
+                    RequestTimeout = TimeSpan.FromMilliseconds(100),
+                }
+            )
+        );
+        using var callerSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+        var exception = await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
+            await client.SendAsync(
+                HttpMethod.Get,
+                "tenants/tenant-1",
+                body: null,
+                callerSource.Token
+            )
+        );
+
+        Assert.StartsWith("The request timed out: ", exception.Message);
+    }
+
     #endregion
+
+    private sealed class StalledContent : HttpContent
+    {
+        protected override async Task<Stream> CreateContentReadStreamAsync(
+            CancellationToken cancellationToken
+        )
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return Stream.Null;
+        }
+
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) =>
+            throw new NotSupportedException();
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = 0;
+            return false;
+        }
+    }
 }

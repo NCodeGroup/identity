@@ -52,6 +52,13 @@ public sealed class DirectoryClientOptions
     public TimeSpan TokenRequestTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
+    /// Gets or sets how long a cell waits for one call to the directory, its response body included, before the call
+    /// ends as a <see cref="DirectoryUnavailableException"/>. It is the period of a timer, from 1 millisecond to about
+    /// 49.7 days. The default is 30 seconds.
+    /// </summary>
+    public TimeSpan RequestTimeout { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
     /// Gets or sets how long a cell remembers a failed token request, during which a caller that needs that token fails
     /// at once without a request to the control plane. It is a timer period, from 1 millisecond to about 49.7 days. The
     /// default is 5 seconds.
