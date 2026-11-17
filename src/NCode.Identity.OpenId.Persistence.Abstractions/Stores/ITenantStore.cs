@@ -317,13 +317,15 @@ public interface ITenantStore : IStore<PersistedTenant>
     /// their scopes and secrets, its role assignments, and the data of its end users: their local accounts, federated
     /// principals and identities, sessions, and other grants. Its usage is kept so its last days can still be billed.
     /// Removing a tenant retires its identifier and its issuer in the same unit of work, so neither is reissued.
-    /// Changing a tenant's issuer through <c>UpdateAsync</c> likewise retires the issuer it gave up.
+    /// Changing a tenant's issuer through <c>UpdateAsync</c> likewise retires the issuer it gave up. It reads and
+    /// writes across tenants, so it runs only in an unscoped scope, and the caller saves the removal in that scope.
     /// </remarks>
     /// <param name="tenantId">The identifier of the OpenId Tenant to remove.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c>
     /// if the tenant was removed; otherwise <c>false</c> when no matching tenant existed.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when the tenant still has clients or resource servers.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the tenant still has clients or resource servers, or
+    /// when the ambient scope is not unscoped.</exception>
     // See ADR-1160 and ADR-1212.
     ValueTask<bool> RemoveAsync(string tenantId, CancellationToken cancellationToken);
 
@@ -335,19 +337,21 @@ public interface ITenantStore : IStore<PersistedTenant>
     /// <remarks>
     /// The removal covers the same rows as <see cref="RemoveAsync"/>: the tenant's secrets, its resource servers with
     /// their scopes and secrets, its role assignments, the data of its end users, its master keys and its root key
-    /// rows. It is saved with the store manager's unit of work.
+    /// rows. It is saved with the store manager's unit of work. It reads and writes across tenants, so it runs only in
+    /// an unscoped scope, and the caller saves the removal in that scope.
     /// </remarks>
     /// <param name="tenantId">The identifier of the OpenId Tenant to remove from this cell.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c> if the
     /// tenant was removed; otherwise <c>false</c> when no matching tenant existed.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the ambient scope is not unscoped.</exception>
     // See ADR-1514.
     ValueTask<bool> RemoveFromCellAsync(string tenantId, CancellationToken cancellationToken);
 
     /// <summary>
     /// Determines whether an OpenId Tenant still has dependents (its clients, or the resource servers created in it)
     /// that would block its removal. Everything else the tenant owns, its end users' data included, is part of the
-    /// tenant and is not a dependent.
+    /// tenant and is not a dependent. It reads in the ambient scope: the tenant's scope or an unscoped one.
     /// </summary>
     /// <param name="tenantId">The identifier of the OpenId Tenant.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>

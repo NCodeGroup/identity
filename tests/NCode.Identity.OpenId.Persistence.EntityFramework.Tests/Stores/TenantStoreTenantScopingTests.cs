@@ -131,6 +131,37 @@ public sealed class TenantStoreTenantScopingTests : IDisposable
         Assert.Empty(tenantB.Secrets.Value);
     }
 
+    [Fact]
+    public async Task RemoveAsync_WhenTheScopeIsATenantScope_Throws()
+    {
+        await SeedAsync(CancellationToken.None);
+
+        using var scope = AmbientTenantAccessor.BeginScope(TenantA);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Store.RemoveAsync(TenantA, CancellationToken.None)
+        );
+
+        Assert.StartsWith("TenantStore.RemoveAsync reads across tenants", exception.Message);
+    }
+
+    [Fact]
+    public async Task RemoveFromCellAsync_WhenTheScopeIsATenantScope_Throws()
+    {
+        await SeedAsync(CancellationToken.None);
+
+        using var scope = AmbientTenantAccessor.BeginScope(TenantA);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Store.RemoveFromCellAsync(TenantA, CancellationToken.None)
+        );
+
+        Assert.StartsWith(
+            "TenantStore.RemoveFromCellAsync reads across tenants",
+            exception.Message
+        );
+    }
+
     private sealed class TestAmbientTenantAccessor : IAmbientTenantAccessor
     {
         public string? TenantId { get; set; }

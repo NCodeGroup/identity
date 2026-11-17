@@ -785,6 +785,8 @@ internal class TenantStore(
     /// <inheritdoc />
     public async ValueTask<bool> RemoveAsync(string tenantId, CancellationToken cancellationToken)
     {
+        DbContext.EnsureUnscoped($"{nameof(TenantStore)}.{nameof(RemoveAsync)}");
+
         var tenantEntity = await GetEntityOrDefaultAsync(tenantId, cancellationToken);
         if (tenantEntity is null)
         {
@@ -809,6 +811,8 @@ internal class TenantStore(
         CancellationToken cancellationToken
     )
     {
+        DbContext.EnsureUnscoped($"{nameof(TenantStore)}.{nameof(RemoveFromCellAsync)}");
+
         var tenantEntity = await GetEntityOrDefaultAsync(tenantId, cancellationToken);
         if (tenantEntity is null)
         {
@@ -971,22 +975,19 @@ internal class TenantStore(
         CancellationToken cancellationToken
     )
     {
-        var hasClients = await DbContext
-            // Cross-tenant: a tenant is removed whatever the ambient tenant is, so its clients are counted in every scope.
-            .Clients.IgnoreQueryFilters()
-            .AnyAsync(client => client.TenantId == tenantEntity.Id, cancellationToken);
+        var hasClients = await DbContext.Clients.AnyAsync(
+            client => client.TenantId == tenantEntity.Id,
+            cancellationToken
+        );
         if (hasClients)
         {
             return true;
         }
 
-        return await DbContext
-            // Cross-tenant: a tenant is removed whatever the ambient tenant is, so its resource servers are counted in every scope.
-            .ResourceServers.IgnoreQueryFilters()
-            .AnyAsync(
-                resourceServer =>
-                    resourceServer.TenantId == tenantEntity.Id && !resourceServer.IsSystem,
-                cancellationToken
-            );
+        return await DbContext.ResourceServers.AnyAsync(
+            resourceServer =>
+                resourceServer.TenantId == tenantEntity.Id && !resourceServer.IsSystem,
+            cancellationToken
+        );
     }
 }
