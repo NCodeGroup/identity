@@ -560,6 +560,12 @@ than inlining the rationale.
   or drop it to a naked collection. Register a stateless capability as a singleton; register
   a long-running loop as an `AddHostedService<T>` over a `BackgroundService`. Wire-up stays out of the type that does
   the work, so the work stays constructor-injectable and testable.
+- 👁 **A registration that supersedes another package's default registers with `Replace`.** A package whose
+  registration exists to supersede another package's default for the same service — the global directory's remote
+  adapters over the local tenant, team, platform and cell directories, the team-chain `ISecretOwnerParentResolver`
+  over the secret persistence library's, the Valkey shared-state sets over the in-process ones — registers with
+  `Replace` (or `RemoveAll` then `Add`), so the order of the `Add…` calls cannot leave the default in place. `TryAdd*`
+  stays the rule for a package's own defaults.
 - 👁 **The package that owns a consumer registers that consumer's ambient dependencies** — template
   [DI Registration and Extension Methods](csharp.instructions.md#di-registration-and-extension-methods), so composing
   the server (`AddIdentityServer()`) is turnkey: the owning package registers routing, `IHttpClientFactory`,
