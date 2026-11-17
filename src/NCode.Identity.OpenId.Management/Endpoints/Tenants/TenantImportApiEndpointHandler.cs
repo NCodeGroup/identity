@@ -89,11 +89,13 @@ internal class TenantImportApiEndpointHandler(
 
         imports
             .MapPost("", ImportTenantAsync)
+            .WithMetadata(new RequestSizeLimitAttribute(TenantTransferLimits.MaxImportRequestBytes))
             .Produces<TenantImportResource>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status413PayloadTooLarge)
             .ProducesProblem(StatusCodes.Status415UnsupportedMediaType)
             .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
@@ -146,6 +148,7 @@ internal class TenantImportApiEndpointHandler(
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="200">The tenant is imported and placed in this cell.</response>
     /// <response code="409">The directory places the tenant in this cell or in no cell, or refuses the move. Nothing the import wrote remains.</response>
+    /// <response code="413">The request is larger than the ceiling of a tenant move, 64 MiB and 64 KiB.</response>
     /// <response code="422">The transfer key is unknown, expired or already used, the package is not sealed to a transfer key, the package does not decrypt with it or is malformed, its format version is not one this cell imports, its region is not this cell's region, or it is offered to another cell.</response>
     /// <response code="503">The global directory is unavailable. Nothing the import wrote remains.</response>
     [EndpointName("api/tenant-imports/create")]

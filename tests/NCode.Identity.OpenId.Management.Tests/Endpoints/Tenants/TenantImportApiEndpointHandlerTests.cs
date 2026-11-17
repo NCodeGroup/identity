@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.Cryptography;
@@ -1239,7 +1240,7 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
 
     [Theory]
     [InlineData("POST", "/tenant-imports/transfer-keys", new[] { 401, 403 })]
-    [InlineData("POST", "/tenant-imports", new[] { 400, 401, 403, 409, 415, 422, 503 })]
+    [InlineData("POST", "/tenant-imports", new[] { 400, 401, 403, 409, 413, 415, 422, 503 })]
     public async Task Map_Always_DeclaresAndDescribesEveryProblemARouteAnswers(
         string httpMethod,
         string routePattern,
@@ -1277,6 +1278,32 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
             .Select(endpoint => endpoint.RoutePattern.RawText);
 
         Assert.Equal(["/tenant-imports/", "/tenant-imports/transfer-keys"], routes);
+    }
+
+    [Fact]
+    public async Task Map_Always_LimitsTheImportRequestToTheCeilingOfATenantMove()
+    {
+        await using var app = WebApplication.CreateSlimBuilder().Build();
+        Handler.Map(app);
+
+        var endpoints = ((IEndpointRouteBuilder)app)
+            .DataSources.SelectMany(dataSource => dataSource.Endpoints)
+            .OfType<RouteEndpoint>()
+            .ToList();
+        var import = Assert.Single(
+            endpoints,
+            endpoint => endpoint.RoutePattern.RawText == "/tenant-imports/"
+        );
+        var transferKeys = Assert.Single(
+            endpoints,
+            endpoint => endpoint.RoutePattern.RawText == "/tenant-imports/transfer-keys"
+        );
+
+        Assert.Equal(
+            64L * 1024 * 1024 + 64 * 1024,
+            import.Metadata.GetMetadata<IRequestSizeLimitMetadata>()?.MaxRequestBodySize
+        );
+        Assert.Null(transferKeys.Metadata.GetMetadata<IRequestSizeLimitMetadata>());
     }
 
     #endregion
