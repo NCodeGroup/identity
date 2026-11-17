@@ -304,6 +304,12 @@ applied. Rendered for its side effect only.
 {{- if and .Values.directory.url (not .Values.directory.clientId) }}
 {{- fail "directory.clientId must name the cell's machine client when directory.url is set." }}
 {{- end }}
+{{- if and .Values.directory.url .Values.directory.clientId (ne .Values.directory.clientId (printf "cell-%s" .Values.cell.name)) }}
+{{- fail (printf "directory.clientId must be cell-%s, the machine client of the cell that cell.name names, when directory.url is set." .Values.cell.name) }}
+{{- end }}
+{{- if and .Values.directory.url (not .Values.cell.managementUrl) }}
+{{- fail "cell.managementUrl must be the URL of the cell's management API when directory.url is set: the cell registers it with the directory." }}
+{{- end }}
 {{- if and .Values.directory.url (not .Values.directory.keyRing) }}
 {{- fail "directory.keyRing must name the key ring that signs the cell's client assertions when directory.url is set." }}
 {{- end }}

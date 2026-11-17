@@ -38,7 +38,8 @@ cell:
   kind: shared
   # The cloud regions the cell's infrastructure spans. The KMS adapters refuse a key outside them.
   cloudRegions: []
-  # The absolute URL at which the cell's management API is reachable. Empty when the cell has none.
+  # The absolute URL at which the cell's management API is reachable. Empty when the cell has none. Required when
+  # directory.url is set: the cell registers it with the directory.
   managementUrl: ""
   # true when the cell is the control-plane cell, which serves platform and team management and setup.
   isControlPlane: false

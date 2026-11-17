@@ -160,7 +160,7 @@ it, and the chart renders them as the `Cell` section the host binds:
 - `cell.cloudRegions` (default empty), the cloud regions the cell's infrastructure spans, rendered as
   `Cell__CloudRegions__<i>` (the KMS adapters refuse a key outside them);
 - `cell.managementUrl`, the absolute URL at which the cell's management API is reachable, rendered when set
-  (`Cell__ManagementUrl`);
+  (`Cell__ManagementUrl`) and required when `directory.url` is set, because the cell registers it with the directory;
 - `cell.isControlPlane` (default `false`), whether the cell is the control-plane cell, which serves platform and team
   management and setup (`Cell__IsControlPlane`);
 - `cell.controlPlaneIssuer`, the issuer of the control-plane cell (`Cell__ControlPlane__Issuer`), required when
@@ -289,6 +289,8 @@ Rendering fails, before anything is applied, when:
   plane's issuer;
 - `directory.url` is set and `cell.controlPlaneIssuer` is empty, because the cell asks the control-plane cell's issuer
   for the token it presents to the directory;
+- `directory.url` is set and `directory.clientId` is not `cell-<cell.name>` or `cell.managementUrl` is empty, because
+  the directory knows a cell by its machine client and the cell registers its management URL with the directory;
 - a value of the cell's directory client (`directory.clientId`, `directory.keyRing`, `directory.keys.pemSecret` or
   `directory.keys.remoteKeys`) is set and `directory.url` is empty, because the chart then renders none of them and the
   cell keeps the local adapters;

@@ -747,6 +747,8 @@ jobs:
           refuse --set cell.isControlPlane=true --set cell.controlPlaneIssuer=
           refuse --set cell.isControlPlane=true --set cell.controlPlaneIssuer=http://id.example.com
           refuse --set directory.clientId=
+          refuse --set directory.clientId=cell-other
+          refuse --set cell.managementUrl=
           refuse --set directory.keyRing=
           refuse --set directory.keyRing=cell:client
           refuse --set directory.keyRing=cell__client
