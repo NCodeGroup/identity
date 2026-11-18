@@ -27,10 +27,10 @@ The harness is [`build/conformance/`](../../build/conformance):
   [`expected-skips.json`](../../build/conformance/expected-skips.json): an entry codifies only a documented, intentional
   deviation and links an issue or ADR.
 
-The pre-flight is `@ncodegroup/identity-app-conformance-runner` (ADR-1084), which exercises the confidential and server-initiated legs
-a browser cannot (`client_credentials`, introspection/revocation with client auth, device-code polling, CIBA,
-`private_key_jwt`, DPoP/mTLS, back-channel logout) and exits non-zero on any failed probe. Running it first gives fast
-local feedback before the heavier suite spins up.
+The pre-flight is `@ncodegroup/identity-app-conformance-runner` (ADR-1084), which exercises the confidential and
+server-initiated legs a browser cannot (`client_credentials`, introspection/revocation with client auth, device-code
+polling, CIBA, `private_key_jwt`, DPoP/mTLS, back-channel logout) and exits non-zero on any failed probe. Running it
+first gives fast local feedback before the heavier suite spins up.
 
 ## Exercise boundary (why both)
 
