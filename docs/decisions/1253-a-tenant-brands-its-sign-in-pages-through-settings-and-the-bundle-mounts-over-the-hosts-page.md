@@ -12,8 +12,8 @@ The host renders working no-JavaScript login, consent and authorization error pa
 `apps/auth` bundle is present, the host writes the page into the bundle's `#root` element and the bundle replaces it
 (progressive enhancement). Several forces shape how a tenant brands those pages and how the replacement happens:
 
-- **Branding is per tenant.** `@ncodegroup/identity-ui` themes from a runtime `BrandingConfig` (display name, logo, primary and
-  secondary colors, color mode) and the frontend bootstrap document can carry one
+- **Branding is per tenant.** `@ncodegroup/identity-ui` themes from a runtime `BrandingConfig` (display name, logo,
+  primary and secondary colors, color mode) and the frontend bootstrap document can carry one
   ([ADR-1064](1064-one-frontend-platform-of-shared-packages-and-thin-app-shells-serves-every-web-surface.md)). That document is configured per deployment, and the surface a
   tenant's end-users see is served beneath the tenant route
   ([ADR-1193](1193-the-interactive-surface-uses-the-tenant-route-host-only-cookies-and-one-shared-single-page-bundle-helper.md)).
@@ -74,8 +74,8 @@ branding and the state the page carries.**
    deployment branding from its bootstrap document.
 7. **`mountSurface` mounts at once and makes no request.** `mountSurface` in `apps/auth/src/mount.tsx` runs from
    `main.tsx` when the bundle's module runs. Before `createRoot(container).render(...)` it reads:
-   - the branding: `readBranding` reads the `#branding` block and `parseBrandingConfig` of `@ncodegroup/identity-config` keeps only
-     well-formed tokens, so a missing or malformed block themes the surface with the default presentation;
+   - the branding: `readBranding` reads the `#branding` block and `parseBrandingConfig` of `@ncodegroup/identity-config`
+     keeps only well-formed tokens, so a missing or malformed block themes the surface with the default presentation;
    - the state of the page: `readServerPage` reads the non-empty values of the text, email and password inputs by id,
      the `scope` checkboxes the end-user cleared, the id of the input that has focus, and the authorization error
      (`#authorization-error`, its `data-error-code` attribute and `#authorization-error-description`);

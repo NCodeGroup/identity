@@ -95,8 +95,8 @@ and the `form_post` response only by its client's origin.**
    the client's `redirect_uri` and then wherever the client redirects, and the `form_post` page posts to the client,
    which redirects anywhere. Those targets cannot be listed. A page with no form gets `form-action 'none'`. HTML
    encoding of every rendered value, nonce-only scripts and `base-uri` keep an injected form out.
-6. **The bundle carries the page's nonce.** `@ncodegroup/identity-vite-config`'s `defineBackendServedSurfaceConfig` sets Vite's
-   `html.cspNonce` to `CSP_NONCE_PLACEHOLDER`, which is `__NCODE_CSP_NONCE__`, so the build writes
+6. **The bundle carries the page's nonce.** `@ncodegroup/identity-vite-config`'s `defineBackendServedSurfaceConfig` sets
+   Vite's `html.cspNonce` to `CSP_NONCE_PLACEHOLDER`, which is `__NCODE_CSP_NONCE__`, so the build writes
    `nonce="__NCODE_CSP_NONCE__"` on its module script and its modulepreload links, and a
    `<meta property="csp-nonce">`. `InteractiveBundleShell.NoncePlaceholder` and
    `ManagementConsoleDefaults.NoncePlaceholder` are the same string, and the host writes the response's nonce in its
