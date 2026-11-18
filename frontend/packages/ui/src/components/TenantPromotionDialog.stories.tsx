@@ -9,7 +9,12 @@ const meta: Meta<typeof TenantPromotionDialog> = {
   component: TenantPromotionDialog,
   args: {
     open: true,
-    tenantIds: ['acme-dev', 'acme-prod'],
+    tenants: [
+      { tenantId: 'acme-dev', cell: 'eu-1', region: 'eu' },
+      { tenantId: 'acme-staging', cell: 'eu-2', region: 'eu' },
+      { tenantId: 'acme-prod', cell: 'eu-1', region: 'eu' },
+      { tenantId: 'acme-us', cell: 'us-1', region: 'us' },
+    ],
     isBusy: false,
     onPreview: () => undefined,
     onPromote: () => undefined,

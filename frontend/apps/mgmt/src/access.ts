@@ -1,4 +1,5 @@
-import type { CallerResource, TeamResource, TenantResource } from '@ncode/api';
+import type { CallerResource, TeamResource } from '@ncode/api';
+import type { CellTenantResource } from '@ncode/store';
 import { HOME_ROUTE, platformRoute, teamRoute, tenantRoute, type ConsoleRoute } from './routes.js';
 
 /**
@@ -11,7 +12,7 @@ import { HOME_ROUTE, platformRoute, teamRoute, tenantRoute, type ConsoleRoute } 
 export type CallerAccess = {
   readonly isPlatformAdministrator: boolean;
   readonly teamIds: readonly string[];
-  readonly tenantIds: readonly string[];
+  readonly tenants: readonly { readonly tenantId: string; readonly cell?: string }[];
 };
 
 /** A back control's destination and its label. */
@@ -24,12 +25,15 @@ export type ScopeExit = {
 export function toCallerAccess(
   caller: CallerResource,
   teams: readonly TeamResource[],
-  tenants: readonly TenantResource[],
+  tenants: readonly CellTenantResource[],
 ): CallerAccess {
   return {
     isPlatformAdministrator: caller.isPlatformAdministrator,
     teamIds: teams.map((team) => team.teamId),
-    tenantIds: tenants.map((tenant) => tenant.tenantId),
+    tenants: tenants.map((tenant) => ({
+      tenantId: tenant.tenantId,
+      ...(tenant.cell !== undefined && { cell: tenant.cell }),
+    })),
   };
 }
 
@@ -41,7 +45,7 @@ export function soleDestination(access: CallerAccess): ConsoleRoute | null {
   const destinations: ConsoleRoute[] = [
     ...(access.isPlatformAdministrator ? [platformRoute('teams')] : []),
     ...access.teamIds.map((teamId) => teamRoute(teamId)),
-    ...access.tenantIds.map((tenantId) => tenantRoute(tenantId)),
+    ...access.tenants.map(({ tenantId, cell }) => tenantRoute(tenantId, undefined, cell)),
   ];
   return destinations.length === 1 ? (destinations[0] ?? null) : null;
 }

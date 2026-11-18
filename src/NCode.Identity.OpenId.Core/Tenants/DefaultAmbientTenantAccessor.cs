@@ -12,35 +12,47 @@ namespace NCode.Identity.OpenId.Tenants;
 /// </summary>
 internal sealed class DefaultAmbientTenantAccessor : IAmbientTenantAccessor
 {
-    private AsyncLocal<string?> AmbientTenantId { get; } = new();
+    private AsyncLocal<AmbientTenantScopeState?> AmbientState { get; } = new();
 
     /// <inheritdoc />
-    public bool IsScoped => AmbientTenantId.Value is not null;
+    public bool IsScoped => AmbientState.Value?.TenantId is not null;
 
     /// <inheritdoc />
-    public string? TenantId => AmbientTenantId.Value;
+    public string? TenantId => AmbientState.Value?.TenantId;
+
+    /// <inheritdoc />
+    public bool IsUnscoped => AmbientState.Value?.IsUnscoped ?? false;
+
+    /// <inheritdoc />
+    public string? UnscopedReason =>
+        AmbientState.Value is { IsUnscoped: true } state ? state.Reason : null;
 
     /// <inheritdoc />
     public IDisposable BeginScope(string tenantId)
     {
         ArgumentNullException.ThrowIfNull(tenantId);
 
-        var previous = AmbientTenantId.Value;
-        AmbientTenantId.Value = tenantId;
-        return new Scope(this, previous);
+        return Begin(new AmbientTenantScopeState(tenantId, IsUnscoped: false, Reason: null));
     }
 
-    private sealed class Scope(DefaultAmbientTenantAccessor owner, string? previous) : IDisposable
+    /// <inheritdoc />
+    public IDisposable BeginUnscoped(string reason)
     {
-        private bool Disposed { get; set; }
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
 
-        public void Dispose()
-        {
-            if (Disposed)
-                return;
+        return Begin(new AmbientTenantScopeState(TenantId: null, IsUnscoped: true, reason));
+    }
 
-            Disposed = true;
-            owner.AmbientTenantId.Value = previous;
-        }
+    /// <summary>
+    /// Makes the specified state the ambient state and returns the scope that restores the previous state when it is
+    /// disposed.
+    /// </summary>
+    /// <param name="state">The ambient state to apply.</param>
+    /// <returns>The scope that restores the previous ambient state when it is disposed.</returns>
+    private AmbientTenantScope Begin(AmbientTenantScopeState state)
+    {
+        var previous = AmbientState.Value;
+        AmbientState.Value = state;
+        return new AmbientTenantScope(AmbientState, previous);
     }
 }

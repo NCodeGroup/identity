@@ -4,6 +4,7 @@ import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
 import { ClientFormDialog, ClientTable, ConfirmDialog, DataStateBoundary } from '@ncode/ui';
 import { useCreateClientMutation, useListClientsQuery } from '@ncode/store';
+import { useTenantCell } from '../tenantCell.js';
 import { ClientDetailPage } from './ClientDetailPage.js';
 import { useClientAdministration } from './useClientAdministration.js';
 
@@ -29,8 +30,9 @@ export type ClientsPageProps = {
  * state live in {@link useClientAdministration}.
  */
 export function ClientsPage({ tenantId, resourceServerId, embedded = false }: ClientsPageProps) {
+  const cell = useTenantCell();
   const { data, isLoading, error } = useListClientsQuery(
-    resourceServerId ? { tenantId, resourceServerId } : { tenantId },
+    resourceServerId ? { tenantId, resourceServerId, cell } : { tenantId, cell },
   );
   const clients = data?.items ?? [];
 
@@ -45,6 +47,7 @@ export function ClientsPage({ tenantId, resourceServerId, embedded = false }: Cl
           ...(resourceServerId ? { resourceServerId } : {}),
           settings: {},
         },
+        cell,
       }).unwrap(),
   });
   if (admin.selected) {

@@ -11,17 +11,26 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Moq;
 using NCode.Identity.Dispatch.Options;
+using NCode.Identity.Jose;
+using NCode.Identity.Jwt;
 using NCode.Identity.OpenId;
 using NCode.Identity.OpenId.Authentication.ClientCertificates;
 using NCode.Identity.OpenId.Authentication.OutboundHttp;
 using NCode.Identity.OpenId.Authentication.Persistence;
 using NCode.Identity.OpenId.Authentication.Sessions;
 using NCode.Identity.OpenId.Authentication.Usage;
+using NCode.Identity.OpenId.Client;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Setup;
 using NCode.Identity.OpenId.Tenants;
+using NCode.Identity.Registration;
+using NCode.Identity.Secrets;
+using NCode.Identity.Secrets.Collections;
+using NCode.Identity.Secrets.Options;
 using NCode.Identity.Secrets.Persistence.Protection;
 using NCode.Identity.Server.DevelopmentEnvironment;
 using NCode.Identity.Server.Frontend;
+using NCode.Identity.SharedState.Options;
 using Xunit;
 
 namespace NCode.Identity.Server.Tests;
@@ -491,6 +500,10 @@ public sealed class IdentityServerBuilderExtensionsTests : BaseTests
         var serviceCollection = new ServiceCollection();
         var builder = CreateStrictMock<IIdentityServerBuilder>();
         builder.Setup(x => x.ServiceCollection).Returns(serviceCollection).Verifiable();
+        builder
+            .Setup(x => x.OpenIdClientLibraryBuilder)
+            .Returns(CreateOpenIdClientLibraryBuilder(serviceCollection))
+            .Verifiable();
 
         builder.Object.AddConfiguration(configuration);
 
@@ -556,6 +569,10 @@ public sealed class IdentityServerBuilderExtensionsTests : BaseTests
                 ["OpenId:TenantResolution:StrategyCode"] = "StaticSingle",
                 ["OpenId:TenantResolution:StaticSingle:TenantPath"] = "/",
                 ["SecretProtection:RootKeyProvider"] = "ephemeral",
+                ["Cell:Name"] = "local",
+                ["Cell:Region"] = "local",
+                ["Cell:Kind"] = "shared",
+                ["Cell:IsControlPlane"] = "true",
             },
             out var secretProtectorProvider
         );
@@ -586,6 +603,10 @@ public sealed class IdentityServerBuilderExtensionsTests : BaseTests
                 ["OpenId:TenantResolution:StrategyCode"] = "StaticSingle",
                 ["OpenId:TenantResolution:StaticSingle:TenantPath"] = "/",
                 ["SecretProtection:RootKeyProvider"] = "ephemeral",
+                ["Cell:Name"] = "local",
+                ["Cell:Region"] = "local",
+                ["Cell:Kind"] = "shared",
+                ["Cell:IsControlPlane"] = "true",
                 ["SecretProtection:RemoteKeyProviders:AwsKms:Region"] = "us-west-2",
                 ["SecretProtection:RemoteKeyProviders:AzureKeyVault:VaultUri"] =
                     "https://contoso.vault.azure.net",
@@ -611,6 +632,105 @@ public sealed class IdentityServerBuilderExtensionsTests : BaseTests
         await host.StopAsync();
     }
 
+    [Fact]
+    public void AddConfiguration_WhenDirectoryUrlIsSet_RegistersTheRemoteTenantDirectory()
+    {
+        var localDirectory = CreateStrictMock<ITenantDirectory>();
+
+        var serviceCollection = ConfigureServiceCollection(
+            new Dictionary<string, string?>
+            {
+                ["Directory:Url"] = "https://directory.example",
+                ["Directory:ClientId"] = "cell-eu-1",
+                ["Directory:KeyRing"] = "cell-client",
+            },
+            configureServices: services => services.AddSingleton(localDirectory.Object)
+        );
+
+        var descriptor = Assert.Single(
+            serviceCollection,
+            x => x.ServiceType == typeof(ITenantDirectory)
+        );
+        Assert.Equal("RemoteTenantDirectory", descriptor.ImplementationType?.Name);
+        Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
+    }
+
+    [Fact]
+    public void AddConfiguration_WhenDirectoryUrlIsNotSet_KeepsTheLocalTenantDirectory()
+    {
+        var localDirectory = CreateStrictMock<ITenantDirectory>();
+
+        var serviceCollection = ConfigureServiceCollection(
+            new Dictionary<string, string?>(),
+            configureServices: services => services.AddSingleton(localDirectory.Object)
+        );
+
+        var descriptor = Assert.Single(
+            serviceCollection,
+            x => x.ServiceType == typeof(ITenantDirectory)
+        );
+        Assert.Same(localDirectory.Object, descriptor.ImplementationInstance);
+        Assert.DoesNotContain(
+            serviceCollection,
+            x => x.ImplementationType?.Name == "RemoteTenantDirectory"
+        );
+    }
+
+    [Fact]
+    public void AddConfiguration_WhenKeyRingsAreConfigured_RegistersEachRingAsAKeyedProvider()
+    {
+        var serviceCollection = ConfigureServiceCollection(
+            new Dictionary<string, string?>
+            {
+                ["KeyRings:cell-client:PemFiles:0"] = "/etc/ncode-identity/cell-client.pem",
+            }
+        );
+
+        Assert.Single(
+            serviceCollection,
+            x =>
+                x.ServiceType == typeof(ISecretKeyCollectionProvider)
+                && x.IsKeyedService
+                && Equals(x.ServiceKey, "cell-client")
+        );
+    }
+
+    [Fact]
+    public void AddConfiguration_WhenTheCellIsConfigured_MakesItsNameTheSharedStateDeployment()
+    {
+        using var serviceProvider = BuildConfiguredServiceProvider(
+            new Dictionary<string, string?>
+            {
+                ["Cell:Name"] = "eu-1",
+                ["Cell:Region"] = "eu",
+                ["Cell:IsControlPlane"] = "true",
+            }
+        );
+
+        var options = serviceProvider.GetRequiredService<IOptions<SharedStateOptions>>().Value;
+
+        Assert.Equal("eu-1", options.Deployment);
+    }
+
+    [Fact]
+    public void AddConfiguration_WhenTheCellNamesCloudRegions_MakesThemTheKeyResidency()
+    {
+        using var serviceProvider = BuildConfiguredServiceProvider(
+            new Dictionary<string, string?>
+            {
+                ["Cell:Name"] = "eu-1",
+                ["Cell:Region"] = "eu",
+                ["Cell:IsControlPlane"] = "true",
+                ["Cell:CloudRegions:0"] = "eu-west-1",
+                ["Cell:CloudRegions:1"] = "eu-central-1",
+            }
+        );
+
+        var options = serviceProvider.GetRequiredService<IOptions<KeyResidencyOptions>>().Value;
+
+        Assert.Equal(["eu-west-1", "eu-central-1"], options.CloudRegions);
+    }
+
     private IHost BuildHost(
         Dictionary<string, string?> configurationData,
         out Mock<ISecretProtectorProvider> secretProtectorProvider
@@ -630,15 +750,20 @@ public sealed class IdentityServerBuilderExtensionsTests : BaseTests
 
         var builder = CreateStrictMock<IIdentityServerBuilder>();
         builder.Setup(x => x.ServiceCollection).Returns(hostBuilder.Services).Verifiable();
+        builder
+            .Setup(x => x.OpenIdClientLibraryBuilder)
+            .Returns(CreateOpenIdClientLibraryBuilder(hostBuilder.Services))
+            .Verifiable();
 
         builder.Object.AddConfiguration(hostBuilder.Configuration);
 
         return hostBuilder.Build();
     }
 
-    private ServiceProvider BuildConfiguredServiceProvider(
+    private ServiceCollection ConfigureServiceCollection(
         Dictionary<string, string?> configurationData,
-        string? sectionName = null
+        string? sectionName = null,
+        Action<IServiceCollection>? configureServices = null
     )
     {
         var configuration = new ConfigurationBuilder()
@@ -646,14 +771,34 @@ public sealed class IdentityServerBuilderExtensionsTests : BaseTests
             .Build();
 
         var serviceCollection = new ServiceCollection();
+        configureServices?.Invoke(serviceCollection);
+
         var builder = CreateStrictMock<IIdentityServerBuilder>();
         builder.Setup(x => x.ServiceCollection).Returns(serviceCollection).Verifiable();
+        builder
+            .Setup(x => x.OpenIdClientLibraryBuilder)
+            .Returns(CreateOpenIdClientLibraryBuilder(serviceCollection))
+            .Verifiable();
 
         var result = builder.Object.AddConfiguration(configuration, sectionName);
         Assert.Same(builder.Object, result);
 
-        return serviceCollection.BuildServiceProvider();
+        return serviceCollection;
     }
+
+    private static IServiceBuilder<OpenIdClientLibrary> CreateOpenIdClientLibraryBuilder(
+        IServiceCollection serviceCollection
+    ) =>
+        serviceCollection
+            .AddSecretsLibrary()
+            .AddJoseLibrary()
+            .AddJwtLibrary()
+            .AddOpenIdClientLibrary();
+
+    private ServiceProvider BuildConfiguredServiceProvider(
+        Dictionary<string, string?> configurationData,
+        string? sectionName = null
+    ) => ConfigureServiceCollection(configurationData, sectionName).BuildServiceProvider();
 
     #endregion
 

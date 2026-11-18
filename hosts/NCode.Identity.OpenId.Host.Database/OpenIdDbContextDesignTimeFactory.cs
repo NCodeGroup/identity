@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using IdGen;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.EntityFramework;
@@ -23,24 +22,32 @@ internal sealed class OpenIdDbContextDesignTimeFactory
     private const string DesignTimeConnectionString =
         "Host=localhost;Port=5432;Database=openiddb;Username=postgres;Password=postgres";
 
-    public OpenIdDbContext CreateDbContext(string[] args)
+    /// <summary>
+    /// Builds the service provider that an <see cref="OpenIdDbContext"/> constructed outside a request resolves its
+    /// id-generation convention and model contributors from: every slice of the OpenID persistence model, so a
+    /// generated migration and a test build the same model.
+    /// </summary>
+    /// <returns>The service provider, which lives as long as the contexts built over it.</returns>
+    // The context resolves its id-generation convention and model contributors from the application service
+    // provider; the same contributors must be registered so the generated migration includes every slice.
+    internal static ServiceProvider CreateServiceProvider()
     {
-        // The context resolves its id-generation convention and model contributors from the application service
-        // provider; the same contributors must be registered so the generated migration includes every slice.
-        var serviceProvider = new ServiceCollection()
-            .AddSingleton<IIdGenerator<long>>(new IdGenerator(0))
+        var idGenerator = new IdGenerator(0);
+
+        return new ServiceCollection()
+            .AddSingleton<IIdGenerator<long>>(idGenerator)
             .AddEntityFrameworkCorePersistence<OpenIdDbContext>()
             .AddLocalAccountEntityFramework()
             .ServiceCollection.BuildServiceProvider();
+    }
 
-        var optionsBuilder = new DbContextOptionsBuilder<OpenIdDbContext>();
-        optionsBuilder.UseOpenIdNpgsql(DesignTimeConnectionString);
-        optionsBuilder.UseApplicationServiceProvider(serviceProvider);
+    public OpenIdDbContext CreateDbContext(string[] args)
+    {
+        var serviceProvider = CreateServiceProvider();
 
-        return new OpenIdDbContext(
-            optionsBuilder.Options,
-            new HostDatabase.UnscopedAmbientTenantAccessor(),
-            serviceProvider.GetServices<IOpenIdModelContributor>()
+        return HostDatabase.CreateUnscopedOpenIdContext(
+            serviceProvider,
+            DesignTimeConnectionString
         );
     }
 }

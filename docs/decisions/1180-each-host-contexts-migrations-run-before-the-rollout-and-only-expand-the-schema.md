@@ -17,9 +17,9 @@ step. During a rolling update the previous and the next release run side by side
 previous release without running a migration, because no hook runs on rollback and EF Core cannot safely reverse every
 migration. So a migration must leave the previous release working.
 
-The host has two database contexts, the OpenId context and the DeveloperDataProtection context. Nothing is shipped, so
-no database exists that a migration chain must carry forward: a model change can re-scaffold a context's single
-migration instead of stacking a new one on it.
+A cell's host has two database contexts, the OpenId context and the DeveloperDataProtection context, and the global
+directory's host has one, the directory context. Nothing is shipped, so no database exists that a migration chain must
+carry forward: a model change can re-scaffold a context's single migration instead of stacking a new one on it.
 
 ## Decision
 
@@ -31,8 +31,10 @@ Job implement its items 3 to 8.
 ### One initial migration per context
 
 Until the first stable release each host context has one migration, `InitialCreate`, in `Migrations/OpenId` or
-`Migrations/DeveloperDataProtection` under `hosts/NCode.Identity.OpenId.Host.Database`. It holds only schema operations,
-and `InitialCreateTests` fails a context that holds any other migration.
+`Migrations/DeveloperDataProtection` under `hosts/NCode.Identity.OpenId.Host.Database`, and the global directory's
+`DirectoryDbContext` has its own in `Migrations/Directory` under `hosts/NCode.Identity.OpenId.GlobalDirectory.Host`. It
+holds only schema operations, and `InitialCreateTests` fails a cell context that holds any other migration, as
+`DirectoryInitialCreateTests` does the directory's.
 
 A model change re-scaffolds the migration: delete the context's migration, designer and snapshot, run
 
@@ -40,7 +42,15 @@ A model change re-scaffolds the migration: delete the context's migration, desig
 dotnet ef migrations add InitialCreate --context <Context> --output-dir Migrations/<Name> --project hosts/NCode.Identity.OpenId.Host.Database --startup-project hosts/NCode.Identity.OpenId.Host.Database
 ```
 
-and strip the byte-order mark from the files it writes.
+and strip the byte-order mark from the files it writes. The directory's context is scaffolded the same way, with its
+own host as both the project and the startup project:
+
+```text
+dotnet ef migrations add InitialCreate --context DirectoryDbContext --output-dir Migrations/Directory --project hosts/NCode.Identity.OpenId.GlobalDirectory.Host --startup-project hosts/NCode.Identity.OpenId.GlobalDirectory.Host
+```
+
+The Definition of Done runs `dotnet ef migrations has-pending-model-changes` for the three contexts, so a model change
+without its re-scaffold fails before the push.
 
 ### No migration rewrites stored data
 
@@ -54,10 +64,38 @@ narrowing a setting edits its descriptor, and a stored document that does not fi
 `MigrationRunner` first compares each context's recorded migration ids with the assembly's. When the history names a
 migration the assembly lacks, it applies nothing and throws, naming the context and `build/dev-db-reset.ps1`.
 
+The directory's `migrate` command refuses a database ahead of its host the same way: `DirectoryDatabase` applies
+nothing and throws, naming `DirectoryDbContext` and saying to drop and recreate the directory's database and run the
+command again. Both runners compare through `MigrationHistoryRules.FindUnknownMigrations`, which compares ordinally, and
+each writes its own recovery.
+
+### The worker applies row-level security and grants after migrating
+
+After it applies both contexts' migrations, the worker applies row-level security to the OpenId context. The
+migrations do not hold it, because the statements come from the model
+([ADR-1018](1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)):
+
+- For every table of a tenant-bound entity, `RowLevelSecurity` generates `ENABLE` and `FORCE ROW LEVEL SECURITY` and
+  the `tenant_isolation` policy from the EF Core model, so a new tenant-bound entity is covered with no further step.
+- The worker applies them idempotently: it drops the policy when it exists, then creates it, so a run that repeats
+  changes nothing.
+- It then grants the role named by `HostDatabase:RuntimeRole` the access that `RuntimeRoleGrants` creates: `USAGE` on
+  the model's schemas, `SELECT, INSERT, UPDATE, DELETE` on its tables and `USAGE` on its sequences.
+- The worker and the host read one connection, `ConnectionStrings:openiddb` or the `OpenIdDatabase` parts
+  ([ADR-1509](1509-the-host-chart-passes-a-postgres-operators-secret-as-the-connections-parts-and-the-host-assembles-the-npgsql-connection.md)):
+  the worker with the schema owner's credentials, and the host with the runtime role's.
+- The directory's `migrate` command applies its context's migrations and grants the role that
+  `DirectoryMigration:RuntimeRole` names the same access, in one transaction. It reads the directory's one connection,
+  `ConnectionStrings:directory` or the `DirectoryDatabase` parts, with the schema owner's credentials, and the
+  directory's Deployment reads it with the runtime role's.
+
+The statements are not migrations, so `InitialCreateTests` and the expand-only rule stay about the schema.
+
 ### The expand-only rule
 
-`ExpandOnlyRule.Check(Migration)` judges every `[Migration]` of both contexts with no registration step;
-`ExpandOnlyRuleTests.HostMigration_WhenChecked_KeepsThePreviousReleaseWorking` runs it over all of them. It reads EF Core
+`ExpandOnlyRule.Check(Migration)` judges every `[Migration]` of the cell's two contexts with no registration step;
+`ExpandOnlyRuleTests.HostMigration_WhenChecked_KeepsThePreviousReleaseWorking` runs it over all of them, and
+`DirectoryInitialCreateTests` runs the same rule over the directory's `InitialCreate`. It reads EF Core
 `MigrationOperation` objects, so it does not scan text:
 
 - `FindContractingOperations` reports each operation that ADR-0143 item 5 lists as contracting, naming the table and the
@@ -88,7 +126,7 @@ A reviewer checks these by hand:
 ### The migration runs in the chart as a hook Job
 
 - The host image carries the worker at `/app/migrations`
-  ([ADR-1248](1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)), so a release always
+  ([ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)), so a release always
   migrates to the schema its host reads and a separate migration image could never fall out of step.
 - The chart runs the worker as a `pre-install` and `pre-upgrade` hook Job. Helm waits for it before it changes anything
   else, so a failed migration fails the release while the previous version serves and no pod is replaced.
@@ -99,9 +137,15 @@ A reviewer checks these by hand:
   PodDisruptionBudget selects it.
 - The Job uses the namespace's `default` service account unless `serviceAccount.create` is false, because the chart's own
   account does not exist when a first install runs the hook.
-- `migrations.database` may name a connection with schema rights, as a connection-string Secret (`existingSecret`) or a
-  parts Secret (`parts.existingSecret`); it defaults to the database Secret. A
-  deployment that separates the two runs the host without the right to change its own schema.
+- `migrations.database` names the schema owner's connection as a Secret, and the Job reads it as
+  `ConnectionStrings:openiddb` or the `OpenIdDatabase` parts; `database` names the runtime role's connection, and the
+  host reads it the same way. `database.runtimeRole` names the role for the grants, and the Job reads it as
+  `HostDatabase:RuntimeRole`. The host runs without the right to change its own schema.
+- The directory's chart runs its host image's `migrate` command as a `pre-install` and `pre-upgrade` hook Job of the
+  same shape. `directory.migrations.database` names the schema owner's connection, and the Job reads it as
+  `ConnectionStrings:directory` or the `DirectoryDatabase` parts; `directory.database` names the runtime role's
+  connection, and the Deployment reads it the same way. `directory.database.runtimeRole` names the role for the grants,
+  and the Job reads it as `DirectoryMigration:RuntimeRole`.
 - `migrations.enabled: false` removes the Job for a deployment whose DBA or pipeline applies a generated idempotent
   script.
 
@@ -139,6 +183,8 @@ rule for every migration author.
 - The image carries the worker's few assemblies that the host does not already ship.
 - A failed migration leaves the previous release serving, and the Job's logs stay for diagnosis.
 - A developer whose local database is ahead of the assembly runs `build/dev-db-reset.ps1`; the worker never guesses.
+- A table the model adds to a tenant-bound entity is covered by row-level security and the runtime role's grants on the
+  next run of the worker.
 - `InitialCreateTests`, `ExpandOnlyRuleTests` and `MigrationRunnerTests` fail a stray migration, a data change, an
   unearned marker and a history the assembly lacks.
 
@@ -147,13 +193,17 @@ rule for every migration author.
 - `hosts/NCode.Identity.OpenId.Host.Database/ExpandOnlyRule.cs`, `ExpandMigrationAttribute.cs`,
   `ContractMigrationAttribute.cs`, `MigrationRunner.cs`, `Migrations/OpenId/` and
   `Migrations/DeveloperDataProtection/`
+- `hosts/NCode.Identity.OpenId.GlobalDirectory.Host/DirectoryDatabase.cs`, `DirectoryMigrateCommand.cs` and
+  `Migrations/Directory/`
+- `src/NCode.Identity.Persistence.Abstractions/MigrationHistoryRules.cs`
 - `tests/NCode.Identity.OpenId.Host.Database.Tests/InitialCreateTests.cs`, `ExpandOnlyRuleTests.cs` and
   `MigrationRunnerTests.cs`
 - `build/dev-db-reset.ps1`
 - [project-template ADR-0143](project-template/0143-migrations-run-before-the-rollout-and-only-expand.md)
 - [ADR-1073](1073-one-postgresql-database-holds-the-hosts-schema-and-key-ring-migrated-by-a-worker-and-drift-checked.md),
   [ADR-1139](1139-setting-names-are-a-closed-vocabulary-changed-outright-and-settings-the-server-cannot-honor-fail-loudly.md),
-  [ADR-1248](1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md),
+  [ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md),
   [ADR-1458](1458-the-host-chart-deploys-the-server-and-an-opt-in-management-console-and-refuses-unsafe-releases.md),
-  [ADR-1245](1245-management-requests-list-incoherent-clients-name-unreadable-stored-settings-and-let-a-write-repair-them.md)
+  [ADR-1245](1245-management-requests-list-incoherent-clients-name-unreadable-stored-settings-and-let-a-write-repair-them.md),
+  [ADR-1018](1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)
 - [#535](https://github.com/NCodeGroup/identity/issues/535)

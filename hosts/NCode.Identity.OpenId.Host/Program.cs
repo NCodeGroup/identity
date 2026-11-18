@@ -1,20 +1,17 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using Microsoft.AspNetCore.DataProtection;
-using Microsoft.EntityFrameworkCore;
 using NCode.Identity.AspNetCore;
+using NCode.Identity.AspNetCore.OpenTelemetry;
 using NCode.Identity.OpenId.Accounts.Authentication;
 using NCode.Identity.OpenId.Accounts.Credentials;
 using NCode.Identity.OpenId.Accounts.Management;
 using NCode.Identity.OpenId.Authentication.Interactive;
 using NCode.Identity.OpenId.Host;
-using NCode.Identity.OpenId.Host.Database;
 using NCode.Identity.OpenId.Persistence.EntityFramework;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Accounts;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core;
 using NCode.Identity.OpenId.Setup;
-using NCode.Identity.Registration;
 using NCode.Identity.Registration.AspNetCore;
 using NCode.Identity.Secrets.AwsKms;
 using NCode.Identity.Secrets.AzureKeyVault;
@@ -173,52 +170,38 @@ identityServer.AddDevelopmentEnvironment(configuration);
 serviceCollection.AddDatabaseDeveloperPageExceptionFilter();
 
 // The dev database is Postgres, orchestrated by the Aspire AppHost (ADR-1073): the AppHost provisions the container
-// and injects the 'openiddb' connection string (or an operator's Secret supplies the 'OpenIdDatabase' parts, ADR-1509),
+// and hands this host the runtime role's 'OpenIdDatabase' parts and the migration worker the owner's 'openiddb'
+// connection string (an operator's Secret supplies the parts too, ADR-1509),
 // and a dedicated migration worker applies the schema before this host starts — so the api never bootstraps the
 // database itself. The developer data-protection key ring is persisted in the same database, so one purge resets the
 // OpenID data, the seeded signing key, the tenants' master keys, and the ring together. Stored secrets are encrypted
 // under their owners' master keys and the ring under the platform master key, whose root key lives outside the database
 // (the 'SecretProtection' section); AddDeploymentSafety refuses to start without a real root key unless
 // 'LocalDevelopment:Enabled' is set (ADR-1235).
+// AddHostDatabase registers both contexts and the key ring over that database, its readiness check, and a startup check
+// that refuses a runtime role that is not subject to row-level security ('LocalDevelopment:Enabled' only warns,
+// ADR-1370); without a connection, as in hermetic test hosts, the OpenID context is in memory.
+serviceCollection.AddHostDatabase(configuration);
 
-var connectionString = HostDatabaseConnection.Resolve(configuration);
-if (!string.IsNullOrEmpty(connectionString))
-{
-    serviceCollection.AddDbContextFactory<OpenIdDbContext>(dbOptions =>
-        dbOptions.UseOpenIdNpgsql(connectionString)
-    );
-    serviceCollection.AddDbContext<DeveloperDataProtectionDbContext>(dbOptions =>
-        dbOptions.UseDataProtectionNpgsql(connectionString)
-    );
-    serviceCollection
-        .AddDataProtection()
-        .PersistKeysToDbContext<DeveloperDataProtectionDbContext>()
-        .SetApplicationName("NCode.Identity.OpenId.Host");
+// RunAsync disposes the app when the host stops or fails to start, and each command disposes it when the command ends.
+// An exception before either leaves the app to its owner, the ending process or a test host's factory, so the factory
+// reports that exception instead of a disposed app.
+var app = builder.Build();
 
-    // The replica is ready only while it can reach the database it serves every request from.
-    serviceCollection
-        .AddHealthChecks()
-        .AddDbContextCheck<OpenIdDbContext>("openiddb", tags: [HealthCheckTags.Readiness]);
-}
-else
-{
-    // No connection string: hermetic test hosts boot this composition root and replace the OpenID context and the Data
-    // Protection key ring with stores of their own; Data Protection otherwise keeps its default repository, which
-    // AddDeploymentSafety refuses.
-    serviceCollection.AddDbContextFactory<OpenIdDbContext>(dbOptions =>
-        dbOptions.UseInMemoryDatabase("OpenId")
-    );
-}
-
-await using var app = builder.Build();
-
-// A command runs against the built services, never starts the hosted services or binds a port, and returns its exit
-// code. These are the only branches this file keeps, because only the entry point can return an exit code.
+// A command runs against the built services, never starts the hosted services or binds a port, disposes the services
+// when it ends, and returns its exit code. These are the only branches this file keeps, because only the entry point
+// can return an exit code.
 if (secretProtectionCommand is not null)
-    return await secretProtectionCommand.RunAsync(app.Services, CancellationToken.None);
+{
+    await using (app)
+        return await secretProtectionCommand.RunAsync(app.Services, CancellationToken.None);
+}
 
 if (instanceSetupCommand is not null)
-    return await instanceSetupCommand.RunAsync(app.Services, CancellationToken.None);
+{
+    await using (app)
+        return await instanceSetupCommand.RunAsync(app.Services, CancellationToken.None);
+}
 
 // MUST be the first middleware, before even the forwarded headers: it refuses a request whose connection does not carry
 // the reverse proxy's client certificate (except the liveness and readiness probes) before anything else reads it. A

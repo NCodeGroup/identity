@@ -1,5 +1,9 @@
 # A production release that also runs the secret protection Job, which rewraps the master keys under the AWS KMS root
 # key and unwraps them from their recovery copies with the recovery private key.
+cell:
+  name: ci-rewrap-job
+  region: ci
+  isControlPlane: true
 allowedHosts:
   - id.example.com
 tenantResolution:
@@ -7,6 +11,10 @@ tenantResolution:
     issuer: https://id.example.com
 database:
   existingSecret: identity-database
+  runtimeRole: ncode_identity_app
+migrations:
+  database:
+    existingSecret: identity-database-owner
 secretProtection:
   rootKeyProvider: aws-kms
   awsKms:

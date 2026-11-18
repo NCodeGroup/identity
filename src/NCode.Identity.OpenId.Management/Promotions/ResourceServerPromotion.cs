@@ -1,21 +1,22 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 
 namespace NCode.Identity.OpenId.Management.Promotions;
 
 /// <summary>
-/// Contains what a promotion does for one non-system resource server of the source tenant: the target it reaches, the
-/// settings document it writes, the scopes it adds or changes, and the errors that refuse it.
+/// Contains what a promotion does for one non-system resource server of the source tenant's configuration document: the
+/// target it reaches, the settings document it writes, the scopes it adds or changes, and the errors that refuse it.
 /// </summary>
 // See ADR-1425.
 internal sealed class ResourceServerPromotion
 {
     /// <summary>
-    /// Gets the resource server of the source tenant.
+    /// Gets the resource server of the source tenant's configuration document.
     /// </summary>
-    public required PersistedResourceServer Source { get; init; }
+    public required TenantConfigurationResourceServer Source { get; init; }
 
     /// <summary>
     /// Gets the resource server of the target tenant that has the source's audience identifier, or <c>null</c> when
@@ -36,7 +37,7 @@ internal sealed class ResourceServerPromotion
     /// <summary>
     /// Gets the non-system scopes of the source that the target lacks.
     /// </summary>
-    public required List<PersistedScope> MissingScopes { get; init; }
+    public required List<TenantConfigurationScope> MissingScopes { get; init; }
 
     /// <summary>
     /// Gets the non-system scopes of the source whose description differs from the target's scope of that value.

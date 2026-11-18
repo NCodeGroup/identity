@@ -317,49 +317,45 @@ public interface ITenantStore : IStore<PersistedTenant>
     /// their scopes and secrets, its role assignments, and the data of its end users: their local accounts, federated
     /// principals and identities, sessions, and other grants. Its usage is kept so its last days can still be billed.
     /// Removing a tenant retires its identifier and its issuer in the same unit of work, so neither is reissued.
-    /// Changing a tenant's issuer through <c>UpdateAsync</c> likewise retires the issuer it gave up.
+    /// Changing a tenant's issuer through <c>UpdateAsync</c> likewise retires the issuer it gave up. It reads and
+    /// writes across tenants, so it runs only in an unscoped scope, and the caller saves the removal in that scope.
     /// </remarks>
     /// <param name="tenantId">The identifier of the OpenId Tenant to remove.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c>
     /// if the tenant was removed; otherwise <c>false</c> when no matching tenant existed.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when the tenant still has clients or resource servers.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the tenant still has clients or resource servers, or
+    /// when the ambient scope is not unscoped.</exception>
     // See ADR-1160 and ADR-1212.
     ValueTask<bool> RemoveAsync(string tenantId, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Removes every row that an OpenId Tenant owns in this cell, for a tenant that lives on in another cell or whose
+    /// import or creation failed before the directory placed it here. It neither checks the tenant's dependents nor
+    /// retires its identifier or its issuer.
+    /// </summary>
+    /// <remarks>
+    /// The removal covers the same rows as <see cref="RemoveAsync"/>: the tenant's secrets, its resource servers with
+    /// their scopes and secrets, its role assignments, the data of its end users, its master keys and its root key
+    /// rows. It is saved with the store manager's unit of work. It reads and writes across tenants, so it runs only in
+    /// an unscoped scope, and the caller saves the removal in that scope.
+    /// </remarks>
+    /// <param name="tenantId">The identifier of the OpenId Tenant to remove from this cell.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c> if the
+    /// tenant was removed; otherwise <c>false</c> when no matching tenant existed.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the ambient scope is not unscoped.</exception>
+    // See ADR-1514.
+    ValueTask<bool> RemoveFromCellAsync(string tenantId, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Determines whether an OpenId Tenant still has dependents (its clients, or the resource servers created in it)
     /// that would block its removal. Everything else the tenant owns, its end users' data included, is part of the
-    /// tenant and is not a dependent.
+    /// tenant and is not a dependent. It reads in the ambient scope: the tenant's scope or an unscoped one.
     /// </summary>
     /// <param name="tenantId">The identifier of the OpenId Tenant.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c>
     /// when the tenant has dependents; otherwise <c>false</c> (including when no such tenant exists).</returns>
     ValueTask<bool> HasDependentsAsync(string tenantId, CancellationToken cancellationToken);
-
-    /// <summary>
-    /// Determines whether the specified tenant identifier belonged to a deleted tenant. A tenant identifier is never
-    /// reissued.
-    /// </summary>
-    /// <param name="tenantId">The tenant identifier to look up.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c> when a
-    /// deleted tenant had the identifier; otherwise <c>false</c>.</returns>
-    // See ADR-1160.
-    ValueTask<bool> IsTenantIdRetiredAsync(string tenantId, CancellationToken cancellationToken);
-
-    /// <summary>
-    /// Gets the identifier of the tenant that gave up the specified issuer, by changing its issuer or by being deleted.
-    /// Relying parties that trusted the issuer would trust any tenant that took it, so only that tenant can take it back.
-    /// </summary>
-    /// <param name="issuer">The issuer to look up.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the identifier of
-    /// the tenant that held the issuer, or <c>null</c> when no tenant has given it up.</returns>
-    // See ADR-1160.
-    ValueTask<string?> GetRetiredIssuerHolderOrDefaultAsync(
-        string issuer,
-        CancellationToken cancellationToken
-    );
 }

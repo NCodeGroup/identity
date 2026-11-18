@@ -22,4 +22,9 @@ public static class OpenIdClientDefaults
     /// of the name is the uppercase hexadecimal SHA-256 hash of the certificate's DER encoding.
     /// </summary>
     public const string MutualTlsHttpClientNamePrefix = "NCode.Identity.OpenId.Client.MutualTls:";
+
+    /// <summary>
+    /// The name of the configuration section that names a host's key rings.
+    /// </summary>
+    public const string KeyRingsSectionName = "KeyRings";
 }

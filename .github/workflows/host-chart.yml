@@ -93,6 +93,14 @@ jobs:
           refuse --set database.existingSecret= --set database.parts.existingSecret=identity-db-app --set database.parts.usernameKey=
           refuse --set database.existingSecret= --set database.parts.existingSecret=identity-db-app --set database.parts.passwordKey=
           refuse --set migrations.database.existingSecret=schema --set migrations.database.parts.existingSecret=schema-parts
+          # The schema owner's connection is required, and never falls back to the runtime role's.
+          refuse --set migrations.database.existingSecret=
+          refuse --set migrations.database.existingSecret= --set migrations.database.parts.existingSecret=
+          refuse --set migrations.database.existingSecret= --set migrations.database.parts.existingSecret=identity-db-schema --set migrations.database.parts.hostKey= --set database.parts.hostKey=
+          # The runtime role is named, and is a lower-case Postgres role name.
+          refuse --set database.runtimeRole=
+          refuse --set database.runtimeRole=Not-A-Role
+          refuse --set database.runtimeRole=1role
           refuse --set database.parts.unknownKey=x
           # Valkey takes the same two forms, one per connection (ADR-1510).
           refuse --set valkey.existingSecret=a --set valkey.parts.existingSecret=b
@@ -117,7 +125,15 @@ jobs:
           refuse --set 'secretProtection.ownerRootKeys.providers={nope}'
           refuse --set secretProtection.remoteKeyProviders.awsKms.enabled=true --set secretProtection.remoteKeyProviders.awsKms.region=Not_A_Region
           refuse --set secretProtection.remoteKeyProviders.awsKms.enabled=true --set secretProtection.remoteKeyProviders.awsKms.pendingWindowInDays=6
-          refuse --set secretProtection.remoteKeyProviders.awsKms.enabled=true --set secretProtection.remoteKeyProviders.awsKms.region=us-west-2 --set secretProtection.remoteKeys.deployment=
+          # A cell names itself and its region with lowercase labels, and a cell that is not the control plane names the
+          # control plane's issuer.
+          refuse --set cell.name=
+          refuse --set cell.region=
+          refuse --set cell.name=Not_A_Label
+          refuse --set cell.name=prod--eu
+          refuse --set cell.name=prod-
+          refuse --set cell.region=eu--west
+          refuse --set cell.isControlPlane=false
           refuse --set secretProtection.remoteKeyProviders.azureKeyVault.enabled=true --set secretProtection.remoteKeyProviders.azureKeyVault.vaultUri=http://contoso.vault.azure.net
           refuse --set secretProtection.remoteKeyProviders.googleCloudKms.enabled=true --set secretProtection.remoteKeyProviders.googleCloudKms.keyRing=projects/p/locations/l/keyRings/r/cryptoKeys/k
           refuse --set secretProtection.remoteKeyProviders.azureKeyVault.enabled=true --set secretProtection.azureKeyVault.workloadIdentity.clientId=00000000-0000-0000-0000-000000000000
@@ -134,6 +150,12 @@ jobs:
           # The setup Job reads the root administrator from a Secret, and a setup token Secret needs the key to read.
           refuse --set setup.job.enabled=true
           refuse --set setup.token.existingSecret=s --set setup.token.key=
+          # Setup runs in the control-plane cell only. The same release renders as the control-plane cell, so the
+          # refusal is the rule it names.
+          helm template release "$CHART" --values "$base" --values "$CHART/ci/setup-values.yaml" \
+            --values "$CHART/ci/cell-values.yaml" > /dev/null
+          refuse --values "$CHART/ci/setup-values.yaml" --values "$CHART/ci/cell-values.yaml" \
+            --set cell.isControlPlane=false
           refuse --set apiReference.pageEnabled=true
           refuse --set apiReference.documentEnabled=yes
           # ingress.controller takes traefik or other alone: the chart has no ingress-nginx mode (ADR-1507).
@@ -147,6 +169,25 @@ jobs:
           refuse --set backendTls.clientCertificate.commonName=
           refuse --set 'backendTls.clientCertificate.commonName=a b'
           refuse --set backendTls.clientCertificate.required=yes
+          # The directory client's values need directory.url: without it the cell keeps the local adapters and ignores them.
+          refuse --set directory.clientId=cell-a
+          refuse --set directory.keyRing=cell-client
+          refuse --set directory.keys.pemSecret=cell-client-key
+          refuse --set directory.keys.remoteKeys.cell-client.provider=aws-kms
+          # The directory server's values need directory.enabled: without it the chart runs no directory host.
+          refuse --set directory.issuer=https://control-plane.example
+          refuse --set directory.controlPlaneCell=control
+          refuse --set directory.tls.existingSecret=directory-tls
+          refuse --set 'directory.allowedHosts={directory.example.com}'
+          refuse --set directory.database.runtimeRole=ncode_directory_app
+          refuse --set directory.database.existingSecret=directory-database
+          refuse --set directory.migrations.database.existingSecret=directory-database-owner
+          refuse --set directory.database.parts.existingSecret=directory-app
+          refuse --set directory.migrations.database.parts.existingSecret=directory-owner
+          refuse --set directory.image.tag=1.0.0
+          refuse --set directory.serviceAccount.name=directory-sa
+          # A cell's management URL is https.
+          refuse --set cell.managementUrl=http://manage.example.com
           # The chart cannot know the CA behind a serving Secret of the operator's, so the controller's Secret is required.
           refuse_console() {
             if helm template release "$CHART" --values "$CHART/ci/management-console-values.yaml" "$@" > /dev/null 2>&1; then
@@ -168,6 +209,10 @@ jobs:
           fi
           if helm template release "$CHART" --values "$base" --set migrations.enabled=false | grep -q 'helm.sh/hook'; then
             echo "::error::The chart rendered a migration Job with migrations.enabled=false."
+            exit 1
+          fi
+          if ! helm template release "$CHART" --values "$base" --set migrations.enabled=false --set database.runtimeRole= > /dev/null; then
+            echo "::error::The chart refused an empty database.runtimeRole with migrations.enabled=false."
             exit 1
           fi
 
@@ -260,12 +305,14 @@ jobs:
           # An empty port key leaves the port out.
           reject "$(helm template release "$CHART" --values "$parts" --set database.parts.portKey= \
             --show-only templates/deployment.yaml)" 'OpenIdDatabase__Port'
-          # The migration Job reads its own parts Secret, and falls back to the database's when it names none.
+          # The migration Job reads its own parts Secret, the schema owner's, and never the runtime role's.
           job=$(helm template release "$CHART" --values "$parts" --show-only templates/migration-job.yaml)
           expect "$job" 'identity-db-schema'
           reject "$job" 'identity-db-app'
-          expect "$(helm template release "$CHART" --values "$parts" --set migrations.database.parts.existingSecret= \
-            --show-only templates/migration-job.yaml)" 'identity-db-app'
+          # The Job names the runtime role it grants access to, and the pods do not.
+          expect "$job" 'name: HostDatabase__RuntimeRole' 'value: "ncode_identity_app"'
+          reject "$(helm template release "$CHART" --values "$parts" --show-only templates/deployment.yaml)" \
+            'HostDatabase__RuntimeRole'
           # A connection string of the migration Job's own may go with a parts Secret of the host's.
           mixed=$(helm template release "$CHART" --values "$parts" --set migrations.database.parts.existingSecret= \
             --set migrations.database.existingSecret=schema-connection --show-only templates/migration-job.yaml)
@@ -351,26 +398,61 @@ jobs:
           }
           # A provider that is not enabled is not registered, and the pods carry none of its credentials.
           reject "$(helm template release "$CHART" --values "$base" --set "$role")" 'AWS_ROLE_ARN' 'RemoteKeyProviders'
-          # Enabled without its location, a provider binds keys and creates none, so it needs no deployment (ADR-1485).
-          binding=$(helm template release "$CHART" --values "$base" --set "$role" --set "$aws.enabled=true" \
-            --set secretProtection.remoteKeys.deployment=)
+          # Enabled without its location, a provider binds keys and creates none.
+          binding=$(helm template release "$CHART" --values "$base" --set "$role" --set "$aws.enabled=true")
           expect "$binding" 'AWS_ROLE_ARN' 'SecretProtection__RemoteKeyProviders__AwsKms__PendingWindowInDays'
-          reject "$binding" 'SecretProtection__RemoteKeyProviders__AwsKms__Region' \
-            'SecretProtection__RemoteKeys__Deployment'
-          # Enabled with its location, a provider creates keys under the release's deployment.
+          reject "$binding" 'SecretProtection__RemoteKeyProviders__AwsKms__Region'
+          # Enabled with its location, a provider creates keys under the cell's name.
           creating=$(helm template release "$CHART" --values "$base" --set "$role" --set "$aws.enabled=true" \
             --set "$aws.region=us-west-2")
           expect "$creating" 'AWS_ROLE_ARN' 'SecretProtection__RemoteKeyProviders__AwsKms__Region' \
-            'SecretProtection__RemoteKeys__Deployment'
+            'Cell__Name'
           # Every vendor binds without its location.
           bound=$(helm template release "$CHART" --values "$CHART/ci/bind-only-remote-key-providers-values.yaml")
           expect "$bound" 'SecretProtection__RemoteKeyProviders__AzureKeyVault__HardwareProtected' \
             'SecretProtection__RemoteKeyProviders__GoogleCloudKms__HardwareProtected' 'AZURE_CLIENT_ID' \
             'GOOGLE_APPLICATION_CREDENTIALS'
-          reject "$bound" '__AwsKms__Region' '__AzureKeyVault__VaultUri' '__GoogleCloudKms__KeyRing' \
-            'SecretProtection__RemoteKeys__Deployment'
+          reject "$bound" '__AwsKms__Region' '__AzureKeyVault__VaultUri' '__GoogleCloudKms__KeyRing'
 
-      - name: Give the migration Job the host's extra settings and a valid name
+      - name: Render the cell's identity and the control plane it reaches
+        run: |
+          expect() {
+            local rendered="$1"; shift
+            for expected in "$@"; do
+              if ! grep -q -- "$expected" <<< "$rendered"; then
+                echo "::error::The release lacks: $expected"
+                exit 1
+              fi
+            done
+          }
+          reject() {
+            local rendered="$1"; shift
+            for unexpected in "$@"; do
+              if grep -q -- "$unexpected" <<< "$rendered"; then
+                echo "::error::The release renders what it must not: $unexpected"
+                exit 1
+              fi
+            done
+          }
+          cell=$(helm template release "$CHART" --values "$CHART/ci/cell-values.yaml" --show-only templates/deployment.yaml)
+          expect "$cell" 'Cell__ControlPlane__Issuer' 'Cell__CloudRegions__1' 'KeyRings__cell-client__PemFiles__0' 'directory-key'
+          # The control-plane cell reaches the directory as its own machine client, like every other cell.
+          controlPlane=$(helm template release "$CHART" --values "$CHART/ci/directory-values.yaml" \
+            --show-only templates/deployment.yaml)
+          expect "$controlPlane" 'Directory__Url' 'Directory__ClientId' 'KeyRings__cell-client__PemFiles__0' \
+            'Cell__ManagementUrl' 'Cell__ControlPlane__Issuer'
+          # The offline Jobs never call the directory, so neither carries the directory client's settings or its key.
+          rewrap=$(helm template release "$CHART" --values "$CHART/ci/cell-values.yaml" \
+            --set secretProtection.rewrapJob.enabled=true --set secretProtection.rewrapJob.command=rewrap \
+            --show-only templates/secret-protection-job.yaml)
+          expect "$rewrap" 'Cell__ControlPlane__Issuer'
+          reject "$rewrap" 'Directory__Url' 'KeyRings__cell-client' 'directory-key'
+          setup=$(helm template release "$CHART" --values "$CHART/ci/directory-values.yaml" \
+            --set setup.token.existingSecret=identity-setup-token --set setup.job.enabled=true \
+            --set setup.job.existingSecret=identity-setup-root --show-only templates/setup-job.yaml)
+          reject "$setup" 'Directory__Url' 'KeyRings__cell-client' 'directory-key'
+
+      - name: Give the migration Job the host's extra settings, and the Job and the directory Service valid names
         run: |
           base="$CHART/ci/single-replica-values.yaml"
           job=$(helm template release "$CHART" --values "$base" --show-only templates/migration-job.yaml \
@@ -389,6 +471,15 @@ jobs:
             --show-only templates/migration-job.yaml | awk '/^  name:/ { print $2; exit }')
           if [ "${#name}" -gt 63 ]; then
             echo "::error::The migration Job name '$name' is longer than 63 characters."
+            exit 1
+          fi
+          # A Service's name is a DNS-1035 label of at most 63 characters. The 52-character release name puts a letter,
+          # not a hyphen, at the 54th character of the full name, so a full name one character too long would show.
+          name=$(helm template a-fifty-two-character-release-name-for-the-directory "$CHART" \
+            --values "$CHART/ci/directory-values.yaml" --show-only templates/directory-service.yaml \
+            | awk '/^  name:/ { print $2; exit }')
+          if [ -z "$name" ] || [ "${#name}" -gt 63 ]; then
+            echo "::error::The directory Service name '$name' is longer than 63 characters."
             exit 1
           fi
 
@@ -669,6 +760,161 @@ jobs:
             --set "$key.keyId=projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/1" \
             --set managementConsole.secretProtection.googleCloudKms.workloadIdentityFederation.provider=not-a-provider
 
+      - name: Refuse an unsafe cell directory client
+        run: |
+          base="$CHART/ci/cell-values.yaml"
+          key=directory.keys.remoteKeys.cell-client
+          refuse() {
+            if helm template release "$CHART" --values "$base" "$@" > /dev/null 2>&1; then
+              echo "::error::The chart rendered a cell directory client it must refuse: $*"
+              exit 1
+            fi
+          }
+          # The base values render, so each refusal below is the rule it names.
+          helm template release "$CHART" --values "$base" > /dev/null
+          # A loopback http URL, on any 127.x.x.x address, and an https URL with a port and a path, render.
+          helm template release "$CHART" --values "$base" --set directory.url=http://localhost:8080 > /dev/null
+          helm template release "$CHART" --values "$base" --set directory.url=http://127.0.0.2:8080 > /dev/null
+          helm template release "$CHART" --values "$base" --set directory.url=https://directory.example.com:8443/api > /dev/null
+          # A control-plane cell that reaches the directory renders, so each refusal of its issuer below is its rule.
+          helm template release "$CHART" --values "$base" --set cell.isControlPlane=true > /dev/null
+          # The directory's URL is https, or http on a loopback host, with no user information, query or fragment.
+          refuse --set directory.url=http://directory.example
+          refuse --set directory.url=https://user@directory.example
+          refuse --set 'directory.url=https://directory.example/?a=b'
+          # White space is refused, a no-break space included.
+          refuse --set "directory.url=https://directory.example/a"$'\xc2\xa0'"b"
+          refuse --set cell.controlPlaneIssuer=http://id.example.com
+          # A cell that reaches the directory names the control plane's issuer, the control-plane cell included.
+          refuse --set cell.isControlPlane=true --set cell.controlPlaneIssuer=
+          refuse --set cell.isControlPlane=true --set cell.controlPlaneIssuer=http://id.example.com
+          refuse --set directory.clientId=
+          refuse --set directory.clientId=cell-other
+          refuse --set cell.managementUrl=
+          refuse --set directory.keyRing=
+          refuse --set directory.keyRing=cell:client
+          refuse --set directory.keyRing=cell__client
+          refuse --set directory.keys.pemSecret=
+          # A remote key replaces the PEM key, so the key's id never collides with the key ring's PEM key.
+          refuse --set directory.keys.pemSecret= --set "$key.provider=aws-kms" \
+            --set "$key.keyId=arn:aws:kms:us-west-2:111122223333:secret/abcd" \
+            --set "$key.algorithm=ES256" --set "$key.secretType=ecc" --set "$key.keySizeBits=256"
+          refuse --set directory.keys.pemSecret= --set "$key.provider=azure-key-vault" \
+            --set "$key.keyId=https://contoso.vault.azure.net/keys/cell-client" \
+            --set "$key.algorithm=ES256" --set "$key.secretType=ecc" --set "$key.keySizeBits=256"
+          refuse --set directory.keys.pemSecret= --set "$key.provider=google-cloud-kms" \
+            --set "$key.keyId=projects/p/locations/l/keyRings/r/cryptoKeys/cell-client" \
+            --set "$key.algorithm=ES256" --set "$key.secretType=ecc" --set "$key.keySizeBits=256"
+          # A remote key under the key ring's id, while the PEM Secret holds a key of that id.
+          refuse --set "$key.provider=aws-kms" --set "$key.keyId=arn:aws:kms:us-west-2:111122223333:key/abcd" \
+            --set "$key.algorithm=ES256" --set "$key.secretType=ecc" --set "$key.keySizeBits=256"
+
+      - name: Refuse an unsafe directory
+        run: |
+          base="$CHART/ci/directory-values.yaml"
+          refuse() {
+            if helm template release "$CHART" --values "$base" "$@" > /dev/null 2>&1; then
+              echo "::error::The chart rendered a directory it must refuse: $*"
+              exit 1
+            fi
+          }
+          # The base values render, so each refusal below is the rule it names.
+          helm template release "$CHART" --values "$base" > /dev/null
+          # A loopback http issuer, on any 127.x.x.x address, renders, as the directory host accepts it.
+          helm template release "$CHART" --values "$base" --set directory.issuer=http://localhost:8080 > /dev/null
+          helm template release "$CHART" --values "$base" --set directory.issuer=http://127.0.0.2:8080 > /dev/null
+          refuse --set-json 'directory.allowedHosts=[]'
+          refuse --set 'directory.allowedHosts={*}'
+          refuse --set 'directory.allowedHosts={*.example.com}'
+          refuse --set directory.issuer=
+          # The issuer is https, or http on a loopback host, with no user information, query or fragment.
+          refuse --set directory.issuer=https://user@id.example.com
+          refuse --set directory.issuer=http://id.example.com
+          refuse --set directory.controlPlaneCell=
+          refuse --set directory.database.existingSecret=
+          # A directory connection is one form: a connection string or the parts of an operator's Secret (ADR-1509).
+          refuse --set directory.database.parts.existingSecret=directory-app
+          refuse --set directory.database.connectionStringKey=
+          refuse --set directory.database.existingSecret= --set directory.database.parts.existingSecret=directory-app --set directory.database.parts.passwordKey=
+          refuse --set directory.database.runtimeRole=
+          refuse --set directory.database.runtimeRole=Bad-Role
+          # The schema owner's connection is required, and an empty key of it falls back to the runtime role's.
+          refuse --set directory.migrations.database.existingSecret=
+          # A connection is one form for the owner too.
+          refuse --set directory.migrations.database.parts.existingSecret=directory-owner
+          refuse --set directory.tls.existingSecret=
+
+      - name: Run the directory's migration Job under the operator's ServiceAccount
+        run: |
+          # The hook runs before the chart's own account exists on a first install, so it names the account only when the
+          # operator brings one.
+          if ! helm template release "$CHART" --values "$CHART/ci/directory-values.yaml" \
+            --set directory.serviceAccount.create=false --set directory.serviceAccount.name=directory-sa \
+            --show-only templates/directory-migration-job.yaml | grep -q 'serviceAccountName: directory-sa'; then
+            echo "::error::The directory's migration Job does not name the operator's ServiceAccount."
+            exit 1
+          fi
+
+      - name: Render the directory
+        run: |
+          base="$CHART/ci/directory-values.yaml"
+          render() {
+            helm template release "$CHART" --values "$base" --show-only "$@"
+          }
+          expect() {
+            local rendered="$1"; shift
+            for expected in "$@"; do
+              if ! grep -q -- "$expected" <<< "$rendered"; then
+                echo "::error::The release lacks: $expected"
+                exit 1
+              fi
+            done
+          }
+          reject() {
+            local rendered="$1"; shift
+            for unexpected in "$@"; do
+              if grep -q -- "$unexpected" <<< "$rendered"; then
+                echo "::error::The release renders what it must not: $unexpected"
+                exit 1
+              fi
+            done
+          }
+          deployment="$(render templates/directory-deployment.yaml)"
+          expect "$deployment" 'type: Recreate' 'DirectoryServer__Issuer' 'DirectoryServer__ControlPlaneCell' \
+            'name: ConnectionStrings__directory$' 'name: directory-database$' 'secretName: directory-tls' \
+            'automountServiceAccountToken: false'
+          # The Deployment carries the runtime role's connection and never the owner's, and not the role's name.
+          reject "$deployment" 'directory-database-owner' 'DirectoryMigration__RuntimeRole'
+          job="$(render templates/directory-migration-job.yaml \
+            --set-json 'directory.extraEnv=[{"name":"PGSSLMODE","value":"verify-full"}]')"
+          expect "$job" '- migrate' 'name: ConnectionStrings__directory$' 'name: directory-database-owner' \
+            'DirectoryMigration__RuntimeRole' 'helm.sh/hook: pre-install,pre-upgrade' 'name: ASPNETCORE_ENVIRONMENT' \
+            'name: OTEL_RESOURCE_ATTRIBUTES' 'name: PGSSLMODE'
+          # The migration Job carries the owner's connection, never the runtime role's, and no server setting.
+          reject "$job" 'name: directory-database$' 'name: AllowedHosts' 'name: DirectoryServer__'
+          # A parts Secret reaches each pod as one variable per part, the runtime role's Secret the Deployment and the
+          # owner's the Job, and no connection string is passed.
+          parts=(--set directory.database.existingSecret= --set directory.database.parts.existingSecret=directory-app \
+            --set directory.migrations.database.existingSecret= \
+            --set directory.migrations.database.parts.existingSecret=directory-owner)
+          partsDeployment="$(render templates/directory-deployment.yaml "${parts[@]}")"
+          expect "$partsDeployment" 'name: DirectoryDatabase__Host' 'name: DirectoryDatabase__Password' \
+            'name: directory-app$'
+          reject "$partsDeployment" 'ConnectionStrings__directory' 'directory-owner'
+          partsJob="$(render templates/directory-migration-job.yaml "${parts[@]}")"
+          expect "$partsJob" 'name: DirectoryDatabase__Host' 'name: DirectoryDatabase__Password' \
+            'name: directory-owner$' 'DirectoryMigration__RuntimeRole'
+          reject "$partsJob" 'ConnectionStrings__directory' 'directory-app'
+          # Both directory pods carry the backup location when it is set, and neither carries one when it is not.
+          reject "$deployment" 'ncode.io/backup-location'
+          reject "$job" 'ncode.io/backup-location'
+          for template in templates/directory-deployment.yaml templates/directory-migration-job.yaml; do
+            expect "$(render "$template" --set backup.location=s3://ci-backups)" \
+              '^        ncode.io/backup-location: "s3://ci-backups"$'
+          done
+          service="$(render templates/directory-service.yaml)"
+          expect "$service" 'kind: Service' 'appProtocol: https' 'targetPort: https'
+
       - name: Hold the management console's keys in a key management service
         run: |
           base="$CHART/ci/management-console-remote-keys-values.yaml"
@@ -695,12 +941,12 @@ jobs:
             done
           }
           aws=$(console)
-          expect "$aws" 'name: Bff__KeyRings__mgmt-client__RemoteKeys__mgmt-client__KeyId' \
+          expect "$aws" 'name: KeyRings__mgmt-client__RemoteKeys__mgmt-client__KeyId' \
             'name: AWS_ROLE_ARN' \
-            'name: aws-web-identity' 'name: Bff__KeyRings__mgmt-dpop__PemFiles__0'
+            'name: aws-web-identity' 'name: KeyRings__mgmt-dpop__PemFiles__0'
           # A key ring without pemSecret mounts no Secret.
           # The console registers every vendor without a key-creation location, so it renders no provider section (ADR-1474).
-          reject "$aws" 'Bff__KeyRings__mgmt-client__PemFiles' 'name: client-key' 'RemoteKeyProviders'
+          reject "$aws" 'KeyRings__mgmt-client__PemFiles' 'name: client-key' 'RemoteKeyProviders'
           # The server's pods never carry the console's identity.
           reject "$(helm template release "$CHART" --values "$base" --show-only templates/deployment.yaml)" 'AWS_ROLE_ARN'
           # A vendor no remote key names gets no credentials.
@@ -793,17 +1039,22 @@ jobs:
           helm install traefik traefik --repo https://traefik.github.io/charts --version 42.3.1 \
             --namespace traefik --create-namespace --set service.spec.type=ClusterIP --wait --timeout 5m
 
-      # The release reads the database from `postgres-app`, a Secret shaped like a Postgres operator's `<cluster>-app`
-      # Secret, and the root key and the management console's two key rings (client and DPoP) from Secrets of their own;
-      # all are generated here and never stored.
+      # The release reads the database from two Secrets shaped like a Postgres operator's `<cluster>-app` Secret:
+      # `postgres-runtime`, the runtime role the pods connect as, and `postgres-app`, the schema owner the migration Job
+      # connects as. The root key and the management console's two key rings (client and DPoP) come from Secrets of
+      # their own; all are generated here and never stored.
       - name: Create the database and the release's Secrets
         run: |
           set -euo pipefail
           kubectl create namespace "$NAMESPACE"
           password=$(openssl rand -hex 16)
+          runtime_password=$(openssl rand -hex 16)
           kubectl -n "$NAMESPACE" create secret generic postgres-app \
             --from-literal=host=postgres --from-literal=port=5432 --from-literal=dbname=openiddb \
             --from-literal=user=postgres --from-literal=password="$password"
+          kubectl -n "$NAMESPACE" create secret generic postgres-runtime \
+            --from-literal=host=postgres --from-literal=port=5432 --from-literal=dbname=openiddb \
+            --from-literal=user=ncode_identity_app --from-literal=password="$runtime_password"
           kubectl -n "$NAMESPACE" create secret generic identity-root-key \
             --from-literal=key="$(head -c 32 /dev/urandom | basenc --base64url -w0 | tr -d '=')"
           openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out "$RUNNER_TEMP/mgmt-client.pem"

@@ -18,12 +18,12 @@ public sealed class AspNetIdentityDummyPasswordHashTests : IDisposable
     [Fact]
     public void GetOrCreate_WhenCalledTwice_HashesOnce()
     {
-        var passwordHasher = Mocks.Create<IPasswordHasher<IdentityUser>>();
+        var passwordHasher = Mocks.Create<IPasswordHasher<TestTenantUser>>();
         passwordHasher
-            .Setup(x => x.HashPassword(It.IsAny<IdentityUser>(), It.IsAny<string>()))
+            .Setup(x => x.HashPassword(It.IsAny<TestTenantUser>(), It.IsAny<string>()))
             .Returns(DummyPasswordHash)
             .Verifiable(Times.Once());
-        var holder = new AspNetIdentityDummyPasswordHash<IdentityUser>();
+        var holder = new AspNetIdentityDummyPasswordHash<TestTenantUser>();
 
         var first = holder.GetOrCreate(passwordHasher.Object);
         var second = holder.GetOrCreate(passwordHasher.Object);
@@ -35,12 +35,12 @@ public sealed class AspNetIdentityDummyPasswordHashTests : IDisposable
     [Fact]
     public void GetOrCreate_WhenCreating_HashesARandomPasswordForAUserWithoutAName()
     {
-        IdentityUser? hashedUser = null;
+        TestTenantUser? hashedUser = null;
         string? hashedPassword = null;
-        var passwordHasher = Mocks.Create<IPasswordHasher<IdentityUser>>();
+        var passwordHasher = Mocks.Create<IPasswordHasher<TestTenantUser>>();
         passwordHasher
-            .Setup(x => x.HashPassword(It.IsAny<IdentityUser>(), It.IsAny<string>()))
-            .Callback<IdentityUser, string>(
+            .Setup(x => x.HashPassword(It.IsAny<TestTenantUser>(), It.IsAny<string>()))
+            .Callback<TestTenantUser, string>(
                 (user, password) =>
                 {
                     hashedUser = user;
@@ -49,7 +49,7 @@ public sealed class AspNetIdentityDummyPasswordHashTests : IDisposable
             )
             .Returns(DummyPasswordHash)
             .Verifiable();
-        var holder = new AspNetIdentityDummyPasswordHash<IdentityUser>();
+        var holder = new AspNetIdentityDummyPasswordHash<TestTenantUser>();
 
         _ = holder.GetOrCreate(passwordHasher.Object);
 

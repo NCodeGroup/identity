@@ -20,6 +20,7 @@ public class DefaultMasterKeyManagerTests : BaseTests
     private Mock<IStoreManagerFactory> StoreManagerFactory { get; }
     private Mock<IRecoveryKeyWrapper> Recovery { get; }
     private Mock<IKeyWrapperCatalog> Catalog { get; }
+    private Mock<ISecretOwnerParentResolver> Parents { get; }
     private EphemeralKeyWrapper RootKey { get; } = new();
     private Mock<IProtectedValueSource> Source { get; }
     private Mock<IProtectedValueSource> OtherSource { get; }
@@ -36,6 +37,8 @@ public class DefaultMasterKeyManagerTests : BaseTests
         StoreManagerFactory = CreateStrictMock<IStoreManagerFactory>();
         Recovery = CreateStrictMock<IRecoveryKeyWrapper>();
         Catalog = CreateStrictMock<IKeyWrapperCatalog>();
+        Parents = CreateStrictMock<ISecretOwnerParentResolver>();
+        SetupAncestors();
         Source = CreateStrictMock<IProtectedValueSource>();
         OtherSource = CreateStrictMock<IProtectedValueSource>();
         Observer = CreateStrictMock<IMasterKeyChangeObserver>();
@@ -62,6 +65,7 @@ public class DefaultMasterKeyManagerTests : BaseTests
             StoreManagerFactory.Object,
             Recovery.Object,
             new MasterKeyFactory(Catalog.Object, Recovery.Object, Time),
+            new DefaultNearestOwnerRootKeyResolver(Parents.Object),
             [Source.Object, OtherSource.Object],
             [Observer.Object],
             Microsoft.Extensions.Options.Options.Create(
@@ -70,6 +74,13 @@ public class DefaultMasterKeyManagerTests : BaseTests
             Time,
             NullLogger<DefaultMasterKeyManager>.Instance
         );
+
+    // An owner has no ancestors unless a test names them.
+    private void SetupAncestors(params SecretOwner[] ancestors) =>
+        Parents
+            .Setup(x => x.GetAncestorsAsync(It.IsAny<SecretOwner>(), It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<IReadOnlyList<SecretOwner>>(ancestors))
+            .Verifiable(Times.AtMost(int.MaxValue));
 
     private void SetupRootKey() =>
         Catalog.Setup(x => x.GetConfigured()).Returns(RootKey).Verifiable();
@@ -132,13 +143,20 @@ public class DefaultMasterKeyManagerTests : BaseTests
 
         var rootKeyStore = CreateStrictMock<IOwnerRootKeyStore>();
         rootKeyStore
-            .Setup(x => x.FindAsync(NormalizedOwner, It.IsAny<CancellationToken>()))
-            .Returns(new ValueTask<PersistedOwnerRootKey?>(rootKey))
-            .Verifiable(Times.AtMostOnce());
+            .Setup(x => x.FindAsync(It.IsAny<SecretOwner>(), It.IsAny<CancellationToken>()))
+            .Returns(
+                (SecretOwner owner, CancellationToken _) =>
+                    new ValueTask<PersistedOwnerRootKey?>(
+                        rootKey is not null && rootKey.Owner.Normalize() == owner.Normalize()
+                            ? rootKey
+                            : null
+                    )
+            )
+            .Verifiable(Times.AtMost(2));
         manager
             .Setup(x => x.GetStore<IOwnerRootKeyStore>())
             .Returns(rootKeyStore.Object)
-            .Verifiable(Times.AtMostOnce());
+            .Verifiable(Times.AtMost(2));
     }
 
     private void SetupObserverRotated()
@@ -317,13 +335,17 @@ public class DefaultMasterKeyManagerTests : BaseTests
 
     #region RotateAsync Tests
 
-    private PersistedOwnerRootKey CreateOwnerRootKey(string state = OwnerRootKeyStates.Active) =>
+    private PersistedOwnerRootKey CreateOwnerRootKey(
+        string state = OwnerRootKeyStates.Active,
+        SecretOwner? owner = null,
+        string reference = "kms://tenant-a/root"
+    ) =>
         new()
         {
-            OwnerType = NormalizedOwner.OwnerType,
-            OwnerId = NormalizedOwner.OwnerId,
+            OwnerType = (owner ?? NormalizedOwner).OwnerType,
+            OwnerId = (owner ?? NormalizedOwner).OwnerId,
             KeyWrapperName = "fake-kms",
-            KeyReference = "kms://tenant-a/root",
+            KeyReference = reference,
             State = state,
             CreatedWhen = Time.GetUtcNow(),
             StateChangedWhen = Time.GetUtcNow(),
@@ -349,6 +371,32 @@ public class DefaultMasterKeyManagerTests : BaseTests
         Assert.Equal("kms://tenant-a/root", successor.RootKeyReference);
         Assert.Null(successor.RecoveryWrappedKey);
         Assert.Equal("kms://tenant-a/root", rotation.ActiveKey.RootKeyReference);
+        Assert.Equal(1, fake.WrapCount);
+    }
+
+    [Fact]
+    public async Task Rotate_OfATenantWhoseTeamBringsAnActiveRootKey_WrapsTheSuccessorUnderTheTeamKey()
+    {
+        var team = new SecretOwner(SecretOwnerTypes.Team, "team-a");
+        var teamKey = CreateOwnerRootKey(owner: team, reference: "kms://team-a/root");
+        SetupAncestors(team, SecretOwner.Platform);
+        var active = CreateRow(1, Time.GetUtcNow().AddDays(-400));
+        var fake = new FakeReferencedKeyWrapper();
+        Catalog.Setup(x => x.GetReferenced("fake-kms")).Returns(fake).Verifiable();
+        SetupListWithRootKey(teamKey, active);
+        SetupRetire(active);
+        var (added, _) = SetupInsert();
+        Provider.Setup(x => x.Evict(Owner)).Verifiable(Times.Once());
+        SetupObserverRotated();
+
+        var rotation = await CreateManager().RotateAsync(Owner, CancellationToken.None);
+
+        var successor = Assert.Single(added);
+        Assert.Equal(NormalizedOwner, successor.Owner);
+        Assert.Equal("fake-kms", successor.RootKeyProvider);
+        Assert.Equal("kms://team-a/root", successor.RootKeyReference);
+        Assert.Null(successor.RecoveryWrappedKey);
+        Assert.Equal("kms://team-a/root", rotation.ActiveKey.RootKeyReference);
         Assert.Equal(1, fake.WrapCount);
     }
 

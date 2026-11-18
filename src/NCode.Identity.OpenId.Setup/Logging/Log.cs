@@ -55,4 +55,11 @@ internal static partial class Log
         string clientId,
         string tenantId
     );
+
+    [LoggerMessage(
+        EventId = EventIds.SetupBelongsToTheControlPlane,
+        Level = LogLevel.Information,
+        Message = "Setup belongs to the control-plane cell, so this cell prepares no setup token."
+    )]
+    internal static partial void SetupBelongsToTheControlPlane(this ILogger logger);
 }

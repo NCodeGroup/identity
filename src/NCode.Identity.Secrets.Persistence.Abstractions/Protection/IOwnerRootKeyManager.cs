@@ -13,9 +13,10 @@ namespace NCode.Identity.Secrets.Persistence.Protection;
 /// </summary>
 /// <remarks>
 /// Which owners can bring a root key is decided by the registered <see cref="IOwnerRootKeyPolicy"/> implementations,
-/// which govern <see cref="SetAsync"/> only: the master keys of the <c>platform</c> owner, for example, are always wrapped
-/// by the deployment's root key, so it cannot bring one. Setting or changing the key rotates the owner's master key
-/// and rewraps the retired ones under the key; removing it moves the master keys back under the deployment's root key
+/// which govern <see cref="SetAsync"/> and the import of a moved tenant's root key through
+/// <see cref="IMasterKeyTransfer"/>: the master keys of the <c>platform</c> owner, for example, are always wrapped by
+/// the deployment's root key, so it cannot bring one. Setting or changing the key rotates the owner's master key and
+/// rewraps the retired ones under the key; removing it moves the master keys back under the deployment's root key
 /// without rotating. Every registered <see cref="IOwnerRootKeyChangeObserver"/> learns of a state change after it is
 /// committed.
 /// </remarks>
@@ -68,6 +69,42 @@ public interface IOwnerRootKeyManager
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the root key, or
     /// <see langword="null"/> when the owner has none.</returns>
     ValueTask<OwnerRootKeyInfo?> GetAsync(SecretOwner owner, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Gets the root keys of several owners of one type in one read. An owner without a root key is skipped, and owner
+    /// identifiers match without regard to case. The read is not scoped to a tenant and is for the server's background
+    /// passes. The results carry no key material.
+    /// </summary>
+    /// <param name="ownerType">The type of every owner, such as <c>team</c>.</param>
+    /// <param name="ownerIds">The identifiers of the owners to read.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the root keys that
+    /// the owners bring.</returns>
+    /// <exception cref="ArgumentException">Thrown when the owner type is empty or white space.</exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when the owner identifiers are <see langword="null"/>.
+    /// </exception>
+    ValueTask<IReadOnlyList<OwnerRootKeyInfo>> GetManyAsync(
+        string ownerType,
+        IReadOnlyCollection<string> ownerIds,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
+    /// Gets one page of the root keys of every owner of one type, ordered by an opaque row identifier. The read is not
+    /// scoped to a tenant and is for the server's background passes. The results carry no key material.
+    /// </summary>
+    /// <param name="ownerType">The type of the owners, such as <c>team</c>.</param>
+    /// <param name="page">The cursor and the size of the page.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the page and the
+    /// cursor of the next one.</returns>
+    /// <exception cref="ArgumentException">Thrown when the owner type is empty or white space.</exception>
+    ValueTask<PagedResult<OwnerRootKeyInfo>> GetPageAsync(
+        string ownerType,
+        PageRequest page,
+        CancellationToken cancellationToken
+    );
 
     /// <summary>
     /// Checks that a key wrapper may be chosen and that it accepts the syntax of an access identity, which is at most
@@ -130,7 +167,9 @@ public interface IOwnerRootKeyManager
 
     /// <summary>
     /// Starts removing the root key of an owner: new master keys are wrapped under the deployment's root key, and every
-    /// master key moves under it. The record is deleted once no master key remains under the key.
+    /// master key moves under it. The record is deleted once no master key under the key remains that does not conform
+    /// to its owner's nearest root key, so a master key of another owner whose own root key names the same key never
+    /// holds the removal.
     /// </summary>
     /// <param name="owner">The owner whose root key is removed.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>

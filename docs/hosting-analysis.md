@@ -111,8 +111,8 @@ Neon / Aiven free tiers as the always-on database (wrong region, scale-to-zero, 
 Decided in [ADR-1495](decisions/1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md).
 
 - **Customer environments are tenants on production.** A customer's dev, test, and prod are separate tenants on the one
-  production platform (the Auth0 model): `acme-dev.auth.ncodeid.net`, `acme-test.auth.ncodeid.net`,
-  `acme.auth.ncodeid.net`. Their non-production runs on exactly the hardware, versions, and configuration their
+  production platform (the Auth0 model): `acme-dev.auth.{region}.ncodeid.net`,
+  `acme-test.auth.{region}.ncodeid.net`, `acme.auth.{region}.ncodeid.net`. Their non-production runs on exactly the hardware, versions, and configuration their
   production does, so no customer incident can be blamed on environment drift, and promotion is tenant configuration
   (management API), not infrastructure.
 - **The platform itself has two environments:** **production** — every customer tenant, plus the internal `canary`
@@ -326,8 +326,8 @@ and mail live on `ncodeid.com` ([ADR-1495](decisions/1495-the-hosted-platform-ru
 | Hostname                                        | Serves                                                                                                   | Certificate                    |
 | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------ |
 | `auth.ncodeid.net`                              | Root (control-plane) tenant issuer — where admins sign in and management-API tokens are issued ([ADR-1417](decisions/1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md)) | `auth.ncodeid.net`            |
-| `{tenant}.auth.ncodeid.net`                     | Workload tenant issuers, resolved by `DynamicByHost` (e.g. `acme.auth.ncodeid.net`)                     | `*.auth.ncodeid.net`          |
-| `mtls.ncodeid.net`, `{tenant}.mtls.ncodeid.net` | RFC 8705 mTLS endpoint aliases — the only hosts where Traefik requests a client certificate. `DynamicByHost` routes each tenant's alias host to it (ADR-1165) | `mtls.…` + `*.mtls.ncodeid.net` |
+| `{tenant}.auth.{region}.ncodeid.net`            | Workload tenant issuers of one region, resolved by `DynamicByHost` (e.g. `acme.auth.{region}.ncodeid.net`) | `*.auth.{region}.ncodeid.net` |
+| `mtls.ncodeid.net`, `{tenant}.mtls.{region}.ncodeid.net` | RFC 8705 mTLS endpoint aliases — the only hosts where Traefik requests a client certificate. `DynamicByHost` routes each tenant's alias host to it (ADR-1165) | `mtls.…` + `*.mtls.{region}.ncodeid.net` |
 | `manage.ncodeid.net`                            | The management console only; the management API is `/api` on `auth.ncodeid.net` ([ADR-1437](decisions/1437-the-management-console-is-a-confidential-client-whose-own-bff-host-serves-only-the-console.md)) | `manage.ncodeid.net`          |
 | `ncodeid.net`, `www.ncodeid.net`                  | Redirect (301) to `https://ncodeid.com`, with the HSTS header                                            | `ncodeid.net` + `www.ncodeid.net` (cert-manager) |
 | `ncodeid.com`, `www.ncodeid.com`, `status.ncodeid.com` | Project site, docs and status page — the brand domain ([ADR-1495](decisions/1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md)) | Hosting provider               |
@@ -336,11 +336,16 @@ Why this shape:
 
 - **`auth`, not `id` or `login`:** the hosts serve machine-to-machine token, discovery, and JWKS endpoints as well as
   the login UI, and `auth.<domain>` is the convention developers expect.
-- **Tenants nest under a function label rather than the apex** (`acme.auth.ncodeid.net`, not `acme.ncodeid.net`): no
-  tenant name can ever collide with a service host (`www`, `manage`, `mtls`, `status`, `docs`, `dev`, …), so there is no
-  reserved-name list to maintain, and each function gets one wildcard certificate. A tenant can still be moved to a
-  dedicated deployment ([ADR-1411](decisions/1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md)) by changing its DNS record, without
-  changing its issuer.
+- **Tenants nest under a function label and a region rather than the apex** (`acme.auth.{region}.ncodeid.net`, not
+  `acme.ncodeid.net`): no tenant name can ever collide with a service host (`www`, `manage`, `mtls`, `status`, `docs`,
+  `dev`, …), so there is no reserved-name list to maintain, and each function in each region gets one wildcard
+  certificate. `{region}` is the region of the cell that hosts the tenant, so the hostname names where the tenant's
+  data lives and resolves to a cell of that region. The root issuer and the control plane sit at `auth.ncodeid.net`, in
+  the control-plane cell, and carry no region label. A tenant of a dedicated cell, or a tenant that changes cell within
+  its region ([ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)),
+  keeps its issuer through an explicit DNS record for its hostname
+  ([#755](https://github.com/NCodeGroup/identity/issues/755)); custom domains are a separate decision
+  ([#756](https://github.com/NCodeGroup/identity/issues/756)).
 - **`mtls` is a sibling namespace, not `mtls.{tenant}.auth…`:** a wildcard covers one label only, so nesting would need a
   certificate per tenant.
 - **`manage` is separate from `auth`:** the management console is a confidential client with a BFF host and origin of
@@ -353,9 +358,10 @@ Why this shape:
 - **The server derives these hosts from configuration**
   ([ADR-1165](decisions/1165-a-tenants-stored-issuer-is-its-single-origin-and-its-mtls-alias-a-routed-second-host.md)):
   `OpenId:TenantResolution:StrategyCode = DynamicByHost`, `DynamicByHost:IssuerTemplate =
-  https://{tenantId}.auth.ncodeid.net`, and `Root:Issuer = https://auth.ncodeid.net`. A tenant created without an
-  issuer is given (and keeps) the one the template derives; a custom domain is set as an explicit issuer. The mTLS
-  aliases follow the same rule: `DynamicByHost:MtlsEndpointAliasTemplate = https://{tenantId}.mtls.ncodeid.net` and
+  https://{tenantId}.auth.{region}.ncodeid.net` with the cell's own region written in, and `Root:Issuer =
+  https://auth.ncodeid.net`. A tenant created without an issuer is given (and keeps) the one the template derives; a
+  custom domain is set as an explicit issuer. The mTLS aliases follow the same rule:
+  `DynamicByHost:MtlsEndpointAliasTemplate = https://{tenantId}.mtls.{region}.ncodeid.net` and
   `Root:MtlsEndpointAliasAuthority = https://mtls.ncodeid.net`
   ([ADR-1165](decisions/1165-a-tenants-stored-issuer-is-its-single-origin-and-its-mtls-alias-a-routed-second-host.md)). The root tenant
   is created when the first request reaches `auth.ncodeid.net`
@@ -368,7 +374,7 @@ Why this shape:
   that origin plus `/api` ([ADR-1437](decisions/1437-the-management-console-is-a-confidential-client-whose-own-bff-host-serves-only-the-console.md)); the API authenticates by the control-plane tenant whichever host or path addresses it
   ([ADR-1191](decisions/1191-a-management-request-is-authenticated-by-the-control-plane-tenant-and-scoped-by-its-routes-tenant.md)).
 
-**Environments.** Customer environments are just tenants on production (`acme-dev.auth.ncodeid.net`), so they need no
+**Environments.** Customer environments are just tenants on production (`acme-dev.auth.{region}.ncodeid.net`), so they need no
 extra hostnames. The platform's private **lab** inserts a `lab` label after the function: `auth.lab.ncodeid.net`,
 `{tenant}.auth.lab.ncodeid.net`, `{tenant}.mtls.lab.ncodeid.net`, `manage.lab.ncodeid.net`. Ephemeral Azure runs use
 one host each, `{run}.ci.ncodeid.net`. The lab shares the platform zone, so it must never hold a token that can edit
@@ -417,6 +423,48 @@ belongs to an unrelated party, so JavaScript packages publish under the org-owne
 GitHub organization and GitHub Packages' scope rule). The frontend's `@ncode/*` workspace packages are private and
 resolve only through `workspace:*`, so they are renamed only if and when one is published. The family publishes on NuGet
 under the reserved, verified `NCode.` prefix.
+
+### Cells and the global directory
+
+Decided in [ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md).
+A platform is a global directory over independent cells.
+
+- **A cell** is one identity host, its one Postgres database, its Valkey and its KMS keys, in one region. A cell's
+  tenants share that database and are separated by fail-closed scoping, and a tenant lives in exactly one cell, so its
+  data, keys and sessions stay in that cell's region. A cell is named by `Cell:Name` (1 to 31 characters of lowercase
+  letters, digits and single hyphens, starting with a letter and ending with a letter or digit, with no two hyphens in
+  a row) and also has a `Cell:Region`, a `Cell:Kind` (`shared`, `dedicated` or `sovereign`), the cloud regions its keys
+  may live in and a management URL. Capacity and blast radius are managed by how many tenants a cell hosts and how many
+  cells run; a dedicated cell gives compliance isolation. A platform of one cell needs nothing else.
+- **The control-plane cell** is the cell that sets `Cell:IsControlPlane`. It holds the platform and team authority, the
+  platform and team settings, setup and the team root keys, and it serves the platform and team management routes and
+  `auth.ncodeid.net`. Setup runs once per platform, in the control-plane cell only
+  ([first use of a deployed instance](first-deployed-instance.md)). Every other cell sets `Cell:ControlPlane:Issuer` to
+  the control-plane cell's issuer, validates management tokens against it and fails closed when it is unreachable.
+- **The directory host** (`NCode.Identity.OpenId.GlobalDirectory.Host`) reserves tenant and team identifiers
+  platform-wide, places each tenant in one cell, records the cells and publishes team documents. It holds no personal
+  data, has its own Postgres database and runs as one replica. A cell that sets `Directory:Url` reaches it with a
+  client-credentials token under its machine client `cell-{name}`, which it requests from the issuer
+  `Cell:ControlPlane:Issuer` names, so every such cell sets that issuer, the control-plane cell included; a cell without
+  `Directory:Url` uses local adapters. Serving a tenant never calls the directory, and creating a tenant fails with
+  `503` when the directory is unreachable. [Running cells](platform-bootstrap.md#9-run-the-cells-of-a-platform) sets
+  this up.
+- **Two database roles.** The host connects as a runtime role that cannot bypass the row-level security on tenant-bound
+  tables, and the migrations connect as the schema owner. The two are separate secrets and the chart has no fallback
+  from one to the other (`database.*`, `database.runtimeRole`, `migrations.database.*`).
+- **A tenant moves between cells of one region** through an encrypted export and import, with its identifier and issuer
+  unchanged ([ADR-1514](decisions/1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md)).
+  The [tenant move runbook](tenant-move.md) lists the stages, what moves and the DNS record of the tenant's hostname.
+- **Valkey is shared by prefix.** Every Valkey key a cell writes starts with `ncode-identity:{cell}:`, so cells that
+  share one Valkey keep to their own keys.
+- **The chart** deploys one cell per release. `cell.name`, `cell.region`, `cell.kind`, `cell.cloudRegions`,
+  `cell.managementUrl`, `cell.isControlPlane` and `cell.controlPlaneIssuer` render as the `Cell__*` settings.
+  `directory.url`, `directory.clientId`, `directory.keyRing` and `directory.keys.*` give the cell its directory client.
+  `directory.enabled` deploys the directory host as well, with `directory.issuer`, `directory.controlPlaneCell`, its own
+  database Secret and a migration Job. `backup.location` annotates the pods of the host, the directory and their
+  migration Jobs with `ncode.io/backup-location`, and `telemetry.otlpEndpoint` sets the OTLP endpoint, with `cell.name`
+  and `cell.region` as resource attributes on every pod, so a signal names its cell. The
+  [chart README](../charts/ncode-identity-host/README.md#the-cell) lists every value.
 
 ## 4. Compute sizing
 
@@ -829,14 +877,14 @@ speed-test endpoint from the network the traffic comes from.
   wildcard `AllowedHosts`,
   developer CORS, seeders). Its image is chiseled, runs non-root, serves HTTPS only on port 8443, is built for amd64 and
   arm64, and carries the login bundle
-  ([ADR-1248](decisions/1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)). Its Helm
+  ([ADR-1248](decisions/1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)). Its Helm
   chart runs restricted pods that probe `/health/live` and `/health/ready` over HTTPS, drain before stopping, and
   require Valkey for more than one replica
   ([ADR-1458](decisions/1458-the-host-chart-deploys-the-server-and-an-opt-in-management-console-and-refuses-unsafe-releases.md)). Before
   each rollout it migrates the database in a Job from the same image, and every migration keeps the previous release
   working ([ADR-1180](decisions/1180-each-host-contexts-migrations-run-before-the-rollout-and-only-expand-the-schema.md)). Every
   merge to `main` publishes the image, the chart and the OpenAPI document
-  ([ADR-1505](decisions/1505-every-merge-to-main-publishes-the-host-image-the-console-image-the-chart-and-the-openapi-document-at-one-prerelease-version.md)).
+  ([ADR-1505](decisions/1505-every-merge-to-main-publishes-the-host-console-and-directory-images-the-chart-and-the-openapi-document-at-one-prerelease-version.md)).
 - **Per-tenant rate limits and quotas** — issues [#84](https://github.com/NCodeGroup/identity/issues/84) and [#118](https://github.com/NCodeGroup/identity/issues/118), done
   ([ADR-1246](decisions/1246-rate-limits-are-registered-descriptors-counted-in-a-shared-expiring-counter-set.md),
   [ADR-1198](decisions/1198-a-daily-quota-counts-a-utc-day-and-a-tier-may-admit-a-bounded-billed-overage.md)); the mTLS work ([#82](https://github.com/NCodeGroup/identity/issues/82), [#83](https://github.com/NCodeGroup/identity/issues/83),
@@ -879,7 +927,7 @@ speed-test endpoint from the network the traffic comes from.
 
 **Business and legal (before onboarding customers):** privacy policy, terms, a DPA and subprocessor list (Akamai,
 Cloudflare, Grafana Labs, and the key-vault provider); data residency is US-only (one US region) — EU customers need a
-regional cell ([#836](https://github.com/NCodeGroup/identity/issues/836), [#838](https://github.com/NCodeGroup/identity/issues/838)); an SLA no higher than a
+regional cell ([ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)); an SLA no higher than a
 single-datacenter platform supports (~99.9%), until cells run across availability zones ([§15](#15-growth-path-aws)); an incident-response runbook.
 
 **Outbound email (future):** verification, password reset, and email MFA need a sending provider — OCI Email Delivery
@@ -928,7 +976,7 @@ a dedicated AWS account ([ADR-1132](decisions/1132-platform-infrastructure-code-
   [#177](https://github.com/NCodeGroup/identity/issues/177)), and remote signing stays in-region.
 - **Compliance inheritance.** AWS's SOC 2, ISO 27001, PCI DSS and HIPAA-eligible services, and GovCloud for FedRAMP
   buyers, shorten the platform's own SOC 2 work (issue [#844](https://github.com/NCodeGroup/identity/issues/844)).
-- **Regions for residency.** Regional and sovereign cells ([#838](https://github.com/NCodeGroup/identity/issues/838))
+- **Regions for residency.** Regional and sovereign cells ([ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md))
   can be placed in AWS regions worldwide.
 - **Enterprise procurement and connectivity.** An AWS Marketplace listing lets enterprises buy against their committed
   AWS spend, and PrivateLink gives a dedicated cell private connectivity to a customer's VPC.
@@ -952,7 +1000,7 @@ the AWS pricing pages)_:
 That is about 1.5× Akamai's $155 with its HA control plane, before traffic. Traffic widens it: internet egress is
 $0.09/GB past 100 GB a month, against Akamai's pooled terabytes, and traffic between zones costs $0.01/GB each way.
 One-year Savings Plans and RDS reservations take about 30% off compute and the database. The images are already built
-for arm64 ([ADR-1248](decisions/1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)),
+for arm64 ([ADR-1248](decisions/1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)),
 so the cheaper Graviton instances need no work. Startup programs such as AWS Activate offer credits _(verify the
 current amounts)_.
 
@@ -1099,7 +1147,7 @@ roughly half or more.
 
 ### When and how to move
 
-Under the cell architecture ([#838](https://github.com/NCodeGroup/identity/issues/838)) a vendor is a placement choice
+Under the cell architecture ([ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)) a vendor is a placement choice
 per cell, made in `NCodeGroup/identity-platform` with a `stacks/aws` stack beside `stacks/akamai`
 ([§11](#11-iac-and-delivery)); the published chart and images run unchanged
 ([ADR-1133](decisions/1133-the-hosted-platform-runs-only-the-published-artifacts-it-offers-self-hosters.md)). So the
@@ -1115,8 +1163,8 @@ move is gradual:
 4. **Keep the free and cheapest plans on the cheapest vendor** for as long as it serves them well.
 
 A cell moves between vendors by moving its database, unlike a move between clusters at one vendor: a new cell on AWS
-takes its tenants through the export and import of [#838](https://github.com/NCodeGroup/identity/issues/838) phase 5,
-or the database moves by PostgreSQL logical replication with a short cutover. Washington, DC and `us-east-1` share a
+takes its tenants through the export and import of [ADR-1514](decisions/1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md)
+([tenant-move.md](tenant-move.md)), or the database moves by PostgreSQL logical replication with a short cutover. Washington, DC and `us-east-1` share a
 metro, so customers see no change in latency.
 
 ## 16. Shared and dedicated cells
@@ -1127,7 +1175,7 @@ isolated, guaranteed capacity gets a **dedicated cell**, never a reserved slice 
 ### The cell and its placement
 
 - **The cell** is a software deployment, defined by the cell architecture of
-  [#838](https://github.com/NCodeGroup/identity/issues/838): one complete, independent deployment — one release with its
+  [ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md): one complete, independent deployment — one release with its
   own PostgreSQL database, its own Valkey and its own KMS root key, plus its own backups, telemetry and outbound mail
   and SMS, all in one region. Inside a cell, tenant isolation fails closed (the EF query filter and PostgreSQL
   row-level security), and a personal-data-free global directory knows which cell holds each team and tenant. Cells
@@ -1137,8 +1185,8 @@ isolated, guaranteed capacity gets a **dedicated cell**, never a reserved slice 
   platform choice, made in `NCodeGroup/identity-platform`.
 
 Physical isolation is always a separate cell, never per-tenant database routing inside one process
-([ADR-1411](decisions/1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md),
-#838). A customer who needs a dedicated database gets a dedicated cell.
+([ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
+A customer who needs a dedicated database gets a dedicated cell.
 
 ### Why a shared cell can't guarantee capacity
 
@@ -1190,7 +1238,7 @@ Why split at stage 2 rather than at launch:
 Moving a cell from cluster A to cluster B in the same datacenter changes no tenant: the cell's managed PostgreSQL stays
 where it is, its release is deployed on cluster B against the same database, its Valkey starts empty (it holds only
 expiring state), and its DNS records are pointed at cluster B's load balancer. Its tenants keep their issuers. A move to
-another region is a new tenant, because residency is chosen when a tenant is created (#838).
+another region is a new tenant, because residency is chosen when a tenant is created ([ADR-1495](decisions/1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md)).
 
 ### The cluster that hosts paid cells
 
@@ -1247,7 +1295,7 @@ It isolates the customer's **backend services and compute**, but not the **clust
 | Compute: VMs, CPU, memory, kernel | ✅ with its own node pool | A taint on the pool, with `nodeSelector` and `tolerations` on the release, on dedicated-CPU nodes. Without its own pool it gets only cgroup requests and limits on shared nodes. |
 | PostgreSQL | ✅ | Its own managed cluster on its own VMs |
 | Valkey | ✅ | Its own instance, pinned to the cell's node pool |
-| KMS root key, secrets, backups, audit records and usage | ✅ | Per cell (#838) |
+| KMS root key, secrets, backups, audit records and usage | ✅ | Per cell ([ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)) |
 | Ingress: Traefik and the NodeBalancer | ⚠️ Shared by default | Isolated with its own Traefik deployment and NodeBalancer. Keep the shared Traefik DaemonSet off the dedicated nodes. |
 | Kubernetes control plane: API server, etcd, scheduler | ❌ | If it fails, running pods keep serving, but deploys and scaling pause for every cell |
 | Cluster add-ons: the CNI, kube-proxy, CoreDNS, cert-manager, Flux, monitoring agents | ❌ | The CNI and kube-proxy run on every node. CoreDNS matters most: the cell's pods resolve their Valkey through it; a node-local DNS cache on the dedicated pool reduces that dependency. |
@@ -1263,7 +1311,7 @@ class) on tainted, dedicated-CPU nodes are as close to provisioned capacity as K
 
 A **dedicated cluster** adds its own control plane and add-ons, its own Kubernetes version and maintenance windows,
 its own ingress by construction, and optionally its own datacenter or region (a separate failure domain, which also
-covers residency, [#836](https://github.com/NCodeGroup/identity/issues/836)) or its own cloud account (the sovereign
+covers residency, [ADR-1495](decisions/1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md)) or its own cloud account (the sovereign
 cell).
 
 ### Isolation by kind of cell
@@ -1276,18 +1324,13 @@ cell).
 | Sovereign cell | Physical | Dedicated | Its own cluster, cloud account and operator |
 
 Logical isolation inside a shared cell is what HIPAA, scoped PCI DSS, SOC 2 and ISO 27001 typically accept; residency,
-sovereignty and bank exit plans ask for a regional, sovereign or dedicated cell (#838).
+sovereignty and bank exit plans ask for a regional, sovereign or dedicated cell ([ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
 
 ### Gaps for dedicated cells
 
 | Gap | Tracked by |
 |---|---|
-| Tenant and team identifiers are unique per deployment, so two cells could each issue `acme` | #838 phase 2 |
-| A team can't span cells; each cell has its own control plane and console | #838 phase 3 |
-| Audit records and usage rows don't name their cell, so usage can't be added up across cells | #838 phase 2 (the cell stamp) |
-| A tenant in a shared cell can't move into a dedicated cell: there is no export and import of a tenant | #838 phase 5 |
 | A dedicated cell's tenants need DNS records that take precedence over the wildcard | [#755](https://github.com/NCodeGroup/identity/issues/755) |
-| The region in the hostname, decided before the first customer pins an issuer | [#836](https://github.com/NCodeGroup/identity/issues/836), #838 phase 0 |
 | A shared cell has no priority by plan: under load, nothing sheds free traffic before paid traffic | Not tracked |
 | No capacity rating for a dedicated cell, because there is no load-test data on dedicated-CPU nodes | Not tracked ([§4](#4-compute-sizing)) |
 | Telemetry per cell can outgrow Grafana Cloud's free 10k active series | Not tracked |

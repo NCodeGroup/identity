@@ -33,7 +33,7 @@ the root of a bundle. Each serves only the bundle's `assets/` directory, with an
 writes carries a content security policy with `img-src 'self'` and no `manifest-src`
 ([ADR-1256](1256-every-page-the-server-writes-has-a-strict-content-security-policy-and-is-framed-only-by-design.md)).
 The image builds' context holds only `src/`, `hosts/`, `analyzers/`, `frontend/` and the root build files
-([ADR-1248](1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)), so
+([ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)), so
 a frontend build cannot read `brand/`.
 
 A web manifest makes a page installable as an app named "NCode Identity". A tenant has a `logoUrl`, a header picture of
@@ -130,7 +130,7 @@ serves.**
 - **One shared copy and a preset plugin.** Rejected: a link into another package resolves in a build but not on a dev
   server ([ADR-1151](1151-every-frontend-workspace-builds-and-tests-from-one-preset-that-fails-on-warnings-and-oversized-chunks.md)).
 - **Reading `brand/` directly from the frontend build.** Rejected: the image builds' context holds no `brand/`
-  ([ADR-1248](1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)).
+  ([ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)).
 - **Linking the web manifest.** Rejected for the reasons of decision 10.
 - **The chosen design.** One script draws the `{id}` kit, and each app carries hashed copies of its three icons that its
   host already serves, so nothing is added to a host and no file drifts from the script's output.
@@ -157,7 +157,7 @@ serves.**
 - Issue [#737](https://github.com/NCodeGroup/identity/issues/737)
 - [ADR-1236](1236-a-password-is-judged-by-one-policy-wherever-it-is-set.md) — the bundled list that set the practice for
   third-party material: a pinned source, a script that verifies its SHA-256, and a notice.
-- [ADR-1248](1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md) — the
+- [ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md) — the
   host image and its allow-listed build context.
 - [ADR-1151](1151-every-frontend-workspace-builds-and-tests-from-one-preset-that-fails-on-warnings-and-oversized-chunks.md)
 - [ADR-1193](1193-the-interactive-surface-uses-the-tenant-route-host-only-cookies-and-one-shared-single-page-bundle-helper.md)

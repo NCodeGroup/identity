@@ -7,6 +7,7 @@ import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Tooltip from '@mui/material/Tooltip';
+import Typography from '@mui/material/Typography';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 
@@ -15,6 +16,12 @@ export type TenantEnvironmentRow = {
   readonly type: string;
   readonly name: string | null;
   readonly isProduction: boolean;
+};
+
+/** The cell a tenant lives in: its name, and the region it runs in when that is known. */
+export type TenantCellRow = {
+  readonly name: string;
+  readonly region: string | null;
 };
 
 /** The minimal tenant shape this presentational table needs (decoupled from the API contract). */
@@ -26,22 +33,45 @@ export type TenantRow = {
   readonly isDisabled: boolean;
   /** Absent when the environment cannot be determined. */
   readonly environment?: TenantEnvironmentRow;
+  /** Absent when the tenant is not tied to a named cell. */
+  readonly cell?: TenantCellRow;
 };
 
 export type TenantTableProps = {
   readonly tenants: readonly TenantRow[];
-  readonly onSelect?: (tenantId: string) => void;
-  readonly onEdit?: (tenantId: string) => void;
-  readonly onDelete?: (tenantId: string) => void;
+  /** Whether to show the Cell column, for a platform whose tenants live in more than one cell. */
+  readonly showCell?: boolean;
+  /** Called with the tenant id and the cell, `undefined` when it has none, of the selected row. */
+  readonly onSelect?: (tenantId: string, cell: string | undefined) => void;
+  /** Called with the tenant id and the cell, `undefined` when it has none, of the edited row. */
+  readonly onEdit?: (tenantId: string, cell: string | undefined) => void;
+  /** Called with the tenant id and the cell, `undefined` when it has none, of the deleted row. */
+  readonly onDelete?: (tenantId: string, cell: string | undefined) => void;
 };
 
 /**
- * Stateless tenant table. Receives rows and callbacks as props; holds no state and does no fetching,
- * so it renders directly in Storybook and under RTL. The row-level edit/delete controls appear only
- * when their callbacks are supplied, and stop propagation so they never trigger row selection. A
- * non-production environment is highlighted, so a sandbox tenant is never mistaken for production.
+ * The id that tells a row apart in its test ids: the tenant id, after the tenant's cell when it has one, because two
+ * cells list one tenant while it moves between them.
  */
-export function TenantTable({ tenants, onSelect, onEdit, onDelete }: TenantTableProps) {
+function rowTestId(tenant: TenantRow): string {
+  return tenant.cell === undefined ? tenant.tenantId : `${tenant.cell.name}/${tenant.tenantId}`;
+}
+
+/**
+ * Stateless tenant table. Receives rows and callbacks as props; holds no state and does no fetching, so it renders
+ * directly in Storybook and under RTL. The row-level edit/delete controls appear only when their callbacks are
+ * supplied, and stop propagation so they never trigger row selection. A non-production environment is highlighted, so a
+ * sandbox tenant is never mistaken for production. The Cell column appears only when `showCell` is set. A row is told
+ * apart by its cell and its tenant id, because two cells list one tenant while it moves between them, so each callback
+ * receives both.
+ */
+export function TenantTable({
+  tenants,
+  showCell = false,
+  onSelect,
+  onEdit,
+  onDelete,
+}: TenantTableProps) {
   const showActions = Boolean(onEdit || onDelete);
   return (
     <Table size="small" aria-label="Tenants">
@@ -49,6 +79,7 @@ export function TenantTable({ tenants, onSelect, onEdit, onDelete }: TenantTable
         <TableRow>
           <TableCell>Display name</TableCell>
           <TableCell>Tenant ID</TableCell>
+          {showCell && <TableCell>Cell</TableCell>}
           <TableCell>Issuer</TableCell>
           <TableCell>mTLS endpoint alias</TableCell>
           <TableCell>Environment</TableCell>
@@ -59,19 +90,36 @@ export function TenantTable({ tenants, onSelect, onEdit, onDelete }: TenantTable
       <TableBody>
         {tenants.map((tenant) => (
           <TableRow
-            key={tenant.tenantId}
+            key={`${tenant.cell?.name ?? ''}/${tenant.tenantId}`}
             hover={Boolean(onSelect)}
             {...(onSelect
-              ? { onClick: () => onSelect(tenant.tenantId), sx: { cursor: 'pointer' } }
+              ? {
+                  onClick: () => onSelect(tenant.tenantId, tenant.cell?.name),
+                  sx: { cursor: 'pointer' },
+                }
               : {})}
-            data-testid={`tenant-row-${tenant.tenantId}`}
+            data-testid={`tenant-row-${rowTestId(tenant)}`}
           >
             <TableCell>{tenant.displayName}</TableCell>
             <TableCell>{tenant.tenantId}</TableCell>
+            {showCell && (
+              <TableCell data-testid={`tenant-cell-${rowTestId(tenant)}`}>
+                {tenant.cell && (
+                  <>
+                    {tenant.cell.name}
+                    {tenant.cell.region && (
+                      <Typography variant="caption" color="text.secondary" component="div">
+                        {tenant.cell.region}
+                      </Typography>
+                    )}
+                  </>
+                )}
+              </TableCell>
+            )}
             <TableCell>{tenant.issuer ?? '—'}</TableCell>
             <TableCell>{tenant.mtlsEndpointAliasAuthority ?? '—'}</TableCell>
             <TableCell>
-              <TenantEnvironmentChip tenantId={tenant.tenantId} environment={tenant.environment} />
+              <TenantEnvironmentChip testId={rowTestId(tenant)} environment={tenant.environment} />
             </TableCell>
             <TableCell>
               <Chip
@@ -88,10 +136,10 @@ export function TenantTable({ tenants, onSelect, onEdit, onDelete }: TenantTable
                       <IconButton
                         size="small"
                         aria-label={`Edit ${tenant.displayName}`}
-                        data-testid={`tenant-edit-${tenant.tenantId}`}
+                        data-testid={`tenant-edit-${rowTestId(tenant)}`}
                         onClick={(event) => {
                           event.stopPropagation();
-                          onEdit(tenant.tenantId);
+                          onEdit(tenant.tenantId, tenant.cell?.name);
                         }}
                       >
                         <EditIcon fontSize="small" />
@@ -103,10 +151,10 @@ export function TenantTable({ tenants, onSelect, onEdit, onDelete }: TenantTable
                       <IconButton
                         size="small"
                         aria-label={`Delete ${tenant.displayName}`}
-                        data-testid={`tenant-delete-${tenant.tenantId}`}
+                        data-testid={`tenant-delete-${rowTestId(tenant)}`}
                         onClick={(event) => {
                           event.stopPropagation();
-                          onDelete(tenant.tenantId);
+                          onDelete(tenant.tenantId, tenant.cell?.name);
                         }}
                       >
                         <DeleteIcon fontSize="small" />
@@ -124,10 +172,10 @@ export function TenantTable({ tenants, onSelect, onEdit, onDelete }: TenantTable
 }
 
 function TenantEnvironmentChip({
-  tenantId,
+  testId,
   environment,
 }: {
-  readonly tenantId: string;
+  readonly testId: string;
   readonly environment: TenantEnvironmentRow | undefined;
 }) {
   if (!environment) {
@@ -141,7 +189,7 @@ function TenantEnvironmentChip({
       color={environment.isProduction ? 'default' : 'warning'}
       label={label}
       title={environment.isProduction ? 'Production environment' : 'Non-production environment'}
-      data-testid={`tenant-environment-${tenantId}`}
+      data-testid={`tenant-environment-${testId}`}
       data-production={environment.isProduction}
     />
   );

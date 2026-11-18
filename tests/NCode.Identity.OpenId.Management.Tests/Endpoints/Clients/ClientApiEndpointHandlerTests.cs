@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.Jose;
@@ -19,6 +20,7 @@ using NCode.Identity.OpenId.Authentication.Clients;
 using NCode.Identity.OpenId.Authentication.OutboundHttp;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Environments;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Clients;
@@ -829,13 +831,20 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
             .Verifiable();
     }
 
-    // The creation of a machine client that the validators accept, whose stored client the capture receives.
-    private void SetupMachineClientCreation(Action<PersistedClient> capture)
+    // The creation of a machine client that the validators accept, whose stored client the capture receives. A request
+    // that names its client id generates none.
+    private void SetupMachineClientCreation(
+        Action<PersistedClient> capture,
+        string? suppliedClientId = null
+    )
     {
         SetupMachineClientScope();
         SetupValidSettings();
         SetupStore();
-        SetupResourceId("generated-id");
+        if (suppliedClientId is null)
+        {
+            SetupResourceId("generated-id");
+        }
         SetupMachineClientValidation(capture);
         MockClientStore
             .Setup(x => x.AddAsync(It.IsAny<PersistedClient>(), It.IsAny<CancellationToken>()))
@@ -847,7 +856,7 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
             .Verifiable();
         SetupClientChangedAudit();
         SetupEffectiveSettings();
-        SetupCreatedClientAuthenticationMethod();
+        SetupCreatedClientAuthenticationMethod(suppliedClientId ?? "generated-id");
     }
 
     #endregion
@@ -988,14 +997,14 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
     }
 
     // The issuer resolves the created client's method from the tenant's stored settings.
-    private void SetupCreatedClientAuthenticationMethod() =>
+    private void SetupCreatedClientAuthenticationMethod(string clientId = "generated-id") =>
         MockClientSecretIssuer
             .Setup(x =>
                 x.GetTokenEndpointAuthMethodAsync(
                     "platform",
                     TenantId,
                     It.Is<JsonElement?>(settings => settings.HasValue),
-                    "generated-id",
+                    clientId,
                     It.IsAny<JsonElement>(),
                     It.IsAny<CancellationToken>()
                 )
@@ -1228,6 +1237,31 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task CreateClientAsync_WithClientId_ReturnsValidationProblem()
+    {
+        SetupAuthorizeCreate(resourceServerId: null, error: null);
+
+        var request = new CreateClientRequest
+        {
+            ClientId = "chosen-id",
+            IsDisabled = false,
+            Settings = EmptyObject(),
+        };
+
+        // Strict mocks: no IStoreManagerFactory.CreateAsync setup, so opening the store would fail the test.
+        var result = await Handler.CreateClientAsync(
+            CreateHttpContext(authenticated: true),
+            TenantId,
+            request,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ValidationProblem>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+        Assert.Equal(["clientId"], problem.ProblemDetails.Errors.Keys);
+    }
+
+    [Fact]
     public async Task CreateClientAsync_WhenUnauthorized_ReturnsTheErrorWithoutOpeningTheStore()
     {
         SetupAuthorizeCreate("rs-1", Forbidden());
@@ -1386,6 +1420,110 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
         Assert.Equal(StatusCodes.Status404NotFound, notFound.StatusCode);
     }
 
+    [Fact]
+    public async Task CreateMachineClientAsync_ForTeamWithClientId_ReturnsValidationProblem()
+    {
+        SetupAuthorizeCreateMachineClient(ResourceNodeTypes.Team, "team-1", error: null);
+
+        var request = new CreateClientRequest
+        {
+            ClientId = "cell-eu1",
+            IsDisabled = false,
+            Settings = EmptyObject(),
+        };
+        var owningNode = ResourceNode.For(TenantId, ResourceNodeTypes.Team, "team-1");
+
+        // Strict mocks: no scope or IStoreManagerFactory.CreateAsync setup, so reading would fail the test.
+        var result = await Handler.CreateMachineClientAsync(
+            CreateHttpContext(authenticated: true),
+            owningNode,
+            request,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ValidationProblem>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+        Assert.Equal(["clientId"], problem.ProblemDetails.Errors.Keys);
+    }
+
+    [Theory]
+    [InlineData("cell-")]
+    [InlineData("cell-A")]
+    [InlineData("cell--x")]
+    [InlineData("x-a")]
+    [InlineData("cell-1eu")]
+    [InlineData("cell-eu-")]
+    [InlineData("cell-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
+    public async Task CreateMachineClientAsync_ForPlatformWithMalformedCellClientId_ReturnsValidationProblem(
+        string clientId
+    )
+    {
+        SetupAuthorizeCreateMachineClient(
+            ResourceNodeTypes.Platform,
+            OpenIdConstants.PlatformResourceId,
+            error: null
+        );
+
+        var request = new CreateClientRequest
+        {
+            ClientId = clientId,
+            IsDisabled = false,
+            Settings = EmptyObject(),
+        };
+        var owningNode = ResourceNode.For(
+            TenantId,
+            ResourceNodeTypes.Platform,
+            OpenIdConstants.PlatformResourceId
+        );
+
+        // Strict mocks: no scope or IStoreManagerFactory.CreateAsync setup, so reading would fail the test.
+        var result = await Handler.CreateMachineClientAsync(
+            CreateHttpContext(authenticated: true),
+            owningNode,
+            request,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ValidationProblem>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+        Assert.Equal(["clientId"], problem.ProblemDetails.Errors.Keys);
+    }
+
+    [Fact]
+    public async Task CreateMachineClientAsync_ForPlatformWithCellClientId_CreatesTheClientWithThatId()
+    {
+        SetupAuthorizeCreateMachineClient(
+            ResourceNodeTypes.Platform,
+            OpenIdConstants.PlatformResourceId,
+            error: null
+        );
+        PersistedClient? captured = null;
+        SetupMachineClientCreation(client => captured = client, suppliedClientId: "cell-eu1");
+
+        var request = new CreateClientRequest
+        {
+            ClientId = "cell-eu1",
+            IsDisabled = false,
+            Settings = EmptyObject(),
+        };
+        var owningNode = ResourceNode.For(
+            TenantId,
+            ResourceNodeTypes.Platform,
+            OpenIdConstants.PlatformResourceId
+        );
+
+        var result = await Handler.CreateMachineClientAsync(
+            CreateHttpContext(authenticated: true),
+            owningNode,
+            request,
+            CancellationToken.None
+        );
+
+        Assert.IsType<Created<ClientResource>>(result);
+        Assert.NotNull(captured);
+        Assert.Equal("cell-eu1", captured.ClientId);
+    }
+
     #endregion
 
     #region CreatePlatformClientAsync Tests
@@ -1417,6 +1555,53 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
         Assert.True(
             DefaultClientSettingsEvaluator.IsClientCredentialsOnly(captured.Settings.Value)
         );
+        Assert.Equal("generated-id", captured.ClientId);
+    }
+
+    [Fact]
+    public async Task CreatePlatformClientAsync_WithAClientIdAndJwks_PassesBothToTheCreator()
+    {
+        SetupAuthorizeCreateMachineClient(
+            ResourceNodeTypes.Platform,
+            OpenIdConstants.PlatformResourceId,
+            error: null
+        );
+        PersistedClient? captured = null;
+        SetupMachineClientCreation(client => captured = client, suppliedClientId: "cell-eu1");
+
+        var jwks = JsonElement.Parse("""{"keys":[]}""");
+        IReadOnlyList<PersistedSecret>? importedSecrets = new List<PersistedSecret>();
+        string? importError = null;
+        MockClientKeyImporter
+            .Setup(x =>
+                x.TryImportRegisteredKeySet(
+                    It.Is<JsonElement>(keySet => keySet.GetRawText() == jwks.GetRawText()),
+                    It.IsAny<DateTimeOffset>(),
+                    out importedSecrets,
+                    out importError
+                )
+            )
+            .Returns(true)
+            .Verifiable();
+
+        var request = new CreateClientRequest
+        {
+            ClientId = "cell-eu1",
+            IsDisabled = false,
+            Jwks = jwks,
+            Settings = EmptyObject(),
+        };
+
+        var result = await Handler.CreatePlatformClientAsync(
+            CreateHttpContext(authenticated: true),
+            request,
+            CancellationToken.None
+        );
+
+        Assert.IsType<Created<ClientResource>>(result);
+        Assert.NotNull(captured);
+        Assert.Equal("cell-eu1", captured.ClientId);
+        Assert.Same(importedSecrets, captured.Secrets.Value);
     }
 
     #endregion
@@ -5532,14 +5717,16 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
     #region DeleteClientAsync Tests
 
     [Fact]
-    public async Task DeleteClientAsync_WhenPreconditionsPass_ReturnsNoContent()
+    public async Task DeleteClientAsync_WhenPreconditionsPass_RemovesThePrincipalsRolesAndSavesUnscoped()
     {
         SetupAuthorizeDelete(error: null);
         SetupClientChangedAudit();
         SetupStore();
+        var client = CreateClient("client-ct");
+        client.PrincipalId = "principal-1";
         MockClientStore
             .Setup(x => x.GetOrDefaultAsync(ClientId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(CreateClient("client-ct"))
+            .ReturnsAsync(client)
             .Verifiable();
         MockClientValidator
             .Setup(x =>
@@ -5555,8 +5742,30 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
             .Setup(x => x.RemoveAsync(ClientId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(true)
             .Verifiable();
+
+        // The principal's assignments are stored under every tenant it holds a role in, so they are removed and the
+        // removal is saved in an unscoped scope.
+        var isUnscoped = false;
+        var unscoped = MockRepository.Create<IDisposable>();
+        unscoped.Setup(x => x.Dispose()).Callback(() => isUnscoped = false).Verifiable();
+        MockAmbientTenantAccessor
+            .Setup(x => x.BeginUnscoped(ClientApiEndpointHandler.PrincipalRoleRemovalReason))
+            .Callback(() => isUnscoped = true)
+            .Returns(unscoped.Object)
+            .Verifiable();
+        var roleAssignmentStore = MockRepository.Create<IRoleAssignmentStore>();
+        MockStoreManager
+            .Setup(x => x.GetStore<IRoleAssignmentStore>())
+            .Returns(roleAssignmentStore.Object)
+            .Verifiable();
+        roleAssignmentStore
+            .Setup(x => x.RemoveByPrincipalAsync("principal-1", It.IsAny<CancellationToken>()))
+            .Callback(() => Assert.True(isUnscoped))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
         MockStoreManager
             .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Callback(() => Assert.True(isUnscoped))
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
@@ -5778,7 +5987,10 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
         int[] statusCodes
     )
     {
-        var provider = new MachineClientEndpointProvider(Handler);
+        var provider = new MachineClientEndpointProvider(
+            Handler,
+            Options.Create(new CellOptions { IsControlPlane = true })
+        );
         Assert.Equal(
             statusCodes,
             await EndpointProblemMetadata.ReadStatusCodesAsync(

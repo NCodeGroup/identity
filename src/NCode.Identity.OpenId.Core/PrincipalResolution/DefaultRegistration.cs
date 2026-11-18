@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using JetBrains.Annotations;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NCode.Identity.OpenId.Principals;
 using NCode.Identity.Registration;
@@ -20,7 +19,6 @@ internal static class DefaultRegistration
         /// Configures the principal-resolution and federated-identity linking services.
         /// </summary>
         /// <returns>The <see cref="IServiceBuilder{T}"/> instance for method chaining.</returns>
-        [PublicAPI]
         public IServiceBuilder<OpenIdCoreLibrary> AddPrincipalResolutionServices()
         {
             var serviceCollection = builder.ServiceCollection;

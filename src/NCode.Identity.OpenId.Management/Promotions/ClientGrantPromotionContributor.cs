@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using NCode.Identity.OpenId.Management.Auditing;
-using NCode.Identity.OpenId.Management.Contracts.Teams;
+using NCode.Identity.OpenId.Management.Authorization;
+using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Management.Endpoints.Clients;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
-using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Management.Promotions;
 
@@ -19,8 +19,6 @@ namespace NCode.Identity.OpenId.Management.Promotions;
 internal class ClientGrantPromotionContributor(IHostManagedClientChecker hostManagedClientChecker)
     : ITenantPromotionContributor
 {
-    private const int PageLimit = 100;
-
     private IHostManagedClientChecker HostManagedClientChecker { get; } = hostManagedClientChecker;
 
     /// <inheritdoc />
@@ -61,6 +59,11 @@ internal class ClientGrantPromotionContributor(IHostManagedClientChecker hostMan
                     Action = promotion.Action,
                 }
             );
+
+            if (promotion.Action != TenantPromotionActions.Unchanged)
+            {
+                await AddOwningNodeAuthorityAsync(context, promotion.ClientId, cancellationToken);
+            }
         }
     }
 
@@ -107,25 +110,44 @@ internal class ClientGrantPromotionContributor(IHostManagedClientChecker hostMan
         }
     }
 
+    // A grant to a machine client widens what its principal may do, which needs Create at the node that owns it. See
+    // ADR-1466.
+    private static async ValueTask AddOwningNodeAuthorityAsync(
+        TenantPromotionContext context,
+        string clientId,
+        CancellationToken cancellationToken
+    )
+    {
+        var clientStore = context.StoreManager.GetStore<IClientStore>();
+
+        PersistedClient? client;
+        using (context.BeginTargetScope())
+        {
+            client = await clientStore.GetOrDefaultAsync(clientId, cancellationToken);
+        }
+
+        if (client is { OwningNodeType: { } owningNodeType, OwningNodeId: { } owningNodeId })
+        {
+            context.AddRequiredCreateAuthority(
+                ResourceNode.For(client.TenantId, owningNodeType, owningNodeId)
+            );
+        }
+    }
+
     private async ValueTask<List<ClientGrantPromotion>> ComputeAsync(
         TenantPromotionContext context,
         CancellationToken cancellationToken
     )
     {
-        var clientStore = context.StoreManager.GetStore<IClientStore>();
         var grantStore = context.StoreManager.GetStore<IClientGrantStore>();
         var resourceServerStore = context.StoreManager.GetStore<IResourceServerStore>();
 
-        var sources = await GetSourceGrantsAsync(
-            context,
-            clientStore,
-            grantStore,
-            cancellationToken
-        );
+        var sources = GetSourceGrants(context);
         var promotions = new List<ClientGrantPromotion>();
 
-        foreach (var (clientId, grant) in sources)
+        foreach (var grant in sources)
         {
+            var clientId = grant.ClientId;
             var errors = new List<string>();
 
             if (
@@ -212,70 +234,19 @@ internal class ClientGrantPromotionContributor(IHostManagedClientChecker hostMan
         return promotions;
     }
 
-    private async ValueTask<
-        List<(string ClientId, PersistedClientGrant Grant)>
-    > GetSourceGrantsAsync(
-        TenantPromotionContext context,
-        IClientStore clientStore,
-        IClientGrantStore grantStore,
-        CancellationToken cancellationToken
-    )
-    {
-        using var scope = context.BeginSourceScope();
-
-        var grants = new List<(string ClientId, PersistedClientGrant Grant)>();
-        string? clientCursor = null;
-        do
-        {
-            var clientPage = await clientStore.GetPageAsync(
-                new PageRequest { Cursor = clientCursor, Limit = PageLimit },
-                cancellationToken
-            );
-
-            foreach (var client in clientPage.Items)
-            {
-                // A machine client belongs to its owning node, not to the tenant's configuration.
-                // See ADR-1466.
-                if (client.OwningNodeType is not null)
-                {
-                    continue;
-                }
-
-                if (
-                    HostManagedClientChecker.IsHostManaged(
-                        context.SourceTenant.TenantId,
-                        client.ClientId
-                    )
-                    || HostManagedClientChecker.IsHostManaged(
-                        context.TargetTenant.TenantId,
-                        client.ClientId
-                    )
+    // The document holds no grant of a machine client, which belongs to its owning node (ADR-1466). The grants of a
+    // client the host manages stay out.
+    private List<TenantConfigurationClientGrant> GetSourceGrants(TenantPromotionContext context) =>
+        [
+            .. context.Source.ClientGrants.Where(grant =>
+                !HostManagedClientChecker.IsHostManaged(
+                    context.Source.SourceTenantId,
+                    grant.ClientId
                 )
-                {
-                    continue;
-                }
-
-                string? grantCursor = null;
-                do
-                {
-                    var grantPage = await grantStore.GetPageAsync(
-                        client.ClientId,
-                        new PageRequest { Cursor = grantCursor, Limit = PageLimit },
-                        cancellationToken
-                    );
-
-                    foreach (var grant in grantPage.Items)
-                    {
-                        grants.Add((client.ClientId, grant));
-                    }
-
-                    grantCursor = grantPage.NextCursor;
-                } while (grantCursor is not null);
-            }
-
-            clientCursor = clientPage.NextCursor;
-        } while (clientCursor is not null);
-
-        return grants;
-    }
+                && !HostManagedClientChecker.IsHostManaged(
+                    context.TargetTenant.TenantId,
+                    grant.ClientId
+                )
+            ),
+        ];
 }

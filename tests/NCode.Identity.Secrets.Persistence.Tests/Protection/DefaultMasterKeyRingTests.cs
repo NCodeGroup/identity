@@ -32,6 +32,7 @@ public class DefaultMasterKeyRingTests : BaseTests
         SecretProtectionContext.ForPersistedSecret("secret-1");
 
     private Mock<IStoreManagerFactory> StoreManagerFactory { get; }
+    private Mock<ISecretOwnerParentResolver> Parents { get; }
     private Queue<IStoreManager> StoreManagers { get; } = new();
     private bool StoreManagerFactorySetUp { get; set; }
     private EphemeralKeyWrapper Provider { get; } = new();
@@ -56,6 +57,8 @@ public class DefaultMasterKeyRingTests : BaseTests
         );
         Factory = new MasterKeyFactory(catalog, Recovery, TimeProvider.System);
         StoreManagerFactory = CreateStrictMock<IStoreManagerFactory>();
+        Parents = CreateStrictMock<ISecretOwnerParentResolver>();
+        SetupAncestors();
     }
 
     protected override void Dispose(bool disposing)
@@ -80,12 +83,20 @@ public class DefaultMasterKeyRingTests : BaseTests
     private DefaultMasterKeyRing CreateRing() =>
         new(
             Factory,
+            new DefaultNearestOwnerRootKeyResolver(Parents.Object),
             StoreManagerFactory.Object,
             Recovery,
             Microsoft.Extensions.Options.Options.Create(new SecretProtectionOptions()),
             Time,
             NullLogger<DefaultMasterKeyRing>.Instance
         );
+
+    // An owner has no ancestors unless a test names them.
+    private void SetupAncestors(params SecretOwner[] ancestors) =>
+        Parents
+            .Setup(x => x.GetAncestorsAsync(It.IsAny<SecretOwner>(), It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<IReadOnlyList<SecretOwner>>(ancestors))
+            .Verifiable(Times.AtMost(int.MaxValue));
 
     // Every store manager that the ring is expected to create is queued by a test, so a read that the test does not
     // expect fails because the queue is empty, and a read that never happens fails the check on dispose. A test that
@@ -796,6 +807,7 @@ public class DefaultMasterKeyRingTests : BaseTests
     ) =>
         new(
             factory,
+            new DefaultNearestOwnerRootKeyResolver(Parents.Object),
             StoreManagerFactory.Object,
             Recovery,
             Microsoft.Extensions.Options.Options.Create(new SecretProtectionOptions()),
@@ -806,12 +818,13 @@ public class DefaultMasterKeyRingTests : BaseTests
     private PersistedOwnerRootKey CreateRootKey(
         string state = OwnerRootKeyStates.Active,
         string keyReference = RootKeyReference,
-        string? accessIdentity = null
+        string? accessIdentity = null,
+        SecretOwner? owner = null
     ) =>
         new()
         {
-            OwnerType = NormalizedOwner.OwnerType,
-            OwnerId = NormalizedOwner.OwnerId,
+            OwnerType = (owner ?? NormalizedOwner).OwnerType,
+            OwnerId = (owner ?? NormalizedOwner).OwnerId,
             KeyWrapperName = Referenced.Name,
             KeyReference = keyReference,
             AccessIdentity = accessIdentity,
@@ -831,7 +844,8 @@ public class DefaultMasterKeyRingTests : BaseTests
             options.Version,
             CreateRootKey(
                 keyReference: options.KeyReference ?? RootKeyReference,
-                accessIdentity: options.AccessIdentity
+                accessIdentity: options.AccessIdentity,
+                owner: options.RootKeyOwner
             ),
             cancellationToken
         );
@@ -973,6 +987,71 @@ public class DefaultMasterKeyRingTests : BaseTests
         ExpectLoad(row, CreateRootKey());
         var protector = await ring.GetProtectorAsync(Owner, [], CancellationToken.None);
         Assert.Equal(row.KeyId, ReadKeyId(protector.ProtectToString("secret"u8, Context)));
+    }
+
+    // Queues a store manager that reads the active row, and a root key store that has no key for the owner and the
+    // specified key for its team.
+    private void ExpectLoadUnderTeamKey(PersistedMasterKey activeRow, PersistedOwnerRootKey teamKey)
+    {
+        var (store, manager) = EnqueueStoreManager();
+        SetupFindActive(store, activeRow);
+        var rootKeyStore = CreateStrictMock<IOwnerRootKeyStore>();
+        rootKeyStore
+            .Setup(x => x.FindAsync(NormalizedOwner, It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<PersistedOwnerRootKey?>((PersistedOwnerRootKey?)null))
+            .Verifiable();
+        rootKeyStore
+            .Setup(x => x.FindAsync(teamKey.Owner, It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<PersistedOwnerRootKey?>(teamKey))
+            .Verifiable();
+        manager
+            .Setup(x => x.GetStore<IOwnerRootKeyStore>())
+            .Returns(rootKeyStore.Object)
+            .Verifiable();
+    }
+
+    private PersistedOwnerRootKey CreateTeamRootKey(string state = OwnerRootKeyStates.Active) =>
+        CreateRootKey(state, owner: new SecretOwner(SecretOwnerTypes.Team, "team-a"));
+
+    [Fact]
+    public async Task GetProtector_OwnerRootedUnderTheTeamsKey_UnwrapsTheKeyThroughTheTeamKey()
+    {
+        var factory = CreateOwnerRootFactory();
+        var row = await CreateOwnerRootedRowAsync(
+            factory,
+            new OwnerRootedRowOptions(),
+            CancellationToken.None
+        );
+        var teamKey = CreateTeamRootKey();
+        SetupAncestors(teamKey.Owner, SecretOwner.Platform);
+        ExpectLoadUnderTeamKey(row, teamKey);
+        using var ring = CreateOwnerRootRing(factory);
+
+        var protector = await ring.GetProtectorAsync(Owner, [], CancellationToken.None);
+
+        Assert.Equal(row.KeyId, ReadKeyId(protector.ProtectToString("secret"u8, Context)));
+        Assert.Equal(1, Referenced.UnwrapCount);
+    }
+
+    [Fact]
+    public async Task GetProtector_OwnerRootedUnderTheTeamsKeyWhileItIsNotActive_ThrowsUnavailableForTheTenant()
+    {
+        var factory = CreateOwnerRootFactory();
+        var row = await CreateOwnerRootedRowAsync(
+            factory,
+            new OwnerRootedRowOptions(),
+            CancellationToken.None
+        );
+        var teamKey = CreateTeamRootKey(OwnerRootKeyStates.Unavailable);
+        SetupAncestors(teamKey.Owner, SecretOwner.Platform);
+        ExpectLoadUnderTeamKey(row, teamKey);
+        using var ring = CreateOwnerRootRing(factory);
+
+        var exception = await Assert.ThrowsAsync<OwnerRootKeyUnavailableException>(async () =>
+            await ring.GetProtectorAsync(Owner, [], CancellationToken.None)
+        );
+
+        Assert.Equal(NormalizedOwner, exception.Owner);
     }
 
     [Fact]
@@ -1194,6 +1273,42 @@ public class DefaultMasterKeyRingTests : BaseTests
         await Assert.ThrowsAsync<OwnerRootKeyUnavailableException>(async () =>
             await ring.GetProtectorAsync(Owner, [], CancellationToken.None)
         );
+    }
+
+    [Fact]
+    public async Task GetProtector_DueValidationWithRowsUnderTwoBindings_UnwrapsOnceForEachBinding()
+    {
+        const string identity = "test-identity-a";
+        var wrapper = new IdentityRecordingKeyWrapper(Referenced);
+        var factory = CreateOwnerRootFactory(wrapper);
+        var row1 = await CreateOwnerRootedRowAsync(
+            factory,
+            new OwnerRootedRowOptions
+            {
+                Version = 1,
+                AccessIdentity = identity,
+                RootKeyOwner = new SecretOwner(SecretOwnerTypes.Team, "team-a"),
+            },
+            CancellationToken.None
+        );
+        var row2 = await CreateOwnerRootedRowAsync(
+            factory,
+            new OwnerRootedRowOptions { Version = 2, AccessIdentity = identity },
+            CancellationToken.None
+        );
+        string[] protectedValues = [CreateEnvelopeFor(row1.KeyId)];
+        ExpectLoadWithRows(row2, CreateRootKey(accessIdentity: identity), row1);
+        using var ring = CreateOwnerRootRing(factory);
+        await ring.GetProtectorAsync(Owner, protectedValues, CancellationToken.None);
+        Assert.Equal(2, wrapper.UnwrapAccesses.Count);
+
+        // The active row validates its binding and the row under the other binding validates its own.
+        Time.Advance(TimeSpan.FromHours(1));
+        ExpectLoadWithRows(row2, CreateRootKey(accessIdentity: identity), row1);
+        await ring.GetProtectorAsync(Owner, [], CancellationToken.None);
+        string[] expectedBindings = ["team:team-a", "tenant:tenant-a"];
+        var validated = wrapper.UnwrapAccesses.Skip(2).Select(access => access.Binding);
+        Assert.Equal(expectedBindings, validated.Order(StringComparer.Ordinal).ToArray());
     }
 
     [Fact]

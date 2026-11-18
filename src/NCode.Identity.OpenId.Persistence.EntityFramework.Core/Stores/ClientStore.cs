@@ -251,11 +251,14 @@ internal class ClientStore(
         CancellationToken cancellationToken
     )
     {
+        DbContext.EnsureUnscoped($"{nameof(ClientStore)}.{nameof(GetByPrincipalOrDefaultAsync)}");
+
         var normalizedPrincipalId = Normalize(principalId);
 
         // A principal is unique across tenants (the unique index on the normalized principal), so at most one row
         // matches. Roles are granted at nodes of the control plane, whatever tenant the client lives in. See ADR-1466.
         var entity = await QueryClients()
+            // Cross-tenant: the principal is looked up before the tenant of its client is known.
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(
                 client => client.NormalizedPrincipalId == normalizedPrincipalId,
@@ -605,7 +608,10 @@ internal class ClientStore(
             return false;
         }
 
-        // Everything that exists for the client is removed with it: its secrets, its grants to resource servers, its consents, the grants issued to it, the role assignments at its resource node, whose resource type is the client's, and every role assignment its principal holds, in any tenant. See ADR-1212 and ADR-1466.
+        // Everything that exists for the client in its tenant is removed with it: its secrets, its grants to resource
+        // servers, its consents, the grants issued to it and the role assignments at its resource node. The role
+        // assignments its principal holds, in any tenant, are removed with IRoleAssignmentStore.RemoveByPrincipalAsync.
+        // See ADR-1212 and ADR-1466.
         DbContext.ClientSecrets.RemoveRange(clientEntity.Secrets);
         DbContext.Secrets.RemoveRange(
             clientEntity.Secrets.Select(clientSecret => clientSecret.Secret)
@@ -614,36 +620,28 @@ internal class ClientStore(
         var clientKey = clientEntity.Id;
         var tenantKey = clientEntity.TenantId;
         var normalizedClientId = clientEntity.NormalizedClientId;
-        var normalizedPrincipalId = clientEntity.NormalizedPrincipalId;
 
         DbContext.ClientGrants.RemoveRange(
             await DbContext
-                .ClientGrants.IgnoreQueryFilters()
-                .Where(entity => entity.ClientId == clientKey)
+                .ClientGrants.Where(entity => entity.ClientId == clientKey)
                 .ToListAsync(cancellationToken)
         );
         DbContext.Consents.RemoveRange(
             await DbContext
-                .Consents.IgnoreQueryFilters()
-                .Where(entity => entity.ClientId == clientKey)
+                .Consents.Where(entity => entity.ClientId == clientKey)
                 .ToListAsync(cancellationToken)
         );
         DbContext.Grants.RemoveRange(
             await DbContext
-                .Grants.IgnoreQueryFilters()
-                .Where(entity => entity.ClientId == clientKey)
+                .Grants.Where(entity => entity.ClientId == clientKey)
                 .ToListAsync(cancellationToken)
         );
         DbContext.RoleAssignments.RemoveRange(
             await DbContext
-                .RoleAssignments.IgnoreQueryFilters()
-                .Where(entity =>
-                    (
-                        entity.TenantId == tenantKey
-                        && entity.ResourceType == OpenIdResourceTypes.Client
-                        && entity.NormalizedResourceId == normalizedClientId
-                    )
-                    || entity.NormalizedPrincipalId == normalizedPrincipalId
+                .RoleAssignments.Where(entity =>
+                    entity.TenantId == tenantKey
+                    && entity.ResourceType == OpenIdResourceTypes.Client
+                    && entity.NormalizedResourceId == normalizedClientId
                 )
                 .ToListAsync(cancellationToken)
         );

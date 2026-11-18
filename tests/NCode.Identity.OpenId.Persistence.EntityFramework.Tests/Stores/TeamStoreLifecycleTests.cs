@@ -7,6 +7,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.DataContracts;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Stores;
@@ -33,7 +34,12 @@ public sealed class TeamStoreLifecycleTests : IDisposable
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
         DbContext.Database.EnsureCreated();
         IdGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        Store = new TeamStore(Mock.Of<IStoreProvider>(), IdGenerator, DbContext);
+        Store = new TeamStore(
+            Mock.Of<IStoreProvider>(),
+            IdGenerator,
+            DbContext,
+            TestPayloadSerializer.Instance
+        );
     }
 
     public void Dispose()
@@ -51,6 +57,9 @@ public sealed class TeamStoreLifecycleTests : IDisposable
         await DbContext.SaveChangesAsync(cancellationToken);
         DbContext.ChangeTracker.Clear();
     }
+
+    private async ValueTask<bool> HasRetiredTeamAsync(CancellationToken cancellationToken) =>
+        await DbContext.RetiredTeams.AnyAsync(cancellationToken);
 
     private async ValueTask SeedTeamAsync(CancellationToken cancellationToken)
     {
@@ -301,7 +310,7 @@ public sealed class TeamStoreLifecycleTests : IDisposable
     }
 
     [Fact]
-    public async Task RemoveAsync_RemovesTheTeamNodeAssignmentsAndRetiresTheId()
+    public async Task RemoveAsync_RemovesTheTeamAndItsNodesAssignmentsAndWritesNoRetiredRow()
     {
         await SeedTeamAsync(CancellationToken.None);
         var tenant = DbContext.SeedTenant(IdGenerator, "tenant-1");
@@ -336,7 +345,7 @@ public sealed class TeamStoreLifecycleTests : IDisposable
 
         Assert.True(removed);
         Assert.Null(await Store.GetOrDefaultAsync(TeamId, CancellationToken.None));
-        Assert.True(await Store.IsTeamIdRetiredAsync(TeamId, CancellationToken.None));
+        Assert.False(await HasRetiredTeamAsync(CancellationToken.None));
         var remaining = await DbContext.Set<RoleAssignmentEntity>().ToListAsync();
         var survivor = Assert.Single(remaining);
         Assert.Equal(OpenIdResourceTypes.Tenant, survivor.ResourceType);
@@ -349,11 +358,65 @@ public sealed class TeamStoreLifecycleTests : IDisposable
     }
 
     [Fact]
+    public async Task RemoveAsync_WhenTheScopeIsATenantScope_Throws()
+    {
+        var ambient = new SwitchableAmbientTenantAccessor();
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton<IAmbientTenantAccessor>(ambient);
+        serviceCollection.AddTestOpenIdDbContext(options =>
+            options.UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
+        );
+        await using var provider = serviceCollection.BuildServiceProvider();
+        var dbContext = provider.GetRequiredService<OpenIdDbContext>();
+        var store = new TeamStore(
+            Mock.Of<IStoreProvider>(),
+            provider.GetRequiredService<IIdGenerator<long>>(),
+            dbContext,
+            TestPayloadSerializer.Instance
+        );
+
+        using var scope = ambient.BeginScope("tenant-1");
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await store.RemoveAsync(TeamId, CancellationToken.None)
+        );
+
+        Assert.StartsWith("TeamStore.RemoveAsync reads across tenants", exception.Message);
+    }
+
+    [Fact]
     public async Task HasDependentsAsync_WhenATenantExists_ReturnsTrue()
     {
         await SeedTenantInTeamAsync(CancellationToken.None);
 
         Assert.True(await Store.HasDependentsAsync(TeamId, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task HasDependentsAsync_WhenTheScopeIsATenantScope_Throws()
+    {
+        var ambient = new SwitchableAmbientTenantAccessor();
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton<IAmbientTenantAccessor>(ambient);
+        serviceCollection.AddTestOpenIdDbContext(options =>
+            options.UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
+        );
+        await using var provider = serviceCollection.BuildServiceProvider();
+        var dbContext = provider.GetRequiredService<OpenIdDbContext>();
+        var store = new TeamStore(
+            Mock.Of<IStoreProvider>(),
+            provider.GetRequiredService<IIdGenerator<long>>(),
+            dbContext,
+            TestPayloadSerializer.Instance
+        );
+
+        using var scope = ambient.BeginScope("tenant-1");
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await store.HasDependentsAsync(TeamId, CancellationToken.None)
+        );
+
+        Assert.StartsWith("TeamStore.HasDependentsAsync reads across tenants", exception.Message);
     }
 
     [Fact]
@@ -433,27 +496,5 @@ public sealed class TeamStoreLifecycleTests : IDisposable
 
         Assert.True(removed);
         Assert.Null(await Store.GetOrDefaultAsync(TeamId, CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task IsTeamIdRetiredAsync_WithADifferentCasing_ReturnsTrueAfterRemoval()
-    {
-        await SeedTeamAsync(CancellationToken.None);
-        await Store.RemoveAsync(TeamId, CancellationToken.None);
-        await SaveAndClearAsync(CancellationToken.None);
-
-        Assert.True(await Store.IsTeamIdRetiredAsync("TEAM-1", CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task IsTeamIdRetiredAsync_AfterRemoval_ReturnsTrue()
-    {
-        await SeedTeamAsync(CancellationToken.None);
-        Assert.False(await Store.IsTeamIdRetiredAsync(TeamId, CancellationToken.None));
-
-        await Store.RemoveAsync(TeamId, CancellationToken.None);
-        await SaveAndClearAsync(CancellationToken.None);
-
-        Assert.True(await Store.IsTeamIdRetiredAsync(TeamId, CancellationToken.None));
     }
 }

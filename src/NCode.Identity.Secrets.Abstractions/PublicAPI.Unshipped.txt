@@ -287,6 +287,10 @@ NCode.Identity.Secrets.KeyWrapping.KeyAccessClientCache<TClient>
 NCode.Identity.Secrets.KeyWrapping.KeyAccessClientCache<TClient>.Dispose() -> void
 NCode.Identity.Secrets.KeyWrapping.KeyAccessClientCache<TClient>.KeyAccessClientCache(System.TimeProvider! timeProvider, System.TimeSpan idleTimeout) -> void
 NCode.Identity.Secrets.KeyWrapping.KeyAccessClientCache<TClient>.UseAsync<TResult>(string! key, System.Func<System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TClient!>>! create, System.Func<TClient!, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TResult>>! operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<TResult>
+NCode.Identity.Secrets.Options.KeyResidencyOptions
+NCode.Identity.Secrets.Options.KeyResidencyOptions.CloudRegions.get -> System.Collections.Generic.List<string!>!
+NCode.Identity.Secrets.Options.KeyResidencyOptions.CloudRegions.set -> void
+NCode.Identity.Secrets.Options.KeyResidencyOptions.KeyResidencyOptions() -> void
 const NCode.Identity.Secrets.RemoteKeys.RemoteKeyGroupNames.Prefix = "ncid-" -> string!
 const NCode.Identity.Secrets.RemoteKeys.RemoteKeyProviderNames.AwsKms = "aws-kms" -> string!
 const NCode.Identity.Secrets.RemoteKeys.RemoteKeyProviderNames.AzureKeyVault = "azure-key-vault" -> string!
@@ -380,8 +384,10 @@ NCode.Identity.Secrets.RemoteKeys.IRemoteKeyProvider.DecryptAsync(NCode.Identity
 NCode.Identity.Secrets.RemoteKeys.IRemoteKeyProvider.DeriveSharedSecretAsync(NCode.Identity.Secrets.RemoteKeys.RemoteKeyAgreementRequest! request, System.Memory<byte> sharedSecret, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
 NCode.Identity.Secrets.RemoteKeys.IRemoteKeyProvider.DestroyKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.Secrets.RemoteKeys.IRemoteKeyProvider.GetPublicKeyAsync(NCode.Identity.Secrets.RemoteKeys.RemotePublicKeyRequest! request, System.Buffers.IBufferWriter<byte>! subjectPublicKeyInfo, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.Secrets.RemoteKeys.IRemoteKeyProvider.IsInLocation(string! keyId) -> bool
 NCode.Identity.Secrets.RemoteKeys.IRemoteKeyProvider.ListKeysAsync(NCode.Identity.Secrets.RemoteKeys.RemoteKeyListRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<NCode.Identity.Secrets.RemoteKeys.RemoteKeyListing!>!
 NCode.Identity.Secrets.RemoteKeys.IRemoteKeyProvider.Name.get -> string!
+NCode.Identity.Secrets.RemoteKeys.IRemoteKeyProvider.RetagKeyAsync(string! keyId, string! deployment, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.Secrets.RemoteKeys.IRemoteKeyProvider.SignAsync(NCode.Identity.Secrets.RemoteKeys.RemoteSignatureRequest! request, System.Memory<byte> signature, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
 NCode.Identity.Secrets.RemoteKeys.IRemoteKeyProviderCatalog
 NCode.Identity.Secrets.RemoteKeys.IRemoteKeyProviderCatalog.TryGetProvider(string! name, out NCode.Identity.Secrets.RemoteKeys.IRemoteKeyProvider? provider) -> bool

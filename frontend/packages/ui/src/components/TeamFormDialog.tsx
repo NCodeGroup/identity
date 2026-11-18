@@ -58,8 +58,8 @@ export function TeamFormDialog({
   const [values, setValues] = useState<TeamFormValues>(initialValues);
   const wasOpenRef = useRef(open);
 
-  // Reseed the form only on the rising edge of `open`, so a new `initialValues` identity while the
-  // dialog is already open never discards in-progress edits.
+  // Reseed the form only on the rising edge of `open`, so a new `initialValues` identity while the dialog is already
+  // open never discards in-progress edits.
   useEffect(() => {
     if (open && !wasOpenRef.current) {
       setValues(initialValues);

@@ -7,6 +7,7 @@ import {
   useUpdateClientMutation,
   type ApiError,
 } from '@ncode/store';
+import { useTenantCell } from '../tenantCell.js';
 
 type DialogState =
   | { readonly kind: 'none' }
@@ -31,6 +32,7 @@ export type UseClientAdministrationOptions = {
  * pages, so the page passes it in.
  */
 export function useClientAdministration({ clients, createClient }: UseClientAdministrationOptions) {
+  const cell = useTenantCell();
   const [updateClient] = useUpdateClientMutation();
   const [deleteClient, { isLoading: isDeleting }] = useDeleteClientMutation();
 
@@ -82,6 +84,7 @@ export function useClientAdministration({ clients, createClient }: UseClientAdmi
           clientId: dialog.client.clientId,
           concurrencyToken: dialog.client.concurrencyToken,
           fields: { isDisabled: values.isDisabled },
+          cell,
         }).unwrap();
       }
       setDialog(closed);
@@ -101,6 +104,7 @@ export function useClientAdministration({ clients, createClient }: UseClientAdmi
       await deleteClient({
         tenantId: dialog.client.tenantId,
         clientId: dialog.client.clientId,
+        cell,
       }).unwrap();
       setDialog(closed);
     } catch (removeError) {

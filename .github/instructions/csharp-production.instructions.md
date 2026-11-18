@@ -185,8 +185,9 @@ than inlining the rationale.
   code writes fails closed** — template
   [Serialized and Stored Data](csharp.instructions.md#serialized-and-stored-data) and
   [project-template ADR-0108](../../docs/decisions/project-template/0108-persisted-documents-are-versioned-and-additive.md).
-  A domain payload serialized into a stored JSON blob (the `PersistedGrant<TPayload>.Payload` path) is written through
-  `IPersistedPayloadSerializer`, not a bare
+  A domain payload serialized into a stored JSON blob (the `PersistedGrant<TPayload>.Payload` path, the global
+  directory's team and platform documents, and the root keys of a cell's team row) is written through
+  `IPersistedPayloadSerializer` (`NCode.Identity.Json`, registered by `AddPersistedPayloadSerializer()`), not a bare
   `JsonSerializer` call, and its members never begin with `$`. A stored document that lacks what the serving code
   writes — the envelope, or a member the serving code always sets — is malformed: the reader throws rather than
   supplying a default or a fallback
@@ -196,6 +197,11 @@ than inlining the rationale.
   ([#535](https://github.com/NCodeGroup/identity/issues/535)), a member the serving code always writes is `required`;
   from it, a non-additive change bumps `[PersistedPayloadVersion(N)]` on the payload and ships one
   `FromVersion → FromVersion + 1` `IPersistedPayloadUpcaster`.
+- 👁 **A stored settings document is a JSON object, and the empty object is one with no settings.** Code that stores a
+  settings document with no settings writes `JsonElements.EmptyObject`, never a JSON `null`, and a management create
+  stores its request's `settings` through `ToJsonObject`, which turns a `null` into `{}`. A reader of a stored
+  document's raw JSON, such as a tenant-limit check, takes a document of any other kind as unreadable
+  ([ADR-1139](../../docs/decisions/1139-setting-names-are-a-closed-vocabulary-changed-outright-and-settings-the-server-cannot-honor-fail-loudly.md)).
 - 👁 **Buffer by default; stream deliberately** — template
   [Types and Collections](csharp.instructions.md#types-and-collections).
 - 👁 **Own every stored collection; pick the concrete type by usage** — template
@@ -215,6 +221,11 @@ than inlining the rationale.
   implementation `.csproj` whose `ProjectReference` names a non-`Abstractions` package is a violation. A foundation package
   (`NCode.Identity.Json`, `NCode.Identity.Time`, `NCode.Identity.AspNetCore`) is the exception: any package may
   reference it ([ADR-1500](../../docs/decisions/1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md)).
+- 👁 **An `.Abstractions` package holds contracts, data and the pure form rules of the values its contracts carry**
+  (`TenantIdentifierRules`, `CellLabelRules`, `AbsoluteUri`, `DatabaseRoleNameRules` with the Postgres identifier
+  quoting and runtime-role grant statements built on it, `PostgresIdentifiers` and `RuntimeRoleGrants`, and
+  `ExpiringKeys`), so every implementation of a contract applies one rule; it holds no service logic and never logs. See
+  [ADR-1500](../../docs/decisions/1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md).
 - 👁 **Mark infrastructure-public types** — template [Public API](csharp.instructions.md#public-api), with the summary
   _"This API supports the NCode.Identity infrastructure and is not intended to be used directly from your code."_
 - ⏳ The public surface is deliberate and tracked by `PublicApiAnalyzers` (`RS0016` / `RS0017` / `RS0024`): a public
@@ -242,8 +253,10 @@ than inlining the rationale.
   house pattern across the packages. Members of a public type touched only by the JSON serializer, the options binder,
   or the DI container have no in-repo call site, so the unused-member analyzers flag them; `[PublicAPI]` states the
   intent and silences the noise without a null-forgiving or pragma escape hatch. **Do not apply `[PublicAPI]` to an
-  internal type** — an internal implementation is reached through in-assembly call sites (its interface, its DI
-  registration), so the analyzers do not flag it and the annotation would misstate it as public surface.
+  internal type or to a member of one**, such as the extension member of a folder's internal `DefaultRegistration` —
+  an internal implementation is reached through in-assembly call sites (its interface, its DI registration, the
+  registration that composes it), so the analyzers do not flag it and the annotation would misstate it as public
+  surface.
 
 ## 3. File & code organization
 
@@ -415,7 +428,9 @@ than inlining the rationale.
   ([ADR-1370](../../docs/decisions/1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)).
   An extension binds its own section rather than adding keys to one the server owns. Parse an absolute URI with
   `NCode.Identity.OpenId.AbsoluteUri.TryParse`, which requires its own `scheme:` and no whitespace, never with
-  `Uri.TryCreate` alone, and keep a value compared verbatim, such as a CORS origin, in the form it is compared in. An
+  `Uri.TryCreate` alone. Check a service URL (a directory URL, an issuer, a cell's management URL) with
+  `AbsoluteUri.TryParseServiceUrl`, `TryParseHttpsServiceUrl` or `TryParseAnyHttpServiceUrl`, never with a copy of its
+  checks. Keep a value compared verbatim, such as a CORS origin, in the form it is compared in. An
   options validator refuses an enum value that `Enum.IsDefined` rejects (`InProcessJobDispatcherOptionsValidator`,
   [ADR-1242](../../docs/decisions/1242-deferred-work-runs-through-a-replaceable-job-dispatch-port-with-a-concurrent-in-process-default.md)). See
   [ADR-1137](../../docs/decisions/1137-configuration-binds-strictly-and-every-option-timer-period-and-retention-is-validated-at-startup.md),
@@ -545,6 +560,12 @@ than inlining the rationale.
   or drop it to a naked collection. Register a stateless capability as a singleton; register
   a long-running loop as an `AddHostedService<T>` over a `BackgroundService`. Wire-up stays out of the type that does
   the work, so the work stays constructor-injectable and testable.
+- 👁 **A registration that supersedes another package's default registers with `Replace`.** A package whose
+  registration exists to supersede another package's default for the same service — the global directory's remote
+  adapters over the local tenant, team, platform and cell directories, the team-chain `ISecretOwnerParentResolver`
+  over the secret persistence library's, the Valkey shared-state sets over the in-process ones — registers with
+  `Replace` (or `RemoveAll` then `Add`), so the order of the `Add…` calls cannot leave the default in place. `TryAdd*`
+  stays the rule for a package's own defaults.
 - 👁 **The package that owns a consumer registers that consumer's ambient dependencies** — template
   [DI Registration and Extension Methods](csharp.instructions.md#di-registration-and-extension-methods), so composing
   the server (`AddIdentityServer()`) is turnkey: the owning package registers routing, `IHttpClientFactory`,
@@ -664,8 +685,11 @@ than inlining the rationale.
   no handler catches it. Resolve only after authorization (a read resolves in the `mapperAsync` of `ProcessGetAsync`),
   and keep `Resolve` for a proposed document and for a write that replaces the document it cannot read
   ([ADR-1245](../../docs/decisions/1245-management-requests-list-incoherent-clients-name-unreadable-stored-settings-and-let-a-write-repair-them.md)).
-- 👁 **A management problem that asks the caller to wait answers through `RetryAfterProblem.Create`**, which sets
-  `Retry-After` and `retryAfterSeconds`; extension members are named by `ManagementProblemMembers`
+- 👁 **A problem document that asks the caller to wait answers through `RetryAfterProblem.Create`**
+  (`NCode.Identity.AspNetCore`), which sets `Retry-After` and `retryAfterSeconds` (`RetryAfterProblem.MemberName`) to
+  the same whole seconds, rounded up and at least one: the management API's waits, the directory API's `503` and the
+  setup API's `429` alike. A detail that states the wait takes it from `RetryAfterProblem.GetWaitSeconds`, and a
+  management problem's extension members are named by `ManagementProblemMembers`
   ([ADR-1483](../../docs/decisions/1483-every-management-error-is-a-problem-document-that-its-route-declares.md)).
 - 👁 **A revocation wins a lost race.** Revoke grants through `IPersistedGrantService` (`SetRevokedOnceAsync`,
   `RevokeWhereAsync`, `RevokeByRefreshTokenLineageAsync`), which read again in a new unit of work and retry, never
@@ -738,6 +762,17 @@ than inlining the rationale.
   `IOpenIdContextFactory.CreateForBackgroundAsync` in its own DI scope.** The context has no endpoint, connection or
   user, and it is disposed before the scope. See
   [ADR-1223](../../docs/decisions/1223-a-session-that-ends-unused-is-terminated-once-in-the-background.md).
+- ✅ **A query that reads across tenants says why, runs only in an unscoped scope, and its caller opens one.** Every
+  `IgnoreQueryFilters()` call from `Microsoft.EntityFrameworkCore` carries a `// Cross-tenant: <why>` comment on the
+  line directly above the line that holds the call: above its statement, or above its `.IgnoreQueryFilters()` line in
+  a fluent chain. The public store method that holds the call first calls `OpenIdDbContext.EnsureUnscoped`, which
+  throws outside an unscoped scope, because row-level security filters the query by the session's tenant although it
+  ignores the query filter. Its caller opens `IAmbientTenantAccessor.BeginUnscoped(reason)` around exactly that call,
+  and around the save of a removal it stages, and a read that stays within one tenant runs in
+  `BeginScope(tenantId)` instead of ignoring the filter. `NCID0004`, from `analyzers/NCode.Identity.Analyzers`, fails
+  the build of every project on a call without that comment, and skips an assembly whose name ends in `.Tests` or
+  `.TestSupport`
+  ([ADR-1018](../../docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)).
 - 👁 **Read a stored grant's payload through `IPersistedGrantService` or `IGrantPayloadProtector`, never from
   `ProtectedPayload` directly.** A grant's `ProtectedPayload` is an `nce1.` envelope over the schema-versioned document
   (`$ver`, `$payload`), so reading it as the payload yields no members and throws for a `required` one; a session
@@ -878,15 +913,19 @@ than inlining the rationale.
 - ✅ **An EF Core model change re-scaffolds its context's `InitialCreate`.** Until the first stable release
   ([#535](https://github.com/NCodeGroup/identity/issues/535)), each host context has one migration, `InitialCreate`,
   which creates its whole model and changes no data: `OpenIdDbContext` in `Migrations/OpenId` and
-  `DeveloperDataProtectionDbContext` in `Migrations/DeveloperDataProtection` of `NCode.Identity.OpenId.Host.Database`.
+  `DeveloperDataProtectionDbContext` in `Migrations/DeveloperDataProtection` of `NCode.Identity.OpenId.Host.Database`,
+  and `DirectoryDbContext` in `Migrations/Directory` of `NCode.Identity.OpenId.GlobalDirectory.Host`.
   Any edit to an entity, an `IEntityTypeConfiguration`, or a model contributor that changes a host context model
   deletes that context's migration, designer file and model snapshot from its folder and scaffolds them again with
   `dotnet ef migrations add InitialCreate --project hosts/NCode.Identity.OpenId.Host.Database --startup-project hosts/NCode.Identity.OpenId.Host.Database --context OpenIdDbContext --output-dir Migrations/OpenId`
   (`--context DeveloperDataProtectionDbContext --output-dir Migrations/DeveloperDataProtection` for the other
   context); the database project carries the design-time factories, so it is both the project and the startup
-  project. No migration carries raw SQL or seed-data changes: `InitialCreateTests` fails a context that holds any
-  migration but `InitialCreate`, and a migration that changes data. The Definition of Done runs
-  `dotnet ef migrations has-pending-model-changes` for both contexts and fails on un-migrated model drift, so it is
+  project. The directory's context is scaffolded with
+  `dotnet ef migrations add InitialCreate --project hosts/NCode.Identity.OpenId.GlobalDirectory.Host --startup-project hosts/NCode.Identity.OpenId.GlobalDirectory.Host --context DirectoryDbContext --output-dir Migrations/Directory`,
+  because the directory host carries its own design-time factory. No migration carries raw SQL or seed-data changes:
+  `InitialCreateTests` fails a cell context that holds any migration but `InitialCreate`, and a migration that changes
+  data, and `DirectoryInitialCreateTests` holds the directory's context to the same rule. The Definition of Done runs
+  `dotnet ef migrations has-pending-model-changes` for the three contexts and fails on un-migrated model drift, so it is
   caught pre-push and in CI, not at runtime. The dev database is Postgres applied by the migration worker, so
   migrations are authoritative. A re-scaffold gives `InitialCreate` a fresh identifier, which the migration worker
   cannot apply over a schema another identifier created; `build/dev-db-reset.ps1` resets the local database.
@@ -990,8 +1029,8 @@ invariants, the Law of Demeter, and no call nested in another call's arguments. 
 - **Stamp an instant that a JWT or a stored grant carries with `NCode.Identity.Time`'s whole-second helpers.** Use
   `TimeProvider.GetUtcNowWithPrecisionInSeconds()` (or `GetTimestampWithPrecisionInSeconds()` for ticks) and
   `WithPrecisionInSeconds()`, so a stored time equals the `NumericDate` it round-trips through. Reference the
-  the **`NCode.Identity.Time`** foundation package, the home for general time helpers. A helper with a method body never lives
-  in an `*.Abstractions` package. See [ADR-1500](../../docs/decisions/1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md).
+  the **`NCode.Identity.Time`** foundation package, the home for general time helpers. A helper with service logic never
+  lives in an `*.Abstractions` package; the pure form rules of the values a contract carries do. See [ADR-1500](../../docs/decisions/1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md).
 - **Bound a received JWT's lifetime through the lifetime requirement, never with ad-hoc `exp` arithmetic.** Cap a
   client-supplied JWT (assertion, request object) with `ValidateTokenLifeTime(o => o.MaxLifetime = …)`, fed from a
   `Min`-merged `*_max_lifetime` setting; it measures from the earliest asserted `iat`/`nbf` (or now plus skew), so the
@@ -1111,6 +1150,16 @@ says for a pre-release project.
   [XML Documentation](csharp.instructions.md#xml-documentation); the same discipline applies to ADR prose.
 - 👁 **A `<summary>` tag is multi-line, and a property summary opens with "Gets or sets", "Gets" or "Sets" by its
   accessors** — template [XML Documentation](csharp.instructions.md#xml-documentation).
+- ✅ **A `///` line fits within 120 columns.** A paragraph fills each line with as many whole words as fit, and an
+  element too long for one line opens and closes its tags on lines of their own, or keeps the continuation form its
+  file already uses: the text starts after the opening tag, and the closing tag follows the last word. Two forms may
+  run past 120 columns on one line: the standard `<param name="cancellationToken">` sentence, which reads the same on
+  every member, and a `<response>` element, whose text is the response description in the served OpenAPI document. The
+  `doc comment fill` stage of [`build/dod.ps1`](../../build/dod.ps1) runs
+  [`build/doc-comment-fill.ps1`](../../build/doc-comment-fill.ps1), which fails a paragraph that a change adds or edits,
+  measured from its merge base, when a line runs past 120 columns or leaves room for the next line's first word; `-Fix`
+  reflows those paragraphs and `-All` lists the whole tree. See
+  [ADR-1515](../../docs/decisions/1515-doc-comments-fill-their-lines-to-120-columns-and-the-definition-of-done-checks-the-paragraphs-a-change-touches.md).
 - 👁 **Prose spells protocol terms the spec way, not the .NET-type way.** In `///` and `//` text write **"JSON Web
   Token (JWT)"** (and likewise JSON/JOSE/OAuth/OpenID in their canonical casing); do not carry the `JsonWebToken` type's
   Pascal casing into documentation. This applies only to prose — a `<see cref="JsonWebToken"/>` or an identifier keeps
@@ -1252,7 +1301,8 @@ MethodImplOptions.AggressiveOptimization)]`, manual unrolling of tiny fixed-coun
 - 👁 **Event IDs are named `const`s in a per-package `Logging/EventIds.cs`** — template
   [Logging](csharp.instructions.md#logging): an `internal static class EventIds` with a `private const int Base` set to
   the package's band (below) and one `public const int` per event, `Base + n`, named exactly as its `[LoggerMessage]`
-  method.
+  method. An added constant carries a `///` summary that names the event it identifies ("Identifies the warning
+  that …") — template [XML Documentation](csharp.instructions.md#xml-documentation).
 - 👁 **Every runtime package is pre-assigned a disjoint 1000-wide Event-ID band** in the registry below; a package
   starts using its band when it adds its first log. An `EventId` only has to be unique within an `ILogger<T>` category,
   but a family-wide band makes it **globally unique across packages**, so an operator's log filter or alert keys on a
@@ -1294,6 +1344,8 @@ MethodImplOptions.AggressiveOptimization)]`, manual unrolling of tiny fixed-coun
     | `27000`–`27999` | `NCode.Identity.Cryptography`                       |
     | `28000`–`28999` | `NCode.Identity.AspNetCore`                         |
     | `29000`–`29999` | `NCode.Identity.OpenId.Setup`                       |
+    | `30000`–`30999` | `NCode.Identity.OpenId.Host.Database`               |
+    | `31000`–`31999` | `NCode.Identity.OpenId.GlobalDirectory`             |
 
 ### Metrics
 
@@ -1305,6 +1357,10 @@ MethodImplOptions.AggressiveOptimization)]`, manual unrolling of tiny fixed-coun
 - 👁 **Create meters through `IMeterFactory`** — template [Metrics and Traces](csharp.instructions.md#metrics-and-traces);
   a package's instruments live in one internal `…Metrics` singleton, and a meter name starts with `NCode.Identity.`, so
   the host's `AddOpenTelemetryMetrics` subscribes to it without a change.
+- 👁 **Only `NCode.Identity.AspNetCore.OpenTelemetry` references the OpenTelemetry SDK** — a library package records
+  through `System.Diagnostics.Metrics` alone, and only a host references that opt-in package; the build fails any other
+  shipping package whose references hold an OpenTelemetry package
+  ([ADR-1197](../../docs/decisions/1197-telemetry-has-one-owner-per-signal-bounded-attributes-and-spans-that-mirror-their-histograms.md)).
 - 👁 **An event adds metric dimensions by implementing `ISupportMetricAttributes`**, never through a counter at its
   call site; an endpoint tags the request through `OpenIdMetricAttributes.Add`.
 - 👁 **Name instruments and attributes `ncode.identity.{area}.…`** — template

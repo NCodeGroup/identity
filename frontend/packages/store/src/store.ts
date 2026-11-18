@@ -28,8 +28,8 @@ export function createAppStore(preloadedState?: Partial<RootState>) {
     reducer: rootReducer,
     middleware: (getDefaultMiddleware) =>
       getDefaultMiddleware().concat(managementApi.middleware as Middleware),
-    // `preloadedState` is spread in only when present: passing it unconditionally defeats
-    // configureStore's inference of the middleware tuple, collapsing it to the default.
+    // `preloadedState` is spread in only when present: passing it unconditionally defeats configureStore's inference of
+    // the middleware tuple, collapsing it to the default.
     ...(preloadedState !== undefined ? { preloadedState } : {}),
   });
 }

@@ -15,13 +15,13 @@ secret that names it:
 
 Such a key stays in the service, billed and usable by the deployment's identity
 ([ADR-1471](1471-a-tenants-signing-and-encryption-keys-can-be-held-in-a-key-management-service.md)). Keys carry an
-`ncid-` group name, but nothing scopes a key to one deployment, and deployments can share an AWS account, an Azure Key
-Vault or a Google Cloud KMS key ring. A tenant's rollover pass sees only the keys of its own secrets, so it never finds
-the keys of a deleted tenant.
+`ncid-` group name, but nothing scopes a key to one cell, and cells can share an AWS account, an Azure Key
+Vault or a Google Cloud KMS key ring. A cell tags its keys with its name, and a tenant's rollover pass sees only the keys
+of its own secrets, so it never finds the keys of a deleted tenant.
 
 ## Decision
 
-**A background job lists the keys a deployment created in each provider, and destroys through the one destroyer every
+**A background job lists the keys a cell created in each provider, and destroys through the one destroyer every
 listed key that no stored secret names and that is older than a grace period.**
 
 1. **One destroyer.** `IRemoteSecretDestroyer` (`DefaultRemoteSecretDestroyer`, with `DestroyAsync(removedSecrets)` and
@@ -33,13 +33,16 @@ listed key that no stored secret names and that is older than a grace period.**
    key id. Its callers are the seed, the rollover pass, the management secret delete and
    tenant delete (after the commit and after the tenant is announced), management create when its record fails to
    commit, the generator when anything after creation fails, and the sweep.
-2. **A deployment names itself.** `SecretProtection:RemoteKeys:Deployment` (lowercase letters and digits in
-   hyphen-separated groups, at most 40 characters) is required only when a provider that creates keys is described. It
+2. **A cell names itself.** `SecretProtection:RemoteKeys:Deployment` (lowercase letters and digits in
+   hyphen-separated groups, at most 40 characters) is the sweep tag. The Server post-configures it from `Cell:Name`, so
+   the tag is the cell's name and every cell name has the tag's form
+   ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)),
+   required only when a provider that creates keys is described. It
    tags every created key (`ncode-identity:deployment` on AWS, `ncode-identity-deployment` on Azure tags and Google
-   crypto key labels) and is hashed first into the group name, so deployments that share an account, a vault or a key
-   ring never share a group. A deployment is one database of stored secrets: every replica and release that shares the
-   database uses its name, and no other deployment in the same AWS account, vault or key ring uses it, because each
-   deployment destroys every key of its name that its own database does not name.
+   crypto key labels) and is hashed first into the group name, so cells that share an account, a vault or a key
+   ring never share a group. A cell is one database of stored secrets: every replica and release that shares the
+   database uses its name, and no other cell in the same AWS account, vault or key ring uses it, because each
+   cell destroys every key of its name that its own database does not name.
 3. **The provider lists its keys.** `IRemoteKeyProvider.ListKeysAsync(RemoteKeyListRequest { Deployment },
    CancellationToken)` streams `RemoteKeyListing { KeyId, GroupName, CreatedWhen, OwnerId?, SecretId? }` of the enabled
    keys in the provider's configured location that carry an `ncid-` group and the deployment. The listing is large and
@@ -79,30 +82,41 @@ listed key that no stored secret names and that is older than a grace period.**
 9. **Every destruction stays recoverable for the service's window.** AWS schedules a pending deletion, Azure disables
    the version and Google schedules the destruction.
 10. **Permissions.** AWS needs `kms:ListKeys`, `kms:ListResourceTags` and `kms:DescribeKey`, with
-    `kms:ScheduleKeyDeletion` conditioned on the `ncode-identity:deployment` resource tag and `kms:CreateKey` and
-    `kms:TagResource` on the request tag; `kms:ListKeys` names no resource, so it takes no condition, and a bound key
-    carries no deployment tag, so the deletion grant does not reach it. Azure takes a vault of its own and a custom
-    role without delete or purge, because a role assignment cannot be conditioned on a key's tags. Google takes a key ring of its own with
-    `cloudkms.cryptoKeys.list` and `cloudkms.cryptoKeyVersions.list`, because a grant on a key ring covers every crypto
-    key in it.
+    `kms:ScheduleKeyDeletion` conditioned on the `ncode-identity:deployment` resource tag being the cell's name,
+    `kms:CreateKey` on the request tag being the cell's name, and `kms:TagResource` on the request tag being the name of
+    a cell of its region, so a tenant move tags a key to the target cell and back; `kms:ListKeys` names no resource, so
+    it takes no condition, and a bound key carries no deployment tag, so the deletion grant does not reach it. Azure
+    takes a vault of its own, or one vault for the cells of a region that move tenants between them, and a custom role
+    without delete or purge, because a role assignment cannot be conditioned on a key's tags. Google takes a key ring of
+    its own, or one for the cells of a region that move tenants between them, with `cloudkms.cryptoKeys.list` and
+    `cloudkms.cryptoKeyVersions.list`, and `cloudkms.cryptoKeys.get` and `cloudkms.cryptoKeys.update` for a move's
+    retag, because a grant on a key ring covers every crypto key in it.
+11. **A move retags the tenant's keys.** A tenant moves between cells of one region (ADR-1514), and its remote keys stay
+    in the key management service. The move calls `IRemoteKeyProvider.RetagKeyAsync` on each of them so that the key
+    carries the target cell's tag, and the source cell's sweep, which lists only keys of its own name, never destroys
+    them. The import refuses a key that lies outside the location that the target cell's provider uses
+    (`IRemoteKeyProvider.IsInLocation`), because the target cell's sweep lists only that location.
+12. **A key stays in the cell's cloud regions.** `Cell:CloudRegions` bounds the regions a cell uses. The AWS KMS adapter
+    refuses a key ARN whose region is not listed, and the Google Cloud KMS adapter refuses a key location that is not
+    listed, so the sweep and a created key stay inside them.
 
 ## Options considered
 
 - **Sweeping inside the rollover pass.** Rejected: a tenant pass never sees the keys of a deleted tenant.
 - **Relying on a dedicated account, vault or key ring alone.** Rejected: shared scopes are common, and a sweep that
-  trusts the scope would destroy another deployment's keys.
+  trusts the scope would destroy another cell's keys.
 - **Destroying without a grace period.** Rejected: it races an in-flight creation, whose key exists before its secret
   is committed.
 - **Running the sweep inline in the hosted service rather than through the dispatcher.** Rejected: there would be no
   per-provider retry and no durable backend.
-- **A background job through the dispatcher, with a deployment tag and a grace period.** Chosen: it reclaims every
-  orphan, never touches another deployment's keys and never races a creation.
+- **A background job through the dispatcher, with a cell tag and a grace period.** Chosen: it reclaims every
+  orphan, never touches another cell's keys and never races a creation.
 
 ## Consequences
 
 - Keys left by a lost commit race or a failed destruction are reclaimed.
-- A deployment names itself before it registers a provider that creates keys.
-- Two deployments that share a scope and a name sweep each other's keys, so a name is unique to its database within a
+- A cell names itself before it registers a provider that creates keys.
+- Two cells that share a scope and a name sweep each other's keys, so a name is unique to its database within a
   scope.
 - Each sweep costs list calls proportional to the keys in the scope.
 - A destroyed key stays recoverable for the service's window.

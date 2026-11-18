@@ -25,6 +25,9 @@ internal static class CoreDbContextExtensions
 
         public DbSet<InstanceSetupEntity> InstanceSetups => context.Set<InstanceSetupEntity>();
 
+        public DbSet<DirectoryFeedCheckpointEntity> DirectoryFeedCheckpoints =>
+            context.Set<DirectoryFeedCheckpointEntity>();
+
         public DbSet<TeamEntity> Teams => context.Set<TeamEntity>();
 
         public DbSet<RetiredTeamEntity> RetiredTeams => context.Set<RetiredTeamEntity>();

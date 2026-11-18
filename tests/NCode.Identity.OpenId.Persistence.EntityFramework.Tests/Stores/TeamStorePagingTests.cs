@@ -25,7 +25,12 @@ public sealed class TeamStorePagingTests : IDisposable
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
         var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        Store = new TeamStore(Mock.Of<IStoreProvider>(), idGenerator, DbContext);
+        Store = new TeamStore(
+            Mock.Of<IStoreProvider>(),
+            idGenerator,
+            DbContext,
+            TestPayloadSerializer.Instance
+        );
     }
 
     public void Dispose()

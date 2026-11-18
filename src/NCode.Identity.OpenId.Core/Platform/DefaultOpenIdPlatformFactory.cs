@@ -1,11 +1,11 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using NCode.Collections.Providers;
 using NCode.Disposables;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Environments;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -172,14 +172,14 @@ internal class DefaultOpenIdPlatformFactory(
     }
 
     /// <summary>
-    /// Creates an empty <see cref="PersistedPlatform"/> instance.
+    /// Creates an empty <see cref="PersistedPlatform"/>, whose settings document is an empty JSON object.
     /// </summary>
     protected internal virtual PersistedPlatform CreateEmptyPersistedPlatform()
     {
         var settings = new PersistedPlatformSettings
         {
             ConcurrencyToken = Guid.NewGuid().ToString("N"),
-            Value = JsonSerializer.SerializeToElement(null, typeof(object)),
+            Value = JsonElements.EmptyObject,
         };
 
         return new PersistedPlatform

@@ -13,9 +13,9 @@ const runtime: BffRuntimeConfig = {
   features: {},
 };
 
-function renderAccess(isSignedIn: boolean) {
+function renderAccess(isSignedIn: boolean, cells?: readonly string[]) {
   const store = createAppStore({
-    config: { runtime },
+    config: { runtime: cells ? { ...runtime, cells } : runtime },
   });
   const wrapper = ({ children }: { readonly children: ReactNode }) => (
     <Provider store={store}>{children}</Provider>
@@ -31,7 +31,7 @@ function jsonResponse(body: unknown, status = 200) {
 }
 
 /** Serves the caller's resource, its teams and its tenants; any other request is unexpected. */
-function installFetch() {
+function installFetch({ tenants = [] }: { readonly tenants?: readonly unknown[] } = {}) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const request = input as Request;
     if (request.method === 'GET' && request.url.endsWith('/api/me')) {
@@ -49,7 +49,7 @@ function installFetch() {
       });
     }
     if (request.method === 'GET' && request.url.endsWith('/api/me/tenants')) {
-      return jsonResponse({ items: [] });
+      return jsonResponse({ items: tenants });
     }
     throw new Error(`Unexpected ${request.method} ${request.url}`);
   });
@@ -89,8 +89,16 @@ describe('useCallerAccess', () => {
       expect(result.current).toEqual({
         isPlatformAdministrator: false,
         teamIds: ['support'],
-        tenantIds: [],
+        tenants: [],
       }),
     );
+  });
+
+  it("carries a sole tenant's cell once the queries answer", async () => {
+    installFetch({ tenants: [{ tenantId: 'web', concurrencyToken: 't1' }] });
+
+    const { result } = renderAccess(true, ['eu']);
+
+    await waitFor(() => expect(result.current?.tenants).toEqual([{ tenantId: 'web', cell: 'eu' }]));
   });
 });

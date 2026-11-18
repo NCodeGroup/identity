@@ -161,15 +161,6 @@ internal class FederatedPrincipalStore(
             return;
         }
 
-        // The role assignments of the principal, ownership included, are removed with it in every tenant: a principal is
-        // a platform-owned actor that may hold assignments at the nodes of any tenant. See ADR-1212.
-        DbContext.RoleAssignments.RemoveRange(
-            await DbContext
-                .RoleAssignments.IgnoreQueryFilters()
-                .Where(assignment => assignment.NormalizedPrincipalId == normalizedPrincipalId)
-                .ToListAsync(cancellationToken)
-        );
-
         // A principal's consents and grants are personal data of its end user and are erased with it. See ADR-1229.
         var tenantKey = entity.TenantId;
         DbContext.Consents.RemoveRange(

@@ -97,7 +97,7 @@ a resource server are tenant resources, addressed by their tenant alone.**
   the control-plane tenant and the route's tenant.
 - [ADR-1320](1320-a-rotated-client-secret-overlaps-its-replacement-until-it-expires-or-is-deleted.md): a rotated
   client secret stays beside its replacement.
-- [ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md): the
+- [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md): the
   platform and the team.
 - [ADR-1466](1466-a-client-is-its-own-principal-and-a-machine-client-acts-only-within-its-owning-node.md): a machine client.
 - Code: `frontend/packages/api/src/owner.ts`, `frontend/packages/store/src/managementApi.ts` and

@@ -92,6 +92,11 @@ export type BffBootstrapDocument = {
   readonly apiBaseUrl: string;
   /** Where the surface reaches its BFF. */
   readonly bff: BffConfig;
+  /**
+   * The names of the cells the host forwards to, sorted. Each is reached under `{apiBaseUrl}/cells/{name}/api`. Absent
+   * when the host forwards to no named cell.
+   */
+  readonly cells?: readonly string[];
   /** Optional feature flags toggled per tier/deployment. */
   readonly features?: Readonly<Record<string, boolean>>;
   /** Optional branding overrides resolved per deployment/tenant. */
@@ -121,6 +126,8 @@ export type BffRuntimeConfig = {
   readonly apiBaseUrl: string;
   /** Where the surface reaches its BFF. */
   readonly bff: BffConfig;
+  /** The names of the cells the host forwards to; absent when it forwards to no named cell. */
+  readonly cells?: readonly string[];
   readonly features: Readonly<Record<string, boolean>>;
   readonly branding?: BrandingConfig;
 };

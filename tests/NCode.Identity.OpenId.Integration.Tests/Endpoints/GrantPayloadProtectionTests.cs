@@ -45,7 +45,7 @@ public class GrantPayloadProtectionTests(HostApplicationFactory factory)
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
 
-        using var scope = Factory.Services.CreateScope();
+        using var scope = Factory.CreateTenantScope();
         var storeManagerFactory = scope.ServiceProvider.GetRequiredService<IStoreManagerFactory>();
         await using var storeManager = await storeManagerFactory.CreateAsync(
             CancellationToken.None

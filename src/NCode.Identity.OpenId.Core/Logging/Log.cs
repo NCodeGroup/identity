@@ -446,4 +446,59 @@ internal static partial class Log
         string provider,
         Exception exception
     );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryRetiredTeamHasDependents,
+        Level = LogLevel.Warning,
+        Message = "The directory retired the team '{TeamId}' at sequence {Sequence}, but its tenants or teams still name it; the team is disabled instead of removed"
+    )]
+    internal static partial void DirectoryRetiredTeamHasDependents(
+        this ILogger logger,
+        string teamId,
+        long sequence
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryTeamRootKeyNotApplied,
+        Level = LogLevel.Warning,
+        Message = "The root key of the team '{TeamId}' for the region '{Region}' was not applied; the next directory document for the team or the next reconcile retries it"
+    )]
+    internal static partial void DirectoryTeamRootKeyNotApplied(
+        this ILogger logger,
+        string teamId,
+        string region,
+        Exception exception
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryTeamChangeNotSent,
+        Level = LogLevel.Warning,
+        Message = "The team '{TeamId}' was applied, but sending its team-changed command failed; the team's caches evict it when it next changes"
+    )]
+    internal static partial void DirectoryTeamChangeNotSent(
+        this ILogger logger,
+        string teamId,
+        Exception exception
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryPlatformChangeNotSent,
+        Level = LogLevel.Warning,
+        Message = "The platform change was committed, but the command that announces it to the cell's replicas failed; caches evict the platform at their next reconciliation"
+    )]
+    internal static partial void DirectoryPlatformChangeNotSent(
+        this ILogger logger,
+        Exception exception
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.DirectoryTeamParentNotMirrored,
+        Level = LogLevel.Information,
+        Message = "The team '{TeamId}' names the parent team '{ParentTeamId}', which this cell does not mirror; the team is applied when the directory lists it again after its parent"
+    )]
+    internal static partial void DirectoryTeamParentNotMirrored(
+        this ILogger logger,
+        string teamId,
+        string parentTeamId
+    );
 }

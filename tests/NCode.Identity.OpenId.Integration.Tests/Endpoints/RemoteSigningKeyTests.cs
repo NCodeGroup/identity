@@ -621,7 +621,7 @@ public class RemoteSigningKeyTests
         CancellationToken cancellationToken
     )
     {
-        using var serviceScope = factory.Services.CreateScope();
+        using var serviceScope = factory.CreateTenantScope(tenantId);
         await using var storeManager = await serviceScope
             .ServiceProvider.GetRequiredService<IStoreManagerFactory>()
             .CreateAsync(cancellationToken);

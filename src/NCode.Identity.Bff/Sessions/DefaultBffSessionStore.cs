@@ -13,6 +13,37 @@ namespace NCode.Identity.Bff.Sessions;
 internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSet indexes)
     : IBffSessionStore
 {
+    /// <summary>
+    /// Encodes a refresh lease's owner token as UTF-8 into sensitive pooled memory that is zeroed when the returned
+    /// lease is disposed. The bytes live in <see cref="ReadOnlyMemory{T}"/> because they cross an <c>await</c>.
+    /// </summary>
+    /// <param name="owner">The owner token to encode.</param>
+    /// <param name="bytes">The owner token's UTF-8 bytes.</param>
+    /// <returns>The lease that returns the memory to the pool.</returns>
+    private static IDisposable RentOwnerBytes(string owner, out ReadOnlyMemory<byte> bytes)
+    {
+        var byteCount = SecureEncoding.UTF8.GetByteCount(owner);
+        var lease = BufferFactory.Rent(byteCount, isSensitive: true, out Memory<byte> buffer);
+        SecureEncoding.UTF8.GetBytes(owner, buffer.Span);
+        bytes = buffer;
+        return lease;
+    }
+
+    private static DateTimeOffset GetExpiresWhen(BffSessionMetadata metadata) =>
+        metadata.IdleExpiresAt < metadata.AbsoluteExpiresAt
+            ? metadata.IdleExpiresAt
+            : metadata.AbsoluteExpiresAt;
+
+    private static bool IsStoreFailure(Exception exception, CancellationToken cancellationToken) =>
+        exception is not BffStoreUnavailableException
+        && (
+            exception is not OperationCanceledException
+            || !cancellationToken.IsCancellationRequested
+        );
+
+    private static BffStoreUnavailableException Unavailable(Exception exception) =>
+        new("The BFF session store is unavailable.", exception);
+
     /// <inheritdoc />
     public async ValueTask<bool> TryCreateAsync(
         BffSessionRecord record,
@@ -54,16 +85,32 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
             );
 
             var client = metadata.Client;
+            var clientIndex = BffStoreKeys.ClientIndex(client);
             await indexes.AddMemberAsync(
-                BffStoreKeys.ClientIndex(client),
+                clientIndex,
                 record.StoreKey,
                 metadata.AbsoluteExpiresAt,
                 cancellationToken
             );
+
+            var member = BffStoreKeys.ClientMember(client, metadata.AbsoluteExpiresAt);
+            var memberExpiresAt = BffStoreKeys.ClientMemberExpiresAt(metadata.AbsoluteExpiresAt);
+            using var clientLease = BffSessionClientSerializer.Serialize(
+                client,
+                out var clientValue
+            );
+            var memberValueKey = BffStoreKeys.ClientMemberValue(member);
+            // A value that is already present holds the same client, so it stays.
+            await values.TryAddAsync(
+                memberValueKey,
+                clientValue,
+                memberExpiresAt,
+                cancellationToken
+            );
             await indexes.AddMemberAsync(
                 BffStoreKeys.ClientsIndex,
-                BffStoreKeys.ClientMember(client, metadata.AbsoluteExpiresAt),
-                BffStoreKeys.ClientMemberExpiresAt(metadata.AbsoluteExpiresAt),
+                member,
+                memberExpiresAt,
                 cancellationToken
             );
 
@@ -159,11 +206,8 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
             await indexes.RemoveMemberAsync(subjectIndex, storeKey, cancellationToken);
 
             var client = metadata.Client;
-            await indexes.RemoveMemberAsync(
-                BffStoreKeys.ClientIndex(client),
-                storeKey,
-                cancellationToken
-            );
+            var clientIndex = BffStoreKeys.ClientIndex(client);
+            await indexes.RemoveMemberAsync(clientIndex, storeKey, cancellationToken);
 
             return removed;
         }
@@ -211,9 +255,12 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
 
     /// <inheritdoc />
     public async ValueTask<IReadOnlyList<BffSessionClient>> FindClientsAsync(
+        IReadOnlyCollection<BffSessionClient> except,
         CancellationToken cancellationToken
     )
     {
+        ArgumentNullException.ThrowIfNull(except);
+
         try
         {
             var members = await indexes.GetMembersAsync(
@@ -221,14 +268,31 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
                 cancellationToken
             );
 
-            var clients = new List<BffSessionClient>(members.Count);
+            var clients = new List<BffSessionClient>();
+            var exceptDigests = except.Select(BffStoreKeys.ClientDigest);
+            var resolved = new HashSet<string>(exceptDigests, StringComparer.Ordinal);
             foreach (var member in members)
             {
-                if (BffStoreKeys.TryParseClientMember(member, out var client))
-                    clients.Add(client);
+                if (
+                    !BffStoreKeys.TryParseClientMember(member, out var digest)
+                    || resolved.Contains(digest)
+                )
+                    continue;
+
+                var memberValueKey = BffStoreKeys.ClientMemberValue(member);
+                var stored = await values.GetAsync(memberValueKey, cancellationToken);
+                if (
+                    stored is not { } found
+                    || BffSessionClientSerializer.Deserialize(found.Value.Span) is not { } client
+                    || BffStoreKeys.ClientDigest(client) != digest
+                )
+                    continue;
+
+                resolved.Add(digest);
+                clients.Add(client);
             }
 
-            return clients.Distinct().ToList();
+            return clients;
         }
         catch (Exception exception) when (IsStoreFailure(exception, cancellationToken))
         {
@@ -246,6 +310,24 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
         {
             var indexKey = BffStoreKeys.ClientIndex(client);
             return await indexes.GetMembersAsync(indexKey, cancellationToken);
+        }
+        catch (Exception exception) when (IsStoreFailure(exception, cancellationToken))
+        {
+            throw Unavailable(exception);
+        }
+    }
+
+    /// <inheritdoc />
+    public async ValueTask ForgetEndedSessionAsync(
+        BffSessionClient client,
+        string storeKey,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            var clientIndex = BffStoreKeys.ClientIndex(client);
+            await indexes.RemoveMemberAsync(clientIndex, storeKey, cancellationToken);
         }
         catch (Exception exception) when (IsStoreFailure(exception, cancellationToken))
         {
@@ -354,35 +436,4 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
             throw Unavailable(exception);
         }
     }
-
-    /// <summary>
-    /// Encodes a refresh lease's owner token as UTF-8 into sensitive pooled memory that is zeroed when the returned
-    /// lease is disposed. The bytes live in <see cref="ReadOnlyMemory{T}"/> because they cross an <c>await</c>.
-    /// </summary>
-    /// <param name="owner">The owner token to encode.</param>
-    /// <param name="bytes">The owner token's UTF-8 bytes.</param>
-    /// <returns>The lease that returns the memory to the pool.</returns>
-    private static IDisposable RentOwnerBytes(string owner, out ReadOnlyMemory<byte> bytes)
-    {
-        var byteCount = SecureEncoding.UTF8.GetByteCount(owner);
-        var lease = BufferFactory.Rent(byteCount, isSensitive: true, out Memory<byte> buffer);
-        SecureEncoding.UTF8.GetBytes(owner, buffer.Span);
-        bytes = buffer;
-        return lease;
-    }
-
-    private static DateTimeOffset GetExpiresWhen(BffSessionMetadata metadata) =>
-        metadata.IdleExpiresAt < metadata.AbsoluteExpiresAt
-            ? metadata.IdleExpiresAt
-            : metadata.AbsoluteExpiresAt;
-
-    private static bool IsStoreFailure(Exception exception, CancellationToken cancellationToken) =>
-        exception is not BffStoreUnavailableException
-        && (
-            exception is not OperationCanceledException
-            || !cancellationToken.IsCancellationRequested
-        );
-
-    private static BffStoreUnavailableException Unavailable(Exception exception) =>
-        new("The BFF session store is unavailable.", exception);
 }

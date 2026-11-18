@@ -1,18 +1,38 @@
 #nullable enable
+const NCode.Identity.Persistence.DatabaseRoleNameRules.Pattern = "^[a-z_][a-z0-9_]*$" -> string!
 const NCode.Identity.Persistence.MaxLengths.ConcurrencyToken = 50 -> int
 const NCode.Identity.Persistence.MaxLengths.ResourceId = 300 -> int
 const NCode.Identity.Persistence.MaxLengths.ResourceType = 100 -> int
 const NCode.Identity.Persistence.ResourceTypes.Separator = "/" -> string!
+NCode.Identity.Persistence.DatabaseObjectName
+NCode.Identity.Persistence.DatabaseObjectName.DatabaseObjectName() -> void
+NCode.Identity.Persistence.DatabaseObjectName.DatabaseObjectName(string? Schema, string! Name) -> void
+NCode.Identity.Persistence.DatabaseObjectName.Name.get -> string!
+NCode.Identity.Persistence.DatabaseObjectName.Name.init -> void
+NCode.Identity.Persistence.DatabaseObjectName.Schema.get -> string?
+NCode.Identity.Persistence.DatabaseObjectName.Schema.init -> void
+NCode.Identity.Persistence.DatabaseRoleNameRules
 NCode.Identity.Persistence.ISupportConcurrencyToken
 NCode.Identity.Persistence.ISupportConcurrencyToken.ConcurrencyToken.get -> string!
 NCode.Identity.Persistence.ISupportResource
 NCode.Identity.Persistence.ISupportResource.ResourceId.get -> string!
 NCode.Identity.Persistence.ISupportResource.ResourceType.get -> string!
 NCode.Identity.Persistence.MaxLengths
+NCode.Identity.Persistence.MigrationHistoryRules
 NCode.Identity.Persistence.PostCommitWork
+NCode.Identity.Persistence.PostgresConnectionRules
+NCode.Identity.Persistence.PostgresIdentifiers
 NCode.Identity.Persistence.ResourceTypes
+NCode.Identity.Persistence.RuntimeRoleGrants
+static NCode.Identity.Persistence.DatabaseRoleNameRules.IsValid(string? role) -> bool
+static NCode.Identity.Persistence.DatabaseRoleNameRules.RequireRuntimeRole(string? configuredRole, string! key, string! connectsAs) -> string!
+static NCode.Identity.Persistence.MigrationHistoryRules.FindUnknownMigrations(System.Collections.Generic.IEnumerable<string!>! appliedMigrations, System.Collections.Generic.IEnumerable<string!>! migrations) -> System.Collections.Generic.IReadOnlyList<string!>!
 static NCode.Identity.Persistence.PostCommitWork.RunAsync<TState>(System.TimeProvider! timeProvider, System.Func<TState, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>! step, TState state) -> System.Threading.Tasks.ValueTask
 static NCode.Identity.Persistence.PostCommitWork.Timeout.get -> System.TimeSpan
+static NCode.Identity.Persistence.PostgresConnectionRules.Resolve(Microsoft.Extensions.Configuration.IConfiguration! configuration, string! connectionStringName, string! sectionName) -> string?
+static NCode.Identity.Persistence.PostgresIdentifiers.QualifiedName(string? schema, string! name) -> string!
+static NCode.Identity.Persistence.PostgresIdentifiers.Quote(string! identifier) -> string!
+static NCode.Identity.Persistence.RuntimeRoleGrants.CreateStatements(string! runtimeRole, System.Collections.Generic.IEnumerable<NCode.Identity.Persistence.DatabaseObjectName>! tables, System.Collections.Generic.IEnumerable<NCode.Identity.Persistence.DatabaseObjectName>! sequences) -> System.Collections.Generic.IReadOnlyList<string!>!
 NCode.Identity.Persistence.StoreManagerLibrary
 NCode.Identity.Persistence.StoreManagerLibrary.StoreManagerLibrary() -> void
 NCode.Identity.Persistence.Stores.IStore

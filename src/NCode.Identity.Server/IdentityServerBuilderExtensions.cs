@@ -15,13 +15,19 @@ using NCode.Identity.OpenId.Authentication.OutboundHttp;
 using NCode.Identity.OpenId.Authentication.Persistence;
 using NCode.Identity.OpenId.Authentication.Sessions;
 using NCode.Identity.OpenId.Authentication.Usage;
+using NCode.Identity.OpenId.Client;
+using NCode.Identity.OpenId.Client.KeyRings;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Setup;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Registration;
 using NCode.Identity.Registration.AspNetCore;
+using NCode.Identity.Secrets.Options;
 using NCode.Identity.Secrets.Persistence.Options;
+using NCode.Identity.Server.Cells;
 using NCode.Identity.Server.Frontend;
 using NCode.Identity.Server.SecretProtection;
+using NCode.Identity.SharedState.Options;
 
 namespace NCode.Identity.Server;
 
@@ -110,7 +116,15 @@ public static class IdentityServerBuilderExtensions
         /// The top-level <c>SecretProtection</c> section binds <see cref="SecretProtectionOptions"/>: it names the root
         /// key provider that protects the stored secrets and the Data Protection key ring at rest. The top-level
         /// <c>ApiReference</c> section binds <see cref="IdentityServerApiReferenceOptions"/>, which decide whether the
-        /// OpenAPI document and the API reference page are served.
+        /// OpenAPI document and the API reference page are served. The top-level <c>Cell</c> section binds
+        /// <see cref="CellOptions"/>, which name the cell this host runs, its region and its kind. The cell's name
+        /// becomes the <see cref="SharedStateOptions.Deployment"/> that a shared-state adapter puts in every key, and
+        /// its cloud regions the <see cref="KeyResidencyOptions.CloudRegions"/> that a key management service adapter
+        /// keeps its keys in. The top-level <c>KeyRings</c> section holds the named key rings that the OpenID client
+        /// library loads, and the top-level <c>Directory</c> section (<see cref="DirectoryClientOptions"/>) selects the
+        /// remote global directory: a host whose <c>Directory:Url</c> is set reads the directory with its client
+        /// <c>Directory:ClientId</c> and the key ring <c>Directory:KeyRing</c>, and a host without it keeps the local
+        /// directory.
         /// </summary>
         /// <remarks>
         /// Binding is strict and checked when the host starts: a key that maps to no option — a misspelling, or a
@@ -165,6 +179,7 @@ public static class IdentityServerBuilderExtensions
             var apiReferenceSection = configuration.GetSection(
                 IdentityServerApiReferenceOptions.DefaultSectionName
             );
+            var cellSection = configuration.GetSection(CellOptions.SectionName);
 
             var serviceCollection = builder.ServiceCollection;
 
@@ -236,6 +251,48 @@ public static class IdentityServerBuilderExtensions
                 .Configure(options => apiReferenceSection.BindStrictly(options))
                 .ValidateOnStart();
 
+            // The cell names itself, its region and its kind, and a cell that is not the control plane names the
+            // control plane's issuer.
+            serviceCollection
+                .AddOptions<CellOptions>()
+                .Configure(options => cellSection.BindStrictly(options))
+                .ValidateOnStart();
+
+            serviceCollection.TryAddEnumerable(
+                ServiceDescriptor.Singleton<IValidateOptions<CellOptions>, CellOptionsValidator>()
+            );
+
+            // The cell's name is the tag of the keys the server creates in a key management service, so the sweep of
+            // one cell never destroys the keys of another (ADR-1478).
+            serviceCollection.TryAddEnumerable(
+                ServiceDescriptor.Singleton<
+                    IPostConfigureOptions<SecretProtectionOptions>,
+                    CellRemoteKeyOptionsSetup
+                >()
+            );
+            serviceCollection.TryAddEnumerable(
+                ServiceDescriptor.Singleton<
+                    IValidateOptions<SecretProtectionOptions>,
+                    CellRemoteKeyOptionsSetup
+                >()
+            );
+
+            // The shared-state adapters keep the cell's state apart from the other cells on their server, and the
+            // key management service adapters keep its keys in its cloud regions; the adapters know no cell
+            // (ADR-1164, ADR-1235).
+            serviceCollection.TryAddEnumerable(
+                ServiceDescriptor.Singleton<
+                    IPostConfigureOptions<SharedStateOptions>,
+                    CellScopeOptionsSetup
+                >()
+            );
+            serviceCollection.TryAddEnumerable(
+                ServiceDescriptor.Singleton<
+                    IPostConfigureOptions<KeyResidencyOptions>,
+                    CellScopeOptionsSetup
+                >()
+            );
+
             // Setup lists the API reference among the instance's addresses when the host serves it.
             serviceCollection
                 .AddOptions<SetupInstanceLinksOptions>()
@@ -248,6 +305,13 @@ public static class IdentityServerBuilderExtensions
 
             // Stored secrets and the Data Protection key ring are protected under a root key held outside the database (ADR-1235).
             SecretProtectionRegistration.AddSecretProtection(builder, configuration);
+
+            // The client library loads the named key rings, and the directory client reads the global directory with
+            // one of them when Directory:Url is set.
+            builder.OpenIdClientLibraryBuilder.AddOpenIdClientKeyRings(
+                configuration.GetSection(OpenIdClientDefaults.KeyRingsSectionName)
+            );
+            builder.OpenIdClientLibraryBuilder.AddOpenIdDirectoryClient(configuration);
 
             return builder;
         }

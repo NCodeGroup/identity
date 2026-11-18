@@ -472,7 +472,7 @@ internal class ResourceServerApiEndpointHandler(
             {
                 TenantId = tenantId,
                 ResourceServerId = resourceServerId,
-                Value = request.Settings,
+                Value = SerializeToElement(ToJsonObject(request.Settings)),
             },
             Scopes = [],
             Secrets = new PersistedResourceServerSecrets

@@ -1,4 +1,8 @@
 # The smallest production release: one replica, no Valkey.
+cell:
+  name: ci-single-replica
+  region: ci
+  isControlPlane: true
 allowedHosts:
   - id.example.com
 tenantResolution:
@@ -6,13 +10,13 @@ tenantResolution:
     issuer: https://id.example.com
 database:
   existingSecret: identity-database
+  runtimeRole: ncode_identity_app
+migrations:
+  database:
+    existingSecret: identity-database-owner
 secretProtection:
   rootKeyProvider: local
   local:
     keySecret: identity-root-key
   recovery:
     publicKeyConfigMap: identity-recovery-key
-  # Names this release's keys, so a render that sets a remote key provider on top of these values passes the
-  # deployment check; with no provider set, nothing uses it.
-  remoteKeys:
-    deployment: ci-single-replica

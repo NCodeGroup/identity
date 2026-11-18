@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Http;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.Json;
 using NCode.Identity.OpenId.Management.Auditing;
-using NCode.Identity.OpenId.Management.Contracts.Teams;
+using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Persistence;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Tenants;
@@ -48,6 +48,17 @@ public sealed class DefaultTenantPromoterTests : IDisposable
         return mock;
     }
 
+    private static TenantConfigurationDocument CreateDocument(string tenantId) =>
+        new()
+        {
+            SourceTenantId = tenantId,
+            Region = "region-1",
+            Settings = JsonElements.EmptyObject,
+            Clients = [],
+            ClientGrants = [],
+            ResourceServers = [],
+        };
+
     private static PersistedTenant CreateTenant(string tenantId) =>
         new PersistedTenantBuilder { TenantId = tenantId, TeamId = TeamId }.Build();
 
@@ -56,7 +67,7 @@ public sealed class DefaultTenantPromoterTests : IDisposable
     ) =>
         new()
         {
-            SourceTenant = CreateTenant("source-tenant"),
+            Source = CreateDocument("source-tenant"),
             TargetTenant = CreateTenant("target-tenant"),
             TeamNode = MockTeamNode.Object,
             TargetTenantNode = MockTargetTenantNode.Object,

@@ -13,6 +13,7 @@ import {
   useRemoveRoleAssignmentMutation,
   type ApiError,
 } from '@ncode/store';
+import { useTenantCell } from '../tenantCell.js';
 
 export type RoleAssignmentsManagerProps = {
   /** The role and the node whose assignments are listed, granted and revoked. */
@@ -28,7 +29,8 @@ export type RoleAssignmentsManagerProps = {
  * list says the caller may change it (ADR-1465); a refused grant or revoke shows the server's error.
  */
 export function RoleAssignmentsManager({ list, title, description }: RoleAssignmentsManagerProps) {
-  const { data, isLoading, error: loadError } = useListRoleAssignmentsQuery(list);
+  const cell = useTenantCell();
+  const { data, isLoading, error: loadError } = useListRoleAssignmentsQuery({ ...list, cell });
   const [addRoleAssignment, { isLoading: isGranting }] = useAddRoleAssignmentMutation();
   const [removeRoleAssignment, { isLoading: isRevoking }] = useRemoveRoleAssignmentMutation();
   const [principalId, setPrincipalId] = useState('');
@@ -46,7 +48,7 @@ export function RoleAssignmentsManager({ list, title, description }: RoleAssignm
     }
     setError(undefined);
     try {
-      await addRoleAssignment({ list, principalId: trimmed }).unwrap();
+      await addRoleAssignment({ list, principalId: trimmed, cell }).unwrap();
       setPrincipalId('');
     } catch (grantError) {
       setError(apiErrorMessage(grantError as ApiError));
@@ -59,7 +61,7 @@ export function RoleAssignmentsManager({ list, title, description }: RoleAssignm
     }
     setError(undefined);
     try {
-      await removeRoleAssignment({ list, principalId: revoking }).unwrap();
+      await removeRoleAssignment({ list, principalId: revoking, cell }).unwrap();
     } catch (revokeError) {
       setError(apiErrorMessage(revokeError as ApiError));
     }

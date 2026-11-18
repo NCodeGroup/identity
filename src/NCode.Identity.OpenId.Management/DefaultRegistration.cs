@@ -5,12 +5,16 @@ using JetBrains.Annotations;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
+using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Management.Endpoints;
 using NCode.Identity.OpenId.Management.Endpoints.Secrets;
 using NCode.Identity.OpenId.Management.OpenApi;
 using NCode.Identity.OpenId.Management.ResourceServers;
+using NCode.Identity.OpenId.Management.Transfers;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Registration;
 using NCode.Identity.Registration.AspNetCore;
@@ -24,11 +28,31 @@ namespace NCode.Identity.OpenId.Management;
 [PublicAPI]
 public static class DefaultRegistration
 {
+    // Picks the adapter of a control-plane port: the local adapter on the control-plane cell, otherwise the remote
+    // adapter registered under ControlPlaneServiceKeys.Remote, otherwise the local adapter.
+    private static TService ResolveControlPlaneAdapter<TService, TLocal>(
+        IServiceProvider serviceProvider
+    )
+        where TService : class
+        where TLocal : class, TService
+    {
+        var cell = serviceProvider.GetRequiredService<IOptions<CellOptions>>().Value;
+        if (cell.IsControlPlane)
+            return serviceProvider.GetRequiredService<TLocal>();
+
+        return serviceProvider.GetKeyedService<TService>(ControlPlaneServiceKeys.Remote)
+            ?? serviceProvider.GetRequiredService<TLocal>();
+    }
+
     /// <param name="builder">The <see cref="OpenIdCoreLibrary"/> builder this library extends.</param>
     extension(IServiceBuilder<OpenIdCoreLibrary> builder)
     {
         /// <summary>
-        /// Registers the OpenID management library, its authorization handlers, and API endpoints.
+        /// Registers the OpenID management library, its authorization handlers, and API endpoints. The
+        /// <see cref="IManagementTokenValidator"/> and <see cref="IControlPlaneAuthority"/> a host resolves are the
+        /// local adapters on the control-plane cell (<see cref="CellOptions.IsControlPlane"/>), and otherwise the
+        /// remote adapters registered under <see cref="ControlPlaneServiceKeys.Remote"/>, falling back to the local
+        /// adapters when none is registered.
         /// </summary>
         /// <returns>An <see cref="IServiceBuilder{TLibrary}"/> for the registered <see cref="OpenIdManagementLibrary"/>.</returns>
         [PublicAPI]
@@ -67,6 +91,26 @@ public static class DefaultRegistration
                 DefaultAuthorityChainResolver
             >();
 
+            // Validates the management access token of a request. The control-plane cell uses the local adapter; every
+            // other cell uses the remote adapter that a directory client registers under
+            // ControlPlaneServiceKeys.Remote, and falls back to the local adapter without one.
+            serviceCollection.TryAddSingleton<LocalManagementTokenValidator>();
+            serviceCollection.TryAddSingleton<IManagementTokenValidator>(serviceProvider =>
+                ResolveControlPlaneAdapter<
+                    IManagementTokenValidator,
+                    LocalManagementTokenValidator
+                >(serviceProvider)
+            );
+
+            // Answers the platform and team roles of a caller, from the local adapter or the remote adapter on the
+            // same terms as the token validator.
+            serviceCollection.TryAddSingleton<LocalControlPlaneAuthority>();
+            serviceCollection.TryAddSingleton<IControlPlaneAuthority>(serviceProvider =>
+                ResolveControlPlaneAdapter<IControlPlaneAuthority, LocalControlPlaneAuthority>(
+                    serviceProvider
+                )
+            );
+
             serviceCollection.TryAddSingleton<
                 IManagementTenantEnvironmentResolver,
                 DefaultManagementTenantEnvironmentResolver
@@ -90,6 +134,20 @@ public static class DefaultRegistration
             // Binds a key a key management service already holds to a tenant, after proving the key signs (ADR-1476).
             serviceCollection.TryAddSingleton<IRemoteSecretImporter, DefaultRemoteSecretImporter>();
 
+            // Issues the one-time keys that seal a tenant's export to this cell (ADR-1514).
+            serviceCollection.TryAddSingleton<
+                ITenantTransferKeyService,
+                DefaultTenantTransferKeyService
+            >();
+
+            // Carries a tenant's core records between cells (ADR-1514).
+            serviceCollection.TryAddEnumerable(
+                ServiceDescriptor.Singleton<
+                    ITenantTransferContributor,
+                    CoreTenantTransferContributor
+                >()
+            );
+
             serviceCollection.TryAddEnumerable(
                 ServiceDescriptor.Singleton<
                     ICommandHandler<SeedTenantCommand>,
@@ -97,9 +155,20 @@ public static class DefaultRegistration
                 >()
             );
 
+            serviceCollection.TryAddEnumerable(
+                ServiceDescriptor.Singleton<
+                    ICommandHandler<SeedTenantCommand>,
+                    ControlPlaneResourceServerSeedHandler
+                >()
+            );
+
             // The root group declares its own endpoints and child groups (ADR-1086); registering it wires the whole
             // /api tree.
             builder.AddEndpointGroup<ManagementRootGroup>();
+
+            // Serves the control-plane authority to the other cells, beside the /api tree and only in the
+            // control-plane cell.
+            builder.AddEndpointProvider<ControlPlaneAuthorityEndpointProvider>();
 
             return builder.NewBuilder<OpenIdManagementLibrary>();
         }

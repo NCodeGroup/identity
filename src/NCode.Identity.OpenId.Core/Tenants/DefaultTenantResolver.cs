@@ -6,24 +6,34 @@ using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.Options;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Tenants;
 
 /// <summary>
 /// Provides a default implementation of the <see cref="ITenantResolver"/> abstraction that selects the configured
-/// <see cref="ITenantStrategy"/> by <see cref="TenantResolutionOptions.StrategyCode"/> and delegates to it. It validates
-/// the addressing rules every strategy shares itself — the root tenant's address among them — and the selected strategy
-/// validates its own and derives a tenant's default issuer.
+/// <see cref="ITenantStrategy"/> by <see cref="TenantResolutionOptions.StrategyCode"/> and delegates to it. It
+/// validates the addressing rules every strategy shares itself — the root tenant's address among them — and the
+/// selected strategy validates its own and derives a tenant's default issuer. The lookups that find a tenant by its
+/// host or issuer, and the validation lookups, read across tenants, so each runs in an unscoped scope. The identifiers
+/// and issuers of deleted tenants are answered by the <see cref="ITenantDirectory"/>.
 /// </summary>
 internal class DefaultTenantResolver(
     IOptions<TenantResolutionOptions> optionsAccessor,
+    IAmbientTenantAccessor ambientTenantAccessor,
+    ITenantDirectory tenantDirectory,
     IEnumerable<ITenantStrategy> strategies
 ) : ITenantResolver
 {
     private TenantResolutionOptions Options { get; } = optionsAccessor.Value;
+
+    private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
+
+    private ITenantDirectory TenantDirectory { get; } = tenantDirectory;
 
     private ImmutableArray<ITenantStrategy> Strategies { get; } = [.. strategies];
 
@@ -53,7 +63,12 @@ internal class DefaultTenantResolver(
     public async ValueTask<PersistedTenant> ResolveTenantAsync(
         HttpContext httpContext,
         CancellationToken cancellationToken
-    ) => await Selected.ResolveTenantAsync(httpContext, cancellationToken);
+    )
+    {
+        // The tenant is found by the host or issuer of the request before any tenant scope exists.
+        using var unscoped = AmbientTenantAccessor.BeginUnscoped("tenant resolution");
+        return await Selected.ResolveTenantAsync(httpContext, cancellationToken);
+    }
 
     /// <inheritdoc />
     public string GetControlPlaneTenantId() => Selected.GetControlPlaneTenantId();
@@ -62,7 +77,12 @@ internal class DefaultTenantResolver(
     public async ValueTask<PersistedTenant> ResolveControlPlaneTenantAsync(
         HttpContext httpContext,
         CancellationToken cancellationToken
-    ) => await Selected.ResolveControlPlaneTenantAsync(httpContext, cancellationToken);
+    )
+    {
+        // The control-plane tenant is found before any tenant scope exists.
+        using var unscoped = AmbientTenantAccessor.BeginUnscoped("control-plane tenant resolution");
+        return await Selected.ResolveControlPlaneTenantAsync(httpContext, cancellationToken);
+    }
 
     /// <inheritdoc />
     public async ValueTask<string?> GetDefaultIssuerAsync(
@@ -158,9 +178,12 @@ internal class DefaultTenantResolver(
 
         var store = storeManager.GetStore<ITenantStore>();
 
+        // The identifier, issuer and host rules hold across every tenant, so the lookups read across tenants.
+        using var unscoped = AmbientTenantAccessor.BeginUnscoped("tenant address validation");
+
         // A tenant identifier names its tenant in every route and management call, so one that belonged to a deleted
         // tenant is never reissued (ADR-1160).
-        if (await store.IsTenantIdRetiredAsync(tenantId, cancellationToken))
+        if (await TenantDirectory.IsTenantIdRetiredAsync(tenantId, cancellationToken))
         {
             failures.Add(
                 new TenantValidationFailure
@@ -194,7 +217,7 @@ internal class DefaultTenantResolver(
                 );
             }
             else if (
-                await store.GetRetiredIssuerHolderOrDefaultAsync(
+                await TenantDirectory.GetRetiredIssuerHolderOrDefaultAsync(
                     issuerUri.OriginalString,
                     cancellationToken
                 )

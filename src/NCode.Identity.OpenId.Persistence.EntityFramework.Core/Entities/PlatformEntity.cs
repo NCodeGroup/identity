@@ -49,4 +49,10 @@ public sealed class PlatformEntity : ISupportConcurrencyToken
     /// Gets or sets the serialized JSON for the platform's settings.
     /// </summary>
     public required JsonElement SettingsJson { get; set; }
+
+    /// <summary>
+    /// Gets or sets the sequence of the directory change whose platform document this row last mirrored, or <c>0</c>
+    /// for a row that no document wrote.
+    /// </summary>
+    public long DirectorySequence { get; set; }
 }

@@ -1,10 +1,13 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using JetBrains.Annotations;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
 using NCode.Identity.OpenId.Persistence.EntityFramework;
+using NCode.Identity.Persistence;
 
 namespace NCode.Identity.OpenId.Host.Database;
 
@@ -26,30 +29,28 @@ public static class MigrationRunner
     /// <param name="serviceProvider">A provider that has the OpenID persistence slice registered (id generator and
     /// model contributors), used to construct the contexts outside a request scope.</param>
     /// <param name="connectionString">The Postgres connection string supplied by Aspire.</param>
+    /// <param name="runtimeRole">The name of the database role the host runs as. After it migrates, the runner enables
+    /// row-level security on every tenant-bound table and grants this role its data access, in one transaction.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <exception cref="InvalidOperationException">A context's migrations history records a migration this assembly
     /// does not hold.</exception>
+    /// <exception cref="ArgumentException"><paramref name="runtimeRole"/> is not a valid role name.</exception>
+    [ExcludeFromCodeCoverage(
+        Justification = "Migrates a live database; RowLevelSecurityEndToEndTests covers it."
+    )]
     public static async ValueTask MigrateAllAsync(
         IServiceProvider serviceProvider,
         string connectionString,
+        string runtimeRole,
         CancellationToken cancellationToken
     )
     {
-        var openIdOptionsBuilder = new DbContextOptionsBuilder<OpenIdDbContext>();
-        openIdOptionsBuilder.UseOpenIdNpgsql(connectionString);
-        openIdOptionsBuilder.UseApplicationServiceProvider(serviceProvider);
-
-        var dataProtectionOptionsBuilder =
-            new DbContextOptionsBuilder<DeveloperDataProtectionDbContext>();
-        dataProtectionOptionsBuilder.UseDataProtectionNpgsql(connectionString);
-
-        await using var openIdContext = new OpenIdDbContext(
-            openIdOptionsBuilder.Options,
-            new HostDatabase.UnscopedAmbientTenantAccessor(),
-            serviceProvider.GetServices<IOpenIdModelContributor>()
+        await using var openIdContext = HostDatabase.CreateUnscopedOpenIdContext(
+            serviceProvider,
+            connectionString
         );
-        await using var dataProtectionContext = new DeveloperDataProtectionDbContext(
-            dataProtectionOptionsBuilder.Options
+        await using var dataProtectionContext = HostDatabase.CreateDataProtectionContext(
+            connectionString
         );
 
         await ThrowIfUnknownMigrationsAppliedAsync(openIdContext, cancellationToken);
@@ -57,19 +58,58 @@ public static class MigrationRunner
 
         await openIdContext.Database.MigrateAsync(cancellationToken);
         await dataProtectionContext.Database.MigrateAsync(cancellationToken);
+
+        var openIdModel = openIdContext.GetService<IDesignTimeModel>().Model;
+        var dataProtectionModel = dataProtectionContext.GetService<IDesignTimeModel>().Model;
+        var statements = CreateAccessStatements(openIdModel, dataProtectionModel, runtimeRole);
+
+        await using var transaction = await openIdContext.Database.BeginTransactionAsync(
+            cancellationToken
+        );
+        foreach (var statement in statements)
+            await openIdContext.Database.ExecuteSqlRawAsync(statement, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Creates the statements that give <paramref name="runtimeRole"/> its access to the host database: the row-level
+    /// security and grants of the OpenID model, followed by the grants of the Data Protection model, which has no
+    /// tenant-bound table.
+    /// </summary>
+    /// <param name="openIdModel">The model of the <see cref="OpenIdDbContext"/>.</param>
+    /// <param name="dataProtectionModel">The model of the <see cref="DeveloperDataProtectionDbContext"/>.</param>
+    /// <param name="runtimeRole">The name of the database role the host runs as.</param>
+    /// <returns>The statements to run, in order, each as one command.</returns>
+    /// <exception cref="ArgumentException"><paramref name="runtimeRole"/> is not a valid role name.</exception>
+    // See ADR-1018.
+    internal static IReadOnlyList<string> CreateAccessStatements(
+        IModel openIdModel,
+        IModel dataProtectionModel,
+        string runtimeRole
+    )
+    {
+        var openIdStatements = RowLevelSecurity.CreateStatements(openIdModel, runtimeRole);
+        var statements = new List<string>(openIdStatements);
+        var dataProtectionStatements = RowLevelSecurity.CreateGrantStatements(
+            dataProtectionModel,
+            runtimeRole
+        );
+        statements.AddRange(dataProtectionStatements);
+        return statements;
+    }
+
+    [ExcludeFromCodeCoverage(
+        Justification = "Reads a live database's migrations history; RowLevelSecurityEndToEndTests covers it."
+    )]
     private static async ValueTask ThrowIfUnknownMigrationsAppliedAsync(
         DbContext context,
         CancellationToken cancellationToken
     )
     {
         var appliedMigrations = await context.Database.GetAppliedMigrationsAsync(cancellationToken);
-        ThrowIfUnknownMigrationsApplied(
-            context.GetType().Name,
-            appliedMigrations,
-            context.Database.GetMigrations()
-        );
+        var contextName = context.GetType().Name;
+        var knownMigrations = context.Database.GetMigrations();
+        ThrowIfUnknownMigrationsApplied(contextName, appliedMigrations, knownMigrations);
     }
 
     /// <summary>
@@ -89,13 +129,14 @@ public static class MigrationRunner
         IEnumerable<string> migrations
     )
     {
-        var known = migrations.ToHashSet(StringComparer.Ordinal);
-        var unknown = appliedMigrations.Where(id => !known.Contains(id)).ToList();
+        var unknown = MigrationHistoryRules.FindUnknownMigrations(appliedMigrations, migrations);
         if (unknown.Count == 0)
             return;
 
+        var unknownIdentifiers = string.Join(", ", unknown);
+
         throw new InvalidOperationException(
-            $"The database's {contextName} migrations history records {string.Join(", ", unknown)}, which this host "
+            $"The database's {contextName} migrations history records {unknownIdentifiers}, which this host "
                 + $"does not hold, so its {contextName} migrations cannot be applied to it. Each host database "
                 + "context has one InitialCreate, which is re-scaffolded with a fresh identifier on each model "
                 + "change. Stop the AppHost and reset the local database with build/dev-db-reset.ps1; the next "

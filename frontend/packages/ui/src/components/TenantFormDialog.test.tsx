@@ -10,6 +10,11 @@ const acme = {
   isDisabled: false,
 };
 
+const cells = [
+  { name: 'eu-1', region: 'eu-west' },
+  { name: 'us-1', region: null },
+];
+
 describe('TenantFormDialog', () => {
   it('seeds the fields from initialValues when opened', () => {
     render(
@@ -115,6 +120,95 @@ describe('TenantFormDialog', () => {
       mtlsEndpointAliasAuthority: 'https://acme-dev.mtls.example',
       isDisabled: false,
     });
+  });
+
+  it('shows no cell field without cells', () => {
+    render(
+      <TenantFormDialog
+        open
+        title="Create tenant"
+        submitLabel="Create"
+        initialValues={emptyTenantFormValues}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId('tenant-cell')).not.toBeInTheDocument();
+  });
+
+  it('shows a required cell select while creating, and sends the chosen cell', () => {
+    const onSubmit = vi.fn();
+    const onAddressChange = vi.fn();
+    render(
+      <TenantFormDialog
+        open
+        title="Create tenant"
+        submitLabel="Create"
+        initialValues={{ ...emptyTenantFormValues, cell: 'eu-1' }}
+        cells={cells}
+        onAddressChange={onAddressChange}
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId('tenant-cell')).toHaveValue('eu-1');
+
+    fireEvent.change(screen.getByTestId('tenant-id'), { target: { value: 'acme' } });
+    fireEvent.change(screen.getByTestId('tenant-display-name'), { target: { value: 'Acme' } });
+    fireEvent.change(screen.getByTestId('tenant-cell'), { target: { value: 'us-1' } });
+    expect(onAddressChange).toHaveBeenLastCalledWith({
+      tenantId: 'acme',
+      issuer: '',
+      mtlsEndpointAliasAuthority: '',
+      cell: 'us-1',
+    });
+
+    fireEvent.click(screen.getByTestId('tenant-form-submit'));
+    expect(onSubmit).toHaveBeenCalledExactlyOnceWith({
+      tenantId: 'acme',
+      displayName: 'Acme',
+      issuer: '',
+      mtlsEndpointAliasAuthority: '',
+      isDisabled: false,
+      cell: 'us-1',
+    });
+  });
+
+  it('blocks submit until a cell is chosen', () => {
+    render(
+      <TenantFormDialog
+        open
+        title="Create tenant"
+        submitLabel="Create"
+        initialValues={{ ...emptyTenantFormValues, tenantId: 'acme', displayName: 'Acme' }}
+        cells={cells}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId('tenant-cell')).toHaveValue('');
+    expect(screen.getByTestId('tenant-form-submit')).toBeDisabled();
+    fireEvent.change(screen.getByTestId('tenant-cell'), { target: { value: 'eu-1' } });
+    expect(screen.getByTestId('tenant-form-submit')).toBeEnabled();
+  });
+
+  it('shows no cell field for a locked tenant ID, and keeps the cell it was opened with', () => {
+    const onSubmit = vi.fn();
+    render(
+      <TenantFormDialog
+        open
+        title="Edit tenant"
+        submitLabel="Save"
+        initialValues={{ ...acme, cell: 'eu-1' }}
+        isTenantIdLocked
+        cells={cells}
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId('tenant-cell')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('tenant-form-submit'));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ cell: 'eu-1' }));
   });
 
   it('surfaces a server error and blocks submit while submitting', () => {

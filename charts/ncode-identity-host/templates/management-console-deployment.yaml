@@ -82,6 +82,7 @@ spec:
               protocol: TCP
           env:
             {{- include "identity-host.managementConsole.env" . | trim | nindent 12 }}
+            {{- include "identity-host.telemetryEnv" . | trim | nindent 12 }}
             {{- include "identity-host.backendTls.env" . | nindent 12 }}
           {{- with $console.extraEnvFrom }}
           envFrom:

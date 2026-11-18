@@ -5,8 +5,10 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.Authentication.Logging;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Authentication.Usage;
@@ -22,7 +24,9 @@ namespace NCode.Identity.OpenId.Authentication.Usage;
 internal sealed class TenantUsageFlushService(
     DefaultTenantUsageRecorder recorder,
     IStoreManagerFactory storeManagerFactory,
+    IAmbientTenantAccessor ambientTenantAccessor,
     IOptions<TenantUsageOptions> options,
+    IOptions<CellOptions> cellOptions,
     TimeProvider timeProvider,
     ILogger<TenantUsageFlushService> logger
 ) : BackgroundService
@@ -57,7 +61,11 @@ internal sealed class TenantUsageFlushService(
 
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
 
+    private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
+
     private TenantUsageOptions Options { get; } = options.Value;
+
+    private CellOptions CellOptions { get; } = cellOptions.Value;
 
     private TimeProvider TimeProvider { get; } = timeProvider;
 
@@ -178,6 +186,7 @@ internal sealed class TenantUsageFlushService(
                         TeamPath = pair.Key.TeamPath,
                         Day = pair.Key.Day,
                         Meter = pair.Key.Meter,
+                        Cell = CellOptions.Name,
                         Count = pair.Value,
                     }),
                 ]
@@ -209,6 +218,8 @@ internal sealed class TenantUsageFlushService(
     {
         try
         {
+            // A batch holds the usage of every tenant.
+            using var _ = AmbientTenantAccessor.BeginUnscoped("tenant usage flush");
             await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
             var store = storeManager.GetStore<ITenantUsageStore>();
             await store.AddAsync(ReplicaId, batch.Number, batch.Usage, cancellationToken);

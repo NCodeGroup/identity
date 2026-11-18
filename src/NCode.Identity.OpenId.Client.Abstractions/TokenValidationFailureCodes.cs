@@ -7,7 +7,7 @@ using NCode.Identity.Jwt.Validation;
 namespace NCode.Identity.OpenId.Client;
 
 /// <summary>
-/// The known machine-readable codes of an invalid ID token or logout token.
+/// The known machine-readable codes of an invalid ID token, logout token or access token.
 /// </summary>
 /// <remarks>
 /// The codes are an open vocabulary: a code that the <c>JSON Web Token (JWT)</c> validator reports passes through
@@ -96,4 +96,10 @@ public static class TokenValidationFailureCodes
     /// The logout token has already been received.
     /// </summary>
     public const string TokenReplayed = "token_replayed";
+
+    /// <summary>
+    /// The issuer's discovery document or signing keys could not be retrieved, so the token is neither valid nor proven
+    /// invalid.
+    /// </summary>
+    public const string IssuerUnavailable = "issuer_unavailable";
 }

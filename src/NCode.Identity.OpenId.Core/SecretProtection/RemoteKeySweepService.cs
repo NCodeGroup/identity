@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NCode.Identity.Dispatch;
 using NCode.Identity.OpenId.Logging;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Platform;
 using NCode.Identity.Secrets.Persistence.Options;
 using NCode.Identity.Secrets.RemoteKeys;
@@ -29,6 +30,7 @@ internal sealed class RemoteKeySweepService(
     IMaterializedPlatformAccessor materializedPlatformAccessor,
     IRemoteKeyDescriptorCatalog remoteKeyDescriptorCatalog,
     IJobDispatcher jobDispatcher,
+    IAmbientTenantAccessor ambientTenantAccessor,
     IExpiringKeySet expiringKeySet,
     IOptions<SecretProtectionOptions> options,
     TimeProvider timeProvider,
@@ -50,6 +52,7 @@ internal sealed class RemoteKeySweepService(
     private IRemoteKeyDescriptorCatalog RemoteKeyDescriptorCatalog { get; } =
         remoteKeyDescriptorCatalog;
     private IJobDispatcher JobDispatcher { get; } = jobDispatcher;
+    private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
     private IExpiringKeySet ExpiringKeySet { get; } = expiringKeySet;
     private IOptions<SecretProtectionOptions> Options { get; } = options;
     private TimeProvider TimeProvider { get; } = timeProvider;
@@ -110,6 +113,9 @@ internal sealed class RemoteKeySweepService(
         var leaseExpiresWhen = TimeProvider.GetUtcNow() + RemoteKeys.SweepInterval / 2;
         if (!await ExpiringKeySet.TryAddAsync(LeaseKey, leaseExpiresWhen, cancellationToken))
             return;
+
+        // The dispatch is the platform's, not a tenant's.
+        using var unscoped = AmbientTenantAccessor.BeginUnscoped("remote key sweep dispatch");
 
         foreach (
             var descriptor in RemoteKeyDescriptorCatalog.ProvidersThatCreateKeys.OrderBy(

@@ -1,4 +1,8 @@
 # A production release whose root key is in Google Cloud KMS, reached through workload identity federation.
+cell:
+  name: ci-google-cloud-kms
+  region: ci
+  isControlPlane: true
 allowedHosts:
   - id.example.com
 tenantResolution:
@@ -6,6 +10,10 @@ tenantResolution:
     issuer: https://id.example.com
 database:
   existingSecret: identity-database
+  runtimeRole: ncode_identity_app
+migrations:
+  database:
+    existingSecret: identity-database-owner
 secretProtection:
   rootKeyProvider: google-cloud-kms
   googleCloudKms:

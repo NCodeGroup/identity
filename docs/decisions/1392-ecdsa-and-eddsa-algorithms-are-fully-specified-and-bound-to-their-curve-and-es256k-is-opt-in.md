@@ -94,7 +94,7 @@ algorithm.
   JOSE library, and the two copies could drift. A specification keeps one implementation.
 - **A public ECDSA class.** Rejected: the package would then reference the JOSE library, which
   [ADR-1500](1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md)
-  forbids, or the class would move into an abstractions package, which holds no logic.
+  forbids, or the class would move into an abstractions package, which holds no service logic.
 - **`ES256K` in the core JOSE library.** Rejected: secp256k1 has a narrow audience, no OpenID or FAPI profile asks for
   it, and the core library would carry a platform-dependent algorithm. It stays opt-in, as EdDSA does.
 - **Gating when algorithms are listed rather than at registration.** Rejected: the curve would still reach the curve

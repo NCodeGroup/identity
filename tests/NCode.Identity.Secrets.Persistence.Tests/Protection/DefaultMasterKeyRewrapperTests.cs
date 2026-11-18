@@ -20,6 +20,7 @@ public class DefaultMasterKeyRewrapperTests : BaseTests
 
     private Mock<IKeyWrapperCatalog> Catalog { get; }
     private Mock<IStoreManagerFactory> StoreManagerFactory { get; }
+    private Mock<ISecretOwnerParentResolver> Parents { get; }
     private Queue<IStoreManager> StoreManagers { get; } = new();
     private FakeTimeProvider Time { get; } = new();
     private bool StoreManagerFactorySetUp { get; set; }
@@ -32,6 +33,8 @@ public class DefaultMasterKeyRewrapperTests : BaseTests
     {
         Catalog = CreateStrictMock<IKeyWrapperCatalog>();
         StoreManagerFactory = CreateStrictMock<IStoreManagerFactory>();
+        Parents = CreateStrictMock<ISecretOwnerParentResolver>();
+        SetupAncestors();
     }
 
     protected override void Dispose(bool disposing)
@@ -66,10 +69,20 @@ public class DefaultMasterKeyRewrapperTests : BaseTests
     private DefaultMasterKeyRewrapper CreateRewrapper(RecoveryKeyWrapper recovery) =>
         new(
             new MasterKeyFactory(Catalog.Object, recovery, Time),
+            new DefaultNearestOwnerRootKeyResolver(Parents.Object),
+            Parents.Object,
             StoreManagerFactory.Object,
             recovery,
             NullLogger<DefaultMasterKeyRewrapper>.Instance
         );
+
+    // The owner root key store answers for every owner alike, so the nearest key is the one the test sets unless the
+    // owner has none, and then the search reaches the ancestors that this setup names.
+    private void SetupAncestors(params SecretOwner[] ancestors) =>
+        Parents
+            .Setup(x => x.GetAncestorsAsync(It.IsAny<SecretOwner>(), It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<IReadOnlyList<SecretOwner>>(ancestors))
+            .Verifiable(Times.AtMost(int.MaxValue));
 
     // Creates a row wrapped under the old provider (and under the recovery key when it is configured).
     private async ValueTask<PersistedMasterKey> CreateRowAsync(
@@ -108,11 +121,19 @@ public class DefaultMasterKeyRewrapperTests : BaseTests
 
         // A unit of work that lists or pages rows also reads the root key of each owner on them, which is the one that
         // the test sets. A unit of work that only writes a row never touches this store, and one that is reused for
-        // several attempts reads it once per attempt.
+        // several attempts reads it once per attempt. The store answers only for the owner of the key the test sets, so
+        // an owner that has none reaches its ancestors.
         var rootKeyStore = CreateStrictMock<IOwnerRootKeyStore>();
         rootKeyStore
             .Setup(x => x.FindAsync(It.IsAny<SecretOwner>(), It.IsAny<CancellationToken>()))
-            .Returns(() => new ValueTask<PersistedOwnerRootKey?>(OwnerRootKey))
+            .Returns(
+                (SecretOwner owner, CancellationToken _) =>
+                    new ValueTask<PersistedOwnerRootKey?>(
+                        OwnerRootKey is { } key && key.Owner.Normalize() == owner.Normalize()
+                            ? key
+                            : null
+                    )
+            )
             .Verifiable(Times.Between(0, maxRootKeyReads, Moq.Range.Inclusive));
         manager
             .Setup(x => x.GetStore<IOwnerRootKeyStore>())
@@ -128,11 +149,14 @@ public class DefaultMasterKeyRewrapperTests : BaseTests
 
     private FakeReferencedKeyWrapper Referenced { get; } = new();
 
-    private PersistedOwnerRootKey CreateOwnerRootKey(string state = OwnerRootKeyStates.Active) =>
+    private PersistedOwnerRootKey CreateOwnerRootKey(
+        string state = OwnerRootKeyStates.Active,
+        SecretOwner? owner = null
+    ) =>
         new()
         {
-            OwnerType = Owner.OwnerType,
-            OwnerId = Owner.OwnerId,
+            OwnerType = (owner ?? Owner).OwnerType,
+            OwnerId = (owner ?? Owner).OwnerId,
             KeyWrapperName = Referenced.Name,
             KeyReference = "kms://tenant-a/root",
             State = state,
@@ -176,6 +200,24 @@ public class DefaultMasterKeyRewrapperTests : BaseTests
         store
             .Setup(x => x.ListAsync(Owner, It.IsAny<CancellationToken>()))
             .Returns(new ValueTask<IReadOnlyList<PersistedMasterKey>>(rows))
+            .Verifiable();
+    }
+
+    private void SetupPage(int maxRootKeyReads, params PersistedMasterKey[] rows)
+    {
+        var (store, _) = EnqueueStoreManager(maxRootKeyReads);
+        store
+            .Setup(x =>
+                x.GetPageAsync(
+                    It.Is<PageRequest>(page => page.Cursor == null),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(
+                new ValueTask<PagedResult<PersistedMasterKey>>(
+                    new PagedResult<PersistedMasterKey> { Items = rows, NextCursor = null }
+                )
+            )
             .Verifiable();
     }
 
@@ -722,6 +764,88 @@ public class DefaultMasterKeyRewrapperTests : BaseTests
     }
 
     [Fact]
+    public async Task Rewrap_ARowOfATenantWhoseTeamBringsARootKey_MovesUnderTheTeamKey()
+    {
+        var row = await CreateRowAsync(
+            CreateRecovery(configured: true),
+            version: 1,
+            CancellationToken.None
+        );
+        Assert.NotNull(row.RecoveryWrappedKey);
+        var team = new SecretOwner(SecretOwnerTypes.Team, "team-a");
+        var teamKey = CreateOwnerRootKey(owner: team);
+        OwnerRootKey = teamKey;
+        SetupAncestors(team, SecretOwner.Platform);
+        SetupOldProvider();
+        SetupReferenced();
+
+        // The tenant has no key, so the unit of work that lists its rows also reads its team's.
+        var (listStore, _) = EnqueueStoreManager(maxRootKeyReads: 2);
+        listStore
+            .Setup(x => x.ListAsync(Owner, It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<IReadOnlyList<PersistedMasterKey>>([row]))
+            .Verifiable();
+        SetupSave(row);
+        using var recovery = CreateRecovery(configured: true);
+
+        var result = await CreateRewrapper(recovery)
+            .RewrapAsync(Request(nonconformingOnly: true), CancellationToken.None);
+
+        Assert.Equal(new MasterKeyRewrapResult(1, 1, 0, 0), result);
+        Assert.Equal(Referenced.Name, row.RootKeyProvider);
+        Assert.Equal(teamKey.KeyReference, row.RootKeyReference);
+        Assert.Null(row.RecoveryKeyId);
+        Assert.Null(row.RecoveryWrappedKey);
+    }
+
+    [Fact]
+    public async Task Rewrap_ARowOfATenantWhoseTeamKeyHasAnAccessIdentity_MovesUnderItWithTheTeamsBinding()
+    {
+        var row = await CreateRowAsync(
+            CreateRecovery(configured: true),
+            version: 1,
+            CancellationToken.None
+        );
+        Assert.NotNull(row.RecoveryWrappedKey);
+        var team = new SecretOwner(SecretOwnerTypes.Team, "team-a");
+        var teamKey = CreateOwnerRootKey(owner: team);
+        teamKey.AccessIdentity = "test-identity-team";
+        OwnerRootKey = teamKey;
+        SetupAncestors(team, SecretOwner.Platform);
+        SetupOldProvider();
+        SetupReferenced();
+
+        // The tenant has no key, so the unit of work that lists its rows also reads its team's.
+        var (listStore, _) = EnqueueStoreManager(maxRootKeyReads: 2);
+        listStore
+            .Setup(x => x.ListAsync(Owner, It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<IReadOnlyList<PersistedMasterKey>>([row]))
+            .Verifiable();
+        SetupSave(row);
+        using var recovery = CreateRecovery(configured: true);
+
+        var result = await CreateRewrapper(recovery)
+            .RewrapAsync(Request(nonconformingOnly: true), CancellationToken.None);
+
+        var access = new KeyAccess("test-identity-team", "team:team-a");
+        Assert.Equal(new MasterKeyRewrapResult(1, 1, 0, 0), result);
+        Assert.Equal(teamKey.KeyReference, row.RootKeyReference);
+        Assert.Equal("test-identity-team", row.RootKeyAccessIdentity);
+        Assert.Equal("team:team-a", row.RootKeyAccessBinding);
+        Assert.Equal(access, Referenced.LastWrapAccess);
+
+        // The row unwraps through the identity with the team's binding, which it records.
+        var verify = CreateStrictMock<IKeyWrapperCatalog>();
+        verify.Setup(x => x.GetReferenced(Referenced.Name)).Returns(Referenced).Verifiable();
+        using var key = await new MasterKeyFactory(verify.Object, recovery, Time).UnwrapAsync(
+            row,
+            CancellationToken.None
+        );
+        Assert.Equal(row.KeyId, key.KeyId);
+        Assert.Equal(access, Referenced.LastUnwrapAccess);
+    }
+
+    [Fact]
     public async Task Rewrap_ARowOfAnUnboundOwner_MovesUnderTheDeploymentRootWithARecoveryCopy()
     {
         var row = await CreateOwnerRootedRowAsync(
@@ -914,6 +1038,84 @@ public class DefaultMasterKeyRewrapperTests : BaseTests
             .RewrapAsync(Request(nonconformingOnly: true), CancellationToken.None);
 
         Assert.Equal(new MasterKeyRewrapResult(1, 0, 0, 1), result);
+    }
+
+    [Fact]
+    public async Task Rewrap_ATeamWithItsDescendants_RewrapsOnlyTheRowsOfTheOwnersUnderIt()
+    {
+        using var recovery = CreateRecovery(configured: true);
+        var row = await CreateRowAsync(recovery, version: 1, CancellationToken.None);
+        var other = new PersistedMasterKey
+        {
+            KeyId = Guid.NewGuid(),
+            OwnerType = SecretOwnerTypes.Tenant,
+            OwnerId = "tenant-b",
+            Version = 1,
+            CreatedWhen = Time.GetUtcNow(),
+            RootKeyProvider = KeyWrapperNames.Ephemeral,
+            RootKeyId = "root-b",
+            RootWrappedKey = "wrapped",
+            KeyCheck = "check",
+        };
+        var team = new SecretOwner(SecretOwnerTypes.Team, "team-a");
+        var teamKey = CreateOwnerRootKey(owner: team);
+        OwnerRootKey = teamKey;
+
+        // The tenant of the tests is under the team, and the other tenant is under no owner.
+        Parents
+            .Setup(x => x.GetAncestorsAsync(Owner, It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<IReadOnlyList<SecretOwner>>([team, SecretOwner.Platform]))
+            .Verifiable(Times.AtLeastOnce());
+        SetupOldProvider();
+        SetupReferenced();
+        SetupPage(maxRootKeyReads: 3, row, other);
+        SetupSave(row);
+
+        var result = await CreateRewrapper(recovery)
+            .RewrapAsync(
+                new MasterKeyRewrapRequest
+                {
+                    NonconformingOnly = true,
+                    Owner = team,
+                    IncludeDescendants = true,
+                },
+                CancellationToken.None
+            );
+
+        Assert.Equal(new MasterKeyRewrapResult(1, 1, 0, 0), result);
+        Assert.Equal(Referenced.Name, row.RootKeyProvider);
+        Assert.Equal(teamKey.KeyReference, row.RootKeyReference);
+        Assert.Equal("wrapped", other.RootWrappedKey);
+    }
+
+    [Fact]
+    public async Task Rewrap_ATeamWithItsDescendants_MovesARowOfAnotherOwnerStillUnderTheTeamsKey()
+    {
+        var team = new SecretOwner(SecretOwnerTypes.Team, "team-a");
+        var teamKey = CreateOwnerRootKey(owner: team);
+        var row = await CreateOwnerRootedRowAsync(version: 1, teamKey, CancellationToken.None);
+        OwnerRootKey = teamKey;
+
+        // The tenant of the tests has no ancestors, so only the key its row is wrapped under ties it to the team.
+        SetupGetReferenced();
+        SetupNewProvider();
+        SetupPage(maxRootKeyReads: 2, row);
+        SetupSave(row);
+        using var recovery = CreateRecovery(configured: true);
+
+        var result = await CreateRewrapper(recovery)
+            .RewrapAsync(
+                new MasterKeyRewrapRequest
+                {
+                    NonconformingOnly = true,
+                    Owner = team,
+                    IncludeDescendants = true,
+                },
+                CancellationToken.None
+            );
+
+        Assert.Equal(new MasterKeyRewrapResult(1, 1, 0, 0), result);
+        Assert.Null(row.RootKeyReference);
     }
 
     #endregion

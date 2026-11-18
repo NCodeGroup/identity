@@ -92,9 +92,17 @@ audited; and a caller reads its own assignments, teams and tenants from `GET /ap
 
 15. **The console shows grant and revoke only when `canChange` is true**, and refetches every role list after any role
     change.
-16. **The console opens on `/home`.** It lists "Open the platform" for a platform administrator and the caller's teams
-    and tenants, and opens a sole destination directly, replacing the history entry. `/home` is not a management
-    scope.
+16. **The console opens on `/home`, and its tenant lists tell the cells apart.** `/home` lists "Open the platform" for
+    a platform administrator and the caller's teams and tenants, names each cell that did not answer, and opens a sole
+    destination directly, replacing the history entry, only when every cell answered. `/home` is not a management
+    scope. Two cells list one tenant while it moves between them
+    ([ADR-1514](1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md)), so the
+    home, the team's tenant list and the promotion dialog key each row and option by its cell and its tenant
+    identifier, and a row's Open, Edit and Delete act on the copy in its own cell. The tenant page's Move keeps a
+    failed move when its dialog closes, offers Release, which runs only the release, when the export's `409` names in
+    `placedCell` the cell that the global directory already places the tenant in, says that the outcome is unknown
+    when the import's `503` carries `moveOutcome` `unknown`, says when the list of cells is loading or could not be
+    loaded, and opens the tenant in the cell it moved to once the move completes.
 17. **A header Home control returns to `/home`.** A platform route becomes `/home` once the caller is known to lack
     platform authority. Back controls lead to the parent the caller can reach: the platform's team list for a platform
     administrator, a tenant's team for a platform administrator or a role holder there, and otherwise Home. While the

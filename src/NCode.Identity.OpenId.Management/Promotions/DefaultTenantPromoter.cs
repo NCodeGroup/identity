@@ -3,7 +3,7 @@
 
 using Microsoft.AspNetCore.Http;
 using NCode.Identity.OpenId.Management.Auditing;
-using NCode.Identity.OpenId.Management.Contracts.Teams;
+using NCode.Identity.OpenId.Management.Contracts.Tenants;
 
 namespace NCode.Identity.OpenId.Management.Promotions;
 

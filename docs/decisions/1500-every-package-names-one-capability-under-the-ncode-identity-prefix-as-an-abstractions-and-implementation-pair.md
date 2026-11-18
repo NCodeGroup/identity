@@ -17,7 +17,8 @@ one. Contracts that carry a heavy framework dependency force every consumer of t
 
 Some building blocks serve one technology for every package: JSON values, time periods and ASP.NET Core helpers. Two
 packages that cannot reference each other need a shared home, and shared code that is not in a public package is copied
-into each consumer. Abstractions hold no logic, so a helper with logic does not belong in an `.Abstractions` package.
+into each consumer. Abstractions hold no service logic, so a helper with service logic does not belong in an
+`.Abstractions` package.
 
 ## Decision
 
@@ -29,19 +30,25 @@ any package may reference.**
    sub-namespaces such as `.Options`), test project, `InternalsVisibleTo`, public API files and solution entry. A package
    takes an `NCode.*` name of its own only when a second product consumes it, and then lives in a repository with its
    own versioning.
-2. **Pairs.** A capability's `.Abstractions` package holds contracts and data, with no logic. The implementation shares
-   its namespace, so a pair is one namespace across two assemblies.
+2. **Pairs.** A capability's `.Abstractions` package holds contracts and data, and the form rules of the values its
+   contracts carry: pure checks and builders over the BCL and the family's `NCode.Buffers` and `NCode.Base64Url`
+   libraries, such as `TenantIdentifierRules`, `CellLabelRules`, `AbsoluteUri`, `DatabaseRoleNameRules` with the
+   Postgres identifier quoting and runtime-role grant statements built on it (`PostgresIdentifiers`,
+   `RuntimeRoleGrants`), and the `ExpiringKeys` key shape, so every implementation of a contract applies one rule; it
+   holds no service logic. The implementation shares its namespace, so a pair is one namespace across two assemblies.
 3. **Implementations depend on abstractions.** An implementation references `*.Abstractions`, foundation packages and
-   the composition builders `NCode.Identity.Registration` and `NCode.Identity.Registration.AspNetCore`, and
-   collaborates with other capabilities through abstractions resolved from DI.
-   Apart from the composition roots and hosts below and the layered reference of decision 4, an implementation
-   project references no other implementation project. It registers with `TryAdd*` from its `DefaultRegistration`,
-   and its default type is named per
+   the composition builders `NCode.Identity.Registration` and `NCode.Identity.Registration.AspNetCore`, and collaborates
+   with other capabilities through abstractions resolved from DI. Apart from the composition roots and hosts below and
+   the layered reference of decision 4, an implementation project references no other implementation project. It
+   registers with `TryAdd*` from its `DefaultRegistration`, and its default type is named per
    [project-template ADR-0105](project-template/0105-the-canonical-implementation-is-named-defaultfoo.md). The
    composition roots (`AddIdentityServer()` in `NCode.Identity.Server`, `NCode.Identity.Bff.Server` and
    `NCode.Identity.ManagementConsole`) and the hosts under `hosts/` reference and wire the implementations. The DI
    shapes of a seam are
-   [ADR-1001](1001-behavior-is-a-service-a-strategy-collection-or-a-mediator-seam-chosen-by-one-ladder.md)'s.
+   [ADR-1001](1001-behavior-is-a-service-a-strategy-collection-or-a-mediator-seam-chosen-by-one-ladder.md)'s. A
+   composition root hands the opt-in implementations it does not reference what only it knows through options in their
+   `.Abstractions` packages: the server names its cell's name in `SharedStateOptions` and its cloud regions in
+   `KeyResidencyOptions`, which the Valkey adapter and the AWS and Google Cloud key management service adapters apply.
 4. **The one layered reference.** An Entity Framework slice references the Entity Framework framework it plugs into
    ([ADR-1052](1052-entity-framework-persistence-is-a-reusable-framework-that-domain-slices-plug-into.md)). Every other
    collaboration between implementations is through abstractions resolved from DI:
@@ -53,7 +60,10 @@ any package may reference.**
    `NCode.Identity.Registration` and other foundation packages, and a new one needs a second package of the family that
    consumes it; a capability that only one package consumes belongs in that package.
 6. **JSON.** `NCode.Identity.Json.JsonElements` is the one JSON helper home: `TryGetPropertyValue<T>`,
-   `IsNullOrUndefined`, `OrEmptyObject` and `Parse`.
+   `IsNullOrUndefined`, `OrEmptyObject` and `Parse`. `NCode.Identity.Json` also holds the one serializer of the
+   payloads the family stores at rest as JSON, `IPersistedPayloadSerializer` with `IPersistedPayloadUpcaster` and
+   `PersistedPayloadVersionAttribute`, and its registration `AddPersistedPayloadSerializer()`, so every package that
+   stores such a payload registers and uses the one serializer without referencing another implementation.
 7. **Time.** `NCode.Identity.Time` holds `TimerPeriod`, the range of periods a timer accepts, and `TimePeriod`, the span
    between two instants such as a token's lifetime, as two types. It also holds the whole-second helpers
    `WithPrecisionInSeconds()` on `DateTime` and `DateTimeOffset`, and `GetUtcNowWithPrecisionInSeconds()` and
@@ -66,12 +76,18 @@ any package may reference.**
    `SetNoStore()`) that the authentication and management packages share. `AddIdentityServer()` and `AddIdentityBff()`
    register no host hardening: a host composes its own from `NCode.Identity.AspNetCore`
    ([ADR-1447](1447-each-host-composes-forwarded-header-trust-and-strict-transport-security-from-one-general-package.md)).
+   The opt-in `NCode.Identity.AspNetCore.OpenTelemetry` package holds the OpenTelemetry metrics registration that a host
+   opts in to
+   ([ADR-1197](1197-telemetry-has-one-owner-per-signal-bounded-attributes-and-spans-that-mirror-their-histograms.md));
+   it is not a foundation package, and only a host references it, so no package that a library references carries the
+   OpenTelemetry SDK.
 9. **Framework-free low tier.** Low-tier contract packages (settings, claims, cryptography, JOSE, secrets, persistence)
    carry no ASP.NET Core. The `Microsoft.AspNetCore.App` `FrameworkReference` sits only on abstractions whose contracts
    are HTTP types.
 10. **Persistence.** `NCode.Identity.Persistence.Abstractions` holds every persistence contract, in the namespaces
     `NCode.Identity.Persistence` and `NCode.Identity.Persistence.Stores`, and `StoreManagerLibrary`. `ISupportClone`
     lives in `NCode.Identity.OpenId.Abstractions`, namespace `NCode.Identity.OpenId.Messages`, beside `IOpenIdMessage`.
+    The serializer of the payloads stored at rest as JSON is the JSON foundation's (decision 6).
 11. **Settings, claims and cryptography.** `NCode.Identity.Settings`, `NCode.Identity.Claims` and
     `NCode.Identity.Cryptography`, each with its `.Abstractions` package, are flat, single-purpose pairs with the markers
     `SettingsLibrary`, `ClaimsLibrary` and `CryptographyLibrary`. Each `Add…Library()` extends a bare

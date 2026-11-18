@@ -55,11 +55,13 @@ without the cookie.**
    ([ADR-1443](1443-a-bff-session-ends-when-its-frontend-is-removed-or-registered-as-another-client.md)) need it without
    the handle.
 6. **The store seam.** `IBffSessionStore` is a public, replaceable service. It holds opaque records, the `sid`, `sub`
-   and client membership indexes, login transactions and refresh leases, so a replacement only ever sees ciphertext and
-   cannot skip the encryption. The default store prefixes its keys `bff:session:`, `bff:txn:` and `bff:lease:`. Index
-   keys are `bff:sid:` or `bff:sub:` plus base64url(SHA-256) of the length-prefixed issuer and value, and `bff:client:`
-   plus the same digest of the frontend and the digest of the authority and the client id,
-   with `bff:clients` listing the clients, so a value an attacker supplies cannot make a key ambiguous or unbounded.
+   and client membership indexes, the plaintext client of each member of `bff:clients`, login transactions and refresh
+   leases, so a replacement only ever sees a payload as ciphertext and cannot skip the encryption. The default store
+   prefixes its keys `bff:session:`, `bff:txn:` and `bff:lease:`. Index keys are `bff:sid:` or `bff:sub:` plus
+   base64url(SHA-256) of the length-prefixed issuer and value, and `bff:client:` plus the same digest of the frontend
+   and the digest of the authority and the client id, with `bff:clients` listing the clients and `bff:client-member:`
+   plus a member of that list (its UTC day and the client digest) holding that client in plaintext, so the key space
+   names no client and a value an attacker supplies cannot make a key ambiguous or unbounded.
    Any adapter exception surfaces as `BffStoreUnavailableException`, which is answered with `503`, never `401`
    ([ADR-1292](1292-the-bffs-cookie-authenticates-only-guarded-endpoints-which-refuse-cross-site-requests-and-reload-cookieless-navigations.md)).
 7. **The login transaction** (issuer, redirect URI, PKCE verifier, nonce, return URL, the DPoP `jkt`, `max_age` and the
@@ -128,6 +130,10 @@ without the cookie.**
 - Losing the cookie loses the session: nothing on the server can recover it, by design.
 - A host composes the BFF in one call, `AddIdentityBff(configuration)` from `NCode.Identity.Bff.Server`, or composes
   the six libraries (secrets, JOSE, JWT, protocol client, events and shared state) itself before `AddBffLibrary`.
+  The one-call composition refuses an empty or wildcard `AllowedHosts` at startup unless `LocalDevelopment:Enabled` is
+  set, and a host that composes the libraries itself calls `AddHostFilteringValidation(configuration)` for the same
+  refusal
+([ADR-1370](1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)).
 - `IdTokenValidationResult.Identity` is public surface of the protocol client.
 
 ## References

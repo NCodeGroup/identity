@@ -190,5 +190,15 @@ public sealed class HostDatabaseConnectionTests
         Assert.DoesNotContain(exception.InnerException?.Message ?? "", Password);
     }
 
+    [Fact]
+    public void Resolve_NullConfiguration_Throws()
+    {
+        var exception = Assert.Throws<ArgumentNullException>(() =>
+            HostDatabaseConnection.Resolve(null!)
+        );
+
+        Assert.Equal("configuration", exception.ParamName);
+    }
+
     #endregion
 }

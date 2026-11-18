@@ -22,6 +22,21 @@ function describeWait(seconds: number): string {
   return hours === 1 ? '1 hour' : `${hours} hours`;
 }
 
+/**
+ * Reads the field messages of a validation problem: each string of each list in its `errors` object, in order. An
+ * `errors` value that is an array, as a promotion conflict's is, names no field and gives none.
+ */
+function validationMessages(data: unknown): string[] {
+  const errors =
+    data && typeof data === 'object' ? (data as { errors?: unknown }).errors : undefined;
+  if (!errors || typeof errors !== 'object' || Array.isArray(errors)) {
+    return [];
+  }
+  return Object.values(errors).flatMap((value) =>
+    Array.isArray(value) ? value.filter((m): m is string => typeof m === 'string') : [],
+  );
+}
+
 function statusMessage(
   error: FetchBaseQueryError,
   problem: ManagementProblem | undefined,
@@ -49,11 +64,23 @@ function statusMessage(
 }
 
 /**
- * Turns an RTK Query error into a human-readable message. The Management API returns RFC 9457
- * Problem Details (`{ detail, title, status }`), so a server-supplied `detail`/`title` is preferred;
- * otherwise a status-aware fallback is used. When the problem carries a positive whole
- * `retryAfterSeconds`, the message ends with " Try again in N seconds|minutes|hours.".
- * UI-free so it is unit-tested directly (see docs/decisions/1064).
+ * The RFC 9457 problem details body of an RTK Query error, its extension members included, or `undefined` when the
+ * error carries none: no error, an error raised before a response, or a body that is not an object.
+ */
+export function apiProblem(error: ApiError | undefined): ManagementProblem | undefined {
+  if (!error || !isFetchBaseQueryError(error)) {
+    return undefined;
+  }
+  const data = error.data;
+  return data && typeof data === 'object' ? (data as ManagementProblem) : undefined;
+}
+
+/**
+ * Turns an RTK Query error into a human-readable message. The Management API returns RFC 9457 Problem Details
+ * (`{ detail, title, status }`), so a server-supplied message is preferred: the field messages of a validation problem
+ * come first, then the `detail`, the `title` and the status-aware fallback. When the problem carries a positive whole
+ * `retryAfterSeconds`, the message ends with " Try again in N seconds|minutes|hours.". UI-free so it is unit-tested
+ * directly (see docs/decisions/1064).
  */
 export function apiErrorMessage(
   error: ApiError | undefined,
@@ -65,8 +92,10 @@ export function apiErrorMessage(
 
   if (isFetchBaseQueryError(error)) {
     const data = error.data;
-    const problem = data && typeof data === 'object' ? (data as ManagementProblem) : undefined;
-    const message = statusMessage(error, problem, fallback);
+    const problem = apiProblem(error);
+    const fieldMessages = validationMessages(data);
+    const message =
+      fieldMessages.length > 0 ? fieldMessages.join(' ') : statusMessage(error, problem, fallback);
     const wait = problem?.retryAfterSeconds;
     if (typeof wait === 'number' && Number.isInteger(wait) && wait > 0) {
       return `${message} Try again in ${describeWait(wait)}.`;

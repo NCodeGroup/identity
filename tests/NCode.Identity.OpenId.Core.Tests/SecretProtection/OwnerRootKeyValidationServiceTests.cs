@@ -6,6 +6,7 @@ using Moq;
 using NCode.Identity.Events;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Core.Tests;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Platform;
 using NCode.Identity.OpenId.SecretProtection;
 using NCode.Identity.Persistence.Stores;
@@ -31,6 +32,7 @@ public sealed class OwnerRootKeyValidationServiceTests : BaseTests
     private Mock<IStoreManagerFactory> StoreManagerFactory { get; }
     private Mock<IOwnerRootKeyStore> Store { get; }
     private Mock<IStoreManager> StoreManager { get; }
+    private Mock<IAmbientTenantAccessor> AmbientTenantAccessor { get; }
     private Mock<IExpiringKeySet> KeySet { get; }
     private Mock<IEventPublisher> Publisher { get; }
     private OwnerRootKeyValidationService Service { get; }
@@ -43,6 +45,7 @@ public sealed class OwnerRootKeyValidationServiceTests : BaseTests
         StoreManagerFactory = CreateStrictMock<IStoreManagerFactory>();
         Store = CreateStrictMock<IOwnerRootKeyStore>();
         StoreManager = CreateStrictMock<IStoreManager>();
+        AmbientTenantAccessor = CreateStrictMock<IAmbientTenantAccessor>();
         KeySet = CreateStrictMock<IExpiringKeySet>();
         Publisher = CreateStrictMock<IEventPublisher>();
 
@@ -50,6 +53,7 @@ public sealed class OwnerRootKeyValidationServiceTests : BaseTests
             PlatformAccessor.Object,
             Manager.Object,
             StoreManagerFactory.Object,
+            AmbientTenantAccessor.Object,
             KeySet.Object,
             Publisher.Object,
             Microsoft.Extensions.Options.Options.Create(
@@ -93,7 +97,8 @@ public sealed class OwnerRootKeyValidationServiceTests : BaseTests
             failure
         );
 
-    private void SetupLease(bool acquired) =>
+    private void SetupLease(bool acquired)
+    {
         KeySet
             .Setup(x =>
                 x.TryAddAsync(
@@ -104,6 +109,16 @@ public sealed class OwnerRootKeyValidationServiceTests : BaseTests
             )
             .ReturnsAsync(acquired)
             .Verifiable(Times.Once());
+
+        // A pass that wins the lease validates in an unscoped scope.
+        if (acquired)
+        {
+            AmbientTenantAccessor
+                .Setup(x => x.BeginUnscoped("owner root key validation"))
+                .Returns(Mock.Of<IDisposable>())
+                .Verifiable(Times.Once());
+        }
+    }
 
     private void SetupDuePage(params PersistedOwnerRootKey[] rows)
     {

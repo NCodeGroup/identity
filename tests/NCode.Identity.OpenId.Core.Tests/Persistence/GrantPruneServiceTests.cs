@@ -7,6 +7,7 @@ using Microsoft.Extensions.Time.Testing;
 using Moq;
 using NCode.Identity.OpenId.Authentication.Persistence;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence.Stores;
 using Xunit;
 
@@ -21,6 +22,7 @@ public sealed class GrantPruneServiceTests : IDisposable
     private MockRepository MockRepository { get; }
     private FakeTimeProvider TimeProvider { get; } = new(Now);
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }
+    private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
     private Mock<IStoreManager> MockStoreManager { get; }
     private Mock<IGrantStore> MockGrantStore { get; }
     private GrantPruneService Service { get; }
@@ -29,10 +31,12 @@ public sealed class GrantPruneServiceTests : IDisposable
     {
         MockRepository = new MockRepository(MockBehavior.Strict);
         MockStoreManagerFactory = MockRepository.Create<IStoreManagerFactory>();
+        MockAmbientTenantAccessor = MockRepository.Create<IAmbientTenantAccessor>();
         MockStoreManager = MockRepository.Create<IStoreManager>();
         MockGrantStore = MockRepository.Create<IGrantStore>();
         Service = new GrantPruneService(
             MockStoreManagerFactory.Object,
+            MockAmbientTenantAccessor.Object,
             Options.Create(new GrantRetentionOptions()),
             TimeProvider,
             NullLogger<GrantPruneService>.Instance
@@ -47,6 +51,10 @@ public sealed class GrantPruneServiceTests : IDisposable
 
     private void SetupStores()
     {
+        MockAmbientTenantAccessor
+            .Setup(x => x.BeginUnscoped("grant prune"))
+            .Returns(Mock.Of<IDisposable>())
+            .Verifiable();
         MockStoreManagerFactory
             .Setup(x => x.CreateAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(MockStoreManager.Object)
@@ -122,6 +130,7 @@ public sealed class GrantPruneServiceTests : IDisposable
         var options = new GrantRetentionOptions { PruneInterval = PruneInterval };
         using var service = new GrantPruneService(
             MockStoreManagerFactory.Object,
+            MockAmbientTenantAccessor.Object,
             Options.Create(options),
             mockTimeProvider.Object,
             NullLogger<GrantPruneService>.Instance

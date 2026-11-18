@@ -46,8 +46,20 @@ internal static class BffHostSetup
     public const string LocalDevelopmentKey = "LocalDevelopment:Enabled";
 
     /// <summary>
+    /// The host name under which the Keycloak container reaches the BFF applications on the test machine.
+    /// </summary>
+    public const string ContainerHost = "host.testcontainers.internal";
+
+    /// <summary>
+    /// The configuration key that lists the host names the BFF serves.
+    /// </summary>
+    public const string AllowedHostsKey = "AllowedHosts";
+
+    /// <summary>
     /// Creates the configuration of the frontend and turns on local development, because the BFF runs against a
-    /// loopback OpenID Provider.
+    /// loopback OpenID Provider. It lists the host names the BFF serves, <c>localhost</c> for the browser and
+    /// <see cref="ContainerHost"/> for Keycloak, so host filtering admits them even where the host registers its
+    /// services before this configuration reaches it.
     /// </summary>
     public static Dictionary<string, string?> CreateConfiguration(
         BffApplicationSettings settings,
@@ -57,6 +69,7 @@ internal static class BffHostSetup
         var configuration = new Dictionary<string, string?>
         {
             [LocalDevelopmentKey] = "true",
+            [AllowedHostsKey] = $"localhost;{ContainerHost}",
             [$"{ConfigurationPrefix}:Authority"] = settings.Authority,
             [$"{ConfigurationPrefix}:PublicOrigin"] = origin,
             [$"{ConfigurationPrefix}:ClientId"] = settings.ClientId,

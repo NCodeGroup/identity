@@ -66,9 +66,18 @@ public static class DefaultRegistration
         /// keys protect and destroys retired keys that nothing names.</description></item>
         /// <item><description><see cref="IMasterKeyRewrapper"/> - Rewraps persisted master keys under the root of their
         /// owner: its own root key, or the configured root key provider and recovery public key.</description></item>
+        /// <item><description><see cref="IMasterKeyTransfer"/> - Exports the master keys of an owner as a package that
+        /// only the holder of a recipient key reads, and imports such a package under the root of the importing
+        /// owner.</description></item>
         /// <item><description><see cref="IOwnerRootKeyManager"/> - Sets, validates and removes the root key that an owner
         /// brings, which wraps the owner's master keys in place of the deployment's root key. Each
         /// <see cref="IOwnerRootKeyPolicy"/> decides which owners can bring one; the platform owner cannot.</description></item>
+        /// <item><description><see cref="ISecretOwnerParentResolver"/> - Resolves the ancestors of an owner, whose root
+        /// keys can wrap the owner's master keys; the default names the platform owner as the only
+        /// ancestor.</description></item>
+        /// <item><description><see cref="INearestOwnerRootKeyResolver"/> - Finds the root key that wraps an owner's
+        /// master keys: the owner's own, else the nearest ancestor's that <see cref="ISecretOwnerParentResolver"/>
+        /// names.</description></item>
         /// <item><description>Options for <see cref="SecretProtectionOptions"/> and
         /// <see cref="LocalKeyWrapperOptions"/>, which are bound to configuration elsewhere, and for
         /// <see cref="SharedSecretVerifierOptions"/>, <see cref="Pbkdf2SecretVerifierOptions"/> and
@@ -144,7 +153,16 @@ public static class DefaultRegistration
             serviceCollection.TryAddSingleton<ISecretProtectorProvider, DefaultMasterKeyRing>();
             serviceCollection.TryAddSingleton<IMasterKeyManager, DefaultMasterKeyManager>();
             serviceCollection.TryAddSingleton<IMasterKeyRewrapper, DefaultMasterKeyRewrapper>();
+            serviceCollection.TryAddSingleton<IMasterKeyTransfer, DefaultMasterKeyTransfer>();
             serviceCollection.TryAddSingleton<IOwnerRootKeyManager, DefaultOwnerRootKeyManager>();
+            serviceCollection.TryAddSingleton<
+                ISecretOwnerParentResolver,
+                DefaultSecretOwnerParentResolver
+            >();
+            serviceCollection.TryAddSingleton<
+                INearestOwnerRootKeyResolver,
+                DefaultNearestOwnerRootKeyResolver
+            >();
             serviceCollection.TryAddEnumerable(
                 ServiceDescriptor.Singleton<IOwnerRootKeyPolicy, PlatformOwnerRootKeyPolicy>()
             );

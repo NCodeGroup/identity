@@ -1,7 +1,9 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Text.Json;
 using NCode.Identity.Cryptography;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Tenants;
@@ -104,6 +106,15 @@ public sealed class ManagementResourceServerSeedHandlerTests : IDisposable
         Assert.Contains("update:encryption_keys", values);
         Assert.Contains("read:platform_encryption_keys", values);
         Assert.Contains("update:platform_encryption_keys", values);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenAbsent_SeedsEmptyObjectSettings()
+    {
+        var captured = await SeedAsync(TenantPlane.Workload, CancellationToken.None);
+
+        Assert.NotNull(captured);
+        Assert.True(JsonElement.DeepEquals(JsonElements.EmptyObject, captured.Settings.Value));
     }
 
     [Fact]

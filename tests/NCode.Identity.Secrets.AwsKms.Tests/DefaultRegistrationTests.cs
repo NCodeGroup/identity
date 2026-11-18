@@ -4,11 +4,14 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using NCode.Identity.Jose;
+using NCode.Identity.Jose.Algorithms;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Registration;
 using NCode.Identity.Secrets.AwsKms.Facades;
 using NCode.Identity.Secrets.AwsKms.Options;
 using NCode.Identity.Secrets.KeyWrapping;
+using NCode.Identity.Secrets.Options;
 using NCode.Identity.Secrets.Persistence;
 using NCode.Identity.Secrets.Persistence.Options;
 using NCode.Identity.Secrets.RemoteKeys;
@@ -76,8 +79,11 @@ public class DefaultRegistrationTests : BaseTests
         );
         var serviceCollection = AddAwsKms(configuration, clientFactory.Object);
 
-        // The persistence library's services need a store factory to be constructed; this test never reads a store.
+        // The persistence library's services need a store factory, a JOSE serializer and an algorithm provider to be
+        // constructed; this test never uses them.
         serviceCollection.AddSingleton(CreateStrictMock<IStoreManagerFactory>().Object);
+        serviceCollection.AddSingleton(CreateStrictMock<IJoseSerializer>().Object);
+        serviceCollection.AddSingleton(CreateStrictMock<IAlgorithmCollectionProvider>().Object);
         serviceCollection
             .AddOptions<SecretProtectionOptions>()
             .Configure(options =>
@@ -110,6 +116,21 @@ public class DefaultRegistrationTests : BaseTests
 
         var exception = Assert.Throws<InvalidOperationException>(() => options.Value);
         Assert.Contains(AwsKmsKeyWrapperOptions.DefaultSectionName, exception.Message);
+    }
+
+    [Fact]
+    public async Task AddAwsKmsKeyWrapper_KeyResidencyNamesRegions_ReplacesTheAllowedRegions()
+    {
+        var clientFactory = CreateStrictMock<IAwsKmsClientFactory>();
+        var serviceCollection = AddAwsKms(CreateConfiguration(), clientFactory.Object);
+        serviceCollection.Configure<KeyResidencyOptions>(options =>
+            options.CloudRegions = ["eu-west-1"]
+        );
+
+        await using var provider = serviceCollection.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<AwsKmsKeyWrapperOptions>>().Value;
+
+        Assert.Equal(["eu-west-1"], options.AllowedRegions);
     }
 
     #endregion
@@ -216,6 +237,12 @@ public class DefaultRegistrationTests : BaseTests
                 x.ServiceType == typeof(IValidateOptions<AwsKmsRemoteKeyProviderOptions>)
                 && x.ImplementationType == typeof(AwsKmsRemoteKeyProviderOptionsValidator)
         );
+        Assert.Single(
+            serviceCollection,
+            x =>
+                x.ServiceType == typeof(IPostConfigureOptions<AwsKmsRemoteKeyProviderOptions>)
+                && x.ImplementationType == typeof(AwsKmsKeyResidencyOptionsSetup)
+        );
         Assert.Single(serviceCollection, x => x.ServiceType == typeof(IAwsKmsClientFactory));
     }
 
@@ -251,6 +278,43 @@ public class DefaultRegistrationTests : BaseTests
 
         var exception = Assert.Throws<InvalidOperationException>(() => options.Value);
         Assert.Contains(AwsKmsRemoteKeyProviderOptions.DefaultSectionName, exception.Message);
+    }
+
+    [Fact]
+    public async Task AddAwsKmsRemoteKeyProvider_KeyResidencyNamesRegions_ReplacesTheAllowedRegions()
+    {
+        var clientFactory = CreateStrictMock<IAwsKmsClientFactory>();
+        var serviceCollection = AddAwsKmsRemote(
+            CreateConfiguration(("SecretProtection:RemoteKeyProviders:AwsKms:Region", "eu-west-1")),
+            clientFactory.Object
+        );
+        serviceCollection.Configure<KeyResidencyOptions>(options =>
+            options.CloudRegions = ["eu-west-1"]
+        );
+
+        await using var provider = serviceCollection.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<AwsKmsRemoteKeyProviderOptions>>().Value;
+
+        Assert.Equal(["eu-west-1"], options.AllowedRegions);
+    }
+
+    [Fact]
+    public async Task AddAwsKmsRemoteKeyProvider_RegionOutsideTheKeyResidency_FailsValidation()
+    {
+        var clientFactory = CreateStrictMock<IAwsKmsClientFactory>();
+        var serviceCollection = AddAwsKmsRemote(
+            CreateConfiguration(("SecretProtection:RemoteKeyProviders:AwsKms:Region", "us-west-2")),
+            clientFactory.Object
+        );
+        serviceCollection.Configure<KeyResidencyOptions>(options =>
+            options.CloudRegions = ["eu-west-1"]
+        );
+
+        await using var provider = serviceCollection.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<AwsKmsRemoteKeyProviderOptions>>();
+
+        var exception = Assert.Throws<OptionsValidationException>(() => options.Value);
+        Assert.Contains("must be one of the allowed AWS regions: eu-west-1", exception.Message);
     }
 
     [Fact]

@@ -4,6 +4,7 @@
 using Microsoft.Extensions.Options;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId;
+using NCode.Identity.OpenId.GlobalDirectory;
 
 namespace NCode.Identity.ManagementConsole.Options;
 
@@ -72,6 +73,37 @@ internal sealed class ManagementConsoleOptionsValidator(LocalDevelopmentMode loc
                     ? $"{Key}:ManagementApiUrl is '{Describe(options.ManagementApiUrl)}' and must use 'https' unless LocalDevelopment:Enabled is true."
                     : $"{Key}:ManagementApiUrl must be an absolute https URL without user info, query or fragment; it is '{Describe(options.ManagementApiUrl)}'."
             );
+        }
+
+        foreach (
+            var (cellName, cellUrl) in options.Cells.OrderBy(
+                static pair => pair.Key,
+                StringComparer.Ordinal
+            )
+        )
+        {
+            var cellKey = $"{Key}:Cells:{cellName}";
+
+            if (!CellLabelRules.IsValidLabel(cellName))
+            {
+                failures.Add(
+                    $"{cellKey} must be named with a cell name of {CellLabelRules.Description}; the name is '{cellName}'."
+                );
+            }
+
+            var isCellWellFormed = IsValidManagementApiUrl(cellUrl, true);
+            var isCellValid = isLocalDevelopment
+                ? isCellWellFormed
+                : IsValidManagementApiUrl(cellUrl, false);
+
+            if (!isCellValid)
+            {
+                failures.Add(
+                    isCellWellFormed
+                        ? $"{cellKey} is '{Describe(cellUrl)}' and must use 'https' unless LocalDevelopment:Enabled is true."
+                        : $"{cellKey} must be an absolute https URL without user info, query or fragment; it is '{Describe(cellUrl)}'."
+                );
+            }
         }
 
         if (string.IsNullOrWhiteSpace(options.BundleRootPath))

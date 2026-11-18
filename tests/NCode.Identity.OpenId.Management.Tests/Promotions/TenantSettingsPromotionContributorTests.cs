@@ -4,7 +4,6 @@
 using System.Text.Json;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Management.Auditing;
-using NCode.Identity.OpenId.Management.Contracts.Teams;
 using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Persistence;
 using NCode.Identity.OpenId.Persistence.DataContracts;
@@ -63,7 +62,15 @@ public sealed class TenantSettingsPromotionContributorTests : IDisposable
     ) =>
         new()
         {
-            SourceTenant = CreateTenant(SourceTenantId, sourceSettingsJson),
+            Source = new TenantConfigurationDocument
+            {
+                SourceTenantId = SourceTenantId,
+                Region = "region-1",
+                Settings = JsonElement.Parse(sourceSettingsJson),
+                Clients = [],
+                ClientGrants = [],
+                ResourceServers = [],
+            },
             TargetTenant = CreateTenant(TargetTenantId, targetSettingsJson),
             TeamNode = MockTeamNode.Object,
             TargetTenantNode = MockTargetTenantNode.Object,
@@ -95,7 +102,7 @@ public sealed class TenantSettingsPromotionContributorTests : IDisposable
             .Setup(x =>
                 x.Compose(
                     It.Is<JsonElement>(source =>
-                        JsonElement.DeepEquals(source, context.SourceTenant.Settings.Value)
+                        JsonElement.DeepEquals(source, context.Source.Settings)
                     ),
                     It.Is<JsonElement?>(target =>
                         target.HasValue

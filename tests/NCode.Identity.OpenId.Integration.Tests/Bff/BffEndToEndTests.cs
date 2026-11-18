@@ -182,26 +182,26 @@ public class BffEndToEndTests
                     [$"{prefix}:DPoP:KeyRing"] = dpopRing,
                     [$"{prefix}:Jwks:Enabled"] = "true",
                     [$"{prefix}:IdToken:KeyManagementAlgorithms:0"] = "RSA-OAEP-256",
-                    [$"Bff:KeyRings:{clientRing}:RemoteKeys:client-sig:Provider"] =
+                    [$"KeyRings:{clientRing}:RemoteKeys:client-sig:Provider"] =
                         TestRemoteKeyProvider.ProviderName,
-                    [$"Bff:KeyRings:{clientRing}:RemoteKeys:client-sig:KeyId"] = clientSignKmsKeyId,
-                    [$"Bff:KeyRings:{clientRing}:RemoteKeys:client-sig:Algorithm"] = "ES256",
-                    [$"Bff:KeyRings:{clientRing}:RemoteKeys:client-sig:SecretType"] = "ecc",
-                    [$"Bff:KeyRings:{clientRing}:RemoteKeys:client-sig:KeySizeBits"] = "256",
-                    [$"Bff:KeyRings:{clientRing}:RemoteKeys:client-sig:Curve"] = "P-256",
-                    [$"Bff:KeyRings:{clientRing}:RemoteKeys:client-enc:Provider"] =
+                    [$"KeyRings:{clientRing}:RemoteKeys:client-sig:KeyId"] = clientSignKmsKeyId,
+                    [$"KeyRings:{clientRing}:RemoteKeys:client-sig:Algorithm"] = "ES256",
+                    [$"KeyRings:{clientRing}:RemoteKeys:client-sig:SecretType"] = "ecc",
+                    [$"KeyRings:{clientRing}:RemoteKeys:client-sig:KeySizeBits"] = "256",
+                    [$"KeyRings:{clientRing}:RemoteKeys:client-sig:Curve"] = "P-256",
+                    [$"KeyRings:{clientRing}:RemoteKeys:client-enc:Provider"] =
                         TestRemoteKeyProvider.ProviderName,
-                    [$"Bff:KeyRings:{clientRing}:RemoteKeys:client-enc:KeyId"] = clientEncKmsKeyId,
-                    [$"Bff:KeyRings:{clientRing}:RemoteKeys:client-enc:Algorithm"] = "RSA-OAEP-256",
-                    [$"Bff:KeyRings:{clientRing}:RemoteKeys:client-enc:SecretType"] = "rsa",
-                    [$"Bff:KeyRings:{clientRing}:RemoteKeys:client-enc:KeySizeBits"] = "3072",
-                    [$"Bff:KeyRings:{dpopRing}:RemoteKeys:dpop-sig:Provider"] =
+                    [$"KeyRings:{clientRing}:RemoteKeys:client-enc:KeyId"] = clientEncKmsKeyId,
+                    [$"KeyRings:{clientRing}:RemoteKeys:client-enc:Algorithm"] = "RSA-OAEP-256",
+                    [$"KeyRings:{clientRing}:RemoteKeys:client-enc:SecretType"] = "rsa",
+                    [$"KeyRings:{clientRing}:RemoteKeys:client-enc:KeySizeBits"] = "3072",
+                    [$"KeyRings:{dpopRing}:RemoteKeys:dpop-sig:Provider"] =
                         TestRemoteKeyProvider.ProviderName,
-                    [$"Bff:KeyRings:{dpopRing}:RemoteKeys:dpop-sig:KeyId"] = dpopKmsKeyId,
-                    [$"Bff:KeyRings:{dpopRing}:RemoteKeys:dpop-sig:Algorithm"] = "ES256",
-                    [$"Bff:KeyRings:{dpopRing}:RemoteKeys:dpop-sig:SecretType"] = "ecc",
-                    [$"Bff:KeyRings:{dpopRing}:RemoteKeys:dpop-sig:KeySizeBits"] = "256",
-                    [$"Bff:KeyRings:{dpopRing}:RemoteKeys:dpop-sig:Curve"] = "P-256",
+                    [$"KeyRings:{dpopRing}:RemoteKeys:dpop-sig:KeyId"] = dpopKmsKeyId,
+                    [$"KeyRings:{dpopRing}:RemoteKeys:dpop-sig:Algorithm"] = "ES256",
+                    [$"KeyRings:{dpopRing}:RemoteKeys:dpop-sig:SecretType"] = "ecc",
+                    [$"KeyRings:{dpopRing}:RemoteKeys:dpop-sig:KeySizeBits"] = "256",
+                    [$"KeyRings:{dpopRing}:RemoteKeys:dpop-sig:Curve"] = "P-256",
                 },
                 Exchanges = exchanges,
                 ConfigureServices = serviceCollection =>

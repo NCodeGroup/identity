@@ -1,0 +1,95 @@
+{{- if .Values.directory.enabled }}
+{{- include "identity-host.directory.validate" . }}
+{{- $directory := .Values.directory }}
+# Applies the directory's database migrations before an install or upgrade changes anything else, while the previous
+# version still serves. Helm waits for the Job, and a failed Job fails the release before its rollout starts. The
+# directory host image runs its own migrations: the 'migrate' command applies them and exits. The Job connects as the
+# schema owner and grants the runtime role, which the Deployment connects as, access to the tables it migrated.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "identity-host.directory.migrationsJobName" . }}
+  labels:
+    {{- include "identity-host.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/component: directory-migrations
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "0"
+    # A failed Job stays for its logs until the next release replaces it.
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ $directory.migrations.backoffLimit }}
+  activeDeadlineSeconds: {{ $directory.migrations.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "identity-host.commonLabels" . | nindent 8 }}
+        app.kubernetes.io/component: directory-migrations
+      {{- with include "identity-host.backupAnnotations" . | trim }}
+      annotations:
+        {{- . | nindent 8 }}
+      {{- end }}
+    spec:
+      restartPolicy: Never
+      {{- if not .Values.directory.serviceAccount.create }}
+      serviceAccountName: {{ include "identity-host.directory.serviceAccountName" . }}
+      {{- end }}
+      # The migration never calls the Kubernetes API. The chart's own service account does not exist yet when a first
+      # install runs this hook, so the Job uses the namespace's default account unless the operator names one.
+      automountServiceAccountToken: false
+      {{- with include "identity-host.imagePullSecrets" . }}
+      {{- . | trim | nindent 6 }}
+      {{- end }}
+      securityContext:
+        {{- include "identity-host.podSecurityContext" . | nindent 8 }}
+      containers:
+        - name: migrations
+          image: {{ include "identity-host.directory.image" . | quote }}
+          imagePullPolicy: {{ $directory.image.pullPolicy }}
+          # The image's entry point is the directory host, and its only argument here selects the command that migrates
+          # the database and exits.
+          args:
+            - migrate
+          securityContext:
+            {{- include "identity-host.containerSecurityContext" . | nindent 12 }}
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: {{ .Values.environment | quote }}
+            # The directory's connection, read from the schema owner's Secret: the connection string or the parts, as
+            # the Deployment reads the runtime role's. The owner creates and changes the schema, and the command grants
+            # the runtime role that DirectoryMigration:RuntimeRole names data access. The Job never receives the runtime
+            # role's connection, which only the Deployment's pods use.
+            {{- include "identity-host.databaseEnv" (dict "scope" $directory.migrations.database "defaults" $directory.database "connectionStringName" "directory" "sectionName" "DirectoryDatabase") | trim | nindent 12 }}
+            - name: DirectoryMigration__RuntimeRole
+              value: {{ $directory.database.runtimeRole | quote }}
+            {{- include "identity-host.telemetryEnv" . | trim | nindent 12 }}
+            # The directory's extra settings and volumes apply to the Job too, such as the CA bundle and SSL mode a TLS
+            # connection to Postgres needs.
+            {{- with $directory.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with $directory.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $directory.migrations.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            {{- with $directory.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+        {{- with $directory.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with include "identity-host.scheduling" . }}
+      {{- . | trim | nindent 6 }}
+      {{- end }}
+{{- end }}

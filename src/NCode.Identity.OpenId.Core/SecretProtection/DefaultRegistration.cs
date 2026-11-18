@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using JetBrains.Annotations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NCode.Identity.Dispatch;
@@ -23,63 +22,77 @@ internal static class DefaultRegistration
         /// <summary>
         /// Registers the sources of the protected values the family stores (stored secrets and grant payloads), the
         /// announcement of master key and owner root key changes, the job that rewraps the values of retired keys, the
-        /// policy that keeps the control-plane tenant under the deployment's root key, the services that maintain
-        /// master keys and validate the root keys that owners bring, and the job and the service that sweep the
-        /// remote keys that no stored secret names.
+        /// policy that keeps the control-plane tenant under the deployment's root key, the resolver that names a
+        /// tenant's team chain as the ancestors whose root keys can wrap its master keys, the services that maintain
+        /// master keys and validate the root keys that owners bring, and the job and the service that sweep the remote
+        /// keys that no stored secret names. The team-chain resolver is the registered
+        /// <see cref="ISecretOwnerParentResolver"/>, in place of the secret persistence library's default, so a host
+        /// registers its own resolver after this call, with <c>AddSingleton</c> or <c>Replace</c>.
         /// </summary>
         /// <returns>The <see cref="IServiceBuilder{T}"/> instance for method chaining.</returns>
-        [PublicAPI]
         public IServiceBuilder<OpenIdCoreLibrary> AddSecretProtectionServices()
         {
             var serviceCollection = builder.ServiceCollection;
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IProtectedValueSource, PersistedSecretValueSource>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IProtectedValueSource, GrantPayloadValueSource>()
-            );
+            var persistedSecretSource = ServiceDescriptor.Singleton<
+                IProtectedValueSource,
+                PersistedSecretValueSource
+            >();
+            serviceCollection.TryAddEnumerable(persistedSecretSource);
+            var grantPayloadSource = ServiceDescriptor.Singleton<
+                IProtectedValueSource,
+                GrantPayloadValueSource
+            >();
+            serviceCollection.TryAddEnumerable(grantPayloadSource);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IMasterKeyChangeObserver, MasterKeyChangeAnnouncer>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IReplicaBroadcastHandler,
-                    MasterKeyChangeBroadcastHandler
-                >()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Scoped<
-                    IDispatchJobHandler<MasterKeyRewrapJob>,
-                    MasterKeyRewrapJobHandler
-                >()
-            );
+            var masterKeyChangeObserver = ServiceDescriptor.Singleton<
+                IMasterKeyChangeObserver,
+                MasterKeyChangeAnnouncer
+            >();
+            serviceCollection.TryAddEnumerable(masterKeyChangeObserver);
+            var masterKeyChangeBroadcastHandler = ServiceDescriptor.Singleton<
+                IReplicaBroadcastHandler,
+                MasterKeyChangeBroadcastHandler
+            >();
+            serviceCollection.TryAddEnumerable(masterKeyChangeBroadcastHandler);
+            var masterKeyRewrapJobHandler = ServiceDescriptor.Scoped<
+                IDispatchJobHandler<MasterKeyRewrapJob>,
+                MasterKeyRewrapJobHandler
+            >();
+            serviceCollection.TryAddEnumerable(masterKeyRewrapJobHandler);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IOwnerRootKeyChangeObserver,
-                    OwnerRootKeyChangeAnnouncer
-                >()
-            );
+            var ownerRootKeyChangeObserver = ServiceDescriptor.Singleton<
+                IOwnerRootKeyChangeObserver,
+                OwnerRootKeyChangeAnnouncer
+            >();
+            serviceCollection.TryAddEnumerable(ownerRootKeyChangeObserver);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IOwnerRootKeyPolicy, ControlPlaneTenantRootKeyPolicy>()
-            );
+            var ownerRootKeyPolicy = ServiceDescriptor.Singleton<
+                IOwnerRootKeyPolicy,
+                ControlPlaneTenantRootKeyPolicy
+            >();
+            serviceCollection.TryAddEnumerable(ownerRootKeyPolicy);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IOpenIdExceptionTranslator,
-                    OwnerRootKeyUnavailableExceptionTranslator
-                >()
-            );
+            var exceptionTranslator = ServiceDescriptor.Singleton<
+                IOpenIdExceptionTranslator,
+                OwnerRootKeyUnavailableExceptionTranslator
+            >();
+            serviceCollection.TryAddEnumerable(exceptionTranslator);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Scoped<
-                    IDispatchJobHandler<RemoteKeySweepJob>,
-                    RemoteKeySweepJobHandler
-                >()
-            );
+            var remoteKeySweepJobHandler = ServiceDescriptor.Scoped<
+                IDispatchJobHandler<RemoteKeySweepJob>,
+                RemoteKeySweepJobHandler
+            >();
+            serviceCollection.TryAddEnumerable(remoteKeySweepJobHandler);
+
+            // The secret persistence library registers its default resolver with TryAdd, so Replace makes the team
+            // chain win whichever registration runs first; TryAdd here would keep the library default, which
+            // AddIdentityServer registers first. A host registers its own resolver after AddIdentityServer().
+            var teamChainParentResolver = ServiceDescriptor.Singleton<
+                ISecretOwnerParentResolver,
+                TeamChainSecretOwnerParentResolver
+            >();
+            serviceCollection.Replace(teamChainParentResolver);
 
             serviceCollection.AddHostedService<MasterKeyMaintenanceService>();
             serviceCollection.AddHostedService<OwnerRootKeyValidationService>();

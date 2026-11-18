@@ -11,7 +11,7 @@ The Helm chart is the primary deployment artifact for `NCode.Identity.OpenId.Hos
 self-hosters install the same chart
 ([ADR-1133](1133-the-hosted-platform-runs-only-the-published-artifacts-it-offers-self-hosters.md)). It has to run the
 hardened image
-([ADR-1248](1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md))
+([ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md))
 as a rolling deployment behind an ingress. It also has to enforce the one rule the host cannot enforce itself: more than
 one replica needs Valkey
 ([ADR-1164](1164-replicas-share-expiring-keys-values-and-indexes-through-ports-with-in-process-and-valkey-adapters.md)). The platform's values live in
@@ -46,7 +46,9 @@ release the host or the console would refuse.**
 3. **Rendering fails, so `helm install` applies nothing,** instead of leaving a pod in a crash loop, when:
    - `allowedHosts` is empty or contains `*`;
    - the probe host would be a wildcard;
-   - neither `database.existingSecret` nor `database.parts.existingSecret` is named;
+   - neither `database.existingSecret` nor `database.parts.existingSecret` is named; `migrations.enabled` is true and
+     neither `migrations.database.existingSecret` nor `migrations.database.parts.existingSecret` is named, or
+     `database.runtimeRole` is empty; or `database.runtimeRole` is set and is not a lower-case Postgres role name;
    - a connection names both its connection-string Secret and its parts Secret, or a parts Secret leaves its host,
      database, user or password key empty;
    - a Valkey connection (`valkey` or `managementConsole.valkey`) names both its connection-string Secret and its parts
@@ -83,8 +85,9 @@ release the host or the console would refuse.**
 9. **The console is the `managementConsole` component, off until `managementConsole.enabled`.** It has its own
    Deployment, Service, token-less ServiceAccount, PodDisruptionBudget, Valkey Secret (`managementConsole.valkey`) and
    restricted pods. Its image serves HTTPS only on port 8443
-   ([ADR-1248](1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)), and its pods carry the same TLS
-   contract as the server's. Both images share the chart's `appVersion`, so one release deploys both at one version.
+   ([ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)), and its pods carry the same TLS
+   contract as the server's. Every image the chart deploys, the server's, the console's and the directory's, shares the
+   chart's `appVersion`, so one release deploys them at one version.
 10. **The console's route and URLs are derived.** The route for `managementConsole.host`, an Ingress or an HTTPRoute
     ([ADR-1507](1507-the-host-chart-routes-to-its-https-only-pods-through-gateway-api-a-traefik-ingress-or-the-operators-own-ingress.md)), routes every path to the
     console. `Bff:Frontends:mgmt:Authority` is `managementConsole.authority`, defaulting to the StaticSingle issuer, and
@@ -99,8 +102,8 @@ release the host or the console would refuse.**
 
 ## Options considered
 
-- **A chart for the console.** Rejected: the console's host joins the server's release, both images stay on the chart's
-  `appVersion`, and one install deploys both.
+- **A chart for the console.** Rejected: the console's host joins the server's release, the server's and the console's
+  images stay on the chart's `appVersion`, and one install deploys both.
 - **Sharing the server's Valkey.** Rejected: the console would reach the server's single-use state.
 - **Sharing the server's ServiceAccount.** Rejected: it may carry the server's cloud identities.
 - **Routing machine callers through the console's BFF.** Rejected: machine callers authenticate at the OP directly.
@@ -116,7 +119,7 @@ release the host or the console would refuse.**
 - A single-replica release has downtime on each update.
 - The `Host chart` workflow fails a change that makes an unsafe release render.
 - The Publish artifacts workflow publishes the chart with the images as a signed OCI artifact
-  ([ADR-1505](1505-every-merge-to-main-publishes-the-host-image-the-console-image-the-chart-and-the-openapi-document-at-one-prerelease-version.md)).
+  ([ADR-1505](1505-every-merge-to-main-publishes-the-host-console-and-directory-images-the-chart-and-the-openapi-document-at-one-prerelease-version.md)).
 
 ## References
 
@@ -125,7 +128,7 @@ release the host or the console would refuse.**
   [ADR-1133](1133-the-hosted-platform-runs-only-the-published-artifacts-it-offers-self-hosters.md),
   [ADR-1164](1164-replicas-share-expiring-keys-values-and-indexes-through-ports-with-in-process-and-valkey-adapters.md),
   [ADR-1235](1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md),
-  [ADR-1248](1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md),
+  [ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md),
   [ADR-1437](1437-the-management-console-is-a-confidential-client-whose-own-bff-host-serves-only-the-console.md),
   [ADR-1439](1439-a-bff-loads-its-configured-key-rings-at-start-and-refuses-frontends-naming-an-unknown-ring.md)
 - `charts/ncode-identity-host`, `.github/workflows/host-chart.yml`

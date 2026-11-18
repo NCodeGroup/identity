@@ -141,6 +141,33 @@ public interface IRemoteKeyProvider
     ValueTask DestroyKeyAsync(string keyId, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Sets the deployment tag of the key in the key management service, the tag that the remote-key sweep reads, so
+    /// the key belongs to the deployment of another cell. That deployment's sweep lists the key only while it lies in
+    /// the location that the deployment's provider is configured for, which <see cref="IsInLocation"/> tells, and no
+    /// sweep lists a key outside every configured location. The key's other tags and labels are kept. Completes without
+    /// error for a key that is missing.
+    /// </summary>
+    /// <param name="keyId">The key management service's identifier for the key.</param>
+    /// <param name="deployment">The deployment to tag the key with.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>A task that completes when the key carries the deployment.</returns>
+    // See ADR-1478.
+    ValueTask RetagKeyAsync(string keyId, string deployment, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Determines whether a key lies in the location that the provider is configured for, such as a region, a vault or
+    /// a key ring: the location whose keys <see cref="ListKeysAsync"/> lists and the remote-key sweep reads. It reads
+    /// the key's identifier and the provider's options and never calls the key management service.
+    /// </summary>
+    /// <param name="keyId">The key management service's identifier for the key.</param>
+    /// <returns>
+    /// <see langword="true"/> when the key lies in the configured location; <see langword="false"/> when it lies
+    /// elsewhere, when the identifier is not one the provider reads, or when the provider has no configured location.
+    /// </returns>
+    // See ADR-1514.
+    bool IsInLocation(string keyId);
+
+    /// <summary>
     /// Lists the enabled keys in the provider's configured location that the server created for the deployment: each
     /// carries a group that begins with <see cref="RemoteKeyGroupNames.Prefix"/> and the request's deployment. A key
     /// that is disabled, scheduled for deletion or destroyed, or whose tags cannot be read, is not listed.

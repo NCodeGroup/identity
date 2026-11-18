@@ -1,6 +1,10 @@
 # The management-console release routed by Gateway API with the chart's private CA: an HTTPRoute and a BackendTLSPolicy
 # for the server and for the console, with no Ingress. A post-install hook Job publishes the CA's ca.crt to the
 # <release>-ca ConfigMap that the BackendTLSPolicy verifies the pods against.
+cell:
+  name: ci-gateway-api-private-ca
+  region: ci
+  isControlPlane: true
 allowedHosts:
   - id.example.com
 tenantResolution:
@@ -8,6 +12,10 @@ tenantResolution:
     issuer: https://id.example.com
 database:
   existingSecret: identity-database
+  runtimeRole: ncode_identity_app
+migrations:
+  database:
+    existingSecret: identity-database-owner
 secretProtection:
   rootKeyProvider: local
   local:

@@ -30,6 +30,8 @@ interactive seed and the conformance seed. They are held to these forces:
   entirely different set of clients.
 - Two places that decide whether a host is local can disagree about what a deployment refuses. A name-based default
   beside a setting is two sources of truth.
+- A host whose `AllowedHosts` is empty or `*` answers a request for any host name, and a check that each host must add
+  itself is only as safe as its author's memory.
 - A root key provider that falls back to `ephemeral` starts a host with a root key that is lost on restart, which makes
   every stored secret unreadable, and only a deployment check would refuse it.
 - A launch profile that commits a bootstrap secret or an administrator password puts a development credential in the
@@ -60,8 +62,9 @@ intercepts keys in memory, no root key provider is a default, and no development
     ([ADR-1447](1447-each-host-composes-forwarded-header-trust-and-strict-transport-security-from-one-general-package.md)).
   - Setup is served over plain HTTP, only from a loopback remote address. A null remote address is not loopback
     ([ADR-1512](1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md)).
-  - The management console accepts a wildcard or empty `AllowedHosts`, and BFF and console validation accept `http`
-    URLs.
+  - Every BFF host, the management console's among them, and the global directory accept a wildcard or empty
+    `AllowedHosts`; BFF and console validation accept `http` URLs; and a cell's management URL may be an `http` URL on
+    any host, in the cell's validation and in the directory's cell registration.
   - The Data Protection key-ring gate revokes a key it cannot decrypt
     ([ADR-1247](1247-the-platform-master-key-protects-the-data-protection-ring-and-an-unreadable-key-stops-the-host.md)).
   - The local-root-key warning is not logged.
@@ -80,6 +83,20 @@ intercepts keys in memory, no root key provider is a default, and no development
   unless its section is present: `DeveloperKeys`, `Cors`, `DeveloperInteractiveSeed` and the conformance seed.
 - `AddDeploymentSafety` is the one place that decides what a deployment refuses. In a host without the switch it
   refuses every such section in one report that names each section.
+
+### Every host lists its own host names
+
+- **The check.** A host without the switch refuses an empty or wildcard `AllowedHosts` when it starts, one of the
+  findings of [project-template ADR-0119](project-template/0119-production-refuses-development-only-settings.md)
+  decision 3. The OP host's deployment gate (`AddDeploymentSafety`) reports it, and `AddHostFilteringValidation` in
+  `NCode.Identity.AspNetCore` refuses it in every BFF host and the global directory: `AddIdentityBff`, which the
+  management console composes, and `AddOpenIdDirectoryServer` call it.
+- **The BFF's and the directory's composition roots register it.** No deployment serves every `Host` header, so the
+  check leaves the host nothing to decide but its host names, and a host that calls `AddIdentityBff` or
+  `AddOpenIdDirectoryServer` cannot leave it out; a host that composes the BFF's libraries itself calls
+  `AddHostFilteringValidation` too. Forwarded-header trust and `Strict-Transport-Security` depend on whether a proxy
+  terminates TLS, so each host composes those itself
+([ADR-1447](1447-each-host-composes-forwarded-header-trust-and-strict-transport-security-from-one-general-package.md)).
 
 ### Keys come from the production path
 
@@ -156,6 +173,9 @@ intercepts keys in memory, no root key provider is a default, and no development
   is lost on restart. Tests and the conformance profile run with throwaway databases and set the switch.
 - Have the seeder generate and print the bootstrap secret. Rejected: a printed secret lands in logs, and both OP
   instances that share the database must agree on it.
+- Leave the `AllowedHosts` check to each BFF and directory host, as forwarded-header trust is left to it. Rejected: no
+  deployment serves every `Host` header, so the check takes no choice from the host, and a host that leaves the call
+  out answers a request for any host name.
 - Do nothing unless configured, run through the production path, and name the provider. Chosen.
 
 ## Consequences
@@ -163,6 +183,8 @@ intercepts keys in memory, no root key provider is a default, and no development
 - A host without `LocalDevelopment:Enabled` runs the deployment posture under every environment name, and the
   Production environment refuses the switch.
 - A host without `SecretProtection:RootKeyProvider` stops with an error naming it.
+- A BFF host, the management console among them, or the global directory without `LocalDevelopment:Enabled` stops at
+  startup with an error naming `AllowedHosts` when that setting is empty or contains `*`.
 - A deployment that carries a `DeveloperKeys`, `Cors`, `DeveloperInteractiveSeed` or conformance seed
   section, or selects `ephemeral`, fails to start, and the report names each offender.
 - A host that wants a frontend surface to sign in declares that surface's client under
@@ -181,6 +203,9 @@ intercepts keys in memory, no root key provider is a default, and no development
 - [`LocalDevelopmentOptions.cs`](../../src/NCode.Identity.AspNetCore/Options/LocalDevelopmentOptions.cs),
   [`LocalDevelopmentOptionsValidator.cs`](../../src/NCode.Identity.AspNetCore/Options/LocalDevelopmentOptionsValidator.cs)
   and [`LocalDevelopmentRegistration.cs`](../../src/NCode.Identity.AspNetCore/LocalDevelopmentRegistration.cs).
+- [`HostFilteringRegistration.cs`](../../src/NCode.Identity.AspNetCore/HostFilteringRegistration.cs),
+  [`HostFilteringOptionsValidator.cs`](../../src/NCode.Identity.AspNetCore/Options/HostFilteringOptionsValidator.cs)
+  and [`IdentityBffBuilder.cs`](../../src/NCode.Identity.Bff.Server/IdentityBffBuilder.cs).
 - [`SecretProtectionRegistration.cs`](../../src/NCode.Identity.Server/SecretProtection/SecretProtectionRegistration.cs),
   [`DefaultKeyWrapperCatalog.cs`](../../src/NCode.Identity.Secrets.Persistence/Protection/DefaultKeyWrapperCatalog.cs)
   and [`DevelopmentSecretFile.cs`](../../hosts/NCode.Identity.OpenId.LocalDev/DevelopmentSecrets/DevelopmentSecretFile.cs).

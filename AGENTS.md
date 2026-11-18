@@ -42,10 +42,10 @@ A project under `tests/` whose name does not end in `.Tests` is a support projec
 compiles it and no gate tests it
 ([ADR-1430](docs/decisions/1430-end-to-end-suites-run-the-bff-in-real-browsers-against-a-containerized-keycloak-in-their-own-gate.md)).
 
-- **Foundation** — `NCode.Identity.Json` (the JSON value model of JOSE, OAuth and OpenID Connect),
-  `NCode.Identity.Time` (`NumericDate` precision, timer and time periods) and `NCode.Identity.AspNetCore(.Abstractions)`
-  (page and response security, front-channel metadata, host hardening and the HTTP result contracts), which any package
-  may reference
+- **Foundation** — `NCode.Identity.Json` (the JSON value model of JOSE, OAuth and OpenID Connect, and the
+  schema-versioned serializer of the payloads stored at rest as JSON), `NCode.Identity.Time` (`NumericDate`
+  precision, timer and time periods) and `NCode.Identity.AspNetCore(.Abstractions)` (page and response security,
+  front-channel metadata, host hardening and the HTTP result contracts), which any package may reference
   ([ADR-1500](docs/decisions/1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md))
 - **JOSE / JWT** — `NCode.Identity.Jwk` (the JSON Web Key, key set and thumbprint model that the JOSE and Secrets
   libraries share), `NCode.Identity.Jose(.Abstractions)`, `NCode.Identity.Jwt(.Abstractions)`, and the opt-in algorithm
@@ -78,10 +78,17 @@ compiles it and no gate tests it
   [ADR-1276](docs/decisions/1276-the-oauth-and-openid-connect-wire-vocabulary-lives-in-a-dependency-free-package.md))
 - **Accounts** — `NCode.Identity.OpenId.Accounts(.Abstractions)` (local accounts behind one store seam),
   `NCode.Identity.OpenId.Accounts.AspNetIdentity` (the local-account store over ASP.NET Core Identity),
+  `NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore` (the Entity Framework Core model configuration of
+  that store's columns),
   `NCode.Identity.OpenId.Accounts.Authentication` (the password grant and interactive credential verification against
   local accounts) and `NCode.Identity.OpenId.Accounts.Management(.Abstractions)` (the management API's local-account
   endpoints)
   ([ADR-1051](docs/decisions/1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md))
+- **Directory** — `NCode.Identity.OpenId.GlobalDirectory(.Abstractions)` (the directory ports, the cell identity, and the
+  remote adapters of the directory and the control plane) and `NCode.Identity.OpenId.GlobalDirectory.Server` (the
+  directory API): the global directory reserves tenant and team identifiers platform-wide, places each tenant in a cell
+  and publishes team documents
+  ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md))
 - **Interactive login and consent** — `NCode.Identity.OpenId.Authentication.Interactive(.Abstractions)`: the opt-in
   sign-in, consent and account surface that the OP serves from the `apps/auth` bundle, with a pluggable credential
   verifier
@@ -105,7 +112,7 @@ compiles it and no gate tests it
   and on opt-in sends browser security headers (`UseBffSecurityHeaders()`) and publishes its client keys at `/bff/jwks`
   ([ADR-1382](docs/decisions/1382-the-bffs-browser-security-headers-and-its-client-key-endpoint-are-each-opt-in-for-the-host.md));
   `NCode.Identity.Bff.Server` is its turnkey composition root (`AddIdentityBff(configuration)`), which also loads the
-  key rings that `Bff:KeyRings` names from PEM files
+  key rings that `KeyRings` names, through the protocol client
   ([ADR-1439](docs/decisions/1439-a-bff-loads-its-configured-key-rings-at-start-and-refuses-frontends-naming-an-unknown-ring.md)); the opt-in
   `NCode.Identity.Bff.Blazor` (`AddBffBlazorLibrary()`, `AsBffComponents()`) and `NCode.Identity.Bff.Blazor.Client`
   (`AddBffBlazorClient()`) serve Blazor's interactive server and WebAssembly render modes over the same session, and
@@ -125,19 +132,26 @@ compiles it and no gate tests it
   opt-in `NCode.Identity.SharedState.Valkey` adapter
   ([ADR-1164](docs/decisions/1164-replicas-share-expiring-keys-values-and-indexes-through-ports-with-in-process-and-valkey-adapters.md))
 - **Composition** — `NCode.Identity.Registration` (the `IServiceBuilder<TMarker>` builder) and
-  `NCode.Identity.Registration.AspNetCore` (endpoint registration), `NCode.Identity.Server` (`AddIdentityServer()`)
+  `NCode.Identity.Registration.AspNetCore` (endpoint registration), `NCode.Identity.Server` (`AddIdentityServer()`), and
+  the opt-in `NCode.Identity.AspNetCore.OpenTelemetry` (`AddOpenTelemetryMetrics()`, the OpenTelemetry metrics
+  registration that only a host references —
+  [ADR-1197](docs/decisions/1197-telemetry-has-one-owner-per-signal-bounded-attributes-and-spans-that-mirror-their-histograms.md))
 - **Hosts (`hosts/`)** — the deployables, which no package ships: `NCode.Identity.OpenId.Host` (the ASP.NET Core
   reference OP), `NCode.Identity.OpenId.Host.Database` (the host's EF Core migrations and Npgsql wiring),
   `NCode.Identity.OpenId.Host.MigrationService` (the migration worker the host image carries),
-  `NCode.Identity.ManagementConsole.Host` (the management console's BFF host) and `NCode.Identity.OpenId.LocalDev`
-  (the .NET Aspire local-dev orchestrator)
-  ([ADR-1073](docs/decisions/1073-one-postgresql-database-holds-the-hosts-schema-and-key-ring-migrated-by-a-worker-and-drift-checked.md),
+  `NCode.Identity.ManagementConsole.Host` (the management console's BFF host),
+  `NCode.Identity.OpenId.GlobalDirectory.Host` (the directory host, with a `migrate` command; its image is built by the
+  `Directory image` check) and `NCode.Identity.OpenId.LocalDev` (the .NET Aspire local-dev orchestrator)
+  ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
+  [ADR-1073](docs/decisions/1073-one-postgresql-database-holds-the-hosts-schema-and-key-ring-migrated-by-a-worker-and-drift-checked.md),
   [ADR-1180](docs/decisions/1180-each-host-contexts-migrations-run-before-the-rollout-and-only-expand-the-schema.md),
   [ADR-1437](docs/decisions/1437-the-management-console-is-a-confidential-client-whose-own-bff-host-serves-only-the-console.md),
   [ADR-1071](docs/decisions/1071-the-aspire-apphost-runs-the-local-stack-in-health-gated-order-after-checking-the-frontend-toolchain.md))
 - **Build analyzers** — `NCode.Identity.Analyzers`, under `analyzers/`, the repository's own Roslyn analyzers, which
   every project's build loads and no package ships: `NCID0001` reports a field that could be an auto-property
-  ([ADR-1486](docs/decisions/1486-the-repositorys-own-analyzer-project-fails-the-build-on-a-field-an-auto-property-could-replace.md))
+  ([ADR-1486](docs/decisions/1486-the-repositorys-own-analyzer-project-fails-the-build-on-a-field-an-auto-property-could-replace.md)),
+  and `NCID0004` reports an `IgnoreQueryFilters()` call that no `// Cross-tenant: <why>` comment explains
+  ([ADR-1018](docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md))
 - **Frontend (`frontend/`)** — the pnpm workspace of the web apps (`apps/auth`, `apps/mgmt`, `apps/playground`,
   `apps/conformance`, `apps/conformance-runner`) and their shared `@ncode/*` packages, with a gate of its own
   ([ADR-1064](docs/decisions/1064-one-frontend-platform-of-shared-packages-and-thin-app-shells-serves-every-web-surface.md))
@@ -227,6 +241,10 @@ those two files win. Claude Code ignores `applyTo`, so
 The build scripts' PowerShell conventions are in
 [`powershell.instructions.md`](.github/instructions/powershell.instructions.md), which applies to every `.ps1` file;
 [`.claude/rules/powershell.md`](.claude/rules/powershell.md) points Claude Code at it.
+
+The frontend's conventions are in [`frontend.instructions.md`](.github/instructions/frontend.instructions.md), which
+applies to every `.ts` and `.tsx` file under `frontend/`; [`.claude/rules/frontend.md`](.claude/rules/frontend.md)
+points Claude Code at it.
 
 ## Known pending work
 

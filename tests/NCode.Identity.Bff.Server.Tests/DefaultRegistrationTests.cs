@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using Microsoft.AspNetCore.HostFiltering;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
@@ -8,6 +9,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using NCode.Identity.Bff.Options;
 using NCode.Identity.OpenId.Client;
+using NCode.Identity.Secrets.Collections;
 using NCode.Identity.SharedState;
 using Xunit;
 
@@ -174,6 +176,53 @@ public class DefaultRegistrationTests : BaseTests
                 && x.ImplementationType == typeof(BffRefreshLeaseStartupCheck)
                 && x.Lifetime == ServiceLifetime.Singleton
         );
+    }
+
+    [Fact]
+    public void AddIdentityBff_WithKeyRingsSection_RegistersKeyedKeyRing()
+    {
+        var serviceCollection = CreateServices();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["KeyRings:client-ring:PemFiles:0"] = "client.pem",
+                }
+            )
+            .Build();
+
+        serviceCollection.AddIdentityBff(configuration);
+
+        Assert.Contains(
+            serviceCollection,
+            x =>
+                x.ServiceType == typeof(ISecretKeyCollectionProvider)
+                && x.IsKeyedService
+                && Equals(x.ServiceKey, "client-ring")
+        );
+    }
+
+    [Fact]
+    public async Task AddIdentityBff_WithoutAllowedHostsAndTheSwitchOff_FailsWhenTheHostFilteringOptionsAreRead()
+    {
+        var serviceCollection = CreateServices();
+        serviceCollection.AddIdentityBff(CreateConfiguration());
+
+        await using var provider = serviceCollection.BuildServiceProvider();
+        var accessor = provider.GetRequiredService<IOptions<HostFilteringOptions>>();
+
+        Assert.Throws<OptionsValidationException>(() => accessor.Value);
+    }
+
+    [Fact]
+    public async Task AddIdentityBff_WithoutAllowedHostsAndTheSwitchOn_AcceptsTheHostFilteringOptions()
+    {
+        var serviceCollection = CreateServices();
+        serviceCollection.AddIdentityBff(CreateConfiguration(localDevelopment: true));
+
+        await using var provider = serviceCollection.BuildServiceProvider();
+
+        Assert.NotNull(provider.GetRequiredService<IOptions<HostFilteringOptions>>().Value);
     }
 
     [Fact]

@@ -10,7 +10,8 @@ using NCode.Identity.Persistence;
 namespace NCode.Identity.OpenId.Persistence.DataContracts;
 
 /// <summary>
-/// Contains the JSON settings for an OpenID resource server (an API, in Auth0 terms).
+/// Contains the settings document of a resource server (an API, in Auth0 terms): a JSON object, which is empty when the
+/// resource server has no settings.
 /// </summary>
 [PublicAPI]
 [ExcludeFromCodeCoverage]

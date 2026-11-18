@@ -22,6 +22,9 @@
     generates the host's OpenAPI document at artifacts/openapi/v1.json from the build output, which CI uploads
     (ADR-1505).
 
+    The build guards stage checks the guards of Directory.Build.targets (ADR-1197, ADR-1385, ADR-1501) against fixture
+    projects.
+
 .PARAMETER Configuration
     The build configuration. Defaults to Release.
 
@@ -45,7 +48,8 @@
     errors anywhere are caught. Composes with -Fast and -Filter.
 
 .PARAMETER Base
-    The commit-ish whose merge base with HEAD -Affected measures the changes from. Defaults to origin/main.
+    The commit-ish whose merge base with HEAD -Affected measures the changes from. The doc comment fill stage measures
+    from the same merge base. Defaults to origin/main.
 
 .EXAMPLE
     ./build/dod.ps1
@@ -215,6 +219,17 @@ try {
         $global:LASTEXITCODE = 0
     }
 
+    # Doc-comment fill gate: a doc paragraph a change adds or edits fills its lines within 120 columns (ADR-1515). Only
+    # the paragraphs the change touches since its merge base with -Base are checked, so the stage is as cheap as the
+    # change is small. Build-free, so it runs before the slow stages. Its fixture tests run first.
+    Invoke-Step 'doc comment fill' {
+        & (Join-Path $PSScriptRoot 'tests\doc-comment-fill.tests.ps1')
+        $problems = @(& (Join-Path $PSScriptRoot 'doc-comment-fill.ps1') -Base $Base)
+        $problems | ForEach-Object { Write-Host $_ }
+        if ($problems.Count -gt 0) { throw "doc comment fill found $($problems.Count) problem(s)." }
+        $global:LASTEXITCODE = 0
+    }
+
     # Favicon copies gate: each web app carries copies of the kit's favicon files because a frontend build reads only
     # src/. Build-free, so it runs before the slow stages. Its fixture tests end with the repository's own kit and apps.
     Invoke-Step 'favicon copies' {
@@ -240,6 +255,13 @@ try {
         $global:LASTEXITCODE = 0
     }
 
+    # The build's guards in Directory.Build.targets are checked against fixture projects that import the file alone,
+    # with no restore, so the stage is build-free and runs before the slow stages.
+    Invoke-Step 'build guards' {
+        & (Join-Path $PSScriptRoot 'tests\build-guards.tests.ps1')
+        $global:LASTEXITCODE = 0
+    }
+
     Invoke-Step 'restore' { dotnet restore $solution }
     # Build also PACKS: GeneratePackageOnBuild (Directory.Build.targets) emits each shippable .nupkg + .snupkg to
     # artifacts/packages as part of the build, so there is no separate pack step. -Fast builds projects in parallel
@@ -253,11 +275,12 @@ try {
         }
     }
 
-    # EF model-drift gate: fail if either host context has model changes no migration captures. The dev database
+    # EF model-drift gate: fail if a host context has model changes no migration captures. The dev database
     # is Postgres, applied by the migration worker (ADR-1073), so migrations are authoritative — an un-migrated model
-    # edit must fail pre-push and in CI, when the feature is added. Both contexts share the dev database (OpenID data +
-    # the developer DataProtection key ring), so both are checked. Reuses the build output (--no-build); exit code 1 =
-    # pending changes. The Database project carries the design-time factories, so it is both project and startup.
+    # edit must fail pre-push and in CI, when the feature is added. The cell's two contexts share the dev database
+    # (OpenID data + the developer DataProtection key ring) and the directory has its own, so all three are checked.
+    # Reuses the build output (--no-build); exit code 1 = pending changes. The Database project carries the cell's
+    # design-time factories, so it is both project and startup; the directory host carries its own.
     Invoke-Step 'ef model drift' {
         dotnet ef migrations has-pending-model-changes `
             --no-build `
@@ -274,6 +297,15 @@ try {
             --project hosts/NCode.Identity.OpenId.Host.Database/NCode.Identity.OpenId.Host.Database.csproj `
             --startup-project hosts/NCode.Identity.OpenId.Host.Database/NCode.Identity.OpenId.Host.Database.csproj `
             --context DeveloperDataProtectionDbContext
+        if ($LASTEXITCODE -ne 0) {
+            throw "ef model drift (DeveloperDataProtectionDbContext) failed with exit code $LASTEXITCODE."
+        }
+        dotnet ef migrations has-pending-model-changes `
+            --no-build `
+            --configuration $Configuration `
+            --project hosts/NCode.Identity.OpenId.GlobalDirectory.Host/NCode.Identity.OpenId.GlobalDirectory.Host.csproj `
+            --startup-project hosts/NCode.Identity.OpenId.GlobalDirectory.Host/NCode.Identity.OpenId.GlobalDirectory.Host.csproj `
+            --context DirectoryDbContext
     }
 
     # Writes artifacts/openapi/v1.json from the build output, which CI uploads as the openapi artifact (ADR-1505).

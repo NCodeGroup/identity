@@ -6,6 +6,10 @@ image:
   repository: ncode-identity-host
   tag: kind
   pullPolicy: Never
+cell:
+  name: ci-kind
+  region: ci
+  isControlPlane: true
 allowedHosts:
   - id.example.com
 tenantResolution:
@@ -13,16 +17,18 @@ tenantResolution:
     issuer: https://id.example.com
 database:
   parts:
-    existingSecret: postgres-app
+    existingSecret: postgres-runtime
+  runtimeRole: ncode_identity_app
+migrations:
+  database:
+    parts:
+      existingSecret: postgres-app
 secretProtection:
   rootKeyProvider: local
   local:
     keySecret: identity-root-key
   recovery:
     disabled: true
-  # Names this release's keys; with no remote key provider enabled, nothing uses it.
-  remoteKeys:
-    deployment: ci-kind
 backendTls:
   caPublisher:
     enabled: true

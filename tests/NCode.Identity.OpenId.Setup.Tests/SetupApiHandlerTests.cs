@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NCode.Buffers;
+using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Setup.Contracts;
 
@@ -154,7 +155,7 @@ public sealed class SetupApiHandlerTests : IDisposable
         return problem;
     }
 
-    private static void AssertRetryAfter(HttpContext httpContext)
+    private static void AssertRetryAfter(HttpContext httpContext, ProblemHttpResult problem)
     {
         var retryAfter = Assert.Single(httpContext.Response.Headers.RetryAfter);
         Assert.True(
@@ -165,6 +166,7 @@ public sealed class SetupApiHandlerTests : IDisposable
                 out var seconds
             )
         );
+        Assert.Equal(seconds, problem.ProblemDetails.Extensions[RetryAfterProblem.MemberName]);
         Assert.InRange(seconds, 1L, 60L);
         Assert.Equal("no-store", httpContext.Response.Headers.CacheControl.ToString());
     }
@@ -356,8 +358,8 @@ public sealed class SetupApiHandlerTests : IDisposable
 
         var result = await handler.CreateRootAsync(limitedContext, CancellationToken.None);
 
-        AssertProblem(result, StatusCodes.Status429TooManyRequests);
-        AssertRetryAfter(limitedContext);
+        var problem = AssertProblem(result, StatusCodes.Status429TooManyRequests);
+        AssertRetryAfter(limitedContext, problem);
     }
 
     [Fact]
@@ -778,7 +780,7 @@ public sealed class SetupApiHandlerTests : IDisposable
             ),
             problem.ProblemDetails.Detail
         );
-        AssertRetryAfter(limitedContext);
+        AssertRetryAfter(limitedContext, problem);
     }
 
     [Theory]

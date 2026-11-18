@@ -3,6 +3,7 @@
 
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Identity;
+using NCode.Identity.OpenId.Accounts.Stores;
 
 namespace NCode.Identity.OpenId.Accounts.AspNetIdentity;
 
@@ -14,7 +15,7 @@ namespace NCode.Identity.OpenId.Accounts.AspNetIdentity;
 /// <typeparam name="TUser">The ASP.NET Core Identity user type.</typeparam>
 // See ADR-1239.
 internal sealed class AspNetIdentityDummyPasswordHash<TUser>
-    where TUser : IdentityUser, new()
+    where TUser : IdentityUser, ITenantBoundUser, new()
 {
     private string? Hash { get; set; }
 

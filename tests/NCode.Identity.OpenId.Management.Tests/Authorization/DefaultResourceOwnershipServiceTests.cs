@@ -4,11 +4,12 @@
 using System.Security.Claims;
 using NCode.Identity.Cryptography;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Authorization;
+using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
-using NCode.Identity.OpenId.PrincipalResolution;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
 
@@ -17,8 +18,26 @@ namespace NCode.Identity.OpenId.Management;
 public class DefaultResourceOwnershipServiceTests : IDisposable
 {
     private MockRepository MockRepository { get; } = new(MockBehavior.Strict);
+    private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
+
+    public DefaultResourceOwnershipServiceTests()
+    {
+        MockAmbientTenantAccessor = MockRepository.Create<IAmbientTenantAccessor>();
+    }
 
     public void Dispose() => MockRepository.Verify();
+
+    private DefaultResourceOwnershipService CreateService(
+        ICryptoService cryptoService,
+        IControlPlaneAuthority controlPlaneAuthority,
+        IAuthorityChainResolver authorityChainResolver
+    ) =>
+        new(
+            cryptoService,
+            controlPlaneAuthority,
+            authorityChainResolver,
+            MockAmbientTenantAccessor.Object
+        );
 
     private static OpenIdContext CreateContext() =>
         Mock.Of<OpenIdContext>(context =>
@@ -27,6 +46,37 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
 
     private static ClaimsPrincipal CreateUser(params Claim[] claims) =>
         new(new ClaimsIdentity(claims, "test"));
+
+    private static ClaimsPrincipal CreateCaller(string subject = "subject-1") =>
+        CreateUser(new Claim("sub", subject), new Claim("client_id", "caller-client"));
+
+    // The control plane answers the principal id the caller's subject resolves to; a null id is a caller it does not
+    // know. The creator is asked without a team.
+    private Mock<IControlPlaneAuthority> CreateAuthority(
+        string? principalId,
+        string subject = "subject-1"
+    )
+    {
+        var authority = MockRepository.Create<IControlPlaneAuthority>();
+        authority
+            .Setup(x =>
+                x.GetAsync(
+                    It.Is<ControlPlaneAuthorityRequest>(request =>
+                        request.Subject == subject
+                        && request.ClientId == "caller-client"
+                        && request.TeamId == null
+                    ),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(
+                principalId is null
+                    ? ControlPlaneAuthority.None
+                    : new ControlPlaneAuthority { PrincipalId = principalId }
+            )
+            .Verifiable();
+        return authority;
+    }
 
     private static PersistedClient CreateClient(string? owningNodeType, string? owningNodeId) =>
         new PersistedClientBuilder
@@ -42,6 +92,16 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
         PersistedClient? client
     )
     {
+        // A principal's client is looked up across tenants, in an unscoped scope.
+        var isUnscoped = false;
+        var unscoped = MockRepository.Create<IDisposable>();
+        unscoped.Setup(x => x.Dispose()).Callback(() => isUnscoped = false).Verifiable();
+        MockAmbientTenantAccessor
+            .Setup(x => x.BeginUnscoped(DefaultResourceOwnershipService.UnscopedReason))
+            .Callback(() => isUnscoped = true)
+            .Returns(unscoped.Object)
+            .Verifiable();
+
         var clientStore = MockRepository.Create<IClientStore>();
         storeManager
             .Setup(x => x.GetStore<IClientStore>())
@@ -49,6 +109,7 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
             .Verifiable();
         clientStore
             .Setup(x => x.GetByPrincipalOrDefaultAsync(principalId, It.IsAny<CancellationToken>()))
+            .Callback(() => Assert.True(isUnscoped))
             .ReturnsAsync(client)
             .Verifiable();
     }
@@ -59,22 +120,11 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
         var storeManager = MockRepository.Create<IStoreManager>();
         var store = MockRepository.Create<IRoleAssignmentStore>();
         var crypto = MockRepository.Create<ICryptoService>();
-        var resolver = MockRepository.Create<IPrincipalResolver>();
+        var authority = CreateAuthority("subject-1");
 
         crypto
             .Setup(x => x.GenerateKey(16, BinaryEncodings.Base64Url))
             .Returns("assign-1")
-            .Verifiable();
-        resolver
-            .Setup(x =>
-                x.ResolvePrincipalIdAsync(
-                    It.IsAny<OpenIdContext>(),
-                    It.IsAny<ClaimsPrincipal>(),
-                    It.IsAny<IStoreManager>(),
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .ReturnsAsync("subject-1")
             .Verifiable();
         storeManager
             .Setup(x => x.GetStore<IRoleAssignmentStore>())
@@ -94,16 +144,15 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
 
         SetupClientByPrincipal(storeManager, "subject-1", null);
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             crypto.Object,
-            resolver.Object,
-            Mock.Of<IAmbientTenantAccessor>(),
+            authority.Object,
             Mock.Of<IAuthorityChainResolver>()
         );
 
         await service.AssignCreatorAsync(
             CreateContext(),
-            CreateUser(new Claim("sub", "subject-1")),
+            CreateCaller(),
             storeManager.Object,
             "tenant-1",
             ResourceNodeTypes.Client,
@@ -121,28 +170,17 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task AssignCreatorAsync_UsesResolvedPrincipalIdNotRawSubject()
+    public async Task AssignCreatorAsync_UsesTheControlPlanePrincipalIdNotRawSubject()
     {
         var storeManager = MockRepository.Create<IStoreManager>();
         var store = MockRepository.Create<IRoleAssignmentStore>();
         var crypto = MockRepository.Create<ICryptoService>();
-        var resolver = MockRepository.Create<IPrincipalResolver>();
+        // The control plane maps the raw upstream subject to a stable, server-owned principal id (ADR-1035).
+        var authority = CreateAuthority("principal-99", "raw-upstream-subject");
 
         crypto
             .Setup(x => x.GenerateKey(16, BinaryEncodings.Base64Url))
             .Returns("assign-1")
-            .Verifiable();
-        // The resolver maps the raw upstream subject to a stable, server-owned principal id (ADR-1035).
-        resolver
-            .Setup(x =>
-                x.ResolvePrincipalIdAsync(
-                    It.IsAny<OpenIdContext>(),
-                    It.IsAny<ClaimsPrincipal>(),
-                    It.IsAny<IStoreManager>(),
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .ReturnsAsync("principal-99")
             .Verifiable();
         storeManager
             .Setup(x => x.GetStore<IRoleAssignmentStore>())
@@ -162,16 +200,15 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
 
         SetupClientByPrincipal(storeManager, "principal-99", null);
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             crypto.Object,
-            resolver.Object,
-            Mock.Of<IAmbientTenantAccessor>(),
+            authority.Object,
             Mock.Of<IAuthorityChainResolver>()
         );
 
         await service.AssignCreatorAsync(
             CreateContext(),
-            CreateUser(new Claim("sub", "raw-upstream-subject")),
+            CreateCaller("raw-upstream-subject"),
             storeManager.Object,
             "tenant-1",
             ResourceNodeTypes.Client,
@@ -189,22 +226,11 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
         var storeManager = MockRepository.Create<IStoreManager>();
         var store = MockRepository.Create<IRoleAssignmentStore>();
         var crypto = MockRepository.Create<ICryptoService>();
-        var resolver = MockRepository.Create<IPrincipalResolver>();
+        var authority = CreateAuthority("principal-1");
 
         crypto
             .Setup(x => x.GenerateKey(16, BinaryEncodings.Base64Url))
             .Returns("assign-1")
-            .Verifiable();
-        resolver
-            .Setup(x =>
-                x.ResolvePrincipalIdAsync(
-                    It.IsAny<OpenIdContext>(),
-                    It.IsAny<ClaimsPrincipal>(),
-                    It.IsAny<IStoreManager>(),
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .ReturnsAsync("principal-1")
             .Verifiable();
         storeManager
             .Setup(x => x.GetStore<IRoleAssignmentStore>())
@@ -224,16 +250,15 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
 
         SetupClientByPrincipal(storeManager, "principal-1", null);
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             crypto.Object,
-            resolver.Object,
-            Mock.Of<IAmbientTenantAccessor>(),
+            authority.Object,
             Mock.Of<IAuthorityChainResolver>()
         );
 
         var result = await service.AssignCreatorAsync(
             CreateContext(),
-            CreateUser(new Claim("sub", "subject-1")),
+            CreateCaller(),
             storeManager.Object,
             "tenant-1",
             ResourceNodeTypes.Client,
@@ -252,33 +277,21 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
     public async Task AssignCreatorAsync_WhenTheCreatorIsAnOrdinaryClient_AssignsNoOwner()
     {
         var storeManager = MockRepository.Create<IStoreManager>();
-        var resolver = MockRepository.Create<IPrincipalResolver>();
+        var authority = CreateAuthority("client-principal");
 
-        resolver
-            .Setup(x =>
-                x.ResolvePrincipalIdAsync(
-                    It.IsAny<OpenIdContext>(),
-                    It.IsAny<ClaimsPrincipal>(),
-                    It.IsAny<IStoreManager>(),
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .ReturnsAsync("client-principal")
-            .Verifiable();
         var ordinaryClient = CreateClient(null, null);
         SetupClientByPrincipal(storeManager, "client-principal", ordinaryClient);
 
         // No role assignment store or crypto setups: a strict-mock failure would mean an owner was written.
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             MockRepository.Create<ICryptoService>().Object,
-            resolver.Object,
-            Mock.Of<IAmbientTenantAccessor>(),
+            authority.Object,
             MockRepository.Create<IAuthorityChainResolver>().Object
         );
 
         var result = await service.AssignCreatorAsync(
             CreateContext(),
-            CreateUser(),
+            CreateCaller(),
             storeManager.Object,
             "tenant-1",
             ResourceNodeTypes.Client,
@@ -289,135 +302,79 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
         Assert.Null(result);
     }
 
-    private sealed class StubAmbientTenantAccessor : IAmbientTenantAccessor
-    {
-        private Stack<string> Scopes { get; } = new();
-
-        public bool IsScoped => Scopes.Count > 0;
-
-        public string? TenantId => Scopes.TryPeek(out var tenantId) ? tenantId : null;
-
-        public IDisposable BeginScope(string tenantId)
-        {
-            Scopes.Push(tenantId);
-            return new Scope(Scopes);
-        }
-
-        private sealed class Scope(Stack<string> scopes) : IDisposable
-        {
-            public void Dispose() => scopes.Pop();
-        }
-    }
-
     [Fact]
-    public async Task AssignCreatorAsync_ResolvesTheCreatorUnderTheControlPlaneScope()
+    public async Task AssignCreatorAsync_AsksTheControlPlaneForTheCreatorRegardlessOfTheRequestsTenant()
     {
         var storeManager = MockRepository.Create<IStoreManager>();
         var store = MockRepository.Create<IRoleAssignmentStore>();
         var crypto = MockRepository.Create<ICryptoService>();
-        var resolver = MockRepository.Create<IPrincipalResolver>();
-        var openIdContext = MockRepository.Create<OpenIdContext>();
-        var accessor = new StubAmbientTenantAccessor();
+        var authority = CreateAuthority("principal-1");
 
-        openIdContext
-            .Setup(x => x.Tenant)
-            .Returns(Mock.Of<OpenIdTenant>(tenant => tenant.TenantId == "control-plane"))
-            .Verifiable();
         crypto
             .Setup(x => x.GenerateKey(16, BinaryEncodings.Base64Url))
             .Returns("assign-1")
-            .Verifiable();
-
-        string? tenantIdWhileResolving = null;
-        resolver
-            .Setup(x =>
-                x.ResolvePrincipalIdAsync(
-                    It.IsAny<OpenIdContext>(),
-                    It.IsAny<ClaimsPrincipal>(),
-                    It.IsAny<IStoreManager>(),
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .Callback(() => tenantIdWhileResolving = accessor.TenantId)
-            .ReturnsAsync("principal-1")
             .Verifiable();
         storeManager
             .Setup(x => x.GetStore<IRoleAssignmentStore>())
             .Returns(store.Object)
             .Verifiable();
-
-        string? tenantIdWhileAdding = null;
         store
             .Setup(x =>
-                x.AddAsync(It.IsAny<PersistedRoleAssignment>(), It.IsAny<CancellationToken>())
-            )
-            .Callback(
-                (PersistedRoleAssignment _, CancellationToken _) =>
-                    tenantIdWhileAdding = accessor.TenantId
+                x.AddAsync(
+                    It.Is<PersistedRoleAssignment>(assignment =>
+                        assignment.TenantId == "route-tenant"
+                        && assignment.PrincipalId == "principal-1"
+                    ),
+                    It.IsAny<CancellationToken>()
+                )
             )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
         SetupClientByPrincipal(storeManager, "principal-1", null);
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             crypto.Object,
-            resolver.Object,
-            accessor,
+            authority.Object,
             Mock.Of<IAuthorityChainResolver>()
         );
 
-        using (accessor.BeginScope("route-tenant"))
-        {
-            await service.AssignCreatorAsync(
-                openIdContext.Object,
-                CreateUser(new Claim("sub", "subject-1")),
-                storeManager.Object,
-                "route-tenant",
-                ResourceNodeTypes.Client,
-                "client-1",
-                CancellationToken.None
-            );
-
-            Assert.Equal("route-tenant", accessor.TenantId);
-        }
-
-        Assert.Equal("control-plane", tenantIdWhileResolving);
-        Assert.Equal("route-tenant", tenantIdWhileAdding);
+        await service.AssignCreatorAsync(
+            CreateContext(),
+            CreateCaller(),
+            storeManager.Object,
+            "route-tenant",
+            ResourceNodeTypes.Client,
+            "client-1",
+            CancellationToken.None
+        );
     }
 
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    public async Task AssignCreatorAsync_WhenTheCreatorHasNoSubject_AddsNoAssignment(
-        string? resolvedPrincipalId
+    public async Task AssignCreatorAsync_WhenTheControlPlaneAnswersNoPrincipalId_AddsNoAssignment(
+        string? principalId
     )
     {
-        var resolver = MockRepository.Create<IPrincipalResolver>();
-
-        resolver
+        var authority = MockRepository.Create<IControlPlaneAuthority>();
+        authority
             .Setup(x =>
-                x.ResolvePrincipalIdAsync(
-                    It.IsAny<OpenIdContext>(),
-                    It.IsAny<ClaimsPrincipal>(),
-                    It.IsAny<IStoreManager>(),
-                    It.IsAny<CancellationToken>()
-                )
+                x.GetAsync(It.IsAny<ControlPlaneAuthorityRequest>(), It.IsAny<CancellationToken>())
             )
-            .ReturnsAsync(resolvedPrincipalId!)
+            .ReturnsAsync(new ControlPlaneAuthority { PrincipalId = principalId })
             .Verifiable();
 
         // No store or crypto setups: a strict-mock failure would mean an assignment was written.
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             MockRepository.Create<ICryptoService>().Object,
-            resolver.Object,
-            Mock.Of<IAmbientTenantAccessor>(),
+            authority.Object,
             Mock.Of<IAuthorityChainResolver>()
         );
 
         var result = await service.AssignCreatorAsync(
             CreateContext(),
-            CreateUser(),
+            CreateCaller(),
             MockRepository.Create<IStoreManager>().Object,
             "tenant-1",
             ResourceNodeTypes.Client,
@@ -429,32 +386,19 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task AssignCreatorAsync_WhenTheCallerHasNoPrincipal_ReturnsNull()
+    public async Task AssignCreatorAsync_WhenTheControlPlaneDoesNotKnowTheCaller_ReturnsNull()
     {
-        var resolver = MockRepository.Create<IPrincipalResolver>();
+        var authority = CreateAuthority(null);
 
-        resolver
-            .Setup(x =>
-                x.ResolvePrincipalIdAsync(
-                    It.IsAny<OpenIdContext>(),
-                    It.IsAny<ClaimsPrincipal>(),
-                    It.IsAny<IStoreManager>(),
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .ReturnsAsync(string.Empty)
-            .Verifiable();
-
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             MockRepository.Create<ICryptoService>().Object,
-            resolver.Object,
-            Mock.Of<IAmbientTenantAccessor>(),
+            authority.Object,
             Mock.Of<IAuthorityChainResolver>()
         );
 
         var result = await service.AssignCreatorAsync(
             CreateContext(),
-            CreateUser(),
+            CreateCaller(),
             MockRepository.Create<IStoreManager>().Object,
             "tenant-1",
             ResourceNodeTypes.Client,
@@ -463,6 +407,65 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
         );
 
         Assert.Null(result);
+    }
+
+    [Theory]
+    [InlineData("sub")]
+    [InlineData("client_id")]
+    public async Task AssignCreatorAsync_WhenAnIdentifyingClaimIsMissing_ReturnsNullWithoutAskingTheControlPlane(
+        string missingClaim
+    )
+    {
+        var user = CreateCaller();
+        user.Identities.Single().RemoveClaim(user.FindFirst(missingClaim));
+
+        var service = CreateService(
+            MockRepository.Create<ICryptoService>().Object,
+            MockRepository.Create<IControlPlaneAuthority>().Object,
+            Mock.Of<IAuthorityChainResolver>()
+        );
+
+        var result = await service.AssignCreatorAsync(
+            CreateContext(),
+            user,
+            MockRepository.Create<IStoreManager>().Object,
+            "tenant-1",
+            ResourceNodeTypes.Client,
+            "client-1",
+            CancellationToken.None
+        );
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task AssignCreatorAsync_WhenTheControlPlaneIsUnavailable_Throws()
+    {
+        var authority = MockRepository.Create<IControlPlaneAuthority>();
+        authority
+            .Setup(x =>
+                x.GetAsync(It.IsAny<ControlPlaneAuthorityRequest>(), It.IsAny<CancellationToken>())
+            )
+            .Throws(new DirectoryUnavailableException("unavailable"))
+            .Verifiable();
+
+        var service = CreateService(
+            MockRepository.Create<ICryptoService>().Object,
+            authority.Object,
+            Mock.Of<IAuthorityChainResolver>()
+        );
+
+        await Assert.ThrowsAsync<DirectoryUnavailableException>(async () =>
+            await service.AssignCreatorAsync(
+                CreateContext(),
+                CreateCaller(),
+                MockRepository.Create<IStoreManager>().Object,
+                "tenant-1",
+                ResourceNodeTypes.Client,
+                "client-1",
+                CancellationToken.None
+            )
+        );
     }
 
     [Theory]
@@ -471,10 +474,9 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
     public async Task AddOwnerAsync_WhenThePrincipalIdIsEmpty_Throws(string? principalId)
     {
         // No store or crypto setups: a strict-mock failure would mean an assignment was written.
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             MockRepository.Create<ICryptoService>().Object,
-            MockRepository.Create<IPrincipalResolver>().Object,
-            Mock.Of<IAmbientTenantAccessor>(),
+            MockRepository.Create<IControlPlaneAuthority>().Object,
             Mock.Of<IAuthorityChainResolver>()
         );
 
@@ -534,10 +536,9 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
             .ReturnsAsync([Owner("p1", "a1"), nonOwner, Owner("p3", "a3")])
             .Verifiable();
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             Mock.Of<ICryptoService>(),
-            Mock.Of<IPrincipalResolver>(),
-            Mock.Of<IAmbientTenantAccessor>(),
+            Mock.Of<IControlPlaneAuthority>(),
             Mock.Of<IAuthorityChainResolver>()
         );
         var owners = await service.GetOwnersAsync(
@@ -586,10 +587,9 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
 
         SetupClientByPrincipal(storeManager, "p2", null);
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             crypto.Object,
-            Mock.Of<IPrincipalResolver>(),
-            Mock.Of<IAmbientTenantAccessor>(),
+            Mock.Of<IControlPlaneAuthority>(),
             Mock.Of<IAuthorityChainResolver>()
         );
         var result = await service.AddOwnerAsync(
@@ -633,10 +633,9 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
         // No AddAsync/crypto setups: a strict-mock failure would mean a duplicate owner was written.
         SetupClientByPrincipal(storeManager, "p1", null);
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             Mock.Of<ICryptoService>(),
-            Mock.Of<IPrincipalResolver>(),
-            Mock.Of<IAmbientTenantAccessor>(),
+            Mock.Of<IControlPlaneAuthority>(),
             Mock.Of<IAuthorityChainResolver>()
         );
         var result = await service.AddOwnerAsync(
@@ -674,10 +673,9 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
             .ReturnsAsync([Owner("p1", "a1")])
             .Verifiable();
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             Mock.Of<ICryptoService>(),
-            Mock.Of<IPrincipalResolver>(),
-            Mock.Of<IAmbientTenantAccessor>(),
+            Mock.Of<IControlPlaneAuthority>(),
             Mock.Of<IAuthorityChainResolver>()
         );
         var result = await service.RemoveOwnerAsync(
@@ -714,10 +712,9 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
             .Verifiable();
 
         // No RemoveAsync setup: a strict-mock failure would mean the last owner was removed.
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             Mock.Of<ICryptoService>(),
-            Mock.Of<IPrincipalResolver>(),
-            Mock.Of<IAmbientTenantAccessor>(),
+            Mock.Of<IControlPlaneAuthority>(),
             Mock.Of<IAuthorityChainResolver>()
         );
         var result = await service.RemoveOwnerAsync(
@@ -759,10 +756,9 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             Mock.Of<ICryptoService>(),
-            Mock.Of<IPrincipalResolver>(),
-            Mock.Of<IAmbientTenantAccessor>(),
+            Mock.Of<IControlPlaneAuthority>(),
             Mock.Of<IAuthorityChainResolver>()
         );
         var result = await service.RemoveOwnerAsync(
@@ -802,10 +798,9 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             Mock.Of<ICryptoService>(),
-            Mock.Of<IPrincipalResolver>(),
-            Mock.Of<IAmbientTenantAccessor>(),
+            Mock.Of<IControlPlaneAuthority>(),
             Mock.Of<IAuthorityChainResolver>()
         );
         var result = await service.RemoveOwnerAsync(
@@ -868,10 +863,9 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
         SetupClientByPrincipal(storeManager, "p1", null);
 
         // No AddAsync/crypto setups: a strict-mock failure would mean a duplicate was written.
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             Mock.Of<ICryptoService>(),
-            Mock.Of<IPrincipalResolver>(),
-            Mock.Of<IAmbientTenantAccessor>(),
+            Mock.Of<IControlPlaneAuthority>(),
             Mock.Of<IAuthorityChainResolver>()
         );
         var result = await service.AddAssignmentAsync(
@@ -896,10 +890,9 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
         SetupClientByPrincipal(storeManager, "p1", null);
 
         // No AddAsync/crypto setups: a strict-mock failure would mean a duplicate was written.
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             Mock.Of<ICryptoService>(),
-            Mock.Of<IPrincipalResolver>(),
-            Mock.Of<IAmbientTenantAccessor>(),
+            Mock.Of<IControlPlaneAuthority>(),
             Mock.Of<IAuthorityChainResolver>()
         );
         var result = await service.AddAssignmentAsync(
@@ -936,10 +929,9 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
 
         SetupClientByPrincipal(storeManager, "p1", null);
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             crypto.Object,
-            Mock.Of<IPrincipalResolver>(),
-            Mock.Of<IAmbientTenantAccessor>(),
+            Mock.Of<IControlPlaneAuthority>(),
             Mock.Of<IAuthorityChainResolver>()
         );
         var result = await service.AddAssignmentAsync(
@@ -990,10 +982,9 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
         SetupClientByPrincipal(storeManager, "p1", ordinaryClient);
 
         // No role assignment store or crypto setups: a strict-mock failure would mean a role was read or written.
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             MockRepository.Create<ICryptoService>().Object,
-            Mock.Of<IPrincipalResolver>(),
-            Mock.Of<IAmbientTenantAccessor>(),
+            Mock.Of<IControlPlaneAuthority>(),
             MockRepository.Create<IAuthorityChainResolver>().Object
         );
         var result = await service.AddAssignmentAsync(
@@ -1034,10 +1025,9 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             crypto.Object,
-            Mock.Of<IPrincipalResolver>(),
-            Mock.Of<IAmbientTenantAccessor>(),
+            Mock.Of<IControlPlaneAuthority>(),
             authorityChain.Object
         );
         var result = await service.AddAssignmentAsync(
@@ -1068,10 +1058,9 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
         );
 
         // No role assignment store or crypto setups: a strict-mock failure would mean a role was read or written.
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             MockRepository.Create<ICryptoService>().Object,
-            Mock.Of<IPrincipalResolver>(),
-            Mock.Of<IAmbientTenantAccessor>(),
+            Mock.Of<IControlPlaneAuthority>(),
             authorityChain.Object
         );
         var result = await service.AddAssignmentAsync(
@@ -1108,10 +1097,9 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
             .Verifiable();
 
         // No authority chain setups: a platform machine client holds a role anywhere.
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             crypto.Object,
-            Mock.Of<IPrincipalResolver>(),
-            Mock.Of<IAmbientTenantAccessor>(),
+            Mock.Of<IControlPlaneAuthority>(),
             MockRepository.Create<IAuthorityChainResolver>().Object
         );
         var result = await service.AddAssignmentAsync(
@@ -1142,10 +1130,9 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             Mock.Of<ICryptoService>(),
-            Mock.Of<IPrincipalResolver>(),
-            Mock.Of<IAmbientTenantAccessor>(),
+            Mock.Of<IControlPlaneAuthority>(),
             Mock.Of<IAuthorityChainResolver>()
         );
         var result = await service.RemoveAssignmentAsync(
@@ -1174,10 +1161,9 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             Mock.Of<ICryptoService>(),
-            Mock.Of<IPrincipalResolver>(),
-            Mock.Of<IAmbientTenantAccessor>(),
+            Mock.Of<IControlPlaneAuthority>(),
             Mock.Of<IAuthorityChainResolver>()
         );
         var result = await service.RemoveAssignmentAsync(
@@ -1200,10 +1186,9 @@ public class DefaultResourceOwnershipServiceTests : IDisposable
     {
         var (storeManager, _) = CreateStore(Assignment("p1", "a1", BuiltInRoles.Owner));
 
-        var service = new DefaultResourceOwnershipService(
+        var service = CreateService(
             Mock.Of<ICryptoService>(),
-            Mock.Of<IPrincipalResolver>(),
-            Mock.Of<IAmbientTenantAccessor>(),
+            Mock.Of<IControlPlaneAuthority>(),
             Mock.Of<IAuthorityChainResolver>()
         );
         var result = await service.RemoveAssignmentAsync(

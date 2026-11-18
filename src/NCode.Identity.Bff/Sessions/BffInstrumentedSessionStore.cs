@@ -90,11 +90,12 @@ internal sealed class BffInstrumentedSessionStore(IBffSessionStore inner, BffMet
 
     /// <inheritdoc />
     public ValueTask<IReadOnlyList<BffSessionClient>> FindClientsAsync(
+        IReadOnlyCollection<BffSessionClient> except,
         CancellationToken cancellationToken
     ) =>
         MeasureAsync(
             BffMetrics.FindClientsOperation,
-            token => Inner.FindClientsAsync(token),
+            token => Inner.FindClientsAsync(except, token),
             cancellationToken
         );
 
@@ -106,6 +107,18 @@ internal sealed class BffInstrumentedSessionStore(IBffSessionStore inner, BffMet
         MeasureAsync(
             BffMetrics.FindByClientOperation,
             token => Inner.FindByClientAsync(client, token),
+            cancellationToken
+        );
+
+    /// <inheritdoc />
+    public ValueTask ForgetEndedSessionAsync(
+        BffSessionClient client,
+        string storeKey,
+        CancellationToken cancellationToken
+    ) =>
+        MeasureAsync(
+            BffMetrics.ForgetEndedSessionOperation,
+            token => Inner.ForgetEndedSessionAsync(client, storeKey, token),
             cancellationToken
         );
 

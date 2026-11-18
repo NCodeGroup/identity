@@ -3,6 +3,10 @@
 replicaCount: 3
 image:
   digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+cell:
+  name: ci-valkey-parts
+  region: ci
+  isControlPlane: true
 allowedHosts:
   - id.example.com
   - id.example.org
@@ -15,6 +19,11 @@ forwardedHeaders:
 database:
   parts:
     existingSecret: identity-db-app
+  runtimeRole: ncode_identity_app
+migrations:
+  database:
+    parts:
+      existingSecret: identity-db-schema
 valkey:
   parts:
     existingSecret: identity-valkey-app
@@ -26,10 +35,6 @@ secretProtection:
       - identity-root-key-2026
   recovery:
     disabled: true
-  # Names this release's keys, so a render that sets a remote key provider on top of these values passes the
-  # deployment check; with no provider set, nothing uses it.
-  remoteKeys:
-    deployment: ci-valkey-parts
 ingress:
   enabled: true
   controller: traefik

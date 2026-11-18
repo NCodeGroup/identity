@@ -8,6 +8,7 @@ using NCode.Identity.Events;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Core.Tests;
 using NCode.Identity.OpenId.Logging;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Platform;
 using NCode.Identity.OpenId.SecretProtection;
 using NCode.Identity.OpenId.Tenants;
@@ -36,6 +37,7 @@ public sealed class MasterKeyMaintenanceServiceTests : BaseTests
     private Mock<IStoreManagerFactory> StoreManagerFactory { get; }
     private Mock<IMasterKeyStore> Store { get; }
     private Mock<IStoreManager> StoreManager { get; }
+    private Mock<IAmbientTenantAccessor> AmbientTenantAccessor { get; }
     private Mock<IExpiringKeySet> KeySet { get; }
     private Mock<IEventPublisher> Publisher { get; }
     private Mock<ITenantResolver> TenantResolver { get; }
@@ -50,6 +52,7 @@ public sealed class MasterKeyMaintenanceServiceTests : BaseTests
         StoreManagerFactory = CreateStrictMock<IStoreManagerFactory>();
         Store = CreateStrictMock<IMasterKeyStore>();
         StoreManager = CreateStrictMock<IStoreManager>();
+        AmbientTenantAccessor = CreateStrictMock<IAmbientTenantAccessor>();
         KeySet = CreateStrictMock<IExpiringKeySet>();
         Publisher = CreateStrictMock<IEventPublisher>();
         TenantResolver = CreateStrictMock<ITenantResolver>();
@@ -73,6 +76,7 @@ public sealed class MasterKeyMaintenanceServiceTests : BaseTests
             PlatformAccessor.Object,
             Manager.Object,
             StoreManagerFactory.Object,
+            AmbientTenantAccessor.Object,
             KeySet.Object,
             Publisher.Object,
             TenantResolver.Object,
@@ -168,7 +172,8 @@ public sealed class MasterKeyMaintenanceServiceTests : BaseTests
             .Returns(ControlPlaneTenantId)
             .Verifiable();
 
-    private void SetupLease(bool acquired) =>
+    private void SetupLease(bool acquired)
+    {
         KeySet
             .Setup(x =>
                 x.TryAddAsync(
@@ -179,6 +184,16 @@ public sealed class MasterKeyMaintenanceServiceTests : BaseTests
             )
             .ReturnsAsync(acquired)
             .Verifiable(Times.Once());
+
+        // A pass that wins the lease runs in an unscoped scope.
+        if (acquired)
+        {
+            AmbientTenantAccessor
+                .Setup(x => x.BeginUnscoped("master key maintenance"))
+                .Returns(Mock.Of<IDisposable>())
+                .Verifiable(Times.Once());
+        }
+    }
 
     private void SetupActivePage(
         string? cursor,

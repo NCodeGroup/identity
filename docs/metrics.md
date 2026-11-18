@@ -10,7 +10,8 @@ costs nothing per series.
 ## Collecting the metrics
 
 The library packages record through `System.Diagnostics.Metrics` and cost nothing until a listener subscribes. A host
-opts in with `AddOpenTelemetryMetrics(configuration)` from `NCode.Identity.Server`. It adds:
+opts in with `AddOpenTelemetryMetrics(configuration)` from the opt-in `NCode.Identity.AspNetCore.OpenTelemetry` package,
+the only package that references the OpenTelemetry SDK. It adds:
 
 - every meter whose name starts with `NCode.Identity.`;
 - ASP.NET Core's built-in meters (`Microsoft.AspNetCore.Hosting`, `Microsoft.AspNetCore.Server.Kestrel`,
@@ -121,7 +122,7 @@ several round trips.
 
 | Attribute                                    | Values                                                                                                                                                                                          |
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ncode.identity.bff.session_store.operation` | `create`, `get`, `replace`, `remove`, `find_by_session_id`, `find_by_subject`, `find_clients`, `find_by_client`, `add_transaction`, `take_transaction`, `acquire_refresh_lease`, `is_refresh_lease_held`, `release_refresh_lease` |
+| `ncode.identity.bff.session_store.operation` | `create`, `get`, `replace`, `remove`, `find_by_session_id`, `find_by_subject`, `find_clients`, `find_by_client`, `forget_ended_session`, `add_transaction`, `take_transaction`, `acquire_refresh_lease`, `is_refresh_lease_held`, `release_refresh_lease` |
 | `error.type`                                 | On failure only: the full type name of the exception                                                                                                                                            |
 
 ### `ncode.identity.outbound_http.retries` and `ncode.identity.openid_client.retries`

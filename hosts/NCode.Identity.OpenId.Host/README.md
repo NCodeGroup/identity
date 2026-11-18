@@ -20,7 +20,8 @@ The AppHost:
 - runs the **migration worker** (`NCode.Identity.OpenId.Host.MigrationService`), which applies the Npgsql
   migrations for both contexts and then exits — a migration failure shows up as a **failed dashboard resource** that
   holds back the `api`, instead of crashing it;
-- starts this `api` host, which receives the `openiddb` connection string via Aspire service discovery.
+- starts this `api` host, which assembles its connection from the runtime role's `OpenIdDatabase` parts that the
+  AppHost hands it.
 
 A container runtime (Docker Desktop or Podman) must be running when you launch the AppHost.
 
@@ -106,7 +107,7 @@ binds a key a KMS already holds and creates none: `tenant_key_provider` cannot n
 | `SecretProtection:RemoteKeyProviders:AzureKeyVault:HardwareProtected`  | `false` creates software-protected keys (default `true`)                                                                                        |
 | `SecretProtection:RemoteKeyProviders:GoogleCloudKms:KeyRing`           | Resource name of the key ring in which keys are created; empty creates no keys, `projects/<project>/locations/<location>/keyRings/<ring>`       |
 | `SecretProtection:RemoteKeyProviders:GoogleCloudKms:HardwareProtected` | `false` creates software-protected keys (default `true`)                                                                                        |
-| `SecretProtection:RemoteKeys:Deployment`                               | Required with a provider that creates keys: lowercase letters, digits and hyphens, at most 40; unique to the database within a shared KMS scope |
+| `SecretProtection:RemoteKeys:Deployment`                               | Derived from `Cell:Name`, the tag of the keys the cell creates and sweeps; an explicit value must equal it                                      |
 | `SecretProtection:RemoteKeys:SweepEnabled`                             | `false` turns the orphaned-key sweep off (default `true`)                                                                                       |
 | `SecretProtection:RemoteKeys:SweepInterval`                            | Time between sweeps (default one day)                                                                                                           |
 | `SecretProtection:RemoteKeys:SweepGracePeriod`                         | Age a key reaches before the sweep may destroy it (default one day, between one hour and 365 days)                                              |
@@ -120,12 +121,12 @@ sign-only or decrypt-only keys and destroys only the keys it created. The deploy
 - Google: `cloudkms.cryptoKeys.create` and `cloudkms.cryptoKeys.list`, and `cloudkms.cryptoKeyVersions.create`, `.list`,
   `.get`, `.viewPublicKey`, `.useToSign`, `.useToDecrypt` and `.destroy` on the key ring.
 
-Scope the identity to the deployment's keys: on AWS, condition `kms:ScheduleKeyDeletion` on
-`aws:ResourceTag/ncode-identity:deployment` equal to the deployment name, and `kms:CreateKey` and `kms:TagResource` on
-`aws:RequestTag/ncode-identity:deployment`, so it creates and destroys only keys of its deployment (`kms:ListKeys`
-names no resource, and a bound key carries no such tag); on Azure, a role assignment cannot be conditioned on a key's
-tags, so give each deployment a vault of its own and a custom role without delete and purge; on Google, a grant on a key
-ring covers every crypto key in it, so give each deployment a key ring of its own.
+Scope the identity to the cell's keys: on AWS, condition `kms:ScheduleKeyDeletion` on
+`aws:ResourceTag/ncode-identity:deployment` equal to the cell's name (`Cell:Name`), and `kms:CreateKey` and
+`kms:TagResource` on `aws:RequestTag/ncode-identity:deployment` equal to it, so it creates and destroys only keys of its
+cell (`kms:ListKeys` names no resource, and a bound key carries no such tag); on Azure, a role assignment cannot be
+conditioned on a key's tags, so give each cell a vault of its own and a custom role without delete and purge; on
+Google, a grant on a key ring covers every crypto key in it, so give each cell a key ring of its own.
 
 The management API creates a tenant's key in a registered provider with `POST /api/tenants/{tenantId}/secrets/remote`
 and binds a key that a provider already holds, once it proves it signs or decrypts, with
@@ -298,7 +299,8 @@ required, carries `[ContractMigration("why")]`, whose reason says why nothing re
 carries both markers fails.
 
 The Definition of Done fails if the model has changes no migration captures (`dotnet ef migrations
-has-pending-model-changes`, run for both contexts), so scaffold the migration before pushing.
+has-pending-model-changes`, run for the cell's two contexts and the directory's), so scaffold the migration before
+pushing.
 
 ## Purging / resetting the local database
 
@@ -333,7 +335,7 @@ when `LocalDevelopment:Enabled` is set
 
 The `Dockerfile` builds the production image from the repository root. Its base images are pinned by tag and digest, and
 Dependabot moves the digests
-([ADR-1248](../../docs/decisions/1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)); the
+([ADR-1248](../../docs/decisions/1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)); the
 Node image's major matches the single pin in `frontend/.node-version`, which the `Host image` workflow checks:
 
 ```bash
@@ -350,7 +352,7 @@ a proxy in front of it connects over HTTPS. Probe `/health/live` for liveness an
 image writes one JSON object per line to standard output, with a UTC timestamp, so a log collector keeps an entry and
 its exception in one record; set `Logging__Console__FormatterName=simple` to write text. CI builds it for `linux/amd64` and
 `linux/arm64`
-([ADR-1248](../../docs/decisions/1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)).
+([ADR-1248](../../docs/decisions/1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)).
 
 The `ProxyClientCertificate` section makes the host require the reverse proxy's client certificate. With
 `ProxyClientCertificate__Required=true`, the host answers `403` to every request whose connection carries no certificate
@@ -378,20 +380,30 @@ the deployment provides:
 - `ConnectionStrings__openiddb`, or the parts `OpenIdDatabase__Host`, `OpenIdDatabase__Port` (optional),
   `OpenIdDatabase__Name`, `OpenIdDatabase__Username` and `OpenIdDatabase__Password`: the Postgres database, as a
   finished Npgsql connection string or as its parts, which the host assembles into one with the password quoted.
-  Setting both, or some but not all of the required parts, stops the host at start. It also stores the key ring, so the
-  host refuses to start without it
+  Setting both, or some but not all of the required parts, stops the host at start. The host connects as the runtime
+  role, which must not own the tables, be a superuser or have `BYPASSRLS`, or the host refuses to start. It also stores
+  the key ring, so the host refuses to start without it
   ([ADR-1509](../../docs/decisions/1509-the-host-chart-passes-a-postgres-operators-secret-as-the-connections-parts-and-the-host-assembles-the-npgsql-connection.md)).
 - `OpenId__TenantResolution__StaticSingle__Issuer`: the public issuer URL, or another tenant resolution mode. A served
   tenant without an issuer fails closed
   ([ADR-1165](../../docs/decisions/1165-a-tenants-stored-issuer-is-its-single-origin-and-its-mtls-alias-a-routed-second-host.md)).
+- `Cell__Name` and `Cell__Region`: the cell's name, unique across the platform, and the region it runs in, each 1 to 31
+  characters of lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit,
+  with no two hyphens in a row. The name tags the keys the cell creates in a key management service and prefixes its
+  Valkey keys. The control-plane cell also sets `Cell__IsControlPlane=true`, and every other cell sets
+  `Cell__ControlPlane__Issuer` to the control-plane cell's issuer
+  ([ADR-1411](../../docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
 
 More than one replica needs Valkey to share single-use state: set `ConnectionStrings__valkey`, or the parts
 `ValkeyConnection__Host`, `ValkeyConnection__Port`, `ValkeyConnection__Username`, `ValkeyConnection__Password` and
 `ValkeyConnection__Ssl`. Setting both forms, or the parts without `ValkeyConnection__Host`, stops the host at start
 ([ADR-1510](../../docs/decisions/1510-the-host-chart-passes-a-valkey-servers-address-and-password-as-parts-and-the-adapter-assembles-the-connection.md)).
+Every key and channel the host writes in Valkey starts with `ncode-identity:`, the value of `Cell:Name` and `:`, so cells
+can share one Valkey server without sharing state.
 
 The host does not migrate on boot. The image also carries the migration worker, which runs from `/app/migrations` with
-`dotnet NCode.Identity.OpenId.Host.MigrationService.dll` and the same database settings.
+`dotnet NCode.Identity.OpenId.Host.MigrationService.dll`. It takes the same database settings with the schema owner's
+credentials, and `HostDatabase__RuntimeRole`, the runtime role it grants access to the tables after it migrates.
 
 The Helm chart in [`charts/ncode-identity-host`](../../charts/ncode-identity-host/README.md) deploys the image with
 these settings and refuses a release that lacks them.

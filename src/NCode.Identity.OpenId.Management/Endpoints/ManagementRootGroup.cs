@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Routing.Patterns;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.Management.Endpoints.Caller;
 using NCode.Identity.OpenId.Management.Endpoints.Capabilities;
+using NCode.Identity.OpenId.Management.Endpoints.Cells;
 using NCode.Identity.OpenId.Management.Endpoints.Clients;
 using NCode.Identity.OpenId.Management.Endpoints.Platform;
 using NCode.Identity.OpenId.Management.Endpoints.Teams;
@@ -19,12 +20,13 @@ namespace NCode.Identity.OpenId.Management.Endpoints;
 
 /// <summary>
 /// The root management route group (<c>/api</c>). It materializes the OpenID request environment for every management
-/// endpoint via <see cref="ManagementEnvironmentEndpointFilter"/> but opens no tenant scope, so control-plane
-/// families (platform, teams, tenant provisioning) act on unscoped rows. It declares on every route the
-/// <c>409</c> and <c>503</c> problems that its settings and root-key filters answer. It also describes the problem
-/// responses that every route shares in the OpenAPI document, and answers a thrown request-binding failure with its
-/// status.
-/// Its endpoints have confidential bodies, so HTTP logging never writes their request or response bodies.
+/// endpoint via <see cref="ManagementEnvironmentEndpointFilter"/> but opens no tenant scope. Each control-plane family
+/// (capabilities, caller, platform, teams, machine clients, tenant provisioning) opens the control-plane unscoped scope
+/// through <see cref="ControlPlaneScopeEndpointFilter"/> on its own route group, and the tenant-plane group opens the
+/// route's tenant scope. It declares on every route the <c>409</c> and <c>503</c> problems that its settings and
+/// root-key filters answer. It also describes the problem responses that every route shares in the OpenAPI document,
+/// and answers a thrown request-binding failure with its status. Its endpoints have confidential bodies, so HTTP
+/// logging never writes their request or response bodies.
 /// </summary>
 internal sealed class ManagementRootGroup : IEndpointGroup
 {
@@ -68,9 +70,12 @@ internal sealed class ManagementRootGroup : IEndpointGroup
         builder.AddCapabilitiesEndpoint();
         builder.AddCallerEndpoint();
         builder.AddPlatformEndpoint();
+        builder.AddEndpoint<CellApiEndpointHandler>();
         builder.AddTeamEndpoint();
         builder.AddMachineClientEndpoint();
         builder.AddTenantEndpoint();
+        builder.AddEndpoint<TenantImportApiEndpointHandler>();
+        builder.AddEndpoint<TenantTransferApiEndpointHandler>();
         builder.AddGroup<TenantManagementGroup>();
     }
 }

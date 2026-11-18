@@ -6,6 +6,7 @@ import { useAppSelector, useGetTeamQuery, useGetTenantQuery } from '@ncode/store
 import { AppLayout } from './components/AppLayout.js';
 import { permittedRoute, teamExit, tenantExit } from './access.js';
 import { useCallerAccess } from './useCallerAccess.js';
+import { TenantCellProvider } from './tenantCell.js';
 import { announceSessionEnded, submitLogout } from './session.js';
 import { useConsoleRoute, navigateTo } from './navigation.js';
 import {
@@ -59,14 +60,14 @@ const surfaceFallback = <CircularProgress aria-label="Loading" data-testid="surf
 
 /**
  * Stateful shell. The address bar owns the navigation state (ADR-1255): the route is the caller's home or names the
- * active management scope (the platform, team or tenant security boundary) and, within it, the active surface. The
- * home lists the places the caller holds authority (ADR-1465); once that access is known, a caller without platform
+ * active management scope (the platform, team or tenant security boundary) and, within it, the active surface. The home
+ * lists the places the caller holds authority (ADR-1465); once that access is known, a caller without platform
  * authority is sent home from a platform route, and the team and tenant back controls lead to a place the caller can
- * open. In the platform scope that is the teams, the platform's machine clients, its settings or its encryption
- * keys; within a team it is the team's tenants, child teams, machine clients, settings, access or usage; within a
- * tenant it is clients, resource servers, grants, or one of the tenant's own surfaces: secrets, encryption keys,
- * settings, access, or usage (ADR-1255). All data fetching lives in the child containers; this component only maps
- * the route to a surface and tab changes to navigation.
+ * open. In the platform scope that is the teams, the platform's machine clients, its settings or its encryption keys;
+ * within a team it is the team's tenants, child teams, machine clients, settings, access, encryption keys or usage;
+ * within a tenant it is clients, resource servers, grants, or one of the tenant's own surfaces: secrets, encryption
+ * keys, settings, access, or usage (ADR-1255). All data fetching lives in the child containers; this component only
+ * maps the route to a surface and tab changes to navigation.
  */
 export function App() {
   const user = useAppSelector((state) => state.session.user);
@@ -80,8 +81,8 @@ export function App() {
   const route = useConsoleRoute();
   const scope = route.kind === 'home' ? undefined : routeScope(route);
 
-  // The caller's access is unknown until all three queries answer; until then the guard and back controls keep
-  // their defaults.
+  // The caller's access is unknown until all three queries answer; until then the guard and back controls keep their
+  // defaults.
   const access = useCallerAccess(isSignedIn);
 
   useEffect(() => {
@@ -91,15 +92,20 @@ export function App() {
     }
   }, [route, access]);
 
-  const openTenant = (tenantId: string) => navigateTo(tenantRoute(tenantId));
+  // A tenant opens in the cell of its row; a tenant without one opens in the control plane.
+  const openTenant = (tenantId: string, cell?: string) =>
+    navigateTo(tenantRoute(tenantId, undefined, cell));
   const openTeam = (teamId: string) => navigateTo(teamRoute(teamId));
 
-  // A tenant's enclosing scope is its team; until the tenant loads, the exit leads where a team's exit leads. Only
-  // the current tenant's data counts, so a previously viewed tenant's team never labels the exit.
+  // A tenant's enclosing scope is its team; until the tenant loads, the exit leads where a team's exit leads. Only the
+  // current tenant's data counts, so a previously viewed tenant's team never labels the exit. The tenant is read from
+  // its own cell.
   const tenantId = route.kind === 'tenant' ? route.tenantId : undefined;
-  const { currentData: tenant } = useGetTenantQuery(tenantId ?? '', {
-    skip: tenantId === undefined,
-  });
+  const tenantCell = route.kind === 'tenant' ? route.cell : undefined;
+  const { currentData: tenant } = useGetTenantQuery(
+    { tenantId: tenantId ?? '', cell: tenantCell },
+    { skip: tenantId === undefined },
+  );
 
   // Tell the other tabs the session ended, then post the BFF's logout form: the BFF ends its session, revokes its
   // refresh token and runs RP-Initiated Logout at the OP, which returns the browser to the console's sign-in screen.
@@ -181,6 +187,11 @@ export function App() {
             <Tab value="clients" label="Clients" data-testid="team-tab-clients" />
             <Tab value="settings" label="Settings" data-testid="team-tab-settings" />
             <Tab value="access" label="Access" data-testid="team-tab-access" />
+            <Tab
+              value="encryption-keys"
+              label="Encryption keys"
+              data-testid="team-tab-encryption-keys"
+            />
             <Tab value="usage" label="Usage" data-testid="team-tab-usage" />
           </Tabs>
           <Suspense fallback={surfaceFallback}>
@@ -193,13 +204,14 @@ export function App() {
           </Suspense>
         </Fragment>
       ) : (
-        // Keyed by tenant: moving between tenants (e.g. back/forward) remounts the surface, so no per-tenant UI
-        // state such as an open detail view leaks across the boundary.
-        <Fragment key={`tenant:${route.tenantId}`}>
+        // Keyed by tenant: moving between tenants (e.g. back/forward) remounts the surface, so no per-tenant UI state
+        // such as an open detail view leaks across the boundary. The tenant's cell is provided to every container
+        // beneath it.
+        <TenantCellProvider key={`tenant:${route.cell ?? ''}:${route.tenantId}`} cell={route.cell}>
           <Tabs
             value={route.surface}
             onChange={(_event, value: TenantSurface) =>
-              navigateTo(tenantRoute(route.tenantId, value))
+              navigateTo(tenantRoute(route.tenantId, value, route.cell))
             }
             sx={{ mb: 2 }}
           >
@@ -228,10 +240,14 @@ export function App() {
             ) : route.surface === 'grants' ? (
               <GrantsPage tenantId={route.tenantId} />
             ) : (
-              <TenantDetailPage tenantId={route.tenantId} surface={route.surface} />
+              <TenantDetailPage
+                tenantId={route.tenantId}
+                surface={route.surface}
+                onNavigate={navigateTo}
+              />
             )}
           </Suspense>
-        </Fragment>
+        </TenantCellProvider>
       )}
     </AppLayout>
   );

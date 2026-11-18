@@ -41,9 +41,9 @@ the serving code never gives it:
 1. **A stored record that lacks what the serving code writes is malformed, and it fails closed.** A reader honors only
    the shape the serving code writes; it never supplies a default, a fallback or an alternative reading for a record
    that lacks part of it.
-2. **One serializer writes and reads every grant payload.** `IPersistedPayloadSerializer`
-   (`NCode.Identity.OpenId.Authentication.Persistence`, default `DefaultPersistedPayloadSerializer`, registered with
-   `TryAddSingleton` and replaceable) is the only code that writes and reads a `PersistedGrant<TPayload>.Payload`.
+2. **One serializer writes and reads every grant payload.** `IPersistedPayloadSerializer` (`NCode.Identity.Json`,
+   default `DefaultPersistedPayloadSerializer`, registered by `AddPersistedPayloadSerializer()` with `TryAddSingleton`
+   and replaceable) is the only code that writes and reads a `PersistedGrant<TPayload>.Payload`.
    `IGrantPayloadProtector` protects its output under the tenant master key
    ([ADR-1235](1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md)). A payload that does
    not authenticate under the protector is logged and read as absent, unlike a malformed one.
@@ -110,6 +110,14 @@ and opaque metadata bags.
   periods.
 - The serializer throws a descriptive `JsonException` on a corrupt document or a missing upcaster step, so
   `DefaultPersistedGrantService` does not null-check a deserialized payload.
+- The serializer lives in the foundation package `NCode.Identity.Json`, which any package may reference, so every
+  package that stores a JSON payload registers it from its own registration and writes and reads the payload through
+  the same seam: the global directory for its team and platform documents
+  ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)),
+  and a cell's core persistence slice for the root keys that each team row holds
+  ([ADR-1414](1414-a-tenant-can-wrap-its-master-keys-under-a-root-key-it-controls.md)). A team row whose root keys are
+  not an envelope, or hold a region without a root key or a root key without its key wrapper name or key reference,
+  fails every read of the team.
 
 ## References
 
@@ -120,7 +128,7 @@ and opaque metadata bags.
 - [ADR-1220](1220-an-end-user-session-is-a-grant-keyed-by-its-sid-bounded-by-idle-and-absolute-lifetimes.md)
 - [ADR-1223](1223-a-session-that-ends-unused-is-terminated-once-in-the-background.md)
 - [ADR-1235](1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md)
-- [`DefaultPersistedPayloadSerializer`](../../src/NCode.Identity.OpenId.Authentication/Persistence/DefaultPersistedPayloadSerializer.cs)
+- [`DefaultPersistedPayloadSerializer`](../../src/NCode.Identity.Json/DefaultPersistedPayloadSerializer.cs)
 - [`SessionGrant`](../../src/NCode.Identity.OpenId.Authentication.Abstractions/Sessions/SessionGrant.cs)
 - [`DefaultSessionService`](../../src/NCode.Identity.OpenId.Authentication/Sessions/DefaultSessionService.cs)
 - [`EndedSessionTerminationService`](../../src/NCode.Identity.OpenId.Authentication/Sessions/EndedSessionTerminationService.cs)

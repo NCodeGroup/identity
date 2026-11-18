@@ -48,6 +48,9 @@ namespace NCode.Identity.Secrets.Persistence.Protection;
 /// </para>
 /// </remarks>
 /// <param name="factory">The factory that creates new master keys and unwraps persisted master keys.</param>
+/// <param name="nearestRootKeyResolver">
+/// The resolver that finds the root key that wraps the master keys of an owner.
+/// </param>
 /// <param name="storeManagerFactory">The factory that creates the unit of work that reads and writes master keys.</param>
 /// <param name="recovery">The wrapper that reports whether master keys are wrapped under a recovery key.</param>
 /// <param name="options">The options whose master key refresh interval bounds how long an entry is used.</param>
@@ -56,6 +59,7 @@ namespace NCode.Identity.Secrets.Persistence.Protection;
 // See ADR-1235 and ADR-1414.
 internal class DefaultMasterKeyRing(
     MasterKeyFactory factory,
+    INearestOwnerRootKeyResolver nearestRootKeyResolver,
     IStoreManagerFactory storeManagerFactory,
     IRecoveryKeyWrapper recovery,
     IOptions<SecretProtectionOptions> options,
@@ -69,6 +73,8 @@ internal class DefaultMasterKeyRing(
     private long _evictionCount;
 
     private MasterKeyFactory Factory { get; } = factory;
+
+    private INearestOwnerRootKeyResolver NearestRootKeyResolver { get; } = nearestRootKeyResolver;
 
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
 
@@ -354,9 +360,10 @@ internal class DefaultMasterKeyRing(
                     Logger.MasterKeyDropped(key, cachedKeyId);
             }
 
-            // The root key references and access identities whose root key unwrapped a master key of this load.
+            // The root key references, access identities and access bindings whose root key unwrapped a master key of
+            // this load.
             var unwrappedReferences = validating
-                ? new HashSet<(string Reference, string? AccessIdentity)>()
+                ? new HashSet<(string Reference, string? AccessIdentity, string? AccessBinding)>()
                 : null;
 
             var keys = new Dictionary<Guid, MasterKey>(rows.Count + 1);
@@ -375,15 +382,19 @@ internal class DefaultMasterKeyRing(
 
                     if (activeRow.RootKeyReference is not null)
                         unwrappedReferences?.Add(
-                            (activeRow.RootKeyReference, activeRow.RootKeyAccessIdentity)
+                            (
+                                activeRow.RootKeyReference,
+                                activeRow.RootKeyAccessIdentity,
+                                activeRow.RootKeyAccessBinding
+                            )
                         );
                 }
             }
 
             keys[activeRow.KeyId] = active;
 
-            // A validation unwraps one row of each root key reference and access identity that the active row does not
-            // cover.
+            // A validation unwraps one row of each root key reference, access identity and access binding that the
+            // active row does not cover.
             if (unwrappedReferences is not null)
             {
                 foreach (var row in rows)
@@ -392,7 +403,11 @@ internal class DefaultMasterKeyRing(
                         row.RootKeyReference is not null
                         && !keys.ContainsKey(row.KeyId)
                         && unwrappedReferences.Add(
-                            (row.RootKeyReference, row.RootKeyAccessIdentity)
+                            (
+                                row.RootKeyReference,
+                                row.RootKeyAccessIdentity,
+                                row.RootKeyAccessBinding
+                            )
                         )
                     )
                         keys[row.KeyId] = await UnwrapRowAsync(key, row, loaded, cancellationToken);
@@ -400,8 +415,8 @@ internal class DefaultMasterKeyRing(
             }
 
             // The remaining rows reuse the cached material, which is what a validation does for the rows under a
-            // reference and access identity that unwrapped and for the rows under the deployment's root key. A row
-            // without cached material is unwrapped.
+            // reference, access identity and access binding that unwrapped and for the rows under the deployment's root
+            // key. A row without cached material is unwrapped.
             foreach (var row in rows)
             {
                 if (keys.ContainsKey(row.KeyId))
@@ -541,9 +556,11 @@ internal class DefaultMasterKeyRing(
             PersistedOwnerRootKey? rootKey = null;
             if (activeRow is null || rowsUnderOwnerRootKey)
             {
-                rootKey = await storeManager
-                    .GetStore<IOwnerRootKeyStore>()
-                    .FindAsync(key, cancellationToken);
+                rootKey = await NearestRootKeyResolver.FindNearestAsync(
+                    storeManager.GetStore<IOwnerRootKeyStore>(),
+                    key,
+                    cancellationToken
+                );
 
                 if (MasterKeyFactory.IsOwnerRooted(rootKey))
                     isOwnerRooted = true;

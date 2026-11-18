@@ -8,9 +8,13 @@
 
 A customer's environments are the tenants of one team
 ([ADR-1495](1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md) decision 1,
-[ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md)). The configuration of
+[ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)). The configuration of
 one environment, its settings, resource servers, clients and client grants, is the configuration of the next, and an
 operator re-enters it in each tenant by hand.
+
+A team spans cells and a tenant lives in one, so the tenants of a team can sit in different cells. A tenant's data
+stays in its cell's region, so a promotion cannot carry one tenant's configuration into another region, and it runs
+where the target tenant's data is.
 
 Some of it belongs to one environment. A credential serves the environment that issued it, and secret material is
 revealed once, at creation
@@ -28,13 +32,26 @@ and `IHostManagedClientPolicy` names it.
 **A team promotes one tenant's configuration into another of its tenants, previewed and then applied. Credentials,
 keys, principals and environment-bound values stay with their environment.**
 
-1. **Routes and answers.** `POST /api/teams/{teamId}/promotions/preview` and `POST /api/teams/{teamId}/promotions`
-   take `PromoteTenantRequest { sourceTenantId, targetTenantId, environmentSettings[] }`, between two distinct direct
-   tenants of the team (a tenant of a child team is not one), in either direction: environment types have no order,
-   because the vocabulary is open. Preview answers
-   `200` with the report and writes nothing. Promote answers `200` with the applied report, or `409` with the report's
-   errors and writes nothing.
-2. **What is copied, and what is never copied.** The tenant's settings document, every non-system resource server (its
+1. **Routes and answers.** Promotion runs in the target tenant's cell. Every cell maps
+   `POST /api/tenants/{tenantId}/promotions/preview` and `POST /api/tenants/{tenantId}/promotions`, where `{tenantId}`
+   is the target. They take `PromoteTenantRequest { sourceTenantId | source, environmentSettings[] }` and name the
+   source in exactly one of two ways: `sourceTenantId`, a different direct tenant of the target's team that lives in the
+   same cell, which the cell reads directly, or `source`, an inline `TenantConfigurationDocument`. A request that names
+   both or neither answers `400`. Either direction between two tenants is allowed: environment types have no order,
+   because the vocabulary is open. Preview answers `200` with the report and writes nothing. Promote answers `200` with
+   the applied report, or `409` with the report's errors and writes nothing.
+2. **The configuration document.** `GET /api/tenants/{tenantId}/configuration` exports a tenant's settings document,
+   clients, client grants and resource servers as a `TenantConfigurationDocument`, stamped with the cell's region. It
+   holds no secret, key or credential. A source in another cell is carried by the console: it reads the document from
+   the source tenant's cell and posts it inline to the target tenant's cell.
+3. **A promotion stays within one region.** A document whose region is not the target cell's region is refused with
+   `422` and nothing is written. Cells of one region share a promotion; across regions a tenant's configuration is
+   entered again, because a tenant's data stays in its region. A document is untrusted input. The control-plane tenant
+   is never a promotion target, because it holds the platform's machine clients and the cells' clients (`422`). A
+   document that names a client whose `clientId` breaks the `client_id` rule (`ClientIdRules`) or starts with `cell-`,
+   the namespace that the directory and the control plane read as a cell's machine client, is refused with `422` before
+   planning.
+4. **What is copied, and what is never copied.** The tenant's settings document, every non-system resource server (its
    name, `isDisabled`, settings and non-system scopes), every client no `IHostManagedClientPolicy` names in the source
    tenant (`isDisabled`, settings and the resource server it acts for), and every client grant of a promoted client are
    copied. The secrets and keys of any owner (each environment holds its own credentials, ADR-1050), master and root
@@ -42,10 +59,11 @@ keys, principals and environment-bound values stay with their environment.**
    `TeamAdmin`, `TenantAdmin`), usage, audit records, the tenant's metadata (issuer, mTLS alias, display name,
    `isDisabled`), system resource servers and system scopes, and host-managed clients with their grants are never
    copied.
-3. **Host-managed clients.** A source client that `IHostManagedClientPolicy` names for the source tenant is left out
-   with a `host_managed` note, and so are its grants. A target client the policy names for the target tenant is never
+5. **Host-managed clients.** A client that `IHostManagedClientPolicy` names for its tenant is never in that tenant's
+   configuration document, and neither are its grants. An inline document that names one for the source tenant has it
+   left out with a `host_managed` note, and its grants too. A target client the policy names for the target tenant is never
    written: a source client with its id is an error, as every management change to it answers `409`.
-4. **Environment-bound settings never travel.** `SettingDescriptor.IsEnvironmentBound`, `false` by default, marks a
+6. **Environment-bound settings never travel.** `SettingDescriptor.IsEnvironmentBound`, `false` by default, marks a
    setting whose value belongs to the environment its owner serves: `environment_type`, `environment_name`,
    `deletion_protection`, `tenant_key_provider`, `redirect_uris`, `post_logout_redirect_uris`, `backchannel_logout_uri`,
    `frontchannel_logout_uri`, `jwks_uri`, `sector_identifier_uri`, `client_notification_endpoint`, the
@@ -54,7 +72,7 @@ keys, principals and environment-bound values stay with their environment.**
    `environmentSettings` for that resource, which may carry only environment-bound settings. A package marks its own
    descriptors, and nothing lists the names in code
    ([ADR-1150](1150-vocabularies-are-open-unless-provably-closed.md)).
-5. **The limit rule.** A limit is not environment-bound: it travels, under
+7. **The limit rule.** A limit is not environment-bound: it travels, under
    [ADR-1418](1418-limits-are-set-by-the-authority-above-their-scope-and-readers-learn-which-they-may-change.md). A promoted document
    that updates an existing target document and changes a limit, as
    `ISettingSerializer.GetChangedLimits(target document, promoted document)` names, needs `Operations.Update` at the
@@ -63,7 +81,7 @@ keys, principals and environment-bound values stay with their environment.**
    Contributors record each document's changed limits and the node above on the context while planning. After
    planning, and before the handler answers or writes, it refuses with the `403` a settings `PATCH` answers, naming
    the limits, for preview and promote alike.
-6. **Identifiers and refusals.** A promoted client keeps its `clientId` and is matched by it. A resource server is
+8. **Identifiers and refusals.** A promoted client keeps its `clientId` and is matched by it. A resource server is
    matched by its audience `identifier`, a created one keeps the source `resourceServerId`, and the promotion maps
    source to target resource-server ids for clients and grants. A client grant is matched by client and mapped
    resource server. Promotion creates and updates, and never deletes, scopes included. An error per item refuses: a
@@ -74,35 +92,45 @@ keys, principals and environment-bound values stay with their environment.**
    naming a scope it lacks; a document the serializer rejects; a promoted client the coherence rules refuse under the
    promoted tenant settings; a target client those settings make incoherent; an `environmentSettings` entry with a
    non-environment-bound setting, no promoted resource, or repeated.
-7. **Notes, not errors.** `credential_required` is noted for a promoted client whose `token_endpoint_auth_method` is
+9. **Notes, not errors.** `credential_required` is noted for a promoted client whose `token_endpoint_auth_method` is
    not `none` and whose target holds no secret. `environment_setting_unset` is noted for each environment-bound setting
-   the source sets and the promoted document lacks. `host_managed` is noted for each source client left out. The
+   the source sets and the promoted document lacks. `host_managed` is noted for each client an inline document names
+   that the policy names for the source tenant. The
    operator supplies the missing values in `environmentSettings` and previews again.
-8. **Authority.** The caller needs `Read` at the source tenant node and `Create` at the target tenant node, checked
-   before either tenant is read
-   ([ADR-1424](1424-a-management-route-authorizes-at-the-node-it-names-before-it-reads-through-replaceable-validators.md)). Creating
-   clients and resource servers is creation authority: `TeamAdmin` at the team, the target's `TenantAdmin`, or
-   `GlobalAdmin`. Then both tenants must exist and belong to `{teamId}`, else `404`, and then the limit rule applies.
-   Then a promotion that changes an existing target client whose principal holds role assignments needs `Create` at
-   each node those assignments are held at, the authority any change to that client needs
-   ([ADR-1466](1466-a-client-is-its-own-principal-and-a-machine-client-acts-only-within-its-owning-node.md)); without it, preview and
-   promote answer `403` and nothing is written.
-9. **Contributors.** The public strategy collection `ITenantPromotionContributor` (`Order`, `PlanAsync`, `ApplyAsync`)
+10. **Authority.** The promotion runs on the target tenant's cell, and the caller needs `Create` at the target tenant
+    node there. Team-level assignments live in the control-plane cell and are read through `IControlPlaneAuthority`, so a
+    cell that cannot reach the control plane answers `503` and never allows
+    ([ADR-1417](1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md)).
+    A source named by `sourceTenantId` also needs `Read` at the source tenant node. A source read from another cell
+    needs `Read` there, which that cell's `GET api/tenants/{tenantId}/configuration` checks. Authority is checked before
+    a tenant is read
+    ([ADR-1424](1424-a-management-route-authorizes-at-the-node-it-names-before-it-reads-through-replaceable-validators.md)). Creating
+    clients and resource servers is creation authority: `TeamAdmin` at the team, the target's `TenantAdmin`, or
+    `GlobalAdmin`. Then the target tenant must exist, and a source tenant of the cell must exist and belong to the
+    target's team, else `404`, and then the limit rule applies.
+    Then a promotion that writes a grant of a target machine client needs `Create` at the client's owning node, the
+    authority any change to that client needs
+    ([ADR-1466](1466-a-client-is-its-own-principal-and-a-machine-client-acts-only-within-its-owning-node.md)); without it, preview and
+    promote answer `403` and nothing is written. A promotion changes no target machine client itself: it refuses one
+    with an error.
+11. **Contributors.** The public strategy collection `ITenantPromotionContributor` (`Order`, `PlanAsync`, `ApplyAsync`)
    over `TenantPromotionContext` is open by registration
    ([ADR-1150](1150-vocabularies-are-open-unless-provably-closed.md),
    [ADR-1206](1206-a-clients-settings-are-checked-by-registered-coherence-rules-wherever-they-are-written-or-bounded.md)). The built-in contributors are the
    tenant settings at 100, resource servers at 200, clients at 300 and client grants at 400. The internal
    `DefaultTenantPromoter` plans every contributor, checks the `environmentSettings` entries, then applies one
    contributor at a time, saving and recording its audit events after each.
-10. **Atomicity.** Every check runs in the plan before any write, so an apply fails only on a concurrent write (`412`)
+12. **Atomicity.** Every check runs in the plan before any write, so an apply fails only on a concurrent write (`412`)
     or a fault. A promotion converges: running it again completes one that stopped part way.
-11. **Audit.** Each write records the resource-change event its own endpoint records (`tenant.settings.updated`,
+13. **Audit.** Each write records the resource-change event its own endpoint records (`tenant.settings.updated`,
     `resource_server.created` or `resource_server.updated`, `client.created` or `client.updated`; the endpoint of a
     client grant records none either), then one `tenant.promoted` event (`ResourceChangeTypes.Promoted = "promoted"`)
     on the target with the report as `resource_values`. The target's tenant change is announced with
     `TenantChangedCommand(target, settingsChanged: true)`.
-12. **Console.** The team's tenants page has a "Promote" button that opens a dialog: pick the source and the target,
-    preview, fill the environment-bound values the preview asks for, and promote.
+14. **Console.** The team's tenants page has a "Promote" button that opens a dialog: pick the target, then a source among
+    the tenants of the target's region, preview, fill the environment-bound values the preview asks for, and promote.
+    When the source is in the target's cell, the request names `sourceTenantId`. Otherwise the console reads the source's
+    configuration document from the source tenant's cell and posts it inline to the target tenant's cell.
 
 ## Options considered
 
@@ -120,6 +148,9 @@ keys, principals and environment-bound values stay with their environment.**
 - **A closed list of families.** Rejected by [ADR-1150](1150-vocabularies-are-open-unless-provably-closed.md).
 - **A plan of contributors that mark what travels and a per-setting environment flag.** The plan decides each family,
   the descriptor decides each value, and a package adds its own. Chosen.
+- **Promotion on the control plane, reading both tenants.** The control plane would read the data of tenants of other
+  cells and regions. Rejected: promotion runs in the target's cell, and a source in another cell arrives as a document.
+- **Promotion across regions.** A tenant's configuration would leave its region. Rejected, and refused with `422`.
 
 ## Consequences
 
@@ -129,6 +160,10 @@ keys, principals and environment-bound values stay with their environment.**
   which needs authority at the team.
 - The work grows with the source tenant, and the promotion reads it in pages of 100.
 - A package promotes its own configuration by registering a contributor.
+- A promotion needs the control plane only to read team authority. A cell that cannot reach it refuses the promotion
+  with `503`.
+- A promotion between cells of one region runs through the console, which carries the document. Tenants in different
+  regions are configured separately.
 
 ## References
 
@@ -143,10 +178,10 @@ keys, principals and environment-bound values stay with their environment.**
   concurrency race is answered 412
 - [ADR-1289](1289-a-tenant-declares-its-environment-type-which-selects-its-guardrails.md) — a tenant declares its
   environment type, which selects its guardrails
-- [ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md) — the platform is the
-  deployment root and a team groups a customer's tenants
+- [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md) — a platform is a global
+  directory over independent cells, and a team groups a customer's tenants
 - [ADR-1417](1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md) — a tenant administrator is a
-  role assignment at the tenant's node
+  role assignment at the tenant's node, and team authority is read through the control plane
 - [ADR-1418](1418-limits-are-set-by-the-authority-above-their-scope-and-readers-learn-which-they-may-change.md) — a limit is set by
   the authority above the scope whose document carries it
 - [ADR-1466](1466-a-client-is-its-own-principal-and-a-machine-client-acts-only-within-its-owning-node.md) — a client acting for

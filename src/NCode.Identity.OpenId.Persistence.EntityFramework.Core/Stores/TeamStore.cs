@@ -2,25 +2,29 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Linq.Expressions;
+using System.Text.Json;
 using IdGen;
 using Microsoft.EntityFrameworkCore;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.Persistence.Stores;
+using NCode.Identity.Secrets.Persistence.Protection;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
 
 /// <summary>
-/// Provides a default implementation of <see cref="ITeamStore"/> that uses Entity Framework Core for persistence.
-/// A team is removed only when it holds no tenant and no team, and a removed team's identifier is never reissued.
+/// Provides a default implementation of <see cref="ITeamStore"/> that uses Entity Framework Core for persistence. A
+/// team is removed only when it holds no tenant and no team. The directory retires a removed team's identifier.
 /// </summary>
 // See ADR-1411
 // See ADR-1426.
 internal class TeamStore(
     IStoreProvider storeProvider,
     IIdGenerator<long> idGenerator,
-    OpenIdDbContext openIdDbContext
+    OpenIdDbContext openIdDbContext,
+    IPersistedPayloadSerializer payloadSerializer
 ) : CoreBaseStoreWithResourceId<PersistedTeam, TeamEntity>, ITeamStore
 {
     /// <inheritdoc />
@@ -31,6 +35,11 @@ internal class TeamStore(
 
     /// <inheritdoc />
     protected override OpenIdDbContext DbContext { get; } = openIdDbContext;
+
+    /// <summary>
+    /// Gets the serializer that writes and reads the root keys of each team row.
+    /// </summary>
+    private IPersistedPayloadSerializer PayloadSerializer { get; } = payloadSerializer;
 
     /// <summary>
     /// Maps a <see cref="TeamEntity"/> to a <see cref="PersistedTeamSettings"/> instance.
@@ -72,8 +81,30 @@ internal class TeamStore(
             Settings = await MapSettingsAsync(entity, cancellationToken),
             ReconciledSettingsFingerprint = entity.ReconciledSettingsFingerprint,
             ReconciledSettings = entity.ReconciledSettingsJson,
+            DirectorySequence = entity.DirectorySequence,
+            RootKeys = ReadRootKeys(entity.RootKeysJson),
         };
     }
+
+    /// <summary>
+    /// Reads the root keys of a team row from the schema-versioned envelope of their payload.
+    /// </summary>
+    /// <param name="rootKeysJson">The envelope that the team row holds.</param>
+    /// <returns>The root keys that the team brings, keyed by region.</returns>
+    /// <exception cref="JsonException">
+    /// The team row holds root keys that are not the schema-versioned envelope that this store writes.
+    /// </exception>
+    private IReadOnlyDictionary<string, OwnerRootKeyRequest> ReadRootKeys(
+        JsonElement rootKeysJson
+    ) => TeamRootKeysPayload.Read(PayloadSerializer, rootKeysJson);
+
+    /// <summary>
+    /// Writes the root keys that a team brings as the schema-versioned envelope of their payload.
+    /// </summary>
+    /// <param name="rootKeys">The root keys that the team brings, keyed by region.</param>
+    /// <returns>The envelope for the team row.</returns>
+    private JsonElement WriteRootKeys(IReadOnlyDictionary<string, OwnerRootKeyRequest> rootKeys) =>
+        TeamRootKeysPayload.Write(PayloadSerializer, rootKeys);
 
     /// <inheritdoc />
     protected override async ValueTask<TeamEntity?> GetEntityOrDefaultAsync(
@@ -317,8 +348,10 @@ internal class TeamStore(
             IsDisabled = persistedTeam.IsDisabled,
             DisplayName = persistedTeam.DisplayName,
             SettingsJson = persistedTeam.Settings.Value,
+            RootKeysJson = WriteRootKeys(persistedTeam.RootKeys),
             ReconciledSettingsFingerprint = persistedTeam.ReconciledSettingsFingerprint,
             ReconciledSettingsJson = persistedTeam.ReconciledSettings,
+            DirectorySequence = persistedTeam.DirectorySequence,
             // A collection expression is a fixed-size array, which EF refuses to add to.
             Tenants = new List<TenantEntity>(),
         };
@@ -425,8 +458,37 @@ internal class TeamStore(
     }
 
     /// <inheritdoc />
+    public async ValueTask UpdateRootKeysAsync(
+        PersistedTeam persistedTeam,
+        CancellationToken cancellationToken
+    )
+    {
+        var teamId = persistedTeam.TeamId;
+        var teamEntity = await GetEntityAsync(teamId, cancellationToken);
+
+        if (
+            !string.Equals(
+                persistedTeam.ConcurrencyToken,
+                teamEntity.ConcurrencyToken,
+                StringComparison.Ordinal
+            )
+        )
+        {
+            throw new StoreConcurrencyException(
+                $"The team with TeamId='{teamId}' has been modified by another process. Please reload and try again."
+            );
+        }
+
+        // Set only this column and do not call Update, so that only it is written. The interceptor regenerates the row
+        // ConcurrencyToken on save (ADR-1012).
+        teamEntity.RootKeysJson = WriteRootKeys(persistedTeam.RootKeys);
+    }
+
+    /// <inheritdoc />
     public async ValueTask<bool> RemoveAsync(string teamId, CancellationToken cancellationToken)
     {
+        DbContext.EnsureUnscoped($"{nameof(TeamStore)}.{nameof(RemoveAsync)}");
+
         var teamEntity = await GetEntityOrDefaultAsync(teamId, cancellationToken);
         if (teamEntity is null)
         {
@@ -443,6 +505,7 @@ internal class TeamStore(
         var normalizedTeamId = teamEntity.NormalizedTeamId;
         DbContext.RoleAssignments.RemoveRange(
             await DbContext
+                // Cross-tenant: the role assignments at the team's node are stored under the tenant of their holder.
                 .RoleAssignments.IgnoreQueryFilters()
                 .Where(assignment =>
                     assignment.ResourceType == OpenIdResourceTypes.Team
@@ -453,18 +516,178 @@ internal class TeamStore(
 
         DbContext.Teams.Remove(teamEntity);
 
-        // A deleted team's identifier is never reissued.
-        await DbContext.RetiredTeams.AddAsync(
-            new RetiredTeamEntity
-            {
-                Id = NextId(),
-                TeamId = teamEntity.TeamId,
-                NormalizedTeamId = teamEntity.NormalizedTeamId,
-            },
-            cancellationToken
-        );
+        return true;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<bool> MirrorAsync(
+        PersistedTeam persistedTeam,
+        CancellationToken cancellationToken
+    )
+    {
+        var teamEntity = await GetEntityOrDefaultAsync(persistedTeam.TeamId, cancellationToken);
+        if (
+            teamEntity is not null
+            && teamEntity.DirectorySequence >= persistedTeam.DirectorySequence
+        )
+        {
+            return false;
+        }
+
+        TeamEntity? parent = null;
+        if (persistedTeam.ParentTeamId is { } parentTeamId)
+        {
+            parent =
+                await GetEntityOrDefaultAsync(parentTeamId, cancellationToken)
+                ?? throw new InvalidOperationException(
+                    $"The parent team with TeamId='{parentTeamId}' does not exist."
+                );
+        }
+
+        var teamId = teamEntity?.TeamId ?? persistedTeam.TeamId;
+        IReadOnlyList<string> teamIds = parent is null
+            ? [teamId]
+            : [.. TeamPaths.Parse(parent.Path), teamId];
+
+        if (teamIds.Count > TeamPaths.MaxDepth)
+        {
+            throw new InvalidOperationException(
+                $"The team with TeamId='{teamId}' cannot be nested deeper than {TeamPaths.MaxDepth} levels."
+            );
+        }
+
+        var path = TeamPaths.Format(teamIds);
+        persistedTeam.AncestorTeamIds = [.. teamIds.Take(teamIds.Count - 1)];
+
+        if (teamEntity is null)
+        {
+            persistedTeam.ConcurrencyToken = NextConcurrencyToken();
+            persistedTeam.Settings.ConcurrencyToken = NextConcurrencyToken();
+
+            await DbContext.Teams.AddAsync(
+                new TeamEntity
+                {
+                    Id = NextId(),
+                    TeamId = persistedTeam.TeamId,
+                    NormalizedTeamId = Normalize(persistedTeam.TeamId),
+                    ParentTeamId = parent?.Id,
+                    ParentTeam = parent,
+                    Path = path,
+                    ConcurrencyToken = persistedTeam.ConcurrencyToken,
+                    SettingsConcurrencyToken = persistedTeam.Settings.ConcurrencyToken,
+                    IsDisabled = persistedTeam.IsDisabled,
+                    DisplayName = persistedTeam.DisplayName,
+                    SettingsJson = persistedTeam.Settings.Value,
+                    RootKeysJson = WriteRootKeys(persistedTeam.RootKeys),
+                    DirectorySequence = persistedTeam.DirectorySequence,
+                    // A collection expression is a fixed-size array, which EF refuses to add to.
+                    Tenants = new List<TenantEntity>(),
+                },
+                cancellationToken
+            );
+
+            return true;
+        }
+
+        var previousPath = teamEntity.Path;
+        if (parent is not null && parent.Path.StartsWith(previousPath, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"The team with TeamId='{teamId}' cannot be placed beneath itself or a team beneath it."
+            );
+        }
+
+        if (!string.Equals(path, previousPath, StringComparison.Ordinal))
+        {
+            await RewriteDescendantPathsAsync(teamEntity, path, cancellationToken);
+        }
+
+        teamEntity.ParentTeamId = parent?.Id;
+        teamEntity.ParentTeam = parent;
+        teamEntity.Path = path;
+        teamEntity.DisplayName = persistedTeam.DisplayName;
+        teamEntity.IsDisabled = persistedTeam.IsDisabled;
+        teamEntity.DirectorySequence = persistedTeam.DirectorySequence;
+
+        var rootKeysJson = WriteRootKeys(persistedTeam.RootKeys);
+        if (!JsonElement.DeepEquals(teamEntity.RootKeysJson, rootKeysJson))
+        {
+            teamEntity.RootKeysJson = rootKeysJson;
+        }
+
+        if (!JsonElement.DeepEquals(teamEntity.SettingsJson, persistedTeam.Settings.Value))
+        {
+            teamEntity.SettingsConcurrencyToken = NextConcurrencyToken();
+            teamEntity.SettingsJson = persistedTeam.Settings.Value;
+
+            // A second change before the first is reconciled leaves settings that no pass reconciled. See ADR-1412.
+            if (teamEntity.ReconciledSettingsFingerprint is null)
+                teamEntity.ReconciledSettingsJson = null;
+
+            teamEntity.ReconciledSettingsFingerprint = null;
+        }
+
+        DbContext.Teams.Update(teamEntity);
+
+        persistedTeam.Settings.ConcurrencyToken = teamEntity.SettingsConcurrencyToken;
 
         return true;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<bool> DisableRetiredAsync(
+        string teamId,
+        long directorySequence,
+        CancellationToken cancellationToken
+    )
+    {
+        var teamEntity = await GetEntityOrDefaultAsync(teamId, cancellationToken);
+        if (teamEntity is null || teamEntity.DirectorySequence >= directorySequence)
+        {
+            return false;
+        }
+
+        // Set only these two columns and do not call Update, so that only they are written. The interceptor regenerates
+        // the row ConcurrencyToken on save (ADR-1012).
+        teamEntity.IsDisabled = true;
+        teamEntity.DirectorySequence = directorySequence;
+
+        return true;
+    }
+
+    // Replaces the path of the team being moved with its new path at the start of the path of every team beneath it.
+    private async ValueTask RewriteDescendantPathsAsync(
+        TeamEntity teamEntity,
+        string path,
+        CancellationToken cancellationToken
+    )
+    {
+        var previousPath = teamEntity.Path;
+        var entityId = teamEntity.Id;
+        var descendants = await DbContext
+            .Teams.Where(team => team.Path.StartsWith(previousPath) && team.Id != entityId)
+            .ToListAsync(cancellationToken);
+
+        var rewritten = descendants
+            .Select(descendant =>
+                (Entity: descendant, Path: path + descendant.Path[previousPath.Length..])
+            )
+            .ToList();
+
+        foreach (var (descendant, descendantPath) in rewritten)
+        {
+            if (TeamPaths.Parse(descendantPath).Count > TeamPaths.MaxDepth)
+            {
+                throw new InvalidOperationException(
+                    $"The team with TeamId='{descendant.TeamId}' cannot be nested deeper than {TeamPaths.MaxDepth} levels."
+                );
+            }
+        }
+
+        foreach (var (descendant, descendantPath) in rewritten)
+        {
+            descendant.Path = descendantPath;
+        }
     }
 
     /// <inheritdoc />
@@ -473,6 +696,8 @@ internal class TeamStore(
         CancellationToken cancellationToken
     )
     {
+        DbContext.EnsureUnscoped($"{nameof(TeamStore)}.{nameof(HasDependentsAsync)}");
+
         var teamEntity = await GetEntityOrDefaultAsync(teamId, cancellationToken);
         if (teamEntity is null)
         {
@@ -480,19 +705,6 @@ internal class TeamStore(
         }
 
         return await HasDependentsAsync(teamEntity, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public async ValueTask<bool> IsTeamIdRetiredAsync(
-        string teamId,
-        CancellationToken cancellationToken
-    )
-    {
-        var normalizedTeamId = Normalize(teamId);
-        return await DbContext.RetiredTeams.AnyAsync(
-            entity => entity.NormalizedTeamId == normalizedTeamId,
-            cancellationToken
-        );
     }
 
     private async ValueTask<bool> HasDependentsAsync(
@@ -509,6 +721,7 @@ internal class TeamStore(
                 cancellationToken
             )
             || await DbContext
+                // Cross-tenant: a team owns machine clients that live in any tenant.
                 .Clients.IgnoreQueryFilters()
                 .AnyAsync(
                     client =>

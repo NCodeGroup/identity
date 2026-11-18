@@ -11,8 +11,8 @@ export const configSlice = createSlice({
   name: 'config',
   initialState,
   reducers: {
-    // Return a fresh state rather than mutating the Immer draft: RuntimeConfig is immutable and
-    // replaced wholesale, and its readonly array fields don't satisfy the writable-draft type.
+    // Return a fresh state rather than mutating the Immer draft: RuntimeConfig is immutable and replaced wholesale, and
+    // its readonly array fields don't satisfy the writable-draft type.
     runtimeConfigLoaded(_state, action: PayloadAction<RuntimeConfig>): ConfigState {
       return { runtime: action.payload };
     },

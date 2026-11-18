@@ -22,6 +22,7 @@ using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Endpoints;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Registration.AspNetCore;
 using NCode.Mediator;
@@ -68,9 +69,12 @@ internal class LocalAccountApiEndpointHandler(
     ISessionService sessionService,
     IOpenIdContextFactory openIdContextFactory,
     LocalAccountPasswords localAccountPasswords,
-    IPostCommitSecurityEffects postCommitSecurityEffects
+    IPostCommitSecurityEffects postCommitSecurityEffects,
+    IAmbientTenantAccessor ambientTenantAccessor
 ) : ManagementApiEndpointHandler, IEndpointProvider
 {
+    private const string PrincipalRoleRemovalReason = "principal role removal";
+
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
 
     /// <inheritdoc />
@@ -87,6 +91,7 @@ internal class LocalAccountApiEndpointHandler(
     private LocalAccountPasswords LocalAccountPasswords { get; } = localAccountPasswords;
     private IPostCommitSecurityEffects PostCommitSecurityEffects { get; } =
         postCommitSecurityEffects;
+    private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
 
     /// <inheritdoc />
     public void Map(IEndpointRouteBuilder endpoints)
@@ -499,6 +504,7 @@ internal class LocalAccountApiEndpointHandler(
             localAccountId,
             cancellationToken
         );
+        string? removedPrincipalId = null;
         if (identity is not null)
         {
             // The principal's sessions end before the deletion commits, while they can still be listed to notify their relying parties. See ADR-1229.
@@ -527,10 +533,26 @@ internal class LocalAccountApiEndpointHandler(
                 await storeManager
                     .GetStore<IFederatedPrincipalStore>()
                     .RemoveAsync(identity.PrincipalId, cancellationToken);
+                removedPrincipalId = identity.PrincipalId;
             }
         }
 
-        await storeManager.SaveChangesAsync(cancellationToken);
+        if (removedPrincipalId is null)
+        {
+            await storeManager.SaveChangesAsync(cancellationToken);
+        }
+        else
+        {
+            // The principal's role assignments are stored under the tenant of each node that holds them, so they are
+            // removed, and the removal is saved, in an unscoped scope. See ADR-1018 and ADR-1212.
+            using (AmbientTenantAccessor.BeginUnscoped(PrincipalRoleRemovalReason))
+            {
+                await storeManager
+                    .GetStore<IRoleAssignmentStore>()
+                    .RemoveByPrincipalAsync(removedPrincipalId, cancellationToken);
+                await storeManager.SaveChangesAsync(cancellationToken);
+            }
+        }
 
         await ManagementAuditRecorder.RecordLocalAccountChangedAsync(
             httpContext,

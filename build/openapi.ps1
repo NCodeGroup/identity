@@ -7,10 +7,11 @@
 .DESCRIPTION
     The script builds the reference host (unless -NoBuild), then runs the GenerateOpenApiDocuments target of
     Microsoft.Extensions.ApiDescription.Server in the Staging environment with LocalDevelopment:Enabled, an ephemeral
-    root key and a static issuer, so the host starts without a database or a secret store. The document describes the
-    product whatever the ApiReference switches say (ADR-1481). With -Version the script sets info.version of the
-    document; the publish workflow stamps the artifact version this way (ADR-1505). A version with a character outside
-    [0-9A-Za-z.-] is refused before any build. The script prints the document's path.
+    root key, a static issuer and a control-plane cell, so the host starts without a database or a secret store and maps
+    every route. The document describes the product whatever the ApiReference switches say (ADR-1481). With -Version
+    the script sets info.version of the document; the publish workflow stamps the artifact version this way
+    (ADR-1505). A version with a character outside [0-9A-Za-z.-] is refused before any build. The script prints the
+    document's path.
 .PARAMETER Configuration
     The build configuration. Defaults to Release.
 .PARAMETER NoBuild
@@ -48,6 +49,11 @@ $environment = [ordered]@{
     # A placeholder that only satisfies the host's startup validation; the document names no server, so it never
     # carries this issuer.
     'OpenId__TenantResolution__StaticSingle__Issuer' = 'https://identity.example'
+    # The host's base configuration names no cell. A control-plane cell maps every route, so the document describes the
+    # platform and team routes too.
+    'Cell__Name'                                     = 'openapi'
+    'Cell__Region'                                   = 'openapi'
+    'Cell__IsControlPlane'                           = 'true'
     'SecretProtection__RootKeyProvider'              = 'ephemeral'
     'LocalDevelopment__Enabled'                      = 'true'
 }

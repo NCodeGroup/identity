@@ -112,12 +112,15 @@ A project's top-level folder says whether it ships ([ADR-1501](docs/decisions/15
 | Endpoints & grants   | `NCode.Identity.OpenId.Authentication(.Abstractions)`, `.Authentication.Interactive(.Abstractions)`            |
 | Management API       | `NCode.Identity.OpenId.Management(.Abstractions)`                                                                                  |
 | Accounts             | `NCode.Identity.OpenId.Accounts*` (local-account store, ASP.NET Core Identity adapter, management)                                 |
+| Global directory     | `NCode.Identity.OpenId.GlobalDirectory(.Abstractions)`, `.GlobalDirectory.Server` (the directory API)                              |
 | Persistence          | `NCode.Identity.Persistence.Abstractions`, `NCode.Identity.OpenId.Persistence*(.EntityFramework)` |
 | Protocol client      | `NCode.Identity.OpenId.Client(.Abstractions)`, `NCode.Identity.OpenId.Protocol.Abstractions`                                     |
 | Backend for frontend | `NCode.Identity.Bff(.Abstractions)`, `.Bff.Protocol.Abstractions`, `.Bff.Server` (the turnkey `AddIdentityBff`), `.Bff.Blazor`, `.Bff.Blazor.Client` |
-| Composition | `NCode.Identity.Registration(.AspNetCore)`, `NCode.Identity.Server`, `NCode.Identity.ManagementConsole` |
+| Composition | `NCode.Identity.Registration(.AspNetCore)`, `NCode.Identity.Server`, `NCode.Identity.ManagementConsole`, `NCode.Identity.AspNetCore.OpenTelemetry` |
 
-The deployables under `hosts/` are `NCode.Identity.OpenId.Host` with its `.Host.Database` and `.Host.MigrationService`, `NCode.Identity.ManagementConsole.Host` and `NCode.Identity.OpenId.LocalDev`.
+The deployables under `hosts/` are `NCode.Identity.OpenId.Host` with its `.Host.Database` and `.Host.MigrationService`,
+`NCode.Identity.ManagementConsole.Host`, `NCode.Identity.OpenId.GlobalDirectory.Host` (the directory host, with a
+`migrate` command) and `NCode.Identity.OpenId.LocalDev`.
 
 The extensibility model — **service** vs **strategy collection** vs **mediator** — is
 [ADR-1001](docs/decisions/1001-behavior-is-a-service-a-strategy-collection-or-a-mediator-seam-chosen-by-one-ladder.md).
@@ -128,7 +131,7 @@ The product spans the repositories below, and code is public when a self-hoster 
 
 | Repository                     | Visibility | Holds |
 | ------------------------------ | ---------- | ----- |
-| `NCodeGroup/identity`          | Public     | The product: the NuGet packages (`src/`), the deployables (`hosts/`), the host and console images, the host chart (`charts/ncode-identity-host`), the web apps' pnpm workspace (`frontend/`), and the decisions and issues of the product and its platform ([ADR-1502](docs/decisions/1502-code-a-self-hoster-could-use-is-public-and-identity-holds-the-products-and-platforms-decisions.md)) |
+| `NCodeGroup/identity`          | Public     | The product: the NuGet packages (`src/`), the deployables (`hosts/`), the host, console and directory images, the host chart (`charts/ncode-identity-host`), the web apps' pnpm workspace (`frontend/`), and the decisions and issues of the product and its platform ([ADR-1502](docs/decisions/1502-code-a-self-hoster-could-use-is-public-and-identity-holds-the-products-and-platforms-decisions.md)) |
 | `NCodeGroup/identity-platform` | Public     | The reusable OpenTofu modules, Kustomize components and stacks, and the platform's live configuration for `lab` and `production` ([ADR-1132](docs/decisions/1132-platform-infrastructure-code-is-public-on-github-and-its-state-and-backups-live-in-aws.md), [ADR-1133](docs/decisions/1133-the-hosted-platform-runs-only-the-published-artifacts-it-offers-self-hosters.md)) |
 | `NCodeGroup/identity-cloud`    | Private    | Only the managed offering's proprietary parts: billing and metering, sign-up, the customer portal, support tooling and private runbooks |
 

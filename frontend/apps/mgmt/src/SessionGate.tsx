@@ -121,8 +121,8 @@ export function SessionGate({
     };
   }, [bff, status, user, probe, dispatch]);
 
-  // A session that ended in this tab is announced to the other tabs; one that ended because another tab announced it
-  // is not announced again.
+  // A session that ended in this tab is announced to the other tabs; one that ended because another tab announced it is
+  // not announced again.
   useEffect(() => {
     const previousStatus = previousStatusRef.current;
     previousStatusRef.current = status;

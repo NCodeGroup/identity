@@ -91,7 +91,7 @@ Several weaknesses follow from anything looser than an ordinal comparison of the
    `redirect_uris` and `post_logout_redirect_uris` through the client coherence rules
    ([ADR-1206](1206-a-clients-settings-are-checked-by-registered-coherence-rules-wherever-they-are-written-or-bounded.md)),
    dynamic client registration refusing with `invalid_redirect_uri`. A tenant or platform settings change
-   ([ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md)) that
+   ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)) that
    would leave a registered URI unpermitted is refused. The delivery resolver checks the kind after the registration
    match, at the authorization endpoint and at the PAR endpoint, and refuses a URI with `invalid_request` and a `400`
    without redirecting.
@@ -148,4 +148,4 @@ Several weaknesses follow from anything looser than an ordinal comparison of the
   [ADR-1201](1201-authorization-responses-are-delivered-by-registered-response-mode-handlers.md),
   [ADR-1202](1202-fapi-1-0-advanced-is-a-registered-profile-and-only-a-request-objects-parameters-count.md),
   [ADR-1206](1206-a-clients-settings-are-checked-by-registered-coherence-rules-wherever-they-are-written-or-bounded.md),
-  [ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md).
+  [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md).

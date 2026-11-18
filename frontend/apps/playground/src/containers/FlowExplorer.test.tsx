@@ -26,7 +26,8 @@ const runtime: OpenIdRuntimeConfig = {
   clientId: 'playground-spa',
 };
 
-// The transaction's client differs from the prefilled one, proving refresh/logout use the client that completed the flow.
+// The transaction's client differs from the prefilled one, proving refresh/logout use the client that completed the
+// flow.
 const transaction: FlowTransaction = {
   clientId: 'tx-client',
   redirectUri: 'https://ui.test/callback',

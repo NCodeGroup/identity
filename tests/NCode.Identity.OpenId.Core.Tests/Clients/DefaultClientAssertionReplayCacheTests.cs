@@ -3,7 +3,6 @@
 
 using Moq;
 using NCode.Identity.OpenId.Authentication.Clients;
-using NCode.Identity.OpenId.Authentication.SharedState;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.SharedState;

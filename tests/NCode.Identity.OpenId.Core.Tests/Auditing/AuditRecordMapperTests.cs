@@ -52,9 +52,10 @@ public class AuditRecordMapperTests
     {
         var auditEvent = CreateEvent();
 
-        var record = AuditRecordMapper.Map(auditEvent);
+        var record = AuditRecordMapper.Map(auditEvent, "cell-1");
 
         Assert.Equal(auditEvent.EventId, record.EventId);
+        Assert.Equal("cell-1", record.Cell);
         Assert.Equal(auditEvent.EventTime, record.EventTime);
         Assert.Equal("client.updated", record.EventName);
         Assert.Equal(AuditEventCategories.Management, record.EventCategory);
@@ -89,7 +90,7 @@ public class AuditRecordMapperTests
         var longClientId = new string('c', 400);
         var auditEvent = CreateEvent() with { Name = longName, ClientId = longClientId };
 
-        var record = AuditRecordMapper.Map(auditEvent);
+        var record = AuditRecordMapper.Map(auditEvent, "cell-1");
 
         Assert.Equal(longName[..100], record.EventName);
         Assert.Null(record.ClientId);
@@ -105,7 +106,7 @@ public class AuditRecordMapperTests
     {
         var auditEvent = CreateEvent() with { Request = null };
 
-        var record = AuditRecordMapper.Map(auditEvent);
+        var record = AuditRecordMapper.Map(auditEvent, "cell-1");
 
         Assert.Null(record.TraceId);
         Assert.Null(record.SourceIp);

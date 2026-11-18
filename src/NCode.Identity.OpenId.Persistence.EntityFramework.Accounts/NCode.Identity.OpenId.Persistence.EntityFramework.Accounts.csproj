@@ -9,6 +9,7 @@
     <ItemGroup>
         <ProjectReference Include="..\NCode.Identity.OpenId.Accounts.Abstractions\NCode.Identity.OpenId.Accounts.Abstractions.csproj" />
         <ProjectReference Include="..\NCode.Identity.OpenId.Persistence.EntityFramework\NCode.Identity.OpenId.Persistence.EntityFramework.csproj" />
+        <ProjectReference Include="..\NCode.Identity.OpenId.Persistence.EntityFramework.Core\NCode.Identity.OpenId.Persistence.EntityFramework.Core.csproj" />
     </ItemGroup>
 
     <ItemGroup>

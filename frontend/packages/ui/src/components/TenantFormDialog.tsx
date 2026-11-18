@@ -6,6 +6,7 @@ import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import FormControlLabel from '@mui/material/FormControlLabel';
+import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import Switch from '@mui/material/Switch';
 import TextField from '@mui/material/TextField';
@@ -20,6 +21,8 @@ export type TenantFormValues = {
   readonly issuer: string;
   readonly mtlsEndpointAliasAuthority: string;
   readonly isDisabled: boolean;
+  /** The cell the tenant lives in; absent for a tenant of the control plane's own store. */
+  readonly cell?: string;
 };
 
 /** One reason the address being entered cannot be served, as the server reports it. */
@@ -47,6 +50,14 @@ export type TenantAddressInput = {
   readonly tenantId: string;
   readonly issuer: string;
   readonly mtlsEndpointAliasAuthority: string;
+  /** The cell the tenant is addressed in, when it has one. */
+  readonly cell?: string;
+};
+
+/** A cell a new tenant can be created in: its name, and the region it runs in when that is known. */
+export type TenantCellOption = {
+  readonly name: string;
+  readonly region: string | null;
 };
 
 export type TenantFormDialogProps = {
@@ -56,6 +67,11 @@ export type TenantFormDialogProps = {
   readonly initialValues: TenantFormValues;
   /** Whether the tenant ID is fixed, because the tenant already exists and its ID cannot change. */
   readonly isTenantIdLocked?: boolean;
+  /**
+   * The cells a new tenant can be created in. A required Cell field is shown when there are any and the tenant ID is
+   * not locked, because an existing tenant stays in its cell.
+   */
+  readonly cells?: readonly TenantCellOption[];
   readonly isSubmitting?: boolean;
   readonly error?: string | undefined;
   /** The server's preview of the address currently entered, or `undefined` while none matches it. */
@@ -75,8 +91,8 @@ export const emptyTenantFormValues: TenantFormValues = {
 };
 
 /**
- * The tenant ID rule the server enforces, mirrored here only to guide input: 1 to 63 lowercase
- * letters, digits, or hyphens that starts and ends with a letter or digit.
+ * The tenant ID rule the server enforces, mirrored here only to guide input: 1 to 63 lowercase letters, digits, or
+ * hyphens that start and end with a letter or digit.
  */
 const tenantIdPattern = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
@@ -100,6 +116,7 @@ export function TenantFormDialog({
   submitLabel,
   initialValues,
   isTenantIdLocked = false,
+  cells = [],
   isSubmitting = false,
   error,
   addressPreview,
@@ -110,8 +127,8 @@ export function TenantFormDialog({
   const [values, setValues] = useState<TenantFormValues>(initialValues);
   const wasOpenRef = useRef(open);
 
-  // Reseed the form only on the rising edge of `open`, so a new `initialValues` identity while the
-  // dialog is already open never discards in-progress edits.
+  // Reseed the form only on the rising edge of `open`, so a new `initialValues` identity while the dialog is already
+  // open never discards in-progress edits.
   useEffect(() => {
     if (open && !wasOpenRef.current) {
       setValues(initialValues);
@@ -124,6 +141,14 @@ export function TenantFormDialog({
   const issuer = values.issuer.trim();
   const mtlsEndpointAliasAuthority = values.mtlsEndpointAliasAuthority.trim();
   const isTenantIdValid = isTenantIdLocked || isValidTenantId(tenantId);
+  // The cell is chosen only while creating; an existing tenant keeps the cell it was opened with.
+  const showCell = cells.length > 0 && !isTenantIdLocked;
+  const cell = showCell
+    ? cells.some((option) => option.name === values.cell)
+      ? values.cell
+      : undefined
+    : values.cell;
+  const cellField = cell ? { cell } : {};
   const isTenantIdTaken = !isTenantIdLocked && addressPreview?.exists === true;
   const showTenantIdError =
     !isTenantIdLocked && tenantId.length > 0 && (!isTenantIdValid || isTenantIdTaken);
@@ -139,13 +164,19 @@ export function TenantFormDialog({
     !isTenantIdTaken &&
     addressFailures.length === 0 &&
     displayName.length > 0 &&
+    (!showCell || cell !== undefined) &&
     !isSubmitting;
 
   useEffect(() => {
     if (open) {
-      onAddressChange?.({ tenantId, issuer, mtlsEndpointAliasAuthority });
+      onAddressChange?.({
+        tenantId,
+        issuer,
+        mtlsEndpointAliasAuthority,
+        ...(cell ? { cell } : {}),
+      });
     }
-  }, [open, tenantId, issuer, mtlsEndpointAliasAuthority, onAddressChange]);
+  }, [open, tenantId, issuer, mtlsEndpointAliasAuthority, cell, onAddressChange]);
 
   const handleSubmit = () => {
     if (!canSubmit) {
@@ -157,6 +188,7 @@ export function TenantFormDialog({
       issuer,
       mtlsEndpointAliasAuthority,
       isDisabled: values.isDisabled,
+      ...cellField,
     });
   };
 
@@ -196,6 +228,24 @@ export function TenantFormDialog({
             autoFocus={!isTenantIdLocked}
             slotProps={{ htmlInput: { 'data-testid': 'tenant-id' } }}
           />
+          {showCell && (
+            <TextField
+              select
+              required
+              label="Cell"
+              value={cell ?? ''}
+              onChange={(event) => setValues((v) => ({ ...v, cell: event.target.value }))}
+              helperText="The cell that stores the tenant. It cannot be changed later."
+              fullWidth
+              slotProps={{ htmlInput: { 'data-testid': 'tenant-cell' } }}
+            >
+              {cells.map((option) => (
+                <MenuItem key={option.name} value={option.name}>
+                  {option.region ? `${option.name} (${option.region})` : option.name}
+                </MenuItem>
+              ))}
+            </TextField>
+          )}
           <TextField
             label="Display name"
             value={values.displayName}

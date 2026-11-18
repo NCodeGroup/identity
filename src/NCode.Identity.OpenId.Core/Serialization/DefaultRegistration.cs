@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using JetBrains.Annotations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NCode.Identity.Registration;
@@ -20,7 +19,6 @@ internal static class DefaultRegistration
         /// Configures services and handlers for <see cref="OpenIdCoreLibrary"/>.
         /// </summary>
         /// <returns>The <see cref="IServiceBuilder{T}"/> instance for method chaining.</returns>
-        [PublicAPI]
         public IServiceBuilder<OpenIdCoreLibrary> AddSerializationServices()
         {
             var serviceCollection = builder.ServiceCollection;

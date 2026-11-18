@@ -3,35 +3,36 @@
 
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
-using NCode.Identity.OpenId.Authentication.Tokens.Commands;
-using NCode.Identity.OpenId.Contexts;
-using NCode.Identity.OpenId.PrincipalResolution;
+using Microsoft.AspNetCore.Mvc;
+using NCode.Identity.AspNetCore;
+using NCode.Identity.Jose;
+using NCode.Identity.OpenId.GlobalDirectory;
+using NCode.Identity.OpenId.Management.ControlPlane;
 
 namespace NCode.Identity.OpenId.Management.Endpoints;
 
 /// <summary>
 /// The management authentication endpoint filter. It runs after <see cref="ManagementEnvironmentEndpointFilter"/> has
-/// materialized the OpenID request environment, validates a self-issued bearer access token for the management audience
-/// against the control-plane tenant, and publishes, on every management request, the principal a valid management access
+/// materialized the OpenID request environment, asks <see cref="IManagementTokenValidator"/> to validate the management
+/// access token of the request, and publishes, on every management request, the principal a valid management access
 /// token authenticates on <see cref="HttpContext.User"/> and as <see cref="IManagementCallerFeature"/>, for the
 /// endpoints' resource-based authorization to read. Any other request is anonymous whatever principal an authentication
-/// scheme set, and carries no feature; the imperative authorization returns <c>401</c>/<c>403</c>. Once the token
-/// authenticates, the filter resolves the client the caller acts as before the endpoint changes anything, and the
-/// resolver gives that answer for the rest of the request, so a change the request commits, such as a machine client
-/// deleting itself, does not alter the actor its audit records.
+/// scheme set, and carries no feature; the imperative authorization returns <c>401</c>/<c>403</c>. When the validator
+/// cannot validate the token because the control plane that validates it is unavailable, the filter answers
+/// <c>503 Service Unavailable</c> with a <c>Retry-After</c> and does not call the endpoint. The same answer covers an
+/// endpoint whose authorization asks <see cref="IControlPlaneAuthority"/> for a role while the control plane is
+/// unavailable. For an authenticated caller the filter also asks <see cref="IControlPlaneAuthority"/>, once, whether
+/// the caller is a client acting for itself and keeps the answer on <see cref="ManagementActorFeature"/>; an
+/// unavailable control plane there keeps "not acting client" and does not fail the request.
 /// </summary>
 // See ADR-1466 and ADR-1044.
 internal sealed class ManagementAuthenticationEndpointFilter(
-    IClientPrincipalResolver clientPrincipalResolver
+    IManagementTokenValidator tokenValidator,
+    IControlPlaneAuthority controlPlaneAuthority
 ) : IEndpointFilter
 {
-    private const string BearerPrefix = "Bearer ";
-    private const string DPoPPrefix = "DPoP ";
-
-    private static string[] ManagementAudiences { get; } =
-    [OpenIdConstants.SystemResourceServerIdentifiers.Management];
-
-    private IClientPrincipalResolver ClientPrincipalResolver { get; } = clientPrincipalResolver;
+    private IManagementTokenValidator TokenValidator { get; } = tokenValidator;
+    private IControlPlaneAuthority ControlPlaneAuthority { get; } = controlPlaneAuthority;
 
     /// <inheritdoc />
     public async ValueTask<object?> InvokeAsync(
@@ -41,73 +42,87 @@ internal sealed class ManagementAuthenticationEndpointFilter(
     {
         var httpContext = context.HttpContext;
 
-        var caller = await AuthenticateOrDefaultAsync(httpContext, httpContext.RequestAborted);
-        if (caller is null)
+        var validation = await TokenValidator.ValidateAsync(
+            httpContext,
+            httpContext.RequestAborted
+        );
+        if (validation.IsUnavailable)
         {
-            var anonymousIdentity = new ClaimsIdentity();
-            httpContext.User = new ClaimsPrincipal(anonymousIdentity);
-            httpContext.Features.Set<IManagementCallerFeature>(null);
+            return RetryAfterProblem.Create(
+                httpContext,
+                validation.RetryAfter,
+                new ProblemDetails
+                {
+                    Status = StatusCodes.Status503ServiceUnavailable,
+                    Detail = "The control plane that validates management tokens is unavailable.",
+                }
+            );
         }
-        else
+
+        if (validation.Principal is { } caller)
         {
             httpContext.User = caller;
             var callerFeature = new DefaultManagementCallerFeature(caller);
             httpContext.Features.Set<IManagementCallerFeature>(callerFeature);
+
+            var isActingClient = await IsActingClientAsync(caller, httpContext.RequestAborted);
+            httpContext.Features.Set(new ManagementActorFeature(isActingClient));
+        }
+        else
+        {
+            var anonymousIdentity = new ClaimsIdentity();
+            httpContext.User = new ClaimsPrincipal(anonymousIdentity);
+            httpContext.Features.Set<IManagementCallerFeature>(null);
+            httpContext.Features.Set<ManagementActorFeature>(null);
         }
 
-        return await next(context);
+        try
+        {
+            return await next(context);
+        }
+        catch (DirectoryUnavailableException)
+        {
+            return RetryAfterProblem.Create(
+                httpContext,
+                TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds),
+                new ProblemDetails
+                {
+                    Status = StatusCodes.Status503ServiceUnavailable,
+                    Detail =
+                        "The control plane that holds the platform and team roles is unavailable.",
+                }
+            );
+        }
     }
 
-    private async ValueTask<ClaimsPrincipal?> AuthenticateOrDefaultAsync(
-        HttpContext httpContext,
+    // Only the control plane can tell whether the subject is the principal of the requesting client, and a client that
+    // deletes itself is gone once the change commits, so the answer is resolved here, before the handler runs. When the
+    // control plane is unavailable the caller is not an acting client, and the authorization handlers answer their own
+    // 503.
+    private async ValueTask<bool> IsActingClientAsync(
+        ClaimsPrincipal caller,
         CancellationToken cancellationToken
     )
     {
-        var openIdContext = httpContext.GetOpenIdContextOrDefault();
-        if (openIdContext is null || !TryGetBearerToken(httpContext, out var accessToken))
-            return null;
-
-        var command = new AuthenticateAccessTokenCommand(
-            openIdContext,
-            accessToken,
-            ManagementAudiences
-        );
-        var disposition = await openIdContext.Mediator.SendAsync<
-            AuthenticateAccessTokenCommand,
-            AuthenticateAccessTokenDisposition
-        >(command, cancellationToken);
-
-        if (!disposition.IsAuthenticated)
-            return null;
-
-        // The call is kept for the answer the request remembers, which the audit recorder reads after the
-        // commit, so a change the request commits, such as a machine client deleting itself, does not alter
-        // the actor its audit records.
-        // See ADR-1466.
-        _ = await ClientPrincipalResolver.GetActingClientOrDefaultAsync(
-            openIdContext,
-            disposition.Principal,
-            cancellationToken
-        );
-
-        return disposition.Principal;
-    }
-
-    private static bool TryGetBearerToken(HttpContext httpContext, out string token)
-    {
-        var authorization = httpContext.Request.Headers.Authorization.ToString();
-
-        // Accept both the Bearer scheme and the DPoP scheme (RFC 9449 §7.1).
-        foreach (var prefix in (ReadOnlySpan<string>)[BearerPrefix, DPoPPrefix])
+        var subject = caller.FindFirstValue(JoseClaimNames.Payload.Sub);
+        var clientId = caller.FindFirstValue(JoseClaimNames.Payload.ClientId);
+        if (string.IsNullOrEmpty(subject) || string.IsNullOrEmpty(clientId))
         {
-            if (authorization.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            {
-                token = authorization[prefix.Length..].Trim();
-                return token.Length > 0;
-            }
+            return false;
         }
 
-        token = string.Empty;
-        return false;
+        try
+        {
+            var authority = await ControlPlaneAuthority.GetAsync(
+                new ControlPlaneAuthorityRequest { Subject = subject, ClientId = clientId },
+                cancellationToken
+            );
+
+            return authority.IsActingClient;
+        }
+        catch (DirectoryUnavailableException)
+        {
+            return false;
+        }
     }
 }

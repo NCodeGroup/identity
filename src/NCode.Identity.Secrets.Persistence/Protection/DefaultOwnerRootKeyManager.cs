@@ -19,11 +19,13 @@ namespace NCode.Identity.Secrets.Persistence.Protection;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Setting a key probes it, stores the binding as active, evicts the owner from the ring, tells the observers, and then
-/// completes: the owner's master key rotates onto the key unless the active one already sits under it, and every
+/// Setting a key probes it, stores the binding as active, evicts every owner from the ring, tells the observers, and
+/// then completes: the owner's master key rotates onto the key unless the active one already sits under it, and every
 /// retired master key is rewrapped under it. The earlier material exists in backups under the deployment's root key and
 /// its recovery copy, so only a master key created under the owner's key gives the owner sole control of what is
-/// written afterwards. Removing the key does not rotate: its material was only ever under the stronger root.
+/// written afterwards. Removing the key does not rotate: its material was only ever under the stronger root. A
+/// descendant's ring caches the master keys it loaded under its nearest ancestor's root key, so a change to any owner's
+/// root key evicts every owner.
 /// </para>
 /// <para>
 /// The binding is committed before the completion, and the completion is repeated by <see cref="ValidateAsync"/>, so a
@@ -39,6 +41,7 @@ internal sealed class DefaultOwnerRootKeyManager(
     ISecretProtectorProvider protectorProvider,
     IMasterKeyManager masterKeyManager,
     IMasterKeyRewrapper rewrapper,
+    INearestOwnerRootKeyResolver nearestRootKeyResolver,
     IEnumerable<IOwnerRootKeyPolicy> policies,
     IEnumerable<IOwnerRootKeyChangeObserver> observers,
     IOptions<SecretProtectionOptions> options,
@@ -47,6 +50,8 @@ internal sealed class DefaultOwnerRootKeyManager(
 ) : IOwnerRootKeyManager
 {
     private static MasterKeyRewrapResult NoRewrap { get; } = new(0, 0, 0, 0);
+
+    private const int CountPageSize = 100;
 
     private IKeyWrapperCatalog Catalog { get; } = catalog;
 
@@ -57,6 +62,8 @@ internal sealed class DefaultOwnerRootKeyManager(
     private IMasterKeyManager MasterKeyManager { get; } = masterKeyManager;
 
     private IMasterKeyRewrapper Rewrapper { get; } = rewrapper;
+
+    private INearestOwnerRootKeyResolver NearestRootKeyResolver { get; } = nearestRootKeyResolver;
 
     private IOwnerRootKeyPolicy[] Policies { get; } = [.. policies];
 
@@ -171,6 +178,45 @@ internal sealed class DefaultOwnerRootKeyManager(
     }
 
     /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<OwnerRootKeyInfo>> GetManyAsync(
+        string ownerType,
+        IReadOnlyCollection<string> ownerIds,
+        CancellationToken cancellationToken
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(ownerType);
+        ArgumentNullException.ThrowIfNull(ownerIds);
+
+        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+        var rows = await storeManager
+            .GetStore<IOwnerRootKeyStore>()
+            .FindManyAsync(ownerType, ownerIds, cancellationToken);
+
+        return [.. rows.Select(OwnerRootKeyInfo.From)];
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<PagedResult<OwnerRootKeyInfo>> GetPageAsync(
+        string ownerType,
+        PageRequest page,
+        CancellationToken cancellationToken
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(ownerType);
+
+        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+        var result = await storeManager
+            .GetStore<IOwnerRootKeyStore>()
+            .GetOwnerTypePageAsync(ownerType, page, cancellationToken);
+
+        return new PagedResult<OwnerRootKeyInfo>
+        {
+            Items = [.. result.Items.Select(OwnerRootKeyInfo.From)],
+            NextCursor = result.NextCursor,
+        };
+    }
+
+    /// <inheritdoc />
     // See ADR-1414.
     public async ValueTask<OwnerRootKeyChange> SetAsync(
         SecretOwner owner,
@@ -185,18 +231,12 @@ internal sealed class DefaultOwnerRootKeyManager(
         var keyReference = request.KeyReference;
         var accessIdentity = request.AccessIdentity;
 
-        if (!CanBringRootKey(key, out var notAllowed))
-            throw new OwnerRootKeyNotAllowedException(key, notAllowed);
-
-        if (!TryValidateKeyReference(keyWrapperName, keyReference, out var failure))
-            throw new ArgumentException(failure, nameof(request));
-
-        if (
-            accessIdentity is not null
-            && !TryValidateAccessIdentity(keyWrapperName, accessIdentity, out failure)
-        )
+        if (OwnerRootKeyRequestValidation.GetRefusalOrDefault(this, key, request) is { } refusal)
         {
-            throw new ArgumentException(failure, nameof(request));
+            if (refusal.IsOwnerRefused)
+                throw new OwnerRootKeyNotAllowedException(key, refusal.Reason);
+
+            throw new ArgumentException(refusal.Reason, nameof(request));
         }
 
         var (binding, rows) = await ReadAsync(key, cancellationToken);
@@ -275,7 +315,7 @@ internal sealed class DefaultOwnerRootKeyManager(
         );
 
         Logger.OwnerRootKeySet(key, keyWrapperName, keyReference);
-        ProtectorProvider.Evict(key);
+        ProtectorProvider.EvictAll();
         await NotifyAsync(key);
 
         var change =
@@ -309,7 +349,7 @@ internal sealed class DefaultOwnerRootKeyManager(
             removed = true;
 
             Logger.OwnerRootKeyStateChanged(key, OwnerRootKeyStates.Removing);
-            ProtectorProvider.Evict(key);
+            ProtectorProvider.EvictAll();
             await NotifyAsync(key);
         }
 
@@ -405,7 +445,7 @@ internal sealed class DefaultOwnerRootKeyManager(
         if (change is not null)
         {
             Logger.OwnerRootKeyStateChanged(key, binding.State);
-            ProtectorProvider.Evict(key);
+            ProtectorProvider.EvictAll();
             await NotifyAsync(key);
         }
 
@@ -604,15 +644,25 @@ internal sealed class DefaultOwnerRootKeyManager(
             return null;
 
         Logger.OwnerRootKeyStateChanged(key, binding.State);
-        ProtectorProvider.Evict(key);
+        ProtectorProvider.EvictAll();
         await NotifyAsync(key);
 
         return OwnerRootKeyInfo.From(binding);
     }
 
+    // A tenant is no other owner's ancestor, so a change of its root key reaches only its own master keys; any other
+    // owner's key reaches those of the owners under it and those still under the key too.
+    private static MasterKeyRewrapRequest CreateRewrapRequest(SecretOwner key) =>
+        new()
+        {
+            NonconformingOnly = true,
+            Owner = key,
+            IncludeDescendants = key.TenantId is null,
+        };
+
     // Rotates the owner's master key onto its root key when the active one does not sit under the key it names, and
-    // conforms every other master key to it, including the master keys that sit under the key through another access
-    // identity.
+    // conforms to it the master keys whose root it can be, including those under the key through another access
+    // identity or binding.
     // See ADR-1414.
     private async ValueTask<(
         MasterKeyRotation? Rotation,
@@ -641,27 +691,70 @@ internal sealed class DefaultOwnerRootKeyManager(
             }
         }
 
-        var rewrap = await Rewrapper.RewrapAsync(
-            new MasterKeyRewrapRequest { Owner = key, NonconformingOnly = true },
-            cancellationToken
-        );
+        var rewrap = await Rewrapper.RewrapAsync(CreateRewrapRequest(key), cancellationToken);
 
         return (rotation, rewrap);
     }
 
-    // Moves every master key under the deployment's root key and deletes the binding once none remains under the key.
-    // The binding is read again after the move, because the store renews its concurrency token with every save.
+    // Counts the master keys under the key the binding names that do not conform to their owner's nearest root key,
+    // whatever the state of the binding. A master key of another owner whose own root key names the same key conforms
+    // and stays, so it never holds the removal.
+    private async ValueTask<int> CountWrappedByKeyAsync(
+        PersistedOwnerRootKey binding,
+        CancellationToken cancellationToken
+    )
+    {
+        var count = 0;
+        var nearestRootKeys = new Dictionary<SecretOwner, PersistedOwnerRootKey?>(
+            SecretOwnerComparer.Instance
+        );
+        string? cursor = null;
+        do
+        {
+            await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+            var page = await storeManager
+                .GetStore<IMasterKeyStore>()
+                .GetPageAsync(
+                    new PageRequest { Limit = CountPageSize, Cursor = cursor },
+                    cancellationToken
+                );
+
+            foreach (var row in page.Items)
+            {
+                if (!MasterKeyFactory.IsWrappedByKey(row, binding))
+                    continue;
+
+                if (!nearestRootKeys.TryGetValue(row.Owner, out var nearest))
+                {
+                    nearest = await NearestRootKeyResolver.FindNearestAsync(
+                        storeManager.GetStore<IOwnerRootKeyStore>(),
+                        row.Owner,
+                        cancellationToken
+                    );
+                    nearestRootKeys[row.Owner] = nearest;
+                }
+
+                if (!MasterKeyFactory.Conforms(row, nearest))
+                    count++;
+            }
+
+            cursor = page.NextCursor;
+        } while (cursor is not null);
+
+        return count;
+    }
+
+    // Moves the master keys whose root the key can be onto the nearest other root key, and deletes the binding once no
+    // master key under the key remains that does not conform to its owner's nearest root key. The binding is read again
+    // after the move, because the store renews its concurrency token with every save.
     private async ValueTask<(
         OwnerRootKeyInfo? Remaining,
         MasterKeyRewrapResult Rewrap
     )> CompleteRemovalAsync(SecretOwner key, CancellationToken cancellationToken)
     {
-        var rewrap = await Rewrapper.RewrapAsync(
-            new MasterKeyRewrapRequest { Owner = key, NonconformingOnly = true },
-            cancellationToken
-        );
+        var rewrap = await Rewrapper.RewrapAsync(CreateRewrapRequest(key), cancellationToken);
 
-        var (binding, rows) = await ReadAsync(key, cancellationToken);
+        var (binding, _) = await ReadAsync(key, cancellationToken);
         if (binding is null)
             return (null, rewrap);
 
@@ -669,12 +762,9 @@ internal sealed class DefaultOwnerRootKeyManager(
         if (!IsState(binding, OwnerRootKeyStates.Removing))
             return (OwnerRootKeyInfo.From(binding), rewrap);
 
-        // A master key written or rewrapped under the owner's key after the rewrap listed it stays under that key, so
-        // the binding stays until none remains.
-        var remaining = Math.Max(
-            rewrap.Failed,
-            rows.Count(row => row.RootKeyReference is not null)
-        );
+        // A master key written or rewrapped under the key after the rewrap listed it stays under that key, so the
+        // binding stays until none remains.
+        var remaining = await CountWrappedByKeyAsync(binding, cancellationToken);
         if (remaining > 0)
         {
             binding.FailedWhen = TimeProvider.GetUtcNow();
@@ -709,7 +799,7 @@ internal sealed class DefaultOwnerRootKeyManager(
         }
 
         Logger.OwnerRootKeyRemoved(key);
-        ProtectorProvider.Evict(key);
+        ProtectorProvider.EvictAll();
         await NotifyAsync(key);
 
         return (null, rewrap);

@@ -26,7 +26,7 @@ A revocation must take effect across replicas within a bounded period, without a
 An owner other than the platform may bring its own root key, a key it controls in a key management service. The key
 wraps the owner's master keys in place of the deployment root, with no recovery copy, and revoking or destroying the key
 makes the owner's data unreadable wherever a copy is. The code says "owner root key"; the management API, the console
-and the docs say "tenant root key".
+and the docs say "tenant root key" or "team root key". A team's key is held per region (rule 21).
 
 1. **The tenant's key is an owner root key, a record of its own.** One `PersistedOwnerRootKey` row per secret owner
    lives in the table `OwnerRootKeys`, set and removed through `IOwnerRootKeyManager` and `PUT` and
@@ -38,23 +38,25 @@ and the docs say "tenant root key".
    master keys protect the Data Protection key ring and the host's own data. `ControlPlaneTenantRootKeyPolicy` refuses
    the control-plane tenant, which authenticates the management API
    ([ADR-1191](1191-a-management-request-is-authenticated-by-the-control-plane-tenant-and-scoped-by-its-routes-tenant.md)),
-   because a revoked key would lock out its administrators. `PUT` on either answers `400`. A consumer refuses further
-   owners by registering its own `IOwnerRootKeyPolicy`.
+   because a revoked key would lock out its administrators. `PUT` on either answers `400`, and the import of a moved
+   tenant's root key applies the same policies
+   ([ADR-1514](1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md)). A consumer
+   refuses further owners by registering its own `IOwnerRootKeyPolicy`.
 3. **The provider is any registered referenced key wrapper, and the operator opts in per provider.**
    `SecretProtection:OwnerRootKeys:Providers` is empty by default. `ValidationInterval` (default one hour, between one
    minute and one day) and `RetryInterval` (default one minute, between one second and `ValidationInterval`) are
-   validated at start. The list governs `PUT` only: an owner bound to a provider that leaves it keeps working. A listed
-   provider that is not a registered referenced wrapper stops the host. The chart renders
-   `secretProtection.ownerRootKeys.providers` as `SecretProtection__OwnerRootKeys__Providers__<i>` and mounts a
+   validated at start. The list governs `PUT` and the import of a moved tenant's root key: an owner bound to a provider
+   that leaves it keeps working. A listed provider that is not a registered referenced wrapper stops the host. The chart
+   renders `secretProtection.ownerRootKeys.providers` as `SecretProtection__OwnerRootKeys__Providers__<i>` and mounts a
    provider's credentials when it is the root provider or is listed.
 4. **`IReferencedKeyWrapper : IKeyWrapper` wraps under a named key.** It lives in `NCode.Identity.Secrets.Abstractions`,
    namespace `NCode.Identity.Secrets.KeyWrapping`, and has four members:
-   - `TryValidateKeyReference` checks the syntax of a reference only and returns a phrase that follows the field name
-     when it fails;
+   - `TryValidateKeyReference` checks the syntax of a reference, and for the AWS and Google adapters that the key lies
+     in an allowed cloud region or location, and returns a phrase that follows the field name when it fails;
    - `TryValidateAccessIdentity(string, out string? failure)` is the same syntax check for an access identity;
    - `WrapAsync(ReferencedKey, key, context, cancellationToken)` wraps under the named key with the same binding, checks
-     and error mapping as the configured wrap, and throws `ArgumentException` for a reference that fails the syntax
-     check;
+     and error mapping as the configured wrap, and throws `ArgumentException` for a reference that
+     `TryValidateKeyReference` refuses or an access identity that `TryValidateAccessIdentity` refuses;
    - `UnwrapAsync(WrappedKey, KeyAccess, context, destination, cancellationToken)` unwraps through the access the row
      records.
 
@@ -74,10 +76,11 @@ and the docs say "tenant root key".
    service account email or a Microsoft Entra directory GUID, checked by `TryValidateAccessIdentity`. No access key,
    client secret or key file exists in configuration or the database. A key without one is reached with the deployment's
    own identity.
-7. **The server derives an access binding from the owner.** The binding is `SecretOwner.Normalize().ToString()`, such as
-   `tenant:acme`. The AWS adapter sends it as the `ExternalId` of the assume-role call, so a role another tenant trusts
-   cannot be assumed on this tenant's behalf; the other adapters ignore it. `GET` reports it as `rootKeyAccessBinding`,
-   so a tenant writes its trust policy before it sets the key.
+7. **The server derives an access binding from the owner of the root key.** The binding is the key owner's
+   `SecretOwner.Normalize().ToString()`, such as `tenant:acme` for a tenant's key or `team:platform` for a team's key,
+   which also reaches the master keys of the tenants under the team. The AWS adapter sends it as the `ExternalId` of the
+   assume-role call, so a role another owner trusts cannot be assumed on this owner's behalf; the other adapters ignore
+   it. `GET` reports it as `rootKeyAccessBinding`, so an owner writes its trust policy before it sets the key.
 8. **Each provider reaches the key through its own delegation, cached in `KeyAccessClientCache<TClient>`.** AWS uses an
    `AssumeRoleAWSCredentials` over the default credential chain with the session name `ncode-identity-root-key`; Google
    Cloud impersonates the service account with the KMS scopes; Azure uses a `DefaultAzureCredential` per directory, for
@@ -91,9 +94,10 @@ and the docs say "tenant root key".
    `unavailable` or `removing`; an unknown state reads as `unavailable`. The record also holds the wrapper name, the key
    reference, `AccessIdentity` (nullable, at most 1024 characters), the times it was set, changed state and last
    validated, and the last failure.
-10. **Each master key row names its root.** A row records its `RootKeyReference` and `RootKeyAccessIdentity`, null for
-    the deployment root, because the row drives unwrapping. A row conforms to its owner's root only when its wrapper,
-    reference and access identity match.
+10. **Each master key row names its root.** A row records `RootKeyReference`, `RootKeyAccessIdentity` and
+    `RootKeyAccessBinding`, the binding of the owner of the key that wraps it, null for the deployment root, because the
+    row drives unwrapping. A row conforms to its owner's nearest root only when its wrapper, reference, access identity
+    and binding match.
 11. **A master key under an owner root key has no recovery copy.** `MasterKeyFactory` wraps through
     `IReferencedKeyWrapper.WrapAsync(ReferencedKey, ...)` and stores no recovery wrap whatever the recovery options say.
     The root context is the same key-id-and-owner binding, so a tenant key never unwraps another owner's rows.
@@ -110,14 +114,19 @@ and the docs say "tenant root key".
     manager skips the rotation spacing check, probes the key through it, stores it and rewraps the nonconforming rows:
     the key is the same and no trust boundary is crossed. A change of the provider or the reference rotates.
     `IOwnerRootKeyManager` also exposes `TryValidateAccessIdentity` and `GetAccessBinding`.
-14. **Removing the key does not rotate.** `RemoveAsync` sets `removing`, which wraps new master keys under the deployment
-    root, rewraps every row under it with a recovery copy when one is configured, and deletes the record once every row
-    moved. Rows that cannot be unwrapped keep it in `removing` and the validation service retries.
+14. **Removing the key does not rotate.** `RemoveAsync` sets `removing`, which wraps new master keys under the nearest
+    other root key (an ancestor's or the deployment's) and rewraps the rows under the key onto it, with a recovery copy
+    when it is the deployment's and one is configured. The record is deleted once no master key under the key remains
+    that does not conform to its owner's nearest root key, so a master key of another owner whose own root key names the
+    same key stays under it and never holds the removal. Rows that cannot be unwrapped keep it in `removing` and the
+    validation service retries.
 15. **A probe validates the key.** The server wraps and unwraps a random 32-byte value under the owner context through the
     key and access identity, compares in constant time and zeroes both. Any failure fails closed.
-16. **The rewrap engine wraps each row under its owner's root.** The manager moves only rows that do not conform to
-    their owner's root, with the engine of
-    [ADR-1408](1408-an-offline-host-command-rewraps-every-master-key-under-the-configured-root-and-recovery-keys.md).
+16. **The rewrap engine wraps each row under its owner's root.** The manager moves only nonconforming rows whose root
+    the changed key can be, with the engine of
+    [ADR-1408](1408-an-offline-host-command-rewraps-every-master-key-under-the-configured-root-and-recovery-keys.md). A
+    tenant's key reaches the tenant's master keys; any other owner's key reaches the owner's, those of every owner under
+    it and every master key still under the key it names, so a team's key reaches its tenants.
 17. **Re-validation runs on one replica and the ring checks the rest.** `OwnerRootKeyValidationService` takes a lease
     every `RetryInterval` and validates an `active` key every `ValidationInterval`, an `unavailable` or `removing` key
     every `RetryInterval`. Every state change calls `IOwnerRootKeyChangeObserver`, whose OpenId.Core implementation
@@ -140,6 +149,25 @@ and the docs say "tenant root key".
     `Retry-After` (rotated within twice the refresh interval), `412` (lost race) or `422` (probe failed). `DELETE`
     answers `204`, or `202` while master keys remain under the tenant key. `POST .../root-key/validate` answers `200`,
     or `404` with no root key. The console's tenant encryption keys tab offers set, validate and remove.
+21. **A team holds one root key per region.** The `Team` value is a secret owner type, and its root key is set per
+    region on the control-plane cell through `PUT` and `DELETE /api/teams/{teamId}/encryption-keys/root-keys/{region}`
+    and `POST .../root-keys/{region}/validate`. `GET /api/teams/{teamId}/encryption-keys/root-keys` lists the team's
+    keys with the providers it may choose and its access binding. The team document the directory publishes carries the
+    per-region key references
+    ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
+    Each cell mirrors its own region's reference into an `OwnerRootKey` row of the team, so a cell never reaches a key
+    of another region. A tenant with no root key of its own wraps its master keys under its team's key, through the
+    nearest-root rule of
+    [ADR-1235](1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md). A
+    change of a team's root key rewraps the master keys of the team, of the owners under it and of any still under its
+    key, with the engine of
+    [ADR-1408](1408-an-offline-host-command-rewraps-every-master-key-under-the-configured-root-and-recovery-keys.md).
+    The cell's directory change feed also reconciles every mirrored team's key for its region every 15 minutes, so a key
+    that failed its probe or its rotation cooldown is applied once it can be, and it removes the owner root key of a
+    team whose row is gone.
+    The console shows a team's root keys per region.
+22. **A key stays in the cell's cloud regions.** The AWS and Google Cloud adapters refuse a key reference whose region or
+    location is not in `Cell:CloudRegions`, so a key outside them is never used by the cell.
 
 ## Options considered
 
@@ -179,6 +207,8 @@ rotating on every change of key.
   either from unwrapping another owner's rows, so an operator grants its identity a tenant's key only through that
   tenant's own key policy.
 - Changing only the access identity creates no master key material.
+- A team's root key reaches every cell of its region through the team document, and a cell holds no key of another
+  region.
 
 ## References
 

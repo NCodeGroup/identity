@@ -75,6 +75,68 @@ public class AwsKmsRemoteKeyProviderOptionsValidatorTests
         Assert.Contains("Region", result.FailureMessage);
     }
 
+    [Fact]
+    public void Validate_RegionListed_Succeeds()
+    {
+        var validator = CreateValidator();
+
+        var result = validator.Validate(
+            null,
+            new AwsKmsRemoteKeyProviderOptions
+            {
+                Region = "us-west-2",
+                AllowedRegions = ["eu-central-1", "us-west-2"],
+            }
+        );
+
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public void Validate_RegionNotListed_FailsNamingAllowedRegions()
+    {
+        var validator = CreateValidator();
+
+        var result = validator.Validate(
+            null,
+            new AwsKmsRemoteKeyProviderOptions
+            {
+                Region = "us-east-1",
+                AllowedRegions = ["eu-central-1", "us-west-2"],
+            }
+        );
+
+        Assert.True(result.Failed);
+        Assert.Contains("Region", result.FailureMessage);
+        Assert.Contains("eu-central-1, us-west-2", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Validate_NoAllowedRegions_AllowsAnyRegion()
+    {
+        var validator = CreateValidator();
+
+        var result = validator.Validate(
+            null,
+            new AwsKmsRemoteKeyProviderOptions { Region = "ap-south-1", AllowedRegions = [] }
+        );
+
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public void Validate_NoRegionWithAllowedRegions_Succeeds()
+    {
+        var validator = CreateValidator();
+
+        var result = validator.Validate(
+            null,
+            new AwsKmsRemoteKeyProviderOptions { Region = null, AllowedRegions = ["us-west-2"] }
+        );
+
+        Assert.True(result.Succeeded);
+    }
+
     [Theory]
     [InlineData(7)]
     [InlineData(14)]

@@ -43,6 +43,13 @@ public sealed class PersistedTenantUsage : ISupportTenantId
     public required string Meter { get; init; }
 
     /// <summary>
+    /// Gets the name of the cell that wrote the usage.
+    /// </summary>
+    // See ADR-1199.
+    [MaxLength(OpenIdMaxLengths.CellName)]
+    public required string Cell { get; init; }
+
+    /// <summary>
     /// Gets the count of the meter on the day.
     /// </summary>
     public required long Count { get; init; }

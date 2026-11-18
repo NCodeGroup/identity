@@ -14,6 +14,8 @@ namespace NCode.Identity.Secrets.Persistence.Protection;
 /// <param name="RootKeyAccessIdentity">The identity that reaches the owner root key that produced
 /// <paramref name="Root"/>, or <see langword="null"/> when the server reaches it as itself or the deployment's root key
 /// produced it.</param>
+/// <param name="RootKeyAccessBinding">The access binding of the owner of the owner root key that produced
+/// <paramref name="Root"/>, or <see langword="null"/> when no access identity reaches it.</param>
 /// <param name="Recovery">The master key wrapped under the recovery public key, or <see langword="null"/> when none
 /// applies.</param>
 /// <param name="ClearsRecovery"><see langword="true"/> when the master key has no recovery copy, because an owner root
@@ -23,6 +25,7 @@ internal readonly record struct MasterKeyWraps(
     WrappedKey Root,
     string? RootKeyReference,
     string? RootKeyAccessIdentity,
+    string? RootKeyAccessBinding,
     WrappedKey? Recovery,
     bool ClearsRecovery
 );

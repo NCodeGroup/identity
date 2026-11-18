@@ -101,7 +101,9 @@ public sealed class LogoutTokenValidationResult
     public string? FailureCode { get; }
 
     /// <summary>
-    /// Gets the reason the logout token is invalid; otherwise, <see langword="null"/>.
+    /// Gets a description of the reason the logout token is invalid, for the caller's logs; otherwise,
+    /// <see langword="null"/>. It can carry the validator's or the provider's own message, so a caller that answers its
+    /// own client answers from <see cref="FailureCode"/>.
     /// </summary>
     public string? FailureReason { get; }
 

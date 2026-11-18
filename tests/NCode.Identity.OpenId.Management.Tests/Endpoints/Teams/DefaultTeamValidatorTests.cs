@@ -5,6 +5,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts.Teams;
 using NCode.Identity.OpenId.Persistence.DataContracts;
@@ -23,6 +24,7 @@ public sealed class DefaultTeamValidatorTests : IDisposable
     private Mock<IAuthorizationService> MockAuthorizationService { get; }
     private Mock<IStoreManager> MockStoreManager { get; }
     private Mock<ITeamStore> MockTeamStore { get; }
+    private Mock<ITeamDirectory> MockTeamDirectory { get; }
     private DefaultTeamValidator Validator { get; }
 
     public DefaultTeamValidatorTests()
@@ -31,10 +33,12 @@ public sealed class DefaultTeamValidatorTests : IDisposable
         MockAuthorizationService = MockRepository.Create<IAuthorizationService>();
         MockStoreManager = MockRepository.Create<IStoreManager>();
         MockTeamStore = MockRepository.Create<ITeamStore>();
+        MockTeamDirectory = MockRepository.Create<ITeamDirectory>();
 
         Validator = new DefaultTeamValidator(
             MockAuthorizationService.Object,
-            Options.Create(new TenantResolutionOptions())
+            Options.Create(new TenantResolutionOptions()),
+            MockTeamDirectory.Object
         );
     }
 
@@ -122,6 +126,14 @@ public sealed class DefaultTeamValidatorTests : IDisposable
         MockTeamStore
             .Setup(x => x.GetOrDefaultAsync(teamId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(existing)
+            .Verifiable();
+    }
+
+    private void SetupRetired(string teamId, bool isRetired)
+    {
+        MockTeamDirectory
+            .Setup(x => x.IsTeamIdRetiredAsync(teamId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(isRetired)
             .Verifiable();
     }
 
@@ -433,10 +445,7 @@ public sealed class DefaultTeamValidatorTests : IDisposable
     {
         SetupTeamStore();
         SetupExisting(TeamId, null);
-        MockTeamStore
-            .Setup(x => x.IsTeamIdRetiredAsync(TeamId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true)
-            .Verifiable();
+        SetupRetired(TeamId, true);
 
         var error = await CreateAsync(CreateTeam(), CancellationToken.None);
 
@@ -497,10 +506,7 @@ public sealed class DefaultTeamValidatorTests : IDisposable
         SetupTeamStore();
         SetupExisting("acme", CreateTeam(teamId: "acme"));
         SetupExisting(TeamId, null);
-        MockTeamStore
-            .Setup(x => x.IsTeamIdRetiredAsync(TeamId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(false)
-            .Verifiable();
+        SetupRetired(TeamId, false);
 
         var error = await CreateAsync(CreateTeam(parentTeamId: "acme"), CancellationToken.None);
 
@@ -512,10 +518,7 @@ public sealed class DefaultTeamValidatorTests : IDisposable
     {
         SetupTeamStore();
         SetupExisting(TeamId, null);
-        MockTeamStore
-            .Setup(x => x.IsTeamIdRetiredAsync(TeamId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(false)
-            .Verifiable();
+        SetupRetired(TeamId, false);
 
         var error = await CreateAsync(CreateTeam(), CancellationToken.None);
 

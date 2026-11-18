@@ -5,15 +5,19 @@ using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Authentication.Clients;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Environments;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts;
@@ -22,6 +26,7 @@ using NCode.Identity.OpenId.Management.Contracts.Secrets;
 using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Management.Endpoints.Clients;
 using NCode.Identity.OpenId.Management.Endpoints.Secrets;
+using NCode.Identity.OpenId.Management.Promotions;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Settings;
@@ -42,6 +47,7 @@ namespace NCode.Identity.OpenId.Management.Endpoints.Tenants;
 public sealed class TenantApiEndpointHandlerTests : IDisposable
 {
     private const string TenantId = "tenant-1";
+    private const string CellName = "cell-1";
     private const string TeamId = "platform";
     private const string ControlPlaneTenantId = "platform-root";
 
@@ -71,6 +77,15 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     private Mock<ITenantClientCoherenceChecker> MockTenantClientCoherenceChecker { get; }
     private Mock<IResourceOwnershipService> MockResourceOwnershipService { get; }
     private Mock<IRemoteSecretDestroyer> MockRemoteSecretDestroyer { get; }
+    private Mock<ITenantDirectory> MockTenantDirectory { get; }
+    private Mock<ITenantConfigurationExporter> MockTenantConfigurationExporter { get; }
+    private CellOptions CellOptions { get; } =
+        new()
+        {
+            Name = CellName,
+            Region = "us",
+            Kind = CellKinds.Shared,
+        };
     private Mock<IManagementAuditRecorder> MockManagementAuditRecorder { get; }
     private Mock<IMediator> MockMediator { get; }
     private TenantApiEndpointHandler Handler { get; }
@@ -102,6 +117,8 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         MockTenantClientCoherenceChecker = MockRepository.Create<ITenantClientCoherenceChecker>();
         MockResourceOwnershipService = MockRepository.Create<IResourceOwnershipService>();
         MockRemoteSecretDestroyer = MockRepository.Create<IRemoteSecretDestroyer>();
+        MockTenantDirectory = MockRepository.Create<ITenantDirectory>();
+        MockTenantConfigurationExporter = MockRepository.Create<ITenantConfigurationExporter>();
 
         MockManagementAuditRecorder = MockRepository.Create<IManagementAuditRecorder>();
 
@@ -129,6 +146,9 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
             MockTenantClientCoherenceChecker.Object,
             MockResourceOwnershipService.Object,
             MockRemoteSecretDestroyer.Object,
+            MockTenantDirectory.Object,
+            Options.Create(CellOptions),
+            MockTenantConfigurationExporter.Object,
             MockManagementAuditRecorder.Object,
             NullLogger<TenantApiEndpointHandler>.Instance
         );
@@ -197,6 +217,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     private void SetupDeleteSecretStore(out PersistedSecret secret)
     {
         SetupStore();
+        SetupTenantPlacement(CellName);
         secret = CreatePersistedSecret();
         MockTenantStore
             .Setup(x =>
@@ -211,10 +232,29 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
             .Verifiable();
     }
 
+    // The directory's answer to where it places the tenant: in a cell, or in none when the cell is null.
+    private void SetupTenantPlacement(string? cell) =>
+        MockTenantDirectory
+            .Setup(x => x.GetPlacementOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+                cell is null
+                    ? null
+                    : new TenantPlacement
+                    {
+                        TenantId = TenantId,
+                        Issuer = "https://op.example/tenant-1",
+                        Cell = cell,
+                        Region = "us",
+                    }
+            )
+            .Verifiable();
+
     // The deleted tenant's store reads; returns its one secret, which the destroyer receives.
-    private PersistedSecret SetupDeleteTenantStore()
+    private PersistedSecret SetupDeleteTenantStore(string? placedCell = CellName)
     {
         SetupStore();
+        SetupTenantPlacement(placedCell);
+        SetupTenantRetired();
         var first = CreatePersistedSecret("secret-1");
         MockTenantStore
             .Setup(x => x.GetOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()))
@@ -244,6 +284,21 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         SetupEffectiveSettingsResolver(CreateSettingCollection());
         return first;
     }
+
+    // A deleted tenant's identifier and issuer are retired through the directory after the tenant is removed.
+    private void SetupTenantRetired(string? issuer = null) =>
+        MockTenantDirectory
+            .Setup(x =>
+                x.RetireAsync(
+                    It.Is<TenantRetirement>(retirement =>
+                        retirement.TenantId == TenantId && retirement.Issuer == issuer
+                    ),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Callback(() => Events.Add("retire"))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
 
     // A recorder that fails, to show the destroyer still runs.
     private void SetupTenantSecretChangedAuditThrowing() =>
@@ -1097,6 +1152,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
                     TeamPath = "/platform/",
                     Day = from,
                     Meter = "requests",
+                    Cell = "cell-1",
                     Count = 42,
                 },
             ])
@@ -1230,6 +1286,161 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         var problem = Assert.IsType<ProblemHttpResult>(result);
 
         Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
+    }
+
+    #endregion
+
+    #region GetConfigurationAsync Tests
+
+    private static TenantConfigurationDocument CreateConfigurationDocument() =>
+        new()
+        {
+            SourceTenantId = TenantId,
+            Region = "us",
+            Settings = JsonSerializer.SerializeToElement(new { }),
+            Clients = [],
+            ClientGrants = [],
+            ResourceServers = [],
+        };
+
+    [Fact]
+    public async Task GetConfigurationAsync_WhenAuthorizedAndTheTenantExists_ReturnsTheDocument()
+    {
+        var document = CreateConfigurationDocument();
+        SetupAuthorization(AuthorizationResult.Success());
+        MockTenantConfigurationExporter
+            .Setup(x => x.ExportAsync(TenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(document)
+            .Verifiable();
+
+        var result = await Handler.GetConfigurationAsync(
+            CreateHttpContext(authenticated: true),
+            TenantId,
+            CancellationToken.None
+        );
+
+        var json = Assert.IsType<JsonHttpResult<TenantConfigurationDocument>>(result);
+        Assert.Same(document, json.Value);
+    }
+
+    [Fact]
+    public async Task GetConfigurationAsync_WhenTheTenantDoesNotExist_ReturnsNotFound()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        MockTenantConfigurationExporter
+            .Setup(x => x.ExportAsync(TenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((TenantConfigurationDocument?)null)
+            .Verifiable();
+
+        var result = await Handler.GetConfigurationAsync(
+            CreateHttpContext(authenticated: true),
+            TenantId,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetConfigurationAsync_WhenForbidden_ReturnsForbiddenWithoutExporting()
+    {
+        SetupAuthorization(AuthorizationResult.Failed());
+
+        var result = await Handler.GetConfigurationAsync(
+            CreateHttpContext(authenticated: true),
+            TenantId,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetConfigurationAsync_Always_RequestsReadOnTheTenantNode()
+    {
+        object? authorizedResource = null;
+        IEnumerable<IAuthorizationRequirement>? requirements = null;
+        MockAuthorizationService
+            .Setup(x =>
+                x.AuthorizeAsync(
+                    It.IsAny<ClaimsPrincipal>(),
+                    It.IsAny<object?>(),
+                    It.IsAny<IEnumerable<IAuthorizationRequirement>>()
+                )
+            )
+            .Callback(
+                (
+                    ClaimsPrincipal _,
+                    object? resource,
+                    IEnumerable<IAuthorizationRequirement> value
+                ) =>
+                {
+                    authorizedResource = resource;
+                    requirements = value;
+                }
+            )
+            .ReturnsAsync(AuthorizationResult.Success())
+            .Verifiable();
+        MockTenantConfigurationExporter
+            .Setup(x => x.ExportAsync(TenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateConfigurationDocument())
+            .Verifiable();
+
+        await Handler.GetConfigurationAsync(
+            CreateHttpContext(authenticated: true),
+            TenantId,
+            CancellationToken.None
+        );
+
+        var node = Assert.IsType<ResourceNode>(authorizedResource);
+        Assert.Equal(
+            (TenantId, ResourceNodeTypes.Tenant, TenantId),
+            (node.TenantId, node.ResourceType, node.ResourceId)
+        );
+        Assert.Same(Operations.Read, Assert.Single(requirements!));
+    }
+
+    [Fact]
+    public async Task Map_Always_DeclaresAndDescribesTheConfigurationRoute()
+    {
+        Assert.Equal(
+            [401, 403, 404],
+            await EndpointProblemMetadata.ReadStatusCodesAsync(
+                Handler,
+                "GET",
+                "/tenants/{tenantId}/configuration",
+                CancellationToken.None
+            )
+        );
+        Assert.Empty(
+            await EndpointProblemMetadata.ReadUndescribedStatusCodesAsync(
+                Handler,
+                "GET",
+                "/tenants/{tenantId}/configuration",
+                CancellationToken.None
+            )
+        );
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Map_WhetherOrNotTheCellIsTheControlPlane_MapsTheConfigurationRoute(
+        bool isControlPlane
+    )
+    {
+        CellOptions.IsControlPlane = isControlPlane;
+        var app = WebApplication.CreateSlimBuilder().Build();
+
+        Handler.Map(app);
+
+        var routes = ((IEndpointRouteBuilder)app)
+            .DataSources.SelectMany(dataSource => dataSource.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Select(endpoint => endpoint.RoutePattern.RawText);
+        Assert.Contains("/tenants/{tenantId}/configuration", routes);
     }
 
     #endregion
@@ -1455,14 +1666,8 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         return MockTeamSettings.Object;
     }
 
-    // A creation is authorized at the team's node, then reads the team and its lineage, and resolves each team's
-    // settings from the lineage's documents for the 'max_tenants' ceiling.
-    private void SetupTeamForCreate(
-        bool resolveSettings,
-        int? maxTenants = null,
-        long? tenantCount = null,
-        IReadOnlyList<string>? ancestorTeamIds = null
-    )
+    // A creation is authorized at the team's node, then reads the team.
+    private void SetupTeamForCreate()
     {
         SetupTenantCreateAuthorization(null);
         MockStoreManager
@@ -1471,76 +1676,17 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
             .Verifiable();
         MockTeamStore
             .Setup(x => x.GetOrDefaultAsync(TeamId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(CreateTeam(ancestorTeamIds))
-            .Verifiable();
-
-        if (resolveSettings)
-        {
-            IReadOnlyList<PersistedTeam> lineage =
-            [
-                .. (ancestorTeamIds ?? []).Select(CreateLineageTeam),
-                CreateTeam(),
-            ];
-            MockTeamStore
-                .Setup(x => x.GetLineageAsync(TeamId, It.IsAny<CancellationToken>()))
-                .ReturnsAsync(lineage)
-                .Verifiable();
-            var platformSettings = MockRepository.Create<IReadOnlySettingCollection>();
-            MockEffectiveSettingsResolver
-                .Setup(x => x.ResolvePlatformAsync(It.IsAny<CancellationToken>()))
-                .ReturnsAsync(platformSettings.Object)
-                .Verifiable();
-            SetupLineageMaxTenants(TeamId, maxTenants);
-        }
-
-        if (tenantCount is not null)
-        {
-            MockTenantStore
-                .Setup(x => x.CountAsync(TeamId, It.IsAny<CancellationToken>()))
-                .ReturnsAsync(tenantCount.Value)
-                .Verifiable();
-        }
-    }
-
-    // The effective settings of one team in the lineage a creation folds: its 'max_tenants' is the ceiling the creation
-    // checks for the team.
-    private void SetupLineageMaxTenants(string lineageTeamId, int? maxTenants)
-    {
-        var lineageSettings = MockRepository.Create<IReadOnlySettingCollection>();
-        var configured = maxTenants ?? 0;
-        lineageSettings
-            .Setup(x => x.TryGetValue(OpenIdSettingKeys.MaxTenants, out configured))
-            .Returns(maxTenants is not null)
-            .Verifiable();
-        MockEffectiveSettingsResolver
-            .Setup(x =>
-                x.ResolveStored(
-                    It.IsAny<IReadOnlySettingCollection>(),
-                    OpenIdSettingScopes.Team,
-                    lineageTeamId,
-                    It.IsAny<JsonElement>()
-                )
-            )
-            .Returns(lineageSettings.Object)
+            .ReturnsAsync(CreateTeam())
             .Verifiable();
     }
 
-    private static PersistedTeam CreateLineageTeam(string lineageTeamId) =>
-        new PersistedTeamBuilder
-        {
-            TeamId = lineageTeamId,
-            ConcurrencyToken = "lineage-ct",
-            DisplayName = "Customer",
-            SettingsConcurrencyToken = "lineage-settings-ct",
-        }.Build();
-
-    private static PersistedTeam CreateTeam(IReadOnlyList<string>? ancestorTeamIds = null) =>
+    private static PersistedTeam CreateTeam() =>
         new PersistedTeamBuilder
         {
             TeamId = TeamId,
             ConcurrencyToken = "team-ct",
             DisplayName = "Team One",
-            AncestorTeamIds = ancestorTeamIds ?? [],
+            AncestorTeamIds = [],
             SettingsConcurrencyToken = "team-settings-ct",
         }.Build();
 
@@ -2619,7 +2765,11 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         "/tenants/{tenantId}/secrets/{secretId}",
         new[] { 400, 401, 403, 404, 412, 415 }
     )]
-    [InlineData("DELETE", "/tenants/{tenantId}/secrets/{secretId}", new[] { 401, 403, 404, 412 })]
+    [InlineData(
+        "DELETE",
+        "/tenants/{tenantId}/secrets/{secretId}",
+        new[] { 401, 403, 404, 409, 412 }
+    )]
     [InlineData("GET", "/tenants/{tenantId}/encryption-keys", new[] { 401, 403, 404 })]
     [InlineData(
         "POST",
@@ -2965,6 +3115,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         SetupTenantChangedAnnouncement();
         SetupTenantSecretChangedAudit();
         SetupStore();
+        SetupTenantPlacement(CellName);
         MockTenantStore
             .Setup(x =>
                 x.GetSecretOrDefaultAsync(TenantId, "secret-1", It.IsAny<CancellationToken>())
@@ -3049,6 +3200,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         SetupTenantChangedAnnouncement();
         SetupTenantSecretChangedAudit();
         SetupStore();
+        SetupTenantPlacement(CellName);
         MockTenantStore
             .Setup(x =>
                 x.GetSecretOrDefaultAsync(TenantId, "secret-1", It.IsAny<CancellationToken>())
@@ -3143,6 +3295,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         IReadOnlyCollection<PersistedSecret>? destroyed = null;
         SetupRemoteSecretDestroy(removed => destroyed = removed);
         SetupStore();
+        SetupTenantPlacement(CellName);
         var secret = CreatePersistedSecret();
         MockTenantStore
             .Setup(x =>
@@ -3272,6 +3425,75 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         );
     }
 
+    [Fact]
+    public async Task DeleteSecretAsync_WhenTheDirectoryPlacesTheTenantInAnotherCell_ReturnsConflictAndDestroysNothing()
+    {
+        SetupStore();
+        MockTenantStore
+            .Setup(x =>
+                x.GetSecretOrDefaultAsync(TenantId, "secret-1", It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(CreatePersistedSecret())
+            .Verifiable();
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupTenantPlacement("cell-2");
+
+        var result = await Handler.DeleteSecretAsync(
+            CreateHttpContext(authenticated: true),
+            TenantId,
+            "secret-1",
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+        Assert.Equal(
+            "The global directory places the tenant 'tenant-1' in the cell 'cell-2'. Release this cell's copy with release-moved.",
+            problem.ProblemDetails.Detail
+        );
+        MockRemoteSecretDestroyer.Verify(
+            x => x.DestroyAsync(It.IsAny<IReadOnlyCollection<PersistedSecret>>()),
+            Times.Never
+        );
+    }
+
+    [Fact]
+    public async Task DeleteSecretAsync_WhenTheDirectoryIsUnavailableForThePlacement_ReturnsServiceUnavailableAndDestroysNothing()
+    {
+        SetupStore();
+        MockTenantStore
+            .Setup(x =>
+                x.GetSecretOrDefaultAsync(TenantId, "secret-1", It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(CreatePersistedSecret())
+            .Verifiable();
+        SetupAuthorization(AuthorizationResult.Success());
+        MockTenantDirectory
+            .Setup(x => x.GetPlacementOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new DirectoryUnavailableException("The directory is unreachable."))
+            .Verifiable();
+
+        var httpContext = CreateHttpContext(authenticated: true);
+
+        var result = await Handler.DeleteSecretAsync(
+            httpContext,
+            TenantId,
+            "secret-1",
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, problem.StatusCode);
+        Assert.Equal(
+            $"{GlobalDirectoryProtocol.UnavailableRetryAfterSeconds}",
+            httpContext.Response.Headers.RetryAfter.ToString()
+        );
+        MockRemoteSecretDestroyer.Verify(
+            x => x.DestroyAsync(It.IsAny<IReadOnlyCollection<PersistedSecret>>()),
+            Times.Never
+        );
+    }
+
     #endregion
 
     #region DeleteTenantAsync Tests
@@ -3282,6 +3504,8 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         SetupTenantDeleteAuthorization(null);
         SetupSaveAndAnnouncementOrder();
         SetupTenantChangedAudit();
+        SetupTenantRetired();
+        SetupTenantPlacement(CellName);
         IReadOnlyCollection<PersistedSecret>? destroyed = null;
         SetupRemoteSecretDestroy(removed => destroyed = removed);
         SetupStore();
@@ -3321,7 +3545,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         );
 
         Assert.IsType<NoContent>(result);
-        Assert.Equal(["save", "announce", "destroy"], Events);
+        Assert.Equal(["save", "retire", "announce", "destroy"], Events);
         Assert.NotNull(destroyed);
         Assert.Equal([first, second], destroyed);
         MockRemoteSecretDestroyer.Verify(
@@ -3348,7 +3572,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
             )
         );
 
-        Assert.Equal(["save", "announce", "destroy"], Events);
+        Assert.Equal(["save", "retire", "announce", "destroy"], Events);
         Assert.NotNull(destroyed);
         Assert.Same(first, Assert.Single(destroyed));
         MockRemoteSecretDestroyer.Verify(
@@ -3390,6 +3614,8 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         SetupTenantDeleteAuthorization(null);
         SetupTenantChangedAnnouncement();
         SetupTenantChangedAudit();
+        SetupTenantRetired();
+        SetupTenantPlacement(CellName);
         SetupStore();
         MockTenantStore
             .Setup(x => x.GetOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()))
@@ -3424,9 +3650,93 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task DeleteTenantAsync_WhenTheTenantHasAnIssuer_RetiresTheIssuerItHeldBeforeTheDeletion()
+    {
+        const string issuer = "https://op.example/tenant-1";
+        SetupRemoteSecretDestroy();
+        SetupTenantDeleteAuthorization(null);
+        SetupTenantChangedAnnouncement();
+        SetupTenantChangedAudit();
+        SetupTenantRetired(issuer);
+        SetupTenantPlacement(CellName);
+        SetupStore();
+        MockTenantStore
+            .Setup(x => x.GetOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateTenant("tenant-ct", issuer))
+            .Verifiable();
+        MockTenantValidator
+            .Setup(x =>
+                x.ValidateDeleteAsync(
+                    It.IsAny<PersistedTenant>(),
+                    It.IsAny<IStoreManager>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((ManagementError?)null)
+            .Verifiable();
+        MockTenantStore
+            .Setup(x => x.RemoveAsync(TenantId, It.IsAny<CancellationToken>()))
+            .Callback(() => Events.Add("remove"))
+            .ReturnsAsync(true)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        SetupEffectiveSettingsResolver(CreateSettingCollection());
+
+        var result = await Handler.DeleteTenantAsync(
+            CreateHttpContext(authenticated: true),
+            TenantId,
+            CancellationToken.None
+        );
+
+        Assert.IsType<NoContent>(result);
+        Assert.Equal(["remove", "retire", "destroy"], Events);
+    }
+
+    [Fact]
+    public async Task DeleteTenantAsync_WhenTheDirectoryIsUnavailableOnRetire_StillAuditsAnnouncesAndDestroysThenReturns503()
+    {
+        SetupTenantDeleteAuthorization(null);
+        SetupSaveAndAnnouncementOrder();
+        SetupTenantChangedAudit();
+        IReadOnlyCollection<PersistedSecret>? destroyed = null;
+        SetupRemoteSecretDestroy(removed => destroyed = removed);
+        var first = SetupDeleteTenantStore();
+        MockTenantDirectory.Reset();
+        SetupTenantPlacement(CellName);
+        MockTenantDirectory
+            .Setup(x =>
+                x.RetireAsync(
+                    It.Is<TenantRetirement>(retirement => retirement.TenantId == TenantId),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Callback(() => Events.Add("retire"))
+            .ThrowsAsync(new DirectoryUnavailableException("The directory is unreachable."))
+            .Verifiable();
+
+        var httpContext = CreateHttpContext(authenticated: true);
+
+        var result = await Handler.DeleteTenantAsync(httpContext, TenantId, CancellationToken.None);
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, problem.StatusCode);
+        Assert.Equal(
+            $"{GlobalDirectoryProtocol.UnavailableRetryAfterSeconds}",
+            httpContext.Response.Headers.RetryAfter.ToString()
+        );
+        Assert.Equal(["save", "retire", "announce", "destroy"], Events);
+        Assert.NotNull(destroyed);
+        Assert.Same(first, Assert.Single(destroyed));
+    }
+
+    [Fact]
     public async Task DeleteTenantAsync_WhenDeletionProtectionIsOn_ReturnsConflictAndKeepsTheTenant()
     {
         SetupTenantDeleteAuthorization(null);
+        SetupTenantPlacement(CellName);
         SetupStore();
         MockTenantStore
             .Setup(x => x.GetOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()))
@@ -3469,6 +3779,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     public async Task DeleteTenantAsync_WhenValidatorReportsConflict_ReturnsProblem()
     {
         SetupTenantDeleteAuthorization(null);
+        SetupTenantPlacement(CellName);
         SetupStore();
         MockTenantStore
             .Setup(x => x.GetOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()))
@@ -3501,6 +3812,75 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
             x => x.DestroyAsync(It.IsAny<IReadOnlyCollection<PersistedSecret>>()),
             Times.Never
         );
+    }
+
+    [Fact]
+    public async Task DeleteTenantAsync_WhenTheDirectoryPlacesTheTenantInAnotherCell_ReturnsConflictAndDeletesNothing()
+    {
+        SetupTenantDeleteAuthorization(null);
+        SetupStore();
+        MockTenantStore
+            .Setup(x => x.GetOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateTenant("tenant-ct"))
+            .Verifiable();
+        SetupTenantPlacement("cell-2");
+
+        var result = await Handler.DeleteTenantAsync(
+            CreateHttpContext(authenticated: true),
+            TenantId,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+        Assert.Equal(
+            "The global directory places the tenant 'tenant-1' in the cell 'cell-2'. Release this cell's copy with release-moved.",
+            problem.ProblemDetails.Detail
+        );
+    }
+
+    [Fact]
+    public async Task DeleteTenantAsync_WhenTheDirectoryIsUnavailableForThePlacement_ReturnsServiceUnavailableAndDeletesNothing()
+    {
+        SetupTenantDeleteAuthorization(null);
+        SetupStore();
+        MockTenantStore
+            .Setup(x => x.GetOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateTenant("tenant-ct"))
+            .Verifiable();
+        MockTenantDirectory
+            .Setup(x => x.GetPlacementOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new DirectoryUnavailableException("The directory is unreachable."))
+            .Verifiable();
+
+        var httpContext = CreateHttpContext(authenticated: true);
+
+        var result = await Handler.DeleteTenantAsync(httpContext, TenantId, CancellationToken.None);
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, problem.StatusCode);
+        Assert.Equal(
+            $"{GlobalDirectoryProtocol.UnavailableRetryAfterSeconds}",
+            httpContext.Response.Headers.RetryAfter.ToString()
+        );
+    }
+
+    [Fact]
+    public async Task DeleteTenantAsync_WhenTheDirectoryPlacesTheTenantInNoCell_ReturnsNoContent()
+    {
+        SetupTenantDeleteAuthorization(null);
+        SetupSaveAndAnnouncementOrder();
+        SetupTenantChangedAudit();
+        SetupRemoteSecretDestroy();
+        SetupDeleteTenantStore(placedCell: null);
+
+        var result = await Handler.DeleteTenantAsync(
+            CreateHttpContext(authenticated: true),
+            TenantId,
+            CancellationToken.None
+        );
+
+        Assert.IsType<NoContent>(result);
     }
 
     [Fact]
@@ -3592,8 +3972,54 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         return assert => assert(validated);
     }
 
+    private void SetupTenantReserved() =>
+        MockTenantDirectory
+            .Setup(x =>
+                x.ReserveAsync(
+                    It.Is<TenantReservation>(reservation =>
+                        reservation.TenantId == "acme"
+                        && reservation.TeamId == TeamId
+                        && reservation.Cell == "cell-1"
+                    ),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Callback(() => Events.Add("reserve"))
+            .ReturnsAsync(ReservationResult.Reserved())
+            .Verifiable();
+
+    private void SetupTenantPlaced() =>
+        MockTenantDirectory
+            .Setup(x =>
+                x.PlaceAsync(
+                    It.Is<TenantPlacementRequest>(placement =>
+                        placement.TenantId == "acme" && placement.Cell == "cell-1"
+                    ),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Callback(() => Events.Add("place"))
+            .ReturnsAsync(ReservationResult.Reserved())
+            .Verifiable();
+
+    private void SetupTenantRemovedFromCell() =>
+        MockTenantStore
+            .Setup(x => x.RemoveFromCellAsync("acme", It.IsAny<CancellationToken>()))
+            .Callback(() => Events.Add("remove"))
+            .ReturnsAsync(true)
+            .Verifiable();
+
+    private void SetupTenantReleased() =>
+        MockTenantDirectory
+            .Setup(x => x.ReleaseAsync("acme", It.IsAny<CancellationToken>()))
+            .Callback(() => Events.Add("release"))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
     private void SetupCreatePersistence(PersistedTenant seeded)
     {
+        SetupTenantReserved();
+        SetupTenantPlaced();
         MockTenantStore
             .Setup(x => x.AddAsync(It.IsAny<PersistedTenant>(), It.IsAny<CancellationToken>()))
             .Callback(() => Events.Add("add-tenant"))
@@ -3625,7 +4051,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     public async Task CreateTenantAsync_WhenTheTeamIsMissing_ReturnsNotFound()
     {
         SetupTenantCreateAuthorization(null);
-        SetupStore();
+        SetupStoreManagerOnly();
         MockStoreManager
             .Setup(x => x.GetStore<ITeamStore>())
             .Returns(MockTeamStore.Object)
@@ -3671,15 +4097,25 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateTenantAsync_WhenTheTeamIsFull_ReturnsConflict()
+    public async Task CreateTenantAsync_WhenTheDirectoryRefusesTheReservation_ReturnsConflictWithItsDetail()
     {
-        SetupTeamForCreate(resolveSettings: true, maxTenants: 2, tenantCount: 2);
+        SetupTeamForCreate();
         SetupDefaultAlias("acme", alias: null);
-        SetupStore();
+        SetupValidSettings();
+        SetupStoreManagerOnly();
         SetupDefaultIssuer("acme", DerivedIssuer);
         SetupCreateValidation();
+        MockTenantDirectory
+            .Setup(x =>
+                x.ReserveAsync(It.IsAny<TenantReservation>(), It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(
+                ReservationResult.Conflict("The team 'platform' holds its maximum of 2 tenants.")
+            )
+            .Verifiable();
 
-        // Strict mocks: no AddAsync / SaveChangesAsync setup, so persisting the tenant would fail the test.
+        // Strict mocks: no AddAsync / SaveChangesAsync / PlaceAsync / ReleaseAsync setup, so persisting, placing or
+        // releasing a tenant that was never reserved would fail the test.
         var result = await Handler.CreateTenantAsync(
             CreateHttpContext(authenticated: true),
             TeamId,
@@ -3696,51 +4132,143 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateTenantAsync_WhenTheParentTeamIsFull_ReturnsConflict()
+    public async Task CreateTenantAsync_WhenTheDirectoryIsUnavailableOnReserve_Returns503WithRetryAfter()
     {
-        SetupTeamForCreate(resolveSettings: true, ancestorTeamIds: ["acme"]);
-        SetupLineageMaxTenants("acme", maxTenants: 1);
-        MockTenantStore
-            .Setup(x => x.CountAsync("acme", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(1)
-            .Verifiable();
+        SetupTeamForCreate();
         SetupDefaultAlias("acme", alias: null);
-        SetupStore();
+        SetupValidSettings();
+        SetupStoreManagerOnly();
         SetupDefaultIssuer("acme", DerivedIssuer);
         SetupCreateValidation();
+        MockTenantDirectory
+            .Setup(x =>
+                x.ReserveAsync(It.IsAny<TenantReservation>(), It.IsAny<CancellationToken>())
+            )
+            .ThrowsAsync(new DirectoryUnavailableException("The directory is unreachable."))
+            .Verifiable();
 
-        // Strict mocks: no AddAsync / SaveChangesAsync setup, so persisting the tenant would fail the test.
+        var httpContext = CreateHttpContext(authenticated: true);
+
+        // Strict mocks: no AddAsync / ReleaseAsync setup, so persisting the tenant or releasing a reservation that was
+        // never made would fail the test.
         var result = await Handler.CreateTenantAsync(
-            CreateHttpContext(authenticated: true),
+            httpContext,
             TeamId,
             CreateTenantRequest(),
             CancellationToken.None
         );
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
-        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, problem.StatusCode);
         Assert.Equal(
-            "The team 'acme' holds its maximum of 1 tenants.",
-            problem.ProblemDetails.Detail
+            $"{GlobalDirectoryProtocol.UnavailableRetryAfterSeconds}",
+            httpContext.Response.Headers.RetryAfter.ToString()
         );
     }
 
     [Fact]
-    public async Task CreateTenantAsync_WhenAnAncestorTeamsMaxTenantsIsReached_Returns409NamingTheAncestor()
+    public async Task CreateTenantAsync_WhenInsertingTheTenantFails_ReleasesTheReservationAndRethrows()
     {
-        SetupTeamForCreate(resolveSettings: true, ancestorTeamIds: ["customer", "acme"]);
-        SetupLineageMaxTenants("customer", maxTenants: 4);
-        SetupLineageMaxTenants("acme", maxTenants: null);
-        MockTenantStore
-            .Setup(x => x.CountAsync("customer", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(4)
-            .Verifiable();
+        SetupTeamForCreate();
         SetupDefaultAlias("acme", alias: null);
+        SetupValidSettings();
         SetupStore();
         SetupDefaultIssuer("acme", DerivedIssuer);
         SetupCreateValidation();
+        SetupTenantReserved();
+        SetupTenantReleased();
+        MockTenantStore
+            .Setup(x => x.AddAsync(It.IsAny<PersistedTenant>(), It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Throws(new InvalidOperationException("The insert failed."))
+            .Verifiable();
 
-        // Strict mocks: no AddAsync / SaveChangesAsync setup, so persisting the tenant would fail the test.
+        // Strict mocks: no PlaceAsync setup, so placing a tenant whose insert failed would fail the test.
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Handler.CreateTenantAsync(
+                CreateHttpContext(authenticated: true),
+                TeamId,
+                CreateTenantRequest(),
+                CancellationToken.None
+            )
+        );
+
+        Assert.Equal(["reserve", "release"], Events);
+    }
+
+    [Fact]
+    public async Task CreateTenantAsync_WhenThePlacementIsUnavailable_RemovesTenantThenReleasesAndReturns503()
+    {
+        SetupTeamForCreate();
+        SetupDefaultAlias("acme", alias: null);
+        SetupValidSettings();
+        SetupStore();
+        SetupDefaultIssuer("acme", DerivedIssuer);
+        SetupCreateValidation();
+        SetupTenantReserved();
+        SetupTenantRemovedFromCell();
+        SetupTenantReleased();
+        MockTenantStore
+            .Setup(x => x.AddAsync(It.IsAny<PersistedTenant>(), It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockTenantDirectory
+            .Setup(x =>
+                x.PlaceAsync(It.IsAny<TenantPlacementRequest>(), It.IsAny<CancellationToken>())
+            )
+            .ThrowsAsync(new DirectoryUnavailableException("The directory is unreachable."))
+            .Verifiable();
+
+        var result = await Handler.CreateTenantAsync(
+            CreateHttpContext(authenticated: true),
+            TeamId,
+            CreateTenantRequest(),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, problem.StatusCode);
+        Assert.Equal(["reserve", "remove", "release"], Events);
+        MockStoreManager.Verify(
+            x => x.SaveChangesAsync(It.IsAny<CancellationToken>()),
+            Times.Exactly(2)
+        );
+    }
+
+    [Fact]
+    public async Task CreateTenantAsync_WhenThePlacementIsRefused_RemovesTenantThenReleasesAndReturnsConflict()
+    {
+        SetupTeamForCreate();
+        SetupDefaultAlias("acme", alias: null);
+        SetupValidSettings();
+        SetupStore();
+        SetupDefaultIssuer("acme", DerivedIssuer);
+        SetupCreateValidation();
+        SetupTenantReserved();
+        SetupTenantRemovedFromCell();
+        SetupTenantReleased();
+        MockTenantStore
+            .Setup(x => x.AddAsync(It.IsAny<PersistedTenant>(), It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockTenantDirectory
+            .Setup(x =>
+                x.PlaceAsync(It.IsAny<TenantPlacementRequest>(), It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(ReservationResult.Conflict("The tenant 'acme' is not reserved."))
+            .Verifiable();
+
         var result = await Handler.CreateTenantAsync(
             CreateHttpContext(authenticated: true),
             TeamId,
@@ -3750,16 +4278,87 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
-        Assert.Equal(
-            "The team 'customer' holds its maximum of 4 tenants.",
-            problem.ProblemDetails.Detail
+        Assert.Equal("The tenant 'acme' is not reserved.", problem.ProblemDetails.Detail);
+        Assert.Equal(["reserve", "remove", "release"], Events);
+        MockStoreManager.Verify(
+            x => x.SaveChangesAsync(It.IsAny<CancellationToken>()),
+            Times.Exactly(2)
         );
+    }
+
+    [Fact]
+    public async Task CreateTenantAsync_WhenRemovingTheUnplacedTenantFails_StillReleasesTheReservation()
+    {
+        SetupTeamForCreate();
+        SetupDefaultAlias("acme", alias: null);
+        SetupValidSettings();
+        SetupStore();
+        SetupDefaultIssuer("acme", DerivedIssuer);
+        SetupCreateValidation();
+        SetupTenantReserved();
+        SetupTenantReleased();
+        MockTenantStore
+            .Setup(x => x.AddAsync(It.IsAny<PersistedTenant>(), It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockTenantStore
+            .Setup(x => x.RemoveFromCellAsync("acme", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("The removal failed."))
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockTenantDirectory
+            .Setup(x =>
+                x.PlaceAsync(It.IsAny<TenantPlacementRequest>(), It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(ReservationResult.Conflict("The tenant 'acme' is not reserved."))
+            .Verifiable();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Handler.CreateTenantAsync(
+                CreateHttpContext(authenticated: true),
+                TeamId,
+                CreateTenantRequest(),
+                CancellationToken.None
+            )
+        );
+
+        Assert.Equal(["reserve", "release"], Events);
+    }
+
+    [Fact]
+    public async Task CreateTenantAsync_WhenCreated_ReservesInsertsThenPlacesWithoutReleasing()
+    {
+        SetupTeamForCreate();
+        SetupCreatorAssignment();
+        SetupTenantChangedAudit();
+        SetupDefaultAlias("acme", alias: null);
+        SetupValidSettings();
+        SetupStore();
+        SetupDefaultIssuer("acme", DerivedIssuer);
+        SetupCreateValidation();
+        SetupCreatePersistence(CreateSeededTenant(DerivedIssuer));
+        SetupTenantEnvironment(tenantId: "acme");
+
+        // Strict mocks: no ReleaseAsync setup, so releasing the reservation of a tenant that was placed would fail the
+        // test.
+        var result = await Handler.CreateTenantAsync(
+            CreateHttpContext(authenticated: true),
+            TeamId,
+            CreateTenantRequest(),
+            CancellationToken.None
+        );
+
+        Assert.IsType<Created<TenantResource>>(result);
+        Assert.Equal(["reserve", "add-tenant", "save", "place", "save"], Events);
     }
 
     [Fact]
     public async Task CreateTenantAsync_WhenIssuerIsOmitted_CreatesTheTenantAtItsDerivedIssuer()
     {
-        SetupTeamForCreate(resolveSettings: true);
+        SetupTeamForCreate();
         SetupCreatorAssignment();
         SetupTenantChangedAudit();
         SetupDefaultAlias("acme", alias: null);
@@ -3794,7 +4393,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task CreateTenantAsync_WhenAliasIsOmitted_CreatesTheTenantAtItsDerivedAlias()
     {
-        SetupTeamForCreate(resolveSettings: true);
+        SetupTeamForCreate();
         SetupCreatorAssignment();
         SetupTenantChangedAudit();
         const string derivedAlias = "https://acme.mtls.example";
@@ -3827,7 +4426,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task CreateTenantAsync_WhenIssuerIsGiven_KeepsItWithoutDerivingOne()
     {
-        SetupTeamForCreate(resolveSettings: true);
+        SetupTeamForCreate();
         SetupCreatorAssignment();
         SetupTenantChangedAudit();
         SetupDefaultAlias("acme", alias: null);
@@ -3856,7 +4455,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task CreateTenantAsync_WhenCreated_SeedsTheTenantAndReturnsItAsSeeded()
     {
-        SetupTeamForCreate(resolveSettings: true);
+        SetupTeamForCreate();
         SetupCreatorAssignment();
         SetupTenantChangedAudit();
         SetupDefaultAlias("acme", alias: null);
@@ -3887,7 +4486,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task CreateTenantAsync_WhenTheCreatorIsAssignedOwner_RecordsTheTenantThenTheCreatorsAssignment()
     {
-        SetupTeamForCreate(resolveSettings: true);
+        SetupTeamForCreate();
         SetupCreatorAssignment(CreateAssignment("principal-1", BuiltInRoles.Owner));
         SetupDefaultAlias("acme", alias: null);
         SetupValidSettings();
@@ -3935,10 +4534,10 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task CreateTenantAsync_WhenSettingsCannotBeHonored_ReturnsValidationProblem()
     {
-        SetupTeamForCreate(resolveSettings: true);
+        SetupTeamForCreate();
         SetupDefaultAlias("acme", alias: null);
         SetupInvalidSettings();
-        SetupStore();
+        SetupStoreManagerOnly();
         SetupDefaultIssuer("acme", DerivedIssuer);
         MockTenantValidator
             .Setup(x =>
@@ -3967,9 +4566,9 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task CreateTenantAsync_WhenValidatorReportsConflict_ReturnsProblem()
     {
-        SetupTeamForCreate(resolveSettings: false);
+        SetupTeamForCreate();
         SetupDefaultAlias("acme", alias: null);
-        SetupStore();
+        SetupStoreManagerOnly();
         SetupDefaultIssuer("acme", DerivedIssuer);
         MockTenantValidator
             .Setup(x =>
@@ -4001,7 +4600,11 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
     }
 
-    private PersistedTenant SetupUpdate(PersistedTenant tenant, Action<UpdateTenantRequest> capture)
+    private PersistedTenant SetupUpdate(
+        PersistedTenant tenant,
+        Action<UpdateTenantRequest> capture,
+        Exception? storeFailure = null
+    )
     {
         SetupTenantUpdateAuthorization(null);
         SetupStore();
@@ -4030,8 +4633,21 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
             )
             .ReturnsAsync((ManagementError?)null)
             .Verifiable();
+        if (storeFailure is not null)
+        {
+            MockTenantStore
+                .Setup(x =>
+                    x.UpdateAsync(It.IsAny<PersistedTenant>(), It.IsAny<CancellationToken>())
+                )
+                .Callback(() => Events.Add("update"))
+                .Throws(storeFailure)
+                .Verifiable();
+            return tenant;
+        }
+
         MockTenantStore
             .Setup(x => x.UpdateAsync(It.IsAny<PersistedTenant>(), It.IsAny<CancellationToken>()))
+            .Callback(() => Events.Add("update"))
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
         MockStoreManager
@@ -4039,6 +4655,33 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
         return tenant;
+    }
+
+    private void SetupIssuerChange(
+        string? previousIssuer,
+        string? issuer,
+        ReservationResult result
+    ) =>
+        MockTenantDirectory
+            .Setup(x =>
+                x.ChangeIssuerAsync(
+                    It.Is<TenantIssuerChange>(change =>
+                        change.TenantId == TenantId
+                        && change.PreviousIssuer == previousIssuer
+                        && change.Issuer == issuer
+                    ),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Callback(() => Events.Add("change-issuer"))
+            .ReturnsAsync(result)
+            .Verifiable();
+
+    private static JsonPatchDocument<UpdateTenantRequest> CreateIssuerPatch(string issuer)
+    {
+        var patch = new JsonPatchDocument<UpdateTenantRequest>();
+        patch.Replace(x => x.Issuer, issuer);
+        return patch;
     }
 
     [Fact]
@@ -4084,6 +4727,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
             model => validated = model
         );
         SetupDefaultIssuer(TenantId, derived);
+        SetupIssuerChange("https://custom.example", derived, ReservationResult.Reserved());
 
         var patch = new JsonPatchDocument<UpdateTenantRequest>();
         patch.Replace(x => x.Issuer, null);
@@ -4101,6 +4745,180 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
         Assert.IsType<NoContent>(result);
         Assert.Equal(derived, validated?.Issuer);
         Assert.Equal(derived, tenant.Issuer);
+    }
+
+    [Fact]
+    public async Task UpdateTenantAsync_WhenTheIssuerChanges_ChecksTheChangeBeforeTheStoreUpdate()
+    {
+        SetupTenantChangedAnnouncement();
+        SetupTenantChangedAudit();
+        SetupDefaultAlias(TenantId, alias: null);
+        const string previous = "https://op.example/tenant-1";
+        const string next = "https://op.example/tenant-1-renamed";
+        SetupIssuerChange(previous, next, ReservationResult.Reserved());
+        var tenant = SetupUpdate(CreateTenant("tenant-ct", issuer: previous), _ => { });
+
+        var result = await Handler.UpdateTenantAsync(
+            CreateHttpContext(authenticated: true),
+            TenantId,
+            CreateIssuerPatch(next),
+            ifMatch: null,
+            CancellationToken.None
+        );
+
+        Assert.IsType<NoContent>(result);
+        Assert.Equal(next, tenant.Issuer);
+        Assert.Equal(["change-issuer", "update"], Events);
+    }
+
+    [Fact]
+    public async Task UpdateTenantAsync_WhenTheDirectoryRefusesTheIssuerChange_ReturnsConflictWithItsDetail()
+    {
+        SetupTenantUpdateAuthorization(null);
+        SetupStore();
+        SetupDefaultAlias(TenantId, alias: null);
+        const string previous = "https://op.example/tenant-1";
+        const string next = "https://op.example/tenant-2";
+        MockTenantStore
+            .Setup(x => x.GetOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateTenant("tenant-ct", issuer: previous))
+            .Verifiable();
+        MockTenantValidator
+            .Setup(x =>
+                x.ValidateUpdateAsync(
+                    It.IsAny<PersistedTenant>(),
+                    It.IsAny<UpdateTenantRequest>(),
+                    It.IsAny<string?>(),
+                    It.IsAny<IStoreManager>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((ManagementError?)null)
+            .Verifiable();
+        SetupIssuerChange(
+            previous,
+            next,
+            ReservationResult.Conflict("Another tenant already has the issuer 'x'.")
+        );
+
+        var result = await Handler.UpdateTenantAsync(
+            CreateHttpContext(authenticated: true),
+            TenantId,
+            CreateIssuerPatch(next),
+            ifMatch: null,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+        Assert.Equal("Another tenant already has the issuer 'x'.", problem.ProblemDetails.Detail);
+        Assert.Equal(["change-issuer"], Events);
+    }
+
+    [Fact]
+    public async Task UpdateTenantAsync_WhenTheDirectoryIsUnavailableOnTheIssuerChange_Returns503WithRetryAfter()
+    {
+        SetupTenantUpdateAuthorization(null);
+        SetupStore();
+        SetupDefaultAlias(TenantId, alias: null);
+        const string previous = "https://op.example/tenant-1";
+        const string next = "https://op.example/tenant-2";
+        MockTenantStore
+            .Setup(x => x.GetOrDefaultAsync(TenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateTenant("tenant-ct", issuer: previous))
+            .Verifiable();
+        MockTenantValidator
+            .Setup(x =>
+                x.ValidateUpdateAsync(
+                    It.IsAny<PersistedTenant>(),
+                    It.IsAny<UpdateTenantRequest>(),
+                    It.IsAny<string?>(),
+                    It.IsAny<IStoreManager>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((ManagementError?)null)
+            .Verifiable();
+        MockTenantDirectory
+            .Setup(x =>
+                x.ChangeIssuerAsync(It.IsAny<TenantIssuerChange>(), It.IsAny<CancellationToken>())
+            )
+            .ThrowsAsync(new DirectoryUnavailableException("The directory is unreachable."))
+            .Verifiable();
+
+        var httpContext = CreateHttpContext(authenticated: true);
+
+        var result = await Handler.UpdateTenantAsync(
+            httpContext,
+            TenantId,
+            CreateIssuerPatch(next),
+            ifMatch: null,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, problem.StatusCode);
+        Assert.Equal(
+            $"{GlobalDirectoryProtocol.UnavailableRetryAfterSeconds}",
+            httpContext.Response.Headers.RetryAfter.ToString()
+        );
+    }
+
+    [Fact]
+    public async Task UpdateTenantAsync_WhenTheStoreUpdateFails_TakesTheIssuerChangeBackAndRethrows()
+    {
+        SetupDefaultAlias(TenantId, alias: null);
+        const string previous = "https://op.example/tenant-1";
+        const string next = "https://op.example/tenant-1-renamed";
+        SetupIssuerChange(previous, next, ReservationResult.Reserved());
+        SetupIssuerChange(next, previous, ReservationResult.Reserved());
+        var failure = new InvalidOperationException("The row cannot be written.");
+        SetupUpdate(CreateTenant("tenant-ct", issuer: previous), _ => { }, failure);
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Handler.UpdateTenantAsync(
+                CreateHttpContext(authenticated: true),
+                TenantId,
+                CreateIssuerPatch(next),
+                ifMatch: null,
+                CancellationToken.None
+            )
+        );
+
+        Assert.Same(failure, thrown);
+        Assert.Equal(["change-issuer", "update", "change-issuer"], Events);
+    }
+
+    [Fact]
+    public async Task UpdateTenantAsync_WhenTheStoreUpdateFailsAndTheDirectoryIsUnavailable_RethrowsTheStoreFailure()
+    {
+        SetupDefaultAlias(TenantId, alias: null);
+        const string previous = "https://op.example/tenant-1";
+        const string next = "https://op.example/tenant-1-renamed";
+        SetupIssuerChange(previous, next, ReservationResult.Reserved());
+        MockTenantDirectory
+            .Setup(x =>
+                x.ChangeIssuerAsync(
+                    It.Is<TenantIssuerChange>(change => change.Issuer == previous),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ThrowsAsync(new DirectoryUnavailableException("The directory is unreachable."))
+            .Verifiable();
+        var failure = new InvalidOperationException("The row cannot be written.");
+        SetupUpdate(CreateTenant("tenant-ct", issuer: previous), _ => { }, failure);
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Handler.UpdateTenantAsync(
+                CreateHttpContext(authenticated: true),
+                TenantId,
+                CreateIssuerPatch(next),
+                ifMatch: null,
+                CancellationToken.None
+            )
+        );
+
+        Assert.Same(failure, thrown);
     }
 
     [Fact]

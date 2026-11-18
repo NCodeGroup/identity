@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.Authentication.Logging;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Authentication.Usage;
@@ -18,6 +19,7 @@ namespace NCode.Identity.OpenId.Authentication.Usage;
 // See ADR-1199.
 internal sealed class TenantUsagePruneService(
     IStoreManagerFactory storeManagerFactory,
+    IAmbientTenantAccessor ambientTenantAccessor,
     IOptions<TenantUsageOptions> options,
     TimeProvider timeProvider,
     ILogger<TenantUsagePruneService> logger
@@ -29,6 +31,8 @@ internal sealed class TenantUsagePruneService(
     internal const int BatchSize = 256;
 
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
+
+    private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
 
     private TenantUsageOptions Options { get; } = options.Value;
 
@@ -86,6 +90,8 @@ internal sealed class TenantUsagePruneService(
         CancellationToken cancellationToken
     )
     {
+        // The prune removes the ledger entries of every tenant.
+        using var _ = AmbientTenantAccessor.BeginUnscoped("tenant usage prune");
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<ITenantUsageStore>();
         var removed = await store.RemoveBeforeAsync(firstKeptDay, BatchSize, cancellationToken);

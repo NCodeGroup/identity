@@ -13,6 +13,7 @@ using NCode.Identity.Jose;
 using NCode.Identity.Jwt;
 using NCode.Identity.OpenId;
 using NCode.Identity.OpenId.Authentication;
+using NCode.Identity.OpenId.Client;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.Registration;
 using NCode.Identity.Secrets;
@@ -49,6 +50,9 @@ internal sealed class IdentityServerBuilder : ServiceBuilder<IdentityServer>, II
     public IServiceBuilder<JwtLibrary> JwtLibraryBuilder { get; }
 
     /// <inheritdoc />
+    public IServiceBuilder<OpenIdClientLibrary> OpenIdClientLibraryBuilder { get; }
+
+    /// <inheritdoc />
     public IServiceBuilder<SettingsLibrary> SettingsLibraryBuilder { get; }
 
     /// <inheritdoc />
@@ -80,14 +84,15 @@ internal sealed class IdentityServerBuilder : ServiceBuilder<IdentityServer>, II
         // distributed backend (outbox, broker, scheduler cluster) by registering its own IJobDispatcher first.
         serviceCollection.AddDispatchServices().AddInProcessJobDispatcher();
 
-        // The in-process expiring key and counter sets are the default shared-state adapters, correct for a single
-        // replica; a deployment that runs several replicas swaps in shared adapters (AddValkey) on
-        // SharedStateLibraryBuilder. The in-process replica broadcaster is also a default, correct for a single
-        // replica, which AddValkey replaces.
+        // The in-process expiring key, counter and value sets are the default shared-state adapters, correct for a
+        // single replica; a deployment that runs several replicas swaps in shared adapters (AddValkey) on
+        // SharedStateLibraryBuilder, which replaces all three. The in-process replica broadcaster is also a default,
+        // correct for a single replica, which AddValkey replaces.
         SharedStateLibraryBuilder = serviceCollection
             .AddSharedStateServices()
             .AddInProcessExpiringKeySet()
             .AddInProcessExpiringCounterSet()
+            .AddInProcessExpiringValueSet()
             .AddInProcessReplicaBroadcaster();
 
         DataProtectionBuilder = serviceCollection.AddDataProtection();
@@ -96,6 +101,7 @@ internal sealed class IdentityServerBuilder : ServiceBuilder<IdentityServer>, II
 
         JoseLibraryBuilder = SecretsLibraryBuilder.AddJoseLibrary();
         JwtLibraryBuilder = JoseLibraryBuilder.AddJwtLibrary();
+        OpenIdClientLibraryBuilder = JwtLibraryBuilder.AddOpenIdClientLibrary();
 
         SettingsLibraryBuilder = serviceCollection.AddSettingsLibrary();
         ClaimsLibraryBuilder = serviceCollection.AddClaimsLibrary();

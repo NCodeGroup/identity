@@ -37,10 +37,14 @@ that loses a concurrency race with `412`, from one endpoint filter on the API's 
   and an unavailable root key answers `503`
   ([ADR-1414](1414-a-tenant-can-wrap-its-master-keys-under-a-root-key-it-controls.md)); both arise from reads through
   shared services whose reach no route owns.
-- **A browser fetch layer drops headers.** Three problems ask the caller to wait: a rekey too soon after the last
-  rotation, a root key change too soon, and an owner whose root key is unavailable. Each carries the wait in
-  `Retry-After`, but RTK Query's `fetchBaseQuery` hands a failed response's body to the caller and drops its headers, so
-  the console cannot show the wait. RFC 9457 allows a problem to carry extension members.
+- **A browser fetch layer drops headers.** Several management problems ask the caller to wait: a rekey too soon after
+  the last rotation, a root key change too soon, an owner whose root key is unavailable, and a directory or control
+  plane that cannot be reached. Each carries the wait in `Retry-After`, but RTK Query's `fetchBaseQuery` hands a failed
+  response's body to the caller and drops its headers, so the console cannot show the wait. RFC 9457 allows a problem to
+  carry extension members.
+- **The family's other APIs ask callers to wait too.** The directory API answers `503` while the issuer of its access
+  tokens cannot be reached, and the setup API answers `429` to a client address that used its attempts. A client that
+  reads the wait from one of the family's problem documents reads it from the others the same way.
 
 ## Decision
 
@@ -94,13 +98,17 @@ answers `404` and `409` from the rows it read, and each route declares every pro
    ([ADR-1414](1414-a-tenant-can-wrap-its-master-keys-under-a-root-key-it-controls.md)). A route declares its own `409`s
    and no `503`.
 9. **A problem that asks the caller to wait carries the wait in `retryAfterSeconds`.**
-   `RetryAfterProblem.Create(httpContext, wait, problem)` writes each such problem (a rekey too soon, a root key change
-   too soon, an unavailable root key): it sets `Retry-After` and the problem's `retryAfterSeconds` member to the wait in
-   whole seconds, rounded up and at least 1. The rekey-too-soon detail is "The last rotation of this master key has not
-   reached every replica yet."; the wait is in the member, not in the prose.
+   `RetryAfterProblem.Create(httpContext, wait, problem)`, in the foundation package `NCode.Identity.AspNetCore`, writes
+   every such problem of the family: it sets `Retry-After` and the problem's `retryAfterSeconds` member
+   (`RetryAfterProblem.MemberName`) to the wait in whole seconds, rounded up and at least 1
+   (`RetryAfterProblem.GetWaitSeconds`). The management API answers through it a rekey too soon, a root key change too
+   soon, an unavailable root key and an unreachable directory or control plane, the directory API its `503` for an
+   unreachable token issuer, and the setup API its `429`. The rekey-too-soon detail is "The last rotation of this master
+   key has not reached every replica yet."; the wait is in the member, not in the prose.
 10. **`ManagementProblemMembers` names the extension members.** The public constants `retryAfterSeconds`, `ownerType`,
     `ownerId`, `provider`, `keyReference`, `settingsScope`, `documentError` and `accessIdentity` are the names of the
-    extension members the management API writes, and every writer and test uses them. `ManagementProblem` in
+    extension members the management API writes, and every writer and test uses them. `RetryAfterSeconds` is
+    `RetryAfterProblem.MemberName`, so the contracts and the writer name the member once. `ManagementProblem` in
     `@ncode/api` mirrors the shape, and `apiErrorMessage` in `@ncode/store` appends " Try again in N seconds." when the
     problem carries a positive whole `retryAfterSeconds`: in seconds below a minute, otherwise in whole minutes or hours
     rounded up, and singular for one.
@@ -149,9 +157,10 @@ answers `404` and `409` from the rows it read, and each route declares every pro
   write starts after its own save, such as the key seed of a tenant, is answered `412` as well when it loses a race.
 - A client reads from the OpenAPI document every problem a route answers, and a route that answers a problem it does not
   declare fails its handler's theory and the host walk.
-- Any client reads the wait from the body, whether or not its fetch layer exposes headers. A new problem that asks the
-  caller to wait uses `RetryAfterProblem.Create`, so the header and the member agree, and a member name is a constant of
-  `ManagementProblemMembers`, not a string literal.
+- Any client of the management, directory or setup API reads the wait from the body, whether or not its fetch layer
+  exposes headers. Every problem that asks the caller to wait uses `RetryAfterProblem.Create`, so the header and the
+  member agree, and a member name is a constant (`RetryAfterProblem.MemberName`, `ManagementProblemMembers`), not a
+  string literal.
 
 ## References
 
@@ -167,9 +176,16 @@ answers `404` and `409` from the rows it read, and each route declares every pro
   the problems a route declares say when each occurs.
 - [project-template ADR-0125](project-template/0125-a-write-that-loses-a-race-is-answered-412.md): a write that loses a
   race is answered `412`.
+- [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md):
+  the directory API's `503`.
+- [ADR-1500](1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md):
+  `NCode.Identity.AspNetCore` holds the HTTP helpers that name no identity concept.
+- [ADR-1512](1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md):
+  the setup API's `429`.
 - [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) (problem details), RFC 9110 §10.2.3 (`Retry-After`).
 - Code: `NCode.Identity.OpenId.Management.Endpoints.StoreConcurrencyEndpointFilter`, `ManagementRootGroup`,
-  `ManagementProblemResponseMiddleware`, `RetryAfterProblem`, `frontend/packages/store/src/apiError.ts`.
+  `ManagementProblemResponseMiddleware`, `NCode.Identity.AspNetCore.RetryAfterProblem`,
+  `frontend/packages/store/src/apiError.ts`.
 - Issues [#261](https://github.com/NCodeGroup/identity/issues/261),
   [#571](https://github.com/NCodeGroup/identity/issues/571),
   [#700](https://github.com/NCodeGroup/identity/issues/700),

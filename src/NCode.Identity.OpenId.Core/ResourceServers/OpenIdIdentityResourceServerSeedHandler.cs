@@ -1,8 +1,8 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Text.Json;
 using NCode.Identity.Cryptography;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Tenants;
@@ -56,7 +56,7 @@ internal sealed class OpenIdIdentityResourceServerSeedHandler(ICryptoService cry
             {
                 TenantId = context.TenantId,
                 ResourceServerId = resourceServerId,
-                Value = JsonSerializer.SerializeToElement(null, typeof(object)),
+                Value = JsonElements.EmptyObject,
             },
             Scopes = BuildScopes(),
             Secrets = new PersistedResourceServerSecrets

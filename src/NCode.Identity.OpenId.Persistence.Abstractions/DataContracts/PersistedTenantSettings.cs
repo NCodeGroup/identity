@@ -10,7 +10,7 @@ using NCode.Identity.Persistence;
 namespace NCode.Identity.OpenId.Persistence.DataContracts;
 
 /// <summary>
-/// Contains the JSON settings for an OpenID Tenant instance.
+/// Contains the settings document of a tenant: a JSON object, which is empty when the tenant has no settings.
 /// </summary>
 [PublicAPI]
 [ExcludeFromCodeCoverage]

@@ -13,7 +13,8 @@ Until the first stable release, the [Unreleased] section describes the product a
 
 ### Added
 
-- **A setup wizard at `/setup` creates an instance's first administrator.** The OP serves the `@ncode/app-setup` bundle
+- **A setup wizard at `/setup` creates an instance's first administrator.** Setup runs once per platform, on the
+  control-plane cell only. The OP serves the `@ncode/app-setup` bundle
   (`frontend/apps/setup`) under a per-response CSP nonce, and the wizard asks for the setup token, reads it from the URL
   fragment (`#token=`, beside the optional `consoleUrl` and `consoleClientId`) and strips them from the address bar,
   checks the token through `POST /setup/api/token` before it moves on, so a wrong token keeps the operator on the token
@@ -54,12 +55,21 @@ Until the first stable release, the [Unreleased] section describes the product a
   setup` reads `Setup:Root:UserName`, `Setup:Root:Email` and `Setup:Root:Password`, needs no setup token, creates the
   root administrator through the same `IInstanceSetupService` as the wizard, and exits without starting the server. It
   exits `0` when it creates the root administrator or the instance is already initialized, `1` when the creation fails
-  and `2` on a usage error or when the configuration lacks the username or the password, so a Job can run it on every
+  and `2` on a usage error, when the cell is not the control plane, or when the configuration lacks the username or the
+  password, so a Job can run it on every
   release. It also registers the console's client from `Setup:ManagementConsole` and, from `Setup:Automation`
   (`ClientId`, `Jwks`), a platform-owned `client_credentials` automation client that authenticates with `private_key_jwt`
   and holds `GlobalAdmin`, so an unattended install manages the instance without the development bootstrap client; both
   clients are saved with the root administrator ([#777](https://github.com/NCodeGroup/identity/issues/777),
   [ADR-1512](docs/decisions/1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md)).
+
+- **Instance setup stages the root administrator in the control-plane tenant's scope.** The wizard and the `setup`
+  command read and write the platform's `InstanceSetup` row in an unscoped scope and stage the root account, its
+  identity, its `GlobalAdmin` assignment and the setup clients in a scope of the control-plane tenant inside it, so
+  setup runs over the ASP.NET Core Identity account store and checks user names and client identifiers within that
+  tenant alone
+  ([ADR-1512](docs/decisions/1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md),
+  [ADR-1018](docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)).
 
 - **`ILocalAccountCreator` is the one seam that creates a local account.** `ILocalAccountCreator.StageAsync`
   (`NCode.Identity.OpenId.Accounts.Management.Abstractions`) validates a `CreateLocalAccountRequest` (username, password
@@ -75,7 +85,9 @@ Until the first stable release, the [Unreleased] section describes the product a
   `setup` command once per release with `Setup__Root__UserName`, `Setup__Root__Email` and `Setup__Root__Password` from
   an operator Secret (`setup.job.existingSecret`, `userNameKey`, `emailKey`, `passwordKey`), and passes
   `setup.managementConsole` (`clientId`, `baseUrl`, `jwks`) and `setup.automation` (`clientId`, `jwks`) to the
-  command as `Setup__ManagementConsole__*` and `Setup__Automation__*`, so a GitOps install needs no browser
+  command as `Setup__ManagementConsole__*` and `Setup__Automation__*`, so a GitOps install needs no browser. The chart
+  refuses `setup.job.enabled` unless `cell.isControlPlane` is `true`, because setup runs in the control-plane cell
+  only
   ([#776](https://github.com/NCodeGroup/identity/issues/776),
   [#777](https://github.com/NCodeGroup/identity/issues/777),
   [ADR-1512](docs/decisions/1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md)).
@@ -427,13 +439,13 @@ Until the first stable release, the [Unreleased] section describes the product a
   so the image builds for `linux/amd64` and `linux/arm64` without emulation in one multi-architecture build, whose NuGet
   cache mount is locked so the two publishes take turns rather than reading packages the other is still extracting; the
   `Host image` CI workflow builds both. The build context is an allow-list
-  ([ADR-1248](docs/decisions/1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)).
+  ([ADR-1248](docs/decisions/1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)).
 
 - **The host image writes one-line JSON logs.** The image sets `Logging__Console__FormatterName=json`,
   `Logging__Console__FormatterOptions__UseUtcTimestamp=true` and
   `Logging__Console__FormatterOptions__TimestampFormat=O`, so every entry, the migration worker's included, is one JSON
   object on one line with a UTC timestamp; `Logging__Console__FormatterName=simple` selects text
-  ([ADR-1248](docs/decisions/1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md), issue
+  ([ADR-1248](docs/decisions/1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md), issue
   [#265](https://github.com/NCodeGroup/identity/issues/265)).
 
 - **The management console host ships a production container image.**
@@ -441,7 +453,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   base images: no shell, the non-root `app` user, HTTPS only on port 8443 from the certificate and key mounted at
   `/etc/ncode-identity/tls`, the `apps/mgmt` bundle served from `/app/mgmt`, and one-line JSON logs; the `Console image`
   CI workflow builds it for `linux/amd64` and `linux/arm64`
-  ([ADR-1248](docs/decisions/1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md),
+  ([ADR-1248](docs/decisions/1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md),
   issue [#610](https://github.com/NCodeGroup/identity/issues/610)).
 
 - **The host has a Helm chart.** `charts/ncode-identity-host` deploys `NCode.Identity.OpenId.Host` on Kubernetes 1.30 or
@@ -466,7 +478,8 @@ Until the first stable release, the [Unreleased] section describes the product a
   host would refuse to start (an empty or wildcard `allowedHosts`, a missing database Secret or one named in both
   forms, a `StaticSingle` issuer that is not `https`, a missing or incomplete root key provider, `ephemeral`, a local
   provider without its Secret, a release with no recovery decision, a `setup.token.existingSecret` without its key, an
-  enabled `setup.job` without its Secret), in any `environment`, for more than one replica without Valkey, and for
+  enabled `setup.job` without its Secret or a missing `database.runtimeRole`), in any `environment`, for more than one
+  replica without Valkey, and for
   unknown values. Without Valkey the chart uses the `Recreate` deployment strategy, which waits for the old pod to
   terminate before starting the next, so it never runs two replicas at once. The `Host chart` CI workflow lints the
   chart, renders each example release, and checks that each unsafe release is refused; the workflow also installs the
@@ -507,8 +520,10 @@ Until the first stable release, the [Unreleased] section describes the product a
 - **The host's chart migrates the database before each rollout.** The chart runs the image's migration worker as a Helm
   `pre-install` and `pre-upgrade` Job, so a failed migration fails the release before any pod is replaced. The Job runs
   restricted like the server, with the host's `fsGroup` so its non-root user can read a mounted secret, and
-  `migrations.database`, a connection-string Secret or a parts Secret, gives it a connection with schema rights the
-  server does not need;
+  `migrations.database`, a required connection-string Secret or parts Secret, gives it the schema owner's connection,
+  which only the Job reads. The pods connect as the runtime role that `database` names and `database.runtimeRole` names,
+  which owns no table and bypasses no row-level security; the Job grants that role access to the tables after it
+  migrates and applies the row-level security policies.
   `migrations.enabled=false` leaves migrations to another mechanism. `extraEnv`, `extraEnvFrom`, `extraVolumes` and
   `extraVolumeMounts` reach both the host's pods and the Job, so a database connection that needs a CA bundle or SSL
   setting works at migration time, and both pod specs share their security contexts, image pull secrets and scheduling
@@ -1104,8 +1119,9 @@ Until the first stable release, the [Unreleased] section describes the product a
   provider cannot hold a provisioned key, or holds it for another use, does not start. A provider registered without its
   region, vault URI or key ring (`RemoteKeyProviderDescriptor.CreatesKeys` is `false`) binds a key a KMS already holds
   and reads, signs with, decrypts with and destroys keys by their identifiers, but creates and lists none: the setting
-  cannot name it, the management API refuses to create a key in it, the sweep skips it, and
-  `SecretProtection:RemoteKeys:Deployment` is required only when a provider creates keys. A change of custody hands each
+  cannot name it, the management API refuses to create a key in it, the sweep skips it, and the tag of the keys a
+  provider creates is `Cell:Name`, from which the host derives `SecretProtection:RemoteKeys:Deployment`. A change of
+  custody hands each
   key over after the activation delay (`custody_changed`), a successor is a new version of its KMS key (a new tagged key
   on AWS KMS), a removed key the server created is destroyed in its KMS after the commit, each SDK retries a repeatable
   call with jittered exponential back-off, and a key creation is made once; the setting's domain and the provisioning
@@ -1143,17 +1159,20 @@ Until the first stable release, the [Unreleased] section describes the product a
   [ADR-1485](docs/decisions/1485-the-host-chart-enables-server-kms-vendors-and-holds-console-key-rings-under-the-consoles-identity.md)).
 
 - **A background job destroys the KMS keys that no stored secret names.** Every key the server creates in a KMS carries
-  the deployment that `SecretProtection:RemoteKeys:Deployment` names
-  (required when a remote key provider that creates keys is registered), and its group name hashes the deployment, so
-  deployments that share an AWS account, a vault or a key ring, each under a name of its own, never share or sweep each
-  other's keys. At start and every `SecretProtection:RemoteKeys:SweepInterval` (one day), one replica dispatches
-  a `RemoteKeySweepJob` per provider that creates keys through the dispatch port, logging a provider whose dispatch
-  fails and dispatching the others; the job lists the deployment's keys older than `SweepGracePeriod` (one day, between
-  one hour and 365 days) through `IRemoteKeyProvider.ListKeysAsync`, then reads the references every stored secret holds
+  the cell's name, `Cell:Name` (the chart sets it from `cell.name`), as `SecretProtection:RemoteKeys:Deployment`, which
+  the host sets from `Cell:Name` and refuses to configure to another value, and its group name hashes the cell's name,
+  so cells that share an AWS account, a vault or a key ring, each under a name of its own, never share or sweep each
+  other's keys. At start and every `SecretProtection:RemoteKeys:SweepInterval` (one day), one replica dispatches a
+  `RemoteKeySweepJob` per provider that creates keys through the dispatch port, logging a provider whose dispatch fails
+  and dispatching the others; the job lists the cell's keys older than `SweepGracePeriod` (one day, between one hour and
+  365 days) through `IRemoteKeyProvider.ListKeysAsync`, then reads the references every stored secret holds
   (`IRemoteKeyReferenceStore`), and destroys each key none names through `IRemoteSecretDestroyer.DestroyKeyAsync`,
   recording `remote_key.destroyed` with the reason `orphaned` in the control-plane tenant; `SweepEnabled` turns it off.
-  The Helm chart's `secretProtection.remoteKeys` sets the deployment and the sweep, and rendering fails for a release
-  whose enabled remote key provider has its region, vault URI or key ring, and so creates keys, without a deployment
+  The Helm chart's `secretProtection.remoteKeys` sets `sweepEnabled` (`true`), `sweepInterval` and `sweepGracePeriod`
+  (each `1.00:00:00`), which it renders as `SecretProtection__RemoteKeys__SweepEnabled`, `__SweepInterval` and
+  `__SweepGracePeriod`, and rendering fails for a release that sets a provider's location under
+  `secretProtection.remoteKeyProviders` (`awsKms.region`, `azureKeyVault.vaultUri` or `googleCloudKms.keyRing`) while
+  that provider's `enabled` is `false`
   ([#654](https://github.com/NCodeGroup/identity/issues/654), [#704](https://github.com/NCodeGroup/identity/issues/704),
   [#725](https://github.com/NCodeGroup/identity/issues/725),
   [ADR-1478](docs/decisions/1478-a-background-job-destroys-the-key-management-service-keys-that-no-stored-secret-names.md),
@@ -2109,7 +2128,9 @@ Until the first stable release, the [Unreleased] section describes the product a
   of first-class store operations (`AddAsync(account, password?, ct)`, `SetPasswordAsync`, `VerifyCredentialAsync`)
   rather than a password hash on the persisted account, and `SecurityStamp` is store-managed. The ASP.NET Core Identity
   adapter (`NCode.Identity.OpenId.Accounts.AspNetIdentity`) implements `ILocalAccountStore` over `UserManager<TUser>`
-  (`AddAspNetIdentityLocalAccountStore<TUser>()`). `IFederatedPrincipalStore` provides `UpdateAsync` and `RemoveAsync`,
+  (`AddAspNetIdentityLocalAccountStore<TUser>()`), where `TUser` is an `IdentityUser` that implements
+  `ITenantBoundUser`, so every user belongs to one tenant. `IFederatedPrincipalStore` provides `UpdateAsync` and
+  `RemoveAsync`,
   and `IFederatedIdentityStore` provides `RemoveAsync`. See
   [ADR-1051](docs/decisions/1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md).
 
@@ -2269,7 +2290,8 @@ Until the first stable release, the [Unreleased] section describes the product a
   management endpoints there, apart from the OpenID protocol endpoints at the root
   ([ADR-1191](docs/decisions/1191-a-management-request-is-authenticated-by-the-control-plane-tenant-and-scoped-by-its-routes-tenant.md),
   [ADR-1086](docs/decisions/1086-endpoints-compose-as-a-declarative-group-tree-and-a-protocol-endpoint-is-a-thin-mediator-driven-provider.md)). The control plane is `/api/platform`
-  and `/api/teams`, and tenants are created and listed under `/api/teams/{teamId}/tenants`; every tenant-plane family
+  and `/api/teams`, mapped only on the control-plane cell (`Cell:IsControlPlane`), and tenants are created and listed
+  under `/api/teams/{teamId}/tenants` on every cell; every tenant-plane family
   (a tenant's own secrets, settings, address and usage, its clients, resource servers, grants, sessions, principals,
   local accounts and audit records) is addressed under `/api/tenants/{tenantId}/…`, the
   `ManagementEndpointGroups.Tenant` group, so a tenant administrator can never address another tenant.
@@ -2287,7 +2309,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   static single-tenant strategy provisions the root tenant lazily alongside its workload tenant, so a single-tenant
   deployment has its control plane with no extra configuration. See
   [ADR-1417](docs/decisions/1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md),
-  [ADR-1411](docs/decisions/1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md) and
+  [ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md) and
   [ADR-1166](docs/decisions/1166-a-tenant-is-created-and-seeded-through-one-provisioning-pipeline-under-every-strategy.md).
 
 - **Resource ownership is data-driven.** Persisted `(principal, role, resource-node)` role assignments
@@ -2343,10 +2365,11 @@ Until the first stable release, the [Unreleased] section describes the product a
   [ADR-1044](docs/decisions/1044-the-management-api-authenticates-its-own-access-tokens-and-a-configured-client-bootstraps-the-first-globaladmin.md)).
 
 - **The management console opens on the caller's home.** `/home` lists the platform for a caller with platform
-  authority and the teams and tenants the caller holds a role at, and opens the only one at once when there is one.
-  A team administrator signs in with the same token as a platform administrator and works within its teams; a
-  platform route sends a caller without platform authority home, and a scope's back control leads home when the
-  caller holds no role at the scope above it ([#566](https://github.com/NCodeGroup/identity/issues/566),
+  authority and the teams and tenants the caller holds a role at, names each cell that did not answer, whose tenants are
+  missing, and opens the only destination at once when there is one and every cell answered. A team administrator signs
+  in with the same token as a platform administrator and works within its teams; a platform route sends a caller
+  without platform authority home, and a scope's back control leads home when the caller holds no role at the scope
+  above it ([#566](https://github.com/NCodeGroup/identity/issues/566),
   [ADR-1465](docs/decisions/1465-role-lists-share-one-audited-grant-and-revoke-flow-and-a-caller-discovers-its-own-assignments.md)).
 
 - **Collection endpoints page through management resources by keyset.** A collection `GET`, such as `GET api/teams`,
@@ -2427,7 +2450,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   [#278](https://github.com/NCodeGroup/identity/issues/278)).
 
 - **A tenant is named by whoever creates it.** `POST /api/teams/{teamId}/tenants` requires `CreateTenantRequest.TenantId`: 1 to 63
-  lowercase letters, digits or hyphens that starts and ends with a letter or digit, and never changes. It reads the same
+  lowercase letters, digits or hyphens that start and end with a letter or digit, and never changes. It reads the same
   in the management API (`/api/tenants/acme`), in a path tenant's issuer (`https://op.example/acme`) and in a host
   tenant's hostname (`acme.auth.example`), so a path tenant can be created with its issuer in one request; `displayName`
   is the editable label. The configured root tenant ID and `StaticSingle:TenantId` must have the same form or the host
@@ -2866,7 +2889,8 @@ Until the first stable release, the [Unreleased] section describes the product a
   `AddIdentityBff(configuration)` composes the shared-state (in-process by default), events, secrets, JOSE, JWT,
   protocol-client and BFF libraries and binds the `Bff` section, and `IIdentityBffBuilder` exposes each library's
   builder, such as `SharedStateLibraryBuilder.AddValkey(configuration)` for several replicas, as `AddIdentityServer()`
-  does for the OP. The host registers the key rings its configuration names
+  does for the OP. The composition refuses an empty or wildcard `AllowedHosts` at startup unless
+  `LocalDevelopment:Enabled` is set. The host registers the key rings its configuration names
   ([#413](https://github.com/NCodeGroup/identity/issues/413),
   [ADR-1290](docs/decisions/1290-the-bff-keeps-each-session-as-an-encrypted-server-side-record-under-a-cookie-handle.md)).
 
@@ -2976,13 +3000,17 @@ Until the first stable release, the [Unreleased] section describes the product a
 - **The management console is served by a BFF host of its own.** `NCode.Identity.ManagementConsole`
   (`AddManagementConsole(configuration)`, `MapManagementConsole()`) and `NCode.Identity.ManagementConsole.Host` serve
   the built `apps/mgmt` bundle under a per-response CSP nonce, `/config/bootstrap.json`, the `mgmt` frontend's `/bff`
-  endpoints, and `/management/api/*` forwarded to `ManagementConsole:ManagementApiUrl` with the user's DPoP-bound
-  `urn:ncode:management` token. The console is the confidential client `mgmt-console` of the control-plane tenant
-  (`private_key_jwt`, PAR, DPoP, back-channel logout) and listens on `https://localhost:5005` under the AppHost, which
-  generates the console's keys per machine. The host refuses a missing or wildcard `AllowedHosts` unless
-  `LocalDevelopment:Enabled` is set, trusts forwarded headers only from the proxies its `ForwardedHeaders` section
-  names, and sends `Strict-Transport-Security` unless that switch is set. The console's
-  `ManagementConsole:Branding:FaviconUrl` (absolute `https`) replaces the family's tab icon the same way
+  endpoints, and `/management/api/*` forwarded to `ManagementConsole:ManagementApiUrl`, the control-plane cell's
+  management API, with the user's DPoP-bound `urn:ncode:management` token. `ManagementConsole:Cells` maps each other
+  cell's name to its management URL, and `/management/cells/{cell}/api/*` forwards to that cell the same way, each
+  forwarder a sibling of the control plane's because the BFF maps a request path to one remote API; the console lists
+  the cell names in `/config/bootstrap.json` and refuses a document whose `cells` is present but is not a list of cell
+  names. The console is the confidential client `mgmt-console` of the control-plane tenant (`private_key_jwt`, PAR,
+  DPoP, back-channel logout) and listens on `https://localhost:5005` under the AppHost, which generates the console's
+  keys per machine. The host refuses a missing or wildcard `AllowedHosts` unless `LocalDevelopment:Enabled` is set,
+  trusts forwarded headers only from the proxies its `ForwardedHeaders` section names, and sends
+  `Strict-Transport-Security` unless that switch is set. The console's `ManagementConsole:Branding:FaviconUrl` (absolute
+  `https`) replaces the family's tab icon the same way
   ([#158](https://github.com/NCodeGroup/identity/issues/158),
   [#611](https://github.com/NCodeGroup/identity/issues/611),
   [#745](https://github.com/NCodeGroup/identity/issues/745),
@@ -2990,15 +3018,17 @@ Until the first stable release, the [Unreleased] section describes the product a
   [ADR-1447](docs/decisions/1447-each-host-composes-forwarded-header-trust-and-strict-transport-security-from-one-general-package.md),
   [ADR-1253](docs/decisions/1253-a-tenant-brands-its-sign-in-pages-through-settings-and-the-bundle-mounts-over-the-hosts-page.md)).
 
-- **A BFF loads its key rings from PEM files and key management services when the host starts.**
-  `Bff:KeyRings:{name}:PemFiles` lists EC or RSA private-key PEM files, each key's `kid` its file name without the
-  extension, and `Bff:KeyRings:{name}:RemoteKeys:{kid}` names a key a KMS holds by its `Provider`, `KeyId`, `Algorithm`,
+- **A BFF host and the identity server load their key rings through the protocol client when the host starts.**
+  `KeyRings:{name}:PemFiles` lists EC or RSA private-key PEM files, each key's `kid` its file name without the
+  extension, and `KeyRings:{name}:RemoteKeys:{kid}` names a key a KMS holds by its `Provider`, `KeyId`, `Algorithm`,
   `SecretType`, `KeySizeBits` and `Curve`, the provider's row deciding whether it signs or decrypts. Every configured
   key ring loads before the host serves: a remote key's public half is read from its KMS and the key proves it holds the
   private half, and `/bff/jwks` publishes the half without a KMS call. The host validates the entries when it starts,
-  and refuses a key ring that holds no key or one id twice. A set of frontends whose `ClientAuthentication:KeyRing` or
-  `DPoP:KeyRing` names a key ring that `IClientKeyRingProvider.HasKeyRing` does not find is refused, when the host
-  starts and on every configuration change
+  and refuses a key ring that holds no key, whose name or one of whose key ids is not letters and digits in groups
+  separated by single `.`, `_` or `-`, that holds two ids equal without case, or that a keyed
+  `ISecretKeyCollectionProvider` registered in code already provides. A set of frontends whose
+  `ClientAuthentication:KeyRing` or `DPoP:KeyRing` names a key ring that `IClientKeyRingProvider.HasKeyRing` does not
+  find is refused, when the host starts and on every configuration change
   ([#614](https://github.com/NCodeGroup/identity/issues/614),
   [#651](https://github.com/NCodeGroup/identity/issues/651),
   [ADR-1439](docs/decisions/1439-a-bff-loads-its-configured-key-rings-at-start-and-refuses-frontends-naming-an-unknown-ring.md),
@@ -3092,17 +3122,24 @@ Until the first stable release, the [Unreleased] section describes the product a
   opaque public `GrantId` of the persisted grant, so a caller such as the initial-access-token management endpoint can
   reference it for revocation ([ADR-1192](docs/decisions/1192-dynamic-client-registration-rides-the-client-and-grant-stores-authorized-by-single-use-initial-access-tokens.md)).
 
-- **At-rest grant payloads are schema-versioned and upcastable.** Every grant payload
+- **At-rest JSON payloads are schema-versioned and upcastable.** Every grant payload
   (`PersistedGrant<TPayload>.Payload`: authorization codes, refresh tokens, device and CIBA requests, pushed
   authorization requests, DCR tokens, the end-user `session` grant, continue envelopes) is written through the
-  `IPersistedPayloadSerializer` seam, which wraps it in a self-describing envelope `{ "$ver": N, "$payload": … }`
-  stamped with the schema version declared by `[PersistedPayloadVersion(N)]` (default `1`). On read, registered
-  `IPersistedPayloadUpcaster` steps bring an older stored document up to the current version before deserialization; a
-  document newer than the current version is read forward-compatibly, and a document that is not an envelope, or that
-  lacks a member the serving code always writes, is rejected with a `JsonException`. The long-lived, in-place-mutated
-  payloads (`SessionGrant`, `CibaGrant`, `DeviceCodeGrant`) carry a `[JsonExtensionData]` bag, so a mixed-version node
-  never drops unknown members on a read-modify-write
-  ([ADR-1395](docs/decisions/1395-grant-payloads-have-one-versioned-serializer-and-a-stored-record-missing-written-members-fails-closed.md)).
+  `IPersistedPayloadSerializer` seam of `NCode.Identity.Json`, which `AddPersistedPayloadSerializer()` registers and
+  which wraps it in a self-describing envelope `{ "$ver": N, "$payload": … }` stamped with the schema version declared
+  by `[PersistedPayloadVersion(N)]` (default `1`). On read, registered `IPersistedPayloadUpcaster` steps bring an older
+  stored document up to the current version before deserialization; a document newer than the current version is read
+  forward-compatibly, and a document that is not an envelope, or that lacks a member the serving code always writes, is
+  rejected with a `JsonException`. The long-lived, in-place-mutated payloads (`SessionGrant`, `CibaGrant`,
+  `DeviceCodeGrant`) carry a `[JsonExtensionData]` bag, so a mixed-version node never drops unknown members on a
+  read-modify-write. The global directory writes and reads each team and platform document it stores, and the document
+  each change carries, through the same seam: a stored document that is not an envelope fails the read, and the
+  tenant-limit check that reads it refuses the reservation. Each cell writes and reads the root keys that a team row
+  holds through the same seam, so a stored value that is not an envelope, or that holds a region without a root key or
+  a root key without its key wrapper name or key reference, fails every read of the team
+  ([ADR-1395](docs/decisions/1395-grant-payloads-have-one-versioned-serializer-and-a-stored-record-missing-written-members-fails-closed.md),
+  [ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
+  [ADR-1414](docs/decisions/1414-a-tenant-can-wrap-its-master-keys-under-a-root-key-it-controls.md)).
 
 - **A change to a grant's payload loses no concurrent write.** The touch of a session, the addition of a client to it,
   and the polls and decisions of the device-code and CIBA grants apply their change to the grant as stored and read it
@@ -3247,10 +3284,12 @@ Until the first stable release, the [Unreleased] section describes the product a
   one replica), and the opt-in `NCode.Identity.SharedState.Valkey` package adds
   `SharedStateLibraryBuilder.AddValkey(configuration)`, which takes the Valkey connection as the
   `ConnectionStrings:valkey` connection string or as the `ValkeyConnection` parts and binds the `Valkey` section
-  (`KeyPrefix`) strictly. Without a connection it registers nothing; with one, it registers the Valkey adapters and
-  adds a `valkey` health check tagged `ready`. The reference host calls it, and the Aspire AppHost runs a Valkey
-  container and injects the connection string, so local development uses the same adapter as a multi-replica
-  deployment
+  (`KeyPrefix`) strictly; the adapter appends the deployment that `SharedStateOptions` names to that prefix, and the
+  server's `AddConfiguration` names `Cell:Name` as the deployment, so a cell's keys start `ncode-identity:{cell}:` and
+  cells that share one Valkey share no key or channel, whichever host composes the server with the adapter. Without a
+  connection it registers nothing; with one, it registers the Valkey adapters and adds a `valkey` health check tagged
+  `ready`. The reference host calls it, and the Aspire AppHost runs a Valkey container and injects the connection
+  string, so local development uses the same adapter as a multi-replica deployment
   ([ADR-1164](docs/decisions/1164-replicas-share-expiring-keys-values-and-indexes-through-ports-with-in-process-and-valkey-adapters.md)).
 
 - **A shared expiring counter set backs rate limiting.** `NCode.Identity.SharedState.Abstractions` provides
@@ -3308,7 +3347,12 @@ Until the first stable release, the [Unreleased] section describes the product a
   `TenantChangedHandler`, `TeamChangedHandler` and `PlatformSettingsChangedHandler` evict, read back and announce a committed change each on its
   own 30-second token, so a client that disconnects does not skip the announcement and a store or Valkey timeout does
   not fail a write that has already committed; a failed refresh or announcement is logged, and a failed eviction is
-  still announced ([#485](https://github.com/NCodeGroup/identity/issues/485),
+  still announced. A cell's directory change feed reads the highest sequence it applied from the cell's
+  `DirectoryFeedCheckpoint` row and applies a change that loses a concurrency race again, up to three attempts. It sends
+  a mirrored team's change and mirrors its owner root key, each on its own 30-second token, once it commits the team's
+  row, so a host that stops after the commit skips neither and a key-service call that hangs ends after 30 seconds; a
+  mirror that fails is logged and redone by the team's next document or the feed's root-key reconcile
+  ([#485](https://github.com/NCodeGroup/identity/issues/485),
   [ADR-1351](docs/decisions/1351-work-that-follows-a-committed-change-runs-on-its-own-bounded-token.md)).
 
 - **Protocol-endpoint metrics.** The protocol endpoints tag ASP.NET Core's `http.server.request.duration` with
@@ -3321,13 +3365,15 @@ Until the first stable release, the [Unreleased] section describes the product a
   `ncode.identity.rate_limiting.partition` and `ncode.identity.rate_limiting.result` (`admitted`, `rejected`,
   `store_unavailable`). `NCode.Identity.SharedState.Valkey` owns the meter `ValkeyMetrics.MeterName` and the histogram
   `ncode.identity.shared_state.operation.duration` (`s`) of each Valkey round trip by operation, adapter, and
-  `error.type`. `NCode.Identity.Server` provides `AddOpenTelemetryMetrics(configuration)`, which the reference host
-  calls: the family's meters, ASP.NET Core, Kestrel, `System.Net.Http` (bounded attributes only), and the runtime,
-  exported over OTLP when `OTEL_EXPORTER_OTLP_ENDPOINT` is set; the exporter is added to the metrics pipeline only, so
-  logs and traces stay the host's choice. Every meter comes from `IMeterFactory`. The catalog is
+  `error.type`. The opt-in `NCode.Identity.AspNetCore.OpenTelemetry` package provides
+  `AddOpenTelemetryMetrics(configuration)`, which the reference host and the directory host call: the family's meters,
+  ASP.NET Core, Kestrel, `System.Net.Http` (bounded attributes only), and the runtime, exported over OTLP when
+  `OTEL_EXPORTER_OTLP_ENDPOINT` is set; the exporter is added to the metrics pipeline only, so logs and traces stay the
+  host's choice. It is the only package that references the OpenTelemetry SDK, and the build fails any other shipping
+  package whose references hold an OpenTelemetry package. Every meter comes from `IMeterFactory`. The catalog is
   [`docs/metrics.md`](docs/metrics.md)
-  ([ADR-1197](docs/decisions/1197-telemetry-has-one-owner-per-signal-bounded-attributes-and-spans-that-mirror-their-histograms.md), issue
-  [#119](https://github.com/NCodeGroup/identity/issues/119)).
+  ([ADR-1197](docs/decisions/1197-telemetry-has-one-owner-per-signal-bounded-attributes-and-spans-that-mirror-their-histograms.md),
+  issue [#119](https://github.com/NCodeGroup/identity/issues/119)).
 
 - **The outbound clients count their retries and timeouts.** The guarded outbound client records
   `ncode.identity.outbound_http.retries` (by `error.type`) and `ncode.identity.outbound_http.timeouts` (by `attempt` or
@@ -3379,7 +3425,9 @@ Until the first stable release, the [Unreleased] section describes the product a
   payload is rejected. A stored settings document that names an unregistered setting fails when it is loaded, so a
   control an operator configured is never silently dropped. `ISettingSerializer.ValidateSettings` returns `SettingError`
   values, and `ISettingCollection.Set(key, value)` throws for a key with no descriptor of that value type; an extension
-  registers a descriptor for every setting it reads or writes
+  registers a descriptor for every setting it reads or writes. Every settings document the server stores is a JSON
+  object, the empty object when it holds no settings, whoever writes it: a management create whose `settings` is `null`,
+  the platform, the teams and tenants the provisioners create and the resource servers a seed adds
   ([ADR-1139](docs/decisions/1139-setting-names-are-a-closed-vocabulary-changed-outright-and-settings-the-server-cannot-honor-fail-loudly.md)).
 
 - **A setting is accepted only at a scope that reads it.** Every setting declares the scopes it applies to
@@ -4066,20 +4114,34 @@ Until the first stable release, the [Unreleased] section describes the product a
   key, with no ambient server-side current pending request). Details in
   [`docs/conformance/external-suite.md`](docs/conformance/external-suite.md).
 
-- **The platform is the deployment root.** It is one per deployment, with no identifier: host configuration
+- **The platform is a global directory over independent cells.** A cell is a host with its own database, Valkey and KMS
+  keys, in one region, and the platform is one per deployment, with no identifier: host configuration
   (`OpenId:Platform:Settings`) and one persisted settings document, read and written through `GET`/`PATCH
-  /api/platform/settings` and previewed through `GET /api/platform/effective-settings`, are the root of every team's and
-  tenant's settings; its authority node is `(platform, platform)`, and its master key protects the Data Protection key
-  ring ([ADR-1411](docs/decisions/1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md),
+  /api/platform/settings` and previewed through `GET /api/platform/effective-settings` on the control-plane cell, are
+  the root of every team's and tenant's settings in every cell. The control-plane cell publishes the settings to the
+  global directory as a platform document, and every other cell mirrors it, so a cell reads the platform's settings from
+  its own database. The platform's authority node is `(platform, platform)`, and each cell's platform master key
+  protects that cell's Data Protection key ring ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
   [ADR-1247](docs/decisions/1247-the-platform-master-key-protects-the-data-protection-ring-and-an-unreadable-key-stops-the-host.md)).
 
 - **A team groups a customer's related tenants.** `POST /api/teams` creates a team named by its creator (the tenant-id
   form) with a display name, an `isDisabled` flag and a settings document; `GET`/`PATCH`/`DELETE /api/teams/{teamId}`,
-  `GET`/`PATCH …/settings`, `GET …/effective-settings`, `GET …/usage`, and `…/owners` and `…/admins` manage it. Every
-  tenant belongs to exactly one team and never moves: `POST /api/teams/{teamId}/tenants` creates a tenant under its team
-  and `GET /api/teams/{teamId}/tenants` lists them, `TenantResource` carries `teamId`, and the platform's own team
-  (`TenantResolution:Root:TeamId`, default `platform`) holds the root tenant and every tenant a strategy creates
-  ([ADR-1411](docs/decisions/1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md)).
+  `GET`/`PATCH …/settings`, `GET …/effective-settings`, `GET …/usage`, and `…/owners` and `…/admins` manage it. The
+  control-plane cell owns teams: it reserves a team's identifier in the global directory, saves the team and publishes
+  its team document (name, settings, parent team and per-region root-key references), and a creation that fails after
+  the save removes the team before it releases the reservation, so a retry creates the team. Deleting a team retires
+  its identifier, so no team identifier is reused anywhere on the platform. Every other cell mirrors the team
+  documents into its own team rows through a change feed, so a tenant's cell reads its team from its own database, and
+  the routes that manage a team itself are mapped only on the control-plane cell, while a cell creates and lists its own
+  tenants under the team. A cell keeps the highest sequence it applied in its `DirectoryFeedCheckpoint` row, applies a
+  change that loses a concurrency race again, up to three attempts, and records a retirement's sequence on the disabled
+  row, so a retirement the directory delivers again changes nothing. A cell writes nothing for a team whose parent team
+  it does not mirror and logs `DirectoryTeamParentNotMirrored` (event 1050), because the directory lists the team again
+  after its parent. Every tenant belongs to exactly one team and never changes its team:
+  `POST /api/teams/{teamId}/tenants` creates a tenant under its team and `GET /api/teams/{teamId}/tenants` lists them,
+  `TenantResource` carries `teamId`, and the platform's own team (`TenantResolution:Root:TeamId`, default `platform`)
+  holds the root tenant and every tenant a strategy creates
+  ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
 
 - **A team can nest beneath a parent team.** `POST /api/teams/{teamId}/teams` creates a team beneath its parent and
   `GET /api/teams/{teamId}/teams` lists a team's child teams; `TeamResource` carries `parentTeamId`, and `GET /api/teams`
@@ -4099,7 +4161,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   and `max_teams` apply to the team scope, merge with `Min` and are limits set by the administrators above the team: a
   team's `max_tenants` bounds the tenants of the team and of every team beneath it, its `max_teams` bounds the teams
   beneath it at every level, and a creation that would exceed the limit of any team above it answers `409`
-  ([ADR-1411](docs/decisions/1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md),
+  ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
   [ADR-1418](docs/decisions/1418-limits-are-set-by-the-authority-above-their-scope-and-readers-learn-which-they-may-change.md),
   [ADR-1426](docs/decisions/1426-a-team-can-nest-beneath-a-parent-team-and-its-subtree-is-walked-depth-first.md),
   [#563](https://github.com/NCodeGroup/identity/issues/563)).
@@ -4110,23 +4172,195 @@ Until the first stable release, the [Unreleased] section describes the product a
   creates, and a principal's role assignments are read across every tenant: the platform, team and tenant nodes have
   globally unique, retired identifiers and match an assignment on type and identifier, and any other node counts an
   assignment only when it belongs to the node's tenant, because client and resource-server identifiers
-  are unique only within a tenant
-  ([ADR-1411](docs/decisions/1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md),
+  are unique only within a tenant. A cell outside the control plane asks the control-plane cell for a caller's platform
+  and team roles through `IControlPlaneAuthority`, and tenant-level assignments stay in the tenant's cell
+  ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
   [ADR-1426](docs/decisions/1426-a-team-can-nest-beneath-a-parent-team-and-its-subtree-is-walked-depth-first.md)).
 
-- **A team promotes one tenant's configuration to another.** `POST /api/teams/{teamId}/promotions/preview` reports what
-  a promotion would create, update or leave unchanged and `POST /api/teams/{teamId}/promotions` applies it: the
-  tenant's settings, its resource servers and scopes, its clients (keeping their `client_id`) and client grants, never
-  secrets, keys, grants, principals, role assignments, a client the host configures, a machine client, or a setting
-  whose value belongs to the environment (`SettingDescriptor.IsEnvironmentBound`, such as `redirect_uris`), whose target
-  values the request may supply. Both tenants belong to the team the route names, not to a team beneath it, so a
-  parent team's administrators promote within a child team through that team's route; a promotion needs read authority
-  on the source and creation authority on the target, and a promoted limit needs the authority that sets it (`403`
-  naming the limit). It records each change and `tenant.promoted`, and the console offers it on a team's tenants page
+- **A team promotes one tenant's configuration to another.** `POST /api/tenants/{tenantId}/promotions/preview` reports
+  what a promotion into the tenant would create, update or leave unchanged and `POST /api/tenants/{tenantId}/promotions`
+  applies it, on the target tenant's cell. The source is another tenant of the target's team in the same cell
+  (`sourceTenantId`) or an inline configuration document (`source`), which `GET /api/tenants/{tenantId}/configuration`
+  exports on every cell; a document from another region is refused with `422`, so a promotion stays within one region.
+  It copies the tenant's settings, its resource servers and scopes, its clients (keeping their `client_id`) and client
+  grants, never secrets, keys, grants, principals, role assignments, a client the host configures, a machine client, or
+  a setting whose value belongs to the environment (`SettingDescriptor.IsEnvironmentBound`, such as `redirect_uris`),
+  whose target values the request may supply. A promotion needs read authority on the source and creation authority on
+  the target, so a parent team's administrators promote between a child team's tenants, and a promoted limit needs the
+  authority that sets it (`403` naming the limit). It records each change and `tenant.promoted`, and the console offers
+  it on a team's tenants page
   ([ADR-1426](docs/decisions/1426-a-team-can-nest-beneath-a-parent-team-and-its-subtree-is-walked-depth-first.md),
   [ADR-1425](docs/decisions/1425-a-team-promotes-one-tenants-configuration-to-another-and-environment-bound-values-stay.md),
   [ADR-1466](docs/decisions/1466-a-client-is-its-own-principal-and-a-machine-client-acts-only-within-its-owning-node.md),
   [#565](https://github.com/NCodeGroup/identity/issues/565)).
+
+- **Tenancy runs as cells under one global directory.** A cell is a host with its own database, Valkey and KMS keys, in
+  one region, and a platform is many independent cells under a small global directory that reserves tenant and team
+  identifiers platform-wide, places each tenant in a cell and publishes team documents; it holds no personal data. A
+  cell names itself through `Cell` (`CellOptions`: `Name`, `Region`, `Kind` of `shared`, `dedicated` or `sovereign`,
+  `CloudRegions`, `ManagementUrl`, `IsControlPlane` and `ControlPlane:Issuer`), and a cell that is not the control
+  plane, or that sets `Directory:Url`, names the control plane's issuer. A cell's name and region follow one rule
+  (`CellLabelRules`): 1 to 31 characters of lowercase letters, digits and single hyphens, starting with a letter and
+  ending with a letter or digit, with no two hyphens in a row, which the host, the directory, the console, the
+  management API and the chart's values schema enforce and state (`CellLabelRules.Description`), so every cell name is
+  a valid remote-key tag. A cell that sets `Directory:Url` refuses to start unless `Directory:ClientId` is
+  `cell-{Cell:Name}` and `Cell:ManagementUrl` is set, because the directory knows a cell by that machine client and the
+  cell registers its management URL with it. `NCode.Identity.OpenId.GlobalDirectory.Abstractions` holds the ports
+  `ITenantDirectory` (reserve, place with a `TenantPlacementRequest` of the tenant, its issuer and its cell, release,
+  retire, change an issuer, find a placement, whose region is the one its cell registered, move between cells of one
+  region), `ITeamDirectory` (reserve, release, publish, retire, get, list changes after a sequence),
+  `IPlatformDirectory` and `ICellDirectory`, their records and `DirectoryUnavailableException`. A cell runs on its own
+  with the local adapters over its own database and no extra service, and `Directory:Url` selects the remote adapters
+  of `NCode.Identity.OpenId.GlobalDirectory`, which fail closed with `503` and `Retry-After` on a transport failure, a
+  `5xx`, or a call that outlasts `DirectoryClientOptions.RequestTimeout`, its response body included. Creating a tenant
+  reserves its identifier (a team's `max_tenants` is enforced there), saves the tenant and places it, releasing the
+  reservation on failure; serving a tenant's requests never calls the directory, because the cell's own tenant row is
+  authoritative
+  ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
+
+- **A directory host serves the global directory.** `NCode.Identity.OpenId.GlobalDirectory.Server` maps the endpoints
+  under `/directory/v1/` (tenants, retired issuers, teams, the platform document, cells and the change feed) over its
+  own `DirectoryDbContext`, and `hosts/NCode.Identity.OpenId.GlobalDirectory.Host` is the deployable, with its own
+  Postgres database, migrations and image (`ghcr.io/ncodegroup/ncode-identity-directory`, which `directory-image.yml`
+  builds and the `Publish artifacts` workflow publishes). The host reads its database from the connection string
+  `ConnectionStrings:directory` or the `DirectoryDatabase` parts (`Host`, `Port`, `Name`, `Username`, `Password`),
+  exactly one of which is set, and its `migrate` command applies the migrations, grants the runtime role that
+  `DirectoryMigration:RuntimeRole` names the data access it needs, and refuses a database whose migrations history
+  records a migration the host does not hold, with the recovery of dropping and recreating the directory's database. The
+  change feed holds each team's and the platform's latest change, each carrying the whole document or the retire, so it
+  stays bounded by the number of teams and a cell reading from the start reads every current document. A team's change
+  always follows the latest change of each of its ancestors: each publish of a team lists every published team beneath
+  it again, parents first, so a team published before its parent follows it. A page of changes holds at most 768 KiB
+  of documents (`DirectoryLimits.MaxChangePageBytes`) and at least one change, so a page fits the 1 MiB that a cell
+  reads from one response. The host accepts unbound bearer tokens of the control-plane cell's issuer
+  (`DirectoryServer:Issuer`) for the audience `urn:ncode:directory` and the scope `directory`, and refuses a token that
+  carries a `cnf` claim. A request that arrives while that issuer cannot be reached is answered `503` with
+  `Retry-After` and the same wait in the problem's `retryAfterSeconds`. Each cell authenticates as the machine client
+  `cell-{name}` of the control-plane cell's root tenant (`private_key_jwt`; `Directory:ClientId` and
+  `Directory:KeyRing`, whose keys `KeyRings:{name}` holds), which `POST /api/platform/clients` registers with a
+  requested `clientId` and its `jwks`. A cell's token request to the control plane ends after
+  `Directory:TokenRequestTimeout` (30 seconds), and a failed request is remembered for
+  `Directory:TokenFailureCacheDuration` (5 seconds). The directory takes platform and team writes only from the
+  control-plane cell (`DirectoryServer:ControlPlaneCell`) and authorizes each tenant write against the tenant's stored
+  record in the transaction that writes it: the cell that holds the tenant and the control-plane cell write it, and only
+  the control-plane cell retires a tenant the directory has no record of; a cell registers only itself, with a
+  management URL that is an absolute `https` URL (or `http` in local development) with no user information, query or
+  fragment, and asks to move a tenant only into itself. A write that runs again after its commit's acknowledgement is
+  lost recognizes its own committed result: a cell's tenant reservation for the same issuer and team that is not yet
+  placed, a team reservation that is not yet published, and a move of a tenant already placed in the target cell each
+  succeed again. A placement's region is the region its cell registered, and the retired-issuer lookup is
+  `GET /directory/v1/retired-issuers?issuer=`, beside the tenant routes, so `GET /directory/v1/tenants/{tenantId}`
+  reads the placement of a tenant of any valid identifier, `retired-issuers` included. The directory refuses a tenant
+  or team identifier that the cells' identifier rule refuses (1 to 63 lowercase letters, digits or hyphens that start
+  and end with a letter or digit, a host label); a tenant issuer that is not an absolute `https` URL (or `http` on a
+  loopback host) with no user information, query or fragment; a team document that lacks its settings or its root
+  keys, or a platform document that lacks its settings; a team or platform document whose settings are not a JSON
+  object; a team or platform document whose JSON exceeds 64 KiB (`422`, `DirectoryLimits.MaxDocumentBytes`); and a
+  team document that would nest a team deeper than eight levels, the bound of a cell's team tree. A stored team or
+  platform document whose settings are missing or not a JSON object, `null` included, fails the tenant-limit check,
+  which refuses the reservation, and a cell's remote directory adapter fails closed on a document that lacks its
+  settings or its root keys.
+
+- **The control plane serves every cell.** The control-plane cell owns platform and team authority, setup and the team
+  root keys; every other cell reaches it through remote adapters that fail closed. `IManagementTokenValidator` validates
+  a management token of the control plane's issuer through its discovery document and key set, with the audience
+  `urn:ncode:management`, and a token bound to a key needs a `DPoP` proof for that key whose `htu` comes from
+  `Cell:ManagementUrl`, so a proof made for one cell never passes in another. `IControlPlaneAuthority` answers a
+  caller's platform and team roles, whether it is a `GlobalAdmin` and whether it is the requesting client acting for
+  itself, through the control-plane cell's `POST /control-plane/v1/authority` for the audience
+  `urn:ncode:control-plane`, and the audit recorder takes its actor from that answer. `DirectoryChangeFeedService` polls
+  the directory's `changes?after=` feed, applies each team and platform document to the cell's own rows and
+  broadcasts the change so every replica's caches evict
+  ([ADR-1416](docs/decisions/1416-a-replica-that-may-have-missed-announcements-evicts-only-teams-and-tenants-whose-row-changed.md),
+  [ADR-1417](docs/decisions/1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md)).
+
+- **A tenant's hostname names its region.** A tenant's issuer is `{tenant}.auth.{region}.ncodeid.net` and its mTLS
+  alias `{tenant}.mtls.{region}.ncodeid.net`, written into the cell's `DynamicByHost` templates with the cell's own
+  region, while the root issuer and the control plane sit at `auth.ncodeid.net` and the console at
+  `manage.ncodeid.net`. A tenant of a dedicated cell, or a moved tenant, keeps its issuer through an explicit DNS record
+  ([ADR-1495](docs/decisions/1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md),
+  [ADR-1165](docs/decisions/1165-a-tenants-stored-issuer-is-its-single-origin-and-its-mtls-alias-a-routed-second-host.md)).
+
+- **A team brings one root key per region.** `PUT` and `DELETE /api/teams/{teamId}/encryption-keys/root-keys/{region}`
+  and `POST …/validate`, on the control-plane cell, set, remove and validate the team's root key for a region. The team
+  document carries the per-region references, each cell mirrors its own region's reference into an `OwnerRootKey` row,
+  and the master key of an owner is wrapped under the nearest root key: the owner's own, then the nearest ancestor's
+  (tenant, team), then the platform's. A master key under an owner root key records the access binding of the key's
+  owner (`RootKeyAccessBinding`), and the server wraps, unwraps and validates through that binding, so the master keys
+  of a tenant under its team's key are reached with the team's binding, `team:<id>`, which the team's trust policy
+  names. A change of an owner's root key rewraps only the master keys whose root it can be: a tenant's key the
+  tenant's own, and a team's key the team's, those of the owners under it and those still under its key. The cell's
+  directory change feed reconciles every mirrored team's key for its region every 15 minutes, so a key that failed its
+  probe or its rotation cooldown is applied once it can be, and removes the owner root key of a team whose row is gone
+  ([ADR-1414](docs/decisions/1414-a-tenant-can-wrap-its-master-keys-under-a-root-key-it-controls.md)).
+
+- **The management console reaches every cell.** `GET /api/cells` on the control plane lists each cell's name, region
+  and kind, and the console's Tenants page merges every cell's tenants, shows a Cell column and names each cell that
+  did not answer. A tenant's console route carries its cell (`/cells/{cell}/tenants/{tenantId}/{surface}`), the tenant
+  surfaces address that cell's management API, and a promotion stays within one cell, taking another cell's export as
+  an inline document when the two cells share a region. The console tells apart the copies of a tenant that two cells
+  list while it moves: the team's tenant list, the home and the promotion dialog show one row or option per cell,
+  keyed by the cell and the tenant identifier, and each row's Open, Edit and Delete act on that cell's copy
+  ([ADR-1425](docs/decisions/1425-a-team-promotes-one-tenants-configuration-to-another-and-environment-bound-values-stay.md),
+  [ADR-1465](docs/decisions/1465-role-lists-share-one-audited-grant-and-revoke-flow-and-a-caller-discovers-its-own-assignments.md)).
+
+- **A tenant moves between cells of one region.** A platform administrator disables the tenant, takes a one-hour,
+  take-once `ECDH-ES+A256KW` transfer key from the target cell (`POST /api/tenant-imports/transfer-keys`), exports the
+  tenant from the source cell, naming the target cell (`POST /api/tenants/{tenantId}/export` with `jwk` and
+  `targetCell`), which records a move offer from the source cell to the target cell in the directory for the transfer
+  key's hour and names the target cell in the package, imports the package into the target cell
+  (`POST /api/tenant-imports`), releases it at the source (`POST /api/tenants/{tenantId}/release-moved`), points the
+  tenant's DNS record at the target cell's ingress and enables it. The package carries the tenant's records and its
+  master keys sealed to the transfer key and is at most 64 MiB, its local accounts included: the export answers `422`
+  for a larger one, and the import route admits a request body of at most 64 MiB plus 64 KiB and answers `413` above
+  it. The target rewraps the master keys under its own root key and retags the tenant's remote keys with its own name,
+  each of which lies in the location its provider uses (`IRemoteKeyProvider.IsInLocation` reads the key's identifier
+  and the provider's options), and the Entity Framework local-account store derives each imported account's
+  normalized user name and email itself; grants, consents and sessions end, audit and usage records stay in the
+  source, and the tenant keeps its identifier and issuer. Only the named target cell imports the package, and the
+  directory moves the placement only for the target cell that calls, on that unexpired offer and only between cells of
+  one region (any other caller gets `403`), so a tenant for another region is created in a cell of that region, an
+  import repeats over the rows an interrupted import left, and the release removes the source's rows without retiring
+  an identifier or destroying a remote key. A move that the directory does not confirm is read back from the
+  placement: the import completes when the directory places the tenant in the target cell, undoes itself when it
+  places it in the source cell or in no cell, and otherwise keeps what it wrote and answers `503` that the outcome of
+  the move is unknown, with the problem's `moveOutcome` (`ManagementProblemMembers.MoveOutcome`) set to `unknown`. An
+  export that the directory refuses because it places the tenant in another cell names that cell in the problem's
+  `placedCell` (`ManagementProblemMembers.PlacedCell`). The console runs the four calls as Move, keeps a failed move and
+  its Retry when its dialog is closed and opened again, offers Release, which runs only the release at the source, when
+  the export names `placedCell`, says that the outcome is unknown when the import's `moveOutcome` is `unknown`, says
+  when the list of cells is loading or could not be loaded, and opens the tenant's surface in the cell it moved to once
+  the move completes
+  ([ADR-1514](docs/decisions/1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md),
+  [`docs/tenant-move.md`](docs/tenant-move.md)).
+
+- **The host chart configures a cell.** `cell.name`, `cell.region`, `cell.kind`, `cell.cloudRegions`,
+  `cell.managementUrl`, `cell.isControlPlane` and `cell.controlPlaneIssuer` set `Cell`; `backup.location` annotates the
+  pods of the host, the directory and their migration Jobs with `ncode.io/backup-location`; `telemetry.otlpEndpoint` and
+  the `cell.name` and `cell.region` resource attributes tag every pod's OpenTelemetry signals; `directory.url`,
+  `directory.clientId`, `directory.keyRing` and `directory.keys` point a cell at the platform's directory; and
+  `directory.enabled` runs the directory host with its own database, `directory.database` (the runtime role's
+  connection, which only the directory's Deployment receives, and the role's name), `directory.migrations.database` (the
+  schema owner's connection, which only the migration Job receives), `directory.tls` and pre-install migration Job,
+  which migrates as the owner and grants the runtime role data access to the directory's tables
+  (`DirectoryMigration:RuntimeRole`). `directory.database` and `directory.migrations.database` each take a Secret that
+  holds the finished connection string (`ConnectionStrings:directory`) or the connection's parts (`DirectoryDatabase`),
+  never both, the keys of a CloudNativePG `<cluster>-app` Secret by default, and an empty key of the owner's falls back
+  to the runtime role's, so a Secret of the same shape needs only its name. The chart refuses a directory, control-plane
+  issuer or management URL that the host would refuse (an `https` URL, or an `http` URL on a loopback host for the
+  directory and the issuers, with no user information, query, fragment or white space), a `directory.url` with no
+  `cell.controlPlaneIssuer`, a `directory.url` whose `directory.clientId` is not `cell-<cell.name>` or whose
+  `cell.managementUrl` is empty, the directory client's values (`directory.clientId`, `directory.keyRing` and
+  `directory.keys`) while `directory.url` is empty, and the directory host's values while `directory.enabled` is
+  `false`. Its values schema holds `cell.name`, `cell.region` and `directory.controlPlaneCell` to the cell-name rule and
+  `directory.clientId` to `cell-` followed by a cell name, and the directory's resource names keep its Service name
+  within 63 characters. `ci/cell-values.yaml` is a cell that is not the control plane, `ci/directory-values.yaml` a
+  control-plane cell that runs the directory and reaches it as its own machine client, and the `Host chart` workflow
+  lints and renders both.
+
+- **A tenant's data carries the cell that wrote it.** `Cell:Name` is stamped on audit records and usage rows, it is the
+  tag of the keys a remote key provider creates, and it prefixes every Valkey key, so a cell's records, keys and
+  signals name the cell that produced them.
 
 - **A tenant has administrators.** `GET`/`POST`/`DELETE /api/tenants/{tenantId}/admins` list, grant and revoke the
   `TenantAdmin` role at the tenant's node, which manages the tenant and everything beneath it and creates its clients,
@@ -4187,21 +4421,21 @@ Until the first stable release, the [Unreleased] section describes the product a
   Creating, deleting, disabling and restoring a top-level team, and `GET /api/teams` and `GET /api/tenants`, need
   `GlobalAdmin` or an assignment at the platform node. Creating, deleting, disabling and restoring a child team need
   that authority at its parent team
-  ([ADR-1411](docs/decisions/1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md),
+  ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
   [ADR-1426](docs/decisions/1426-a-team-can-nest-beneath-a-parent-team-and-its-subtree-is-walked-depth-first.md)).
 
 - **Usage is queryable per team, across every team beneath it.** Every usage row carries the path of the teams its
   tenant belonged to, so a deleted tenant's or deleted team's final days still bill to every team above it, and
   `GET /api/teams/{teamId}/usage?from=&to=` lists the counts of each tenant of the team and of every team beneath it per
   day and meter, each entry naming its team and tenant
-  ([ADR-1411](docs/decisions/1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md),
+  ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
   [ADR-1426](docs/decisions/1426-a-team-can-nest-beneath-a-parent-team-and-its-subtree-is-walked-depth-first.md),
   [ADR-1199](docs/decisions/1199-tenant-usage-is-a-daily-ledger-that-replicas-add-to-once-and-prune-in-batches.md)).
 
 - **Team and platform changes are audited in the control-plane tenant.** `TeamChangedAuditEvent` (`team`) and
   `PlatformChangedAuditEvent` (`platform`) are recorded under the control-plane tenant, and a tenant's audit event names
   its team as a parent resource
-  ([ADR-1411](docs/decisions/1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md)).
+  ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
 
 - **The management console manages teams, machine clients and the platform's settings.** The platform scope has a
   Teams surface (`TeamTable`, `TeamFormDialog`, create, edit, disable and delete), a Clients surface, a Settings
@@ -4213,7 +4447,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   principal; the console routes `/teams`, `/clients`, `/settings`, `/encryption-keys`,
   `/teams/{teamId}/{tenants|teams|clients|settings|access|usage}` and `/tenants/{tenantId}/…`
   ([#636](https://github.com/NCodeGroup/identity/issues/636),
-  [ADR-1411](docs/decisions/1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md),
+  [ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
   [ADR-1426](docs/decisions/1426-a-team-can-nest-beneath-a-parent-team-and-its-subtree-is-walked-depth-first.md),
   [ADR-1466](docs/decisions/1466-a-client-is-its-own-principal-and-a-machine-client-acts-only-within-its-owning-node.md),
   [ADR-1255](docs/decisions/1255-the-management-consoles-url-is-its-navigation-state-and-every-scopes-surface-has-its-own-address.md)).
@@ -4245,11 +4479,13 @@ Until the first stable release, the [Unreleased] section describes the product a
   [ADR-1407](docs/decisions/1407-a-master-key-rotates-its-data-keys-are-rewrapped-and-it-is-destroyed-once-unnamed.md),
   [ADR-1483](docs/decisions/1483-every-management-error-is-a-problem-document-that-its-route-declares.md)).
 
-- **A management problem that asks the caller to wait carries the wait.** A rekey or a root key change that comes too
-  soon, and a root key that is unavailable, answer through `RetryAfterProblem.Create` with `Retry-After` and
-  `retryAfterSeconds` holding the same whole number of seconds, rounded up to at least one.
-  `ManagementProblemMembers` names every extension member the management API writes, and the console's
-  `apiErrorMessage` says "Try again in …" with the wait in seconds, minutes or hours
+- **A problem that asks the caller to wait carries the wait.** `RetryAfterProblem.Create` in `NCode.Identity.AspNetCore`
+  sets `Retry-After` and the problem's `retryAfterSeconds` to the same whole number of seconds, rounded up to at least
+  one, and every problem document of the family that asks the caller to wait answers through it: the management API's
+  for a rekey or a root key change that comes too soon, a root key that is unavailable and a directory or control plane
+  that cannot be reached, the directory API's `503` for an unreachable token issuer, and the setup API's `429`.
+  `ManagementProblemMembers` names every extension member the management API writes, and the console's `apiErrorMessage`
+  says "Try again in …" with the wait in seconds, minutes or hours
   ([#571](https://github.com/NCodeGroup/identity/issues/571),
   [ADR-1483](docs/decisions/1483-every-management-error-is-a-problem-document-that-its-route-declares.md)).
 
@@ -4273,20 +4509,23 @@ Until the first stable release, the [Unreleased] section describes the product a
   `rootKeyAccessBinding` (such as `tenant:acme`), a service account email it impersonates, or a Microsoft Entra tenant
   ID it requests tokens for — and the server reaches the key through that identity with no stored secret; every master
   key records the identity that reaches it (`rootKeyAccessIdentity`, and the `root_key_access_identity` detail of
-  `master_key.*` audit events), and changing only the identity rewraps the master keys without a rotation.
+  `master_key.*` audit events) and the binding of its key's owner, and changing only the identity rewraps the master
+  keys without a rotation.
   `KeyAccessClientCache<TClient>` keeps a client for an access identity once a call through it succeeds and drops one
   that never worked. `PUT`, `DELETE` and `POST .../validate` on `/api/tenants/{tenantId}/encryption-keys/root-key` set or
   change, remove and validate it (scope `update:encryption_keys`), and `GET .../encryption-keys` reports the root key and
   the providers a tenant may choose (scope `read:encryption_keys`). A `PUT` answers `400` for a field that is blank, not
   allowed, not registered or malformed, `409` with `Retry-After` and `retryAfterSeconds` within twice
   `SecretProtection:MasterKeys:RefreshInterval` of the tenant's last rotation, `412` when it loses a race and `422` when
-  the probe fails; a `DELETE` answers `204` once every master key is under the deployment's root key and `202` while
-  master keys remain under the tenant's key. The server validates a key by wrapping 32 random bytes through it under a
+  the probe fails; a `DELETE` answers `204` once none of the tenant's master keys remains under the key and `202` while
+  some do, and a master key of another owner whose own root key names the same key never holds the removal. The
+  server validates a key by wrapping 32 random bytes through it under a
   context label of its own, unwrapping them and comparing the two in constant time, which proves that the key exists, is
   enabled and grants both the encrypt and the decrypt permission through any provider. Setting or changing the key
   rotates the tenant's master key so that the successor is created under it and rewraps every retired master key under
-  it, because earlier material exists in backups under the deployment's root key; removing it moves the master keys back
-  under the deployment's root key without a rotation. An Azure Key Vault key reference names a host under the
+  it, because earlier material exists in backups under the deployment's root key; removing it moves the master keys
+  under the nearest other root key, the team's when the team brings one and otherwise the deployment's, without a
+  rotation. An Azure Key Vault key reference names a host under the
   deployment's Key Vault or Managed HSM host suffixes
   (`SecretProtection:RootKeyProviders:AzureKeyVault:ReferencedKeyHostSuffixes`, by default the public, China and US
   government cloud domains). Which owners can bring a key is a registered `IOwnerRootKeyPolicy`: the `platform` owner
@@ -4312,15 +4551,16 @@ Until the first stable release, the [Unreleased] section describes the product a
   ([#573](https://github.com/NCodeGroup/identity/issues/573),
   [ADR-1428](docs/decisions/1428-a-package-translates-the-exceptions-it-owns-into-protocol-errors-through-registered-translators.md)).
 
-- **Every merge to `main` and every release tag publishes the host image, the management console image, the chart and
-  the host's OpenAPI document.** The four artifacts share one version on GHCR, are signed and carry build provenance,
-  and a verification job pulls them anonymously; a stable version also tags both images `latest`, and the images'
-  assemblies and the document's `info.version` report the version they were published at. `build/openapi.ps1`
-  generates the document (`v1.json`) at build time, the full Definition of Done runs it and CI uploads it as the
-  `openapi` artifact, so a client generator reads the management API description without a deployment serving it
+- **Every merge to `main` and every release tag publishes the host image, the management console image, the directory
+  image, the chart and the host's OpenAPI document.** The five artifacts share one version on GHCR, are signed and
+  carry build provenance, and a verification job pulls them anonymously; a stable version also tags every image
+  `latest`, and the images' assemblies and the document's `info.version` report the version they were published at.
+  `build/openapi.ps1` generates the document (`v1.json`) at build time from a host that runs as a control-plane cell,
+  so it describes every route, the full Definition of Done runs it and CI uploads it as the `openapi` artifact, so a
+  client generator reads the management API description without a deployment serving it
   ([#773](https://github.com/NCodeGroup/identity/issues/773),
   [#809](https://github.com/NCodeGroup/identity/issues/809),
-  [ADR-1505](docs/decisions/1505-every-merge-to-main-publishes-the-host-image-the-console-image-the-chart-and-the-openapi-document-at-one-prerelease-version.md)).
+  [ADR-1505](docs/decisions/1505-every-merge-to-main-publishes-the-host-console-and-directory-images-the-chart-and-the-openapi-document-at-one-prerelease-version.md)).
 
 - **`LocalDevelopmentOptions` is the one switch for a local inner-loop host.** `NCode.Identity.AspNetCore` binds the
   `LocalDevelopment` section (`Enabled`, `false` when absent) strictly into `LocalDevelopmentOptions` through
@@ -4333,9 +4573,9 @@ Until the first stable release, the [Unreleased] section describes the product a
 ### Security
 
 - **Every host runs one secure-by-default posture in every environment.** The deployment gate, the Kestrel transport
-  check, HSTS, HTTPS-only setup, an explicit console `AllowedHosts`, https-only BFF and console URLs and the key-ring
-  refusal apply unless `LocalDevelopment:Enabled` is set. That switch is off when absent, the Production environment
-  refuses it, and it relaxes only the local inner loop
+  check, HSTS, HTTPS-only setup, an explicit `AllowedHosts` in every BFF host and the global directory, https-only BFF
+  and console URLs and the key-ring refusal apply unless `LocalDevelopment:Enabled` is set. That switch is off when
+  absent, the Production environment refuses it, and it relaxes only the local inner loop
   ([#831](https://github.com/NCodeGroup/identity/issues/831),
   [ADR-1370](docs/decisions/1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)).
 
@@ -4350,9 +4590,9 @@ Until the first stable release, the [Unreleased] section describes the product a
   `/setup` answers 404 to a request that is not HTTPS, except a request from a loopback remote address when
   `LocalDevelopment:Enabled` is set, rate-limits `POST /setup/api/token` and
   `POST /setup/api/root` together to 10 requests per minute per client address (a refused attempt answers `429` with
-  `Retry-After` and `Cache-Control: no-store`), serves its page with a nonce Content-Security-Policy and `no-store`
-  caching, and never writes its request or response bodies to HTTP logging. The
-  page's `connect-src` is `'self'` plus only the origin of the console that the deployment hints through
+  `Retry-After`, the same wait in the problem's `retryAfterSeconds`, and `Cache-Control: no-store`), serves its page
+  with a nonce Content-Security-Policy and `no-store` caching, and never writes its request or response bodies to HTTP
+  logging. The page's `connect-src` is `'self'` plus only the origin of the console that the deployment hints through
   `Setup:Wizard:ManagementConsole`, so a console URL from a link or typed by the operator is refused by the browser and
   a link someone else wrote cannot make the wizard read keys from an origin the deployment does not name, and the
   console hint answers only to a holder of the token
@@ -4641,12 +4881,12 @@ Until the first stable release, the [Unreleased] section describes the product a
   stored secrets unreadable after the next restart, recoverable only with the recovery key
   ([ADR-1235](docs/decisions/1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md)).
 
-- **The host image's base images are pinned by digest and tracked by Dependabot.** Every `FROM` of the host and console
-  Dockerfiles names its tag and the digest of its multi-architecture index, and each Dockerfile takes its .NET and Node
-  versions from those lines alone, with no version build argument; a weekly `docker` Dependabot stream moves the digests
-  of both images in one pull request, and the `Host
+- **The host image's base images are pinned by digest and tracked by Dependabot.** Every `FROM` of the host, console
+  and directory Dockerfiles names its tag and the digest of its multi-architecture index, and each Dockerfile takes its
+  .NET version, and the host's and the console's their Node version, from those lines alone, with no version build
+  argument; a weekly `docker` Dependabot stream moves the digests of every image in one pull request, and the `Host
   image` workflow checks the Node major against `.node-version`
-  ([ADR-1248](docs/decisions/1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md), issue
+  ([ADR-1248](docs/decisions/1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md), issue
   [#226](https://github.com/NCodeGroup/identity/issues/226)).
 
 - **Dependencies are pinned to releases without known advisories.** Every `Microsoft.AspNetCore.*`,
@@ -4930,7 +5170,12 @@ Until the first stable release, the [Unreleased] section describes the product a
   that names its own scheme and contains no whitespace, so `/path` is never read as `file:///path` and whitespace is
   never trimmed. Dynamic client registration (`redirect_uris`, `post_logout_redirect_uris`), the redirect URI kinds, the
   URI message parameters, the URI setting rules and every other OpenID URI check parse with it, so a relative URI is
-  refused on every platform.
+  refused on every platform. The URL of a service has one rule too: `AbsoluteUri.TryParseServiceUrl` accepts an `https`
+  URL, or an `http` URL on a loopback host, written with its authority and with no user information, query or fragment,
+  judged on the text as written because `Uri` reads an empty `@` as absent; `TryParseHttpsServiceUrl` and
+  `TryParseAnyHttpServiceUrl` apply it to a cell's management URL, which is `https`, or `http` in local development. The
+  directory client's URL, the control-plane issuer of a cell and of the directory, a tenant's issuer, which a cell and
+  the directory's tenant routes check, and a cell's management URL follow it.
 
 - **Discovery publishes only what is marked discoverable.** The discovery endpoint (`/.well-known/openid-configuration`)
   returns only the settings marked `IsDiscoverable` and the endpoints marked discoverable, and no query-string parameter
@@ -5815,9 +6060,11 @@ Until the first stable release, the [Unreleased] section describes the product a
 
 - **Deleting an owner removes the role assignments it anchors.** Deleting a client or a resource server, also when a
   dynamically registered client is deregistered, removes the assignments of every role at its node, ownership included,
-  in the same unit of work. Removing a federated principal, or deleting a local account, removes every role assignment
-  its principal holds, ownership included, in every tenant, and deleting a tenant removes the assignments its principals
-  hold in other tenants ([ADR-1212](docs/decisions/1212-deleting-a-client-resource-server-principal-or-tenant-removes-what-it-owns.md), issues
+  in the same unit of work. Deleting a client through the management API also removes every role assignment its
+  principal holds, in every tenant, and deleting a local account removes every role assignment its principal holds,
+  ownership included, in every tenant, each through `IRoleAssignmentStore.RemoveByPrincipalAsync` and saved in an
+  unscoped scope, and deleting a tenant removes the assignments its principals hold in other tenants
+  ([ADR-1212](docs/decisions/1212-deleting-a-client-resource-server-principal-or-tenant-removes-what-it-owns.md), issues
   [#266](https://github.com/NCodeGroup/identity/issues/266), [#273](https://github.com/NCodeGroup/identity/issues/273)).
 
 - **A platform or team settings PATCH reads only what it checks.** It walks the clients only when a setting that the client
@@ -5908,8 +6155,10 @@ Until the first stable release, the [Unreleased] section describes the product a
   frontend's `Authority` and `ClientId`; a request or connection ends one whose frontend is configured with another
   (`client_changed`), a removed frontend's sessions answer no request, and a background pass on one replica, at start
   and after every change, ends every stored session of a removed or re-registered frontend (`frontend_removed`,
-  `client_changed`) through the store's client index (`IBffSessionStore.FindClientsAsync`, `FindByClientAsync`), under a
-  lease and retry delay that `Bff:SessionRetirement` configures
+  `client_changed`) through the store's client index (`IBffSessionStore.FindClientsAsync`, `FindByClientAsync`), forgets
+  the key of a session whose record is gone from its client's index so that no later pass reads it again
+  (`IBffSessionStore.ForgetEndedSessionAsync`), and runs under a lease and retry delay that `Bff:SessionRetirement`
+  configures
   ([#602](https://github.com/NCodeGroup/identity/issues/602),
   [ADR-1443](docs/decisions/1443-a-bff-session-ends-when-its-frontend-is-removed-or-registered-as-another-client.md)).
 
@@ -5931,12 +6180,119 @@ Until the first stable release, the [Unreleased] section describes the product a
   ([ADR-1035](docs/decisions/1035-an-end-user-is-one-tenant-scoped-principal-that-every-authentication-entry-point-resolves-to.md),
   [ADR-1018](docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)).
 
-- **The management API never materializes a resource outside the request's tenant.** An `IAmbientTenantAccessor`
-  (`NCode.Identity.OpenId.Persistence.Abstractions`) and an `OpenIdDbContext` global query filter on tenant-child
-  entities scope every read when tenancy is request-derived (dynamic-by-host or dynamic-by-path), so a cross-tenant read
-  returns `404` and no fetch-then-reject leak window exists. A reusable `TenantScopeEndpointFilter` establishes the
-  scope; tenant, team and platform administration are central-admin (unscoped)
+- **Tenant scoping fails closed, so a query with no tenant scope matches nothing.** An `IAmbientTenantAccessor`
+  (`NCode.Identity.OpenId.Persistence.Abstractions`) has three states: unset, a tenant (`BeginScope`) and unscoped
+  (`BeginUnscoped(reason)`, which `IsUnscoped` and `UnscopedReason` report). The `OpenIdDbContext` global query filter
+  on
+  tenant-child entities admits a row only when the scope is unscoped or the row's tenant is the ambient tenant, so an
+  unset scope matches no tenant-bound row, a cross-tenant read returns `404` and no fetch-then-reject leak window
+  exists, and a tenant scope nested in an unscoped one is a tenant scope. The change-tracker lookup of a store applies
+  the same rule, so a store never returns a tenant row from its tracker that the database would hide. A reusable
+  `TenantScopeEndpointFilter` establishes the tenant scope of a tenant-plane route, and every caller that reads across
+  tenants opens an unscoped scope with a reason: the background services, the tenant resolver, the provisioner, the
+  migrations and design time, and the control-plane routes (platform, team, caller, capabilities and machine clients),
+  through a `ControlPlaneScopeEndpointFilter`. Team rows are no tenant children, so the filter never applies to them
   ([ADR-1018](docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)).
+
+- **Postgres row-level security enforces the tenant scope under a runtime role that cannot bypass it.** Every table of
+  a tenant-bound entity has `ENABLE` and `FORCE ROW LEVEL SECURITY` and one `tenant_isolation` policy that admits a row
+  when the session is unscoped (`app.unscoped`) or the row's `NormalizedTenantId` is the session's tenant
+  (`app.tenant_id`). The host database generates the statements from the EF Core model (`RowLevelSecurity`), and the
+  migration worker applies them idempotently after it migrates and grants the tables to the runtime role that
+  `HostDatabase:RuntimeRole` names. A `TenantSessionInterceptor` sets the two session settings from the ambient scope,
+  in a command of its own, before the first command on each opened connection and before any command whose scope
+  differs from the one the connection holds, and sets them again after a transaction that set them rolls back. The
+  migration worker connects as the schema owner and the host as the runtime role, each through the one `openiddb`
+  connection it reads, and `RuntimeRolePosture` refuses a runtime role that is a superuser, has `BYPASSRLS` or owns the
+  tables: the host stops on it under the deployment posture and warns under `LocalDevelopment:Enabled`. LocalDev
+  creates the runtime role `ncode_identity_app` before the worker starts, and the Postgres end-to-end suite proves the
+  policies on a real server
+  ([ADR-1018](docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md),
+  [ADR-1370](docs/decisions/1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)).
+
+- **The build reports an unexplained `IgnoreQueryFilters()`.** `NCID0004` (`CrossTenantQueryAnalyzer`, in
+  `NCode.Identity.Analyzers`) reports an `IgnoreQueryFilters()` call unless a `// Cross-tenant: <why>` comment sits on
+  the line directly above the line that holds the call (above its statement, or above its `.IgnoreQueryFilters()` line
+  in a fluent chain), so every deliberate bypass of the tenant filter explains itself; it skips assemblies whose names
+  end in `.Tests` or `.TestSupport`
+  ([ADR-1018](docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)).
+
+- **A store method that reads or writes across tenants runs only in an unscoped scope.**
+  `OpenIdDbContext.EnsureUnscoped` throws unless the ambient scope is unscoped, and every store method that ignores the
+  query filter calls it first (`IRoleAssignmentStore.GetByPrincipalAsync` and `RemoveByPrincipalAsync`,
+  `IClientStore.GetByPrincipalOrDefaultAsync`, `ITeamStore.RemoveAsync` and `HasDependentsAsync`, and
+  `ITenantStore.RemoveAsync` and `RemoveFromCellAsync`), because Postgres row-level security filters such a query by
+  the session's tenant too, so a hermetic test catches a caller without the scope. The management API's ownership
+  checks, caller listing, control-plane authority and machine-client role check read a principal's role assignments in
+  every tenant, and a read that stays in one tenant runs in that tenant's scope: the rewrap of a tenant's grants and
+  secrets, the polling refresh of a tenant's keys and settings, and the session check of an access token, so the
+  management API refuses a token whose session was revoked
+  ([ADR-1018](docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)).
+
+- **A promotion trusts no source document.** A promotion refuses the control-plane tenant as its target, because it
+  holds the platform's machine clients and the cells' clients, and refuses with `422`, before it plans, a source
+  document that names a client identifier outside the `client_id` rule (`ClientIdRules`) or in the cells' `cell-`
+  namespace. A grant it writes to a target machine client needs `Create` at the client's owning node
+  ([ADR-1425](docs/decisions/1425-a-team-promotes-one-tenants-configuration-to-another-and-environment-bound-values-stay.md),
+  [ADR-1466](docs/decisions/1466-a-client-is-its-own-principal-and-a-machine-client-acts-only-within-its-owning-node.md)).
+
+- **ASP.NET Core Identity users belong to one tenant.** An `IdentityUser` of the adapter implements `ITenantBoundUser`
+  (in `NCode.Identity.OpenId.Accounts.Abstractions`), its `TenantId` is stamped when the store creates it, and a user of
+  another tenant is not found. A `TenantLookupNormalizer` prefixes each normalized name and email with
+  `{normalizedTenantId}|`, so a user name is unique per tenant, and it throws when no tenant scope is set. The host's
+  Identity schema sizes `UserName` and `Email` to `AccountMaxLengths.UserName` and `AccountMaxLengths.Email`, and
+  `NormalizedUserName` and `NormalizedEmail` to `AccountMaxLengths.NormalizedUserName` and
+  `AccountMaxLengths.NormalizedEmail`, which add the 64-character tenant prefix; for an Entity Framework Core model,
+  `HasTenantLookupLengths()` in the opt-in `NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore` package
+  sizes the four with one call. A local account and its claims reference their tenant through a foreign key, and
+  deleting a tenant erases them with it
+  ([ADR-1212](docs/decisions/1212-deleting-a-client-resource-server-principal-or-tenant-removes-what-it-owns.md)).
+
+- **The ASP.NET Core Identity adapter refuses a malformed stored user.** ASP.NET Core Identity's user manager stores
+  every user with a user name, a normalized user name and a security stamp, so the adapter throws
+  `InvalidOperationException`, naming the account, when it reads a stored user without its user name or security stamp
+  as a local account and when it exports a user without any of the three; a tenant move never carries an empty user
+  name or security stamp
+  ([ADR-1395](docs/decisions/1395-grant-payloads-have-one-versioned-serializer-and-a-stored-record-missing-written-members-fails-closed.md)).
+
+- **The BFF's client index names each client only by a digest.** A member of the `bff:clients` index is the UTC day of
+  a session's absolute expiry and the client's digest, so the key space of a shared Valkey names no client. Every
+  replica reads the same members, and each member has a value, `bff:client-member:<member>`, that holds the plaintext
+  client and expires with the member. Retirement reads one value per member and no session, leaves out the clients that
+  its frontends are configured as, and a member whose value is missing or holds another client expires on its own.
+
+- **Only a cell's own machine client reaches the directory and the control plane.** The directory and control-plane
+  endpoints accept a bearer token for the audience `urn:ncode:directory` or `urn:ncode:control-plane` with the matching
+  scope from the control-plane issuer, the directory endpoints only when the token carries no `cnf` claim, and register
+  or move a cell only for the client `cell-{name}` of that cell, so one cell cannot register, move a tenant into or
+  speak for another. A remote adapter that cannot reach the directory, the control plane or the key set answers `503`,
+  never allow, empty or valid.
+
+- **A host is given its cell, and its published configuration names none.** The host's `appsettings.json` has no
+  `Cell` section, so a host that is not given `Cell:Name` and `Cell:Region` refuses to start, and only a host given
+  `Cell:IsControlPlane` serves the control plane; the local-development and conformance overlays name the `local`
+  control-plane cell
+  ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
+
+- **KMS keys are refused outside the cell's cloud regions.** The server's `AddConfiguration` names `Cell:CloudRegions`
+  as the `KeyResidencyOptions` of the secrets library, and the AWS KMS adapter replaces its `AllowedRegions` and the
+  Google Cloud KMS adapter its `AllowedLocations` with them, so whichever host composes the server with either adapter
+  refuses a key ARN or location outside them, also when it wraps under a key reference that an owner or a moved tenant
+  names, as the Azure Key Vault wrapper refuses a key outside its allowed hosts, and a cell's keys stay in the cloud
+  regions of its infrastructure.
+
+- **A tenant export is sealed to a one-time transfer key and exists only for a disabled tenant.** The export is one
+  compact `JWE` to a key the receiving cell published, which that cell hands out once and holds for one hour, so the
+  package carries ciphertext secrets and the tenant's master keys sealed to that key and never a plaintext secret; the
+  tenant must be disabled so nothing changes while it moves, and the response is never logged. The import answers
+  `422`, before any key decrypts the package or any remote key is retagged, for an empty `kid`, a package whose
+  protected header does not name `ECDH-ES+A256KW` and `A256GCM`, a root key that the checks of
+  `IOwnerRootKeyManager.SetAsync` refuse (the owner's policies, the allowed key wrappers and the cell's cloud regions,
+  which `MasterKeyTransferResult.RefusalDetail` reports), and a remote key outside the location that the target cell's
+  provider uses. While the global directory places a tenant in another cell, deleting the tenant or one of its secrets
+  at the source answers `409` (`503` when the directory cannot be reached), so a moved tenant's source copy never
+  destroys a remote key that the live copy uses, and `release-moved` removes that copy
+  ([ADR-1514](docs/decisions/1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md)).
 
 - **Deleting an owner removes what it owns.** `IClientStore.RemoveAsync` removes a client's secrets, grants to resource
   servers, consents, the grants issued to it and the role assignments at its resource node in the same unit of work as
@@ -5965,9 +6321,11 @@ Until the first stable release, the [Unreleased] section describes the product a
 - **DPoP nonces and the DPoP-proof and client-assertion replay records live in the shared-state port, scoped by
   tenant.** They are recorded in `IExpiringKeySet` under keys that name the tenant and digest the request-supplied
   values, so tenants sharing a store never collide and a crafted `jti` cannot make a key ambiguous or unbounded; if the
-  store is unreachable, these checks fail closed. `IDPoPProofReplayCache.TryRecordAsync` and
-  `IClientAssertionReplayCache.TryRecordAsync` take the request's `OpenIdContext` as their first parameter. The server
-  registers no `IDistributedCache`, so a host that resolves one registers its own
+  store is unreachable, these checks fail closed. The keys are built by `ExpiringKeys.Create` in
+  `NCode.Identity.SharedState.Abstractions`, which a cell's management DPoP replay records use too, scoped by the
+  cell's name. `IDPoPProofReplayCache.TryRecordAsync` and `IClientAssertionReplayCache.TryRecordAsync` take the
+  request's `OpenIdContext` as their first parameter. The server registers no `IDistributedCache`, so a host that
+  resolves one registers its own
   ([ADR-1164](docs/decisions/1164-replicas-share-expiring-keys-values-and-indexes-through-ports-with-in-process-and-valkey-adapters.md)).
 
 - **Session creation and termination are audited and logged.** `IAuditEventRecorder.RecordSessionCreatedAsync` and
@@ -6109,11 +6467,15 @@ Until the first stable release, the [Unreleased] section describes the product a
 
 - **A retired tenant identifier or issuer is never reissued.** Deleting a tenant retires its identifier and its issuer,
   and changing a tenant's issuer retires the one it gives up, so no other tenant can take an identity that relying
-  parties trust. The tenant store records them in the `RetiredTenants` and `RetiredIssuers` tables, in the same unit of
-  work as the delete or update. `ITenantResolver.ValidateTenantAsync` reports a retired identifier, or an issuer another
+  parties trust. The global directory holds them, reserved platform-wide: the management handler reserves an identifier
+  and checks an issuer through `ITenantDirectory` before it saves the tenant, retires them when it deletes the tenant,
+  and calls `ChangeIssuerAsync` before it updates an issuer, so no two cells reuse an identity. A cell that runs on its
+  own keeps the same records in its `RetiredTenants` and `RetiredIssuers` tables through the local directory adapter,
+  and a cell that reaches a directory server through the remote adapter fails closed with `503` and `Retry-After` when
+  the directory is unreachable. `ITenantResolver.ValidateTenantAsync` reports a retired identifier, or an issuer another
   tenant gave up, as a conflict: the management API answers `409 Conflict` on create and update, and the address preview
-  lists it. Only the tenant that gave up an issuer can take it back. `ITenantStore` exposes `IsTenantIdRetiredAsync` and
-  `GetRetiredIssuerHolderOrDefaultAsync`
+  lists it. Only the tenant that gave up an issuer can take it back. `ITenantDirectory` exposes `IsTenantIdRetiredAsync`
+  and `GetRetiredIssuerHolderOrDefaultAsync`, and serving a tenant's requests never calls it
   ([ADR-1160](docs/decisions/1160-a-tenant-is-named-by-its-creator-validated-by-its-strategy-and-never-reissued.md)).
 
 - **Deleting a tenant erases the data of its end users.** Its local accounts and their claims, federated principals and
@@ -6204,7 +6566,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   created sign-only or decrypt-only and, on Azure Key Vault and Google Cloud KMS, hardware-protected by default; logs
   carry key identifiers only; and the server destroys only the KMS keys it created; a key it created but could not read,
   check or record is destroyed at once, and a KMS response that names another key or algorithm, or fails its checksum,
-  is refused. A sweep destroys only keys tagged with its deployment, older than its grace period, that no stored secret
+  is refused. A sweep destroys only keys tagged with its cell's name, older than its grace period, that no stored secret
   names, and each destruction stays recoverable for the service's window. A protocol client's or a BFF's key ring holds
   only a remote key's public half, a BFF does not start with a remote key whose public half its KMS does not return or
   that does not prove it holds the private half, and neither creates nor destroys a KMS key
@@ -6218,3 +6580,9 @@ Until the first stable release, the [Unreleased] section describes the product a
   [ADR-1474](docs/decisions/1474-a-remote-key-provider-is-described-by-data-and-reads-signs-and-decrypts-by-key-identifier.md),
   [ADR-1478](docs/decisions/1478-a-background-job-destroys-the-key-management-service-keys-that-no-stored-secret-names.md),
   [ADR-1479](docs/decisions/1479-a-protocol-clients-and-a-bffs-keys-can-be-held-in-a-key-management-service.md)).
+
+- **The directory and a cell refuse a reservation whose limit they cannot read.** A team or platform `max_tenants`
+  setting that is malformed, not a JSON number, negative or out of range, and a team or platform settings document that
+  is not a JSON object, `null` among them, are not read as "no limit": the global directory and a cell's local directory
+  answer the reservation with a conflict that names the platform or the team. The global directory and every cell store
+  settings only as a JSON object, the empty object when there are none.

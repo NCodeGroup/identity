@@ -4,9 +4,11 @@
 using System.Buffers;
 using System.Security.Cryptography;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using NCode.Identity.Jose;
 using NCode.Identity.Jose.Algorithms;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Contracts.Capabilities;
 using NCode.Identity.OpenId.Management.Endpoints.Secrets;
 using NCode.Identity.Secrets;
@@ -54,6 +56,54 @@ public sealed class CapabilitiesProvidersTests : IDisposable
         Assert.True(item.IsAsymmetric);
         Assert.True(item.SupportsPublicKeyExport);
         Assert.True(item.SupportsPublicKeyImport);
+    }
+
+    [Fact]
+    public async Task CellCapabilitiesProvider_AddsCellSectionWithTheOptionsNameRegionAndControlPlaneFlag()
+    {
+        var provider = new CellCapabilitiesProvider(
+            Options.Create(
+                new CellOptions
+                {
+                    Name = "cell-eu-1",
+                    Region = "eu",
+                    IsControlPlane = true,
+                }
+            )
+        );
+        var capabilities = new Dictionary<string, object>();
+
+        await provider.HandleAsync(
+            new DiscoverManagementCapabilitiesCommand(CreateOpenIdContext(), capabilities),
+            CancellationToken.None
+        );
+
+        var section = Assert.IsType<CellCapabilityResource>(
+            capabilities[CellCapabilitiesProvider.SectionName]
+        );
+        Assert.Equal("cell-eu-1", section.Name);
+        Assert.Equal("eu", section.Region);
+        Assert.True(section.IsControlPlane);
+    }
+
+    [Fact]
+    public async Task CellCapabilitiesProvider_WhenASectionIsAlreadyPresent_KeepsIt()
+    {
+        var provider = new CellCapabilitiesProvider(
+            Options.Create(new CellOptions { Name = "cell-eu-1", Region = "eu" })
+        );
+        var existing = new object();
+        var capabilities = new Dictionary<string, object>
+        {
+            [CellCapabilitiesProvider.SectionName] = existing,
+        };
+
+        await provider.HandleAsync(
+            new DiscoverManagementCapabilitiesCommand(CreateOpenIdContext(), capabilities),
+            CancellationToken.None
+        );
+
+        Assert.Same(existing, capabilities[CellCapabilitiesProvider.SectionName]);
     }
 
     [Fact]

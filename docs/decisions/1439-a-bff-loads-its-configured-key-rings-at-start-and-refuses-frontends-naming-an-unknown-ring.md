@@ -33,13 +33,16 @@ Issue [#614](https://github.com/NCodeGroup/identity/issues/614) describes the ne
 
 ## Decision
 
-**A BFF loads every key ring that `Bff:KeyRings` names when the host starts and registers it as a keyed
-`ISecretKeyCollectionProvider` named after the key ring. It refuses a set of frontends that names a key ring it does not
-find. A host that needs another source registers the keyed provider in code.**
+**The protocol client loads every key ring that a configuration section names when the host starts and registers it as a
+keyed `ISecretKeyCollectionProvider` named after the key ring, and a BFF host points it at its top-level `KeyRings`
+section. A BFF refuses a set of frontends that names a key ring it does not find. A host that needs another source
+registers the keyed provider in code.**
 
-1. **The section.** Each `Bff:KeyRings:{name}` entry registers one keyed provider when `AddBffConfiguration` binds
-   `Bff`. `{name}` is the key ring's name, and a frontend's `ClientAuthentication:KeyRing` or `DPoP:KeyRing` refers to
-   it. A ring lists `PemFiles`, `RemoteKeys` or both. Remote keys that a key management service holds are described in
+1. **The section.** `AddOpenIdClientKeyRings(section)` on the protocol client's builder binds the named key rings
+   under a configuration section and registers one keyed provider for each. The BFF host's composition root,
+   `AddIdentityBff`, and the identity server each point it at their top-level `KeyRings` section, so each
+   `KeyRings:{name}` entry registers one provider. `{name}` is the key ring's name, and a frontend's
+   `ClientAuthentication:KeyRing` or `DPoP:KeyRing` refers to it. A ring lists `PemFiles`, `RemoteKeys` or both. Remote keys that a key management service holds are described in
    [ADR-1479](1479-a-protocol-clients-and-a-bffs-keys-can-be-held-in-a-key-management-service.md).
 2. **The file formats.** Each PEM file holds one private key of one of the three standard encodings: PKCS#8, SEC1 (EC)
    or PKCS#1 (RSA). The loader reads a file as an EC key first and as an RSA key when that fails. A file that holds
@@ -49,14 +52,17 @@ find. A host that needs another source registers the keyed provider in code.**
 4. **Sensitive buffers.** The loader reads a file into a sensitive buffer, decodes it into a sensitive character buffer
    and hands that buffer to the secret-key factory, never an ordinary string or array.
 5. **The path.** A relative path resolves against the host's content root, and an absolute path is used as it is.
-6. **Startup validation.** The options validator fails startup with one message per problem: an unnamed ring, a ring
-   with no PEM file or remote key, a blank or missing file, and a duplicate key id.
-7. **Load at start.** `BffKeyRingLoader`, an `IHostedLifecycleService`, loads every ring in `StartingAsync`, and a
+6. **Startup validation.** The key rings' options validator fails startup with one message per problem: an unnamed ring,
+   a ring name or key id that is not letters and digits in groups separated by single `.`, `_` or `-` of at most 64
+   characters, a ring with no PEM file or remote key, a blank or missing file, two key ids equal without case, and a
+   configured ring that a keyed provider registered in code already provides.
+7. **Load at start.** `ClientKeyRingLoader`, an `IHostedLifecycleService`, loads every ring in `StartingAsync`, and a
    failure stops the host. A ring changes only when the process restarts, so a ring that a configuration change adds
    needs a restart.
 8. **Code registration is the seam.** A host that holds its keys elsewhere registers its own keyed
-   `ISecretKeyCollectionProvider` under the key ring's name and configures no `Bff:KeyRings` entry for that name. The
-   configuration is the built-in source, and keyed dependency injection is the open seam.
+   `ISecretKeyCollectionProvider` under the key ring's name and configures no `KeyRings` entry for that name; an entry
+   for it fails the startup validation, and the provider registered in code stays the one resolved. The configuration is
+   the built-in source, and keyed dependency injection is the open seam.
 9. **The provider says whether a ring exists.** `IClientKeyRingProvider.HasKeyRing(keyRing)` says whether `GetKeyRing`
    finds the key ring, and loads no key. `DefaultClientKeyRingProvider` answers through `IServiceProviderIsKeyedService`.
 10. **`BffKeyRingCheck` refuses an unknown ring.** The library registers it as an `IBffFrontendSetCheck`. It refuses a
@@ -83,17 +89,17 @@ find. A host that needs another source registers the keyed provider in code.**
 
 ## Consequences
 
-- A host that mounts its keys as files configures `Bff:KeyRings` and writes no key-loading code.
+- A host that mounts its keys as files configures `KeyRings` and writes no key-loading code.
 - A key's id comes from its file name, so renaming a file changes the `kid` that a published JWKS carries and that a
   client's registration refers to.
 - A key ring's files are read once, when the host starts, so a rotation takes effect when the process starts again.
-- A host that registers a keyed provider in code for a name that `Bff:KeyRings` also configures has two registrations
-  for one key; the host configures a name in one place only.
+- A host configures a key ring in one place only: a `KeyRings` entry for a name that a keyed provider registered in
+  code already provides stops the host when it starts.
 - The validator checks that each file exists and the loader checks that each file parses; a wrong key type stops the
   host when it starts.
 - A misspelled key ring name never reaches a token request.
 - Every `IClientKeyRingProvider` answers `HasKeyRing`.
-- A key ring that a configuration change adds under `Bff:KeyRings` still needs a restart, so a frontend that names it is
+- A key ring that a configuration change adds under `KeyRings` still needs a restart, so a frontend that names it is
   refused until then.
 
 ## References
@@ -103,7 +109,8 @@ find. A host that needs another source registers the keyed provider in code.**
   [ADR-1382](1382-the-bffs-browser-security-headers-and-its-client-key-endpoint-are-each-opt-in-for-the-host.md),
   [ADR-1442](1442-a-bff-serves-the-frontends-its-configuration-lists-each-selected-per-request-by-an-open-rule.md),
   [ADR-1479](1479-a-protocol-clients-and-a-bffs-keys-can-be-held-in-a-key-management-service.md)
-- `src/NCode.Identity.Bff/Secrets/BffPemKeyReader.cs`
-- `src/NCode.Identity.Bff/Secrets/BffKeyRingLoader.cs`
+- `src/NCode.Identity.OpenId.Client/KeyRings/DefaultRegistration.cs`
+- `src/NCode.Identity.OpenId.Client/KeyRings/ClientPemKeyReader.cs`
+- `src/NCode.Identity.OpenId.Client/KeyRings/ClientKeyRingLoader.cs`
 - `src/NCode.Identity.Bff/Frontends/BffKeyRingCheck.cs`
 - Issue [#614](https://github.com/NCodeGroup/identity/issues/614)

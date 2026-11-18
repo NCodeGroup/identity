@@ -10,7 +10,7 @@ using NCode.Identity.Persistence;
 namespace NCode.Identity.OpenId.Persistence.DataContracts;
 
 /// <summary>
-/// Contains the JSON settings for an OpenID Team instance.
+/// Contains the settings document of a team: a JSON object, which is empty when the team has no settings.
 /// </summary>
 // See ADR-1411
 [PublicAPI]

@@ -89,7 +89,7 @@ this record decides the record's shape and its log, trace and metric projections
     lists its client, tenant, server or resource server, and a scope lists its resource server. A tenant's records name
     its team as a parent resource. Team and platform events are recorded in the control-plane tenant, with the resource
     types `team` and `platform`
-    ([ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md)). A
+    ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)). A
     session is the shared resource type `AuditResourceTypes.Session` (`"session"`) in
     `NCode.Identity.Events.Abstractions`, because both the protocol and the management planes reference sessions.
 12. **An event writes its own details.** An event that has event-specific fields implements
@@ -176,7 +176,7 @@ this record decides the record's shape and its log, trace and metric projections
   bounded metric dimensions
 - [ADR-1303](1303-audit-records-are-kept-in-an-indexed-store-that-each-replica-writes-in-batches.md) — the audit store
   and lookup API
-- [ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md) — team
+- [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md) — team
   and platform events
 - AWS CloudTrail record contents — the identity, request, resources and error structure
 - Auth0 log event schema — the snake_case names and the stable event type

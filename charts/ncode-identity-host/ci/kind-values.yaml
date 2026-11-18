@@ -1,11 +1,15 @@
 # A production release for a kind cluster. The host and management console images are built from the repository and
 # loaded into the cluster's nodes, so they are never pulled. Traefik routes to the pods through the release's
-# ServersTransport, and the console serves manage.example.com. The workflow creates the database, root key and console
-# key Secrets this release names.
+# ServersTransport, and the console serves manage.example.com. The workflow creates the runtime and owner database
+# Secrets, the root key Secret and the console key Secrets this release names.
 image:
   repository: ncode-identity-host
   tag: kind
   pullPolicy: Never
+cell:
+  name: ci-kind
+  region: ci
+  isControlPlane: true
 allowedHosts:
   - id.example.com
 tenantResolution:
@@ -13,16 +17,18 @@ tenantResolution:
     issuer: https://id.example.com
 database:
   parts:
-    existingSecret: postgres-app
+    existingSecret: postgres-runtime
+  runtimeRole: ncode_identity_app
+migrations:
+  database:
+    parts:
+      existingSecret: postgres-app
 secretProtection:
   rootKeyProvider: local
   local:
     keySecret: identity-root-key
   recovery:
     disabled: true
-  # Names this release's keys; with no remote key provider enabled, nothing uses it.
-  remoteKeys:
-    deployment: ci-kind
 ingress:
   enabled: true
   controller: traefik

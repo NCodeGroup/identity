@@ -16,6 +16,7 @@
     </Folder>
     <Folder Name="/hosts/">
         <Project Path="hosts/NCode.Identity.ManagementConsole.Host/NCode.Identity.ManagementConsole.Host.csproj" />
+        <Project Path="hosts/NCode.Identity.OpenId.GlobalDirectory.Host/NCode.Identity.OpenId.GlobalDirectory.Host.csproj" />
         <Project Path="hosts/NCode.Identity.OpenId.Host.Database/NCode.Identity.OpenId.Host.Database.csproj" />
         <Project Path="hosts/NCode.Identity.OpenId.Host.MigrationService/NCode.Identity.OpenId.Host.MigrationService.csproj" />
         <Project Path="hosts/NCode.Identity.OpenId.Host/NCode.Identity.OpenId.Host.csproj" />
@@ -23,6 +24,7 @@
     </Folder>
     <Folder Name="/src/">
         <Project Path="src/NCode.Identity.AspNetCore.Abstractions/NCode.Identity.AspNetCore.Abstractions.csproj" />
+        <Project Path="src/NCode.Identity.AspNetCore.OpenTelemetry/NCode.Identity.AspNetCore.OpenTelemetry.csproj" />
         <Project Path="src/NCode.Identity.AspNetCore/NCode.Identity.AspNetCore.csproj" />
         <Project Path="src/NCode.Identity.Bff.Abstractions/NCode.Identity.Bff.Abstractions.csproj" />
         <Project Path="src/NCode.Identity.Bff.Blazor.Client/NCode.Identity.Bff.Blazor.Client.csproj" />
@@ -53,6 +55,7 @@
         <Project Path="src/NCode.Identity.ManagementConsole/NCode.Identity.ManagementConsole.csproj" />
         <Project Path="src/NCode.Identity.OpenId.Abstractions/NCode.Identity.OpenId.Abstractions.csproj" />
         <Project Path="src/NCode.Identity.OpenId.Accounts.Abstractions/NCode.Identity.OpenId.Accounts.Abstractions.csproj" />
+        <Project Path="src/NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore/NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore.csproj" />
         <Project Path="src/NCode.Identity.OpenId.Accounts.AspNetIdentity/NCode.Identity.OpenId.Accounts.AspNetIdentity.csproj" />
         <Project Path="src/NCode.Identity.OpenId.Accounts.Authentication/NCode.Identity.OpenId.Accounts.Authentication.csproj" />
         <Project Path="src/NCode.Identity.OpenId.Accounts.Management.Abstractions/NCode.Identity.OpenId.Accounts.Management.Abstractions.csproj" />
@@ -65,6 +68,9 @@
         <Project Path="src/NCode.Identity.OpenId.Client.Abstractions/NCode.Identity.OpenId.Client.Abstractions.csproj" />
         <Project Path="src/NCode.Identity.OpenId.Client/NCode.Identity.OpenId.Client.csproj" />
         <Project Path="src/NCode.Identity.OpenId.Core/NCode.Identity.OpenId.Core.csproj" />
+        <Project Path="src/NCode.Identity.OpenId.GlobalDirectory.Abstractions/NCode.Identity.OpenId.GlobalDirectory.Abstractions.csproj" />
+        <Project Path="src/NCode.Identity.OpenId.GlobalDirectory.Server/NCode.Identity.OpenId.GlobalDirectory.Server.csproj" />
+        <Project Path="src/NCode.Identity.OpenId.GlobalDirectory/NCode.Identity.OpenId.GlobalDirectory.csproj" />
         <Project Path="src/NCode.Identity.OpenId.Management.Abstractions/NCode.Identity.OpenId.Management.Abstractions.csproj" />
         <Project Path="src/NCode.Identity.OpenId.Management/NCode.Identity.OpenId.Management.csproj" />
         <Project Path="src/NCode.Identity.OpenId.Messages.Abstractions/NCode.Identity.OpenId.Messages.Abstractions.csproj" />
@@ -97,6 +103,7 @@
     </Folder>
     <Folder Name="/tests/">
         <Project Path="tests/NCode.Identity.Analyzers.Tests/NCode.Identity.Analyzers.Tests.csproj" />
+        <Project Path="tests/NCode.Identity.AspNetCore.OpenTelemetry.Tests/NCode.Identity.AspNetCore.OpenTelemetry.Tests.csproj" />
         <Project Path="tests/NCode.Identity.AspNetCore.Tests/NCode.Identity.AspNetCore.Tests.csproj" />
         <Project Path="tests/NCode.Identity.Bff.Blazor.Client.Tests/NCode.Identity.Bff.Blazor.Client.Tests.csproj" />
         <Project Path="tests/NCode.Identity.Bff.Blazor.Tests/NCode.Identity.Bff.Blazor.Tests.csproj" />
@@ -118,12 +125,18 @@
         <Project Path="tests/NCode.Identity.Jwk.Tests/NCode.Identity.Jwk.Tests.csproj" />
         <Project Path="tests/NCode.Identity.Jwt.Tests/NCode.Identity.Jwt.Tests.csproj" />
         <Project Path="tests/NCode.Identity.ManagementConsole.Tests/NCode.Identity.ManagementConsole.Tests.csproj" />
+        <Project Path="tests/NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore.Tests/NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore.Tests.csproj" />
         <Project Path="tests/NCode.Identity.OpenId.Accounts.AspNetIdentity.Tests/NCode.Identity.OpenId.Accounts.AspNetIdentity.Tests.csproj" />
         <Project Path="tests/NCode.Identity.OpenId.Accounts.Tests/NCode.Identity.OpenId.Accounts.Tests.csproj" />
         <Project Path="tests/NCode.Identity.OpenId.Accounts.Management.Tests/NCode.Identity.OpenId.Accounts.Management.Tests.csproj" />
         <Project Path="tests/NCode.Identity.OpenId.Authentication.Interactive.Tests/NCode.Identity.OpenId.Authentication.Interactive.Tests.csproj" />
         <Project Path="tests/NCode.Identity.OpenId.Client.Tests/NCode.Identity.OpenId.Client.Tests.csproj" />
         <Project Path="tests/NCode.Identity.OpenId.Core.Tests/NCode.Identity.OpenId.Core.Tests.csproj" />
+        <Project Path="tests/NCode.Identity.OpenId.GlobalDirectory.Host.EndToEnd.Tests/NCode.Identity.OpenId.GlobalDirectory.Host.EndToEnd.Tests.csproj" />
+        <Project Path="tests/NCode.Identity.OpenId.GlobalDirectory.Host.Tests/NCode.Identity.OpenId.GlobalDirectory.Host.Tests.csproj" />
+        <Project Path="tests/NCode.Identity.OpenId.GlobalDirectory.Server.Tests/NCode.Identity.OpenId.GlobalDirectory.Server.Tests.csproj" />
+        <Project Path="tests/NCode.Identity.OpenId.GlobalDirectory.Tests/NCode.Identity.OpenId.GlobalDirectory.Tests.csproj" />
+        <Project Path="tests/NCode.Identity.OpenId.Host.Database.EndToEnd.Tests/NCode.Identity.OpenId.Host.Database.EndToEnd.Tests.csproj" />
         <Project Path="tests/NCode.Identity.OpenId.Host.Database.Tests/NCode.Identity.OpenId.Host.Database.Tests.csproj" />
         <Project Path="tests/NCode.Identity.OpenId.Integration.Tests/NCode.Identity.OpenId.Integration.Tests.csproj" />
         <Project Path="tests/NCode.Identity.OpenId.LocalDev.Tests/NCode.Identity.OpenId.LocalDev.Tests.csproj" />

@@ -151,32 +151,71 @@ public interface ITeamStore : IStore<PersistedTeam>
     );
 
     /// <summary>
+    /// Updates the root keys that the team brings, keyed by region. Only the map is written, and the team's other
+    /// columns stay as they are.
+    /// </summary>
+    /// <param name="persistedTeam">The <see cref="PersistedTeam"/> instance carrying the root keys and the concurrency
+    /// token it was read with.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
+    /// <exception cref="StoreConcurrencyException">Thrown when the team was modified since it was read.</exception>
+    ValueTask UpdateRootKeysAsync(PersistedTeam persistedTeam, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Removes an OpenId Team from the store. The removal is rejected while any tenant or team still belongs to the
-    /// team. Removing a team retires its identifier, so it is never reissued.
+    /// team. Removing a team retires its identifier, so it is never reissued. It reads across tenants, so it runs only
+    /// in an unscoped scope.
     /// </summary>
     /// <param name="teamId">The identifier of the OpenId Team to remove.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c>
     /// if the team was removed; otherwise <c>false</c> when no matching team existed.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when a tenant, team or machine client still belongs to the team.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when a tenant, team or machine client still belongs to the
+    /// team, or when the ambient scope is not unscoped.</exception>
     ValueTask<bool> RemoveAsync(string teamId, CancellationToken cancellationToken);
 
     /// <summary>
     /// Determines whether an OpenId Team still has dependents: any tenant, team or machine client that belongs to it.
+    /// It reads across tenants, so it runs only in an unscoped scope.
     /// </summary>
     /// <param name="teamId">The identifier of the OpenId Team.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c>
     /// when any tenant, team or machine client belongs to the team; otherwise <c>false</c> (including when no such team exists).</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the ambient scope is not unscoped.</exception>
     ValueTask<bool> HasDependentsAsync(string teamId, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Determines whether the specified team identifier belonged to a deleted team. A team identifier is never
-    /// reissued.
+    /// Upserts the team named by the persisted team's <c>TeamId</c> from a team document that the directory published.
+    /// The team row is left as it is when its <see cref="PersistedTeam.DirectorySequence"/> is at or above the
+    /// document's. Otherwise a missing row is inserted, its display name, settings, parent and path are set from the
+    /// document, and, when the parent changes, the paths of the teams beneath it are rewritten.
     /// </summary>
-    /// <param name="teamId">The team identifier to look up.</param>
+    /// <param name="persistedTeam">The <see cref="PersistedTeam"/> instance that carries the document's values and its
+    /// sequence.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c> when a
-    /// deleted team had the identifier; otherwise <c>false</c>.</returns>
-    ValueTask<bool> IsTeamIdRetiredAsync(string teamId, CancellationToken cancellationToken);
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c> when the
+    /// document was applied; otherwise <c>false</c> when the row already carries a sequence at or above the
+    /// document's.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the parent team does not exist, or when the team or a
+    /// team beneath it would be nested deeper than <see cref="TeamPaths.MaxDepth"/> levels.</exception>
+    ValueTask<bool> MirrorAsync(PersistedTeam persistedTeam, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Disables the mirrored team that the directory retired and records the retirement's sequence on its row, so a
+    /// retirement the directory delivers again changes nothing. The team row is left as it is when it is missing or
+    /// already carries a sequence at or above the retirement's. This method does not save; the caller's store manager
+    /// does.
+    /// </summary>
+    /// <param name="teamId">The identifier of the OpenId Team that the directory retired.</param>
+    /// <param name="directorySequence">The directory sequence of the retirement.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>true</c> when the
+    /// team was disabled; otherwise <c>false</c> when no such team exists or its row already carries a sequence at or
+    /// above <paramref name="directorySequence"/>.</returns>
+    ValueTask<bool> DisableRetiredAsync(
+        string teamId,
+        long directorySequence,
+        CancellationToken cancellationToken
+    );
 }

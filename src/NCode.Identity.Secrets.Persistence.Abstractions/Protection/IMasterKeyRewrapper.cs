@@ -13,10 +13,11 @@ namespace NCode.Identity.Secrets.Persistence.Protection;
 /// </summary>
 /// <remarks>
 /// Two callers use this engine: the offline <c>secret-protection</c> command, and the owner root key manager, which
-/// conforms the master keys of an owner to its root key (<see cref="MasterKeyRewrapRequest.NonconformingOnly"/>). Each
-/// master key is rewrapped in its own unit of work, a conflicting write is retried, and a repeated run is harmless.
-/// A master key under an owner root key is never rewrapped under the deployment's root key or the recovery key, and it
-/// never gains a recovery copy.
+/// conforms to a changed root key the master keys whose root it can be (<see cref="MasterKeyRewrapRequest.Owner"/> with
+/// <see cref="MasterKeyRewrapRequest.IncludeDescendants"/> and <see cref="MasterKeyRewrapRequest.NonconformingOnly"/>).
+/// Each master key is rewrapped in its own unit of work, a conflicting write is retried, and a repeated run is
+/// harmless. A master key under an owner root key is never rewrapped under the deployment's root key or the recovery
+/// key, and it never gains a recovery copy.
 /// </remarks>
 // See ADR-1408 and ADR-1414.
 [PublicAPI]

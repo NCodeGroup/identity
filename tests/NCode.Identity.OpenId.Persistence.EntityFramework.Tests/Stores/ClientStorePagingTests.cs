@@ -80,6 +80,8 @@ public sealed class ClientStorePagingTests : IDisposable
     {
         await SeedAsync(5, CancellationToken.None);
 
+        using var scope = Ambient.BeginScope(TenantId);
+
         var seen = new List<string>();
         string? cursor = null;
         var pageCount = 0;
@@ -106,6 +108,8 @@ public sealed class ClientStorePagingTests : IDisposable
     {
         await SeedAsync(3, CancellationToken.None);
 
+        using var scope = Ambient.BeginScope(TenantId);
+
         var page = await Store.GetPageAsync(new PageRequest { Limit = 10 }, CancellationToken.None);
 
         Assert.Equal(3, page.Items.Count);
@@ -116,6 +120,8 @@ public sealed class ClientStorePagingTests : IDisposable
     public async Task GetPageAsync_WhenCursorIsMalformed_StartsFromBeginning()
     {
         await SeedAsync(3, CancellationToken.None);
+
+        using var scope = Ambient.BeginScope(TenantId);
 
         var page = await Store.GetPageAsync(
             new PageRequest { Cursor = "not-a-valid-cursor", Limit = 10 },
@@ -128,6 +134,7 @@ public sealed class ClientStorePagingTests : IDisposable
     [Fact]
     public async Task GetPageAsync_WhenEmpty_ReturnsEmptyPageAndNullCursor()
     {
+        using var scope = Ambient.BeginScope(TenantId);
         var page = await Store.GetPageAsync(new PageRequest { Limit = 10 }, CancellationToken.None);
 
         Assert.Empty(page.Items);
@@ -140,6 +147,8 @@ public sealed class ClientStorePagingTests : IDisposable
     public async Task GetSettingsPageAsync_TraversesEveryClientExactlyOnce()
     {
         await SeedAsync(5, CancellationToken.None);
+
+        using var scope = Ambient.BeginScope(TenantId);
 
         var seen = new List<string>();
         string? cursor = null;
@@ -175,6 +184,8 @@ public sealed class ClientStorePagingTests : IDisposable
     public async Task GetSettingsPageAsync_ReadsWithoutTracking()
     {
         await SeedAsync(3, CancellationToken.None);
+
+        using var scope = Ambient.BeginScope(TenantId);
 
         var page = await Store.GetSettingsPageAsync(
             new PageRequest { Limit = 10 },
@@ -212,6 +223,7 @@ public sealed class ClientStorePagingTests : IDisposable
         await DbContext.SaveChangesAsync();
         DbContext.ChangeTracker.Clear();
 
+        using var scope = Ambient.BeginScope(TenantId);
         var teamPage = await Store.GetPageByOwningNodeAsync(
             "team",
             "team-1",
@@ -237,7 +249,7 @@ public sealed class ClientStorePagingTests : IDisposable
     #region GetByPrincipalOrDefaultAsync Tests
 
     [Fact]
-    public async Task GetByPrincipalOrDefaultAsync_FindsTheClientInAnotherTenant()
+    public async Task GetByPrincipalOrDefaultAsync_WhenUnscoped_FindsTheClientInAnyTenant()
     {
         await SeedAsync(1, CancellationToken.None);
         var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
@@ -248,7 +260,7 @@ public sealed class ClientStorePagingTests : IDisposable
         DbContext.ChangeTracker.Clear();
         var principalId = Assert.IsType<string>(otherClient.PrincipalId);
 
-        using var scope = Ambient.BeginScope(TenantId);
+        using var scope = Ambient.BeginUnscoped("test");
         var loaded = await Store.GetByPrincipalOrDefaultAsync(principalId, CancellationToken.None);
 
         Assert.NotNull(loaded);
@@ -262,12 +274,31 @@ public sealed class ClientStorePagingTests : IDisposable
     {
         await SeedAsync(2, CancellationToken.None);
 
+        using var scope = Ambient.BeginUnscoped("test");
+
         var loaded = await Store.GetByPrincipalOrDefaultAsync(
             "unknown-principal",
             CancellationToken.None
         );
 
         Assert.Null(loaded);
+    }
+
+    [Fact]
+    public async Task GetByPrincipalOrDefaultAsync_WhenTheScopeIsATenantScope_Throws()
+    {
+        await SeedAsync(1, CancellationToken.None);
+
+        using var scope = Ambient.BeginScope(TenantId);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Store.GetByPrincipalOrDefaultAsync("any-principal", CancellationToken.None)
+        );
+
+        Assert.Equal(
+            "ClientStore.GetByPrincipalOrDefaultAsync reads across tenants and runs only in an unscoped scope (IAmbientTenantAccessor.BeginUnscoped).",
+            exception.Message
+        );
     }
 
     #endregion

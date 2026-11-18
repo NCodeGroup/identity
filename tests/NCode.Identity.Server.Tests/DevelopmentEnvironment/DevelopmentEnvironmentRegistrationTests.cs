@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Moq;
+using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Registration;
 using NCode.Identity.Server.DevelopmentEnvironment;
 using Xunit;
@@ -13,6 +15,8 @@ namespace NCode.Identity.Server.Tests;
 
 public sealed class DevelopmentEnvironmentRegistrationTests
 {
+    private const string ControlPlaneTenantId = "control";
+
     private static IConfiguration CreateConfiguration(params (string Key, string Value)[] values) =>
         new ConfigurationBuilder()
             .AddInMemoryCollection(
@@ -26,6 +30,12 @@ public sealed class DevelopmentEnvironmentRegistrationTests
         new ServiceBuilder<IdentityServer>(serviceCollection).AddDevelopmentEnvironment(
             configuration
         );
+
+        // The bootstrap administrator's tenant is validated against the control-plane tenant.
+        var tenantResolver = new Mock<ITenantResolver>(MockBehavior.Strict);
+        tenantResolver.Setup(x => x.GetControlPlaneTenantId()).Returns(ControlPlaneTenantId);
+        serviceCollection.AddSingleton(tenantResolver.Object);
+
         return serviceCollection;
     }
 
@@ -87,7 +97,7 @@ public sealed class DevelopmentEnvironmentRegistrationTests
             CreateConfiguration(
                 ("BootstrapAdmin:ClientId", "bootstrap"),
                 ("BootstrapAdmin:ClientSecret", "c2VjcmV0"),
-                ("BootstrapAdmin:TenantId", "control")
+                ("BootstrapAdmin:TenantId", ControlPlaneTenantId)
             )
         );
         using var serviceProvider = serviceCollection.BuildServiceProvider();

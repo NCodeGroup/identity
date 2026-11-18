@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using JetBrains.Annotations;
+using NCode.Identity.Secrets.Options;
 
 namespace NCode.Identity.Secrets.GoogleCloudKms.Options;
 
@@ -25,6 +26,13 @@ public sealed class GoogleCloudKmsRemoteKeyProviderOptions
     /// name names.
     /// </summary>
     public string? KeyRing { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Cloud KMS locations, such as <c>us-central1</c>, in which the provider may create keys. A
+    /// <see cref="KeyRing"/> in a location that is not listed is refused. When it is empty, any location is allowed.
+    /// When <see cref="KeyResidencyOptions.CloudRegions"/> names cloud regions, they replace this list.
+    /// </summary>
+    public List<string> AllowedLocations { get; set; } = [];
 
     /// <summary>
     /// Gets or sets a value indicating whether the provider creates keys with the <c>HSM</c> protection level, so the

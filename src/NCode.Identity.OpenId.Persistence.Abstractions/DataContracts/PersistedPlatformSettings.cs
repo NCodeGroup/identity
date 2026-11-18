@@ -10,7 +10,7 @@ using NCode.Identity.Persistence;
 namespace NCode.Identity.OpenId.Persistence.DataContracts;
 
 /// <summary>
-/// Contains the JSON settings for the platform.
+/// Contains the settings document of the platform: a JSON object, which is empty when the platform has no settings.
 /// </summary>
 [PublicAPI]
 [ExcludeFromCodeCoverage]

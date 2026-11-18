@@ -159,16 +159,20 @@ without a host key. Rendered for its side effect only.
 {{/*
 The database environment entries of a host container: the parts of a Postgres operator's Secret, each from its own
 key, or the finished connection string. The scope holds the settings of one connection, and its empty keys fall back to
-the defaults, which are the values of the database the host itself uses (ADR-1509).
+the defaults, which are the values of the database the host itself uses (ADR-1509). The entries are named for the
+connection string (connectionStringName, openiddb when empty) and the configuration section that holds the parts
+(sectionName, OpenIdDatabase when empty); the directory host reads its own, directory and DirectoryDatabase.
 */}}
 {{- define "identity-host.databaseEnv" -}}
 {{- $scope := .scope }}
 {{- $defaults := .defaults }}
+{{- $connectionStringName := .connectionStringName | default "openiddb" }}
+{{- $sectionName := .sectionName | default "OpenIdDatabase" }}
 {{- if $scope.parts.existingSecret }}
 {{- range $part := list (list "Host" "hostKey") (list "Port" "portKey") (list "Name" "databaseKey") (list "Username" "usernameKey") (list "Password" "passwordKey") }}
 {{- $key := (index $scope.parts (last $part)) | default (index $defaults.parts (last $part)) }}
 {{- if $key }}
-- name: OpenIdDatabase__{{ first $part }}
+- name: {{ $sectionName }}__{{ first $part }}
   valueFrom:
     secretKeyRef:
       name: {{ $scope.parts.existingSecret }}
@@ -176,7 +180,7 @@ the defaults, which are the values of the database the host itself uses (ADR-150
 {{- end }}
 {{- end }}
 {{- else }}
-- name: ConnectionStrings__openiddb
+- name: ConnectionStrings__{{ $connectionStringName }}
   valueFrom:
     secretKeyRef:
       name: {{ $scope.existingSecret }}
@@ -186,15 +190,17 @@ the defaults, which are the values of the database the host itself uses (ADR-150
 
 {{/*
 Refuses a database connection that names both of its forms, or none when it is required, a finished connection string
-without its key, or a parts Secret whose required key is empty. Rendered for its side effect only.
+without its key, or a parts Secret whose required key is empty. The message of a missing connection names it by the
+connection string's name (connectionStringName, openiddb when empty). Rendered for its side effect only.
 */}}
 {{- define "identity-host.databaseValidate" -}}
 {{- $scope := .scope }}
+{{- $connectionStringName := .connectionStringName | default "openiddb" }}
 {{- if and $scope.existingSecret $scope.parts.existingSecret }}
 {{- fail (printf "%s.existingSecret and %s.parts.existingSecret are both set: name the Secret that holds the finished connection string or the Secret that holds its parts, not both." .path .path) }}
 {{- end }}
 {{- if and .required (not $scope.existingSecret) (not $scope.parts.existingSecret) }}
-{{- fail "database.existingSecret must name the Secret holding the openiddb connection string, or database.parts.existingSecret the Secret holding its host, database, user and password." }}
+{{- fail (printf "%s.existingSecret must name the Secret holding the %s connection string, or %s.parts.existingSecret the Secret holding its host, database, user and password." .path $connectionStringName .path) }}
 {{- end }}
 {{- if and $scope.existingSecret (not ($scope.connectionStringKey | default .defaults.connectionStringKey)) }}
 {{- fail (printf "%s.connectionStringKey must name the key that holds the connection string in %s.existingSecret." .path .path) }}
@@ -205,6 +211,69 @@ without its key, or a parts Secret whose required key is empty. Rendered for its
 {{- if not ((index $scope.parts $keyName) | default (index $.defaults.parts $keyName)) }}
 {{- fail (printf "%s.parts.%s must name the key that holds the %s in the Secret." $.path $keyName (first $part)) }}
 {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+The pattern of the ARN of an AWS KMS key or alias.
+*/}}
+{{- define "identity-host.awsKmsArnPattern" -}}
+^arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:(key/[A-Za-z0-9-]+|alias/[A-Za-z0-9/_-]+)$
+{{- end }}
+
+{{/*
+The pattern of a service URL: https, or http on a loopback host, written with its authority and with no user
+information, query, fragment or white space. The host applies the rule itself when it starts; the pattern is the chart's
+check before anything is applied.
+*/}}
+{{- define "identity-host.serviceUrlPattern" -}}
+(?i)^(https://[^/?#@\s\v\x{85}\p{Z}]+|http://(localhost|127(\.[0-9]{1,3}){3}|\[::1\])(:[0-9]+)?)(/[^?#\s\v\x{85}\p{Z}]*)?$
+{{- end }}
+
+{{/*
+The pattern of a service URL that must be https: written with its authority and with no user information, query,
+fragment or white space. The host applies the rule itself when it starts; the pattern is the chart's check before
+anything is applied.
+*/}}
+{{- define "identity-host.httpsServiceUrlPattern" -}}
+(?i)^https://[^/?#@\s\v\x{85}\p{Z}]+(/[^?#\s\v\x{85}\p{Z}]*)?$
+{{- end }}
+
+{{/*
+Refuses a service URL that is set and is not a valid one. Takes the path of the value (path), the value (value) and
+whether it must be https (httpsOnly), which otherwise also allows http on a loopback host. Rendered for its side effect
+only.
+*/}}
+{{- define "identity-host.serviceUrlValidate" -}}
+{{- if .value }}
+{{- if .httpsOnly }}
+{{- if not (regexMatch (include "identity-host.httpsServiceUrlPattern" .) .value) }}
+{{- fail (printf "%s must be an absolute https URL with no user information, query or fragment." .path) }}
+{{- end }}
+{{- else if not (regexMatch (include "identity-host.serviceUrlPattern" .) .value) }}
+{{- fail (printf "%s must be an absolute https URL, or an http URL on a loopback host, with no user information, query or fragment." .path) }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+Refuses a remote key id that does not name a key version the provider can sign with. Takes the path of the value, the
+provider, the key id and an example of the key's name (keyName) and Google Cloud KMS key ring (keyRing). Rendered for its
+side effect only.
+*/}}
+{{- define "identity-host.remoteKeyIdValidate" -}}
+{{- if eq .provider "aws-kms" }}
+{{- if not (regexMatch (include "identity-host.awsKmsArnPattern" .) .keyId) }}
+{{- fail (printf "%s must be the ARN of an AWS KMS key or alias, such as arn:aws:kms:us-west-2:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab." .path) }}
+{{- end }}
+{{- else if eq .provider "azure-key-vault" }}
+{{- if not (regexMatch "^https://[A-Za-z0-9-]+([.][A-Za-z0-9-]+)+/keys/[A-Za-z0-9-]{1,127}/[A-Za-z0-9]{32}$" .keyId) }}
+{{- fail (printf "%s must be the identifier of a Key Vault or Managed HSM key version, such as https://contoso.vault.azure.net/keys/%s/0123456789abcdef0123456789abcdef." .path .example.keyName) }}
+{{- end }}
+{{- else if eq .provider "google-cloud-kms" }}
+{{- if not (regexMatch "^projects/[a-z0-9.:-]+/locations/[a-z0-9-]+/keyRings/[A-Za-z0-9_-]{1,63}/cryptoKeys/[A-Za-z0-9_-]{1,63}/cryptoKeyVersions/[0-9]{1,19}$" .keyId) }}
+{{- fail (printf "%s must be the resource name of a Cloud KMS crypto key version, such as projects/my-project/locations/us-central1/keyRings/%s/cryptoKeys/%s/cryptoKeyVersions/1." .path .example.keyRing .example.keyName) }}
 {{- end }}
 {{- end }}
 {{- end }}
@@ -224,8 +293,69 @@ applied. Rendered for its side effect only.
 {{- fail "probes.host must name a concrete host that allowedHosts accepts: the first allowed host is a wildcard." }}
 {{- end }}
 {{- include "identity-host.databaseValidate" (dict "path" "database" "scope" .Values.database "defaults" .Values.database "required" true) }}
-{{- include "identity-host.databaseValidate" (dict "path" "migrations.database" "scope" .Values.migrations.database "defaults" .Values.database "required" false) }}
+{{- include "identity-host.databaseValidate" (dict "path" "migrations.database" "scope" .Values.migrations.database "defaults" .Values.database "required" .Values.migrations.enabled) }}
+{{- if and .Values.migrations.enabled (not .Values.database.runtimeRole) }}
+{{- fail "database.runtimeRole must name the Postgres role the host connects as when migrations.enabled is true: the migration Job grants it access to the tables." }}
+{{- end }}
+{{- if and .Values.database.runtimeRole (not (regexMatch "^[a-z_][a-z0-9_]*$" .Values.database.runtimeRole)) }}
+{{- fail "database.runtimeRole must be a lower-case Postgres role name of letters, digits and underscores that does not start with a digit." }}
+{{- end }}
 {{- include "identity-host.valkeyValidate" (dict "path" "valkey" "scope" .Values.valkey "defaults" .Values.valkey) }}
+{{- if and .Values.directory.url (not .Values.directory.clientId) }}
+{{- fail "directory.clientId must name the cell's machine client when directory.url is set." }}
+{{- end }}
+{{- if and .Values.directory.url .Values.directory.clientId (ne .Values.directory.clientId (printf "cell-%s" .Values.cell.name)) }}
+{{- fail (printf "directory.clientId must be cell-%s, the machine client of the cell that cell.name names, when directory.url is set." .Values.cell.name) }}
+{{- end }}
+{{- if and .Values.directory.url (not .Values.cell.managementUrl) }}
+{{- fail "cell.managementUrl must be the URL of the cell's management API when directory.url is set: the cell registers it with the directory." }}
+{{- end }}
+{{- if and .Values.directory.url (not .Values.directory.keyRing) }}
+{{- fail "directory.keyRing must name the key ring that signs the cell's client assertions when directory.url is set." }}
+{{- end }}
+{{- if and (not .Values.directory.url) .Values.directory.clientId }}
+{{- fail "directory.clientId is set and directory.url is empty: set directory.url, or clear directory.clientId." }}
+{{- end }}
+{{- if and (not .Values.directory.url) .Values.directory.keyRing }}
+{{- fail "directory.keyRing is set and directory.url is empty: set directory.url, or clear directory.keyRing." }}
+{{- end }}
+{{- if and (not .Values.directory.url) .Values.directory.keys.pemSecret }}
+{{- fail "directory.keys.pemSecret is set and directory.url is empty: set directory.url, or clear directory.keys.pemSecret." }}
+{{- end }}
+{{- if and (not .Values.directory.url) .Values.directory.keys.remoteKeys }}
+{{- fail "directory.keys.remoteKeys is set and directory.url is empty: set directory.url, or clear directory.keys.remoteKeys." }}
+{{- end }}
+{{- include "identity-host.serviceUrlValidate" (dict "path" "directory.url" "value" .Values.directory.url "httpsOnly" false) }}
+{{- include "identity-host.serviceUrlValidate" (dict "path" "directory.issuer" "value" .Values.directory.issuer "httpsOnly" false) }}
+{{- include "identity-host.serviceUrlValidate" (dict "path" "cell.managementUrl" "value" .Values.cell.managementUrl "httpsOnly" true) }}
+{{- if and .Values.directory.url (not .Values.cell.controlPlaneIssuer) }}
+{{- fail "cell.controlPlaneIssuer must be the issuer of the control-plane cell when directory.url is set: the cell asks it for the token it presents to the directory." }}
+{{- end }}
+{{- if or (not .Values.cell.isControlPlane) .Values.directory.url }}
+{{- include "identity-host.serviceUrlValidate" (dict "path" "cell.controlPlaneIssuer" "value" .Values.cell.controlPlaneIssuer "httpsOnly" false) }}
+{{- end }}
+{{- $directory := .Values.directory }}
+{{- if and (not $directory.enabled) (or $directory.issuer $directory.controlPlaneCell $directory.allowedHosts $directory.database.runtimeRole $directory.database.existingSecret $directory.database.parts.existingSecret $directory.migrations.database.existingSecret $directory.migrations.database.parts.existingSecret $directory.tls.existingSecret $directory.extraEnv $directory.extraEnvFrom $directory.extraVolumes $directory.extraVolumeMounts $directory.serviceAccount.name $directory.serviceAccount.annotations $directory.image.tag $directory.image.digest) }}
+{{- fail "directory.issuer, directory.controlPlaneCell, directory.allowedHosts, directory.database, directory.migrations.database, directory.tls, directory.serviceAccount, directory.image and directory.extra* configure the directory host, which runs only when directory.enabled is true: set directory.enabled, or clear them." }}
+{{- end }}
+{{- if and .Values.directory.url .Values.directory.keyRing }}
+{{- $directoryKeys := .Values.directory.keys }}
+{{- if and (not $directoryKeys.pemSecret) (not $directoryKeys.remoteKeys) }}
+{{- fail (printf "directory.keys must name pemSecret or list a remote key: the directory client's key ring %s needs at least one key." .Values.directory.keyRing) }}
+{{- end }}
+{{- $directoryKeyIds := list }}
+{{- if $directoryKeys.pemSecret }}
+{{- $directoryKeyIds = append $directoryKeyIds (lower .Values.directory.keyRing) }}
+{{- end }}
+{{- range $kid, $key := $directoryKeys.remoteKeys }}
+{{- $directoryKeyIds = append $directoryKeyIds (lower $kid) }}
+{{- $path := printf "directory.keys.remoteKeys.%s.keyId" $kid }}
+{{- include "identity-host.remoteKeyIdValidate" (dict "path" $path "provider" $key.provider "keyId" $key.keyId "example" (dict "keyName" "cell-client" "keyRing" "ncode-identity-cell")) }}
+{{- end }}
+{{- if ne (len $directoryKeyIds) (len (uniq $directoryKeyIds)) }}
+{{- fail (printf "directory.keys holds two keys with the same id: each remote key's id differs from every other key's in the ring, compared without case, and from %s when pemSecret is set." .Values.directory.keyRing) }}
+{{- end }}
+{{- end }}
 {{- if and (eq .Values.tenantResolution.strategyCode "StaticSingle") (not .Values.tenantResolution.staticSingle.issuer) }}
 {{- fail "tenantResolution.staticSingle.issuer must be the public issuer URL." }}
 {{- end }}
@@ -235,7 +365,7 @@ applied. Rendered for its side effect only.
 {{- if and (eq .Values.secretProtection.rootKeyProvider "aws-kms") (not .Values.secretProtection.awsKms.keyArn) }}
 {{- fail "secretProtection.awsKms.keyArn must name the KMS key or alias that holds the root key." }}
 {{- end }}
-{{- if and (eq .Values.secretProtection.rootKeyProvider "aws-kms") .Values.secretProtection.awsKms.keyArn (not (regexMatch "^arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:(key/[A-Za-z0-9-]+|alias/[A-Za-z0-9/_-]+)$" .Values.secretProtection.awsKms.keyArn)) }}
+{{- if and (eq .Values.secretProtection.rootKeyProvider "aws-kms") .Values.secretProtection.awsKms.keyArn (not (regexMatch (include "identity-host.awsKmsArnPattern" .) .Values.secretProtection.awsKms.keyArn)) }}
 {{- fail "secretProtection.awsKms.keyArn must be the ARN of a KMS key or alias, such as arn:aws:kms:us-west-2:111122223333:alias/ncode-identity-root." }}
 {{- end }}
 {{- if eq .Values.secretProtection.rootKeyProvider "azure-key-vault" }}
@@ -258,10 +388,6 @@ applied. Rendered for its side effect only.
 {{- fail (printf "secretProtection.remoteKeyProviders.%s.%s is set and %s.enabled is false: set enabled to register the provider, or clear %s." $vendor $location $vendor $location) }}
 {{- end }}
 {{- end }}
-{{- $createsKeys := or (and $remoteKeyProviders.awsKms.enabled $remoteKeyProviders.awsKms.region) (and $remoteKeyProviders.azureKeyVault.enabled $remoteKeyProviders.azureKeyVault.vaultUri) (and $remoteKeyProviders.googleCloudKms.enabled $remoteKeyProviders.googleCloudKms.keyRing) }}
-{{- if and $createsKeys (not .Values.secretProtection.remoteKeys.deployment) }}
-{{- fail "secretProtection.remoteKeys.deployment must name this deployment when an enabled remote key provider creates keys, because its region, vaultUri or keyRing is set: lowercase letters, digits and hyphens." }}
-{{- end }}
 {{- if .Values.secretProtection.rewrapJob.enabled }}
 {{- if and (eq .Values.secretProtection.rewrapJob.command "rewrap-recovery") (not .Values.secretProtection.recovery.publicKeyConfigMap) }}
 {{- fail "secretProtection.rewrapJob.command rewrap-recovery replaces the recovery copies, so secretProtection.recovery.publicKeyConfigMap must name the recovery public key ConfigMap." }}
@@ -269,6 +395,9 @@ applied. Rendered for its side effect only.
 {{- end }}
 {{- if and .Values.setup.token.existingSecret (not .Values.setup.token.key) }}
 {{- fail "setup.token.key must name the key that holds the setup token in setup.token.existingSecret." }}
+{{- end }}
+{{- if and .Values.setup.job.enabled (not .Values.cell.isControlPlane) }}
+{{- fail "setup.job.enabled requires cell.isControlPlane: setup runs in the control-plane cell only." }}
 {{- end }}
 {{- if and .Values.setup.job.enabled (not .Values.setup.job.existingSecret) }}
 {{- fail "setup.job.existingSecret must name the Secret holding the root administrator's user name and password when setup.job.enabled is true." }}
@@ -555,6 +684,29 @@ values path of the identity values, such as secretProtection, as path.
 {{- end }}
 
 {{/*
+The OpenTelemetry environment of every container the chart runs: the collector's endpoint when one is set, and the
+cell's identity as resource attributes.
+*/}}
+{{- define "identity-host.telemetryEnv" -}}
+{{- with .Values.telemetry.otlpEndpoint }}
+- name: OTEL_EXPORTER_OTLP_ENDPOINT
+  value: {{ . | quote }}
+{{- end }}
+- name: OTEL_RESOURCE_ATTRIBUTES
+  value: {{ printf "cell.name=%s,cell.region=%s" .Values.cell.name .Values.cell.region | quote }}
+{{- end }}
+
+{{/*
+The pod annotation that names where the cell's backups are kept, for the pods that own a database: those of the host,
+the directory and their migration Jobs. Renders nothing when backup.location is empty.
+*/}}
+{{- define "identity-host.backupAnnotations" -}}
+{{- with .Values.backup.location }}
+ncode.io/backup-location: {{ . | quote }}
+{{- end }}
+{{- end }}
+
+{{/*
 The environment of the host container, which the Deployment and the secret protection Job share, so a Job reads the
 same configuration the pods it rewraps keys for read.
 */}}
@@ -566,6 +718,27 @@ same configuration the pods it rewraps keys for read.
   value: {{ .Values.environment | quote }}
 - name: AllowedHosts
   value: {{ join ";" .Values.allowedHosts | quote }}
+- name: Cell__Name
+  value: {{ .Values.cell.name | quote }}
+- name: Cell__Region
+  value: {{ .Values.cell.region | quote }}
+- name: Cell__Kind
+  value: {{ .Values.cell.kind | quote }}
+{{- range $index, $cloudRegion := .Values.cell.cloudRegions }}
+- name: Cell__CloudRegions__{{ $index }}
+  value: {{ $cloudRegion | quote }}
+{{- end }}
+{{- with .Values.cell.managementUrl }}
+- name: Cell__ManagementUrl
+  value: {{ . | quote }}
+{{- end }}
+- name: Cell__IsControlPlane
+  value: {{ .Values.cell.isControlPlane | quote }}
+{{- with .Values.cell.controlPlaneIssuer }}
+- name: Cell__ControlPlane__Issuer
+  value: {{ . | quote }}
+{{- end }}
+{{ include "identity-host.telemetryEnv" . | trim }}
 - name: OpenId__TenantResolution__StrategyCode
   value: {{ .Values.tenantResolution.strategyCode | quote }}
 {{- with .Values.tenantResolution.staticSingle.issuer }}
@@ -650,16 +823,12 @@ same configuration the pods it rewraps keys for read.
   value: {{ $remoteKeyProviders.googleCloudKms.hardwareProtected | quote }}
 {{- end }}
 {{- $remoteKeys := .Values.secretProtection.remoteKeys }}
-{{- with $remoteKeys.deployment }}
-- name: SecretProtection__RemoteKeys__Deployment
-  value: {{ . | quote }}
 - name: SecretProtection__RemoteKeys__SweepEnabled
   value: {{ $remoteKeys.sweepEnabled | quote }}
 - name: SecretProtection__RemoteKeys__SweepInterval
   value: {{ $remoteKeys.sweepInterval | quote }}
 - name: SecretProtection__RemoteKeys__SweepGracePeriod
   value: {{ $remoteKeys.sweepGracePeriod | quote }}
-{{- end }}
 {{- if .Values.secretProtection.recovery.publicKeyConfigMap }}
 - name: SecretProtection__Recovery__PublicKeyPath
   value: {{ printf "%s/recovery/recovery-public.pem" $secretProtectionRoot }}
@@ -678,7 +847,48 @@ same configuration the pods it rewraps keys for read.
 {{- end }}
 
 {{/*
-The volume mounts of the host container, which the Deployment and the secret protection Job share.
+The environment of the cell's directory client, which only the Deployment carries: the setup and secret-protection
+Jobs run the host's offline commands, which never call the directory, so neither holds the client's settings or key.
+*/}}
+{{- define "identity-host.directoryClientEnv" -}}
+{{- $directory := .Values.directory }}
+{{- if $directory.url }}
+- name: Directory__Url
+  value: {{ $directory.url | quote }}
+{{- with $directory.clientId }}
+- name: Directory__ClientId
+  value: {{ . | quote }}
+{{- end }}
+{{- with $directory.keyRing }}
+- name: Directory__KeyRing
+  value: {{ . | quote }}
+{{- end }}
+{{- if $directory.keys.pemSecret }}
+- name: {{ printf "KeyRings__%s__PemFiles__0" $directory.keyRing }}
+  value: {{ printf "/etc/ncode-identity/directory-key/%s.pem" $directory.keyRing | quote }}
+{{- end }}
+{{- range $kid, $key := $directory.keys.remoteKeys }}
+{{- $prefix := printf "KeyRings__%s__RemoteKeys__%s" $directory.keyRing $kid }}
+- name: {{ $prefix }}__Provider
+  value: {{ $key.provider | quote }}
+- name: {{ $prefix }}__KeyId
+  value: {{ $key.keyId | quote }}
+- name: {{ $prefix }}__Algorithm
+  value: {{ $key.algorithm | quote }}
+- name: {{ $prefix }}__SecretType
+  value: {{ $key.secretType | quote }}
+- name: {{ $prefix }}__KeySizeBits
+  value: {{ $key.keySizeBits | quote }}
+{{- with $key.curve }}
+- name: {{ $prefix }}__Curve
+  value: {{ . | quote }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+The volume mounts of the host container, which the Deployment and the host's Jobs share.
 */}}
 {{- define "identity-host.hostVolumeMounts" -}}
 {{- $secretProtectionRoot := "/etc/ncode-identity/secret-protection" }}
@@ -708,7 +918,18 @@ The volume mounts of the host container, which the Deployment and the secret pro
 {{- end }}
 
 {{/*
-The volumes of the host pod, which the Deployment and the secret protection Job share.
+The volume mount of the directory client's key, which only the Deployment carries.
+*/}}
+{{- define "identity-host.directoryClientVolumeMounts" -}}
+{{- if and .Values.directory.url .Values.directory.keys.pemSecret }}
+- name: directory-key
+  mountPath: /etc/ncode-identity/directory-key
+  readOnly: true
+{{- end }}
+{{- end }}
+
+{{/*
+The volumes of the host pod, which the Deployment and the host's Jobs share.
 */}}
 {{- define "identity-host.hostVolumes" -}}
 {{- $credentials := include "identity-host.kmsCredentials.server" . | fromYaml }}
@@ -736,6 +957,21 @@ The volumes of the host pod, which the Deployment and the secret protection Job 
 {{- end }}
 {{- with .Values.extraVolumes }}
 {{- toYaml . | nindent 0 }}
+{{- end }}
+{{- end }}
+
+{{/*
+The volume of the directory client's key, which only the Deployment carries.
+*/}}
+{{- define "identity-host.directoryClientVolumes" -}}
+{{- if and .Values.directory.url .Values.directory.keys.pemSecret }}
+- name: directory-key
+  secret:
+    secretName: {{ .Values.directory.keys.pemSecret }}
+    items:
+      - key: {{ printf "%s.pem" .Values.directory.keyRing }}
+        path: {{ printf "%s.pem" .Values.directory.keyRing }}
+    defaultMode: 0440
 {{- end }}
 {{- end }}
 
@@ -886,19 +1122,7 @@ is applied. Rendered for its side effect only.
 {{- range $kid, $key := $keyRing.remoteKeys }}
 {{- $ids = append $ids (lower $kid) }}
 {{- $path := printf "managementConsole.keyRings.%s.remoteKeys.%s.keyId" $ring $kid }}
-{{- if eq $key.provider "aws-kms" }}
-{{- if not (regexMatch "^arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:(key/[A-Za-z0-9-]+|alias/[A-Za-z0-9/_-]+)$" $key.keyId) }}
-{{- fail (printf "%s must be the ARN of an AWS KMS key or alias, such as arn:aws:kms:us-west-2:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab." $path) }}
-{{- end }}
-{{- else if eq $key.provider "azure-key-vault" }}
-{{- if not (regexMatch "^https://[A-Za-z0-9-]+([.][A-Za-z0-9-]+)+/keys/[A-Za-z0-9-]{1,127}/[A-Za-z0-9]{32}$" $key.keyId) }}
-{{- fail (printf "%s must be the identifier of a Key Vault or Managed HSM key version, such as https://contoso.vault.azure.net/keys/mgmt-client/0123456789abcdef0123456789abcdef." $path) }}
-{{- end }}
-{{- else if eq $key.provider "google-cloud-kms" }}
-{{- if not (regexMatch "^projects/[a-z0-9.:-]+/locations/[a-z0-9-]+/keyRings/[A-Za-z0-9_-]{1,63}/cryptoKeys/[A-Za-z0-9_-]{1,63}/cryptoKeyVersions/[0-9]{1,19}$" $key.keyId) }}
-{{- fail (printf "%s must be the resource name of a Cloud KMS crypto key version, such as projects/my-project/locations/us-central1/keyRings/ncode-identity-console/cryptoKeys/mgmt-client/cryptoKeyVersions/1." $path) }}
-{{- end }}
-{{- end }}
+{{- include "identity-host.remoteKeyIdValidate" (dict "path" $path "provider" $key.provider "keyId" $key.keyId "example" (dict "keyName" "mgmt-client" "keyRing" "ncode-identity-console")) }}
 {{- end }}
 {{- if ne (len $ids) (len (uniq $ids)) }}
 {{- fail (printf "managementConsole.keyRings.%s holds two keys with the same id: each remote key's id differs from every other key's in the ring, compared without case, and from mgmt-%s when pemSecret is set." $ring $ring) }}
@@ -936,16 +1160,16 @@ The environment of the management console container.
 - name: Bff__Frontends__mgmt__PublicOrigin
   value: {{ printf "https://%s" $console.host | quote }}
 {{- if $console.keyRings.client.pemSecret }}
-- name: Bff__KeyRings__mgmt-client__PemFiles__0
+- name: KeyRings__mgmt-client__PemFiles__0
   value: {{ printf "%s/client-key/mgmt-client.pem" $keyRoot | quote }}
 {{- end }}
 {{- if $console.keyRings.dpop.pemSecret }}
-- name: Bff__KeyRings__mgmt-dpop__PemFiles__0
+- name: KeyRings__mgmt-dpop__PemFiles__0
   value: {{ printf "%s/dpop-key/mgmt-dpop.pem" $keyRoot | quote }}
 {{- end }}
 {{- range $ring := list "client" "dpop" }}
 {{- range $kid, $key := (index $console.keyRings $ring).remoteKeys }}
-{{- $prefix := printf "Bff__KeyRings__mgmt-%s__RemoteKeys__%s" $ring $kid }}
+{{- $prefix := printf "KeyRings__mgmt-%s__RemoteKeys__%s" $ring $kid }}
 - name: {{ $prefix }}__Provider
   value: {{ $key.provider | quote }}
 - name: {{ $prefix }}__KeyId
@@ -973,5 +1197,116 @@ The environment of the management console container.
 {{- end }}
 {{- with $console.extraEnv }}
 {{- toYaml . | nindent 0 }}
+{{- end }}
+{{- end }}
+
+{{/*
+The fully qualified name of the directory's resources. The release's fully qualified name is shortened to 53
+characters first so the name, with its 10-character "-directory" suffix, fits the 63-character limit of a Service name
+(a DNS-1035 label).
+*/}}
+{{- define "identity-host.directory.fullname" -}}
+{{- printf "%s-directory" (include "identity-host.fullname" . | trunc 53 | trimSuffix "-") }}
+{{- end }}
+
+{{/*
+The name of the directory's migration Job. The fully qualified name is shortened first so the name, with its suffix, fits
+the 63-character label value Kubernetes copies it into (batch.kubernetes.io/job-name).
+*/}}
+{{- define "identity-host.directory.migrationsJobName" -}}
+{{- printf "%s-directory-migrations" (include "identity-host.fullname" . | trunc 40 | trimSuffix "-") }}
+{{- end }}
+
+{{/*
+The labels that select the directory's pods. The component keeps the migration Job's pod out of the Service.
+*/}}
+{{- define "identity-host.directory.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "identity-host.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: directory
+{{- end }}
+
+{{/*
+The labels every resource of the directory carries.
+*/}}
+{{- define "identity-host.directory.labels" -}}
+{{ include "identity-host.commonLabels" . }}
+app.kubernetes.io/component: directory
+{{- end }}
+
+{{/*
+The name of the directory's ServiceAccount.
+*/}}
+{{- define "identity-host.directory.serviceAccountName" -}}
+{{- if .Values.directory.serviceAccount.create }}
+{{- default (include "identity-host.directory.fullname" .) .Values.directory.serviceAccount.name }}
+{{- else }}
+{{- default "default" .Values.directory.serviceAccount.name }}
+{{- end }}
+{{- end }}
+
+{{/*
+The directory's container image: the digest when one is set, else the tag, which defaults to the chart's appVersion.
+*/}}
+{{- define "identity-host.directory.image" -}}
+{{- if .Values.directory.image.digest }}
+{{- printf "%s@%s" .Values.directory.image.repository .Values.directory.image.digest }}
+{{- else }}
+{{- printf "%s:%s" .Values.directory.image.repository (default .Chart.AppVersion .Values.directory.image.tag) }}
+{{- end }}
+{{- end }}
+
+{{/*
+The environment of the directory's Deployment container, which holds the runtime role's connection: the finished
+connection string (ConnectionStrings:directory) or the parts of a Postgres operator's Secret (DirectoryDatabase), as the
+OP's pods read theirs (ADR-1509). The migration Job sets its own environment and never receives that connection.
+*/}}
+{{- define "identity-host.directory.env" -}}
+{{- $directory := .Values.directory }}
+- name: ASPNETCORE_ENVIRONMENT
+  value: {{ .Values.environment | quote }}
+- name: AllowedHosts
+  value: {{ join ";" $directory.allowedHosts | quote }}
+- name: DirectoryServer__Issuer
+  value: {{ $directory.issuer | quote }}
+- name: DirectoryServer__ControlPlaneCell
+  value: {{ $directory.controlPlaneCell | quote }}
+{{ include "identity-host.databaseEnv" (dict "scope" $directory.database "defaults" $directory.database "connectionStringName" "directory" "sectionName" "DirectoryDatabase") | trim }}
+{{ include "identity-host.telemetryEnv" . | trim }}
+{{- with $directory.extraEnv }}
+{{- toYaml . | nindent 0 }}
+{{- end }}
+{{- end }}
+
+{{/*
+Refuses a directory the host would refuse, before anything is applied. Rendered for its side effect only.
+*/}}
+{{- define "identity-host.directory.validate" -}}
+{{- $directory := .Values.directory }}
+{{- if not $directory.allowedHosts }}
+{{- fail "directory.allowedHosts must list the host names the directory answers to when directory.enabled is true." }}
+{{- end }}
+{{- if has "*" $directory.allowedHosts }}
+{{- fail "directory.allowedHosts must not contain '*': it accepts every Host header." }}
+{{- end }}
+{{- if contains "*" (first $directory.allowedHosts) }}
+{{- fail "directory.allowedHosts must start with a concrete host that the probes can send: the first host is a wildcard." }}
+{{- end }}
+{{- if not $directory.issuer }}
+{{- fail "directory.issuer must be the issuer of the control-plane cell when directory.enabled is true: the directory accepts bearer tokens from it." }}
+{{- end }}
+{{- if not $directory.controlPlaneCell }}
+{{- fail "directory.controlPlaneCell must name the control-plane cell when directory.enabled is true: the directory takes platform and team writes only from it." }}
+{{- end }}
+{{- include "identity-host.databaseValidate" (dict "path" "directory.database" "scope" $directory.database "defaults" $directory.database "required" true "connectionStringName" "directory") }}
+{{- if not $directory.database.runtimeRole }}
+{{- fail "directory.database.runtimeRole must name the Postgres role the directory connects as when directory.enabled is true: the migration Job grants it access to the tables." }}
+{{- end }}
+{{- if not (regexMatch "^[a-z_][a-z0-9_]*$" $directory.database.runtimeRole) }}
+{{- fail "directory.database.runtimeRole must be a lower-case Postgres role name of letters, digits and underscores that does not start with a digit." }}
+{{- end }}
+{{- include "identity-host.databaseValidate" (dict "path" "directory.migrations.database" "scope" $directory.migrations.database "defaults" $directory.database "required" true "connectionStringName" "directory") }}
+{{- if not $directory.tls.existingSecret }}
+{{- fail "directory.tls.existingSecret must name the Secret holding the directory's serving certificate when directory.enabled is true: the directory serves HTTPS only." }}
 {{- end }}
 {{- end }}

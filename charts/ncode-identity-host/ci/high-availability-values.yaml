@@ -2,6 +2,10 @@
 replicaCount: 3
 image:
   digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+cell:
+  name: ci-high-availability
+  region: ci
+  isControlPlane: true
 allowedHosts:
   - id.example.com
   - id.example.org
@@ -13,6 +17,10 @@ forwardedHeaders:
     - 10.42.0.0/16
 database:
   existingSecret: identity-database
+  runtimeRole: ncode_identity_app
+migrations:
+  database:
+    existingSecret: identity-database-owner
 valkey:
   existingSecret: identity-valkey
 secretProtection:

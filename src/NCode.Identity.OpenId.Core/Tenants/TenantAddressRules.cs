@@ -22,16 +22,16 @@ internal static partial class TenantAddressRules
     /// Contains the requirement a tenant identifier must meet, phrased to complete a sentence such as "must be …".
     /// </summary>
     public const string TenantIdRequirement =
-        "1 to 63 lowercase letters, digits, or hyphens that starts and ends with a letter or digit, and is not api, "
+        "1 to 63 lowercase letters, digits, or hyphens that start and end with a letter or digit, and is not api, "
         + "bff, health, openapi, scalar or setup";
 
     /// <summary>
     /// Gets the requirement an issuer must meet, phrased to complete a sentence such as "must be …".
     /// </summary>
     public static string IssuerRequirement { get; } =
-        "an absolute https URL (http only for a loopback host) with no user information, query, fragment, or "
-        + $"whitespace, of at most {OpenIdMaxLengths.Issuer} characters, whose host name labels are each 1 to 63 "
-        + "characters";
+        "an absolute https URL (http only for a loopback host) written with its authority, with no user information, "
+        + $"query, fragment, or whitespace, of at most {OpenIdMaxLengths.Issuer} characters, whose host name is at "
+        + $"most {MaxHostLength} characters with labels of 1 to {MaxHostLabelLength} characters";
 
     /// <summary>
     /// Gets the requirement an issuer template must meet, phrased to complete a sentence such as "must be …".
@@ -77,7 +77,9 @@ internal static partial class TenantAddressRules
 
     /// <summary>
     /// Parses the specified issuer when it is <see cref="IssuerRequirement"/>, the form OpenID Connect Discovery and
-    /// RFC 8414 require of an issuer identifier.
+    /// RFC 8414 require of an issuer identifier: a service URL that <see cref="AbsoluteUri.TryParseServiceUrl"/>
+    /// accepts, of at most <see cref="OpenIdMaxLengths.Issuer"/> characters, whose host the cell can resolve and
+    /// certify.
     /// </summary>
     /// <param name="issuer">The issuer to parse.</param>
     /// <param name="issuerUri">When this method returns <see langword="true"/>, contains the parsed issuer.</param>
@@ -89,23 +91,17 @@ internal static partial class TenantAddressRules
     {
         issuerUri = null;
 
-        // The raw text is checked as well as the parsed URI: the parser trims whitespace and drops an empty query or
-        // fragment, so a value it accepts can still differ from the issuer clients must match byte for byte.
+        // The service-URL rule judges the text as written, so the issuer it accepts is the text clients match byte for
+        // byte; the length and host bounds are the cell's own: a host it cannot resolve or certify cannot be served.
         if (
             string.IsNullOrEmpty(issuer)
             || issuer.Length > OpenIdMaxLengths.Issuer
-            || issuer.AsSpan().IndexOfAny('?', '#') >= 0
-            || issuer.Any(char.IsWhiteSpace)
-            || !AbsoluteUri.TryParse(issuer, out var uri)
+            || !AbsoluteUri.TryParseServiceUrl(issuer, out var uri)
+            || !IsValidHost(uri)
         )
         {
             return false;
         }
-
-        var isAllowedScheme =
-            uri.Scheme == Uri.UriSchemeHttps || (uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback);
-        if (!isAllowedScheme || !string.IsNullOrEmpty(uri.UserInfo) || !IsValidHost(uri))
-            return false;
 
         issuerUri = uri;
         return true;

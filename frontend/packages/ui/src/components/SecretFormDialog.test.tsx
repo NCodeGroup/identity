@@ -354,8 +354,8 @@ describe('SecretFormDialog', () => {
     );
   });
 
-  // One algorithm name may serve several secret types, each with its own sizes (ADR-1389), such as ECDH-ES over EC
-  // and OKP keys; the key size is bounded by the chosen type's entry.
+  // One algorithm name may serve several secret types, each with its own sizes (ADR-1389), such as ECDH-ES over EC and
+  // OKP keys; the key size is bounded by the chosen type's entry.
   it.each([
     {
       secretType: 'ecc' as const,

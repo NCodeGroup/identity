@@ -30,8 +30,15 @@ internal sealed class MigrationWorker(
                         + "it or the 'OpenIdDatabase' parts; set one of them to run the worker another way."
                 );
 
+            var runtimeRole = HostDatabaseRuntimeRole.Resolve(configuration);
+
             logger.MigrationsApplying();
-            await MigrationRunner.MigrateAllAsync(serviceProvider, connectionString, stoppingToken);
+            await MigrationRunner.MigrateAllAsync(
+                serviceProvider,
+                connectionString,
+                runtimeRole,
+                stoppingToken
+            );
             logger.MigrationsApplied();
         }
         catch (Exception exception)

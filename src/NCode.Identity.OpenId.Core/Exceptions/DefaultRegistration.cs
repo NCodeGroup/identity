@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using JetBrains.Annotations;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NCode.Identity.Registration;
 
@@ -19,7 +18,6 @@ internal static class DefaultRegistration
         /// Configures services and handlers for OpenId Exception services.
         /// </summary>
         /// <returns>The <see cref="IServiceBuilder{T}"/> instance for method chaining.</returns>
-        [PublicAPI]
         public IServiceBuilder<OpenIdCoreLibrary> AddExceptionServices()
         {
             var serviceCollection = builder.ServiceCollection;

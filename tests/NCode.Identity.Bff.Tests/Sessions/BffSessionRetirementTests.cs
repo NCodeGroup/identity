@@ -74,7 +74,12 @@ public class BffSessionRetirementTests : BaseTests
 
     private void SetupFindClients(params BffSessionClient[] clients) =>
         Store
-            .Setup(x => x.FindClientsAsync(It.IsAny<CancellationToken>()))
+            .Setup(x =>
+                x.FindClientsAsync(
+                    It.IsAny<IReadOnlyCollection<BffSessionClient>>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
             .ReturnsAsync(clients)
             .Verifiable();
 
@@ -89,6 +94,12 @@ public class BffSessionRetirementTests : BaseTests
             .Setup(x => x.GetAsync(key, It.IsAny<CancellationToken>()))
             .ReturnsAsync(record)
             .Verifiable();
+
+    private void SetupForget(BffSessionClient client, string key) =>
+        Store
+            .Setup(x => x.ForgetEndedSessionAsync(client, key, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
 
     private void SetupAcquire(string frontend, BffRefreshLease? lease) =>
         Store
@@ -125,6 +136,25 @@ public class BffSessionRetirementTests : BaseTests
     public async Task RetireAsync_CurrentClient_EndsNothing()
     {
         SetupFindClients(CurrentClient);
+        var retirement = CreateRetirement();
+
+        Assert.True(await retirement.RetireAsync(CreateSet(), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task RetireAsync_Always_AsksTheStoreToLeaveOutTheClientsOfTheFrontends()
+    {
+        Store
+            .Setup(x =>
+                x.FindClientsAsync(
+                    It.Is<IReadOnlyCollection<BffSessionClient>>(except =>
+                        except.SequenceEqual(new[] { CurrentClient })
+                    ),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync([])
+            .Verifiable(Times.Once);
         var retirement = CreateRetirement();
 
         Assert.True(await retirement.RetireAsync(CreateSet(), CancellationToken.None));
@@ -204,7 +234,7 @@ public class BffSessionRetirementTests : BaseTests
     }
 
     [Fact]
-    public async Task RetireAsync_RecordAlreadyGone_SkipsIt()
+    public async Task RetireAsync_RecordAlreadyGone_ForgetsItsKeyAndEndsTheRest()
     {
         var client = CurrentClient with { Frontend = RemovedFrontend };
         var remaining = CreateMetadata(client);
@@ -213,12 +243,52 @@ public class BffSessionRetirementTests : BaseTests
         SetupAcquire(RemovedFrontend, lease);
         SetupFindByClient(client, "key-1", "key-2");
         SetupGet("key-1", null);
+        SetupForget(client, "key-1");
         SetupGet("key-2", CreateRecord("key-2", remaining));
         SetupEnd("key-2", remaining, BffSessionEndReasons.FrontendRemoved);
         SetupRelease(lease);
         var retirement = CreateRetirement();
 
         Assert.True(await retirement.RetireAsync(CreateSet(), CancellationToken.None));
+
+        Manager.Verify(
+            x =>
+                x.EndAsync(
+                    null,
+                    "key-1",
+                    It.IsAny<BffSessionMetadata>(),
+                    It.IsAny<string>(),
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Never
+        );
+    }
+
+    [Fact]
+    public async Task RetireAsync_ReadableRecord_EndsItAndDoesNotForgetIt()
+    {
+        var client = CurrentClient with { Frontend = RemovedFrontend };
+        var metadata = CreateMetadata(client);
+        var lease = new BffRefreshLease("retire:" + RemovedFrontend, "owner");
+        SetupFindClients(client);
+        SetupAcquire(RemovedFrontend, lease);
+        SetupFindByClient(client, "key-1");
+        SetupGet("key-1", CreateRecord("key-1", metadata));
+        SetupEnd("key-1", metadata, BffSessionEndReasons.FrontendRemoved);
+        SetupRelease(lease);
+        var retirement = CreateRetirement();
+
+        Assert.True(await retirement.RetireAsync(CreateSet(), CancellationToken.None));
+
+        Store.Verify(
+            x =>
+                x.ForgetEndedSessionAsync(
+                    It.IsAny<BffSessionClient>(),
+                    It.IsAny<string>(),
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Never
+        );
     }
 
     [Fact]
@@ -280,6 +350,87 @@ public class BffSessionRetirementTests : BaseTests
             record =>
                 record.Id.Id == EventIds.FrontendSessionRetirementFailed
                 && record.Exception is InvalidOperationException
+        );
+    }
+
+    [Fact]
+    public async Task RetireAsync_ReadingASessionFails_EndsTheOthersAndReportsIncomplete()
+    {
+        var client = CurrentClient with { Frontend = RemovedFrontend };
+        var second = CreateMetadata(client);
+        var lease = new BffRefreshLease("retire:" + RemovedFrontend, "owner");
+        var logger = new FakeLogger<BffSessionRetirement>();
+        SetupFindClients(client);
+        SetupAcquire(RemovedFrontend, lease);
+        SetupFindByClient(client, "key-1", "key-2");
+        Store
+            .Setup(x => x.GetAsync("key-1", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("The read failed."))
+            .Verifiable();
+        SetupGet("key-2", CreateRecord("key-2", second));
+        SetupEnd("key-2", second, BffSessionEndReasons.FrontendRemoved);
+        SetupRelease(lease);
+        var retirement = CreateRetirement(logger);
+
+        var complete = await retirement.RetireAsync(CreateSet(), CancellationToken.None);
+
+        Assert.False(complete);
+        Assert.Contains(
+            logger.Collector.GetSnapshot(),
+            record =>
+                record.Id.Id == EventIds.FrontendSessionRetirementFailed
+                && record.Exception is InvalidOperationException
+        );
+    }
+
+    [Fact]
+    public async Task RetireAsync_ForgettingASessionFails_EndsTheOthersAndReportsIncomplete()
+    {
+        var client = CurrentClient with { Frontend = RemovedFrontend };
+        var second = CreateMetadata(client);
+        var lease = new BffRefreshLease("retire:" + RemovedFrontend, "owner");
+        var logger = new FakeLogger<BffSessionRetirement>();
+        SetupFindClients(client);
+        SetupAcquire(RemovedFrontend, lease);
+        SetupFindByClient(client, "key-1", "key-2");
+        SetupGet("key-1", null);
+        Store
+            .Setup(x => x.ForgetEndedSessionAsync(client, "key-1", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("The forget failed."))
+            .Verifiable();
+        SetupGet("key-2", CreateRecord("key-2", second));
+        SetupEnd("key-2", second, BffSessionEndReasons.FrontendRemoved);
+        SetupRelease(lease);
+        var retirement = CreateRetirement(logger);
+
+        var complete = await retirement.RetireAsync(CreateSet(), CancellationToken.None);
+
+        Assert.False(complete);
+        Assert.Contains(
+            logger.Collector.GetSnapshot(),
+            record =>
+                record.Id.Id == EventIds.FrontendSessionRetirementFailed
+                && record.Exception is InvalidOperationException
+        );
+    }
+
+    [Fact]
+    public async Task RetireAsync_ReadingASessionIsUnavailable_Throws()
+    {
+        var client = CurrentClient with { Frontend = RemovedFrontend };
+        var lease = new BffRefreshLease("retire:" + RemovedFrontend, "owner");
+        SetupFindClients(client);
+        SetupAcquire(RemovedFrontend, lease);
+        SetupFindByClient(client, "key-1", "key-2");
+        Store
+            .Setup(x => x.GetAsync("key-1", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new BffStoreUnavailableException("The store is unavailable."))
+            .Verifiable();
+        SetupRelease(lease);
+        var retirement = CreateRetirement();
+
+        await Assert.ThrowsAsync<BffStoreUnavailableException>(async () =>
+            await retirement.RetireAsync(CreateSet(), CancellationToken.None)
         );
     }
 

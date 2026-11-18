@@ -8,7 +8,7 @@
 
 A setting that merges with a meet bounds every scope beneath the one that sets it: the platform's value caps a team's,
 a team's caps its tenants', and a tenant's caps its clients'
-([ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md)). The bound holds only
+([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)). The bound holds only
 while the scope that wrote it is the one that can change it. A node's administrators write the node's whole settings
 document, so a team's administrators raise or remove a `max_tenants` or a quota the platform wrote on the team, a
 tenant's owners do the same to the rate limits a team wrote on the tenant, and a client's owners do the same to the
@@ -102,7 +102,7 @@ change them.**
   counts enforced at the quota
 - [ADR-1257](1257-the-management-console-addresses-every-owners-secrets-settings-and-roles-through-one-owner-value.md)
   — the management console reaches every owner's secrets and settings through one endpoint per operation
-- [ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md) — the platform is the
+- [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md) — the platform is the
   deployment root and a team groups a customer's tenants
 - [ADR-1426](1426-a-team-can-nest-beneath-a-parent-team-and-its-subtree-is-walked-depth-first.md) — a team can nest beneath a parent team
 - `SettingDescriptor.IsLimit`, `ISettingSerializer.GetChangedLimits`, `ISettingSerializer.GetLimits`,

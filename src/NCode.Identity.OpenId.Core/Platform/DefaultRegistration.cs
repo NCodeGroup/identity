@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using IdGen;
-using JetBrains.Annotations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -24,7 +23,6 @@ internal static class DefaultRegistration
         /// Configures the platform services.
         /// </summary>
         /// <returns>The <see cref="IServiceBuilder{T}"/> instance for method chaining.</returns>
-        [PublicAPI]
         public IServiceBuilder<OpenIdCoreLibrary> AddPlatformServices()
         {
             var serviceCollection = builder.ServiceCollection;

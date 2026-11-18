@@ -109,6 +109,8 @@ public sealed class TenantStoreTenantScopingTests : IDisposable
     {
         await SeedAsync(CancellationToken.None);
 
+        using var scope = AmbientTenantAccessor.BeginUnscoped("test");
+
         var secret = await Store.GetSecretOrDefaultAsync(TenantB, SecretB, CancellationToken.None);
 
         Assert.NotNull(secret);
@@ -129,21 +131,67 @@ public sealed class TenantStoreTenantScopingTests : IDisposable
         Assert.Empty(tenantB.Secrets.Value);
     }
 
+    [Fact]
+    public async Task RemoveAsync_WhenTheScopeIsATenantScope_Throws()
+    {
+        await SeedAsync(CancellationToken.None);
+
+        using var scope = AmbientTenantAccessor.BeginScope(TenantA);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Store.RemoveAsync(TenantA, CancellationToken.None)
+        );
+
+        Assert.StartsWith("TenantStore.RemoveAsync reads across tenants", exception.Message);
+    }
+
+    [Fact]
+    public async Task RemoveFromCellAsync_WhenTheScopeIsATenantScope_Throws()
+    {
+        await SeedAsync(CancellationToken.None);
+
+        using var scope = AmbientTenantAccessor.BeginScope(TenantA);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Store.RemoveFromCellAsync(TenantA, CancellationToken.None)
+        );
+
+        Assert.StartsWith(
+            "TenantStore.RemoveFromCellAsync reads across tenants",
+            exception.Message
+        );
+    }
+
     private sealed class TestAmbientTenantAccessor : IAmbientTenantAccessor
     {
         public string? TenantId { get; set; }
 
         public bool IsScoped => TenantId is not null;
 
+        public bool IsUnscoped { get; private set; }
+
+        public string? UnscopedReason { get; private set; }
+
         public IDisposable BeginScope(string tenantId)
         {
             TenantId = tenantId;
-            return new NoopScope();
+            return new Scope(() => TenantId = null);
         }
 
-        private sealed class NoopScope : IDisposable
+        public IDisposable BeginUnscoped(string reason)
         {
-            public void Dispose() { }
+            IsUnscoped = true;
+            UnscopedReason = reason;
+            return new Scope(() =>
+            {
+                IsUnscoped = false;
+                UnscopedReason = null;
+            });
+        }
+
+        private sealed class Scope(Action restore) : IDisposable
+        {
+            public void Dispose() => restore();
         }
     }
 }

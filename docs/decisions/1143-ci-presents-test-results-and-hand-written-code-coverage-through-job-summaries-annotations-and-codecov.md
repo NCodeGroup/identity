@@ -82,9 +82,11 @@ summary and in Codecov alike.**
 9. **`[CompilerGenerated]` stays in scope.** The compiler marks async state machines, lambdas and iterators with it, so
    excluding it would drop hand-written bodies.
 10. **Hand-written code stays in scope wherever it lives.** The reference host and the host database project ship in the
-    image, so a low host figure reports a real gap. Assemblies that no test loads, such as the Aspire orchestrator,
-    never enter the report. Hand-written code in a project that also holds scaffolded migrations stays outside
-    `Migrations/` ([ADR-1073](1073-one-postgresql-database-holds-the-hosts-schema-and-key-ring-migrated-by-a-worker-and-drift-checked.md)).
+    image, so a low host figure reports a real gap. Assemblies that no test loads, such as the migration worker, never
+    enter the report. The local-development AppHost enters it, because its tests load it: its Aspire resource wiring,
+    the entry point that declares the resource graph included, carries `[ExcludeFromCodeCoverage]` like any registration
+    wiring. Hand-written code in a project that also holds scaffolded migrations stays outside `Migrations/`
+    ([ADR-1073](1073-one-postgresql-database-holds-the-hosts-schema-and-key-ring-migrated-by-a-worker-and-drift-checked.md)).
 11. **Codecov counts a partially covered line as a hit.** `codecov.yml` sets `parsers.cobertura.partials_as_hits`,
     matching ReportGenerator's line coverage, for both the .NET and the frontend uploads. Branch coverage stays in the
     report for the partial lines.

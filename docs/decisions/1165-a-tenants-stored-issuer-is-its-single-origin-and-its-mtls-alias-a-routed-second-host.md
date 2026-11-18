@@ -80,11 +80,16 @@ stored on the tenant.
 
 ### The hosted platform
 
-Changing a tenant's issuer changes the host the tenant answers on, as one operation. The hosted platform's templates are
-`https://{tenantId}.auth.<apex>`, `https://{tenantId}.mtls.<apex>` and, for the root tenant, `https://auth.<apex>`,
-which give the hostnames of
+Changing a tenant's issuer changes the host the tenant answers on, as one operation. A tenant's host carries the region
+label of the cell that hosts it. The hosted platform's templates are `https://{tenantId}.auth.{region}.ncodeid.net`,
+`https://{tenantId}.mtls.{region}.ncodeid.net` and, for the root tenant, `https://auth.ncodeid.net`, which give the
+hostnames of
 [ADR-1495](1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md).
-A custom domain is an explicit issuer. The frontend bootstrap `issuer` is the serving tenant's
+A cell's templates name its own region, so the stored issuer of every tenant carries the region label its data lives
+in. A move between cells of one region leaves the stored issuer unchanged, because both cells serve the same region
+label; the operator points the host at the target cell with an explicit DNS record.
+A tenant of a dedicated cell keeps its issuer the same way. A custom domain is an explicit issuer. The frontend
+bootstrap `issuer` is the serving tenant's
 ([ADR-1182](1182-the-frontend-bootstraps-issuer-is-the-serving-tenants-and-its-api-base-is-root-relative.md)).
 
 ## Options considered
@@ -118,6 +123,8 @@ A custom domain is an explicit issuer. The frontend bootstrap `issuer` is the se
   index lookup. Two tenants that come to hold the same host serve no request on it until an operator fixes one of them,
   and the next write to either tenant reports the conflict.
 - Moving a tenant to another host is a deliberate change of its issuer, which changes the `iss` of the tokens it issues.
+  A move between cells of one region is not that: the issuer is unchanged, and so is the `iss`. A move across regions is
+  a new tenant with its own issuer.
 - A strategy implements two defaults, the issuer and the alias, and the startup checks fail a template that a strategy
   cannot serve before the first request.
 

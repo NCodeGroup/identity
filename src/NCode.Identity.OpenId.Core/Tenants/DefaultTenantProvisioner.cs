@@ -1,9 +1,9 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Logging;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -66,6 +66,8 @@ internal sealed class DefaultTenantProvisioner(
             cancellationToken
         );
 
+        // The tenant is created, and judged against every other tenant's address, outside any tenant scope.
+        using var unscoped = AmbientTenantAccessor.BeginUnscoped("tenant provisioning");
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<ITenantStore>();
 
@@ -235,6 +237,8 @@ internal sealed class DefaultTenantProvisioner(
         CancellationToken cancellationToken
     )
     {
+        // The seed reads the tenant back before any tenant scope exists.
+        using var unscoped = AmbientTenantAccessor.BeginUnscoped("tenant lookup");
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<ITenantStore>();
         return await store.GetOrDefaultAsync(tenantId, cancellationToken);
@@ -252,7 +256,7 @@ internal sealed class DefaultTenantProvisioner(
         {
             TenantId = tenantId,
             ConcurrencyToken = Guid.NewGuid().ToString("N"),
-            Value = JsonSerializer.SerializeToElement(null, typeof(object)),
+            Value = JsonElements.EmptyObject,
         };
 
         var secrets = new PersistedTenantSecrets

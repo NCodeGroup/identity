@@ -16,6 +16,10 @@ customer integrates:
 - **The hostnames.** A tenant's issuer is the single authoritative origin of its tokens, discovery document and
   endpoint aliases ([ADR-1165](1165-a-tenants-stored-issuer-is-its-single-origin-and-its-mtls-alias-a-routed-second-host.md)). A tenant's relying
   parties pin the issuer string, and it is also the host the tenant is routed on, so the issuer hosts are permanent.
+- **Where a tenant's data lives.** The platform runs as cells, each in one region, and a tenant lives in exactly one
+  cell ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
+  A customer's data stays in the region its tenant is placed in, so a tenant's hostname names that region and resolves
+  to a cell of it.
 
 Further forces:
 
@@ -47,22 +51,40 @@ carries nothing else; a brand domain carries the site, docs, status page and ope
      host a customer tenant.
    - Platform environments and tenant environments never share a word: `dev`, `test` and `staging` name only
      customers' tenants, never a platform environment, host, tag or root.
-   - In a hostname a tenant is always the leftmost label (`acme-dev.auth.ncodeid.net`) and a platform environment
-     follows the function (`auth.lab.ncodeid.net`). A tenant's custom domain becomes its issuer, so it is chosen
-     before clients integrate.
+   - In a hostname a tenant is always the leftmost label (`acme-dev.auth.{region}.ncodeid.net`) and a platform
+     environment follows the function (`auth.lab.ncodeid.net`). A tenant's custom domain becomes its issuer, so it is
+     chosen before clients integrate.
 2. **The platform domain is `ncodeid.net`, and it is the only domain that carries an issuer.**
 
    | Host                                       | Serves                                                                      |
    | ------------------------------------------ | --------------------------------------------------------------------------- |
-   | `auth.ncodeid.net`                         | Root tenant issuer; the management API is `/api` on it                      |
-   | `{tenant}.auth.ncodeid.net`                | Workload tenant issuers, resolved by `DynamicByHost`                        |
-   | `mtls.` and `{tenant}.mtls.ncodeid.net`    | RFC 8705 mTLS aliases, the only hosts that request client certificates      |
+   | `auth.ncodeid.net`                         | Root tenant issuer and the control plane; the management API is `/api` on it |
+   | `{tenant}.auth.{region}.ncodeid.net`       | Workload tenant issuers of one region, resolved by `DynamicByHost`          |
+   | `mtls.ncodeid.net`                         | The root tenant's RFC 8705 mTLS alias                                       |
+   | `{tenant}.mtls.{region}.ncodeid.net`       | A workload tenant's RFC 8705 mTLS alias, the only hosts that request client certificates besides the root alias |
    | `manage.ncodeid.net`                       | The management console only ([ADR-1437](1437-the-management-console-is-a-confidential-client-whose-own-bff-host-serves-only-the-console.md)) |
    | `….lab.ncodeid.net`                        | Lab hosts, with `lab` after the function                                    |
    | `{run}.ci.ncodeid.net`                     | Ephemeral CI runs                                                           |
 
    The apex and `www.` of `ncodeid.net` are DNS-only records to the platform's ingress, which serves a 301 to
    `https://ncodeid.com` with a cert-manager Let's Encrypt certificate (HTTP-01) for those two hosts.
+
+   `{region}` is the region of the cell that hosts the tenant. The root issuer and the control plane sit at
+   `auth.ncodeid.net`, in the control-plane cell, and carry no region label.
+   - **Residency.** A tenant's data, keys and sessions stay in its cell's region
+     ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)),
+     and its regional hostname resolves to a cell of that region. A tenant created in another region is a new tenant
+     with a new issuer; a tenant never crosses regions. A cell's operational data stays in the region too: its
+     backups, logs, metrics and traces are written in the cell's region
+     ([ADR-1134](1134-the-platform-and-the-host-follow-written-cloud-native-operating-principles.md) point 14).
+     **Support access** to a tenant's data goes through its cell's management API, in that cell's region; interactive
+     access to a cell is break-glass only and audited (ADR-1134 point 1), and that audit record stays in the region.
+     Every **subprocessor** that processes a cell's data runs in that cell's region, and the customer-visible
+     subprocessor list names each one per region.
+   - **Explicit records.** A tenant of a dedicated cell, and a tenant that changes cell within its region, keep their
+     issuer through an explicit DNS record for its hostname
+     ([#755](https://github.com/NCodeGroup/identity/issues/755)). Custom domains are a separate decision
+     ([#756](https://github.com/NCodeGroup/identity/issues/756)).
 3. **The brand domain is `ncodeid.com`.** It carries the site and docs (apex and `www.`), `status.ncodeid.com`
    (UptimeRobot), the Email Routing addresses (`security@`, `platform@`, `postmaster@`, `abuse@` and per-vendor
    aliases) and the `security.txt` contact.
@@ -102,8 +124,12 @@ carries nothing else; a brand domain carries the site, docs, status page and ope
   ([ADR-1084](1084-the-playground-explores-the-recommended-flow-and-the-conformance-harness-measures-the-published-spec-surface.md)). Rejected for `lab`.
 - **Tenants directly under the apex.** A tenant name can collide with a service host (`www`, `manage`, `mtls`,
   `status`, `docs`), which needs a reserved-name list forever. Rejected.
+- **Tenants without a region label** (`{tenant}.auth.ncodeid.net` for every cell). The hostname would not say where a
+  tenant's data lives, and routing would need a lookup in the serving path. Rejected for the regional label.
+- **The region as part of the tenant label** (`{tenant}-{region}.auth.ncodeid.net`). A tenant name could collide with a
+  region suffix, and one wildcard could not cover a region. Rejected.
 - **mTLS aliases nested under the tenant** (`mtls.{tenant}.auth`). A wildcard covers one label, so every tenant would
-  need its own certificate. Rejected for the sibling `{tenant}.mtls`.
+  need its own certificate. Rejected for the sibling `{tenant}.mtls.{region}`.
 - **Path-based tenants on one host** (`DynamicByPath`). Tenants then share an origin and its cookies, the proxy cannot
   apply a per-tenant TLS policy, and custom domains do not fit. Rejected for the hosted platform; it stays a supported
   strategy for other deployments.
@@ -122,14 +148,16 @@ carries nothing else; a brand domain carries the site, docs, status page and ope
 
 ## Consequences
 
-- An issuer template reads `https://{tenantId}.auth.ncodeid.net`, and the root tenant's issuer is
+- An issuer template reads `https://{tenantId}.auth.{region}.ncodeid.net`, and the root tenant's issuer is
   `https://auth.ncodeid.net`.
 - Customers' load tests share production hardware, so per-tenant rate limits and quotas apply.
 - The lab differs from production (OKE Basic, arm64, in-cluster CloudNativePG), so each release is verified on the
   `canary` tenant before customers see it.
-- Each function gets one wildcard certificate.
-- A tenant can move to a dedicated deployment by DNS change without changing its issuer
-  ([ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md)).
+- Each function in each region gets one wildcard certificate.
+- A tenant's data stays in its cell's region, and its hostname names that region.
+- A tenant of a dedicated cell, or a tenant that changes cell within its region, keeps its issuer through an explicit
+  DNS record
+  ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
 - The bootstrap stack creates four zones, each with DNSSEC, a scoped token and its own records.
 - A change to the site, the docs or the mail records touches only the brand zone, never an issuer.
 - `platform@ncodeid.com` must exist as an Email Routing route, because the owner tag of every resource names it

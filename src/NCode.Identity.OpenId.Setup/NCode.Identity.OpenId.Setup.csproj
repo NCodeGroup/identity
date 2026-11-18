@@ -20,6 +20,7 @@
         <ProjectReference Include="..\NCode.Identity.Cryptography.Abstractions\NCode.Identity.Cryptography.Abstractions.csproj" />
         <ProjectReference Include="..\NCode.Identity.OpenId.Abstractions\NCode.Identity.OpenId.Abstractions.csproj" />
         <ProjectReference Include="..\NCode.Identity.OpenId.Accounts.Management.Abstractions\NCode.Identity.OpenId.Accounts.Management.Abstractions.csproj" />
+        <ProjectReference Include="..\NCode.Identity.OpenId.GlobalDirectory.Abstractions\NCode.Identity.OpenId.GlobalDirectory.Abstractions.csproj" />
         <ProjectReference Include="..\NCode.Identity.OpenId.Management.Abstractions\NCode.Identity.OpenId.Management.Abstractions.csproj" />
         <ProjectReference Include="..\NCode.Identity.OpenId.Persistence.Abstractions\NCode.Identity.OpenId.Persistence.Abstractions.csproj" />
         <ProjectReference Include="..\NCode.Identity.OpenId.Setup.Abstractions\NCode.Identity.OpenId.Setup.Abstractions.csproj" />

@@ -690,7 +690,6 @@ public class TeamManagementTests
 
     private static async ValueTask<HttpResponseMessage> PostPromotionAsync(
         HttpClient client,
-        string teamId,
         string route,
         string sourceTenantId,
         string targetTenantId,
@@ -698,11 +697,10 @@ public class TeamManagementTests
         CancellationToken cancellationToken
     ) =>
         await client.PostAsJsonAsync(
-            $"/api/teams/{teamId}/promotions{route}",
+            $"/api/tenants/{targetTenantId}/promotions{route}",
             new
             {
                 sourceTenantId,
-                targetTenantId,
                 environmentSettings = environmentSettings ?? Array.Empty<object>(),
             },
             cancellationToken
@@ -3378,7 +3376,6 @@ public class TeamManagementTests
 
         using var previewResponse = await PostPromotionAsync(
             administrator,
-            "acme",
             "/preview",
             "acme-dev",
             "acme-prod",
@@ -3433,7 +3430,6 @@ public class TeamManagementTests
 
         using var promoteResponse = await PostPromotionAsync(
             administrator,
-            "acme",
             string.Empty,
             "acme-dev",
             "acme-prod",
@@ -3505,7 +3501,6 @@ public class TeamManagementTests
 
         using var promoteResponse = await PostPromotionAsync(
             administrator,
-            "acme",
             string.Empty,
             "acme-dev",
             "acme-prod",
@@ -3516,7 +3511,6 @@ public class TeamManagementTests
 
         using var againResponse = await PostPromotionAsync(
             administrator,
-            "acme",
             string.Empty,
             "acme-dev",
             "acme-prod",
@@ -3551,7 +3545,6 @@ public class TeamManagementTests
 
         using var promoteResponse = await PostPromotionAsync(
             administrator,
-            "acme",
             string.Empty,
             "acme-dev",
             "acme-prod",
@@ -3607,7 +3600,6 @@ public class TeamManagementTests
         {
             using var response = await PostPromotionAsync(
                 owner,
-                "acme",
                 route,
                 "acme-dev",
                 "acme-prod",
@@ -3632,7 +3624,6 @@ public class TeamManagementTests
 
         using var response = await PostPromotionAsync(
             administrator,
-            "acme",
             string.Empty,
             "acme-dev",
             "beta-prod",
@@ -3693,7 +3684,6 @@ public class TeamManagementTests
         {
             using var refused = await PostPromotionAsync(
                 tenantAdmin,
-                "acme",
                 route,
                 "acme-dev",
                 "acme-prod",
@@ -3711,7 +3701,6 @@ public class TeamManagementTests
 
         using var allowed = await PostPromotionAsync(
             administrator,
-            "acme",
             string.Empty,
             "acme-dev",
             "acme-prod",
@@ -3750,7 +3739,6 @@ public class TeamManagementTests
 
         using var response = await PostPromotionAsync(
             administrator,
-            teamId,
             "/preview",
             RootTenantId,
             "root-staging",
@@ -3759,7 +3747,7 @@ public class TeamManagementTests
         );
 
         var preview = await ReadPromotionAsync(response, HttpStatusCode.OK, CancellationToken.None);
-        Assert.True(
+        Assert.False(
             HasNote(preview, BootstrapAdminApplicationFactory.ClientId, "host_managed"),
             preview.ToString()
         );
@@ -4441,7 +4429,6 @@ public class TeamManagementTests
 
         using var response = await PostPromotionAsync(
             parentAdmin,
-            "globex-web",
             "/preview",
             "globex-web-dev",
             "globex-web-prod",
@@ -4450,48 +4437,6 @@ public class TeamManagementTests
         );
 
         await ReadPromotionAsync(response, HttpStatusCode.OK, CancellationToken.None);
-    }
-
-    [Fact]
-    public async Task NestedTeam_PromotingAChildTeamsTenantsThroughItsParent_ReturnsNotFound()
-    {
-        using var factory = CreateFactory();
-        using var administrator = await factory.CreateAdministratorClientAsync(
-            CancellationToken.None
-        );
-        await CreateTeamAsync(administrator, "globex", new { }, CancellationToken.None);
-        await CreateChildTeamAsync(
-            administrator,
-            "globex",
-            "globex-web",
-            new { },
-            CancellationToken.None
-        );
-        await CreateTenantAsync(
-            administrator,
-            "globex-web",
-            "globex-web-dev",
-            CancellationToken.None
-        );
-        await CreateTenantAsync(
-            administrator,
-            "globex-web",
-            "globex-web-prod",
-            CancellationToken.None
-        );
-
-        using var response = await PostPromotionAsync(
-            administrator,
-            "globex",
-            "/preview",
-            "globex-web-dev",
-            "globex-web-prod",
-            environmentSettings: null,
-            CancellationToken.None
-        );
-
-        var body = await response.Content.ReadAsStringAsync();
-        Assert.True(response.StatusCode == HttpStatusCode.NotFound, body);
     }
 
     #endregion

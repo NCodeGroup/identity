@@ -17,6 +17,10 @@ namespace NCode.Identity.Bff.Sessions;
 /// next run. The pass decides from each record's own metadata and ends the session without any request to the
 /// provider.
 /// </para>
+/// <para>
+/// The pass names the clients that its frontends are configured as to the store, which skips them without reading their
+/// sessions, so a pass over a set that matches the store reads only the client index.
+/// </para>
 /// </remarks>
 // See ADR-1443.
 internal class BffSessionRetirement(
@@ -27,7 +31,8 @@ internal class BffSessionRetirement(
 )
 {
     /// <summary>
-    /// Ends the stored sessions of the frontends that the set removed or configured as another client.
+    /// Ends the stored sessions of the frontends that the set removed or configured as another client, and forgets the
+    /// key of a session whose record is already gone, so a later pass does not read it again.
     /// </summary>
     /// <param name="frontends">The set of frontends that the BFF serves.</param>
     /// <param name="cancellationToken">The token to cancel the pass.</param>
@@ -44,7 +49,8 @@ internal class BffSessionRetirement(
         ArgumentNullException.ThrowIfNull(frontends);
 
         var complete = true;
-        var clients = await store.FindClientsAsync(cancellationToken);
+        BffSessionClient[] configuredClients = [.. frontends.Frontends.Select(x => x.Client)];
+        var clients = await store.FindClientsAsync(configuredClients, cancellationToken);
         var groups = clients.GroupBy(x => x.Frontend, StringComparer.Ordinal);
         foreach (var group in groups)
         {
@@ -60,9 +66,11 @@ internal class BffSessionRetirement(
             if (stale.Count == 0)
                 continue;
 
+            var leaseExpiresWhen =
+                timeProvider.GetUtcNow() + frontends.Options.SessionRetirement.LeaseDuration;
             var lease = await store.TryAcquireRefreshLeaseAsync(
                 "retire:" + frontend,
-                timeProvider.GetUtcNow() + frontends.Options.SessionRetirement.LeaseDuration,
+                leaseExpiresWhen,
                 cancellationToken
             );
             if (lease is null)
@@ -100,18 +108,9 @@ internal class BffSessionRetirement(
         var keys = await store.FindByClientAsync(client, cancellationToken);
         foreach (var key in keys)
         {
-            var record = await store.GetAsync(key, cancellationToken);
-            if (record is null)
-                continue;
-
-            var metadata = record.Metadata;
-            var recordReason = GetEndReason(metadata.Client, frontends);
-            if (recordReason is null)
-                continue;
-
             try
             {
-                if (await sessions.EndAsync(null, key, metadata, recordReason, cancellationToken))
+                if (await RetireSessionAsync(client, key, frontends, cancellationToken))
                     ++count;
             }
             catch (Exception exception)
@@ -119,7 +118,7 @@ internal class BffSessionRetirement(
                     && !cancellationToken.IsCancellationRequested
                 )
             {
-                logger.FrontendSessionRetirementFailed(exception, client.Frontend, recordReason);
+                logger.FrontendSessionRetirementFailed(exception, client.Frontend, reason);
                 complete = false;
             }
         }
@@ -128,6 +127,37 @@ internal class BffSessionRetirement(
             logger.FrontendSessionsEnded(count, client.Frontend, reason);
 
         return complete;
+    }
+
+    /// <summary>
+    /// Ends the session stored under the key when its record names a frontend the set removed or configures as another
+    /// client, and forgets the key when the record is gone.
+    /// </summary>
+    /// <param name="client">The client whose index lists the key.</param>
+    /// <param name="key">The store key of the session.</param>
+    /// <param name="frontends">The set of frontends that the BFF serves.</param>
+    /// <param name="cancellationToken">The token to cancel the pass.</param>
+    /// <returns>
+    /// <see langword="true"/> when this call ended the session; otherwise, <see langword="false"/>.
+    /// </returns>
+    private async ValueTask<bool> RetireSessionAsync(
+        BffSessionClient client,
+        string key,
+        BffFrontendSet frontends,
+        CancellationToken cancellationToken
+    )
+    {
+        var record = await store.GetAsync(key, cancellationToken);
+        if (record is null)
+        {
+            await store.ForgetEndedSessionAsync(client, key, cancellationToken);
+            return false;
+        }
+
+        var metadata = record.Metadata;
+        var recordReason = GetEndReason(metadata.Client, frontends);
+        return recordReason is not null
+            && await sessions.EndAsync(null, key, metadata, recordReason, cancellationToken);
     }
 
     private static string? GetEndReason(BffSessionClient client, BffFrontendSet frontends)

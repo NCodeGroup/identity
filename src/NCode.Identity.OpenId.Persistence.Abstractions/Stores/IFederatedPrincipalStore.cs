@@ -46,8 +46,9 @@ public interface IFederatedPrincipalStore : IStore
     );
 
     /// <summary>
-    /// Removes a federated principal from the store, together with every role assignment the principal holds,
-    /// ownership included, in every tenant, and the consents and grants of the principal in its tenant.
+    /// Removes a federated principal from the store, together with the consents and grants of the principal in its
+    /// tenant. The role assignments the principal holds, in every tenant, are removed with
+    /// <see cref="IRoleAssignmentStore.RemoveByPrincipalAsync"/>.
     /// </summary>
     /// <param name="principalId">The opaque identifier of the principal to remove.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>

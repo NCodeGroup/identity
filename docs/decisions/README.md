@@ -107,6 +107,7 @@ The records are grouped by area; within an area they are in number order.
 | [1502](./1502-code-a-self-hoster-could-use-is-public-and-identity-holds-the-products-and-platforms-decisions.md) | Code a self-hoster could use is public, and identity holds the product's and platform's decisions | Accepted |
 | [1503](./1503-http-logging-writes-a-body-only-for-an-endpoint-that-opts-in-and-never-for-one-that-carries-credentials.md) | HTTP logging writes a body only for an endpoint that opts in, and never for one that carries credentials | Accepted |
 | [1508](./1508-a-decision-record-is-rewritten-when-its-decision-changes-and-relates-only-to-template-records.md) | A decision record is rewritten when its decision changes and relates only to template records | Accepted |
+| [1515](./1515-doc-comments-fill-their-lines-to-120-columns-and-the-definition-of-done-checks-the-paragraphs-a-change-touches.md) | Doc comments fill their lines to 120 columns, and the Definition of Done checks the paragraphs a change touches | Accepted |
 
 ### Deployment and local development
 
@@ -120,7 +121,7 @@ The records are grouped by area; within an area they are in number order.
 | [1135](./1135-platform-resources-carry-one-stable-tag-set-and-provenance-comes-from-attestations-and-audit-logs.md) | Platform resources carry one stable tag set, and provenance comes from attestations and audit logs | Accepted |
 | [1180](./1180-each-host-contexts-migrations-run-before-the-rollout-and-only-expand-the-schema.md) | Each host context's migrations run before the rollout and only expand the schema | Accepted |
 | [1247](./1247-the-platform-master-key-protects-the-data-protection-ring-and-an-unreadable-key-stops-the-host.md) | The platform master key protects the Data Protection ring, and an unreadable key stops the host | Accepted |
-| [1248](./1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md) | The host and console images are chiseled, non-root, multi-arch, digest-pinned and log one-line JSON | Accepted |
+| [1248](./1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md) | The host, console and directory images are chiseled, non-root, multi-arch, digest-pinned and log one-line JSON | Accepted |
 | [1370](./1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md) | A host runs the deployment posture unless configured for local development, and always names its root key provider | Accepted |
 | [1430](./1430-end-to-end-suites-run-the-bff-in-real-browsers-against-a-containerized-keycloak-in-their-own-gate.md) | End-to-end suites run the BFF in real browsers against a containerized Keycloak in their own gate | Accepted |
 | [1456](./1456-the-hosts-map-their-health-probes-through-one-general-helper.md) | The hosts map their health probes through one general helper | Accepted |
@@ -129,7 +130,7 @@ The records are grouped by area; within an area they are in number order.
 | [1495](./1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md) | The hosted platform runs customer environments as tenants on production under the ncodeid.net platform domain | Accepted |
 | [1499](./1499-the-host-accepts-only-tls-1-2-and-1-3-with-aead-cipher-suites.md) | The host accepts only TLS 1.2 and 1.3 with AEAD cipher suites | Accepted |
 | [1504](./1504-the-hosts-serve-https-only-and-verify-their-certificate-at-startup.md) | The hosts serve HTTPS only and verify their certificate at startup | Accepted |
-| [1505](./1505-every-merge-to-main-publishes-the-host-image-the-console-image-the-chart-and-the-openapi-document-at-one-prerelease-version.md) | Every merge to main publishes the host image, the console image, the chart and the OpenAPI document at one prerelease version | Accepted |
+| [1505](./1505-every-merge-to-main-publishes-the-host-console-and-directory-images-the-chart-and-the-openapi-document-at-one-prerelease-version.md) | Every merge to main publishes the host, console and directory images, the chart and the OpenAPI document at one prerelease version | Accepted |
 | [1506](./1506-the-ingress-controller-holds-a-client-certificate-the-pods-can-require-and-never-read-as-an-end-clients.md) | The ingress controller holds a client certificate the pods can require and never read as an end client's | Accepted |
 | [1507](./1507-the-host-chart-routes-to-its-https-only-pods-through-gateway-api-a-traefik-ingress-or-the-operators-own-ingress.md) | The host chart routes to its HTTPS-only pods through Gateway API, a Traefik Ingress or the operator's own ingress | Accepted |
 | [1509](./1509-the-host-chart-passes-a-postgres-operators-secret-as-the-connections-parts-and-the-host-assembles-the-npgsql-connection.md) | The host chart passes a Postgres operator's Secret as the connection's parts, and the host assembles the Npgsql connection | Accepted |
@@ -172,9 +173,10 @@ The records are grouped by area; within an area they are in number order.
 | [1242](./1242-deferred-work-runs-through-a-replaceable-job-dispatch-port-with-a-concurrent-in-process-default.md) | Deferred work runs through a replaceable job-dispatch port with a concurrent in-process default | Accepted |
 | [1246](./1246-rate-limits-are-registered-descriptors-counted-in-a-shared-expiring-counter-set.md) | Rate limits are registered descriptors counted in a shared expiring counter set | Accepted |
 | [1351](./1351-work-that-follows-a-committed-change-runs-on-its-own-bounded-token.md) | Work that follows a committed change runs on its own bounded token | Accepted |
-| [1411](./1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md) | The platform is the deployment root, a team groups tenants, and tenants share one database | Accepted |
+| [1411](./1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md) | A platform is a global directory over independent cells, and a cell's tenants share one database | Accepted |
 | [1425](./1425-a-team-promotes-one-tenants-configuration-to-another-and-environment-bound-values-stay.md) | A team promotes one tenant's configuration to another, and environment-bound values stay | Accepted |
 | [1426](./1426-a-team-can-nest-beneath-a-parent-team-and-its-subtree-is-walked-depth-first.md) | A team can nest beneath a parent team, and its subtree is walked depth first | Accepted |
+| [1514](./1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md) | A tenant moves between cells of one region through an encrypted export and import | Accepted |
 
 ### Management API
 

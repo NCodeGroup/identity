@@ -15,12 +15,14 @@ using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.Environments;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Platform;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Teams;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.Collections;
+using NCode.Identity.Secrets.Keys;
 using NCode.Identity.Secrets.Persistence;
 using NCode.Identity.Secrets.Persistence.Protection;
 using NCode.Identity.Settings;
@@ -50,7 +52,8 @@ public sealed class DefaultOpenIdTenantFactoryTests
             mocks.Create<ISecretKeyCollectionProviderFactory>().Object,
             mocks.Create<ICollectionDataSourceFactory>().Object,
             mocks.Create<IEffectiveSettingsResolver>().Object,
-            teamProvider ?? mocks.Create<IOpenIdTeamProvider>().Object
+            teamProvider ?? mocks.Create<IOpenIdTeamProvider>().Object,
+            mocks.Create<IAmbientTenantAccessor>().Object
         );
 
     private static Mock<IOpenIdTeamProvider> CreateTeamProvider(
@@ -898,6 +901,87 @@ public sealed class DefaultOpenIdTenantFactoryTests
         mocks.Verify();
     }
 
+    [Fact]
+    public async Task GetTenantSecretsAsync_WhenTheSecretsRefresh_ReadsThemInTheTenantsScope()
+    {
+        var mocks = new MockRepository(MockBehavior.Strict);
+        var persistedTenant = CreatePersistedTenant("https://op.example/acme");
+        var tenantScope = CreateTenantScopeFixture(mocks);
+        tenantScope
+            .TenantStore.Setup(x => x.GetSecretsAsync("acme", It.IsAny<CancellationToken>()))
+            .Callback(() => Assert.True(tenantScope.IsScoped))
+            .ReturnsAsync(persistedTenant.Secrets)
+            .Verifiable();
+        var protector = mocks.Create<ISecretProtector>().Object;
+        var secretProtectorProvider = mocks.Create<ISecretProtectorProvider>();
+        secretProtectorProvider
+            .Setup(x =>
+                x.GetProtectorAsync(
+                    SecretOwner.ForTenant("acme"),
+                    It.IsAny<IReadOnlyCollection<string>>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(protector)
+            .Verifiable();
+        var secretSerializer = mocks.Create<ISecretSerializer>();
+        secretSerializer
+            .Setup(x => x.DeserializeSecrets(protector, persistedTenant.Secrets.Value))
+            .Returns([])
+            .Verifiable();
+
+        RefreshCollectionAsyncDelegate<SecretKey, PersistedTenant>? refresh = null;
+        var dataSource = mocks.Create<IAsyncDisposableCollectionDataSource<SecretKey>>();
+        var dataSourceFactory = mocks.Create<ICollectionDataSourceFactory>();
+        dataSourceFactory
+            .Setup(x =>
+                x.CreatePeriodicPolling<SecretKey, PersistedTenant>(
+                    persistedTenant,
+                    It.IsAny<IReadOnlyCollection<SecretKey>>(),
+                    It.IsAny<TimeSpan>(),
+                    It.IsAny<RefreshCollectionAsyncDelegate<SecretKey, PersistedTenant>>(),
+                    It.IsAny<HandleExceptionAsyncDelegate?>()
+                )
+            )
+            .Callback(
+                new InvocationAction(invocation =>
+                    refresh = (RefreshCollectionAsyncDelegate<SecretKey, PersistedTenant>?)
+                        invocation.Arguments[3]
+                )
+            )
+            .Returns(dataSource.Object)
+            .Verifiable();
+        var provider = mocks.Create<ISecretKeyCollectionProvider>();
+        provider.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
+        var providerFactory = mocks.Create<ISecretKeyCollectionProviderFactory>();
+        providerFactory
+            .Setup(x => x.Create(dataSource.Object, true))
+            .Returns(provider.Object)
+            .Verifiable();
+        var factory = new TestableTenantFactory(
+            mocks,
+            secretSerializer.Object,
+            secretProtectorProvider.Object,
+            collectionDataSourceFactory: dataSourceFactory.Object,
+            ambientTenantAccessor: tenantScope.AmbientTenantAccessor,
+            storeManagerFactory: tenantScope.StoreManagerFactory,
+            secretKeyCollectionProviderFactory: providerFactory.Object
+        );
+
+        var lease = await factory.InvokeGetTenantSecretsAsync(
+            persistedTenant,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(refresh);
+        var result = await refresh(persistedTenant, [], CancellationToken.None);
+
+        Assert.True(result.IsUnchanged);
+        Assert.False(tenantScope.IsScoped);
+        await lease.DisposeAsync();
+        mocks.Verify();
+    }
+
     #endregion
 
     #region GetTenantSettingsAsync Tests
@@ -970,6 +1054,61 @@ public sealed class DefaultOpenIdTenantFactoryTests
         mocks.Verify();
     }
 
+    [Fact]
+    public async Task GetTenantSettingsAsync_WhenTheSettingsRefresh_ReadsThemInTheTenantsScope()
+    {
+        var mocks = new MockRepository(MockBehavior.Strict);
+        var persistedTenant = CreatePersistedTenant("https://op.example/acme");
+        var tenantScope = CreateTenantScopeFixture(mocks);
+        tenantScope
+            .TenantStore.Setup(x => x.GetSettingsAsync("acme", It.IsAny<CancellationToken>()))
+            .Callback(() => Assert.True(tenantScope.IsScoped))
+            .ReturnsAsync(persistedTenant.Settings)
+            .Verifiable();
+        var parentCollection = mocks.Create<IReadOnlySettingCollection>();
+        var openIdTeam = CreateTeamWithSettings(mocks, parentCollection.Object);
+        var resolver = mocks.Create<IEffectiveSettingsResolver>();
+        resolver
+            .Setup(x =>
+                x.ReadScopeSettings(
+                    parentCollection.Object,
+                    OpenIdSettingScopes.Tenant,
+                    It.IsAny<JsonElement>()
+                )
+            )
+            .Returns([CreateEnvironmentNameSetting()])
+            .Verifiable();
+        var polling = new PollingCapture();
+        var factory = CreateSettingsFactory(
+            mocks,
+            resolver.Object,
+            [],
+            tenantScope.StoreManagerFactory,
+            tenantScope.AmbientTenantAccessor,
+            polling
+        );
+
+        var lease = await factory.InvokeGetTenantSettingsAsync(
+            Mock.Of<OpenIdEnvironment>(),
+            openIdTeam.Object,
+            persistedTenant,
+            CancellationToken.None
+        );
+
+        var refresh = Assert.IsAssignableFrom<Delegate>(polling.Refresh);
+        var pending = refresh.DynamicInvoke(
+            polling.State,
+            Array.Empty<Setting>(),
+            CancellationToken.None
+        );
+        var result = await Assert.IsType<ValueTask<RefreshCollectionResult<Setting>>>(pending);
+
+        Assert.True(result.IsUnchanged);
+        Assert.False(tenantScope.IsScoped);
+        await lease.DisposeAsync();
+        mocks.Verify();
+    }
+
     #endregion
 
     private static Setting CreateEnvironmentNameSetting() =>
@@ -998,7 +1137,10 @@ public sealed class DefaultOpenIdTenantFactoryTests
     private static TestableTenantFactory CreateSettingsFactory(
         MockRepository mocks,
         IEffectiveSettingsResolver resolver,
-        List<ICollectionDataSource<Setting>> capturedDataSources
+        List<ICollectionDataSource<Setting>> capturedDataSources,
+        IStoreManagerFactory? storeManagerFactory = null,
+        IAmbientTenantAccessor? ambientTenantAccessor = null,
+        PollingCapture? capturedPolling = null
     )
     {
         var pollingSource = mocks.Create<IAsyncDisposableCollectionDataSource<Setting>>();
@@ -1012,6 +1154,16 @@ public sealed class DefaultOpenIdTenantFactoryTests
                     It.IsAny<RefreshCollectionAsyncDelegate<Setting, It.IsAnyType>>(),
                     It.IsAny<HandleExceptionAsyncDelegate?>()
                 )
+            )
+            .Callback(
+                new InvocationAction(invocation =>
+                {
+                    if (capturedPolling is null)
+                        return;
+
+                    capturedPolling.State = invocation.Arguments[0];
+                    capturedPolling.Refresh = invocation.Arguments[3];
+                })
             )
             .Returns(pollingSource.Object)
             .Verifiable();
@@ -1032,8 +1184,41 @@ public sealed class DefaultOpenIdTenantFactoryTests
             mocks,
             effectiveSettingsResolver: resolver,
             settingCollectionProviderFactory: providerFactory.Object,
-            collectionDataSourceFactory: dataSourceFactory.Object
+            collectionDataSourceFactory: dataSourceFactory.Object,
+            ambientTenantAccessor: ambientTenantAccessor,
+            storeManagerFactory: storeManagerFactory
         );
+    }
+
+    private static TenantScopeFixture CreateTenantScopeFixture(MockRepository mocks)
+    {
+        var scope = mocks.Create<IDisposable>();
+        var accessor = mocks.Create<IAmbientTenantAccessor>();
+        var tenantStore = mocks.Create<ITenantStore>();
+        var storeManager = mocks.Create<IStoreManager>();
+        var storeManagerFactory = mocks.Create<IStoreManagerFactory>();
+        var fixture = new TenantScopeFixture(
+            storeManagerFactory.Object,
+            tenantStore,
+            accessor.Object
+        );
+
+        scope.Setup(x => x.Dispose()).Callback(() => fixture.IsScoped = false).Verifiable();
+        accessor
+            .Setup(x => x.BeginScope("acme"))
+            .Callback(() => fixture.IsScoped = true)
+            .Returns(scope.Object)
+            .Verifiable();
+        storeManagerFactory
+            .Setup(x => x.CreateAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(storeManager.Object)
+            .Verifiable();
+        storeManager
+            .Setup(x => x.GetStore<ITenantStore>())
+            .Returns(tenantStore.Object)
+            .Verifiable();
+        storeManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
+        return fixture;
     }
 
     private static DefaultHttpContext CreateHttpContext()
@@ -1051,6 +1236,24 @@ public sealed class DefaultOpenIdTenantFactoryTests
         string? issuer,
         string tenantId = "acme"
     ) => new PersistedTenantBuilder { TenantId = tenantId, Issuer = issuer }.Build();
+
+    private sealed class PollingCapture
+    {
+        public object? State { get; set; }
+        public object? Refresh { get; set; }
+    }
+
+    private sealed class TenantScopeFixture(
+        IStoreManagerFactory storeManagerFactory,
+        Mock<ITenantStore> tenantStore,
+        IAmbientTenantAccessor ambientTenantAccessor
+    )
+    {
+        public IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
+        public Mock<ITenantStore> TenantStore { get; } = tenantStore;
+        public IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
+        public bool IsScoped { get; set; }
+    }
 
     private sealed class LeaseTenantFactory(
         MockRepository mocks,
@@ -1070,7 +1273,8 @@ public sealed class DefaultOpenIdTenantFactoryTests
             mocks.Create<ISecretKeyCollectionProviderFactory>().Object,
             mocks.Create<ICollectionDataSourceFactory>().Object,
             mocks.Create<IEffectiveSettingsResolver>().Object,
-            teamProvider
+            teamProvider,
+            mocks.Create<IAmbientTenantAccessor>().Object
         )
     {
         protected override ValueTask<
@@ -1115,22 +1319,27 @@ public sealed class DefaultOpenIdTenantFactoryTests
         ISecretProtectorProvider? secretProtectorProvider = null,
         IEffectiveSettingsResolver? effectiveSettingsResolver = null,
         IReadOnlySettingCollectionProviderFactory? settingCollectionProviderFactory = null,
-        ICollectionDataSourceFactory? collectionDataSourceFactory = null
+        ICollectionDataSourceFactory? collectionDataSourceFactory = null,
+        IAmbientTenantAccessor? ambientTenantAccessor = null,
+        IStoreManagerFactory? storeManagerFactory = null,
+        ISecretKeyCollectionProviderFactory? secretKeyCollectionProviderFactory = null
     )
         : DefaultOpenIdTenantFactory(
             mocks.Create<ITenantResolver>().Object,
             Options.Create(new OpenIdOptions()),
-            mocks.Create<IStoreManagerFactory>().Object,
+            storeManagerFactory ?? mocks.Create<IStoreManagerFactory>().Object,
             mocks.Create<IOpenIdTenantCache>().Object,
             settingCollectionProviderFactory
                 ?? mocks.Create<IReadOnlySettingCollectionProviderFactory>().Object,
             mocks.Create<ISettingSerializer>().Object,
             secretSerializer ?? mocks.Create<ISecretSerializer>().Object,
             secretProtectorProvider ?? mocks.Create<ISecretProtectorProvider>().Object,
-            mocks.Create<ISecretKeyCollectionProviderFactory>().Object,
+            secretKeyCollectionProviderFactory
+                ?? mocks.Create<ISecretKeyCollectionProviderFactory>().Object,
             collectionDataSourceFactory ?? mocks.Create<ICollectionDataSourceFactory>().Object,
             effectiveSettingsResolver ?? mocks.Create<IEffectiveSettingsResolver>().Object,
-            mocks.Create<IOpenIdTeamProvider>().Object
+            mocks.Create<IOpenIdTeamProvider>().Object,
+            ambientTenantAccessor ?? mocks.Create<IAmbientTenantAccessor>().Object
         )
     {
         public ValueTask<

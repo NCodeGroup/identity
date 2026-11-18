@@ -39,6 +39,18 @@ internal sealed partial class AwsKmsRemoteKeyProviderOptionsValidator
         }
 
         if (
+            !string.IsNullOrEmpty(options.Region)
+            && options.AllowedRegions.Count > 0
+            && !options.AllowedRegions.Contains(options.Region, StringComparer.Ordinal)
+        )
+        {
+            failures ??= [];
+            failures.Add(
+                $"SecretProtection:RemoteKeyProviders:AwsKms:Region must be one of the allowed AWS regions: {string.Join(", ", options.AllowedRegions)}."
+            );
+        }
+
+        if (
             options.PendingWindowInDays
             is < MinimumPendingWindowInDays
                 or > MaximumPendingWindowInDays

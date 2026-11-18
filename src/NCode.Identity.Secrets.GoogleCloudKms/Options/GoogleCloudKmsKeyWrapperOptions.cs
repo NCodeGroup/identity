@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using JetBrains.Annotations;
+using NCode.Identity.Secrets.Options;
 
 namespace NCode.Identity.Secrets.GoogleCloudKms.Options;
 
@@ -25,4 +26,11 @@ public sealed class GoogleCloudKmsKeyWrapperOptions
     /// The service encrypts with the crypto key's primary version.
     /// </summary>
     public string? KeyName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Cloud KMS locations, such as <c>us-central1</c>, in which a key that a caller names may be
+    /// held. A key in any other location is refused. When it is empty, a key in any location is allowed. When
+    /// <see cref="KeyResidencyOptions.CloudRegions"/> names cloud regions, they replace this list.
+    /// </summary>
+    public List<string> AllowedLocations { get; set; } = [];
 }

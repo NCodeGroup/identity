@@ -10,32 +10,40 @@ import {
   TenantFormDialog,
   TenantPromotionDialog,
   TenantTable,
+  UnavailableCellsAlert,
   allTenantEnvironments,
   emptyTenantFormValues,
   isValidTenantId,
   matchesTenantEnvironment,
   tenantEnvironmentTypes,
   type TenantAddressInput,
+  type TenantCellOption,
   type TenantFormValues,
+  type TenantPromotionDialogRequest,
+  type TenantRow,
 } from '@ncode/ui';
-import type { PromoteTenantRequest, TenantPromotionResource, TenantResource } from '@ncode/api';
+import type { PromoteTenantRequest, TenantPromotionResource } from '@ncode/api';
 import {
   apiErrorMessage,
+  useAppSelector,
   useCreateTenantMutation,
   useDeleteTenantMutation,
   useGetNewTenantAddressQuery,
   useGetTenantAddressQuery,
+  useLazyGetTenantConfigurationQuery,
+  useListCellsQuery,
   useListTenantsQuery,
   usePreviewTenantPromotionMutation,
   usePromoteTenantMutation,
   useUpdateTenantMutation,
   type ApiError,
+  type CellTenantResource,
 } from '@ncode/store';
 
 export type TenantsPageProps = {
   /** The team whose tenants are listed and created. */
   readonly teamId: string;
-  readonly onOpenTenant: (tenantId: string) => void;
+  readonly onOpenTenant: (tenantId: string, cell?: string) => void;
   /**
    * How long the address must stay unchanged before it is previewed. Defaults to 300 ms so typing sends no burst of
    * requests; a test passes `0`.
@@ -47,20 +55,22 @@ type DialogState =
   | { readonly kind: 'none' }
   | { readonly kind: 'create' }
   | { readonly kind: 'promote' }
-  | { readonly kind: 'edit'; readonly tenant: TenantResource }
-  | { readonly kind: 'delete'; readonly tenant: TenantResource };
+  | { readonly kind: 'edit'; readonly tenant: CellTenantResource }
+  | { readonly kind: 'delete'; readonly tenant: CellTenantResource };
 
 const closed: DialogState = { kind: 'none' };
 
-/** How long the address must stay unchanged before it is previewed, so typing sends no burst of requests. */
+/**
+ * How long the address must stay unchanged before it is previewed, so typing sends no burst of requests.
+ */
 const defaultAddressPreviewDelayMs = 300;
 
 /** The status of a problem whose `errors` extension lists why a promotion cannot be applied. */
 const conflictStatus = 409;
 
 /**
- * The message of a failed promotion request: the problem's detail, followed by each error a `409` problem lists in
- * its `errors` extension.
+ * The message of a failed promotion request: the problem's detail, followed by each error a `409` problem lists in its
+ * `errors` extension.
  */
 function promotionErrorMessage(error: ApiError): string {
   const message = apiErrorMessage(error);
@@ -100,10 +110,10 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 }
 
 /**
- * Container: a team's tenant browser and CRUD surface. Wires the RTK Query tenant list and
- * mutations to the stateless {@link TenantTable}, {@link TenantEnvironmentFilter}, {@link TenantFormDialog},
- * and {@link ConfirmDialog}. Owns only dialog, filter, and error state; all persistence, cache invalidation, and error shaping come from the
- * store layer. Selecting a tenant crosses into that tenant's security boundary.
+ * Container: a team's tenant browser and CRUD surface. Wires the RTK Query tenant list and mutations to the stateless
+ * {@link TenantTable}, {@link TenantEnvironmentFilter}, {@link TenantFormDialog}, and {@link ConfirmDialog}. Owns only
+ * dialog, filter, and error state; all persistence, cache invalidation, and error shaping come from the store layer.
+ * Selecting a tenant crosses into that tenant's security boundary.
  */
 export function TenantsPage({
   teamId,
@@ -112,14 +122,33 @@ export function TenantsPage({
 }: TenantsPageProps) {
   const { data, isLoading, error } = useListTenantsQuery({ teamId });
   const tenants = data?.items ?? [];
+  const unavailableCells = data?.unavailableCells ?? [];
+
+  // The console forwards to the cells its bootstrap names; the platform's cell list supplies each one's region.
+  const runtime = useAppSelector((state) => state.config.runtime);
+  const cellNames = runtime?.kind === 'bff' ? (runtime.cells ?? []) : [];
+  const platformCells = useListCellsQuery(undefined, { skip: cellNames.length === 0 }).data ?? [];
+  const regionOf = (cell: string) => platformCells.find((c) => c.name === cell)?.region ?? null;
+  const cellOptions: TenantCellOption[] = cellNames.map((name) => ({
+    name,
+    region: regionOf(name),
+  }));
+  const controlPlaneCell = platformCells.find(
+    (c) => c.isControlPlane && cellNames.includes(c.name),
+  )?.name;
+
+  const rows: TenantRow[] = tenants.map(({ cell, ...tenant }) => ({
+    ...tenant,
+    ...(cell !== undefined && { cell: { name: cell, region: regionOf(cell) } }),
+  }));
 
   const [environmentFilter, setEnvironmentFilter] = useState(allTenantEnvironments);
-  const environmentTypes = tenantEnvironmentTypes(tenants);
+  const environmentTypes = tenantEnvironmentTypes(rows);
   // A filter whose type no listed tenant has any longer (its last tenant was deleted) shows every tenant.
   const activeEnvironment = environmentTypes.includes(environmentFilter)
     ? environmentFilter
     : allTenantEnvironments;
-  const visibleTenants = tenants.filter((tenant) =>
+  const visibleTenants = rows.filter((tenant) =>
     matchesTenantEnvironment(tenant, activeEnvironment),
   );
 
@@ -129,6 +158,8 @@ export function TenantsPage({
   const [previewPromotion, { isLoading: isPreviewingPromotion }] =
     usePreviewTenantPromotionMutation();
   const [promoteTenant, { isLoading: isPromoting }] = usePromoteTenantMutation();
+  const [getTenantConfiguration, { isFetching: isFetchingConfiguration }] =
+    useLazyGetTenantConfigurationQuery();
 
   const [dialog, setDialog] = useState<DialogState>(closed);
   const [formError, setFormError] = useState<string>();
@@ -149,16 +180,19 @@ export function TenantsPage({
     setPromotionError(undefined);
     setDialog({ kind: 'promote' });
   };
-  const openEdit = (tenantId: string) => {
-    const tenant = tenants.find((t) => t.tenantId === tenantId);
+  // A row names its tenant by id and cell, because two cells list one tenant while it moves between them.
+  const findTenant = (tenantId: string, cell: string | undefined) =>
+    tenants.find((tenant) => tenant.tenantId === tenantId && tenant.cell === cell);
+  const openEdit = (tenantId: string, cell: string | undefined) => {
+    const tenant = findTenant(tenantId, cell);
     if (!tenant) {
       return;
     }
     setFormError(undefined);
     setDialog({ kind: 'edit', tenant });
   };
-  const openDelete = (tenantId: string) => {
-    const tenant = tenants.find((t) => t.tenantId === tenantId);
+  const openDelete = (tenantId: string, cell: string | undefined) => {
+    const tenant = findTenant(tenantId, cell);
     if (!tenant) {
       return;
     }
@@ -176,11 +210,14 @@ export function TenantsPage({
           mtlsEndpointAliasAuthority: dialog.tenant.mtlsEndpointAliasAuthority ?? '',
           isDisabled: dialog.tenant.isDisabled,
         }
-      : emptyTenantFormValues;
+      : {
+          ...emptyTenantFormValues,
+          ...(controlPlaneCell !== undefined && { cell: controlPlaneCell }),
+        };
 
-  // The address is previewed against the server's own rules: for a new tenant through its team's route,
-  // always, and for an existing tenant through its own route, only when its issuer or mTLS endpoint alias
-  // changes, because the server judges an address only when it can change.
+  // The address is previewed against the server's own rules: for a new tenant through its team's route, always, and for
+  // an existing tenant through its own route, only when its issuer or mTLS endpoint alias changes, because the server
+  // judges an address only when it can change.
   const debouncedAddress = useDebouncedValue(addressInput, addressPreviewDelayMs);
   const isAddressUnchanged =
     dialog.kind === 'edit' &&
@@ -201,13 +238,23 @@ export function TenantsPage({
       : {}),
   };
   const newTenantPreview = useGetNewTenantAddressQuery(
-    { teamId, ...previewArgsInput },
+    {
+      teamId,
+      ...previewArgsInput,
+      cell: debouncedAddress?.cell ? debouncedAddress.cell : undefined,
+    },
     { skip: dialog.kind !== 'create' || !shouldPreview, refetchOnMountOrArgChange: true },
   );
-  const existingTenantPreview = useGetTenantAddressQuery(previewArgsInput, {
-    skip: dialog.kind !== 'edit' || !shouldPreview,
-    refetchOnMountOrArgChange: true,
-  });
+  const existingTenantPreview = useGetTenantAddressQuery(
+    {
+      ...previewArgsInput,
+      cell: dialog.kind === 'edit' ? dialog.tenant.cell : undefined,
+    },
+    {
+      skip: dialog.kind !== 'edit' || !shouldPreview,
+      refetchOnMountOrArgChange: true,
+    },
+  );
   const { data: preview, originalArgs: previewArgs } =
     dialog.kind === 'edit' ? existingTenantPreview : newTenantPreview;
 
@@ -218,7 +265,8 @@ export function TenantsPage({
     addressInput &&
     previewArgs?.tenantId === addressInput.tenantId &&
     (previewArgs.issuer ?? '') === addressInput.issuer &&
-    (previewArgs.mtlsEndpointAliasAuthority ?? '') === addressInput.mtlsEndpointAliasAuthority
+    (previewArgs.mtlsEndpointAliasAuthority ?? '') === addressInput.mtlsEndpointAliasAuthority &&
+    (dialog.kind === 'edit' || previewArgs.cell === addressInput.cell)
       ? preview
       : undefined;
 
@@ -231,6 +279,7 @@ export function TenantsPage({
       if (dialog.kind === 'create') {
         await createTenant({
           teamId,
+          cell: values.cell,
           body: {
             tenantId: values.tenantId,
             issuer,
@@ -244,6 +293,7 @@ export function TenantsPage({
         await updateTenant({
           teamId,
           tenantId: dialog.tenant.tenantId,
+          cell: dialog.tenant.cell,
           concurrencyToken: dialog.tenant.concurrencyToken,
           fields: {
             issuer,
@@ -265,26 +315,62 @@ export function TenantsPage({
     }
     setDeleteError(undefined);
     try {
-      await deleteTenant({ teamId, tenantId: dialog.tenant.tenantId }).unwrap();
+      await deleteTenant({
+        teamId,
+        tenantId: dialog.tenant.tenantId,
+        cell: dialog.tenant.cell,
+      }).unwrap();
       setDialog(closed);
     } catch (removeError) {
       setDeleteError(apiErrorMessage(removeError as ApiError));
     }
   };
 
-  const handlePreviewPromotion = async (body: PromoteTenantRequest) => {
+  /**
+   * The body of a promotion: within one cell the source is named, otherwise its configuration is exported from its own
+   * cell and carried inline, because the target's cell cannot read a tenant of another cell.
+   */
+  const promotionBody = async (
+    request: TenantPromotionDialogRequest,
+  ): Promise<PromoteTenantRequest> => {
+    const { sourceTenantId, sourceCell, targetCell, environmentSettings } = request;
+    if (sourceCell === targetCell) {
+      return { sourceTenantId, environmentSettings };
+    }
+    const source = await getTenantConfiguration({
+      tenantId: sourceTenantId,
+      cell: sourceCell,
+    }).unwrap();
+    return { source, environmentSettings };
+  };
+
+  const handlePreviewPromotion = async (request: TenantPromotionDialogRequest) => {
     setPromotionError(undefined);
     try {
-      setPromotionReport(await previewPromotion({ teamId, body }).unwrap());
+      const body = await promotionBody(request);
+      setPromotionReport(
+        await previewPromotion({
+          tenantId: request.targetTenantId,
+          body,
+          cell: request.targetCell,
+        }).unwrap(),
+      );
     } catch (previewError) {
       setPromotionError(promotionErrorMessage(previewError as ApiError));
     }
   };
 
-  const handlePromote = async (body: PromoteTenantRequest) => {
+  const handlePromote = async (request: TenantPromotionDialogRequest) => {
     setPromotionError(undefined);
     try {
-      setPromotionReport(await promoteTenant({ teamId, body }).unwrap());
+      const body = await promotionBody(request);
+      setPromotionReport(
+        await promoteTenant({
+          tenantId: request.targetTenantId,
+          body,
+          cell: request.targetCell,
+        }).unwrap(),
+      );
     } catch (promoteError) {
       setPromotionError(promotionErrorMessage(promoteError as ApiError));
     }
@@ -320,6 +406,7 @@ export function TenantsPage({
           </Button>
         </Box>
       </Box>
+      <UnavailableCellsAlert cells={unavailableCells} />
       <DataStateBoundary
         isLoading={isLoading}
         error={error ? 'Failed to load tenants.' : undefined}
@@ -328,6 +415,7 @@ export function TenantsPage({
       >
         <TenantTable
           tenants={visibleTenants}
+          showCell={cellNames.length > 0}
           onSelect={onOpenTenant}
           onEdit={openEdit}
           onDelete={openDelete}
@@ -340,6 +428,7 @@ export function TenantsPage({
         submitLabel={dialog.kind === 'edit' ? 'Save' : 'Create'}
         initialValues={formInitial}
         isTenantIdLocked={dialog.kind === 'edit'}
+        cells={cellOptions}
         isSubmitting={isCreating || isUpdating}
         error={formError}
         addressPreview={addressPreview}
@@ -350,9 +439,12 @@ export function TenantsPage({
 
       <TenantPromotionDialog
         open={dialog.kind === 'promote'}
-        tenantIds={tenants.map((tenant) => tenant.tenantId)}
+        tenants={tenants.map((tenant) => ({
+          tenantId: tenant.tenantId,
+          ...(tenant.cell !== undefined && { cell: tenant.cell, region: regionOf(tenant.cell) }),
+        }))}
         report={promotionReport}
-        isBusy={isPreviewingPromotion || isPromoting}
+        isBusy={isPreviewingPromotion || isPromoting || isFetchingConfiguration}
         error={promotionError}
         onPreview={handlePreviewPromotion}
         onPromote={handlePromote}

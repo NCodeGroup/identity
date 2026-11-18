@@ -17,8 +17,8 @@ internal static class DefaultRegistration
     extension(IEndpointGroupBuilder builder)
     {
         /// <summary>
-        /// Registers the promotion services and the built-in contributors of the tenant's settings, resource servers,
-        /// clients and client grants.
+        /// Registers the promotion services, the tenant configuration exporter and the built-in contributors of the
+        /// tenant's settings, resource servers, clients and client grants.
         /// </summary>
         public void AddTenantPromotionServices()
         {
@@ -29,6 +29,10 @@ internal static class DefaultRegistration
                 DefaultPromotedSettingsComposer
             >();
             serviceCollection.TryAddSingleton<ITenantPromoter, DefaultTenantPromoter>();
+            serviceCollection.TryAddSingleton<
+                ITenantConfigurationExporter,
+                DefaultTenantConfigurationExporter
+            >();
             serviceCollection.TryAddSingleton<
                 IHostManagedClientChecker,
                 DefaultHostManagedClientChecker

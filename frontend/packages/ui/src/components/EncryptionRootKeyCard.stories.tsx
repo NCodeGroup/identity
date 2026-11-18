@@ -5,6 +5,7 @@ const meta: Meta<typeof EncryptionRootKeyCard> = {
   title: 'Management/EncryptionRootKeyCard',
   component: EncryptionRootKeyCard,
   args: {
+    ownerLabel: 'tenant',
     canSet: true,
     onSet: () => undefined,
     onValidate: () => undefined,
@@ -45,6 +46,16 @@ export const Unavailable: Story = {
 
 export const Removing: Story = {
   args: { rootKey: { ...activeRootKey, state: 'removing' } },
+};
+
+export const TeamRegionKey: Story = {
+  args: {
+    ownerLabel: 'team',
+    rootKey: {
+      provider: activeRootKey.provider,
+      keyReference: activeRootKey.keyReference,
+    },
+  },
 };
 
 export const NoRootKey: Story = {

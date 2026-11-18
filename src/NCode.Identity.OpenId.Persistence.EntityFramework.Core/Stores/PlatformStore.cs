@@ -61,6 +61,7 @@ internal class PlatformStore(
         {
             ConcurrencyToken = entity.ConcurrencyToken,
             Settings = await MapSettingsAsync(entity, cancellationToken),
+            DirectorySequence = entity.DirectorySequence,
         };
     }
 
@@ -169,6 +170,7 @@ internal class PlatformStore(
             ConcurrencyToken = persistedPlatform.ConcurrencyToken,
             SettingsConcurrencyToken = persistedPlatform.Settings.ConcurrencyToken,
             SettingsJson = persistedPlatform.Settings.Value,
+            DirectorySequence = persistedPlatform.DirectorySequence,
         };
 
         await DbContext.Platforms.AddAsync(platformEntity, cancellationToken);
@@ -228,5 +230,51 @@ internal class PlatformStore(
         DbContext.Platforms.Update(platformEntity);
 
         persistedPlatformSettings.ConcurrencyToken = nextConcurrencyToken;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<bool> MirrorSettingsAsync(
+        PersistedPlatformSettings settings,
+        long directorySequence,
+        CancellationToken cancellationToken
+    )
+    {
+        var platformEntity = await GetPlatformEntityOrDefaultAsync(cancellationToken);
+        if (platformEntity is not null && platformEntity.DirectorySequence >= directorySequence)
+        {
+            return false;
+        }
+
+        var nextConcurrencyToken = NextConcurrencyToken();
+
+        if (platformEntity is null)
+        {
+            var concurrencyToken = NextConcurrencyToken();
+
+            await DbContext.Platforms.AddAsync(
+                new PlatformEntity
+                {
+                    Id = NextId(),
+                    Key = OpenIdResourceIds.Platform,
+                    ConcurrencyToken = concurrencyToken,
+                    SettingsConcurrencyToken = nextConcurrencyToken,
+                    SettingsJson = settings.Value,
+                    DirectorySequence = directorySequence,
+                },
+                cancellationToken
+            );
+        }
+        else
+        {
+            platformEntity.SettingsConcurrencyToken = nextConcurrencyToken;
+            platformEntity.SettingsJson = settings.Value;
+            platformEntity.DirectorySequence = directorySequence;
+
+            DbContext.Platforms.Update(platformEntity);
+        }
+
+        settings.ConcurrencyToken = nextConcurrencyToken;
+
+        return true;
     }
 }

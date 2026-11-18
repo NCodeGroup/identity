@@ -6,14 +6,18 @@ using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using NCode.Identity.AspNetCore;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Authentication.Clients;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts;
@@ -24,6 +28,7 @@ using NCode.Identity.OpenId.Management.Endpoints.Clients;
 using NCode.Identity.OpenId.Management.Endpoints.EncryptionKeys;
 using NCode.Identity.OpenId.Management.Endpoints.Secrets;
 using NCode.Identity.OpenId.Management.Logging;
+using NCode.Identity.OpenId.Management.Promotions;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Settings;
@@ -53,6 +58,8 @@ GET   api/tenants/{tenantId}/settings/limits
 PATCH api/tenants/{tenantId}/settings
 GET   api/tenants/{tenantId}/effective-settings
 
+GET   api/tenants/{tenantId}/configuration
+
 GET    api/tenants/{tenantId}/secrets
 POST   api/tenants/{tenantId}/secrets
 GET    api/tenants/{tenantId}/secrets/{secretId}
@@ -77,7 +84,8 @@ DELETE api/tenants/{tenantId}/admins/{principalId}
 */
 
 /// <summary>
-/// Provides the API endpoints for managing an OpenID Tenant, including its settings and secrets.
+/// Provides the API endpoints for managing an OpenID Tenant, including its settings, secrets and configuration
+/// document.
 /// </summary>
 internal class TenantApiEndpointHandler(
     IStoreManagerFactory storeManagerFactory,
@@ -100,6 +108,9 @@ internal class TenantApiEndpointHandler(
     ITenantClientCoherenceChecker tenantClientCoherenceChecker,
     IResourceOwnershipService resourceOwnershipService,
     IRemoteSecretDestroyer remoteSecretDestroyer,
+    ITenantDirectory tenantDirectory,
+    IOptions<CellOptions> cellOptions,
+    ITenantConfigurationExporter tenantConfigurationExporter,
     IManagementAuditRecorder managementAuditRecorder,
     ILogger<TenantApiEndpointHandler> logger
 ) : BaseOwnableApiEndpointHandler, IEndpointProvider
@@ -126,6 +137,10 @@ internal class TenantApiEndpointHandler(
     private ITenantClientCoherenceChecker TenantClientCoherenceChecker { get; } =
         tenantClientCoherenceChecker;
     private IRemoteSecretDestroyer RemoteSecretDestroyer { get; } = remoteSecretDestroyer;
+    private ITenantDirectory TenantDirectory { get; } = tenantDirectory;
+    private CellOptions CellOptions { get; } = cellOptions.Value;
+    private ITenantConfigurationExporter TenantConfigurationExporter { get; } =
+        tenantConfigurationExporter;
 
     /// <inheritdoc />
     protected override IManagementAuditRecorder ManagementAuditRecorder { get; } =
@@ -156,11 +171,15 @@ internal class TenantApiEndpointHandler(
     /// <inheritdoc />
     public void Map(IEndpointRouteBuilder endpoints)
     {
-        var tenants = endpoints.MapGroup("/tenants").WithTags(OpenIdConstants.EndpointTags.Tenants);
+        var tenants = endpoints
+            .MapGroup("/tenants")
+            .WithTags(OpenIdConstants.EndpointTags.Tenants)
+            .AddEndpointFilter<RouteGroupBuilder, ControlPlaneScopeEndpointFilter>();
 
         var teamTenants = endpoints
             .MapGroup("/teams/{teamId}/tenants")
-            .WithTags(OpenIdConstants.EndpointTags.Tenants);
+            .WithTags(OpenIdConstants.EndpointTags.Tenants)
+            .AddEndpointFilter<RouteGroupBuilder, ControlPlaneScopeEndpointFilter>();
 
         teamTenants
             .MapPost("", CreateTenantAsync)
@@ -257,6 +276,13 @@ internal class TenantApiEndpointHandler(
             .ProducesProblem(StatusCodes.Status404NotFound);
 
         tenants
+            .MapGet("/{tenantId}/configuration", GetConfigurationAsync)
+            .Produces<TenantConfigurationDocument>()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
+        tenants
             .MapGet("/{tenantId}/secrets", GetSecretsAsync)
             .Produces<TenantSecretsResource>()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -309,6 +335,7 @@ internal class TenantApiEndpointHandler(
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status412PreconditionFailed);
 
         tenants
@@ -732,6 +759,7 @@ internal class TenantApiEndpointHandler(
     /// <response code="400">The tenant has no display name, its identifier, issuer or mutual-TLS endpoint-alias authority is not valid, or its settings are not valid for a tenant.</response>
     /// <response code="404">The team does not exist.</response>
     /// <response code="409">A tenant with the identifier already exists, the identifier belonged to a deleted tenant, the issuer or the mutual-TLS endpoint-alias authority conflicts with another tenant's or with one that belonged to another tenant, or the team or a team above it holds its maximum number of tenants.</response>
+    /// <response code="503">The global directory cannot be reached; the response carries Retry-After.</response>
     [EndpointName("api/teams/tenants/create")]
     internal virtual async ValueTask<IResult> CreateTenantAsync(
         HttpContext httpContext,
@@ -756,7 +784,6 @@ internal class TenantApiEndpointHandler(
         }
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
-        var store = storeManager.GetStore<ITenantStore>();
         var teamStore = storeManager.GetStore<ITeamStore>();
 
         var team = await teamStore.GetOrDefaultAsync(teamId, cancellationToken);
@@ -815,43 +842,6 @@ internal class TenantApiEndpointHandler(
             return ToErrorResult(error);
         }
 
-        // A team's 'max_tenants' bounds the tenants of the team and of every team beneath it; unset means unlimited
-        // (ADR-1411, ADR-1426).
-        var lineage = await teamStore.GetLineageAsync(teamId, cancellationToken);
-        var settings = await EffectiveSettingsResolver.ResolvePlatformAsync(cancellationToken);
-        var lineageSettings = new List<(string TeamId, IReadOnlySettingCollection Settings)>(
-            lineage.Count
-        );
-        foreach (var lineageTeam in lineage)
-        {
-            settings = EffectiveSettingsResolver.ResolveStored(
-                settings,
-                OpenIdSettingScopes.Team,
-                lineageTeam.TeamId,
-                lineageTeam.Settings.Value
-            );
-            lineageSettings.Add((lineageTeam.TeamId, settings));
-        }
-
-        for (var index = lineageSettings.Count - 1; index >= 0; index--)
-        {
-            var (lineageTeamId, teamSettings) = lineageSettings[index];
-            if (
-                teamSettings.TryGetValue(OpenIdSettingKeys.MaxTenants, out var maxTenants)
-                && await store.CountAsync(lineageTeamId, cancellationToken) >= maxTenants
-            )
-            {
-                return ToErrorResult(
-                    new ManagementError
-                    {
-                        StatusCode = StatusCodes.Status409Conflict,
-                        Detail =
-                            $"The team '{lineageTeamId}' holds its maximum of {maxTenants} tenants.",
-                    }
-                );
-            }
-        }
-
         // Setting names are a closed vocabulary (ADR-1139), and a tenant carries only the settings that apply within it
         // (ADR-1149): a settings document that cannot be honored is rejected here rather than stored and failed on every
         // request that resolves the tenant.
@@ -865,12 +855,25 @@ internal class TenantApiEndpointHandler(
             return SettingsValidationProblem(settingErrors);
         }
 
-        await store.AddAsync(tenant, cancellationToken);
-
-        // The tenant row commits first: the creator's ownership is a row the tenant owns, and the stores resolve an
-        // owning tenant from the database rather than the change tracker — the same reason the provisioner commits a
-        // tenant before seeding it.
-        await storeManager.SaveChangesAsync(cancellationToken);
+        // The directory reserves the identifier and issuer platform-wide, and enforces the team's 'max_tenants' there,
+        // before the cell holds the tenant's row; a directory that cannot be reached refuses the creation (ADR-1160,
+        // ADR-1411, ADR-1426).
+        try
+        {
+            var directoryFailure = await ReserveInsertAndPlaceAsync(
+                tenant,
+                storeManager,
+                cancellationToken
+            );
+            if (directoryFailure is not null)
+            {
+                return directoryFailure;
+            }
+        }
+        catch (DirectoryUnavailableException)
+        {
+            return DirectoryUnavailableProblem(httpContext);
+        }
 
         var creatorAssignment = await ResourceOwnershipService.AssignCreatorAsync(
             openIdContext,
@@ -915,6 +918,181 @@ internal class TenantApiEndpointHandler(
 
         httpContext.Response.Headers.ETag = ManagementEntityTags.Format(tenant.ConcurrencyToken);
         return TypedResults.Created($"/tenants/{tenant.TenantId}", resource);
+    }
+
+    /// <summary>
+    /// Creates a tenant through the directory as a saga: reserves the tenant's identifier and issuer, inserts the
+    /// tenant, then places it in this cell. A creation that fails before the tenant is placed removes the inserted
+    /// tenant, then releases the reservation, so the directory never frees an identifier whose row still exists.
+    /// </summary>
+    /// <param name="tenant">The <see cref="PersistedTenant"/> to create.</param>
+    /// <param name="storeManager">The <see cref="IStoreManager"/> that inserts the tenant.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="IResult"/> that refuses the creation, or <c>null</c> when the tenant is created and
+    /// placed.</returns>
+    // See ADR-1160.
+    private async ValueTask<IResult?> ReserveInsertAndPlaceAsync(
+        PersistedTenant tenant,
+        IStoreManager storeManager,
+        CancellationToken cancellationToken
+    )
+    {
+        // A tenant without an issuer reserves its identifier alone.
+        var issuer = tenant.Issuer ?? string.Empty;
+
+        var reservationResult = await TenantDirectory.ReserveAsync(
+            new TenantReservation
+            {
+                TenantId = tenant.TenantId,
+                Issuer = issuer,
+                TeamId = tenant.TeamId,
+                Cell = CellOptions.Name,
+            },
+            cancellationToken
+        );
+        if (!reservationResult.IsReserved)
+        {
+            return ToErrorResult(
+                new ManagementError
+                {
+                    StatusCode = StatusCodes.Status409Conflict,
+                    Detail = reservationResult.ConflictDetail,
+                }
+            );
+        }
+
+        var isInserted = false;
+        var isPlaced = false;
+        try
+        {
+            var store = storeManager.GetStore<ITenantStore>();
+            await store.AddAsync(tenant, cancellationToken);
+
+            // The tenant row commits first: the creator's ownership is a row the tenant owns, and the stores resolve an
+            // owning tenant from the database rather than the change tracker — the same reason the provisioner commits
+            // a tenant before seeding it.
+            await storeManager.SaveChangesAsync(cancellationToken);
+            isInserted = true;
+
+            var placementResult = await TenantDirectory.PlaceAsync(
+                new TenantPlacementRequest
+                {
+                    TenantId = tenant.TenantId,
+                    Issuer = issuer,
+                    Cell = CellOptions.Name,
+                },
+                cancellationToken
+            );
+            if (!placementResult.IsReserved)
+            {
+                return ToErrorResult(
+                    new ManagementError
+                    {
+                        StatusCode = StatusCodes.Status409Conflict,
+                        Detail = placementResult.ConflictDetail,
+                    }
+                );
+            }
+
+            isPlaced = true;
+        }
+        finally
+        {
+            if (!isPlaced)
+            {
+                if (isInserted)
+                {
+                    try
+                    {
+                        await RemoveCreatedTenantAsync(tenant.TenantId, CancellationToken.None);
+                    }
+                    finally
+                    {
+                        // The release comes after the removal, so the directory never frees an identifier whose row
+                        // still exists.
+                        await TenantDirectory.ReleaseAsync(tenant.TenantId, CancellationToken.None);
+                    }
+                }
+                else
+                {
+                    // The release compensates a creation that failed, so it runs even when the request was canceled.
+                    await TenantDirectory.ReleaseAsync(tenant.TenantId, CancellationToken.None);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    // The removal compensates a creation that failed after its row committed, so it runs on a store manager of its own
+    // even when the request was canceled: the caller passes a token that is never canceled.
+    private async ValueTask RemoveCreatedTenantAsync(
+        string tenantId,
+        CancellationToken cancellationToken
+    )
+    {
+        await using var cleanup = await StoreManagerFactory.CreateAsync(cancellationToken);
+        await cleanup.GetStore<ITenantStore>().RemoveFromCellAsync(tenantId, cancellationToken);
+        await cleanup.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Answers <c>503 Service Unavailable</c> with a <c>Retry-After</c> for a request that needs the directory while it
+    /// cannot be reached.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <returns>The <see cref="ProblemHttpResult"/> that asks the caller to retry.</returns>
+    private static ProblemHttpResult DirectoryUnavailableProblem(HttpContext httpContext) =>
+        RetryAfterProblem.Create(
+            httpContext,
+            TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds),
+            new ProblemDetails
+            {
+                Status = StatusCodes.Status503ServiceUnavailable,
+                Detail = "The global directory is unavailable. Retry the request.",
+            }
+        );
+
+    /// <summary>
+    /// Answers the problem that stops a delete in this cell while the global directory places the tenant in another
+    /// cell: a move took the tenant there, and this cell's copy is released with <c>release-moved</c>, which destroys
+    /// no remote key that the moved tenant uses. A directory that cannot be reached answers
+    /// <c>503 Service Unavailable</c>.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The problem, or <see langword="null"/> when the directory places the tenant in this cell or in no
+    /// cell.</returns>
+    // See ADR-1514.
+    private async ValueTask<ProblemHttpResult?> GetPlacedElsewhereProblemOrDefaultAsync(
+        HttpContext httpContext,
+        string tenantId,
+        CancellationToken cancellationToken
+    )
+    {
+        TenantPlacement? placement;
+        try
+        {
+            placement = await TenantDirectory.GetPlacementOrDefaultAsync(
+                tenantId,
+                cancellationToken
+            );
+        }
+        catch (DirectoryUnavailableException)
+        {
+            return DirectoryUnavailableProblem(httpContext);
+        }
+
+        if (placement is null || placement.Cell == CellOptions.Name)
+        {
+            return null;
+        }
+
+        return TypedResults.Problem(
+            detail: $"The global directory places the tenant '{tenantId}' in the cell '{placement.Cell}'. Release this cell's copy with release-moved.",
+            statusCode: StatusCodes.Status409Conflict
+        );
     }
 
     /// <summary>
@@ -1101,6 +1279,7 @@ internal class TenantApiEndpointHandler(
     /// <response code="400">The JSON Patch document cannot be applied to the tenant, the patched display name is missing, or the patched issuer or mutual-TLS endpoint-alias authority is not valid.</response>
     /// <response code="404">The tenant does not exist.</response>
     /// <response code="409">The patched issuer or mutual-TLS endpoint-alias authority conflicts with another tenant's or with one that belonged to a deleted tenant.</response>
+    /// <response code="503">The patched issuer changes the tenant's issuer and the global directory cannot be reached; the response carries Retry-After.</response>
     [EndpointName("api/tenants/update")]
     internal virtual async ValueTask<IResult> UpdateTenantAsync(
         HttpContext httpContext,
@@ -1175,13 +1354,70 @@ internal class TenantApiEndpointHandler(
             return ToErrorResult(error);
         }
 
+        var previousIssuer = tenant.Issuer;
+
         tenant.Issuer = model.Issuer;
         tenant.MtlsEndpointAliasAuthority = model.MtlsEndpointAliasAuthority;
         tenant.IsDisabled = model.IsDisabled;
         tenant.DisplayName = model.DisplayName;
 
-        await store.UpdateAsync(tenant, cancellationToken);
-        await storeManager.SaveChangesAsync(cancellationToken);
+        // A change of the issuer is checked and recorded by the directory before the cell's tenant row changes, and
+        // taken back when the row cannot be written (ADR-1160).
+        var isIssuerChanged = !string.Equals(
+            previousIssuer,
+            model.Issuer,
+            StringComparison.OrdinalIgnoreCase
+        );
+        if (isIssuerChanged)
+        {
+            try
+            {
+                var changeResult = await TenantDirectory.ChangeIssuerAsync(
+                    new TenantIssuerChange
+                    {
+                        TenantId = tenant.TenantId,
+                        PreviousIssuer = previousIssuer,
+                        Issuer = model.Issuer,
+                    },
+                    cancellationToken
+                );
+                if (!changeResult.IsReserved)
+                {
+                    return ToErrorResult(
+                        new ManagementError
+                        {
+                            StatusCode = StatusCodes.Status409Conflict,
+                            Detail = changeResult.ConflictDetail,
+                        }
+                    );
+                }
+            }
+            catch (DirectoryUnavailableException)
+            {
+                return DirectoryUnavailableProblem(httpContext);
+            }
+        }
+
+        try
+        {
+            await store.UpdateAsync(tenant, cancellationToken);
+            await storeManager.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            if (isIssuerChanged)
+            {
+                // The take-back compensates a failed update, so it runs even when the request was canceled.
+                await TakeBackIssuerChangeAsync(
+                    tenant.TenantId,
+                    previousIssuer,
+                    model.Issuer,
+                    CancellationToken.None
+                );
+            }
+
+            throw;
+        }
 
         await ManagementAuditRecorder.RecordTenantChangedAsync(
             httpContext,
@@ -1202,6 +1438,41 @@ internal class TenantApiEndpointHandler(
     }
 
     /// <summary>
+    /// Gives a tenant back the issuer it held before a change that the cell's tenant row did not take, so the directory
+    /// holds the issuer the row holds. The call is best effort: a directory that cannot be reached leaves the issuer
+    /// change recorded, which a later change of the tenant's issuer corrects.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the tenant.</param>
+    /// <param name="previousIssuer">The issuer the tenant held before the change.</param>
+    /// <param name="attemptedIssuer">The issuer the change would have given the tenant.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    // See ADR-1160.
+    private async ValueTask TakeBackIssuerChangeAsync(
+        string tenantId,
+        string? previousIssuer,
+        string? attemptedIssuer,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            await TenantDirectory.ChangeIssuerAsync(
+                new TenantIssuerChange
+                {
+                    TenantId = tenantId,
+                    PreviousIssuer = attemptedIssuer,
+                    Issuer = previousIssuer,
+                },
+                cancellationToken
+            );
+        }
+        catch (DirectoryUnavailableException)
+        {
+            // The update's own failure is the one the caller sees.
+        }
+    }
+
+    /// <summary>
     /// Deletes an OpenID tenant.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
@@ -1209,7 +1480,8 @@ internal class TenantApiEndpointHandler(
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="204">The tenant was deleted.</response>
     /// <response code="404">The tenant does not exist.</response>
-    /// <response code="409">The tenant is required by the deployment, still has clients or resource servers, or has deletion protection enabled, and cannot be deleted.</response>
+    /// <response code="409">The tenant is required by the deployment, still has clients or resource servers, or has deletion protection enabled, and cannot be deleted; or the global directory places it in another cell, and this cell's copy is released with release-moved.</response>
+    /// <response code="503">The global directory cannot be reached to read the tenant's placement, and nothing is deleted; or the tenant was deleted but the directory cannot be reached to retire its identifier and issuer. The response carries Retry-After.</response>
     [EndpointName("api/tenants/delete")]
     internal virtual async ValueTask<IResult> DeleteTenantAsync(
         HttpContext httpContext,
@@ -1234,6 +1506,18 @@ internal class TenantApiEndpointHandler(
         if (tenant is null)
         {
             return ManagementProblems.ResourceNotFound();
+        }
+
+        if (
+            await GetPlacedElsewhereProblemOrDefaultAsync(
+                httpContext,
+                tenantId,
+                cancellationToken
+            ) is
+            { } placedElsewhere
+        )
+        {
+            return placedElsewhere;
         }
 
         // Core preconditions (no-dependents) are asserted by the validator (ADR-1014).
@@ -1277,9 +1561,26 @@ internal class TenantApiEndpointHandler(
         await store.RemoveAsync(tenantId, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
 
+        // The tenant's identifier and issuer are retired from the values read before the deletion (ADR-1160). A
+        // directory that cannot be reached leaves them unretired, which the response reports after the deletion is
+        // audited and announced and the tenant's remote secrets are destroyed.
+        DirectoryUnavailableException? retireFailure = null;
+
         // See ADR-1471.
         try
         {
+            try
+            {
+                await TenantDirectory.RetireAsync(
+                    new TenantRetirement { TenantId = tenant.TenantId, Issuer = tenant.Issuer },
+                    cancellationToken
+                );
+            }
+            catch (DirectoryUnavailableException exception)
+            {
+                retireFailure = exception;
+            }
+
             await ManagementAuditRecorder.RecordTenantChangedAsync(
                 httpContext,
                 tenant.TeamId,
@@ -1298,6 +1599,11 @@ internal class TenantApiEndpointHandler(
         finally
         {
             await RemoteSecretDestroyer.DestroyAsync(tenant.Secrets.Value);
+        }
+
+        if (retireFailure is not null)
+        {
+            return DirectoryUnavailableProblem(httpContext);
         }
 
         return TypedResults.NoContent();
@@ -1497,6 +1803,36 @@ internal class TenantApiEndpointHandler(
                 );
                 return ToTenantEffectiveSettingsResource(tenantId, effectiveSettings);
             },
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Exports a tenant's configuration document: its settings, clients, client grants and resource servers, stamped
+    /// with the region of the cell and holding no secret. A promotion into a tenant of the same region reads it in
+    /// place of the source tenant. The caller needs <see cref="Operations.Read"/> at the tenant, as a promotion needs
+    /// it at its source tenant.
+    /// </summary>
+    /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
+    /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <response code="200">The tenant's configuration document.</response>
+    /// <response code="403">The caller lacks the authority to read the tenant.</response>
+    /// <response code="404">The tenant does not exist.</response>
+    // See ADR-1425.
+    [EndpointName("api/tenants/configuration/get")]
+    internal virtual async ValueTask<IResult> GetConfigurationAsync(
+        HttpContext httpContext,
+        [FromRoute] string tenantId,
+        CancellationToken cancellationToken
+    )
+    {
+        return await ProcessGetAsync(
+            httpContext,
+            GetTenantNode(tenantId),
+            Operations.Read,
+            token => TenantConfigurationExporter.ExportAsync(tenantId, token),
+            document => document,
             cancellationToken
         );
     }
@@ -2156,6 +2492,8 @@ internal class TenantApiEndpointHandler(
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="204">The secret was deleted.</response>
     /// <response code="404">The tenant or the secret does not exist.</response>
+    /// <response code="409">The global directory places the tenant in another cell, and this cell's copy is released with release-moved.</response>
+    /// <response code="503">The global directory cannot be reached to read the tenant's placement; the response carries Retry-After.</response>
     [EndpointName("api/tenants/secrets/delete")]
     internal virtual async ValueTask<IResult> DeleteSecretAsync(
         HttpContext httpContext,
@@ -2183,6 +2521,18 @@ internal class TenantApiEndpointHandler(
         if (secret is null)
         {
             return ManagementProblems.ResourceNotFound();
+        }
+
+        if (
+            await GetPlacedElsewhereProblemOrDefaultAsync(
+                httpContext,
+                tenantId,
+                cancellationToken
+            ) is
+            { } placedElsewhere
+        )
+        {
+            return placedElsewhere;
         }
 
         var secretValues = ToResourceValues(ToSecretResource(secret));

@@ -14,8 +14,9 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 /// master keys. The complimentary DTO for this entity is <see cref="PersistedOwnerRootKey"/>.
 /// </summary>
 /// <remarks>
-/// This entity is intentionally not tenant-scoped, like <see cref="MasterKeyEntity"/>: the store always filters by
-/// owner explicitly. It holds the name of the key and the state of its last validation, never key material.
+/// This entity is intentionally not tenant-scoped, like <see cref="MasterKeyEntity"/>: a store read names its owner or
+/// owners, its owner type, or the due keys. It holds the name of the key and the state of its last validation, never
+/// key material.
 /// </remarks>
 // See ADR-1414.
 [Index(nameof(OwnerType), nameof(NormalizedOwnerId), IsUnique = true)]

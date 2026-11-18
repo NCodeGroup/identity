@@ -99,4 +99,34 @@ internal static class EventIds
     public const int RemoteKeySweepPassFailed = Base + 44;
 
     public const int RemoteKeySweepDispatchFailed = Base + 45;
+
+    /// <summary>
+    /// Identifies the warning that the directory retired a team that tenants or teams still name, so the cell disables
+    /// the team instead of removing it.
+    /// </summary>
+    public const int DirectoryRetiredTeamHasDependents = Base + 46;
+
+    /// <summary>
+    /// Identifies the warning that a change to a team's root key for the cell's region was not applied; the next
+    /// directory document for the team or the next reconciliation of root keys retries it.
+    /// </summary>
+    public const int DirectoryTeamRootKeyNotApplied = Base + 47;
+
+    /// <summary>
+    /// Identifies the warning that a mirrored team change was committed, but the command that announces it to the
+    /// cell's replicas failed.
+    /// </summary>
+    public const int DirectoryTeamChangeNotSent = Base + 48;
+
+    /// <summary>
+    /// Identifies the warning that a mirrored platform change was committed, but the command that announces it to the
+    /// cell's replicas failed.
+    /// </summary>
+    public const int DirectoryPlatformChangeNotSent = Base + 49;
+
+    /// <summary>
+    /// Identifies the informational message that a team document names a parent team the cell does not mirror, so the
+    /// cell applies the team when the directory lists it again after its parent.
+    /// </summary>
+    public const int DirectoryTeamParentNotMirrored = Base + 50;
 }

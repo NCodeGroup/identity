@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
 namespace NCode.Identity.OpenId.Host.Database;
@@ -17,11 +16,6 @@ internal sealed class DeveloperDataProtectionDbContextDesignTimeFactory
     private const string DesignTimeConnectionString =
         "Host=localhost;Port=5432;Database=openiddb;Username=postgres;Password=postgres";
 
-    public DeveloperDataProtectionDbContext CreateDbContext(string[] args)
-    {
-        var optionsBuilder = new DbContextOptionsBuilder<DeveloperDataProtectionDbContext>();
-        optionsBuilder.UseDataProtectionNpgsql(DesignTimeConnectionString);
-
-        return new DeveloperDataProtectionDbContext(optionsBuilder.Options);
-    }
+    public DeveloperDataProtectionDbContext CreateDbContext(string[] args) =>
+        HostDatabase.CreateDataProtectionContext(DesignTimeConnectionString);
 }

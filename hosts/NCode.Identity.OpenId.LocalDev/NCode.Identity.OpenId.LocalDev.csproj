@@ -38,4 +38,12 @@
         <ProjectReference Include="..\NCode.Identity.OpenId.Host.MigrationService\NCode.Identity.OpenId.Host.MigrationService.csproj" />
         <ProjectReference Include="..\NCode.Identity.ManagementConsole.Host\NCode.Identity.ManagementConsole.Host.csproj" />
     </ItemGroup>
+
+    <ItemGroup>
+        <!-- An ordinary library reference for the database role-name rule, not an Aspire project resource. -->
+        <ProjectReference
+            Include="..\..\src\NCode.Identity.Persistence.Abstractions\NCode.Identity.Persistence.Abstractions.csproj"
+            IsAspireProjectResource="false"
+        />
+    </ItemGroup>
 </Project>

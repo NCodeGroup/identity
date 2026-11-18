@@ -11,9 +11,8 @@ using NCode.Identity.Events;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Environments;
+using NCode.Identity.OpenId.Management.Endpoints;
 using NCode.Identity.OpenId.Management.Logging;
-using NCode.Identity.OpenId.Persistence.DataContracts;
-using NCode.Identity.OpenId.PrincipalResolution;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Secrets.Persistence.Auditing;
 using NCode.Identity.Secrets.Persistence.Protection;
@@ -28,18 +27,12 @@ public sealed class DefaultManagementAuditRecorderTests : IDisposable
 
     public void Dispose() => MockRepository.Verify();
 
-    private static PersistedClient CreateClient(string clientId) =>
-        new PersistedClientBuilder { TenantId = "control-plane", ClientId = clientId }.Build();
-
-    private IOpenIdContextFeature CreateOpenIdContextFeature(string? tenantId)
+    private IOpenIdContextFeature CreateOpenIdContextFeature(string tenantId)
     {
         var mockContext = MockRepository.Create<OpenIdContext>();
-        if (tenantId is not null)
-        {
-            var mockTenant = MockRepository.Create<OpenIdTenant>();
-            mockTenant.Setup(x => x.TenantId).Returns(tenantId).Verifiable();
-            mockContext.Setup(x => x.Tenant).Returns(mockTenant.Object).Verifiable();
-        }
+        var mockTenant = MockRepository.Create<OpenIdTenant>();
+        mockTenant.Setup(x => x.TenantId).Returns(tenantId).Verifiable();
+        mockContext.Setup(x => x.Tenant).Returns(mockTenant.Object).Verifiable();
 
         var mockFeature = MockRepository.Create<IOpenIdContextFeature>();
         mockFeature.Setup(x => x.OpenIdContext).Returns(mockContext.Object).Verifiable();
@@ -48,16 +41,25 @@ public sealed class DefaultManagementAuditRecorderTests : IDisposable
 
     private HttpContext CreateHttpContext(
         string? actorId,
-        bool withOpenIdContext = true,
-        string? openIdTenantId = null
+        string? openIdTenantId = null,
+        string? clientId = null
     )
     {
+        var claims = new List<Claim>();
+        if (actorId is not null)
+        {
+            claims.Add(new Claim("sub", actorId));
+        }
+
+        if (clientId is not null)
+        {
+            claims.Add(new Claim("client_id", clientId));
+        }
+
         var httpContext = new DefaultHttpContext
         {
             TraceIdentifier = "trace-1",
-            User = actorId is null
-                ? new ClaimsPrincipal(new ClaimsIdentity())
-                : new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", actorId)])),
+            User = new ClaimsPrincipal(new ClaimsIdentity(claims)),
         };
 
         httpContext.SetEndpoint(
@@ -68,7 +70,7 @@ public sealed class DefaultManagementAuditRecorderTests : IDisposable
             )
         );
 
-        if (withOpenIdContext)
+        if (openIdTenantId is not null)
         {
             var feature = CreateOpenIdContextFeature(openIdTenantId);
             httpContext.Features.Set(feature);
@@ -79,55 +81,27 @@ public sealed class DefaultManagementAuditRecorderTests : IDisposable
 
     // The actor id is derived through the host-configured environment seam; mirror the default `sub` extraction.
     // A change in a tenant whose event carries no environment type resolves the tenant's; a platform change or an event
-    // already stamped with one does not. A request that published an OpenId context asks the client principal resolver
-    // who acts; a request without one does not. The administrator is read from the environment only when no client
-    // acts.
+    // already stamped with one does not.
     private DefaultManagementAuditRecorder CreateRecorder(
         IEventPublisher eventPublisher,
         bool resolvesTenantEnvironment = true,
         ILogger<DefaultManagementAuditRecorder>? logger = null,
-        IManagementTenantEnvironmentResolver? tenantEnvironmentResolver = null,
-        bool resolvesActingClient = true,
-        PersistedClient? actingClient = null
+        IManagementTenantEnvironmentResolver? tenantEnvironmentResolver = null
     )
     {
-        var mockClientPrincipalResolver = MockRepository.Create<IClientPrincipalResolver>();
-        if (resolvesActingClient)
-        {
-            mockClientPrincipalResolver
-                .Setup(x =>
-                    x.GetActingClientOrDefaultAsync(
-                        It.IsAny<OpenIdContext>(),
-                        It.IsAny<ClaimsPrincipal>(),
-                        It.IsAny<CancellationToken>()
-                    )
-                )
-                .ReturnsAsync(actingClient)
-                .Verifiable();
-        }
-
         var mockEnvironment = MockRepository.Create<OpenIdEnvironment>();
         var mockEnvironmentProvider = MockRepository.Create<IOpenIdEnvironmentProvider>();
-        if (actingClient is null)
-        {
-            mockEnvironment
-                .Setup(x =>
-                    x.GetSubjectId(
-                        It.IsAny<ClaimsPrincipal>(),
-                        It.IsAny<IReadOnlyCollection<string>>()
-                    )
-                )
-                .Returns(
-                    (ClaimsPrincipal principal, IReadOnlyCollection<string> _) =>
-                        principal.FindFirst("sub")?.Value
-                )
-                .Verifiable();
+        mockEnvironment
+            .Setup(x =>
+                x.GetSubjectId(It.IsAny<ClaimsPrincipal>(), It.IsAny<IReadOnlyCollection<string>>())
+            )
+            .Returns(
+                (ClaimsPrincipal principal, IReadOnlyCollection<string> _) =>
+                    principal.FindFirst("sub")?.Value
+            )
+            .Verifiable();
 
-            mockEnvironmentProvider
-                .Setup(x => x.Get())
-                .Returns(mockEnvironment.Object)
-                .Verifiable();
-        }
+        mockEnvironmentProvider.Setup(x => x.Get()).Returns(mockEnvironment.Object).Verifiable();
 
         if (tenantEnvironmentResolver is null)
         {
@@ -154,7 +128,6 @@ public sealed class DefaultManagementAuditRecorderTests : IDisposable
             eventPublisher,
             mockEnvironmentProvider.Object,
             tenantEnvironmentResolver,
-            mockClientPrincipalResolver.Object,
             TimeProvider.System,
             logger ?? NullLogger<DefaultManagementAuditRecorder>.Instance
         );
@@ -449,8 +422,10 @@ public sealed class DefaultManagementAuditRecorderTests : IDisposable
         Assert.Equal(7, captured.EventId.Version);
     }
 
-    [Fact]
-    public async Task RecordGrantRevokedAsync_WhenAClientActsForItself_RecordsTheClientActor()
+    private async ValueTask<AuditActor> RecordGrantRevokedActorAsync(
+        HttpContext httpContext,
+        CancellationToken cancellationToken
+    )
     {
         var mockPublisher = MockRepository.Create<IEventPublisher>();
 
@@ -465,9 +440,7 @@ public sealed class DefaultManagementAuditRecorderTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var recorder = CreateRecorder(mockPublisher.Object, actingClient: CreateClient("client-1"));
-
-        var httpContext = CreateHttpContext("client-1");
+        var recorder = CreateRecorder(mockPublisher.Object);
 
         await recorder.RecordGrantRevokedAsync(
             httpContext,
@@ -478,41 +451,43 @@ public sealed class DefaultManagementAuditRecorderTests : IDisposable
         );
 
         Assert.NotNull(captured);
-        Assert.Equal(AuditActorTypes.Client, captured.Actor.Type);
-        Assert.Equal("client-1", captured.Actor.Id);
+        return captured.Actor;
     }
 
     [Fact]
-    public async Task RecordGrantRevokedAsync_WithoutAnOpenIdContext_RecordsTheAdministrator()
+    public async Task RecordGrantRevokedAsync_WhenTheFeatureSaysAClientActsForItself_RecordsTheClientActor()
     {
-        var mockPublisher = MockRepository.Create<IEventPublisher>();
+        var httpContext = CreateHttpContext("principal-1", clientId: "client-1");
+        httpContext.Features.Set(new ManagementActorFeature(isActingClient: true));
 
-        GrantRevokedAuditEvent? captured = null;
-        mockPublisher
-            .Setup(x =>
-                x.PublishAsync(It.IsAny<GrantRevokedAuditEvent>(), It.IsAny<CancellationToken>())
-            )
-            .Callback(
-                (GrantRevokedAuditEvent auditEvent, CancellationToken _) => captured = auditEvent
-            )
-            .Returns(ValueTask.CompletedTask)
-            .Verifiable();
+        var actor = await RecordGrantRevokedActorAsync(httpContext, CancellationToken.None);
 
-        var recorder = CreateRecorder(mockPublisher.Object, resolvesActingClient: false);
+        Assert.Equal(AuditActorTypes.Client, actor.Type);
+        Assert.Equal("client-1", actor.Id);
+    }
 
-        var httpContext = CreateHttpContext("admin-1", withOpenIdContext: false);
+    [Fact]
+    public async Task RecordGrantRevokedAsync_WhenTheFeatureSaysAUserActsThroughAClient_RecordsTheAdministrator()
+    {
+        var httpContext = CreateHttpContext("admin-1", clientId: "client-1");
+        httpContext.Features.Set(new ManagementActorFeature(isActingClient: false));
 
-        await recorder.RecordGrantRevokedAsync(
-            httpContext,
-            "tenant-1",
-            "subject-1",
-            "client-1",
-            "authorization_code"
+        var actor = await RecordGrantRevokedActorAsync(httpContext, CancellationToken.None);
+
+        Assert.Equal(AuditActorTypes.Administrator, actor.Type);
+        Assert.Equal("admin-1", actor.Id);
+    }
+
+    [Fact]
+    public async Task RecordGrantRevokedAsync_WithoutTheFeature_RecordsTheAdministrator()
+    {
+        var actor = await RecordGrantRevokedActorAsync(
+            CreateHttpContext("admin-1", clientId: "client-1"),
+            CancellationToken.None
         );
 
-        Assert.NotNull(captured);
-        Assert.Equal(AuditActorTypes.Administrator, captured.Actor.Type);
-        Assert.Equal("admin-1", captured.Actor.Id);
+        Assert.Equal(AuditActorTypes.Administrator, actor.Type);
+        Assert.Equal("admin-1", actor.Id);
     }
 
     #endregion

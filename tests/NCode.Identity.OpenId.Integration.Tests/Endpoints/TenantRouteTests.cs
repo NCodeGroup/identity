@@ -4,6 +4,7 @@
 using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Integration.Tests.Infrastructure;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -232,7 +233,7 @@ public class TenantRouteTests
         {
             TenantId = tenantId,
             Issuer = issuer,
-            Settings = JsonSerializer.SerializeToElement(null, typeof(object)),
+            Settings = JsonElements.EmptyObject,
         }.Build();
         await store.AddAsync(tenant, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);

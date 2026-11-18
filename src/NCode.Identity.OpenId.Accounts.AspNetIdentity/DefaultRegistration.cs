@@ -94,23 +94,39 @@ public static class DefaultRegistration
     extension(IServiceBuilder<StoreManagerLibrary> builder)
     {
         /// <summary>
-        /// Registers an <see cref="ILocalAccountStore"/> that adapts the ASP.NET Core Identity
-        /// <c>UserManager&lt;TUser&gt;</c> for the specified user type, together with the <see cref="LocalAccountLibrary"/>
-        /// marker that the opt-in local-account capabilities require as a compile-time argument. The host is responsible
-        /// for registering ASP.NET Core Identity (<c>AddIdentityCore&lt;TUser&gt;</c> or <c>AddIdentity</c>) and its
-        /// stores. It wraps the host's <c>IPasswordHasher&lt;TUser&gt;</c> registration, made before or after this call,
-        /// in <see cref="NormalizingPasswordHasher{TUser}"/>, so the adapter and the host's own ASP.NET Core Identity
-        /// pages hash and verify a password's NFC form; a hasher that the host registers after this call must be wrapped
-        /// by the host.
+        /// Registers an <see cref="ILocalAccountStore"/> and an <see cref="ILocalAccountTransferStore"/> that adapt the
+        /// ASP.NET Core Identity <c>UserManager&lt;TUser&gt;</c> for the specified user type, together with the
+        /// <see cref="LocalAccountLibrary"/> marker that the opt-in local-account capabilities require as a
+        /// compile-time argument. The host is responsible for registering ASP.NET Core Identity
+        /// (<c>AddIdentityCore&lt;TUser&gt;</c> or <c>AddIdentity</c>) and its stores. It wraps the host's
+        /// <c>IPasswordHasher&lt;TUser&gt;</c> registration, made before or after this call, in
+        /// <see cref="NormalizingPasswordHasher{TUser}"/>, so the adapter and the host's own ASP.NET Core Identity
+        /// pages hash and verify a password's NFC form; a hasher that the host registers after this call must be
+        /// wrapped by the host. It also registers an <see cref="ILookupNormalizer"/> that prefixes each normalized user
+        /// name and email with the ambient tenant's normalized identifier, so a user name and an email are unique per
+        /// tenant; the user type must implement <see cref="ITenantBoundUser"/>. The host's Identity schema must size
+        /// <c>NormalizedUserName</c> to at least <see cref="AccountMaxLengths.NormalizedUserName"/> characters,
+        /// <c>NormalizedEmail</c> to at least <see cref="AccountMaxLengths.NormalizedEmail"/>, and <c>UserName</c> and
+        /// <c>Email</c> to at least <see cref="AccountMaxLengths.UserName"/> and <see cref="AccountMaxLengths.Email"/>;
+        /// the default Entity Framework Core model of ASP.NET Core Identity sizes all four at 256, which is shorter. An
+        /// Entity Framework Core store sizes the four columns with <c>HasTenantLookupLengths()</c> from
+        /// <c>NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore</c>; another store sizes them to
+        /// <see cref="AccountMaxLengths"/> itself.
         /// </summary>
         /// <typeparam name="TUser">The ASP.NET Core Identity user type.</typeparam>
         /// <returns>The <see cref="IServiceBuilder{T}"/> proving a local-account store is registered.</returns>
         public IServiceBuilder<LocalAccountLibrary> AddAspNetIdentityLocalAccountStore<TUser>()
-            where TUser : IdentityUser, new()
+            where TUser : IdentityUser, ITenantBoundUser, new()
         {
             var serviceCollection = builder.ServiceCollection;
 
             var newBuilder = serviceCollection.NewBuilder<LocalAccountLibrary>();
+
+            // ASP.NET Core Identity's AddIdentityCore keeps a registration that exists, so this one wins whether it is
+            // made before or after the host's.
+            serviceCollection.Replace(
+                ServiceDescriptor.Singleton<ILookupNormalizer, TenantLookupNormalizer>()
+            );
 
             // See ADR-1239.
             serviceCollection.TryAddSingleton<AspNetIdentityDummyPasswordHash<TUser>>();
@@ -121,6 +137,15 @@ public static class DefaultRegistration
             // The store is backing-store-agnostic, so it registers the DbContext-less factory the store manager falls
             // back to; the scoped UserManager is resolved per operation from a fresh scope.
             serviceCollection.AddSingleton<Func<IStoreProvider, ILocalAccountStore>>(
+                serviceProvider =>
+                    storeProvider =>
+                        ActivatorUtilities.CreateInstance<AspNetIdentityLocalAccountStore<TUser>>(
+                            serviceProvider,
+                            storeProvider
+                        )
+            );
+
+            serviceCollection.AddSingleton<Func<IStoreProvider, ILocalAccountTransferStore>>(
                 serviceProvider =>
                     storeProvider =>
                         ActivatorUtilities.CreateInstance<AspNetIdentityLocalAccountStore<TUser>>(

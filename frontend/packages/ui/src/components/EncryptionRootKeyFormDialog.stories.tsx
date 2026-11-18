@@ -9,6 +9,7 @@ const meta: Meta<typeof EncryptionRootKeyFormDialog> = {
   component: EncryptionRootKeyFormDialog,
   args: {
     open: true,
+    ownerLabel: 'tenant',
     initialValues: emptyEncryptionRootKeyFormValues,
     providers: ['aws-kms', 'google-cloud-kms', 'azure-key-vault'],
     accessBinding: 'tenant:acme',
@@ -30,6 +31,10 @@ export const WithAccessIdentity: Story = {
       accessIdentity: 'arn:aws:iam::111122223333:role/tenant-kms',
     },
   },
+};
+
+export const Team: Story = {
+  args: { ownerLabel: 'team', accessBinding: 'team:platform' },
 };
 
 export const NoAccessBinding: Story = {

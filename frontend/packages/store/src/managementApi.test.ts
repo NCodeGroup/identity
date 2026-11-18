@@ -7,7 +7,7 @@ import type {
   RoleList,
   SecretOwner,
 } from '@ncode/api';
-import type { BffRuntimeConfig } from '@ncode/config';
+import type { BffRuntimeConfig, OpenIdRuntimeConfig } from '@ncode/config';
 import { createAppStore, type AppStore } from './store.js';
 import { managementApi } from './managementApi.js';
 
@@ -122,6 +122,7 @@ describe('managementApi tenant mutations', () => {
     const result = await store.dispatch(
       managementApi.endpoints.createTenant.initiate({
         teamId: 'acme',
+        cell: undefined,
         body: {
           tenantId: 'new',
           issuer: 'https://new.auth.test',
@@ -156,6 +157,7 @@ describe('managementApi tenant mutations', () => {
       managementApi.endpoints.updateTenant.initiate({
         teamId: 'acme',
         tenantId: 'acme/1',
+        cell: undefined,
         concurrencyToken: 'etag-7',
         fields: {
           issuer: 'https://acme.auth.test',
@@ -183,7 +185,11 @@ describe('managementApi tenant mutations', () => {
     const store = createStore();
 
     await store.dispatch(
-      managementApi.endpoints.deleteTenant.initiate({ teamId: 'acme', tenantId: 'acme' }),
+      managementApi.endpoints.deleteTenant.initiate({
+        teamId: 'acme',
+        tenantId: 'acme',
+        cell: undefined,
+      }),
     );
 
     expect(captured).toHaveLength(1);
@@ -201,7 +207,6 @@ describe('managementApi tenant promotion', () => {
 
   const promotionRequest = {
     sourceTenantId: 'acme-dev',
-    targetTenantId: 'acme-prod',
     environmentSettings: [
       {
         resourceType: 'client',
@@ -211,7 +216,7 @@ describe('managementApi tenant promotion', () => {
     ],
   };
 
-  it('previewTenantPromotion POSTs the request body to the team preview route', async () => {
+  it('previewTenantPromotion POSTs the request body to the target tenant preview route', async () => {
     const report = {
       teamId: 'acme',
       sourceTenantId: 'acme-dev',
@@ -226,19 +231,20 @@ describe('managementApi tenant promotion', () => {
 
     const result = await store.dispatch(
       managementApi.endpoints.previewTenantPromotion.initiate({
-        teamId: 'acme',
+        tenantId: 'acme-prod',
+        cell: undefined,
         body: promotionRequest,
       }),
     );
 
     expect('data' in result && result.data).toEqual(report);
     expect(captured).toHaveLength(1);
-    expect(captured[0]?.url).toBe('https://api.test/api/teams/acme/promotions/preview');
+    expect(captured[0]?.url).toBe('https://api.test/api/tenants/acme-prod/promotions/preview');
     expect(captured[0]?.method).toBe('POST');
     expect(JSON.parse(captured[0]?.body ?? '{}')).toEqual(promotionRequest);
   });
 
-  it('promoteTenant POSTs the request body to the team promotions route', async () => {
+  it('promoteTenant POSTs the request body to the target tenant promotions route', async () => {
     const captured = mockFetch(
       jsonResponse({
         teamId: 'acme',
@@ -253,12 +259,16 @@ describe('managementApi tenant promotion', () => {
     const store = createStore();
 
     const result = await store.dispatch(
-      managementApi.endpoints.promoteTenant.initiate({ teamId: 'acme', body: promotionRequest }),
+      managementApi.endpoints.promoteTenant.initiate({
+        tenantId: 'acme-prod',
+        cell: undefined,
+        body: promotionRequest,
+      }),
     );
 
     expect('data' in result && result.data?.isApplied).toBe(true);
     expect(captured).toHaveLength(1);
-    expect(captured[0]?.url).toBe('https://api.test/api/teams/acme/promotions');
+    expect(captured[0]?.url).toBe('https://api.test/api/tenants/acme-prod/promotions');
     expect(captured[0]?.method).toBe('POST');
     expect(JSON.parse(captured[0]?.body ?? '{}')).toEqual(promotionRequest);
   });
@@ -297,11 +307,17 @@ describe('managementApi tenant promotion', () => {
       { kind: 'client', tenantId: 'acme-prod', clientId: 'other' },
     ];
     await Promise.all(
-      owners.map((owner) => store.dispatch(managementApi.endpoints.getSettings.initiate(owner))),
+      owners.map((owner) =>
+        store.dispatch(managementApi.endpoints.getSettings.initiate({ ...owner, cell: undefined })),
+      ),
     );
 
     await store.dispatch(
-      managementApi.endpoints.promoteTenant.initiate({ teamId: 'acme', body: promotionRequest }),
+      managementApi.endpoints.promoteTenant.initiate({
+        tenantId: 'acme-prod',
+        cell: undefined,
+        body: promotionRequest,
+      }),
     );
     await settle(store);
 
@@ -334,6 +350,7 @@ describe('managementApi client mutations (tenant scope)', () => {
     await store.dispatch(
       managementApi.endpoints.createClient.initiate({
         tenantId,
+        cell: undefined,
         body: { isDisabled: false, settings: {} },
       }),
     );
@@ -361,6 +378,7 @@ describe('managementApi client mutations (tenant scope)', () => {
     await store.dispatch(
       managementApi.endpoints.createClient.initiate({
         tenantId,
+        cell: undefined,
         body: { isDisabled: false, resourceServerId: 'rs-orders', settings: {} },
       }),
     );
@@ -381,6 +399,7 @@ describe('managementApi client mutations (tenant scope)', () => {
       managementApi.endpoints.updateClient.initiate({
         tenantId,
         clientId: 'web',
+        cell: undefined,
         concurrencyToken: 'etag-2',
         fields: { isDisabled: true },
       }),
@@ -399,7 +418,11 @@ describe('managementApi client mutations (tenant scope)', () => {
     const store = createStore();
 
     await store.dispatch(
-      managementApi.endpoints.deleteClient.initiate({ tenantId, clientId: 'web' }),
+      managementApi.endpoints.deleteClient.initiate({
+        tenantId,
+        clientId: 'web',
+        cell: undefined,
+      }),
     );
 
     expect(captured[0]?.url).toBe('https://api.test/api/tenants/acme/clients/web');
@@ -469,7 +492,9 @@ describe('managementApi machine clients (platform and team scope)', () => {
     await store.dispatch(
       managementApi.endpoints.listMachineClients.initiate({ kind: 'team', teamId: 'globex' }),
     );
-    await store.dispatch(managementApi.endpoints.listClients.initiate({ tenantId: 'control' }));
+    await store.dispatch(
+      managementApi.endpoints.listClients.initiate({ tenantId: 'control', cell: undefined }),
+    );
 
     await store.dispatch(
       managementApi.endpoints.createMachineClient.initiate({
@@ -495,7 +520,9 @@ describe('managementApi machine clients (platform and team scope)', () => {
     await store.dispatch(
       managementApi.endpoints.listMachineClients.initiate({ kind: 'team', teamId: 'globex' }),
     );
-    await store.dispatch(managementApi.endpoints.listClients.initiate({ tenantId: 'control' }));
+    await store.dispatch(
+      managementApi.endpoints.listClients.initiate({ tenantId: 'control', cell: undefined }),
+    );
 
     await store.dispatch(
       managementApi.endpoints.createMachineClient.initiate({
@@ -523,6 +550,7 @@ describe('managementApi machine clients (platform and team scope)', () => {
       managementApi.endpoints.updateClient.initiate({
         tenantId: 'control',
         clientId: 'bot',
+        cell: undefined,
         concurrencyToken: 'c1',
         fields: { isDisabled: true },
       }),
@@ -562,6 +590,7 @@ describe('managementApi resource-server + scope mutations (tenant scope)', () =>
     const result = await store.dispatch(
       managementApi.endpoints.createResourceServer.initiate({
         tenantId,
+        cell: undefined,
         body: { identifier: 'urn:api', name: 'API', isDisabled: false, settings: {} },
       }),
     );
@@ -585,6 +614,7 @@ describe('managementApi resource-server + scope mutations (tenant scope)', () =>
       managementApi.endpoints.updateResourceServer.initiate({
         tenantId,
         resourceServerId: 'rs-1',
+        cell: undefined,
         concurrencyToken: 'etag-3',
         fields: { name: 'Renamed', isDisabled: true },
       }),
@@ -604,7 +634,11 @@ describe('managementApi resource-server + scope mutations (tenant scope)', () =>
     const store = createStore();
 
     await store.dispatch(
-      managementApi.endpoints.deleteResourceServer.initiate({ tenantId, resourceServerId: 'rs-1' }),
+      managementApi.endpoints.deleteResourceServer.initiate({
+        tenantId,
+        resourceServerId: 'rs-1',
+        cell: undefined,
+      }),
     );
 
     expect(captured[0]?.url).toBe('https://api.test/api/tenants/acme/resource-servers/rs-1');
@@ -624,6 +658,7 @@ describe('managementApi resource-server + scope mutations (tenant scope)', () =>
       managementApi.endpoints.createScope.initiate({
         tenantId,
         resourceServerId: 'rs-1',
+        cell: undefined,
         body: { value: 'read:x', description: 'Read X' },
       }),
     );
@@ -645,6 +680,7 @@ describe('managementApi resource-server + scope mutations (tenant scope)', () =>
         tenantId,
         resourceServerId: 'rs-1',
         scopeValue: 'read:x',
+        cell: undefined,
         body: { description: 'Read all X' },
       }),
     );
@@ -666,6 +702,7 @@ describe('managementApi resource-server + scope mutations (tenant scope)', () =>
         tenantId,
         resourceServerId: 'rs-1',
         scopeValue: 'read:x',
+        cell: undefined,
       }),
     );
 
@@ -696,6 +733,7 @@ describe('managementApi grant queries + mutations (tenant scope)', () => {
         tenantId: 'acme',
         subjectId: 'user-1',
         clientId: 'web',
+        cell: undefined,
       }),
     );
 
@@ -710,7 +748,11 @@ describe('managementApi grant queries + mutations (tenant scope)', () => {
     const store = createStore();
 
     await store.dispatch(
-      managementApi.endpoints.revokeGrant.initiate({ tenantId: 'acme', grantId: 'g-1' }),
+      managementApi.endpoints.revokeGrant.initiate({
+        tenantId: 'acme',
+        grantId: 'g-1',
+        cell: undefined,
+      }),
     );
 
     expect(captured[0]?.url).toBe('https://api.test/api/tenants/acme/grants/g-1');
@@ -727,7 +769,11 @@ describe('managementApi grant queries + mutations (tenant scope)', () => {
     const store = createStore();
 
     const result = await store.dispatch(
-      managementApi.endpoints.revokeGrants.initiate({ tenantId: 'acme', clientId: 'web' }),
+      managementApi.endpoints.revokeGrants.initiate({
+        tenantId: 'acme',
+        clientId: 'web',
+        cell: undefined,
+      }),
     );
 
     expect('data' in result && result.data?.revoked).toBe(3);
@@ -740,7 +786,11 @@ describe('managementApi grant queries + mutations (tenant scope)', () => {
     const store = createStore();
 
     await store.dispatch(
-      managementApi.endpoints.revokeGrants.initiate({ tenantId: 'acme', subjectId: 'user-1' }),
+      managementApi.endpoints.revokeGrants.initiate({
+        tenantId: 'acme',
+        subjectId: 'user-1',
+        cell: undefined,
+      }),
     );
 
     expect(captured[0]?.url).toBe('https://api.test/api/tenants/acme/grants?subjectId=user-1');
@@ -751,7 +801,9 @@ describe('managementApi grant queries + mutations (tenant scope)', () => {
     const captured = mockFetch(jsonResponse({ items: [] }));
     const store = createStore();
 
-    await store.dispatch(managementApi.endpoints.listGrants.initiate({ tenantId: 'acme' }));
+    await store.dispatch(
+      managementApi.endpoints.listGrants.initiate({ tenantId: 'acme', cell: undefined }),
+    );
 
     const url = new URL(captured[0]?.url ?? '');
     expect(url.origin + url.pathname).toBe('https://api.test/api/tenants/acme/grants');
@@ -775,7 +827,9 @@ describe('managementApi tenant usage', () => {
     );
     const store = createStore();
 
-    await store.dispatch(managementApi.endpoints.getTenantUsage.initiate({ tenantId: 'acme' }));
+    await store.dispatch(
+      managementApi.endpoints.getTenantUsage.initiate({ tenantId: 'acme', cell: undefined }),
+    );
 
     expect(captured[0]?.url).toBe('https://api.test/api/tenants/acme/usage');
     expect(captured[0]?.method).toBe('GET');
@@ -795,6 +849,7 @@ describe('managementApi tenant usage', () => {
         tenantId: 'acme',
         from: '2026-10-01',
         to: '2026-10-21',
+        cell: undefined,
       }),
     );
 
@@ -1090,6 +1145,7 @@ describe('managementApi initial access token mint (tenant scope)', () => {
     const result = await store.dispatch(
       managementApi.endpoints.createInitialAccessToken.initiate({
         tenantId: 'acme',
+        cell: undefined,
         body: { description: 'Partner X', lifetimeSeconds: 3600 },
       }),
     );
@@ -1123,6 +1179,7 @@ describe('managementApi initial access token mint (tenant scope)', () => {
     const result = await store.dispatch(
       managementApi.endpoints.createInitialAccessToken.initiate({
         tenantId: 'acme',
+        cell: undefined,
         body: { description: null, lifetimeSeconds: null, resourceServerId: 'rs-orders' },
       }),
     );
@@ -1161,12 +1218,18 @@ const queryRequestCases: readonly QueryRequestCase[] = [
   {
     name: 'getTenant',
     url: 'https://api.test/api/tenants/acme%2F1',
-    run: (s) => s.dispatch(managementApi.endpoints.getTenant.initiate('acme/1')),
+    run: (s) =>
+      s.dispatch(
+        managementApi.endpoints.getTenant.initiate({ tenantId: 'acme/1', cell: undefined }),
+      ),
   },
   {
     name: 'getTenantAddress (derived issuer)',
     url: 'https://api.test/api/tenants/acme/address',
-    run: (s) => s.dispatch(managementApi.endpoints.getTenantAddress.initiate({ tenantId: 'acme' })),
+    run: (s) =>
+      s.dispatch(
+        managementApi.endpoints.getTenantAddress.initiate({ tenantId: 'acme', cell: undefined }),
+      ),
   },
   {
     name: 'getTenantAddress (proposed issuer)',
@@ -1175,6 +1238,7 @@ const queryRequestCases: readonly QueryRequestCase[] = [
       s.dispatch(
         managementApi.endpoints.getTenantAddress.initiate({
           tenantId: 'acme',
+          cell: undefined,
           issuer: 'https://acme.example',
         }),
       ),
@@ -1186,6 +1250,7 @@ const queryRequestCases: readonly QueryRequestCase[] = [
       s.dispatch(
         managementApi.endpoints.getTenantAddress.initiate({
           tenantId: 'acme',
+          cell: undefined,
           issuer: 'https://acme.example',
           mtlsEndpointAliasAuthority: 'https://acme.mtls.example',
         }),
@@ -1198,6 +1263,7 @@ const queryRequestCases: readonly QueryRequestCase[] = [
       s.dispatch(
         managementApi.endpoints.getTenantAddress.initiate({
           tenantId: 'acme',
+          cell: undefined,
           mtlsEndpointAliasAuthority: 'https://acme.mtls.example',
         }),
       ),
@@ -1207,7 +1273,11 @@ const queryRequestCases: readonly QueryRequestCase[] = [
     url: 'https://api.test/api/teams/acme/tenants/acme/address',
     run: (s) =>
       s.dispatch(
-        managementApi.endpoints.getNewTenantAddress.initiate({ teamId: 'acme', tenantId: 'acme' }),
+        managementApi.endpoints.getNewTenantAddress.initiate({
+          teamId: 'acme',
+          tenantId: 'acme',
+          cell: undefined,
+        }),
       ),
   },
   {
@@ -1218,6 +1288,7 @@ const queryRequestCases: readonly QueryRequestCase[] = [
         managementApi.endpoints.getNewTenantAddress.initiate({
           teamId: 'acme',
           tenantId: 'acme',
+          cell: undefined,
           issuer: 'https://acme.example',
         }),
       ),
@@ -1230,6 +1301,7 @@ const queryRequestCases: readonly QueryRequestCase[] = [
         managementApi.endpoints.getNewTenantAddress.initiate({
           teamId: 'acme',
           tenantId: 'acme',
+          cell: undefined,
           issuer: 'https://acme.example',
           mtlsEndpointAliasAuthority: 'https://acme.mtls.example',
         }),
@@ -1243,6 +1315,7 @@ const queryRequestCases: readonly QueryRequestCase[] = [
         managementApi.endpoints.getNewTenantAddress.initiate({
           teamId: 'acme',
           tenantId: 'acme',
+          cell: undefined,
           mtlsEndpointAliasAuthority: 'https://acme.mtls.example',
         }),
       ),
@@ -1250,7 +1323,10 @@ const queryRequestCases: readonly QueryRequestCase[] = [
   {
     name: 'listClients (tenant scope)',
     url: 'https://api.test/api/tenants/acme/clients',
-    run: (s) => s.dispatch(managementApi.endpoints.listClients.initiate({ tenantId: 'acme' })),
+    run: (s) =>
+      s.dispatch(
+        managementApi.endpoints.listClients.initiate({ tenantId: 'acme', cell: undefined }),
+      ),
   },
   {
     name: 'listClients (resource server filter)',
@@ -1260,6 +1336,7 @@ const queryRequestCases: readonly QueryRequestCase[] = [
         managementApi.endpoints.listClients.initiate({
           tenantId: 'acme',
           resourceServerId: 'rs-orders',
+          cell: undefined,
         }),
       ),
   },
@@ -1267,14 +1344,20 @@ const queryRequestCases: readonly QueryRequestCase[] = [
     name: 'listResourceServers (tenant scope)',
     url: 'https://api.test/api/tenants/acme/resource-servers',
     run: (s) =>
-      s.dispatch(managementApi.endpoints.listResourceServers.initiate({ tenantId: 'acme' })),
+      s.dispatch(
+        managementApi.endpoints.listResourceServers.initiate({ tenantId: 'acme', cell: undefined }),
+      ),
   },
   {
     name: 'listGrants (subject filter)',
     url: 'https://api.test/api/tenants/acme/grants?subjectId=user-1',
     run: (s) =>
       s.dispatch(
-        managementApi.endpoints.listGrants.initiate({ tenantId: 'acme', subjectId: 'user-1' }),
+        managementApi.endpoints.listGrants.initiate({
+          tenantId: 'acme',
+          subjectId: 'user-1',
+          cell: undefined,
+        }),
       ),
   },
 ];
@@ -1313,6 +1396,7 @@ const tenantResourceMutationCases: readonly MutationRequestCase[] = [
       s.dispatch(
         managementApi.endpoints.createClient.initiate({
           tenantId: 'acme',
+          cell: undefined,
           body: { isDisabled: false, settings: {} },
         }),
       ),
@@ -1326,6 +1410,7 @@ const tenantResourceMutationCases: readonly MutationRequestCase[] = [
         managementApi.endpoints.updateClient.initiate({
           tenantId: 'acme',
           clientId: 'web',
+          cell: undefined,
           concurrencyToken: 'etag',
           fields: { isDisabled: true },
         }),
@@ -1337,7 +1422,11 @@ const tenantResourceMutationCases: readonly MutationRequestCase[] = [
     url: 'https://api.test/api/tenants/acme/clients/web',
     run: (s) =>
       s.dispatch(
-        managementApi.endpoints.deleteClient.initiate({ tenantId: 'acme', clientId: 'web' }),
+        managementApi.endpoints.deleteClient.initiate({
+          tenantId: 'acme',
+          clientId: 'web',
+          cell: undefined,
+        }),
       ),
   },
   {
@@ -1348,6 +1437,7 @@ const tenantResourceMutationCases: readonly MutationRequestCase[] = [
       s.dispatch(
         managementApi.endpoints.createResourceServer.initiate({
           tenantId: 'acme',
+          cell: undefined,
           body: { identifier: 'urn:api', name: 'API', isDisabled: false, settings: {} },
         }),
       ),
@@ -1361,6 +1451,7 @@ const tenantResourceMutationCases: readonly MutationRequestCase[] = [
         managementApi.endpoints.updateResourceServer.initiate({
           tenantId: 'acme',
           resourceServerId: 'rs-1',
+          cell: undefined,
           concurrencyToken: 'etag',
           fields: { name: 'API', isDisabled: false },
         }),
@@ -1375,6 +1466,7 @@ const tenantResourceMutationCases: readonly MutationRequestCase[] = [
         managementApi.endpoints.deleteResourceServer.initiate({
           tenantId: 'acme',
           resourceServerId: 'rs-1',
+          cell: undefined,
         }),
       ),
   },
@@ -1387,6 +1479,7 @@ const tenantResourceMutationCases: readonly MutationRequestCase[] = [
         managementApi.endpoints.createScope.initiate({
           tenantId: 'acme',
           resourceServerId: 'rs-1',
+          cell: undefined,
           body: { value: 'read:x', description: null },
         }),
       ),
@@ -1401,6 +1494,7 @@ const tenantResourceMutationCases: readonly MutationRequestCase[] = [
           tenantId: 'acme',
           resourceServerId: 'rs-1',
           scopeValue: 'read:x',
+          cell: undefined,
           body: { description: null },
         }),
       ),
@@ -1415,6 +1509,7 @@ const tenantResourceMutationCases: readonly MutationRequestCase[] = [
           tenantId: 'acme',
           resourceServerId: 'rs-1',
           scopeValue: 'read:x',
+          cell: undefined,
         }),
       ),
   },
@@ -1471,7 +1566,10 @@ const listTagCases: readonly ListTagCase[] = [
     name: 'listClients',
     path: '/api/tenants/acme/clients',
     body: { items: [{ clientId: 'web' }] },
-    run: (s) => s.dispatch(managementApi.endpoints.listClients.initiate({ tenantId: 'acme' })),
+    run: (s) =>
+      s.dispatch(
+        managementApi.endpoints.listClients.initiate({ tenantId: 'acme', cell: undefined }),
+      ),
     collectionTag: { type: 'Client', id: 'tenant:acme:LIST' },
     itemTag: { type: 'Client', id: 'tenant:acme:web' },
   },
@@ -1491,7 +1589,9 @@ const listTagCases: readonly ListTagCase[] = [
     path: '/api/tenants/acme/resource-servers',
     body: { items: [{ resourceServerId: 'rs-1' }] },
     run: (s) =>
-      s.dispatch(managementApi.endpoints.listResourceServers.initiate({ tenantId: 'acme' })),
+      s.dispatch(
+        managementApi.endpoints.listResourceServers.initiate({ tenantId: 'acme', cell: undefined }),
+      ),
     collectionTag: { type: 'ResourceServer', id: 'tenant:acme:LIST' },
     itemTag: { type: 'ResourceServer', id: 'tenant:acme:rs-1' },
   },
@@ -1499,7 +1599,10 @@ const listTagCases: readonly ListTagCase[] = [
     name: 'listGrants',
     path: '/api/tenants/acme/grants',
     body: { items: [{ grantId: 'g-1' }] },
-    run: (s) => s.dispatch(managementApi.endpoints.listGrants.initiate({ tenantId: 'acme' })),
+    run: (s) =>
+      s.dispatch(
+        managementApi.endpoints.listGrants.initiate({ tenantId: 'acme', cell: undefined }),
+      ),
     collectionTag: { type: 'Grant', id: 'tenant:acme:LIST' },
     itemTag: { type: 'Grant', id: 'tenant:acme:g-1' },
   },
@@ -1577,19 +1680,26 @@ const cachedQueries: readonly CachedQuery[] = [
     label: 'tenant:acme',
     path: '/api/tenants/acme',
     body: { tenantId: 'acme' },
-    subscribe: (s) => s.dispatch(managementApi.endpoints.getTenant.initiate('acme')),
+    subscribe: (s) =>
+      s.dispatch(managementApi.endpoints.getTenant.initiate({ tenantId: 'acme', cell: undefined })),
   },
   {
     label: 'tenant:acme-dev',
     path: '/api/tenants/acme-dev',
     body: { tenantId: 'acme-dev' },
-    subscribe: (s) => s.dispatch(managementApi.endpoints.getTenant.initiate('acme-dev')),
+    subscribe: (s) =>
+      s.dispatch(
+        managementApi.endpoints.getTenant.initiate({ tenantId: 'acme-dev', cell: undefined }),
+      ),
   },
   {
     label: 'tenant:other',
     path: '/api/tenants/other',
     body: { tenantId: 'other' },
-    subscribe: (s) => s.dispatch(managementApi.endpoints.getTenant.initiate('other')),
+    subscribe: (s) =>
+      s.dispatch(
+        managementApi.endpoints.getTenant.initiate({ tenantId: 'other', cell: undefined }),
+      ),
   },
   {
     label: 'teams',
@@ -1628,41 +1738,57 @@ const cachedQueries: readonly CachedQuery[] = [
     path: '/api/tenants/acme/clients',
     body: { items: [{ clientId: 'web' }] },
     subscribe: (s) =>
-      s.dispatch(managementApi.endpoints.listClients.initiate({ tenantId: 'acme' })),
+      s.dispatch(
+        managementApi.endpoints.listClients.initiate({ tenantId: 'acme', cell: undefined }),
+      ),
   },
   {
     label: 'clients:other',
     path: '/api/tenants/other/clients',
     body: { items: [{ clientId: 'web' }] },
     subscribe: (s) =>
-      s.dispatch(managementApi.endpoints.listClients.initiate({ tenantId: 'other' })),
+      s.dispatch(
+        managementApi.endpoints.listClients.initiate({ tenantId: 'other', cell: undefined }),
+      ),
   },
   {
     label: 'resourceServers',
     path: '/api/tenants/acme/resource-servers',
     body: { items: [{ resourceServerId: 'rs-1' }] },
     subscribe: (s) =>
-      s.dispatch(managementApi.endpoints.listResourceServers.initiate({ tenantId: 'acme' })),
+      s.dispatch(
+        managementApi.endpoints.listResourceServers.initiate({ tenantId: 'acme', cell: undefined }),
+      ),
   },
   {
     label: 'resourceServers:other',
     path: '/api/tenants/other/resource-servers',
     body: { items: [{ resourceServerId: 'rs-1' }] },
     subscribe: (s) =>
-      s.dispatch(managementApi.endpoints.listResourceServers.initiate({ tenantId: 'other' })),
+      s.dispatch(
+        managementApi.endpoints.listResourceServers.initiate({
+          tenantId: 'other',
+          cell: undefined,
+        }),
+      ),
   },
   {
     label: 'grants',
     path: '/api/tenants/acme/grants',
     body: { items: [{ grantId: 'g-1' }] },
-    subscribe: (s) => s.dispatch(managementApi.endpoints.listGrants.initiate({ tenantId: 'acme' })),
+    subscribe: (s) =>
+      s.dispatch(
+        managementApi.endpoints.listGrants.initiate({ tenantId: 'acme', cell: undefined }),
+      ),
   },
   {
     label: 'grants:other',
     path: '/api/tenants/other/grants',
     body: { items: [{ grantId: 'g-1' }] },
     subscribe: (s) =>
-      s.dispatch(managementApi.endpoints.listGrants.initiate({ tenantId: 'other' })),
+      s.dispatch(
+        managementApi.endpoints.listGrants.initiate({ tenantId: 'other', cell: undefined }),
+      ),
   },
 ];
 
@@ -1680,6 +1806,7 @@ const invalidationCases: readonly InvalidationCase[] = [
       s.dispatch(
         managementApi.endpoints.createTenant.initiate({
           teamId: 'acme',
+          cell: undefined,
           body: {
             tenantId: 'new',
             issuer: null,
@@ -1699,6 +1826,7 @@ const invalidationCases: readonly InvalidationCase[] = [
         managementApi.endpoints.updateTenant.initiate({
           teamId: 'acme',
           tenantId: 'acme-dev',
+          cell: undefined,
           concurrencyToken: 'etag',
           fields: {
             issuer: null,
@@ -1714,7 +1842,11 @@ const invalidationCases: readonly InvalidationCase[] = [
     name: 'deleteTenant',
     mutate: (s) =>
       s.dispatch(
-        managementApi.endpoints.deleteTenant.initiate({ teamId: 'acme', tenantId: 'acme-dev' }),
+        managementApi.endpoints.deleteTenant.initiate({
+          teamId: 'acme',
+          tenantId: 'acme-dev',
+          cell: undefined,
+        }),
       ),
     refetches: ['tenants', 'tenant:acme-dev'],
   },
@@ -1723,8 +1855,9 @@ const invalidationCases: readonly InvalidationCase[] = [
     mutate: (s) =>
       s.dispatch(
         managementApi.endpoints.previewTenantPromotion.initiate({
-          teamId: 'acme',
-          body: { sourceTenantId: 'acme-dev', targetTenantId: 'acme', environmentSettings: [] },
+          tenantId: 'acme',
+          cell: undefined,
+          body: { sourceTenantId: 'acme-dev', environmentSettings: [] },
         }),
       ),
     refetches: [],
@@ -1734,11 +1867,20 @@ const invalidationCases: readonly InvalidationCase[] = [
     mutate: (s) =>
       s.dispatch(
         managementApi.endpoints.promoteTenant.initiate({
-          teamId: 'acme',
-          body: { sourceTenantId: 'acme-dev', targetTenantId: 'acme', environmentSettings: [] },
+          tenantId: 'acme',
+          cell: undefined,
+          body: { sourceTenantId: 'acme-dev', environmentSettings: [] },
         }),
       ),
     refetches: ['tenants', 'tenant:acme', 'clients', 'resourceServers'],
+  },
+  {
+    name: 'releaseMovedTenant',
+    mutate: (s) =>
+      s.dispatch(
+        managementApi.endpoints.releaseMovedTenant.initiate({ cell: 'eu-1', tenantId: 'acme-dev' }),
+      ),
+    refetches: ['tenants', 'tenant:acme-dev'],
   },
   {
     name: 'createTeam',
@@ -1804,6 +1946,7 @@ const invalidationCases: readonly InvalidationCase[] = [
       s.dispatch(
         managementApi.endpoints.createClient.initiate({
           tenantId: 'acme',
+          cell: undefined,
           body: { isDisabled: false, settings: {} },
         }),
       ),
@@ -1816,6 +1959,7 @@ const invalidationCases: readonly InvalidationCase[] = [
         managementApi.endpoints.updateClient.initiate({
           tenantId: 'acme',
           clientId: 'web',
+          cell: undefined,
           concurrencyToken: 'etag',
           fields: { isDisabled: true },
         }),
@@ -1826,7 +1970,11 @@ const invalidationCases: readonly InvalidationCase[] = [
     name: 'deleteClient',
     mutate: (s) =>
       s.dispatch(
-        managementApi.endpoints.deleteClient.initiate({ tenantId: 'acme', clientId: 'web' }),
+        managementApi.endpoints.deleteClient.initiate({
+          tenantId: 'acme',
+          clientId: 'web',
+          cell: undefined,
+        }),
       ),
     refetches: ['clients'],
   },
@@ -1836,6 +1984,7 @@ const invalidationCases: readonly InvalidationCase[] = [
       s.dispatch(
         managementApi.endpoints.createResourceServer.initiate({
           tenantId: 'acme',
+          cell: undefined,
           body: { identifier: 'urn:api', name: 'API', isDisabled: false, settings: {} },
         }),
       ),
@@ -1848,6 +1997,7 @@ const invalidationCases: readonly InvalidationCase[] = [
         managementApi.endpoints.updateResourceServer.initiate({
           tenantId: 'acme',
           resourceServerId: 'rs-1',
+          cell: undefined,
           concurrencyToken: 'etag',
           fields: { name: 'API', isDisabled: true },
         }),
@@ -1861,6 +2011,7 @@ const invalidationCases: readonly InvalidationCase[] = [
         managementApi.endpoints.deleteResourceServer.initiate({
           tenantId: 'acme',
           resourceServerId: 'rs-1',
+          cell: undefined,
         }),
       ),
     refetches: ['resourceServers'],
@@ -1872,6 +2023,7 @@ const invalidationCases: readonly InvalidationCase[] = [
         managementApi.endpoints.createScope.initiate({
           tenantId: 'acme',
           resourceServerId: 'rs-1',
+          cell: undefined,
           body: { value: 'read:x', description: null },
         }),
       ),
@@ -1885,6 +2037,7 @@ const invalidationCases: readonly InvalidationCase[] = [
           tenantId: 'acme',
           resourceServerId: 'rs-1',
           scopeValue: 'read:x',
+          cell: undefined,
           body: { description: 'Read X' },
         }),
       ),
@@ -1898,6 +2051,7 @@ const invalidationCases: readonly InvalidationCase[] = [
           tenantId: 'acme',
           resourceServerId: 'rs-1',
           scopeValue: 'read:x',
+          cell: undefined,
         }),
       ),
     refetches: ['resourceServers'],
@@ -1906,7 +2060,11 @@ const invalidationCases: readonly InvalidationCase[] = [
     name: 'revokeGrant',
     mutate: (s) =>
       s.dispatch(
-        managementApi.endpoints.revokeGrant.initiate({ tenantId: 'acme', grantId: 'g-1' }),
+        managementApi.endpoints.revokeGrant.initiate({
+          tenantId: 'acme',
+          grantId: 'g-1',
+          cell: undefined,
+        }),
       ),
     refetches: ['grants'],
   },
@@ -1914,7 +2072,11 @@ const invalidationCases: readonly InvalidationCase[] = [
     name: 'revokeGrants',
     mutate: (s) =>
       s.dispatch(
-        managementApi.endpoints.revokeGrants.initiate({ tenantId: 'acme', subjectId: 'user-1' }),
+        managementApi.endpoints.revokeGrants.initiate({
+          tenantId: 'acme',
+          subjectId: 'user-1',
+          cell: undefined,
+        }),
       ),
     refetches: ['grants'],
   },
@@ -1924,6 +2086,7 @@ const invalidationCases: readonly InvalidationCase[] = [
       s.dispatch(
         managementApi.endpoints.createInitialAccessToken.initiate({
           tenantId: 'acme',
+          cell: undefined,
           body: { description: null, lifetimeSeconds: null },
         }),
       ),
@@ -1933,7 +2096,11 @@ const invalidationCases: readonly InvalidationCase[] = [
     name: 'deleteClient in another tenant',
     mutate: (s) =>
       s.dispatch(
-        managementApi.endpoints.deleteClient.initiate({ tenantId: 'other', clientId: 'web' }),
+        managementApi.endpoints.deleteClient.initiate({
+          tenantId: 'other',
+          clientId: 'web',
+          cell: undefined,
+        }),
       ),
     refetches: ['clients:other'],
   },
@@ -1944,6 +2111,7 @@ const invalidationCases: readonly InvalidationCase[] = [
         managementApi.endpoints.updateResourceServer.initiate({
           tenantId: 'other',
           resourceServerId: 'rs-1',
+          cell: undefined,
           concurrencyToken: 'etag',
           fields: { name: 'API', isDisabled: true },
         }),
@@ -1954,7 +2122,11 @@ const invalidationCases: readonly InvalidationCase[] = [
     name: 'revokeGrant in another tenant',
     mutate: (s) =>
       s.dispatch(
-        managementApi.endpoints.revokeGrant.initiate({ tenantId: 'other', grantId: 'g-1' }),
+        managementApi.endpoints.revokeGrant.initiate({
+          tenantId: 'other',
+          grantId: 'g-1',
+          cell: undefined,
+        }),
       ),
     refetches: ['grants:other'],
   },
@@ -2002,6 +2174,7 @@ describe('managementApi cache invalidation', () => {
       managementApi.endpoints.updateTenant.initiate({
         teamId: 'acme',
         tenantId: 'acme-dev',
+        cell: undefined,
         concurrencyToken: 'stale',
         fields: {
           issuer: null,
@@ -2080,7 +2253,9 @@ describe('managementApi encryption key requests', () => {
       );
       const store = createStore();
 
-      await store.dispatch(managementApi.endpoints.listEncryptionKeys.initiate(owner));
+      await store.dispatch(
+        managementApi.endpoints.listEncryptionKeys.initiate({ ...owner, cell: undefined }),
+      );
 
       expect(captured[0]?.url).toBe(`https://api.test${path}/encryption-keys`);
       expect(captured[0]?.method).toBe('GET');
@@ -2103,13 +2278,19 @@ describe('managementApi encryption key requests', () => {
       );
       const store = createStore();
       const subscriptions = [
-        store.dispatch(managementApi.endpoints.listEncryptionKeys.initiate(owner)),
-        store.dispatch(managementApi.endpoints.listEncryptionKeys.initiate(otherOwner)),
+        store.dispatch(
+          managementApi.endpoints.listEncryptionKeys.initiate({ ...owner, cell: undefined }),
+        ),
+        store.dispatch(
+          managementApi.endpoints.listEncryptionKeys.initiate({ ...otherOwner, cell: undefined }),
+        ),
       ];
       await Promise.all(subscriptions);
       const before = captured.length;
 
-      await store.dispatch(managementApi.endpoints.rekeyEncryptionKeys.initiate(owner));
+      await store.dispatch(
+        managementApi.endpoints.rekeyEncryptionKeys.initiate({ ...owner, cell: undefined }),
+      );
       await settle(store);
 
       expect(captured[before]?.url).toBe(`https://api.test${path}/encryption-keys/rekey`);
@@ -2149,8 +2330,12 @@ describe('managementApi tenant root key requests', () => {
     const captured = mockFetch(response);
     const store = createStore();
     const subscriptions = [
-      store.dispatch(managementApi.endpoints.listEncryptionKeys.initiate(tenant)),
-      store.dispatch(managementApi.endpoints.listEncryptionKeys.initiate(otherTenant)),
+      store.dispatch(
+        managementApi.endpoints.listEncryptionKeys.initiate({ ...tenant, cell: undefined }),
+      ),
+      store.dispatch(
+        managementApi.endpoints.listEncryptionKeys.initiate({ ...otherTenant, cell: undefined }),
+      ),
     ];
     await Promise.all(subscriptions);
     const before = captured.length;
@@ -2171,7 +2356,11 @@ describe('managementApi tenant root key requests', () => {
       jsonResponse({ rootKey, activeKey: null, retiredKey: null, rewrappedKeys: 2, failedKeys: 0 }),
       (store) =>
         store.dispatch(
-          managementApi.endpoints.setTenantRootKey.initiate({ tenantId: 'acme', body }),
+          managementApi.endpoints.setTenantRootKey.initiate({
+            tenantId: 'acme',
+            body,
+            cell: undefined,
+          }),
         ),
     );
 
@@ -2188,7 +2377,7 @@ describe('managementApi tenant root key requests', () => {
     const store = createStore();
 
     const result = await store.dispatch(
-      managementApi.endpoints.removeTenantRootKey.initiate({ tenantId: 'acme' }),
+      managementApi.endpoints.removeTenantRootKey.initiate({ tenantId: 'acme', cell: undefined }),
     );
 
     expect(captured[0]?.url).toBe('https://api.test/api/tenants/acme/encryption-keys/root-key');
@@ -2200,7 +2389,9 @@ describe('managementApi tenant root key requests', () => {
     const removing = { ...rootKey, state: 'removing' };
 
     const { mutation, refetched } = await runMutation(jsonResponse(removing, 202), (store) =>
-      store.dispatch(managementApi.endpoints.removeTenantRootKey.initiate({ tenantId: 'acme' })),
+      store.dispatch(
+        managementApi.endpoints.removeTenantRootKey.initiate({ tenantId: 'acme', cell: undefined }),
+      ),
     );
 
     expect(mutation?.method).toBe('DELETE');
@@ -2211,7 +2402,12 @@ describe('managementApi tenant root key requests', () => {
 
   it('validateTenantRootKey POSTs the validation and refetches only the tenant keys', async () => {
     const { mutation, refetched } = await runMutation(jsonResponse(rootKey), (store) =>
-      store.dispatch(managementApi.endpoints.validateTenantRootKey.initiate({ tenantId: 'acme' })),
+      store.dispatch(
+        managementApi.endpoints.validateTenantRootKey.initiate({
+          tenantId: 'acme',
+          cell: undefined,
+        }),
+      ),
     );
 
     expect(mutation?.url).toBe(
@@ -2221,6 +2417,589 @@ describe('managementApi tenant root key requests', () => {
     expect(refetched.map((request) => request.url)).toEqual([
       'https://api.test/api/tenants/acme/encryption-keys',
     ]);
+  });
+});
+
+describe('managementApi cells', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('listCells GETs the cells of the platform', async () => {
+    const cells = [{ name: 'eu-1', region: 'eu', kind: 'shared', isControlPlane: true }];
+    const captured = mockFetch(jsonResponse(cells));
+    const store = createStore();
+
+    const result = await store.dispatch(managementApi.endpoints.listCells.initiate());
+
+    expect(captured[0]?.url).toBe('https://api.test/api/cells');
+    expect(captured[0]?.method).toBe('GET');
+    expect(result).toMatchObject({ data: cells });
+  });
+});
+
+describe('managementApi across cells', () => {
+  const tenant = (tenantId: string) => ({
+    tenantId,
+    teamId: 'acme',
+    concurrencyToken: 'c1',
+    issuer: null,
+    mtlsEndpointAliasAuthority: null,
+    isDisabled: false,
+    displayName: tenantId,
+  });
+  const cellRuntime: BffRuntimeConfig = { ...runtime, cells: ['eu-1', 'us-1'] };
+  const createCellStore = () => createAppStore({ config: { runtime: cellRuntime } });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('sends a tenant-scoped call with a cell to the cell forwarder', async () => {
+    const captured = mockFetch(jsonResponse({ items: [] }));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.listClients.initiate({ tenantId: 'acme-prod', cell: 'eu-1' }),
+    );
+
+    expect(captured[0]?.url).toBe('https://api.test/cells/eu-1/api/tenants/acme-prod/clients');
+  });
+
+  it('keeps the query string of a tenant-scoped call with a cell', async () => {
+    const captured = mockFetch(jsonResponse({ items: [] }));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.listClients.initiate({
+        tenantId: 'acme-prod',
+        resourceServerId: 'rs-1',
+        cell: 'eu-1',
+      }),
+    );
+
+    expect(captured[0]?.url).toBe(
+      'https://api.test/cells/eu-1/api/tenants/acme-prod/clients?resourceServerId=rs-1',
+    );
+  });
+
+  it('sends a tenant-scoped call without a cell to the control plane', async () => {
+    const captured = mockFetch(jsonResponse({ items: [] }));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.listClients.initiate({ tenantId: 'acme-prod', cell: undefined }),
+    );
+
+    expect(captured[0]?.url).toBe('https://api.test/api/tenants/acme-prod/clients');
+  });
+
+  it('sends an owner-scoped call with a cell to the cell forwarder', async () => {
+    const captured = mockFetch(jsonResponse({ secrets: [] }));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.listSecrets.initiate({
+        kind: 'tenant',
+        tenantId: 'acme-prod',
+        cell: 'us-1',
+      }),
+    );
+
+    expect(captured[0]?.url).toBe('https://api.test/cells/us-1/api/tenants/acme-prod/secrets');
+  });
+
+  it('sends a mutation with a cell to the cell forwarder with its method and body', async () => {
+    const captured = mockFetch(new Response(null, { status: 204 }));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.revokeGrant.initiate({
+        tenantId: 'acme-prod',
+        grantId: 'g-1',
+        cell: 'eu-1',
+      }),
+    );
+
+    expect(captured[0]?.url).toBe('https://api.test/cells/eu-1/api/tenants/acme-prod/grants/g-1');
+    expect(captured[0]?.method).toBe('DELETE');
+  });
+
+  it('getTenant sends a call with a cell to the cell forwarder and one without to the control plane', async () => {
+    const captured = mockFetch(jsonResponse(tenant('acme-prod')));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.getTenant.initiate({ tenantId: 'acme-prod', cell: 'eu-1' }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.getTenant.initiate({ tenantId: 'acme-prod', cell: undefined }),
+    );
+
+    expect(captured.map((request) => request.url)).toEqual([
+      'https://api.test/cells/eu-1/api/tenants/acme-prod',
+      'https://api.test/api/tenants/acme-prod',
+    ]);
+  });
+
+  it('getNewTenantAddress sends a call with a cell to the cell forwarder and one without to the control plane', async () => {
+    const captured = mockFetch(jsonResponse({ issuer: 'https://new.auth.test' }));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.getNewTenantAddress.initiate({
+        teamId: 'acme',
+        tenantId: 'new',
+        issuer: 'https://new.auth.test',
+        cell: 'eu-1',
+      }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.getNewTenantAddress.initiate({
+        teamId: 'acme',
+        tenantId: 'new',
+        cell: undefined,
+      }),
+    );
+
+    expect(captured.map((request) => request.url)).toEqual([
+      'https://api.test/cells/eu-1/api/teams/acme/tenants/new/address?issuer=https%3A%2F%2Fnew.auth.test',
+      'https://api.test/api/teams/acme/tenants/new/address',
+    ]);
+  });
+
+  it('createTenant sends a call with a cell to the cell forwarder and one without to the control plane', async () => {
+    const captured = mockFetch(jsonResponse(tenant('new'), 201));
+    const store = createStore();
+    const body = {
+      tenantId: 'new',
+      issuer: 'https://new.auth.test',
+      mtlsEndpointAliasAuthority: 'https://new.mtls.test',
+      displayName: 'New',
+      isDisabled: false,
+      settings: {},
+    };
+
+    await store.dispatch(
+      managementApi.endpoints.createTenant.initiate({ teamId: 'acme', body, cell: 'eu-1' }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.createTenant.initiate({ teamId: 'acme', body, cell: undefined }),
+    );
+
+    expect(captured.map((request) => `${request.method} ${request.url}`)).toEqual([
+      'POST https://api.test/cells/eu-1/api/teams/acme/tenants',
+      'POST https://api.test/api/teams/acme/tenants',
+    ]);
+    expect(JSON.parse(captured[0]?.body ?? '{}')).toEqual(body);
+  });
+
+  it('previewTenantPromotion and promoteTenant send a call with a cell to the cell forwarder and one without to the control plane', async () => {
+    const captured = mockFetch(jsonResponse({ changes: [] }));
+    const store = createStore();
+    const body = {
+      sourceTenantId: 'acme-dev',
+      environmentSettings: [],
+    };
+
+    await store.dispatch(
+      managementApi.endpoints.previewTenantPromotion.initiate({
+        tenantId: 'acme-prod',
+        body,
+        cell: 'eu-1',
+      }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.previewTenantPromotion.initiate({
+        tenantId: 'acme-prod',
+        body,
+        cell: undefined,
+      }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.promoteTenant.initiate({ tenantId: 'acme-prod', body, cell: 'eu-1' }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.promoteTenant.initiate({
+        tenantId: 'acme-prod',
+        body,
+        cell: undefined,
+      }),
+    );
+
+    expect(captured.map((request) => request.url)).toEqual([
+      'https://api.test/cells/eu-1/api/tenants/acme-prod/promotions/preview',
+      'https://api.test/api/tenants/acme-prod/promotions/preview',
+      'https://api.test/cells/eu-1/api/tenants/acme-prod/promotions',
+      'https://api.test/api/tenants/acme-prod/promotions',
+    ]);
+  });
+
+  it('getTenantConfiguration sends a call with a cell to the cell forwarder and one without to the control plane', async () => {
+    const captured = mockFetch(jsonResponse({ sourceTenantId: 'acme-dev', region: 'eu' }));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.getTenantConfiguration.initiate({
+        tenantId: 'acme-dev',
+        cell: 'eu-1',
+      }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.getTenantConfiguration.initiate({
+        tenantId: 'acme-dev',
+        cell: undefined,
+      }),
+    );
+
+    expect(captured.map((request) => `${request.method} ${request.url}`)).toEqual([
+      'GET https://api.test/cells/eu-1/api/tenants/acme-dev/configuration',
+      'GET https://api.test/api/tenants/acme-dev/configuration',
+    ]);
+  });
+
+  it('the four calls of a move are addressed to their cells and carry their bodies', async () => {
+    const captured: CapturedRequest[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const request = input as Request;
+        captured.push({
+          url: request.url,
+          method: request.method,
+          antiforgery: request.headers.get('x-csrf'),
+          ifMatch: request.headers.get('if-match'),
+          body: await request.clone().text(),
+        });
+        if (request.url.endsWith('/transfer-keys')) {
+          return jsonResponse({ kid: 'k-1', jwk: { kty: 'EC', crv: 'P-256' } });
+        }
+        if (request.url.endsWith('/export')) {
+          return jsonResponse({ package: 'jwe' });
+        }
+        if (request.url.endsWith('/api/tenant-imports')) {
+          return jsonResponse({ tenantId: 'acme-dev', sourceCell: 'eu-1' });
+        }
+        return new Response(null, { status: 204 });
+      }),
+    );
+    const store = createStore();
+
+    await store.dispatch(managementApi.endpoints.createTransferKey.initiate({ cell: 'eu-2' }));
+    await store.dispatch(
+      managementApi.endpoints.exportTenant.initiate({
+        cell: 'eu-1',
+        tenantId: 'acme-dev',
+        targetCell: 'eu-2',
+        jwk: { kty: 'EC', crv: 'P-256' },
+      }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.importTenant.initiate({ cell: 'eu-2', kid: 'k-1', package: 'jwe' }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.releaseMovedTenant.initiate({ cell: 'eu-1', tenantId: 'acme-dev' }),
+    );
+
+    expect(captured.map((request) => `${request.method} ${request.url}`)).toEqual([
+      'POST https://api.test/cells/eu-2/api/tenant-imports/transfer-keys',
+      'POST https://api.test/cells/eu-1/api/tenants/acme-dev/export',
+      'POST https://api.test/cells/eu-2/api/tenant-imports',
+      'POST https://api.test/cells/eu-1/api/tenants/acme-dev/release-moved',
+    ]);
+    expect(captured[0]?.body).toBe('');
+    expect(JSON.parse(captured[1]?.body ?? '{}')).toEqual({
+      jwk: { kty: 'EC', crv: 'P-256' },
+      targetCell: 'eu-2',
+    });
+    expect(JSON.parse(captured[2]?.body ?? '{}')).toEqual({ kid: 'k-1', package: 'jwe' });
+    expect(captured[3]?.body).toBe('');
+  });
+
+  it('importTenant refreshes the tenant it imported', async () => {
+    const fetches = routeFetch((method, path) => {
+      if (method === 'GET') {
+        return jsonResponse({ tenantId: 'acme-dev' });
+      }
+      return path.endsWith('/api/tenant-imports')
+        ? jsonResponse({ tenantId: 'acme-dev', sourceCell: 'eu-1' })
+        : new Response(null, { status: 204 });
+    });
+    const store = createStore();
+    await store.dispatch(
+      managementApi.endpoints.getTenant.initiate({ tenantId: 'acme-dev', cell: undefined }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.getTenant.initiate({ tenantId: 'other', cell: undefined }),
+    );
+
+    await store.dispatch(
+      managementApi.endpoints.importTenant.initiate({ cell: 'eu-2', kid: 'k-1', package: 'jwe' }),
+    );
+    await settle(store);
+
+    expect(fetches.count('GET', '/api/tenants/acme-dev')).toBe(2);
+    expect(fetches.count('GET', '/api/tenants/other')).toBe(1);
+  });
+
+  it('listTenants asks the control plane alone when no cell is named', async () => {
+    const fetches = routeFetch(() => jsonResponse({ items: [tenant('a')] }));
+    const store = createStore();
+
+    const result = await store.dispatch(
+      managementApi.endpoints.listTenants.initiate({ teamId: 'acme' }),
+    );
+
+    expect(fetches.calls).toEqual(['GET /api/teams/acme/tenants']);
+    expect(result.data).toEqual({ items: [tenant('a')], unavailableCells: [] });
+  });
+
+  it('listTenants refuses a surface its BFF does not serve without calling a cell', async () => {
+    const openIdRuntime: OpenIdRuntimeConfig = {
+      kind: 'openid',
+      apiBaseUrl: 'https://api.test/',
+      issuer: 'https://issuer.test/',
+      authorizationEndpoint: 'https://issuer.test/authorize',
+      tokenEndpoint: 'https://issuer.test/token',
+      scopes: [],
+      features: {},
+    };
+    const fetches = routeFetch(() => jsonResponse({ items: [tenant('a')] }));
+    const store = createAppStore({ config: { runtime: openIdRuntime } });
+
+    const result = await store.dispatch(
+      managementApi.endpoints.listTenants.initiate({ teamId: 'acme' }),
+    );
+
+    expect(fetches.calls).toEqual([]);
+    expect(result.error).toMatchObject({ status: 'CUSTOM_ERROR' });
+  });
+
+  it('importTenant leaves the tenant it failed to import cached', async () => {
+    const fetches = routeFetch((method, path) =>
+      method === 'GET' && path === '/api/tenants/acme-dev'
+        ? jsonResponse({ tenantId: 'acme-dev' })
+        : new Response(null, { status: 500 }),
+    );
+    const store = createStore();
+    await store.dispatch(
+      managementApi.endpoints.getTenant.initiate({ tenantId: 'acme-dev', cell: undefined }),
+    );
+
+    const result = await store.dispatch(
+      managementApi.endpoints.importTenant.initiate({ cell: 'eu-2', kid: 'k-1', package: 'jwe' }),
+    );
+    await settle(store);
+
+    expect(result).toHaveProperty('error');
+    expect(fetches.count('GET', '/api/tenants/acme-dev')).toBe(1);
+  });
+
+  it('listTenants merges the tenants of every cell, each tagged with its cell', async () => {
+    const fetches = routeFetch((_method, path) =>
+      path.startsWith('/cells/eu-1/')
+        ? jsonResponse({ items: [tenant('a'), tenant('b')] })
+        : jsonResponse({ items: [tenant('c')] }),
+    );
+    const store = createCellStore();
+
+    const result = await store.dispatch(
+      managementApi.endpoints.listTenants.initiate({ teamId: 'acme' }),
+    );
+
+    expect([...fetches.calls].sort()).toEqual([
+      'GET /cells/eu-1/api/teams/acme/tenants',
+      'GET /cells/us-1/api/teams/acme/tenants',
+    ]);
+    expect(result.data).toEqual({
+      items: [
+        { ...tenant('a'), cell: 'eu-1' },
+        { ...tenant('b'), cell: 'eu-1' },
+        { ...tenant('c'), cell: 'us-1' },
+      ],
+      unavailableCells: [],
+    });
+  });
+
+  it('listTenants marks a failing cell unavailable and keeps the other cells', async () => {
+    routeFetch((_method, path) =>
+      path.startsWith('/cells/eu-1/')
+        ? jsonResponse({ title: 'Unavailable' }, 503)
+        : jsonResponse({ items: [tenant('c')] }),
+    );
+    const store = createCellStore();
+
+    const result = await store.dispatch(
+      managementApi.endpoints.listTenants.initiate({ teamId: 'acme' }),
+    );
+
+    expect(result.error).toBeUndefined();
+    expect(result.data).toEqual({
+      items: [{ ...tenant('c'), cell: 'us-1' }],
+      unavailableCells: ['eu-1'],
+    });
+  });
+
+  it('listCallerTenants merges the caller tenants of every cell and reports a failing cell', async () => {
+    const fetches = routeFetch((_method, path) =>
+      path.startsWith('/cells/us-1/')
+        ? jsonResponse({ title: 'Bad gateway' }, 502)
+        : jsonResponse({ items: [tenant('a')] }),
+    );
+    const store = createCellStore();
+
+    const result = await store.dispatch(managementApi.endpoints.listCallerTenants.initiate());
+
+    expect([...fetches.calls].sort()).toEqual([
+      'GET /cells/eu-1/api/me/tenants',
+      'GET /cells/us-1/api/me/tenants',
+    ]);
+    expect(result.data).toEqual({
+      items: [{ ...tenant('a'), cell: 'eu-1' }],
+      unavailableCells: ['us-1'],
+    });
+  });
+
+  it('listTenants fails when the control plane fails and no cell is named', async () => {
+    routeFetch(() => jsonResponse({ title: 'Unavailable' }, 503));
+    const store = createStore();
+
+    const result = await store.dispatch(
+      managementApi.endpoints.listTenants.initiate({ teamId: 'acme' }),
+    );
+
+    expect(result.data).toBeUndefined();
+    expect(result.error).toMatchObject({ status: 503 });
+  });
+});
+
+describe('managementApi team root key requests', () => {
+  const teamRootKey = {
+    region: 'eu west',
+    provider: 'aws-kms',
+    keyReference: 'arn:aws:kms:eu-west-1:111122223333:key/abc',
+    accessIdentity: 'arn:aws:iam::111122223333:role/ncode-identity',
+  };
+  const rootKeys = {
+    rootKeys: [teamRootKey],
+    rootKeyProviders: ['aws-kms'],
+    rootKeyAccessBinding: 'team:acme',
+  };
+  const removing = {
+    provider: 'aws-kms',
+    keyReference: teamRootKey.keyReference,
+    accessIdentity: teamRootKey.accessIdentity,
+    state: 'removing',
+    createdWhen: '2026-10-01T09:00:00Z',
+    stateChangedWhen: '2026-10-01T09:00:00Z',
+    validatedWhen: null,
+    failedWhen: null,
+    failure: null,
+  };
+  const listPath = 'https://api.test/api/teams/acme/encryption-keys/root-keys';
+  const regionPath = `${listPath}/eu%20west`;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  /** Primes the root keys of two teams, runs the mutation and returns the requests it caused. */
+  async function runMutation(
+    response: Response,
+    dispatch: (store: ReturnType<typeof createStore>) => PromiseLike<unknown>,
+  ) {
+    const captured = mockFetch(response);
+    const store = createStore();
+    const subscriptions = [
+      store.dispatch(managementApi.endpoints.listTeamRootKeys.initiate({ teamId: 'acme' })),
+      store.dispatch(managementApi.endpoints.listTeamRootKeys.initiate({ teamId: 'other' })),
+    ];
+    await Promise.all(subscriptions);
+    const before = captured.length;
+    await dispatch(store);
+    await settle(store);
+    for (const subscription of subscriptions) subscription.unsubscribe();
+    return { mutation: captured[before], refetched: captured.slice(before + 1) };
+  }
+
+  it('listTeamRootKeys GETs the root keys of the team', async () => {
+    const captured = mockFetch(jsonResponse(rootKeys));
+    const store = createStore();
+
+    const result = await store.dispatch(
+      managementApi.endpoints.listTeamRootKeys.initiate({ teamId: 'acme' }),
+    );
+
+    expect(captured[0]?.url).toBe(listPath);
+    expect(captured[0]?.method).toBe('GET');
+    expect(result).toMatchObject({ data: rootKeys });
+  });
+
+  it('setTeamRootKey PUTs the root key of the region and refetches only the team root keys', async () => {
+    const body = {
+      provider: 'aws-kms',
+      keyReference: teamRootKey.keyReference,
+      accessIdentity: teamRootKey.accessIdentity,
+    };
+
+    const { mutation, refetched } = await runMutation(jsonResponse(teamRootKey), (store) =>
+      store.dispatch(
+        managementApi.endpoints.setTeamRootKey.initiate({
+          teamId: 'acme',
+          region: 'eu west',
+          body,
+        }),
+      ),
+    );
+
+    expect(mutation?.url).toBe(regionPath);
+    expect(mutation?.method).toBe('PUT');
+    expect(JSON.parse(mutation?.body ?? '{}')).toEqual(body);
+    expect(refetched.map((request) => request.url)).toEqual([listPath]);
+  });
+
+  it('removeTeamRootKey DELETEs the root key of the region and resolves null on 204', async () => {
+    const captured = mockFetch(new Response(null, { status: 204 }));
+    const store = createStore();
+
+    const result = await store.dispatch(
+      managementApi.endpoints.removeTeamRootKey.initiate({ teamId: 'acme', region: 'eu west' }),
+    );
+
+    expect(captured[0]?.url).toBe(regionPath);
+    expect(captured[0]?.method).toBe('DELETE');
+    expect(result).toMatchObject({ data: null });
+  });
+
+  it('removeTeamRootKey resolves the removing root key on 202 and refetches only the team root keys', async () => {
+    const { mutation, refetched } = await runMutation(jsonResponse(removing, 202), (store) =>
+      store.dispatch(
+        managementApi.endpoints.removeTeamRootKey.initiate({ teamId: 'acme', region: 'eu west' }),
+      ),
+    );
+
+    expect(mutation?.method).toBe('DELETE');
+    expect(refetched.map((request) => request.url)).toEqual([listPath]);
+  });
+
+  it('validateTeamRootKey POSTs the validation of the region and refetches only the team root keys', async () => {
+    const { mutation, refetched } = await runMutation(
+      jsonResponse({ ...removing, state: 'active' }),
+      (store) =>
+        store.dispatch(
+          managementApi.endpoints.validateTeamRootKey.initiate({
+            teamId: 'acme',
+            region: 'eu west',
+          }),
+        ),
+    );
+
+    expect(mutation?.url).toBe(`${regionPath}/validate`);
+    expect(mutation?.method).toBe('POST');
+    expect(refetched.map((request) => request.url)).toEqual([listPath]);
   });
 });
 
@@ -2236,7 +3015,9 @@ describe('managementApi owner-generic secrets and settings requests', () => {
       const captured = mockFetch(jsonResponse({ secrets: [] }));
       const store = createStore();
 
-      await store.dispatch(managementApi.endpoints.listSecrets.initiate(owner));
+      await store.dispatch(
+        managementApi.endpoints.listSecrets.initiate({ ...owner, cell: undefined }),
+      );
 
       expect(captured[0]?.url).toBe(`https://api.test${path}/secrets`);
       expect(captured[0]?.method).toBe('GET');
@@ -2250,7 +3031,11 @@ describe('managementApi owner-generic secrets and settings requests', () => {
       const store = createStore();
 
       await store.dispatch(
-        managementApi.endpoints.getSecretPublicKey.initiate({ owner, secretId: 's-1' }),
+        managementApi.endpoints.getSecretPublicKey.initiate({
+          owner,
+          secretId: 's-1',
+          cell: undefined,
+        }),
       );
 
       expect(captured[0]?.url).toBe(`https://api.test${path}/secrets/s-1/public-key`);
@@ -2264,7 +3049,9 @@ describe('managementApi owner-generic secrets and settings requests', () => {
       const captured = mockFetch(jsonResponse({}));
       const store = createStore();
 
-      await store.dispatch(managementApi.endpoints.getSettings.initiate(owner));
+      await store.dispatch(
+        managementApi.endpoints.getSettings.initiate({ ...owner, cell: undefined }),
+      );
 
       expect(captured[0]?.url).toBe(`https://api.test${path}/settings`);
       expect(captured[0]?.method).toBe('GET');
@@ -2277,7 +3064,9 @@ describe('managementApi owner-generic secrets and settings requests', () => {
       const captured = mockFetch(jsonResponse({}));
       const store = createStore();
 
-      await store.dispatch(managementApi.endpoints.getEffectiveSettings.initiate(owner));
+      await store.dispatch(
+        managementApi.endpoints.getEffectiveSettings.initiate({ ...owner, cell: undefined }),
+      );
 
       expect(captured[0]?.url).toBe(`https://api.test${path}/effective-settings`);
       expect(captured[0]?.method).toBe('GET');
@@ -2290,7 +3079,9 @@ describe('managementApi owner-generic secrets and settings requests', () => {
       const captured = mockFetch(jsonResponse({ names: [], canChange: true }));
       const store = createStore();
 
-      await store.dispatch(managementApi.endpoints.getSettingLimits.initiate(owner));
+      await store.dispatch(
+        managementApi.endpoints.getSettingLimits.initiate({ ...owner, cell: undefined }),
+      );
 
       expect(captured[0]?.url).toBe(`https://api.test${path}/settings/limits`);
       expect(captured[0]?.method).toBe('GET');
@@ -2304,7 +3095,11 @@ describe('managementApi owner-generic secrets and settings requests', () => {
       const store = createStore();
 
       await store.dispatch(
-        managementApi.endpoints.createSecret.initiate({ owner, body: secretRequest }),
+        managementApi.endpoints.createSecret.initiate({
+          owner,
+          body: secretRequest,
+          cell: undefined,
+        }),
       );
 
       expect(captured[0]?.url).toBe(`https://api.test${path}/secrets`);
@@ -2320,7 +3115,11 @@ describe('managementApi owner-generic secrets and settings requests', () => {
       const store = createStore();
 
       await store.dispatch(
-        managementApi.endpoints.deleteSecret.initiate({ owner, secretId: 's-1' }),
+        managementApi.endpoints.deleteSecret.initiate({
+          owner,
+          secretId: 's-1',
+          cell: undefined,
+        }),
       );
 
       expect(captured[0]?.url).toBe(`https://api.test${path}/secrets/s-1`);
@@ -2341,6 +3140,7 @@ describe('managementApi owner-generic secrets and settings requests', () => {
             concurrencyToken: 'etag',
             original: { keep: 1, drop: 2 },
             desired: { keep: 1 },
+            cell: undefined,
           }),
         )
         .unwrap();
@@ -2384,6 +3184,7 @@ describe('managementApi owner-generic secrets and settings requests', () => {
           concurrencyToken: 'etag',
           original: {},
           desired: { token_endpoint_auth_method: 'client_secret_jwt' },
+          cell: undefined,
         }),
       )
       .unwrap();
@@ -2401,6 +3202,7 @@ describe('managementApi owner-generic secrets and settings requests', () => {
         owner: { kind: 'client', tenantId: 'acme', clientId: 'web' },
         secretId: 's-1',
         body,
+        cell: undefined,
       }),
     );
 
@@ -2424,7 +3226,11 @@ describe('managementApi owner-generic secrets and settings requests', () => {
     };
 
     await store.dispatch(
-      managementApi.endpoints.createRemoteSecret.initiate({ tenantId: 'acme', body }),
+      managementApi.endpoints.createRemoteSecret.initiate({
+        tenantId: 'acme',
+        body,
+        cell: undefined,
+      }),
     );
 
     expect(captured[0]?.url).toBe('https://api.test/api/tenants/acme/secrets/remote');
@@ -2445,7 +3251,11 @@ describe('managementApi owner-generic secrets and settings requests', () => {
     };
 
     await store.dispatch(
-      managementApi.endpoints.importRemoteSecret.initiate({ tenantId: 'acme', body }),
+      managementApi.endpoints.importRemoteSecret.initiate({
+        tenantId: 'acme',
+        body,
+        cell: undefined,
+      }),
     );
 
     expect(captured[0]?.url).toBe('https://api.test/api/tenants/acme/secrets/remote/import');
@@ -2463,20 +3273,25 @@ const ownerCachedQueries: readonly CachedQuery[] = [
     label: `secrets:${key}`,
     path: `${path}/secrets`,
     body: { secrets: [{ secretId: `${key}-secret` }] },
-    subscribe: (s) => s.dispatch(managementApi.endpoints.listSecrets.initiate(owner)),
+    subscribe: (s) =>
+      s.dispatch(managementApi.endpoints.listSecrets.initiate({ ...owner, cell: undefined })),
   })),
   ...ownerCases.flatMap(({ key, owner, path }): CachedQuery[] => [
     {
       label: `settings:${key}`,
       path: `${path}/settings`,
       body: {},
-      subscribe: (s) => s.dispatch(managementApi.endpoints.getSettings.initiate(owner)),
+      subscribe: (s) =>
+        s.dispatch(managementApi.endpoints.getSettings.initiate({ ...owner, cell: undefined })),
     },
     {
       label: `effective:${key}`,
       path: `${path}/effective-settings`,
       body: {},
-      subscribe: (s) => s.dispatch(managementApi.endpoints.getEffectiveSettings.initiate(owner)),
+      subscribe: (s) =>
+        s.dispatch(
+          managementApi.endpoints.getEffectiveSettings.initiate({ ...owner, cell: undefined }),
+        ),
     },
   ]),
 ];
@@ -2511,7 +3326,13 @@ describe('managementApi owner-generic cache invalidation', () => {
     'createSecret for the $key owner refetches only its secrets',
     async ({ key, owner }) => {
       const refetched = await refetchedByOwnerMutation((s) =>
-        s.dispatch(managementApi.endpoints.createSecret.initiate({ owner, body: secretRequest })),
+        s.dispatch(
+          managementApi.endpoints.createSecret.initiate({
+            owner,
+            body: secretRequest,
+            cell: undefined,
+          }),
+        ),
       );
 
       expect(refetched).toEqual([`secrets:${key}`]);
@@ -2523,7 +3344,11 @@ describe('managementApi owner-generic cache invalidation', () => {
     async ({ key, owner }) => {
       const refetched = await refetchedByOwnerMutation((s) =>
         s.dispatch(
-          managementApi.endpoints.deleteSecret.initiate({ owner, secretId: `${key}-secret` }),
+          managementApi.endpoints.deleteSecret.initiate({
+            owner,
+            secretId: `${key}-secret`,
+            cell: undefined,
+          }),
         ),
       );
 
@@ -2541,6 +3366,7 @@ describe('managementApi owner-generic cache invalidation', () => {
             concurrencyToken: 'etag',
             original: { keep: 1, drop: 2 },
             desired: { keep: 1 },
+            cell: undefined,
           }),
         ),
       );
@@ -2561,6 +3387,7 @@ describe('managementApi owner-generic cache invalidation', () => {
           owner: { kind: 'client', tenantId: 'acme', clientId: 'web' },
           secretId: 'tenant-client-secret',
           body: { expiresWhen: '2027-01-01T00:00:00Z' },
+          cell: undefined,
         }),
       ),
     );
@@ -2581,6 +3408,7 @@ describe('managementApi owner-generic cache invalidation', () => {
             algorithm: 'ES256',
             expiresWhen: '2027-01-01T00:00:00Z',
           },
+          cell: undefined,
         }),
       ),
     );
@@ -2601,6 +3429,7 @@ describe('managementApi owner-generic cache invalidation', () => {
             algorithm: 'RS256',
             expiresWhen: '2027-01-01T00:00:00Z',
           },
+          cell: undefined,
         }),
       ),
     );
@@ -2613,7 +3442,11 @@ describe('managementApi owner-generic cache invalidation', () => {
     const store = createStore();
 
     const result = await store.dispatch(
-      managementApi.endpoints.listSecrets.initiate({ kind: 'tenant', tenantId: 'acme' }),
+      managementApi.endpoints.listSecrets.initiate({
+        kind: 'tenant',
+        tenantId: 'acme',
+        cell: undefined,
+      }),
     );
 
     expect(result.isError).toBe(true);
@@ -2636,7 +3469,9 @@ describe('managementApi role assignment requests', () => {
     const captured = mockFetch(jsonResponse({ items: [], canChange: true }));
     const store = createStore();
 
-    await store.dispatch(managementApi.endpoints.listRoleAssignments.initiate(teamAdmins));
+    await store.dispatch(
+      managementApi.endpoints.listRoleAssignments.initiate({ ...teamAdmins, cell: undefined }),
+    );
 
     expect(captured[0]?.url).toBe('https://api.test/api/teams/t%2F1/admins');
     expect(captured[0]?.method).toBe('GET');
@@ -2652,6 +3487,7 @@ describe('managementApi role assignment requests', () => {
       managementApi.endpoints.addRoleAssignment.initiate({
         list: tenantOwners,
         principalId: 'p-1',
+        cell: undefined,
       }),
     );
 
@@ -2668,6 +3504,7 @@ describe('managementApi role assignment requests', () => {
       managementApi.endpoints.removeRoleAssignment.initiate({
         list: teamAdmins,
         principalId: 'a b/c',
+        cell: undefined,
       }),
     );
 
@@ -2682,8 +3519,12 @@ describe('managementApi role assignment requests', () => {
         : jsonResponse({ assignmentId: 'a-1', principalId: 'p-1', roleName: 'Owner' }, 201),
     );
     const store = createStore();
-    await store.dispatch(managementApi.endpoints.listRoleAssignments.initiate(tenantOwners));
-    await store.dispatch(managementApi.endpoints.listRoleAssignments.initiate(teamAdmins));
+    await store.dispatch(
+      managementApi.endpoints.listRoleAssignments.initiate({ ...tenantOwners, cell: undefined }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.listRoleAssignments.initiate({ ...teamAdmins, cell: undefined }),
+    );
     expect(fetches.count('GET', '/api/tenants/acme/owners')).toBe(1);
     expect(fetches.count('GET', '/api/teams/t%2F1/admins')).toBe(1);
 
@@ -2691,6 +3532,7 @@ describe('managementApi role assignment requests', () => {
       managementApi.endpoints.addRoleAssignment.initiate({
         list: tenantOwners,
         principalId: 'p-1',
+        cell: undefined,
       }),
     );
     await settle(store);
@@ -2706,8 +3548,12 @@ describe('managementApi role assignment requests', () => {
         : new Response(null, { status: 204 }),
     );
     const store = createStore();
-    await store.dispatch(managementApi.endpoints.listRoleAssignments.initiate(tenantOwners));
-    await store.dispatch(managementApi.endpoints.listRoleAssignments.initiate(teamAdmins));
+    await store.dispatch(
+      managementApi.endpoints.listRoleAssignments.initiate({ ...tenantOwners, cell: undefined }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.listRoleAssignments.initiate({ ...teamAdmins, cell: undefined }),
+    );
     expect(fetches.count('GET', '/api/tenants/acme/owners')).toBe(1);
     expect(fetches.count('GET', '/api/teams/t%2F1/admins')).toBe(1);
 
@@ -2715,6 +3561,7 @@ describe('managementApi role assignment requests', () => {
       managementApi.endpoints.removeRoleAssignment.initiate({
         list: tenantOwners,
         principalId: 'p-1',
+        cell: undefined,
       }),
     );
     await settle(store);

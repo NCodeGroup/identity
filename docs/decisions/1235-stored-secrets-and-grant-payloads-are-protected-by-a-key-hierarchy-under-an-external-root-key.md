@@ -34,9 +34,11 @@ root lives outside the database.
    host always names one
    ([ADR-1370](1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)).
    The root key only wraps master keys, binding the owner and key id as associated data (the KMS encryption context)
-   where the service supports it.
-2. **Master keys.** One 256-bit, versioned key per owner, where the owners are the platform (`SecretOwner.Platform`) and
-   each tenant (`SecretOwner.ForTenant`). Clients and resource servers use their tenant's key. The platform's key
+   where the service supports it. Each cell holds its own, in its own region
+   ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
+2. **Master keys.** One 256-bit, versioned key per owner, where the owners are the platform (`SecretOwner.Platform`),
+   each team (the `Team` owner type) and each tenant (`SecretOwner.ForTenant`). Clients and resource servers use their
+   tenant's key. The platform's key
    protects only the Data Protection key ring and the host's own data
    ([ADR-1247](1247-the-platform-master-key-protects-the-data-protection-ring-and-an-unreadable-key-stops-the-host.md)).
    Each master key is stored wrapped in `MasterKeys`, bound to its owner and version by an HMAC key-check value, and,
@@ -90,6 +92,19 @@ root lives outside the database.
     have missed a broadcast evicts every owner's, and a load that an eviction overtakes is not cached. Evicting does not
     zero a key, because a protector handed out earlier may still be using it. Entries reload after `RefreshInterval`
     ([ADR-1407](1407-a-master-key-rotates-its-data-keys-are-rewrapped-and-it-is-destroyed-once-unnamed.md)).
+14. **The nearest root key wraps.** `ISecretOwnerParentResolver` gives an owner's parents, and
+    `DefaultMasterKeyManager` wraps an owner's master keys under the nearest root key: the owner's own, then the nearest
+    ancestor's (a tenant's ancestors are its team chain), then the platform's. A team's root key is one per region and is held as an owner root key
+    ([ADR-1414](1414-a-tenant-can-wrap-its-master-keys-under-a-root-key-it-controls.md)). A host that supplies its own
+    resolver registers it after `AddIdentityServer()`, and the registration of the team chain wins over the library's
+    default in either order.
+15. **A KMS key stays in the cell's cloud regions.** `Cell:CloudRegions` lists the cloud regions a cell may use. The AWS
+    KMS adapter refuses a key ARN whose region is not listed, and the Google Cloud KMS adapter refuses a crypto key
+    location that is not listed. The server's `AddConfiguration` names `Cell:CloudRegions` as the
+    `KeyResidencyOptions.CloudRegions` of `NCode.Identity.Secrets.Abstractions`, and each adapter's own registration
+    replaces its `AllowedRegions` or `AllowedLocations` with them, so a cell's wrapped keys stay in its region whichever
+    host composes the server with the adapter. An adapter knows no cell: a composition that names no cloud region, such
+    as a BFF, keeps each adapter's list as configured.
 
 ## Options considered
 
@@ -113,6 +128,9 @@ root lives outside the database.
 - **`GrantId` as the grant envelope's item id.** It does not bind the envelope to the lookup key a reader holds.
   Rejected for the hashed key.
 - **A plaintext fallback for grant payloads.** It would also accept a forged plaintext row. Rejected.
+- **The allowed regions set on each adapter by the reference host, or read from the cell by the adapters.** Any other
+  host that composes the server with an adapter would accept a key in any region, and adapters that read the cell would
+  carry the global directory's contracts into hosts that run no cell, such as a BFF. Rejected.
 - **Envelopes under a root-wrapped master key per owner, with grant payloads under the tenant's key.** Chosen.
 
 ## Consequences
@@ -129,6 +147,8 @@ root lives outside the database.
 - Reading or writing a grant acquires a protector, which may reach the key management service the first time a tenant's
   master key loads.
 - A grant whose master key was lost or replaced reads as absent and logs a warning rather than failing the request.
+- A team's root key covers the master keys of every tenant of the team that holds no root key of its own, and a KMS key
+  outside the cell's cloud regions is refused.
 - Tests cover the envelope binding to owner, purpose and item id, the case-insensitive binding, the partial unique index,
   unreadable-payload handling and the deployment-safety findings.
 

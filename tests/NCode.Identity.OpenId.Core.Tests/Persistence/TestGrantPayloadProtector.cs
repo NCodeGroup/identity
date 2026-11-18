@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Authentication.Persistence;
 
 namespace NCode.Identity.OpenId.Core.Tests.Persistence;
@@ -13,7 +15,11 @@ internal sealed class TestGrantPayloadProtector : IGrantPayloadProtector
 {
     private const string Prefix = "test:";
 
-    private static DefaultPersistedPayloadSerializer Serializer { get; } = new([]);
+    private static IPersistedPayloadSerializer Serializer { get; } =
+        new ServiceCollection()
+            .AddPersistedPayloadSerializer()
+            .BuildServiceProvider()
+            .GetRequiredService<IPersistedPayloadSerializer>();
 
     public static string Protect<TPayload>(TPayload payload, JsonSerializerOptions jsonOptions) =>
         Prefix + Serializer.Serialize(payload, jsonOptions).GetRawText();

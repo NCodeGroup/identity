@@ -86,12 +86,15 @@ public interface IBffSessionStore
     );
 
     /// <summary>
-    /// Finds the distinct clients that stored sessions were issued to; a client whose sessions all ended may still be
-    /// listed.
+    /// Finds the distinct clients that stored sessions were issued to, other than the given clients, which the store
+    /// leaves out. The store reads one value per member of the client list and no session, so a client whose sessions
+    /// all ended may still be listed.
     /// </summary>
+    /// <param name="except">The clients to leave out.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The distinct clients.</returns>
     ValueTask<IReadOnlyList<BffSessionClient>> FindClientsAsync(
+        IReadOnlyCollection<BffSessionClient> except,
         CancellationToken cancellationToken
     );
 
@@ -103,6 +106,20 @@ public interface IBffSessionStore
     /// <returns>The store keys of the matching sessions.</returns>
     ValueTask<IReadOnlyList<string>> FindByClientAsync(
         BffSessionClient client,
+        CancellationToken cancellationToken
+    );
+
+    /// <summary>
+    /// Removes the key of a session whose record is gone from the index of its client, so a later search of the
+    /// client's sessions does not return it.
+    /// </summary>
+    /// <param name="client">The client that the session was issued to.</param>
+    /// <param name="storeKey">The key of the session, whose record is gone.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>A <see cref="ValueTask"/> that completes when the key is removed from the index.</returns>
+    ValueTask ForgetEndedSessionAsync(
+        BffSessionClient client,
+        string storeKey,
         CancellationToken cancellationToken
     );
 

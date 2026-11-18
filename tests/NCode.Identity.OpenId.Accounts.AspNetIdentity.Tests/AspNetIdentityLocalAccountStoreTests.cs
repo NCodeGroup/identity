@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NCode.Identity.OpenId.Accounts.DataContracts;
+using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Accounts.AspNetIdentity;
@@ -23,6 +24,8 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     private const string DummyPasswordHash = "dummy-hash";
     private const string SecurityStamp = "stamp";
     private const string ConcurrencyToken = "ctoken";
+    private const string TenantId = "tenant-1";
+    private const string OtherTenantId = "tenant-2";
     private static byte[] PasswordBytes { get; } = "correct-horse"u8.ToArray();
     private static byte[] DecomposedPasswordBytes { get; } = "cafe\u0301-correct-horse"u8.ToArray();
     private static Claim RoleClaim { get; } = new("role", "admin");
@@ -32,28 +35,38 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
 
     private MockRepository Mocks { get; } = new(MockBehavior.Strict);
 
-    public void Dispose() => Mocks.Verify();
+    private TestAmbientTenantAccessor TenantAccessor { get; } = new();
+    private IDisposable TenantScope { get; }
+
+    public AspNetIdentityLocalAccountStoreTests() =>
+        TenantScope = TenantAccessor.BeginScope(TenantId);
+
+    public void Dispose()
+    {
+        TenantScope.Dispose();
+        Mocks.Verify();
+    }
 
     #region Helpers
 
     private (
-        AspNetIdentityLocalAccountStore<IdentityUser> Store,
-        Mock<UserManager<IdentityUser>> UserManager
+        AspNetIdentityLocalAccountStore<TestTenantUser> Store,
+        Mock<UserManager<TestTenantUser>> UserManager
     ) CreateStore(
-        IPasswordHasher<IdentityUser>? passwordHasher = null,
-        IUserStore<IdentityUser>? userStore = null,
+        IPasswordHasher<TestTenantUser>? passwordHasher = null,
+        IUserStore<TestTenantUser>? userStore = null,
         bool normalizesPasswords = true
     )
     {
         // UserManager's constructor needs only a user store and the password hasher (index 2); the remaining
         // dependencies are unused by this adapter. The adapter requires the user manager's hasher to normalize.
-        IPasswordHasher<IdentityUser>? userManagerHasher =
+        IPasswordHasher<TestTenantUser>? userManagerHasher =
             normalizesPasswords && passwordHasher is not null
-                ? new NormalizingPasswordHasher<IdentityUser>(passwordHasher)
+                ? new NormalizingPasswordHasher<TestTenantUser>(passwordHasher)
                 : passwordHasher;
         object?[] constructorArguments =
         [
-            Mock.Of<IUserStore<IdentityUser>>(),
+            Mock.Of<IUserStore<TestTenantUser>>(),
             null,
             userManagerHasher,
             null,
@@ -63,21 +76,21 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             null,
             null,
         ];
-        var userManager = Mocks.Create<UserManager<IdentityUser>>((object[])constructorArguments);
+        var userManager = Mocks.Create<UserManager<TestTenantUser>>((object[])constructorArguments);
 
         // UserManager's constructor assigns its virtual Logger property; allow that set on the strict mock.
         userManager.SetupSet(x => x.Logger = It.IsAny<ILogger>()).Verifiable();
 
         var serviceProvider = Mocks.Create<IServiceProvider>();
         serviceProvider
-            .Setup(x => x.GetService(typeof(UserManager<IdentityUser>)))
+            .Setup(x => x.GetService(typeof(UserManager<TestTenantUser>)))
             .Returns(userManager.Object)
             .Verifiable();
 
         if (userStore is not null)
         {
             serviceProvider
-                .Setup(x => x.GetService(typeof(IUserStore<IdentityUser>)))
+                .Setup(x => x.GetService(typeof(IUserStore<TestTenantUser>)))
                 .Returns(userStore)
                 .Verifiable();
         }
@@ -95,49 +108,63 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         var storeProvider = Mocks.Create<IStoreProvider>();
 
         return (
-            new AspNetIdentityLocalAccountStore<IdentityUser>(
+            new AspNetIdentityLocalAccountStore<TestTenantUser>(
                 scopeFactory.Object,
                 storeProvider.Object,
-                new AspNetIdentityDummyPasswordHash<IdentityUser>()
+                new AspNetIdentityDummyPasswordHash<TestTenantUser>(),
+                TenantAccessor
             ),
             userManager
         );
     }
 
-    private Mock<IPasswordHasher<IdentityUser>> CreatePasswordHasher() =>
-        Mocks.Create<IPasswordHasher<IdentityUser>>();
+    private Mock<IPasswordHasher<TestTenantUser>> CreatePasswordHasher() =>
+        Mocks.Create<IPasswordHasher<TestTenantUser>>();
 
-    private Mock<IUserPasswordStore<IdentityUser>> CreatePasswordStore() =>
-        Mocks.Create<IUserPasswordStore<IdentityUser>>();
+    private Mock<IUserPasswordStore<TestTenantUser>> CreatePasswordStore() =>
+        Mocks.Create<IUserPasswordStore<TestTenantUser>>();
 
     private static void SetupDummyPasswordHash(
-        Mock<IPasswordHasher<IdentityUser>> passwordHasher
+        Mock<IPasswordHasher<TestTenantUser>> passwordHasher
     ) =>
         passwordHasher
             .Setup(x =>
                 x.HashPassword(
-                    It.Is<IdentityUser>(user => user.Id != LocalAccountId),
+                    It.Is<TestTenantUser>(user => user.Id != LocalAccountId),
                     It.IsAny<string>()
                 )
             )
             .Returns(DummyPasswordHash)
             .Verifiable();
 
-    private static IdentityUser CreateUser() =>
+    private static TestTenantUser CreateUser() =>
         new(UserName)
         {
             Id = LocalAccountId,
+            TenantId = TenantId,
             Email = null,
             EmailConfirmed = false,
             SecurityStamp = SecurityStamp,
             ConcurrencyStamp = ConcurrencyToken,
         };
 
-    private static void SetupMapping(Mock<UserManager<IdentityUser>> userManager, IdentityUser user)
+    private static void SetupMapping(
+        Mock<UserManager<TestTenantUser>> userManager,
+        TestTenantUser user
+    )
     {
         userManager.Setup(x => x.GetClaimsAsync(user)).ReturnsAsync([RoleClaim]).Verifiable();
         userManager.SetupGet(x => x.SupportsUserLockout).Returns(true).Verifiable();
         userManager.Setup(x => x.IsLockedOutAsync(user)).ReturnsAsync(false).Verifiable();
+    }
+
+    private static void SetupUsers(
+        Mock<UserManager<TestTenantUser>> userManager,
+        params TestTenantUser[] users
+    )
+    {
+        userManager.SetupGet(x => x.SupportsQueryableUsers).Returns(true).Verifiable();
+        userManager.SetupGet(x => x.Users).Returns(users.AsQueryable()).Verifiable();
     }
 
     private static PersistedLocalAccount CreateAccount(
@@ -162,6 +189,45 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             ConcurrencyToken = string.Empty,
         };
 
+    // A queryable that offers IAsyncEnumerable<T> the way a database provider does: it composes like the wrapped
+    // queryable and refuses a synchronous enumeration.
+    private sealed class AsyncOnlyQueryable<T>(IQueryable<T> inner)
+        : IOrderedQueryable<T>,
+            IAsyncEnumerable<T>
+    {
+        public Type ElementType => inner.ElementType;
+
+        public System.Linq.Expressions.Expression Expression => inner.Expression;
+
+        public IQueryProvider Provider { get; } = new AsyncOnlyQueryProvider(inner.Provider);
+
+        public IEnumerator<T> GetEnumerator() =>
+            throw new NotSupportedException("The query is read asynchronously.");
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() =>
+            GetEnumerator();
+
+        public IAsyncEnumerator<T> GetAsyncEnumerator(
+            CancellationToken cancellationToken = default
+        ) => inner.ToAsyncEnumerable().GetAsyncEnumerator(cancellationToken);
+    }
+
+    private sealed class AsyncOnlyQueryProvider(IQueryProvider inner) : IQueryProvider
+    {
+        public IQueryable CreateQuery(System.Linq.Expressions.Expression expression) =>
+            inner.CreateQuery(expression);
+
+        public IQueryable<TElement> CreateQuery<TElement>(
+            System.Linq.Expressions.Expression expression
+        ) => new AsyncOnlyQueryable<TElement>(inner.CreateQuery<TElement>(expression));
+
+        public object? Execute(System.Linq.Expressions.Expression expression) =>
+            inner.Execute(expression);
+
+        public TResult Execute<TResult>(System.Linq.Expressions.Expression expression) =>
+            inner.Execute<TResult>(expression);
+    }
+
     #endregion
 
     #region VerifyCredentialAsync Tests
@@ -175,11 +241,11 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         SetupDummyPasswordHash(passwordHasher);
         userManager
             .Setup(x => x.FindByNameAsync(UserName))
-            .ReturnsAsync((IdentityUser?)null)
+            .ReturnsAsync((TestTenantUser?)null)
             .Verifiable();
         passwordHasher
             .Setup(x =>
-                x.VerifyHashedPassword(It.IsAny<IdentityUser>(), DummyPasswordHash, Password)
+                x.VerifyHashedPassword(It.IsAny<TestTenantUser>(), DummyPasswordHash, Password)
             )
             .Returns(PasswordVerificationResult.Failed)
             .Verifiable();
@@ -207,7 +273,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         userManager.Setup(x => x.IsLockedOutAsync(user)).ReturnsAsync(true).Verifiable();
         passwordHasher
             .Setup(x =>
-                x.VerifyHashedPassword(It.IsAny<IdentityUser>(), DummyPasswordHash, Password)
+                x.VerifyHashedPassword(It.IsAny<TestTenantUser>(), DummyPasswordHash, Password)
             )
             .Returns(PasswordVerificationResult.Success)
             .Verifiable();
@@ -307,7 +373,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             .Verifiable();
         passwordHasher
             .Setup(x =>
-                x.VerifyHashedPassword(It.IsAny<IdentityUser>(), DummyPasswordHash, Password)
+                x.VerifyHashedPassword(It.IsAny<TestTenantUser>(), DummyPasswordHash, Password)
             )
             .Returns(PasswordVerificationResult.Success)
             .Verifiable();
@@ -339,7 +405,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             .Verifiable();
         passwordHasher
             .Setup(x =>
-                x.VerifyHashedPassword(It.IsAny<IdentityUser>(), DummyPasswordHash, Password)
+                x.VerifyHashedPassword(It.IsAny<TestTenantUser>(), DummyPasswordHash, Password)
             )
             .Returns(PasswordVerificationResult.Success)
             .Verifiable();
@@ -516,12 +582,12 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         SetupDummyPasswordHash(passwordHasher);
         userManager
             .Setup(x => x.FindByNameAsync(UserName))
-            .ReturnsAsync((IdentityUser?)null)
+            .ReturnsAsync((TestTenantUser?)null)
             .Verifiable();
         passwordHasher
             .Setup(x =>
                 x.VerifyHashedPassword(
-                    It.IsAny<IdentityUser>(),
+                    It.IsAny<TestTenantUser>(),
                     DummyPasswordHash,
                     ComposedPassword
                 )
@@ -531,7 +597,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         passwordHasher
             .Setup(x =>
                 x.VerifyHashedPassword(
-                    It.IsAny<IdentityUser>(),
+                    It.IsAny<TestTenantUser>(),
                     DummyPasswordHash,
                     DecomposedPassword
                 )
@@ -566,7 +632,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             .Verifiable();
         passwordHasher
             .Setup(x =>
-                x.VerifyHashedPassword(It.IsAny<IdentityUser>(), DummyPasswordHash, Password)
+                x.VerifyHashedPassword(It.IsAny<TestTenantUser>(), DummyPasswordHash, Password)
             )
             .Returns(PasswordVerificationResult.Success)
             .Verifiable(Times.Once());
@@ -654,10 +720,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     public async Task GetByIdOrDefaultAsync_WhenNotFound_ReturnsNull()
     {
         var (store, userManager) = CreateStore();
-        userManager
-            .Setup(x => x.FindByIdAsync(LocalAccountId))
-            .ReturnsAsync((IdentityUser?)null)
-            .Verifiable();
+        SetupUsers(userManager);
 
         var result = await store.GetByIdOrDefaultAsync(LocalAccountId, CancellationToken.None);
 
@@ -665,11 +728,22 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task GetByIdOrDefaultAsync_StoreWithoutQueryableUsers_ThrowsNotSupported()
+    {
+        var (store, userManager) = CreateStore();
+        userManager.SetupGet(x => x.SupportsQueryableUsers).Returns(false).Verifiable();
+
+        await Assert.ThrowsAsync<NotSupportedException>(async () =>
+            await store.GetByIdOrDefaultAsync(LocalAccountId, CancellationToken.None)
+        );
+    }
+
+    [Fact]
     public async Task GetByIdOrDefaultAsync_WhenFound_ReturnsMappedAccount()
     {
         var (store, userManager) = CreateStore();
         var user = CreateUser();
-        userManager.Setup(x => x.FindByIdAsync(LocalAccountId)).ReturnsAsync(user).Verifiable();
+        SetupUsers(userManager, user);
         SetupMapping(userManager, user);
 
         var result = await store.GetByIdOrDefaultAsync(LocalAccountId, CancellationToken.None);
@@ -679,6 +753,60 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         Assert.True(result.IsEnabled);
         var claim = Assert.Single(result.Claims);
         Assert.Equal("admin", claim.Value);
+    }
+
+    [Fact]
+    public async Task GetByIdOrDefaultAsync_WhenTheQueryIsAsyncOnly_ReturnsMappedAccount()
+    {
+        var (store, userManager) = CreateStore();
+        var user = CreateUser();
+        userManager.SetupGet(x => x.SupportsQueryableUsers).Returns(true).Verifiable();
+        userManager
+            .SetupGet(x => x.Users)
+            .Returns(new AsyncOnlyQueryable<TestTenantUser>(new[] { user }.AsQueryable()))
+            .Verifiable();
+        SetupMapping(userManager, user);
+
+        var result = await store.GetByIdOrDefaultAsync(LocalAccountId, CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal(LocalAccountId, result.LocalAccountId);
+    }
+
+    [Fact]
+    public async Task GetByIdOrDefaultAsync_WhenTheUserHasNoSecurityStamp_ThrowsWithoutReadingItsClaims()
+    {
+        var (store, userManager) = CreateStore();
+        var user = CreateUser();
+        user.SecurityStamp = null;
+        SetupUsers(userManager, user);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await store.GetByIdOrDefaultAsync(LocalAccountId, CancellationToken.None)
+        );
+
+        Assert.Equal(
+            $"The stored local account '{LocalAccountId}' has no {nameof(IdentityUser.SecurityStamp)}, which ASP.NET Core Identity's user manager stores with every user.",
+            exception.Message
+        );
+    }
+
+    [Fact]
+    public async Task GetPageAsync_WhenTheQueryIsAsyncOnly_ReturnsMappedPage()
+    {
+        var (store, userManager) = CreateStore();
+        var user = CreateUser();
+        userManager.SetupGet(x => x.SupportsQueryableUsers).Returns(true).Verifiable();
+        userManager
+            .SetupGet(x => x.Users)
+            .Returns(new AsyncOnlyQueryable<TestTenantUser>(new[] { user }.AsQueryable()))
+            .Verifiable();
+        SetupMapping(userManager, user);
+
+        var page = await store.GetPageAsync(new PageRequest { Limit = 10 }, CancellationToken.None);
+
+        var item = Assert.Single(page.Items);
+        Assert.Equal(LocalAccountId, item.LocalAccountId);
     }
 
     #endregion
@@ -693,29 +821,29 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         var (store, userManager) = CreateStore(passwordHasher.Object, passwordStore.Object);
 
         passwordHasher
-            .Setup(x => x.HashPassword(It.IsAny<IdentityUser>(), Password))
+            .Setup(x => x.HashPassword(It.IsAny<TestTenantUser>(), Password))
             .Returns(PasswordHash)
             .Verifiable();
         passwordStore
             .Setup(x =>
                 x.SetPasswordHashAsync(
-                    It.IsAny<IdentityUser>(),
+                    It.IsAny<TestTenantUser>(),
                     PasswordHash,
                     It.IsAny<CancellationToken>()
                 )
             )
             .Returns(Task.CompletedTask)
             .Verifiable();
-        IdentityUser? created = null;
+        TestTenantUser? created = null;
         userManager
-            .Setup(x => x.CreateAsync(It.IsAny<IdentityUser>()))
-            .Callback<IdentityUser>(user => created = user)
+            .Setup(x => x.CreateAsync(It.IsAny<TestTenantUser>()))
+            .Callback<TestTenantUser>(user => created = user)
             .ReturnsAsync(IdentityResult.Success)
             .Verifiable();
         userManager
             .Setup(x =>
                 x.AddClaimAsync(
-                    It.IsAny<IdentityUser>(),
+                    It.IsAny<TestTenantUser>(),
                     It.Is<Claim>(claim => claim.Type == "role" && claim.Value == "admin")
                 )
             )
@@ -740,16 +868,18 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     {
         var (store, userManager) = CreateStore();
         userManager
-            .Setup(x => x.CreateAsync(It.IsAny<IdentityUser>()))
+            .Setup(x => x.CreateAsync(It.IsAny<TestTenantUser>()))
             .ReturnsAsync(IdentityResult.Success)
             .Verifiable();
         userManager.SetupGet(x => x.SupportsUserLockout).Returns(true).Verifiable();
         userManager
-            .Setup(x => x.SetLockoutEnabledAsync(It.IsAny<IdentityUser>(), true))
+            .Setup(x => x.SetLockoutEnabledAsync(It.IsAny<TestTenantUser>(), true))
             .ReturnsAsync(IdentityResult.Success)
             .Verifiable();
         userManager
-            .Setup(x => x.SetLockoutEndDateAsync(It.IsAny<IdentityUser>(), DateTimeOffset.MaxValue))
+            .Setup(x =>
+                x.SetLockoutEndDateAsync(It.IsAny<TestTenantUser>(), DateTimeOffset.MaxValue)
+            )
             .ReturnsAsync(IdentityResult.Success)
             .Verifiable();
 
@@ -758,6 +888,24 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
             password: null,
             CancellationToken.None
         );
+    }
+
+    [Fact]
+    public async Task AddAsync_WhenTheAccountIsDisabledAndLockoutIsUnsupported_ThrowsBeforeCreatingIt()
+    {
+        var (store, userManager) = CreateStore();
+        userManager.SetupGet(x => x.SupportsUserLockout).Returns(false).Verifiable();
+
+        // The user manager is strict and sets up no CreateAsync, so a created user would fail the test.
+        var exception = await Assert.ThrowsAsync<NotSupportedException>(async () =>
+            await store.AddAsync(
+                CreateAccount(isEnabled: false),
+                password: null,
+                CancellationToken.None
+            )
+        );
+
+        Assert.Contains("does not support lockout", exception.Message);
     }
 
     [Fact]
@@ -782,7 +930,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         var passwordHasher = CreatePasswordHasher();
         var (store, userManager) = CreateStore(passwordHasher.Object, normalizesPasswords: false);
         userManager
-            .Setup(x => x.CreateAsync(It.IsAny<IdentityUser>()))
+            .Setup(x => x.CreateAsync(It.IsAny<TestTenantUser>()))
             .ReturnsAsync(IdentityResult.Success)
             .Verifiable();
 
@@ -794,7 +942,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     {
         var (store, userManager) = CreateStore();
         userManager
-            .Setup(x => x.CreateAsync(It.IsAny<IdentityUser>()))
+            .Setup(x => x.CreateAsync(It.IsAny<TestTenantUser>()))
             .ReturnsAsync(IdentityResult.Failed(new IdentityError { Description = "boom" }))
             .Verifiable();
 
@@ -811,10 +959,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     public async Task UpdateAsync_WhenMissing_Throws()
     {
         var (store, userManager) = CreateStore();
-        userManager
-            .Setup(x => x.FindByIdAsync(LocalAccountId))
-            .ReturnsAsync((IdentityUser?)null)
-            .Verifiable();
+        SetupUsers(userManager);
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await store.UpdateAsync(CreateAccount(), CancellationToken.None)
@@ -826,7 +971,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     {
         var (store, userManager) = CreateStore();
         var user = CreateUser();
-        userManager.Setup(x => x.FindByIdAsync(LocalAccountId)).ReturnsAsync(user).Verifiable();
+        SetupUsers(userManager, user);
         userManager
             .Setup(x => x.SetUserNameAsync(user, UserName))
             .ReturnsAsync(IdentityResult.Success)
@@ -851,6 +996,29 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         Assert.True(user.EmailConfirmed);
     }
 
+    [Fact]
+    public async Task UpdateAsync_WhenDisablingAndLockoutIsUnsupported_ThrowsNotSupported()
+    {
+        var (store, userManager) = CreateStore();
+        var user = CreateUser();
+        SetupUsers(userManager, user);
+        userManager
+            .Setup(x => x.SetUserNameAsync(user, UserName))
+            .ReturnsAsync(IdentityResult.Success)
+            .Verifiable();
+        userManager
+            .Setup(x => x.SetEmailAsync(user, "alice@example.com"))
+            .ReturnsAsync(IdentityResult.Success)
+            .Verifiable();
+        userManager.SetupGet(x => x.SupportsUserLockout).Returns(false).Verifiable();
+
+        var exception = await Assert.ThrowsAsync<NotSupportedException>(async () =>
+            await store.UpdateAsync(CreateAccount(isEnabled: false), CancellationToken.None)
+        );
+
+        Assert.Contains("does not support lockout", exception.Message);
+    }
+
     #endregion
 
     #region SetPasswordAsync Tests
@@ -862,7 +1030,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         var passwordStore = CreatePasswordStore();
         var (store, userManager) = CreateStore(passwordHasher.Object, passwordStore.Object);
         var user = CreateUser();
-        userManager.Setup(x => x.FindByIdAsync(LocalAccountId)).ReturnsAsync(user).Verifiable();
+        SetupUsers(userManager, user);
         passwordHasher
             .Setup(x => x.HashPassword(user, Password))
             .Returns(PasswordHash)
@@ -886,7 +1054,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         var passwordStore = CreatePasswordStore();
         var (store, userManager) = CreateStore(passwordHasher.Object, passwordStore.Object);
         var user = CreateUser();
-        userManager.Setup(x => x.FindByIdAsync(LocalAccountId)).ReturnsAsync(user).Verifiable();
+        SetupUsers(userManager, user);
         passwordHasher
             .Setup(x => x.HashPassword(user, ComposedPassword))
             .Returns(PasswordHash)
@@ -926,7 +1094,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     [Fact]
     public async Task SetPasswordAsync_WhenTheUserStoreDoesNotStorePasswords_Throws()
     {
-        var userStore = Mocks.Create<IUserStore<IdentityUser>>();
+        var userStore = Mocks.Create<IUserStore<TestTenantUser>>();
         var (store, _) = CreateStore(userStore: userStore.Object);
 
         await Assert.ThrowsAsync<NotSupportedException>(async () =>
@@ -943,7 +1111,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     {
         var (store, userManager) = CreateStore();
         var user = CreateUser();
-        userManager.Setup(x => x.FindByIdAsync(LocalAccountId)).ReturnsAsync(user).Verifiable();
+        SetupUsers(userManager, user);
         userManager
             .Setup(x => x.DeleteAsync(user))
             .ReturnsAsync(IdentityResult.Success)
@@ -956,10 +1124,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
     public async Task RemoveAsync_WhenNotFound_IsNoOp()
     {
         var (store, userManager) = CreateStore();
-        userManager
-            .Setup(x => x.FindByIdAsync(LocalAccountId))
-            .ReturnsAsync((IdentityUser?)null)
-            .Verifiable();
+        SetupUsers(userManager);
 
         await store.RemoveAsync(LocalAccountId, CancellationToken.None);
     }
@@ -974,7 +1139,7 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         var (store, userManager) = CreateStore();
         var user = CreateUser();
         var existing = new List<Claim> { new("old", "value") };
-        userManager.Setup(x => x.FindByIdAsync(LocalAccountId)).ReturnsAsync(user).Verifiable();
+        SetupUsers(userManager, user);
         userManager.Setup(x => x.GetClaimsAsync(user)).ReturnsAsync(existing).Verifiable();
         userManager
             .Setup(x => x.RemoveClaimsAsync(user, existing))
@@ -999,6 +1164,108 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
 
     #endregion
 
+    #region ImportAsync Tests
+
+    [Fact]
+    public async Task ImportAsync_WhenARecordIsDisabledAndLockoutIsUnsupported_ThrowsBeforeCreatingIt()
+    {
+        var passwordStore = CreatePasswordStore();
+        var (store, userManager) = CreateStore(userStore: passwordStore.Object);
+        userManager.SetupGet(x => x.SupportsUserLockout).Returns(false).Verifiable();
+        var record = new LocalAccountTransferRecord
+        {
+            LocalAccountId = LocalAccountId,
+            UserName = UserName,
+            NormalizedUserName = UserName,
+            Email = null,
+            NormalizedEmail = null,
+            EmailVerified = false,
+            PasswordHash = null,
+            SecurityStamp = SecurityStamp,
+            IsEnabled = false,
+            LockoutEnabled = false,
+            LockoutEnd = null,
+            AccessFailedCount = 0,
+            Claims = [],
+        };
+
+        // The user manager is strict and sets up no CreateAsync, so a created user would fail the test.
+        var exception = await Assert.ThrowsAsync<NotSupportedException>(async () =>
+            await store.ImportAsync([record], CancellationToken.None)
+        );
+
+        Assert.Contains("does not support lockout", exception.Message);
+    }
+
+    [Fact]
+    public async Task ImportAsync_WhenARecordHasClaimsAndTheUserStoreDoesNotStoreClaims_Throws()
+    {
+        var (store, userManager) = CreateStore(userStore: CreatePasswordStore().Object);
+        userManager.SetupGet(x => x.SupportsUserLockout).Returns(false).Verifiable();
+        userManager
+            .Setup(x => x.CreateAsync(It.IsAny<TestTenantUser>()))
+            .ReturnsAsync(IdentityResult.Success)
+            .Verifiable();
+        var record = new LocalAccountTransferRecord
+        {
+            LocalAccountId = LocalAccountId,
+            UserName = UserName,
+            NormalizedUserName = UserName,
+            Email = null,
+            NormalizedEmail = null,
+            EmailVerified = false,
+            PasswordHash = null,
+            SecurityStamp = SecurityStamp,
+            IsEnabled = true,
+            LockoutEnabled = false,
+            LockoutEnd = null,
+            AccessFailedCount = 0,
+            Claims = [new PersistedLocalAccountClaim { Type = "role", Value = "admin" }],
+        };
+
+        // The user manager is strict and sets up no UpdateAsync, so an update after the refusal would fail the test.
+        var exception = await Assert.ThrowsAsync<NotSupportedException>(async () =>
+            await store.ImportAsync([record], CancellationToken.None)
+        );
+
+        Assert.Contains("does not store claims", exception.Message);
+    }
+
+    [Fact]
+    public async Task ImportAsync_WhenNoRecordHasClaimsAndTheUserStoreDoesNotStoreClaims_ImportsTheAccount()
+    {
+        var (store, userManager) = CreateStore(userStore: CreatePasswordStore().Object);
+        userManager.SetupGet(x => x.SupportsUserLockout).Returns(false).Verifiable();
+        userManager
+            .Setup(x => x.CreateAsync(It.IsAny<TestTenantUser>()))
+            .ReturnsAsync(IdentityResult.Success)
+            .Verifiable();
+        userManager
+            .Setup(x => x.UpdateAsync(It.IsAny<TestTenantUser>()))
+            .ReturnsAsync(IdentityResult.Success)
+            .Verifiable();
+        var record = new LocalAccountTransferRecord
+        {
+            LocalAccountId = LocalAccountId,
+            UserName = UserName,
+            NormalizedUserName = UserName,
+            Email = null,
+            NormalizedEmail = null,
+            EmailVerified = false,
+            PasswordHash = null,
+            SecurityStamp = SecurityStamp,
+            IsEnabled = true,
+            LockoutEnabled = false,
+            LockoutEnd = null,
+            AccessFailedCount = 0,
+            Claims = [],
+        };
+
+        await store.ImportAsync([record], CancellationToken.None);
+    }
+
+    #endregion
+
     #region GetPageAsync Tests
 
     [Fact]
@@ -1018,18 +1285,18 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         var (store, userManager) = CreateStore();
         var users = new[]
         {
-            new IdentityUser("alice") { Id = "user-1" },
-            new IdentityUser("bob") { Id = "user-2" },
+            new TestTenantUser("alice") { Id = "user-1", TenantId = TenantId },
+            new TestTenantUser("bob") { Id = "user-2", TenantId = TenantId },
         };
         userManager.SetupGet(x => x.SupportsQueryableUsers).Returns(true).Verifiable();
         userManager.SetupGet(x => x.Users).Returns(users.AsQueryable()).Verifiable();
         userManager
-            .Setup(x => x.GetClaimsAsync(It.IsAny<IdentityUser>()))
+            .Setup(x => x.GetClaimsAsync(It.IsAny<TestTenantUser>()))
             .ReturnsAsync([])
             .Verifiable();
         userManager.SetupGet(x => x.SupportsUserLockout).Returns(true).Verifiable();
         userManager
-            .Setup(x => x.IsLockedOutAsync(It.IsAny<IdentityUser>()))
+            .Setup(x => x.IsLockedOutAsync(It.IsAny<TestTenantUser>()))
             .ReturnsAsync(false)
             .Verifiable();
 
@@ -1039,6 +1306,143 @@ public sealed class AspNetIdentityLocalAccountStoreTests : IDisposable
         Assert.Null(page.NextCursor);
         Assert.Equal("user-1", page.Items[0].LocalAccountId);
         Assert.Equal("user-2", page.Items[1].LocalAccountId);
+    }
+
+    #endregion
+
+    #region Tenant Scope Tests
+
+    [Fact]
+    public async Task Create_InTenantScope_StampsTenantId()
+    {
+        var (store, userManager) = CreateStore();
+        TestTenantUser? created = null;
+        userManager
+            .Setup(x => x.CreateAsync(It.IsAny<TestTenantUser>()))
+            .Callback<TestTenantUser>(user => created = user)
+            .ReturnsAsync(IdentityResult.Success)
+            .Verifiable();
+
+        await store.AddAsync(CreateAccount(), password: null, CancellationToken.None);
+
+        Assert.NotNull(created);
+        Assert.Equal(TenantId, created.TenantId);
+    }
+
+    [Fact]
+    public async Task Create_WithoutTenantScope_Throws()
+    {
+        var (store, _) = CreateStore();
+        TenantScope.Dispose();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await store.AddAsync(CreateAccount(), password: null, CancellationToken.None)
+        );
+    }
+
+    [Fact]
+    public async Task FindByName_UserOfOtherTenant_ReturnsNull()
+    {
+        var (store, userManager) = CreateStore();
+        var user = CreateUser();
+        user.TenantId = OtherTenantId;
+        userManager.Setup(x => x.FindByNameAsync(UserName)).ReturnsAsync(user).Verifiable();
+
+        var result = await store.GetByUserNameOrDefaultAsync(UserName, CancellationToken.None);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task GetByUserNameOrDefaultAsync_WithoutTenantScope_ReturnsNull()
+    {
+        var (store, _) = CreateStore();
+        TenantScope.Dispose();
+
+        var result = await store.GetByUserNameOrDefaultAsync(UserName, CancellationToken.None);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task GetByUserNameOrDefaultAsync_UnscopedScope_Throws()
+    {
+        var (store, _) = CreateStore();
+        TenantScope.Dispose();
+        using var unscoped = TenantAccessor.BeginUnscoped("test");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await store.GetByUserNameOrDefaultAsync(UserName, CancellationToken.None)
+        );
+    }
+
+    [Fact]
+    public async Task FindById_UserOfOtherTenant_ReturnsNull()
+    {
+        var (store, userManager) = CreateStore();
+        var user = CreateUser();
+        user.TenantId = OtherTenantId;
+        SetupUsers(userManager, user);
+
+        var result = await store.GetByIdOrDefaultAsync(LocalAccountId, CancellationToken.None);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task FindById_UserOfOtherTenantInUnscopedScope_ReturnsTheUser()
+    {
+        var (store, userManager) = CreateStore();
+        var user = CreateUser();
+        user.TenantId = OtherTenantId;
+        SetupUsers(userManager, user);
+        SetupMapping(userManager, user);
+        TenantScope.Dispose();
+        using var unscoped = TenantAccessor.BeginUnscoped("test");
+
+        var result = await store.GetByIdOrDefaultAsync(LocalAccountId, CancellationToken.None);
+
+        Assert.NotNull(result);
+    }
+
+    [Fact]
+    public async Task FindById_WithoutTenantScope_ReturnsNull()
+    {
+        var (store, userManager) = CreateStore();
+        var user = CreateUser();
+        SetupUsers(userManager, user);
+        TenantScope.Dispose();
+
+        var result = await store.GetByIdOrDefaultAsync(LocalAccountId, CancellationToken.None);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task GetPageAsync_WithUsersOfOtherTenants_ReturnsOnlyTheScopedTenantsUsers()
+    {
+        var (store, userManager) = CreateStore();
+        var users = new[]
+        {
+            new TestTenantUser("alice") { Id = "user-1", TenantId = TenantId },
+            new TestTenantUser("bob") { Id = "user-2", TenantId = OtherTenantId },
+        };
+        userManager.SetupGet(x => x.SupportsQueryableUsers).Returns(true).Verifiable();
+        userManager.SetupGet(x => x.Users).Returns(users.AsQueryable()).Verifiable();
+        userManager
+            .Setup(x => x.GetClaimsAsync(It.IsAny<TestTenantUser>()))
+            .ReturnsAsync([])
+            .Verifiable();
+        userManager.SetupGet(x => x.SupportsUserLockout).Returns(true).Verifiable();
+        userManager
+            .Setup(x => x.IsLockedOutAsync(It.IsAny<TestTenantUser>()))
+            .ReturnsAsync(false)
+            .Verifiable();
+
+        var page = await store.GetPageAsync(new PageRequest { Limit = 10 }, CancellationToken.None);
+
+        var item = Assert.Single(page.Items);
+        Assert.Equal("user-1", item.LocalAccountId);
     }
 
     #endregion

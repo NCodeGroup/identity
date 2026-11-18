@@ -1,0 +1,4 @@
+#nullable enable
+NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore.TenantBoundUserModel
+NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore.TenantBoundUserModel.extension<TUser>(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TUser!>!)
+NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore.TenantBoundUserModel.extension<TUser>(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TUser!>!).HasTenantLookupLengths() -> Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TUser!>!

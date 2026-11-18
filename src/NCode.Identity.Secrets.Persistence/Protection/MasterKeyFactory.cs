@@ -16,11 +16,13 @@ namespace NCode.Identity.Secrets.Persistence.Protection;
 /// </summary>
 /// <remarks>
 /// <para>
-/// A new master key is 32 random bytes that are wrapped by the root of its owner, bound to the identifier and the
-/// owner of the master key. The root of an owner is the root key the owner brings, when it has an active one, and
-/// otherwise the configured root key provider, with a recovery copy under the recovery public key when one is
-/// configured. A master key under an owner root key has no recovery copy. The row records a key-check value that binds
-/// the identifier, the owner and the version to the key material.
+/// A new master key is 32 random bytes that are wrapped by the root of its owner, bound to the identifier and the owner
+/// of the master key. The root of an owner is the root key the owner brings, when it has an active one, and otherwise
+/// the configured root key provider, with a recovery copy under the recovery public key when one is configured. A
+/// master key under an owner root key has no recovery copy. An owner root key that an access identity reaches is
+/// reached with the binding of the root key's owner, which the row records, because the nearest root key of a tenant
+/// can be its team's. The row records a key-check value that binds the identifier, the owner and the version to the key
+/// material.
 /// </para>
 /// <para>
 /// Every temporary copy of the key material is zeroed before a method returns, and no exception message contains key
@@ -92,6 +94,7 @@ internal class MasterKeyFactory(
             RootKeyId = wraps.Root.KeyId,
             RootKeyReference = wraps.RootKeyReference,
             RootKeyAccessIdentity = wraps.RootKeyAccessIdentity,
+            RootKeyAccessBinding = wraps.RootKeyAccessBinding,
             RootWrappedKey = wraps.Root.Ciphertext,
             RecoveryKeyId = wraps.Recovery?.KeyId,
             RecoveryWrappedKey = wraps.Recovery?.Ciphertext,
@@ -117,7 +120,8 @@ internal class MasterKeyFactory(
     /// </exception>
     /// <exception cref="CryptographicException">
     /// Thrown when the root key provider cannot unwrap the master key, when the unwrapped key does not have the size of
-    /// a master key, or when the key-check value of the row does not match the unwrapped key.
+    /// a master key, when the key-check value of the row does not match the unwrapped key, or when the row names an
+    /// access identity without an access binding.
     /// </exception>
     public async ValueTask<MasterKey> UnwrapAsync(
         PersistedMasterKey row,
@@ -161,10 +165,12 @@ internal class MasterKeyFactory(
         else
         {
             // See ADR-1414.
-            var access = new KeyAccess(
-                row.RootKeyAccessIdentity,
-                OwnerRootKeyAccess.GetBinding(owner)
-            );
+            var binding =
+                row.RootKeyAccessBinding
+                ?? throw new CryptographicException(
+                    $"The master key '{row.KeyId}' of owner '{owner}' names an access identity and no access binding."
+                );
+            var access = new KeyAccess(row.RootKeyAccessIdentity, binding);
             await Catalog
                 .GetReferenced(row.RootKeyProvider)
                 .UnwrapAsync(wrappedKey, access, context, destination, cancellationToken);
@@ -282,8 +288,8 @@ internal class MasterKeyFactory(
 
     /// <summary>
     /// Determines whether a persisted master key is wrapped under the root of its owner. With an owner root key that is
-    /// the key itself, reached through the same access identity, and no recovery copy; without one, or while it is being
-    /// removed, it is the deployment's root key.
+    /// the key itself, reached through the same access identity with the binding of the key's owner, and no recovery
+    /// copy; without one, or while it is being removed, it is the deployment's root key.
     /// </summary>
     /// <param name="row">The persisted master key.</param>
     /// <param name="rootKey">The root key the owner brings, or <see langword="null"/> when it has none.</param>
@@ -293,12 +299,19 @@ internal class MasterKeyFactory(
         ArgumentNullException.ThrowIfNull(row);
 
         if (!IsOwnerRooted(rootKey))
-            return row.RootKeyReference is null && row.RootKeyAccessIdentity is null;
+            return row.RootKeyReference is null
+                && row.RootKeyAccessIdentity is null
+                && row.RootKeyAccessBinding is null;
 
         return IsUnderKey(row, rootKey)
             && string.Equals(
                 row.RootKeyAccessIdentity,
                 rootKey.AccessIdentity,
+                StringComparison.Ordinal
+            )
+            && string.Equals(
+                row.RootKeyAccessBinding,
+                OwnerRootKeyAccess.For(rootKey.Owner, rootKey.AccessIdentity)?.Binding,
                 StringComparison.Ordinal
             )
             && row.RecoveryKeyId is null
@@ -320,8 +333,27 @@ internal class MasterKeyFactory(
     {
         ArgumentNullException.ThrowIfNull(row);
 
-        return IsOwnerRooted(rootKey)
-            && row.RootKeyReference is not null
+        return IsOwnerRooted(rootKey) && IsWrappedByKey(row, rootKey);
+    }
+
+    /// <summary>
+    /// Determines whether a persisted master key is wrapped under the key an owner root key names, whatever the state
+    /// of the root key and whatever identity reaches the key: the row has the provider and the reference of the root
+    /// key.
+    /// </summary>
+    /// <param name="row">The persisted master key.</param>
+    /// <param name="rootKey">The root key whose key the master key may be wrapped under.</param>
+    /// <returns>
+    /// <see langword="true"/> when the master key is under the key that the root key names, including while the root
+    /// key is being removed.
+    /// </returns>
+    // See ADR-1414.
+    public static bool IsWrappedByKey(PersistedMasterKey row, PersistedOwnerRootKey rootKey)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        ArgumentNullException.ThrowIfNull(rootKey);
+
+        return row.RootKeyReference is not null
             && string.Equals(row.RootKeyProvider, rootKey.KeyWrapperName, StringComparison.Ordinal)
             && string.Equals(row.RootKeyReference, rootKey.KeyReference, StringComparison.Ordinal);
     }
@@ -363,11 +395,9 @@ internal class MasterKeyFactory(
         if (ownerRoot is not null)
         {
             var referenced = Catalog.GetReferenced(ownerRoot.KeyWrapperName);
+            var access = OwnerRootKeyAccess.For(ownerRoot.Owner, ownerRoot.AccessIdentity);
             var wrappedUnderOwnerRoot = await referenced.WrapAsync(
-                new ReferencedKey(
-                    ownerRoot.KeyReference,
-                    OwnerRootKeyAccess.For(owner, ownerRoot.AccessIdentity)
-                ),
+                new ReferencedKey(ownerRoot.KeyReference, access),
                 material,
                 context,
                 cancellationToken
@@ -377,6 +407,7 @@ internal class MasterKeyFactory(
                 wrappedUnderOwnerRoot,
                 ownerRoot.KeyReference,
                 ownerRoot.AccessIdentity,
+                access?.Binding,
                 Recovery: null,
                 ClearsRecovery: true
             );
@@ -392,6 +423,7 @@ internal class MasterKeyFactory(
             wrapped,
             RootKeyReference: null,
             RootKeyAccessIdentity: null,
+            RootKeyAccessBinding: null,
             recoveryWrapped,
             ClearsRecovery: false
         );

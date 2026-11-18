@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Collections.Immutable;
 using IdGen;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -8,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Configuration;
 using NCode.Identity.OpenId.Persistence.Tenants;
+using NCode.Identity.Secrets.Persistence.Protection;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework;
 
@@ -86,6 +88,10 @@ internal static class TestOpenIdDbContextSetup
             SettingsJson = System.Text.Json.JsonSerializer.SerializeToElement(
                 new Dictionary<string, object>()
             ),
+            RootKeysJson = TeamRootKeysPayload.Write(
+                TestPayloadSerializer.Instance,
+                ImmutableDictionary<string, OwnerRootKeyRequest>.Empty
+            ),
             Tenants = new List<TenantEntity>(),
         };
         dbContext.Set<TeamEntity>().Add(entity);
@@ -117,6 +123,10 @@ internal static class TestOpenIdDbContextSetup
             DisplayName = "Platform",
             SettingsJson = System.Text.Json.JsonSerializer.SerializeToElement(
                 new Dictionary<string, object>()
+            ),
+            RootKeysJson = TeamRootKeysPayload.Write(
+                TestPayloadSerializer.Instance,
+                ImmutableDictionary<string, OwnerRootKeyRequest>.Empty
             ),
             Tenants = new List<TenantEntity>(),
         };
@@ -165,8 +175,8 @@ internal static class TestOpenIdDbContextSetup
 }
 
 /// <summary>
-/// An ambient tenant accessor that reports no active tenant, so the tenant-scoping global query filter is a no-op and
-/// tests can seed and read rows across tenants without a scope.
+/// An ambient tenant accessor that reports an unscoped scope, so the tenant-scoping global query filter matches every
+/// tenant and tests can seed and read rows across tenants without a tenant scope.
 /// </summary>
 internal sealed class TestUnscopedAmbientTenantAccessor : IAmbientTenantAccessor
 {
@@ -174,5 +184,11 @@ internal sealed class TestUnscopedAmbientTenantAccessor : IAmbientTenantAccessor
 
     public bool IsScoped => false;
 
+    public bool IsUnscoped => true;
+
+    public string? UnscopedReason => "test";
+
     public IDisposable BeginScope(string tenantId) => throw new NotSupportedException();
+
+    public IDisposable BeginUnscoped(string reason) => throw new NotSupportedException();
 }

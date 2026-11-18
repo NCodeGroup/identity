@@ -3,7 +3,9 @@
 
 using System.Net;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Options;
 using NCode.Identity.AspNetCore;
+using NCode.Identity.OpenId.GlobalDirectory;
 
 namespace NCode.Identity.OpenId.Setup;
 
@@ -11,16 +13,20 @@ namespace NCode.Identity.OpenId.Setup;
 /// Provides a default implementation of the <see cref="ISetupSurfaceGate"/> abstraction. The surface is served while
 /// the instance is not initialized, and only over HTTPS. When <see cref="LocalDevelopmentMode.Enabled"/> is set, a
 /// plain HTTP request is also served if it comes from a loopback remote address; a request without a remote address is
-/// not loopback. A request that is neither is refused without reading the instance.
+/// not loopback. A request that is neither is refused without reading the instance. Setup belongs to the control-plane
+/// cell, so a cell that is not the control plane never serves the surface.
 /// </summary>
 internal sealed class DefaultSetupSurfaceGate(
     IInstanceSetupService instanceSetupService,
-    LocalDevelopmentMode localDevelopment
+    LocalDevelopmentMode localDevelopment,
+    IOptions<CellOptions> cellOptions
 ) : ISetupSurfaceGate
 {
     private IInstanceSetupService InstanceSetupService { get; } = instanceSetupService;
 
     private LocalDevelopmentMode LocalDevelopment { get; } = localDevelopment;
+
+    private IOptions<CellOptions> CellOptions { get; } = cellOptions;
 
     /// <inheritdoc />
     public async ValueTask<bool> IsServedAsync(
@@ -29,6 +35,11 @@ internal sealed class DefaultSetupSurfaceGate(
     )
     {
         ArgumentNullException.ThrowIfNull(httpContext);
+
+        if (!CellOptions.Value.IsControlPlane)
+        {
+            return false;
+        }
 
         if (!IsTransportAdmitted(httpContext))
         {

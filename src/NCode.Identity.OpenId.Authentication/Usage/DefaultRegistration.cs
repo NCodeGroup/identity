@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using JetBrains.Annotations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -13,7 +12,6 @@ internal static class DefaultRegistration
 {
     extension(IServiceBuilder<OpenIdAuthenticationLibrary> builder)
     {
-        [PublicAPI]
         public IServiceBuilder<OpenIdAuthenticationLibrary> AddTenantUsageServices()
         {
             var serviceCollection = builder.ServiceCollection;

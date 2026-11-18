@@ -42,6 +42,7 @@ public sealed class AuditRecordApiEndpointHandlerTests : IDisposable
             EventCategory = "management",
             Outcome = "success",
             Severity = "info",
+            Cell = "cell-1",
             TenantId = "tenant-1",
             SubjectId = "user-1",
             ClientId = "client-1",

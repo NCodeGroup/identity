@@ -1,7 +1,9 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Text.Json;
 using Moq;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Teams;
@@ -100,6 +102,28 @@ public sealed class DefaultTeamProvisionerTests : IDisposable
         Assert.Equal("Platform", result.DisplayName);
         Assert.False(result.IsDisabled);
         Assert.Equal(TeamId, result.Settings.TeamId);
+    }
+
+    [Fact]
+    public async Task EnsureCreatedAsync_WhenTeamIsNew_StoresEmptyObjectSettings()
+    {
+        SetupGetTeam((PersistedTeam?)null);
+        MockTeamStore
+            .Setup(x => x.AddAsync(It.IsAny<PersistedTeam>(), It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+        var result = await Provisioner.EnsureCreatedAsync(
+            TeamId,
+            "Platform",
+            CancellationToken.None
+        );
+
+        Assert.True(JsonElement.DeepEquals(JsonElements.EmptyObject, result.Settings.Value));
     }
 
     [Fact]

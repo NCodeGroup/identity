@@ -24,10 +24,12 @@ and the BFF all read it from there.**
 
 1. **The package.** `NCode.Identity.OpenId.Protocol.Abstractions` holds the static partial class `OpenIdProtocol` in the
    namespace `NCode.Identity.OpenId`, the namespace of `OpenIdConstants`. The package has no project reference and no
-   framework reference. It follows the family's contract-only packages, such as `NCode.Identity.Jose.Abstractions`, and
-   implementation packages depend on it
+   framework reference. It holds the wire names and the pure form rules of the URLs the wire carries, `AbsoluteUri`
+   (its service-URL members included) and `LocalUrl`, beside `OpenIdProtocol`. It follows the family's
+   service-logic-free packages, such as `NCode.Identity.Jose.Abstractions`, and implementation packages depend on it
    ([ADR-1500](1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md)).
-2. **Wire vocabulary only.** `OpenIdProtocol` holds only the names that cross the wire: `ParameterSeparatorChar`,
+2. **Wire vocabulary and URL form rules only.** `AbsoluteUri` and `LocalUrl` are the pure checks of the URLs the wire
+   carries, and `OpenIdProtocol` holds only the names that cross the wire: `ParameterSeparatorChar`,
    `ParameterSeparatorString`, `PushedAuthorizationRequestUriPrefix`, and the groups `Parameters`, `ErrorCodes`,
    `GrantTypes`, `ResponseTypes`, `ResponseModes`, `CodeChallengeMethods`, `TokenTypes`, `TokenTypeIdentifiers`,
    `TokenTypeHints`, `ClientAuthenticationMethods`, `ClientAssertionTypes`, `PromptTypes`, `DisplayTypes`, `ScopeTypes`,

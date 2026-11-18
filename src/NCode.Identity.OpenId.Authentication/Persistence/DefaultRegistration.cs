@@ -1,10 +1,10 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using JetBrains.Annotations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using NCode.Identity.Json;
 using NCode.Identity.Registration;
 
 namespace NCode.Identity.OpenId.Authentication.Persistence;
@@ -22,15 +22,11 @@ internal static class DefaultRegistration
         /// that removes the grants that ended before their retention.
         /// </summary>
         /// <returns>The <see cref="IServiceBuilder{T}"/> instance for method chaining.</returns>
-        [PublicAPI]
         public IServiceBuilder<OpenIdAuthenticationLibrary> AddPersistenceServices()
         {
             var serviceCollection = builder.ServiceCollection;
 
-            serviceCollection.TryAddSingleton<
-                IPersistedPayloadSerializer,
-                DefaultPersistedPayloadSerializer
-            >();
+            serviceCollection.AddPersistedPayloadSerializer();
             serviceCollection.TryAddSingleton<
                 IGrantPayloadProtector,
                 DefaultGrantPayloadProtector

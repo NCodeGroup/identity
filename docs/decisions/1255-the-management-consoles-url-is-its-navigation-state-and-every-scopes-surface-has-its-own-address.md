@@ -30,14 +30,17 @@ same scope and surface.
 | --------------------------------- | -------- | ------------------------------------------------------------------------------------------------- |
 | `/home`                           | caller   | the places the caller holds authority                                                             |
 | `/teams`, `/clients`, `/settings`, `/encryption-keys` | platform | `PLATFORM_SURFACES`                                                          |
-| `/teams/{teamId}/{surface}`       | team     | `tenants`, `teams`, `clients`, `settings`, `access`, `usage` (`TEAM_SURFACES`)                    |
+| `/teams/{teamId}/{surface}`       | team     | `tenants`, `teams`, `clients`, `settings`, `access`, `encryption-keys`, `usage` (`TEAM_SURFACES`) |
 | `/tenants/{tenantId}/{surface}`   | tenant   | `clients`, `resource-servers`, `grants`, `secrets`, `encryption-keys`, `settings`, `access`, `usage` (`TENANT_SURFACES`) |
+| `/cells/{cell}/tenants/{tenantId}/{surface}` | tenant in a named cell | the tenant surfaces (`TENANT_SURFACES`)                       |
 
 - **`/home` is the caller's home.** It shows the places the caller holds authority
   ([ADR-1465](1465-role-lists-share-one-audited-grant-and-revoke-flow-and-a-caller-discovers-its-own-assignments.md)),
   and it is where a path that names no route lands (`DEFAULT_ROUTE`).
 - **A scope without a surface opens its first.** A team path without a surface opens `tenants`, and a tenant path
   without a surface opens `clients`.
+- **A tenant path without a cell addresses the control plane.** The cell is one percent-encoded segment, and the tenant
+  surfaces are the same in every cell.
 - **The surface selects what a page renders.** `TenantOwnSurface` (`secrets`, `encryption-keys`, `settings`, `access`
   and `usage`) is the type of the tenant surfaces that show the tenant itself rather than the resources it holds.
   `TenantDetailPage` takes a `surface` prop of that type, renders that surface and holds no tab state, so each tab change
@@ -84,7 +87,7 @@ same scope and surface.
   cohesive frontend presentation platform.
 - [ADR-1160](1160-a-tenant-is-named-by-its-creator-validated-by-its-strategy-and-never-reissued.md): tenant identifiers
   are readable names.
-- [ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md): the
+- [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md): the
   platform, its teams and its tenants.
 - [ADR-1465](1465-role-lists-share-one-audited-grant-and-revoke-flow-and-a-caller-discovers-its-own-assignments.md): a
   caller discovers its own assignments.

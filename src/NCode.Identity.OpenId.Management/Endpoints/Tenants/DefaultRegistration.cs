@@ -3,6 +3,7 @@
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NCode.Identity.OpenId.Management.Endpoints.Clients;
+using NCode.Identity.OpenId.Management.Promotions;
 using NCode.Identity.Registration.AspNetCore;
 
 namespace NCode.Identity.OpenId.Management.Endpoints.Tenants;
@@ -21,11 +22,13 @@ internal static class DefaultRegistration
         {
             builder.AddEndpoint<TenantApiEndpointHandler>();
             builder.AddEndpoint<TenantRemoteSecretApiEndpointHandler>();
+            builder.AddEndpoint<TenantPromotionApiEndpointHandler>();
             builder.ServiceCollection.TryAddSingleton<ITenantValidator, DefaultTenantValidator>();
             builder.ServiceCollection.TryAddSingleton<
                 ITenantClientCoherenceChecker,
                 DefaultTenantClientCoherenceChecker
             >();
+            builder.AddTenantPromotionServices();
         }
     }
 }

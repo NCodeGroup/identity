@@ -3,11 +3,12 @@
 
 using System.Security.Claims;
 using NCode.Identity.Cryptography;
+using NCode.Identity.Jose;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
-using NCode.Identity.OpenId.PrincipalResolution;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Management.Authorization;
@@ -17,15 +18,20 @@ namespace NCode.Identity.OpenId.Management.Authorization;
 /// </summary>
 internal class DefaultResourceOwnershipService(
     ICryptoService cryptoService,
-    IPrincipalResolver principalResolver,
-    IAmbientTenantAccessor ambientTenantAccessor,
-    IAuthorityChainResolver authorityChainResolver
+    IControlPlaneAuthority controlPlaneAuthority,
+    IAuthorityChainResolver authorityChainResolver,
+    IAmbientTenantAccessor ambientTenantAccessor
 ) : IResourceOwnershipService
 {
+    /// <summary>
+    /// The reason of the unscoped scope in which the service looks up the machine client of a principal.
+    /// </summary>
+    internal const string UnscopedReason = "machine client lookup";
+
     private ICryptoService CryptoService { get; } = cryptoService;
-    private IPrincipalResolver PrincipalResolver { get; } = principalResolver;
-    private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
+    private IControlPlaneAuthority ControlPlaneAuthority { get; } = controlPlaneAuthority;
     private IAuthorityChainResolver AuthorityChainResolver { get; } = authorityChainResolver;
+    private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
 
     /// <inheritdoc />
     public async ValueTask<PersistedRoleAssignment?> AssignCreatorAsync(
@@ -38,19 +44,20 @@ internal class DefaultResourceOwnershipService(
         CancellationToken cancellationToken
     )
     {
-        // Resolve (and provision on first sight) the stable principal id for the creator (ADR-1035). Principals and
-        // their federated identities live in the control-plane tenant, whatever tenant the request is scoped to.
-        // See ADR-1411
-        string principalId;
-        using (AmbientTenantAccessor.BeginScope(openIdContext.Tenant.TenantId))
+        // The creator's stable principal id (ADR-1035) is the control-plane principal the caller's subject resolves to,
+        // whatever tenant the request is scoped to. See ADR-1411
+        var subject = user.FindFirstValue(JoseClaimNames.Payload.Sub);
+        var clientId = user.FindFirstValue(JoseClaimNames.Payload.ClientId);
+        if (string.IsNullOrEmpty(subject) || string.IsNullOrEmpty(clientId))
         {
-            principalId = await PrincipalResolver.ResolvePrincipalIdAsync(
-                openIdContext,
-                user,
-                storeManager,
-                cancellationToken
-            );
+            return null;
         }
+
+        var authority = await ControlPlaneAuthority.GetAsync(
+            new ControlPlaneAuthorityRequest { Subject = subject, ClientId = clientId },
+            cancellationToken
+        );
+        var principalId = authority.PrincipalId;
 
         // A caller that resolves to no principal becomes no owner.
         if (string.IsNullOrEmpty(principalId))
@@ -288,7 +295,15 @@ internal class DefaultResourceOwnershipService(
     )
     {
         var clientStore = storeManager.GetStore<IClientStore>();
-        var client = await clientStore.GetByPrincipalOrDefaultAsync(principalId, cancellationToken);
+        PersistedClient? client;
+
+        // A principal names at most one client, in any tenant, so its client is looked up across tenants.
+        // See ADR-1018 and ADR-1466.
+        using (AmbientTenantAccessor.BeginUnscoped(UnscopedReason))
+        {
+            client = await clientStore.GetByPrincipalOrDefaultAsync(principalId, cancellationToken);
+        }
+
         if (client is null)
         {
             return true;

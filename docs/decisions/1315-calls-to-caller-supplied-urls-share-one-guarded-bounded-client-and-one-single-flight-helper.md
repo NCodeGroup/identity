@@ -125,7 +125,10 @@ result. `RememberFailure(key)` stores `{key}:unavailable` in `IMemoryCache` for 
 
 Each owner (`DefaultClientKeyResolver`, `RevocationRetrievalCache`) keeps what is its own: what counts as a failure, the
 value cache with its key and lifetime, its log entries and its options. It checks its caches before it calls the helper
-and again inside the retrieval. Any further remote fetch that several callers share uses the helper.
+and again inside the retrieval. Any further remote fetch that several callers share uses the helper. The directory
+client's cell token source, in a package that cannot reference the helper, keeps one `Lazy<Task>` per key under the same
+rules: the request runs on its own bounded token, joined callers cancel only their own wait, and a failure is remembered
+against the injected `TimeProvider`.
 
 ### Overrides of project-template ADR-0145
 
@@ -169,7 +172,7 @@ and again inside the retrieval. Any further remote fetch that several callers sh
   [ADR-1106](1106-a-clients-jwks-uri-key-set-is-fetched-when-needed-shared-between-callers-and-never-served-stale.md),
   [ADR-1400](1400-client-certificate-revocation-is-checked-by-configured-sources-under-the-clients-revocation-mode.md),
   [ADR-1385](1385-no-shipping-package-replaces-its-consumers-logging-generator-or-carries-microsoft-extensions-http-resilience.md),
-  [ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md)
+  [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)
 - Issues [#67](https://github.com/NCodeGroup/identity/issues/67) and
   [#482](https://github.com/NCodeGroup/identity/issues/482)
 - `GuardedHttpClient.cs`, `GuardedResilienceHandler.cs`, `GuardedResiliencePipelines.cs`, `OutboundHttpOptions.cs`,

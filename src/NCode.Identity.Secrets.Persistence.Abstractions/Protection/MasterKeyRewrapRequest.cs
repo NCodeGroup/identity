@@ -24,6 +24,15 @@ public sealed class MasterKeyRewrapRequest
     public SecretOwner? Owner { get; init; }
 
     /// <summary>
+    /// Gets a value indicating whether the rewrap also covers the master keys whose root the root key of
+    /// <see cref="Owner"/> can be: those of every owner whose ancestors, as <see cref="ISecretOwnerParentResolver"/>
+    /// names them, include <see cref="Owner"/>, and every master key still wrapped under the key that the root key of
+    /// <see cref="Owner"/> names, whatever its state. With the platform owner it covers every master key; without an
+    /// owner it changes nothing.
+    /// </summary>
+    public bool IncludeDescendants { get; init; }
+
+    /// <summary>
     /// Gets a value indicating whether the rewrap only proves that every master key can be unwrapped and writes
     /// nothing.
     /// </summary>

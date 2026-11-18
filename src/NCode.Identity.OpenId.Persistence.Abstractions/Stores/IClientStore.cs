@@ -77,12 +77,13 @@ public interface IClientStore : IStore<PersistedClient>
     );
 
     /// <summary>
-    /// Attempts to get the <see cref="PersistedClient"/> whose principal is the specified identifier, in any tenant.
-    /// A principal names at most one client in any tenant.
+    /// Attempts to get the <see cref="PersistedClient"/> whose principal is the specified identifier, in any tenant. A
+    /// principal names at most one client in any tenant. It reads across tenants, so it runs only in an unscoped scope.
     /// </summary>
     /// <param name="principalId">The identifier of the client's principal.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the <see cref="PersistedClient"/> if found; otherwise <c>null</c>.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the ambient scope is not unscoped.</exception>
     ValueTask<PersistedClient?> GetByPrincipalOrDefaultAsync(
         string principalId,
         CancellationToken cancellationToken
@@ -182,10 +183,11 @@ public interface IClientStore : IStore<PersistedClient>
     );
 
     /// <summary>
-    /// Removes an OpenId Client from the store together with everything that exists for it: its secrets, its grants
-    /// to resource servers, the consents its end users gave it, and the grants issued to it, such as its
-    /// authorization codes, tokens, and registration access token, and every role assignment at the client's
-    /// resource node, ownership included. Nothing blocks the removal.
+    /// Removes an OpenId Client from the store together with everything that exists for it: its secrets, its grants to
+    /// resource servers, the consents its end users gave it, and the grants issued to it, such as its authorization
+    /// codes, tokens, and registration access token, and every role assignment at the client's resource node, ownership
+    /// included. Nothing blocks the removal. The role assignments the client's principal holds, which only a machine
+    /// client's principal has, are removed with <see cref="IRoleAssignmentStore.RemoveByPrincipalAsync"/>.
     /// </summary>
     /// <param name="clientId">The identifier of the OpenId Client to remove.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>

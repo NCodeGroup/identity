@@ -23,6 +23,7 @@ internal sealed class CoreModelContributor : IOpenIdModelContributor
         modelBuilder.Entity<OwnerRootKeyEntity>().ToTable("OwnerRootKeys");
         modelBuilder.Entity<PlatformEntity>().ToTable("Platform");
         modelBuilder.Entity<InstanceSetupEntity>().ToTable("InstanceSetup");
+        modelBuilder.Entity<DirectoryFeedCheckpointEntity>().ToTable("DirectoryFeedCheckpoint");
         modelBuilder.Entity<TenantSecretEntity>().ToTable("TenantSecrets");
         modelBuilder.Entity<ClientEntity>().ToTable("Clients");
         modelBuilder.Entity<ClientSecretEntity>().ToTable("ClientSecrets");
@@ -43,6 +44,16 @@ internal sealed class CoreModelContributor : IOpenIdModelContributor
         modelBuilder.Entity<TenantUsageCheckpointEntity>().ToTable("TenantUsageCheckpoints");
         modelBuilder.Entity<AuditRecordEntity>().ToTable("AuditRecords");
         modelBuilder.Entity<AuditRecordResourceEntity>().ToTable("AuditRecordResources");
+
+        // The sequence of the directory change a team or the platform row last mirrored.
+        modelBuilder
+            .Entity<TeamEntity>()
+            .Property(entity => entity.DirectorySequence)
+            .IsRequired();
+        modelBuilder
+            .Entity<PlatformEntity>()
+            .Property(entity => entity.DirectorySequence)
+            .IsRequired();
 
         // An owner has at most one active master key (the one with no retirement time), so enforce uniqueness only
         // over the active rows (a filtered index): two replicas that race to create an owner's first key cannot both

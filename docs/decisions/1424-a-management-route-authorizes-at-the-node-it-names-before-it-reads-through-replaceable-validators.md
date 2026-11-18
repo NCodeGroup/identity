@@ -14,7 +14,7 @@ keys, owners and administrators exist, and the store does the work of finding th
 them.
 
 Authority is decided at nodes
-([ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md),
+([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
 [ADR-1417](1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md)),
 and a node is built from the route's values alone: the platform, a team or a tenant needs no row. A tenant node of an
 unknown tenant has no team ancestor, so a role at a team never reaches it. The decision about a caller is therefore the
@@ -121,7 +121,7 @@ names, before it opens a store, through one replaceable validator per entity.**
 - Code: `ManagementApiEndpointHandler`, `DefaultResourceValidator`, `ITeamValidator`, `ITenantValidator`,
   `IClientValidator`, `IResourceServerValidator`, `IClientGrantValidator`, `ILocalAccountValidator`,
   `ResourceNode.For`, `TenantScopeResource`
-- [ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md) — the
+- [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md) — the
   platform is the deployment root and a team groups a customer's tenants
 - [ADR-1417](1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md) —
   management authority is a role assignment at a node

@@ -1524,6 +1524,103 @@ public class AwsKmsRemoteKeyProviderTests : BaseTests
 
     #endregion
 
+    #region RetagKeyAsync Tests
+
+    [Fact]
+    public async Task RetagKeyAsync_TagsTheKeyWithTheDeploymentInTheArnRegion()
+    {
+        SetupClient<TagResourceResponse>("eu-central-1");
+        TagResourceRequest? sent = null;
+        Client
+            .Setup(x =>
+                x.TagResourceAsync(It.IsAny<TagResourceRequest>(), It.IsAny<CancellationToken>())
+            )
+            .Callback<TagResourceRequest, CancellationToken>((request, _) => sent = request)
+            .ReturnsAsync(new TagResourceResponse())
+            .Verifiable();
+        var provider = CreateProvider();
+
+        await provider.RetagKeyAsync(OtherRegionKeyArn, "deployment-2", CancellationToken.None);
+
+        var request = Assert.IsType<TagResourceRequest>(sent);
+        Assert.Equal(OtherRegionKeyArn, request.KeyId);
+        var tag = Assert.Single(request.Tags);
+        Assert.Equal(AwsKmsRemoteKeyProvider.DeploymentTagKey, tag.TagKey);
+        Assert.Equal("deployment-2", tag.TagValue);
+    }
+
+    [Fact]
+    public async Task RetagKeyAsync_KeyNotFound_Completes()
+    {
+        SetupClient<TagResourceResponse>("us-west-2");
+        Client
+            .Setup(x =>
+                x.TagResourceAsync(It.IsAny<TagResourceRequest>(), It.IsAny<CancellationToken>())
+            )
+            .ThrowsAsync(new NotFoundException("missing"))
+            .Verifiable();
+        var provider = CreateProvider();
+
+        await provider.RetagKeyAsync(KeyArn, "deployment-2", CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task RetagKeyAsync_OtherFailure_Propagates()
+    {
+        SetupClient<TagResourceResponse>("us-west-2");
+        Client
+            .Setup(x =>
+                x.TagResourceAsync(It.IsAny<TagResourceRequest>(), It.IsAny<CancellationToken>())
+            )
+            .ThrowsAsync(new KMSInternalException("outage"))
+            .Verifiable();
+        var provider = CreateProvider();
+
+        await Assert.ThrowsAsync<KMSInternalException>(() =>
+            provider.RetagKeyAsync(KeyArn, "deployment-2", CancellationToken.None).AsTask()
+        );
+    }
+
+    [Fact]
+    public async Task RetagKeyAsync_KeyIdIsNotAnArn_Throws()
+    {
+        var provider = CreateProvider();
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+            provider.RetagKeyAsync("not-an-arn", "deployment-2", CancellationToken.None).AsTask()
+        );
+
+        Assert.Equal("keyId", exception.ParamName);
+    }
+
+    #endregion
+
+    #region IsInLocation Tests
+
+    [Theory]
+    [InlineData(KeyArn, true)]
+    [InlineData(OtherRegionKeyArn, false)]
+    [InlineData("not-an-arn", false)]
+    public void IsInLocation_ByTheKeysRegion_IsTrueOnlyInTheConfiguredRegion(
+        string keyId,
+        bool expected
+    )
+    {
+        var provider = CreateProvider();
+
+        Assert.Equal(expected, provider.IsInLocation(keyId));
+    }
+
+    [Fact]
+    public void IsInLocation_WhenNoRegionIsConfigured_IsFalse()
+    {
+        var provider = CreateProvider(region: null);
+
+        Assert.False(provider.IsInLocation(KeyArn));
+    }
+
+    #endregion
+
     #region ListKeysAsync Tests
 
     private static DateTime CreationDate { get; } = new(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc);

@@ -15,6 +15,12 @@ namespace NCode.Identity.OpenId.Management.Contracts.Clients;
 public sealed class CreateClientRequest
 {
     /// <summary>
+    /// Gets the client's identifier, or <c>null</c> when the server generates one. Only the platform's machine client
+    /// of a cell may set it, as <c>cell-</c> followed by the cell's name; every other request leaves it <c>null</c>.
+    /// </summary>
+    public string? ClientId { get; init; }
+
+    /// <summary>
     /// Gets a value indicating whether the client is created in a disabled state.
     /// </summary>
     public required bool IsDisabled { get; init; }
@@ -32,4 +38,10 @@ public sealed class CreateClientRequest
     /// Gets the initial JSON settings for the client.
     /// </summary>
     public required JsonElement Settings { get; init; }
+
+    /// <summary>
+    /// Gets the client's public JSON Web Key Set, for <c>private_key_jwt</c> client authentication, or <c>null</c> when
+    /// the client registers none.
+    /// </summary>
+    public JsonElement? Jwks { get; init; }
 }

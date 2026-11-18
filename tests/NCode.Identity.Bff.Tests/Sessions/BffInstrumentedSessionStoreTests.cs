@@ -134,12 +134,16 @@ public sealed class BffInstrumentedSessionStoreTests : BaseTests
         [
             new BffSessionClient(BffTestFrontends.Name, "https://op.example", "client-1"),
         ];
+        IReadOnlyCollection<BffSessionClient> except =
+        [
+            new BffSessionClient(BffTestFrontends.Name, "https://op.example", "client-2"),
+        ];
         MockStore
-            .Setup(x => x.FindClientsAsync(It.IsAny<CancellationToken>()))
+            .Setup(x => x.FindClientsAsync(except, It.IsAny<CancellationToken>()))
             .ReturnsAsync(clients)
             .Verifiable();
 
-        var result = await Store.FindClientsAsync(CancellationToken.None);
+        var result = await Store.FindClientsAsync(except, CancellationToken.None);
 
         Assert.Same(clients, result);
         AssertOperationRecorded(BffMetrics.FindClientsOperation, errorType: null);
@@ -180,6 +184,22 @@ public sealed class BffInstrumentedSessionStoreTests : BaseTests
             BffMetrics.FindByClientOperation,
             typeof(InvalidOperationException).FullName
         );
+    }
+
+    [Fact]
+    public async Task ForgetEndedSessionAsync_WhenTheStoreCompletes_RecordsTheOperation()
+    {
+        var client = new BffSessionClient(BffTestFrontends.Name, "https://op.example", "client-1");
+        MockStore
+            .Setup(x =>
+                x.ForgetEndedSessionAsync(client, "store-key", It.IsAny<CancellationToken>())
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+        await Store.ForgetEndedSessionAsync(client, "store-key", CancellationToken.None);
+
+        AssertOperationRecorded(BffMetrics.ForgetEndedSessionOperation, errorType: null);
     }
 
     [Fact]

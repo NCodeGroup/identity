@@ -132,6 +132,35 @@ internal class OwnerRootKeyStore(
     }
 
     /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<PersistedOwnerRootKey>> FindManyAsync(
+        string ownerType,
+        IReadOnlyCollection<string> ownerIds,
+        CancellationToken cancellationToken
+    )
+    {
+        if (ownerIds.Count == 0)
+            return [];
+
+        var normalizedOwnerType = ownerType.ToLowerInvariant();
+        var normalizedOwnerIds = new List<string>(ownerIds.Count);
+        foreach (var ownerId in ownerIds)
+        {
+            normalizedOwnerIds.Add(ownerId.ToLowerInvariant());
+        }
+
+        var entities = await DbContext
+            .OwnerRootKeys.AsNoTracking()
+            .Where(entity =>
+                entity.OwnerType == normalizedOwnerType
+                && normalizedOwnerIds.Contains(entity.NormalizedOwnerId)
+            )
+            .OrderBy(entity => entity.Id)
+            .ToListAsync(cancellationToken);
+
+        return entities.Select(MapToPersistedOwnerRootKey).ToList();
+    }
+
+    /// <inheritdoc />
     public async ValueTask<PagedResult<PersistedOwnerRootKey>> GetDuePageAsync(
         DateTimeOffset validatedBefore,
         DateTimeOffset retryBefore,
@@ -157,6 +186,38 @@ internal class OwnerRootKeyStore(
                     && (entity.FailedWhen == null || entity.FailedWhen < retry)
                 )
             );
+
+        var afterId = KeysetCursor.Decode(page.Cursor);
+        if (afterId is not null)
+            query = query.Where(entity => entity.Id > afterId.Value);
+
+        var entities = await query
+            .OrderBy(entity => entity.Id)
+            .Take(page.Limit + 1)
+            .ToListAsync(cancellationToken);
+
+        var hasMore = entities.Count > page.Limit;
+        var count = hasMore ? page.Limit : entities.Count;
+
+        return new PagedResult<PersistedOwnerRootKey>
+        {
+            Items = entities.Take(count).Select(MapToPersistedOwnerRootKey).ToList(),
+            NextCursor = hasMore ? KeysetCursor.Encode(entities[count - 1].Id) : null,
+        };
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<PagedResult<PersistedOwnerRootKey>> GetOwnerTypePageAsync(
+        string ownerType,
+        PageRequest page,
+        CancellationToken cancellationToken
+    )
+    {
+        var normalizedOwnerType = ownerType.ToLowerInvariant();
+
+        var query = DbContext
+            .OwnerRootKeys.AsNoTracking()
+            .Where(entity => entity.OwnerType == normalizedOwnerType);
 
         var afterId = KeysetCursor.Decode(page.Cursor);
         if (afterId is not null)

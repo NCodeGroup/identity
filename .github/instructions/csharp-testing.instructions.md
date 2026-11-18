@@ -56,6 +56,10 @@ seams, facades, and `InternalsVisibleTo` wiring that make code mockable — live
 - 👁 **Prefer the size-specific xUnit assertions** — template [Assertions](csharp-tests.instructions.md#assertions).
 - 👁 **Compare an `ImmutableArray<T>` by its elements** — template
   [Assertions](csharp-tests.instructions.md#assertions).
+- 👁 **Compare a record that holds a `JsonElement` member by member.** A record's generated equality compares a
+  `JsonElement` by reference, so `Assert.Equal` of two records with equal settings fails unless both hold the same
+  element. Assert `JsonElement.DeepEquals(expected.Settings, actual.Settings)` for the element and `Assert.Equal` for
+  each other member (`RemotePlatformDirectoryTests`); a compact expected text compares with `GetRawText()`.
 - 👁 **Assert on the exception type the contract guarantees** — template
   [Assertions](csharp-tests.instructions.md#assertions). Signing with a public-only RSA key raises
   `CryptographicException` on Windows and a derived `Interop+Crypto+OpenSslCryptographicException` on OpenSSL-backed
@@ -97,6 +101,10 @@ seams, facades, and `InternalsVisibleTo` wiring that make code mockable — live
   doc comment (`// See ADR-1201.`), as production code does
   ([`csharp-production.instructions.md`](csharp-production.instructions.md) §10); the `doc comment citations` stage of
   [`build/dod.ps1`](../../build/dod.ps1) scans `tests/` as well as `src/`, `hosts/` and `analyzers/`.
+- ✅ **A `///` paragraph in tests fits and fills as production code does.** Each line stays within 120 columns and holds
+  as many whole words as fit ([`csharp-production.instructions.md`](csharp-production.instructions.md) §10); the
+  `doc comment fill` stage of [`build/dod.ps1`](../../build/dod.ps1) checks `tests/` as well as `src/`, `hosts/` and
+  `analyzers/`.
 
 ## Isolation & mocking
 
@@ -215,9 +223,9 @@ seams, facades, and `InternalsVisibleTo` wiring that make code mockable — live
   `DbContext.SaveChangesAsync` directly sees EF's `DbUpdateConcurrencyException`. See
   [ADR-1012](../../docs/decisions/1012-concurrency-tokens-are-interceptor-managed-and-a-lost-race-surfaces-as-a-store-neutral-exception.md).
 - 👁 **Build a stored grant's payload with `TestGrantPayloadProtector.Protect(...)`**
-  (which wraps the real `DefaultPersistedPayloadSerializer`), never a bare `JsonSerializer` call. The server stores a
-  protected, versioned envelope, so a test that hands the code the bare payload passes while the code fails on every
-  stored row (`DefaultSessionServiceTests`).
+  (which wraps the real serializer that `AddPersistedPayloadSerializer()` registers), never a bare `JsonSerializer`
+  call. The server stores a protected, versioned envelope, so a test that hands the code the bare payload passes while
+  the code fails on every stored row (`DefaultSessionServiceTests`).
 - 👁 **Seed a settings document the vocabulary cannot honor through the store, and prove it unreadable first.** The
   management API refuses such a document, so `SeedPublicClientWithSettingsAsync` writes it with an unregistered
   setting name; assert that the incoherent-client report lists it with a `documentError` before the behavior under

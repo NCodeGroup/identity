@@ -53,6 +53,7 @@ public sealed class TenantUsageStoreInMemoryTests : IDisposable
                         TeamPath = "/platform/",
                         Day = day,
                         Meter = Requests,
+                        Cell = "cell-1",
                         Count = 1,
                     },
                 ],

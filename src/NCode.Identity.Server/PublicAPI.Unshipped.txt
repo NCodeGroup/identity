@@ -140,6 +140,7 @@ NCode.Identity.Server.IIdentityServerBuilder.CryptographyLibraryBuilder.get -> N
 NCode.Identity.Server.IIdentityServerBuilder.JoseLibraryBuilder.get -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Jose.JoseLibrary>!
 NCode.Identity.Server.IIdentityServerBuilder.JwtLibraryBuilder.get -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Jwt.JwtLibrary>!
 NCode.Identity.Server.IIdentityServerBuilder.OpenIdAuthenticationLibraryBuilder.get -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Authentication.OpenIdAuthenticationLibrary>!
+NCode.Identity.Server.IIdentityServerBuilder.OpenIdClientLibraryBuilder.get -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!
 NCode.Identity.Server.IIdentityServerBuilder.OpenIdCoreLibraryBuilder.get -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.OpenIdCoreLibrary>!
 NCode.Identity.Server.IIdentityServerBuilder.OpenIdManagementLibraryBuilder.get -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Management.OpenIdManagementLibrary>!
 NCode.Identity.Server.IIdentityServerBuilder.SecretPersistenceLibraryBuilder.get -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Secrets.Persistence.SecretPersistenceLibrary>!
@@ -206,10 +207,6 @@ static NCode.Identity.Server.DeploymentSafetyRegistration.FindViolations(Microso
 NCode.Identity.Server.DevelopmentEnvironmentRegistration
 NCode.Identity.Server.DevelopmentEnvironmentRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Server.IdentityServer>!)
 NCode.Identity.Server.DevelopmentEnvironmentRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Server.IdentityServer>!).AddDevelopmentEnvironment(Microsoft.Extensions.Configuration.IConfiguration! configuration) -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Server.IdentityServer>!
-NCode.Identity.Server.TelemetryRegistration
-NCode.Identity.Server.TelemetryRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!)
-NCode.Identity.Server.TelemetryRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).AddOpenTelemetryMetrics(Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-const NCode.Identity.Server.TelemetryRegistration.OtlpEndpointConfigurationKey = "OTEL_EXPORTER_OTLP_ENDPOINT" -> string!
 const NCode.Identity.Server.SecretProtection.SecretProtectionCommandLine.CommandName = "secret-protection" -> string!
 const NCode.Identity.Server.SecretProtection.SecretProtectionCommandLine.DryRunOption = "--dry-run" -> string!
 const NCode.Identity.Server.SecretProtection.SecretProtectionCommandLine.OwnerOption = "--owner" -> string!

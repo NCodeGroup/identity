@@ -3,6 +3,7 @@ const NCode.Identity.ManagementConsole.ManagementConsoleDefaults.ApiBasePath = "
 const NCode.Identity.ManagementConsole.ManagementConsoleDefaults.ApiPath = "/management/api" -> string!
 const NCode.Identity.ManagementConsole.ManagementConsoleDefaults.AssetsPath = "/assets" -> string!
 const NCode.Identity.ManagementConsole.ManagementConsoleDefaults.BootstrapPath = "/config/bootstrap.json" -> string!
+const NCode.Identity.ManagementConsole.ManagementConsoleDefaults.CellsPath = "/management/cells" -> string!
 const NCode.Identity.ManagementConsole.ManagementConsoleDefaults.ConfigurationSectionName = "ManagementConsole" -> string!
 const NCode.Identity.ManagementConsole.ManagementConsoleDefaults.FrontendName = "mgmt" -> string!
 const NCode.Identity.ManagementConsole.ManagementConsoleDefaults.ManagementApiResource = "urn:ncode:management" -> string!
@@ -37,6 +38,8 @@ NCode.Identity.ManagementConsole.Options.ManagementConsoleOptions.Branding.get -
 NCode.Identity.ManagementConsole.Options.ManagementConsoleOptions.Branding.set -> void
 NCode.Identity.ManagementConsole.Options.ManagementConsoleOptions.BundleRootPath.get -> string?
 NCode.Identity.ManagementConsole.Options.ManagementConsoleOptions.BundleRootPath.set -> void
+NCode.Identity.ManagementConsole.Options.ManagementConsoleOptions.Cells.get -> System.Collections.Generic.Dictionary<string!, string!>!
+NCode.Identity.ManagementConsole.Options.ManagementConsoleOptions.Cells.set -> void
 NCode.Identity.ManagementConsole.Options.ManagementConsoleOptions.Features.get -> System.Collections.Generic.Dictionary<string!, bool>!
 NCode.Identity.ManagementConsole.Options.ManagementConsoleOptions.Features.set -> void
 NCode.Identity.ManagementConsole.Options.ManagementConsoleOptions.ManagementApiUrl.get -> string?

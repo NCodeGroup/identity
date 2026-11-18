@@ -48,6 +48,17 @@ a principle by number.
 10. **Portable by open standards.** Kubernetes, OCI, OpenTelemetry, PostgreSQL and S3 are the interfaces, so a vendor is
     replaced by swapping a component module.
 11. **Cost-aware.** Sizes come from measurements, and every vendor has a budget alert.
+12. **Each cell deploys independently and fails alone.** A cell is a host, its database, its Valkey and its KMS keys in
+    one region ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
+    A cell is released, scaled, restored and drained on its own, and its outage leaves every other cell serving. No
+    cell holds state of another cell's tenants, and a cell reaches another cell only for the control plane's authority,
+    over an adapter that fails closed.
+13. **Serving never calls the directory.** A cell serves a tenant's requests from its own tenant row. The directory is
+    called when a tenant or a team is created, deleted or moved, and when a cell registers or follows team changes, so
+    an unreachable directory stops those operations with `503` and never stops a tenant that is already served.
+14. **Backups and telemetry stay in the region.** A cell's backups, logs, metrics and traces are written to a location
+    in the cell's region (`backup.location` and `telemetry.otlpEndpoint` in the chart), because a tenant's data stays
+    in its cell's region. The KMS adapters refuse a key outside the cell's cloud regions (`Cell:CloudRegions`).
 
 ## Options considered
 
@@ -67,12 +78,17 @@ a principle by number.
 - The accepted single points of failure are one region and a non-HA managed control plane
   ([hosting analysis §2](../hosting-analysis.md#2-summary-and-ranked-recommendations)).
 - A reviewer cites a principle by number instead of re-arguing it.
+- A cell is the unit of release, restore and failure, so an incident, a bad release or a restore touches one cell and
+  one region's tenants.
+- The directory is off the serving path, so its availability bounds only the creation, deletion and move of tenants and
+  teams.
 
 ## References
 
 - [The Twelve-Factor App](https://12factor.net/).
 - [Hosting analysis](../hosting-analysis.md): §5 HA, §11 delivery, §13 pre-launch considerations.
-- [ADR-1495](1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md),
+- [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
+  [ADR-1495](1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md),
   [ADR-1132](1132-platform-infrastructure-code-is-public-on-github-and-its-state-and-backups-live-in-aws.md),
   [ADR-1133](1133-the-hosted-platform-runs-only-the-published-artifacts-it-offers-self-hosters.md),
   [ADR-1164](1164-replicas-share-expiring-keys-values-and-indexes-through-ports-with-in-process-and-valkey-adapters.md),

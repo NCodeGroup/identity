@@ -11,6 +11,7 @@ using NCode.Identity.Events;
 using NCode.Identity.OpenId.Logging;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Platform;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.Persistence;
@@ -46,6 +47,7 @@ internal sealed class TenantKeyRolloverService(
     ITenantKeyRollover rollover,
     IEffectiveSettingsResolver effectiveSettingsResolver,
     IStoreManagerFactory storeManagerFactory,
+    IAmbientTenantAccessor ambientTenantAccessor,
     IExpiringKeySet expiringKeySet,
     IEventPublisher eventPublisher,
     IRemoteSecretDestroyer remoteSecretDestroyer,
@@ -72,6 +74,7 @@ internal sealed class TenantKeyRolloverService(
     private IEffectiveSettingsResolver EffectiveSettingsResolver { get; } =
         effectiveSettingsResolver;
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
+    private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
     private IExpiringKeySet ExpiringKeySet { get; } = expiringKeySet;
     private IEventPublisher EventPublisher { get; } = eventPublisher;
     private IRemoteSecretDestroyer RemoteSecretDestroyer { get; } = remoteSecretDestroyer;
@@ -142,6 +145,9 @@ internal sealed class TenantKeyRolloverService(
         var leaseExpiresWhen = TimeProvider.GetUtcNow() + options.KeyRollover.Interval / 2;
         if (!await ExpiringKeySet.TryAddAsync(LeasePurpose, leaseExpiresWhen, cancellationToken))
             return;
+
+        // The pass walks the tenants of every team, outside any request.
+        using var unscoped = AmbientTenantAccessor.BeginUnscoped("tenant key rollover");
 
         // The mediator is scoped (its handlers' unit of work is), and the pass runs outside any request, so the
         // announcements run in their own scope.

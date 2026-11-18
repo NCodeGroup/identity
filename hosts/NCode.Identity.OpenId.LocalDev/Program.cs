@@ -1,13 +1,16 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+using NCode.Identity.OpenId.LocalDev.Database;
 using NCode.Identity.OpenId.LocalDev.DevelopmentSecrets;
 using NCode.Identity.OpenId.LocalDev.Frontend;
 
 // ASPIRE ORCHESTRATION-ONLY HOST (ADR-1071): a flat resource graph that is the single one-stop entry to build, run,
 // and debug the whole local stack (the OpenID host + the frontend apps) with deterministic startup ordering.
 // This is a SIBLING of the host, not nested inside it — the host stays a single reference OP process.
-// Keep this file declarative (Add*/With*/WaitFor); no reusable logic belongs here.
+// Keep this file declarative (Add*/With*/WaitFor): coverage excludes it as Aspire resource wiring, so logic it needs
+// belongs in a tested member.
 
 // Aspire spawns pnpm/node for the frontend resources and discovers them on PATH. When Node is NVS-managed and not
 // globally linked, the AppHost (launched by VS Code) does not inherit it, so the frontend resources fail to start.
@@ -40,6 +43,15 @@ var bootstrapAdminClientSecret = DevelopmentSecretFile.ReadBase64UrlEncoded(
 var adminPasswordPath = DevelopmentSecretFile.Ensure(developmentSecretsDirectory, "admin-password");
 var adminPassword = DevelopmentSecretFile.ReadText(adminPasswordPath);
 
+// The OP hosts open the dev database as a runtime role that owns no table and cannot bypass row-level security
+// (ADR-1018), so its password is a per-machine development secret too. The file's text is URL-safe Base64, so it embeds
+// in the role statement without quoting, and the hosts quote it in the connection they assemble.
+var runtimeRolePasswordPath = DevelopmentSecretFile.Ensure(
+    developmentSecretsDirectory,
+    "runtime-role-password"
+);
+var runtimeRolePassword = DevelopmentSecretFile.ReadText(runtimeRolePasswordPath);
+
 // The management console's BFF host (`console`) is a confidential client of the `api`, so its two private keys — the
 // private_key_jwt client key and the DPoP key — are generated once per machine as P-256 PEM files beside the root key,
 // and the console is handed their paths. The OP's outbound guard never fetches a loopback jwks_uri, so the `api`
@@ -65,8 +77,16 @@ var conformanceSeedEnvironment = ConformanceSeedSecrets.GetEnvironment(developme
 // DataProtection key ring, and the tenants' master keys — one purge resets all of them together. The master keys are
 // wrapped by the per-machine development root key above, which lives outside the database, so the reset keeps it and
 // a fresh database simply gets new master keys under it.
-var postgres = builder.AddPostgres("postgres").WithDataVolume("ncode-identity-openiddb-data");
-var openIdDb = postgres.AddDatabase("openiddb");
+// The server has two credentials (ADR-1018). The Aspire-generated `postgres` login owns the schema: the `migrations`
+// resource connects with it through the `openiddb` reference. The runtime role (LocalDatabase.RuntimeRole) is created
+// idempotently when the server is ready, before any resource that waits for `postgres` starts, so it exists when the
+// migration worker grants it access. The database keeps Aspire's default creation script, which runs as one command
+// where CREATE DATABASE cannot run beside other statements.
+var postgres = builder
+    .AddPostgres("postgres")
+    .WithDataVolume("ncode-identity-openiddb-data")
+    .WithRuntimeRole(runtimeRolePassword);
+var openIdDb = postgres.AddDatabase(LocalDatabase.DatabaseName);
 
 // The shared state every OP replica must see — DPoP nonces and the single-use records of DPoP proofs and client
 // assertions (ADR-1164) — lives in Valkey, as in a multi-replica deployment, so local development exercises the same
@@ -76,10 +96,13 @@ var valkey = builder.AddValkey("valkey");
 
 // Dedicated migration resource (issue #144): applies the Npgsql migrations for both contexts, then exits. Dependents
 // WaitForCompletion on it, so a migration failure surfaces as a failed dashboard resource that blocks the api — it
-// never manifests as an api crash. WaitFor(postgres) holds it until the database is accepting connections.
+// never manifests as an api crash. WaitFor(postgres) holds it until the database is accepting connections and the
+// runtime role exists. WithReference injects the owner's 'openiddb' connection string, and HostDatabase__RuntimeRole
+// names the role it grants data access to.
 var migrations = builder
     .AddProject<Projects.NCode_Identity_OpenId_Host_MigrationService>("migrations")
     .WithReference(openIdDb)
+    .WithEnvironment("HostDatabase__RuntimeRole", LocalDatabase.RuntimeRole)
     .WaitFor(postgres);
 
 // The reference OpenID Provider host. Its default launch profile supplies the Development environment variables and
@@ -88,13 +111,16 @@ var migrations = builder
 // and the developer CORS origins all assume those ports. WithHttpHealthCheck gates dependents on the app being HEALTHY
 // (its /health/ready returns 200 once Kestrel is listening and the database answers), not merely "process started", which is what deterministically
 // removes the UI-before-API race.
-// WithReference injects the 'openiddb' connection string; WaitForCompletion holds the api until migrations succeed.
+// The host gets the runtime role's connection parts (the OpenIdDatabase__ variables); the owner's connection string
+// reaches only the migrations resource, and the host refuses both forms at once. WaitForCompletion holds the api until
+// migrations succeed and have granted the role its access. WithReference(valkey) injects the 'valkey' connection
+// string.
 // The SecretProtection__ variables select the `local` root key provider and point it at the development root key file.
 // The BootstrapAdmin__ and DeveloperInteractiveSeed__ variables hand it the per-machine development credentials.
 var api = builder
     .AddProject<Projects.NCode_Identity_OpenId_Host>("api")
     .WithHttpHealthCheck("/health/ready")
-    .WithReference(openIdDb)
+    .WithRuntimeDatabase(postgres.Resource.PrimaryEndpoint, runtimeRolePassword)
     .WithReference(valkey)
     .WithEnvironment("SecretProtection__RootKeyProvider", "local")
     .WithEnvironment("SecretProtection__RootKeyProviders__Local__KeyPath", rootKeyPath)
@@ -115,15 +141,16 @@ var api = builder
 // can read its discovery cross-origin, and serves its own `conformance` tenant: every tenant is published under its own
 // stored issuer (ADR-1165), so the two instances cannot share the `default` tenant in the shared database — the launch
 // profile pins this one's issuer to https://localhost:5003. WaitForCompletion(migrations) holds it until the shared
-// schema is applied. It gets the same development root key as the `api`, because both unwrap the master keys in the one
-// database, and the per-machine credentials of the conformance seed, which the overlay lists without them.
+// schema is applied. It opens the database as the same runtime role as the `api`. It gets the same development root
+// key as the `api`, because both unwrap the master keys in the one database, and the per-machine credentials of the
+// conformance seed, which the overlay lists without them.
 var conformanceApi = builder
     .AddProject<Projects.NCode_Identity_OpenId_Host>(
         "conformanceapi",
         launchProfileName: "ConformanceAspire"
     )
     .WithHttpHealthCheck("/health/ready")
-    .WithReference(openIdDb)
+    .WithRuntimeDatabase(postgres.Resource.PrimaryEndpoint, runtimeRolePassword)
     .WithReference(valkey)
     .WithEnvironment("SecretProtection__RootKeyProvider", "local")
     .WithEnvironment("SecretProtection__RootKeyProviders__Local__KeyPath", rootKeyPath)
@@ -161,8 +188,8 @@ builder.AddJavaScriptApp("setup", "../../frontend/apps/setup").WithPnpm(install:
 builder
     .AddProject<Projects.NCode_Identity_ManagementConsole_Host>("console")
     .WithHttpHealthCheck("/health/ready")
-    .WithEnvironment("Bff__KeyRings__mgmt-client__PemFiles__0", consoleClientKeyPath)
-    .WithEnvironment("Bff__KeyRings__mgmt-dpop__PemFiles__0", consoleDPoPKeyPath)
+    .WithEnvironment("KeyRings__mgmt-client__PemFiles__0", consoleClientKeyPath)
+    .WithEnvironment("KeyRings__mgmt-dpop__PemFiles__0", consoleDPoPKeyPath)
     .WaitFor(api)
     .WithExternalHttpEndpoints();
 
@@ -218,3 +245,9 @@ builder
     .WithExternalHttpEndpoints();
 
 builder.Build().Run();
+
+/// <summary>
+/// The AppHost's entry point, whose top-level statements declare the local stack's resource graph.
+/// </summary>
+[ExcludeFromCodeCoverage(Justification = "Aspire resource wiring.")]
+internal partial class Program;

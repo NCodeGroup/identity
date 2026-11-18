@@ -3,8 +3,10 @@
 
 using System.Security.Cryptography;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Authentication.Persistence;
 using NCode.Identity.Secrets.Persistence.Protection;
 using Xunit;
@@ -20,6 +22,12 @@ public class DefaultGrantPayloadProtectorTests : BaseTests
 
     private static JsonSerializerOptions JsonOptions { get; } = new();
 
+    private static IPersistedPayloadSerializer PayloadSerializer { get; } =
+        new ServiceCollection()
+            .AddPersistedPayloadSerializer()
+            .BuildServiceProvider()
+            .GetRequiredService<IPersistedPayloadSerializer>();
+
     private Mock<ISecretProtectorProvider> MockProvider { get; }
     private FakeSecretProtector Fake { get; }
     private DefaultGrantPayloadProtector Protector { get; }
@@ -30,7 +38,7 @@ public class DefaultGrantPayloadProtectorTests : BaseTests
         Fake = new FakeSecretProtector(SecretOwner.ForTenant(TenantId));
         Protector = new DefaultGrantPayloadProtector(
             MockProvider.Object,
-            new DefaultPersistedPayloadSerializer([]),
+            PayloadSerializer,
             NullLogger<DefaultGrantPayloadProtector>.Instance
         );
     }

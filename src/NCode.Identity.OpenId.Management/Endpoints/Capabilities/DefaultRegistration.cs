@@ -47,6 +47,12 @@ internal static class DefaultRegistration
                     RemoteKeyProviderCapabilitiesProvider
                 >()
             );
+            builder.ServiceCollection.TryAddEnumerable(
+                ServiceDescriptor.Singleton<
+                    ICommandHandler<DiscoverManagementCapabilitiesCommand>,
+                    CellCapabilitiesProvider
+                >()
+            );
         }
     }
 }

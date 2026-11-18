@@ -1,0 +1,132 @@
+#nullable enable
+const NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.SectionName = "DirectoryServer" -> string!
+const NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectorySequenceRecord.SingletonId = 1 -> long
+const NCode.Identity.OpenId.GlobalDirectory.Server.Entities.PlatformRecord.SingletonId = 1 -> long
+const NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.StatePublished = "published" -> string!
+const NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.StateReserved = "reserved" -> string!
+const NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.StateRetired = "retired" -> string!
+const NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.StatePlaced = "placed" -> string!
+const NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.StateReserved = "reserved" -> string!
+const NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.StateRetired = "retired" -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.DefaultRegistration
+NCode.Identity.OpenId.GlobalDirectory.Server.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!)
+NCode.Identity.OpenId.GlobalDirectory.Server.DefaultRegistration.extension(NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!).AddOpenIdDirectoryServer(Microsoft.Extensions.Configuration.IConfiguration! configuration) -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.OpenId.Client.OpenIdClientLibrary>!
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.Cells.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord!>!
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.Changes.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord!>!
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.DirectoryDbContext(Microsoft.EntityFrameworkCore.DbContextOptions<NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext!>! options) -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.Platforms.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.PlatformRecord!>!
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.RetiredIssuers.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.RetiredIssuerRecord!>!
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.Sequences.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectorySequenceRecord!>!
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.Teams.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord!>!
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.TenantMoveOffers.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord!>!
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDbContext.Tenants.get -> Microsoft.EntityFrameworkCore.DbSet<NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord!>!
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryEndpoints
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryEndpoints.extension(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!)
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryEndpoints.extension(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!).MapDirectory() -> Microsoft.AspNetCore.Routing.RouteGroupBuilder!
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.ControlPlaneCell.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.ControlPlaneCell.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.DirectoryServerOptions() -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.Issuer.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryServerOptions.Issuer.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.CellRecord() -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.IsControlPlane.get -> bool
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.IsControlPlane.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.Kind.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.Kind.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.ManagementUrl.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.ManagementUrl.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.Name.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.Name.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.Region.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.CellRecord.Region.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord.DirectoryChangeRecord() -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord.DocumentJson.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord.DocumentJson.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord.Sequence.get -> long
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord.Sequence.init -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord.TeamId.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectoryChangeRecord.TeamId.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectorySequenceRecord
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectorySequenceRecord.DirectorySequenceRecord() -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectorySequenceRecord.Id.get -> long
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectorySequenceRecord.Id.init -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectorySequenceRecord.LastSequence.get -> long
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.DirectorySequenceRecord.LastSequence.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.PlatformRecord
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.PlatformRecord.DocumentJson.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.PlatformRecord.DocumentJson.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.PlatformRecord.Id.get -> long
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.PlatformRecord.Id.init -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.PlatformRecord.PlatformRecord() -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.PlatformRecord.Sequence.get -> long
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.PlatformRecord.Sequence.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.RetiredIssuerRecord
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.RetiredIssuerRecord.Id.get -> long
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.RetiredIssuerRecord.Id.init -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.RetiredIssuerRecord.Issuer.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.RetiredIssuerRecord.Issuer.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.RetiredIssuerRecord.NormalizedIssuer.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.RetiredIssuerRecord.NormalizedIssuer.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.RetiredIssuerRecord.RetiredIssuerRecord() -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.RetiredIssuerRecord.TenantId.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.RetiredIssuerRecord.TenantId.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.DocumentJson.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.DocumentJson.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.Id.get -> long
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.Id.init -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.NormalizedParentTeamId.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.NormalizedParentTeamId.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.NormalizedPath.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.NormalizedPath.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.NormalizedTeamId.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.NormalizedTeamId.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.Sequence.get -> long
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.Sequence.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.State.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.State.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.TeamId.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.TeamId.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.TeamRecord() -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.CreatedWhen.get -> System.DateTimeOffset
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.CreatedWhen.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.ExpiresWhen.get -> System.DateTimeOffset
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.ExpiresWhen.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.FromCell.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.FromCell.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.Id.get -> long
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.Id.init -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.NormalizedTenantId.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.NormalizedTenantId.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.TenantMoveOfferRecord() -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.ToCell.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.ToCell.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.Cell.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.Cell.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.CreatedWhen.get -> System.DateTimeOffset
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.CreatedWhen.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.Id.get -> long
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.Id.init -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.Issuer.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.Issuer.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.ModifiedWhen.get -> System.DateTimeOffset
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.ModifiedWhen.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.NormalizedIssuer.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.NormalizedIssuer.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.NormalizedTeamId.get -> string?
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.NormalizedTeamId.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.NormalizedTenantId.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.NormalizedTenantId.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.State.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.State.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.TenantId.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.TenantId.set -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.TenantRecord() -> void
+NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDatabaseGrants
+static NCode.Identity.OpenId.GlobalDirectory.Server.DirectoryDatabaseGrants.CreateStatements(Microsoft.EntityFrameworkCore.Metadata.IModel! model, string! runtimeRole) -> System.Collections.Generic.IReadOnlyList<string!>!

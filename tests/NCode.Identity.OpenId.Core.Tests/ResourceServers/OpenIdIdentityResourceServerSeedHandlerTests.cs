@@ -1,8 +1,10 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Text.Json;
 using Moq;
 using NCode.Identity.Cryptography;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Core.ResourceServers;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -74,6 +76,44 @@ public sealed class OpenIdIdentityResourceServerSeedHandlerTests
         Assert.True(captured.IsSystem);
         Assert.Contains(captured.Scopes, scope => scope.Value == "openid");
         Assert.All(captured.Scopes, scope => Assert.True(scope.IsSystem));
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenAbsent_AddsResourceServerWithEmptyObjectSettings()
+    {
+        var mocks = new MockRepository(MockBehavior.Strict);
+        var manager = mocks.Create<IStoreManager>();
+        var store = mocks.Create<IResourceServerStore>();
+        var crypto = mocks.Create<ICryptoService>();
+
+        manager.Setup(x => x.GetStore<IResourceServerStore>()).Returns(store.Object).Verifiable();
+        store
+            .Setup(x =>
+                x.GetByIdentifierOrDefaultAsync(OpenIdIdentifier, It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync((PersistedResourceServer?)null)
+            .Verifiable();
+        crypto
+            .Setup(x => x.GenerateKey(16, BinaryEncodings.Base64Url))
+            .Returns("generated-rs-id")
+            .Verifiable();
+
+        PersistedResourceServer? captured = null;
+        store
+            .Setup(x =>
+                x.AddAsync(It.IsAny<PersistedResourceServer>(), It.IsAny<CancellationToken>())
+            )
+            .Callback((PersistedResourceServer rs, CancellationToken _) => captured = rs)
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+        var handler = new OpenIdIdentityResourceServerSeedHandler(crypto.Object);
+
+        await handler.HandleAsync(CreateCommand(manager.Object), CancellationToken.None);
+
+        mocks.Verify();
+        Assert.NotNull(captured);
+        Assert.True(JsonElement.DeepEquals(JsonElements.EmptyObject, captured.Settings.Value));
     }
 
     [Fact]

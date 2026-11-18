@@ -135,6 +135,7 @@ internal sealed class TenantUsageStore(
                     TeamPath = entry.TeamPath,
                     Day = day,
                     Meter = entry.Meter,
+                    Cell = entry.Cell,
                     Count = entry.Count,
                     ConcurrencyToken = Guid.NewGuid().ToString("N"),
                 };
@@ -193,6 +194,7 @@ internal sealed class TenantUsageStore(
             TeamPath = entity.TeamPath,
             Day = entity.Day,
             Meter = entity.Meter,
+            Cell = entity.Cell,
             Count = entity.Count,
         };
 

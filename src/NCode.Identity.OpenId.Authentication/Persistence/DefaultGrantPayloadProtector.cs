@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using NCode.Buffers;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Authentication.Logging;
 using NCode.Identity.Secrets.Persistence.Protection;
 

@@ -8,6 +8,7 @@ using NCode.Identity.Registration;
 using NCode.Identity.Secrets.GoogleCloudKms.Facades;
 using NCode.Identity.Secrets.GoogleCloudKms.Options;
 using NCode.Identity.Secrets.KeyWrapping;
+using NCode.Identity.Secrets.Options;
 using NCode.Identity.Secrets.Persistence;
 using NCode.Identity.Secrets.RemoteKeys;
 using Xunit;
@@ -84,6 +85,23 @@ public class DefaultRegistrationTests : BaseTests
 
         var exception = Assert.Throws<InvalidOperationException>(() => options.Value);
         Assert.Contains(GoogleCloudKmsKeyWrapperOptions.DefaultSectionName, exception.Message);
+    }
+
+    [Fact]
+    public async Task AddGoogleCloudKmsKeyWrapper_KeyResidencyNamesLocations_ReplacesTheAllowedLocations()
+    {
+        var clientFactory = CreateStrictMock<IGoogleCloudKmsClientFactory>();
+        var serviceCollection = AddGoogleCloudKms(CreateConfiguration(), clientFactory.Object);
+        serviceCollection.Configure<KeyResidencyOptions>(options =>
+            options.CloudRegions = ["europe-west1"]
+        );
+
+        await using var provider = serviceCollection.BuildServiceProvider();
+        var options = provider
+            .GetRequiredService<IOptions<GoogleCloudKmsKeyWrapperOptions>>()
+            .Value;
+
+        Assert.Equal(["europe-west1"], options.AllowedLocations);
     }
 
     #endregion
@@ -202,6 +220,13 @@ public class DefaultRegistrationTests : BaseTests
         );
         Assert.Single(
             serviceCollection,
+            x =>
+                x.ServiceType
+                    == typeof(IPostConfigureOptions<GoogleCloudKmsRemoteKeyProviderOptions>)
+                && x.ImplementationType == typeof(GoogleCloudKmsKeyResidencyOptionsSetup)
+        );
+        Assert.Single(
+            serviceCollection,
             x => x.ServiceType == typeof(IGoogleCloudKmsClientFactory)
         );
     }
@@ -246,6 +271,54 @@ public class DefaultRegistrationTests : BaseTests
         var exception = Assert.Throws<InvalidOperationException>(() => options.Value);
         Assert.Contains(
             GoogleCloudKmsRemoteKeyProviderOptions.DefaultSectionName,
+            exception.Message
+        );
+    }
+
+    [Fact]
+    public async Task AddGoogleCloudKmsRemoteKeyProvider_KeyResidencyNamesLocations_ReplacesTheAllowedLocations()
+    {
+        var clientFactory = CreateStrictMock<IGoogleCloudKmsClientFactory>();
+        var serviceCollection = AddGoogleCloudKmsRemote(
+            CreateConfiguration(
+                ("SecretProtection:RemoteKeyProviders:GoogleCloudKms:KeyRing", KeyRing)
+            ),
+            clientFactory.Object
+        );
+        serviceCollection.Configure<KeyResidencyOptions>(options =>
+            options.CloudRegions = ["us-central1"]
+        );
+
+        await using var provider = serviceCollection.BuildServiceProvider();
+        var options = provider
+            .GetRequiredService<IOptions<GoogleCloudKmsRemoteKeyProviderOptions>>()
+            .Value;
+
+        Assert.Equal(["us-central1"], options.AllowedLocations);
+    }
+
+    [Fact]
+    public async Task AddGoogleCloudKmsRemoteKeyProvider_KeyRingOutsideTheKeyResidency_FailsValidation()
+    {
+        var clientFactory = CreateStrictMock<IGoogleCloudKmsClientFactory>();
+        var serviceCollection = AddGoogleCloudKmsRemote(
+            CreateConfiguration(
+                ("SecretProtection:RemoteKeyProviders:GoogleCloudKms:KeyRing", KeyRing)
+            ),
+            clientFactory.Object
+        );
+        serviceCollection.Configure<KeyResidencyOptions>(options =>
+            options.CloudRegions = ["europe-west1"]
+        );
+
+        await using var provider = serviceCollection.BuildServiceProvider();
+        var options = provider.GetRequiredService<
+            IOptions<GoogleCloudKmsRemoteKeyProviderOptions>
+        >();
+
+        var exception = Assert.Throws<OptionsValidationException>(() => options.Value);
+        Assert.Contains(
+            "must be in one of the allowed Cloud KMS locations: europe-west1",
             exception.Message
         );
     }

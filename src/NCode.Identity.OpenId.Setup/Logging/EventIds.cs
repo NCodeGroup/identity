@@ -18,4 +18,10 @@ internal static class EventIds
     public const int SetupTokenIssuedByAnotherReplica = Base + 2;
     public const int RootAdministratorCreated = Base + 3;
     public const int InstanceSetupClientRegistered = Base + 4;
+
+    /// <summary>
+    /// Identifies the informational message that setup belongs to the control-plane cell, so this cell prepares no
+    /// setup token.
+    /// </summary>
+    public const int SetupBelongsToTheControlPlane = Base + 5;
 }

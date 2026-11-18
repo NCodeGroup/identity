@@ -336,10 +336,10 @@ rewrapped under it unreadable, in the database and in every backup
   of the operator's reach. The data keys under the retired master keys move to the new active key in the background,
   as in [Rotation, rekey and destroy](#rotation-rekey-and-destroy). A change within twice
   `SecretProtection:MasterKeys:RefreshInterval` of the tenant's last rotation is refused until the interval passes.
-- **Remove.** Removing the key moves the tenant's master keys back under the deployment's root key, with a recovery copy
-  when one is configured, and deletes the binding once every master key has moved. It does not rotate: the material was
-  only ever under the stronger key. A key that cannot unwrap a master key leaves the binding in `removing`, and the host
-  retries.
+- **Remove.** Removing the key moves the tenant's master keys under its team's root key when the team brings one, and
+  otherwise under the deployment's root key with a recovery copy when one is configured, and deletes the binding once
+  none of its master keys remains under the key. It does not rotate: the material was only ever under the stronger key.
+  A key that cannot unwrap a master key leaves the binding in `removing`, and the host retries.
 - **The probe.** The server wraps 32 random bytes through the tenant's key under a context label of its own, unwraps
   them, compares the two in constant time and zeroes both. It works through any provider and proves that the key
   exists, is enabled, and that the deployment's identity holds both the encrypt and the decrypt permission. Any
@@ -386,7 +386,7 @@ loses every such value for good, and no operator can recover it.
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `GET /api/tenants/{tenantId}/encryption-keys`                           | Reports the keys, the tenant's root key and the providers a tenant may choose.                                                                                                       |
 | `PUT /api/tenants/{tenantId}/encryption-keys/root-key`                  | Sets or changes the key from `provider`, `keyReference` and an optional `accessIdentity`. `200`; `400` for a field that is blank, not allowed, not registered or malformed, or for the control-plane tenant; `409` with `Retry-After` and `retryAfterSeconds` for a change too soon after a rotation; `412` when it loses a race; `422` when the probe fails. |
-| `DELETE /api/tenants/{tenantId}/encryption-keys/root-key`               | Removes the key. `204` once every master key is under the deployment's root key, also when no key was set; `202` with the key in `removing` while master keys remain under it.      |
+| `DELETE /api/tenants/{tenantId}/encryption-keys/root-key`               | Removes the key. `204` once none of the tenant's master keys remains under the key, also when no key was set; `202` with the key in `removing` while some do.                        |
 | `POST /api/tenants/{tenantId}/encryption-keys/root-key/validate`        | Probes the key on demand. `200` with the key; `404` when the tenant has no key.                                                                                                            |
 
 The console's encryption keys tab for a tenant shows the root key with its state and last failure, and offers "Set root
@@ -403,11 +403,12 @@ dialog). The server then reaches the key through that identity, and what the ten
 - **AWS (`aws-kms`).** The tenant creates an IAM role and names its ARN, such as
   `arn:aws:iam::123456789012:role/ncode-identity`. The role's trust policy allows the deployment's principal to call
   `sts:AssumeRole` with an `sts:ExternalId` condition equal to the **access binding**, the tenant's owner as
-  `type:id`, such as `tenant:acme`. The role is granted `kms:Encrypt` and `kms:Decrypt` on the key, and the
-  deployment's identity needs `sts:AssumeRole` on the role. The binding is reported as `rootKeyAccessBinding` by
-  `GET /api/tenants/{tenantId}/encryption-keys` before the key is set, so the tenant can write the trust policy first,
-  and the console's helper text shows it. The external ID stops one tenant from making the server assume another
-  tenant's role.
+  `type:id`, such as `tenant:acme`. A tenant without a key of its own is reached through its team's key with the team's
+  binding, `team:<id>`, which the team's trust policy names. The role is granted `kms:Encrypt` and `kms:Decrypt` on the
+  key, and the deployment's identity needs `sts:AssumeRole` on the role. The binding is reported as
+  `rootKeyAccessBinding` by `GET /api/tenants/{tenantId}/encryption-keys` before the key is set, so the tenant can write
+  the trust policy first, and the console's helper text shows it. The external ID stops one tenant from making the
+  server assume another tenant's role.
 - **Google Cloud (`google-cloud-kms`).** The tenant creates a service account of its own that holds
   `roles/cloudkms.cryptoKeyEncrypterDecrypter` on the key, grants the deployment's identity
   `roles/iam.serviceAccountTokenCreator` on that service account, and names its email, which ends with
@@ -420,9 +421,9 @@ No secret is stored, because every identity is a delegation the tenant can revok
 service account key file is never asked for. The field is optional, and the server checks its format for the provider
 as the key is set, then probes the key through the identity like any other. Changing only the access identity, with the
 same provider and key reference, rewraps the master keys under the key through the new identity without rotating them,
-because the key is the same; changing the key still rotates. Every master key records the identity it is reached
-through, so a master key stays readable through its earlier identity until the rewrap moves it. The management API
-reports each master key's `rootKeyAccessIdentity` and the key's `accessIdentity`.
+because the key is the same; changing the key still rotates. Every master key records the identity it is reached through
+and the binding of its key's owner, so a master key stays readable through its earlier identity until the rewrap moves
+it. The management API reports each master key's `rootKeyAccessIdentity` and the key's `accessIdentity`.
 
 ## Rotation, rekey and destroy
 

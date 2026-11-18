@@ -10,8 +10,9 @@ Issue [#72](https://github.com/NCodeGroup/identity/issues/72) asks for first-cla
 **JSON Web Key Set** (RFC 7517 §5) and **JWK Thumbprint** / **Thumbprint URI** (RFC 7638 / RFC 9278) types. Two
 constraints shape the design, and they pull against each other:
 
-1. **`*.Abstractions` packages contain contracts only, no logic.** A JWK that the codebase uses (verify a proof,
-   produce members, hash a canonical form) needs behavior, and behavior does not live in an abstractions package.
+1. **`*.Abstractions` packages contain contracts, data and pure form rules only, no service logic.** A JWK that the
+   codebase uses (verify a proof, produce members, hash a canonical form) needs behavior, and behavior does not live in
+   an abstractions package.
 2. **JWK is first-class in both the Secrets and the JOSE stacks.** `Secrets.Abstractions` is the lowest shared layer
    (`Jose.Abstractions` depends on it), and the descriptor seam that produces JWK members lives in Secrets. A single
    shared JWK type therefore cannot live in `Jose.Abstractions`, and a behavior-bearing type in

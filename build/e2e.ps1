@@ -114,13 +114,16 @@ try {
         }
 
         $playwrightScript = Join-Path $projectDir "bin/$Configuration/$targetFramework/playwright.ps1"
-        $browserArguments = @('install', 'chromium', 'firefox', 'webkit')
-        if ($IsLinux -and $env:GITHUB_ACTIONS -eq 'true') {
-            $browserArguments += '--with-deps'
-        }
-        & pwsh -NoProfile -File $playwrightScript @browserArguments
-        if ($LASTEXITCODE -ne 0) {
-            throw "Installing the Playwright browsers for $relativeProject failed with exit code $LASTEXITCODE."
+        # Only a suite that drives a browser has the script; the others need no browsers.
+        if (Test-Path -LiteralPath $playwrightScript) {
+            $browserArguments = @('install', 'chromium', 'firefox', 'webkit')
+            if ($IsLinux -and $env:GITHUB_ACTIONS -eq 'true') {
+                $browserArguments += '--with-deps'
+            }
+            & pwsh -NoProfile -File $playwrightScript @browserArguments
+            if ($LASTEXITCODE -ne 0) {
+                throw "Installing the Playwright browsers for $relativeProject failed with exit code $LASTEXITCODE."
+            }
         }
 
         $junitLogger = "junit;LogFilePath=$(Join-Path $results '{assembly}-{framework}.junit.xml')"

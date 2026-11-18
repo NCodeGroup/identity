@@ -15,6 +15,21 @@ namespace NCode.Identity.Bff.Sessions;
 internal static class BffStoreKeys
 {
     /// <summary>
+    /// The key of the index whose members list the clients that have sessions.
+    /// </summary>
+    public const string ClientsIndex = "bff:clients";
+
+    /// <summary>
+    /// The format of the UTC day segment of a client's session index member.
+    /// </summary>
+    private const string ClientMemberDayFormat = "yyyy-MM-dd";
+
+    /// <summary>
+    /// The character that separates a client member's day from its client digest.
+    /// </summary>
+    private const char ClientMemberSeparator = ':';
+
+    /// <summary>
     /// Gets the key of a session value.
     /// </summary>
     public static string Session(string storeKey) => "bff:session:" + storeKey;
@@ -42,58 +57,75 @@ internal static class BffStoreKeys
         "bff:sub:" + Digest(issuer, subject);
 
     /// <summary>
-    /// Gets the key of the index whose members list the clients that have sessions.
-    /// </summary>
-    public const string ClientsIndex = "bff:clients";
-
-    /// <summary>
     /// Gets the key of the index of the sessions of a client.
     /// </summary>
-    public static string ClientIndex(BffSessionClient client) =>
-        "bff:client:" + Digest(client.Frontend, Digest(client.Authority, client.ClientId));
+    public static string ClientIndex(BffSessionClient client) => ClientIndex(ClientDigest(client));
 
     /// <summary>
-    /// Gets the member of <see cref="ClientsIndex"/> that lists a client for the UTC day of a session's absolute expiry.
+    /// Gets the key of the index of the sessions of the client that a digest names.
     /// </summary>
-    /// <remarks>
-    /// The index holds one member per client and UTC day of absolute expiry, and each member expires at the end of
-    /// its day (<see cref="ClientMemberExpiresAt"/>), so adding a session never shortens a client's listing.
-    /// </remarks>
-    // See ADR-1443.
-    public static string ClientMember(BffSessionClient client, DateTimeOffset absoluteExpiresAt) =>
-        string.Join(
-            '|',
-            absoluteExpiresAt.UtcDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-            client.Frontend,
-            Uri.EscapeDataString(client.Authority),
-            Uri.EscapeDataString(client.ClientId)
-        );
+    public static string ClientIndex(string clientDigest) => "bff:client:" + clientDigest;
+
+    /// <summary>
+    /// Gets the digest that names a client in the keys and in the members of <see cref="ClientsIndex"/>, so that the
+    /// key space of the shared state names no client.
+    /// </summary>
+    public static string ClientDigest(BffSessionClient client) =>
+        Digest(client.Frontend, Digest(client.Authority, client.ClientId));
 
     /// <summary>
     /// Gets the instant at which the member of <see cref="ClientsIndex"/> for a session's absolute expiry expires:
     /// the end of that expiry's UTC day.
     /// </summary>
+    // See ADR-1443.
     public static DateTimeOffset ClientMemberExpiresAt(DateTimeOffset absoluteExpiresAt) =>
         new DateTimeOffset(absoluteExpiresAt.UtcDateTime.Date, TimeSpan.Zero).AddDays(1);
 
     /// <summary>
-    /// Parses a member of <see cref="ClientsIndex"/> into its client.
+    /// Gets the member of <see cref="ClientsIndex"/> that lists a client for the UTC day of a session's absolute
+    /// expiry: the day, a colon and the client's digest.
     /// </summary>
-    /// <returns><see langword="true"/> when the member is well-formed; otherwise, <see langword="false"/>.</returns>
-    public static bool TryParseClientMember(string member, out BffSessionClient client)
-    {
-        var parts = member.Split('|');
-        if (parts.Length != 4)
-        {
-            client = default;
-            return false;
-        }
+    /// <param name="client">The client that the session was issued to.</param>
+    /// <param name="absoluteExpiresAt">The absolute expiry of the session.</param>
+    /// <returns>The member.</returns>
+    public static string ClientMember(BffSessionClient client, DateTimeOffset absoluteExpiresAt) =>
+        absoluteExpiresAt.UtcDateTime.ToString(ClientMemberDayFormat, CultureInfo.InvariantCulture)
+        + ClientMemberSeparator
+        + ClientDigest(client);
 
-        client = new BffSessionClient(
-            parts[1],
-            Uri.UnescapeDataString(parts[2]),
-            Uri.UnescapeDataString(parts[3])
-        );
+    /// <summary>
+    /// Gets the key of the value that holds the plaintext client of a member of <see cref="ClientsIndex"/>, which
+    /// expires with that member.
+    /// </summary>
+    /// <param name="member">The member of <see cref="ClientsIndex"/>.</param>
+    /// <returns>The key.</returns>
+    public static string ClientMemberValue(string member) => "bff:client-member:" + member;
+
+    /// <summary>
+    /// Reads the client digest of a member of <see cref="ClientsIndex"/>.
+    /// </summary>
+    /// <param name="member">The member.</param>
+    /// <param name="digest">The client digest that the member names.</param>
+    /// <returns><see langword="true"/> when the member is well formed; otherwise, <see langword="false"/>.</returns>
+    public static bool TryParseClientMember(string member, out string digest)
+    {
+        digest = string.Empty;
+
+        var separator = member.IndexOf(ClientMemberSeparator);
+        if (
+            separator < 0
+            || separator == member.Length - 1
+            || !DateOnly.TryParseExact(
+                member.AsSpan(0, separator),
+                ClientMemberDayFormat,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out _
+            )
+        )
+            return false;
+
+        digest = member[(separator + 1)..];
         return true;
     }
 

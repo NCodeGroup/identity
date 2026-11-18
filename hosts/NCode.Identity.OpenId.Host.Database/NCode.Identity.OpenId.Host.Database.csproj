@@ -10,6 +10,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\..\src\NCode.Identity.AspNetCore\NCode.Identity.AspNetCore.csproj" />
         <ProjectReference Include="..\..\src\NCode.Identity.OpenId.Persistence.EntityFramework.Accounts\NCode.Identity.OpenId.Persistence.EntityFramework.Accounts.csproj" />
         <ProjectReference Include="..\..\src\NCode.Identity.OpenId.Persistence.EntityFramework.Core\NCode.Identity.OpenId.Persistence.EntityFramework.Core.csproj" />
     </ItemGroup>

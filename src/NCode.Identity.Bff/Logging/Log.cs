@@ -145,7 +145,7 @@ internal static partial class Log
     [LoggerMessage(
         EventId = EventIds.FrontendSessionRetirementFailed,
         Level = LogLevel.Warning,
-        Message = "The BFF could not end a session of the frontend {Frontend} ({Reason}) and tries again"
+        Message = "The BFF could not retire a session of the frontend {Frontend} ({Reason}) and tries again"
     )]
     internal static partial void FrontendSessionRetirementFailed(
         this ILogger logger,

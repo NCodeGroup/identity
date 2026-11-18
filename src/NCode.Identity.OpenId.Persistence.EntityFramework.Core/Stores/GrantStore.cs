@@ -470,8 +470,7 @@ internal class GrantStore(
 
         var normalizedTenantId = Normalize(tenantId);
         var tenantKey = await DbContext
-            .Tenants.IgnoreQueryFilters()
-            .Where(tenant => tenant.NormalizedTenantId == normalizedTenantId)
+            .Tenants.Where(tenant => tenant.NormalizedTenantId == normalizedTenantId)
             .Select(tenant => (long?)tenant.Id)
             .FirstOrDefaultAsync(cancellationToken);
         if (tenantKey is not { } tenantRowId)
@@ -479,7 +478,6 @@ internal class GrantStore(
 
         var query = DbContext
             .Grants.AsNoTracking()
-            .IgnoreQueryFilters()
             .Where(entity => entity.TenantId == tenantRowId)
             // Only the rows under the requested keys leave the database (ADR-1407). The length guard keeps a provider
             // that evaluates Substring in memory from throwing on a shorter value.
@@ -533,8 +531,7 @@ internal class GrantStore(
     {
         var normalizedGrantId = Normalize(value.RecordId);
         var grantEntity = await DbContext
-            .Grants.IgnoreQueryFilters()
-            .Where(entity => entity.NormalizedGrantId == normalizedGrantId)
+            .Grants.Where(entity => entity.NormalizedGrantId == normalizedGrantId)
             .SingleOrDefaultAsync(cancellationToken);
         if (grantEntity is null)
             return false;

@@ -552,9 +552,6 @@ internal class TenantStore(
             );
         }
 
-        var previousIssuer = tenantEntity.Issuer;
-        var previousNormalizedIssuer = tenantEntity.NormalizedIssuer;
-
         // Touch the row so the interceptor regenerates the ConcurrencyToken on save (ADR-1012).
         tenantEntity.IsDisabled = persistedTenant.IsDisabled;
         tenantEntity.DisplayName = persistedTenant.DisplayName;
@@ -568,24 +565,6 @@ internal class TenantStore(
         );
 
         DbContext.Tenants.Update(tenantEntity);
-
-        if (
-            previousIssuer is not null
-            && previousNormalizedIssuer is not null
-            && !string.Equals(
-                previousNormalizedIssuer,
-                tenantEntity.NormalizedIssuer,
-                StringComparison.Ordinal
-            )
-        )
-        {
-            await RetireIssuerAsync(
-                tenantEntity.TenantId,
-                previousIssuer,
-                previousNormalizedIssuer,
-                cancellationToken
-            );
-        }
     }
 
     /// <inheritdoc />
@@ -806,6 +785,8 @@ internal class TenantStore(
     /// <inheritdoc />
     public async ValueTask<bool> RemoveAsync(string tenantId, CancellationToken cancellationToken)
     {
+        DbContext.EnsureUnscoped($"{nameof(TenantStore)}.{nameof(RemoveAsync)}");
+
         var tenantEntity = await GetEntityOrDefaultAsync(tenantId, cancellationToken);
         if (tenantEntity is null)
         {
@@ -819,12 +800,49 @@ internal class TenantStore(
             );
         }
 
+        await RemoveTenantAndOwnedRowsAsync(tenantEntity, cancellationToken);
+
+        return true;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<bool> RemoveFromCellAsync(
+        string tenantId,
+        CancellationToken cancellationToken
+    )
+    {
+        DbContext.EnsureUnscoped($"{nameof(TenantStore)}.{nameof(RemoveFromCellAsync)}");
+
+        var tenantEntity = await GetEntityOrDefaultAsync(tenantId, cancellationToken);
+        if (tenantEntity is null)
+        {
+            return false;
+        }
+
+        await RemoveTenantAndOwnedRowsAsync(tenantEntity, cancellationToken);
+
+        return true;
+    }
+
+    /// <summary>
+    /// Removes a tenant together with every row that it owns: the role assignments that its principals hold at the
+    /// nodes of other tenants, its tenant-owned rows, its master keys, its owner root key rows and the tenant row.
+    /// </summary>
+    /// <param name="tenantEntity">The tracked tenant to remove.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    private async ValueTask RemoveTenantAndOwnedRowsAsync(
+        TenantEntity tenantEntity,
+        CancellationToken cancellationToken
+    )
+    {
         // The role assignments that the tenant's principals hold at the nodes of other tenants are removed with them.
         // See ADR-1212.
         var normalizedTenantId = tenantEntity.NormalizedTenantId;
+        // Cross-tenant: the principals of the tenant that is removed hold assignments at the nodes of other tenants.
         var principals = DbContext.FederatedPrincipals.IgnoreQueryFilters();
         DbContext.RoleAssignments.RemoveRange(
             await DbContext
+                // Cross-tenant: the assignments that the removed tenant's principals hold are stored under other tenants.
                 .RoleAssignments.IgnoreQueryFilters()
                 .Where(assignment =>
                     assignment.NormalizedTenantId != normalizedTenantId
@@ -858,29 +876,6 @@ internal class TenantStore(
         DbContext.OwnerRootKeys.RemoveRange(ownerRootKeys);
 
         DbContext.Tenants.Remove(tenantEntity);
-
-        // A deleted tenant's identifier and issuer are never reissued (ADR-1160).
-        await DbContext.RetiredTenants.AddAsync(
-            new RetiredTenantEntity
-            {
-                Id = NextId(),
-                TenantId = tenantEntity.TenantId,
-                NormalizedTenantId = tenantEntity.NormalizedTenantId,
-            },
-            cancellationToken
-        );
-
-        if (tenantEntity is { Issuer: { } issuer, NormalizedIssuer: { } normalizedIssuer })
-        {
-            await RetireIssuerAsync(
-                tenantEntity.TenantId,
-                issuer,
-                normalizedIssuer,
-                cancellationToken
-            );
-        }
-
-        return true;
     }
 
     /// <summary>
@@ -948,71 +943,12 @@ internal class TenantStore(
     {
         var rows = await DbContext
             .Set<TEntity>()
+            // Cross-tenant: the rows of the tenant that is removed are deleted whatever the ambient tenant is.
             .IgnoreQueryFilters()
             .Where(entity => entity.NormalizedTenantId == normalizedTenantId)
             .ToListAsync(cancellationToken);
         DbContext.Set<TEntity>().RemoveRange(rows);
         return rows;
-    }
-
-    /// <summary>
-    /// Records that a tenant gave up an issuer, unless the issuer is already retired. Only the tenant that held an issuer
-    /// can take it back, so an issuer that is already retired was retired by the same tenant.
-    /// </summary>
-    private async ValueTask RetireIssuerAsync(
-        string tenantId,
-        string issuer,
-        string normalizedIssuer,
-        CancellationToken cancellationToken
-    )
-    {
-        var isRetired =
-            DbContext.RetiredIssuers.Local.Any(entity =>
-                entity.NormalizedIssuer == normalizedIssuer
-            )
-            || await DbContext.RetiredIssuers.AnyAsync(
-                entity => entity.NormalizedIssuer == normalizedIssuer,
-                cancellationToken
-            );
-        if (isRetired)
-            return;
-
-        await DbContext.RetiredIssuers.AddAsync(
-            new RetiredIssuerEntity
-            {
-                Id = NextId(),
-                Issuer = issuer,
-                NormalizedIssuer = normalizedIssuer,
-                TenantId = tenantId,
-            },
-            cancellationToken
-        );
-    }
-
-    /// <inheritdoc />
-    public async ValueTask<bool> IsTenantIdRetiredAsync(
-        string tenantId,
-        CancellationToken cancellationToken
-    )
-    {
-        var normalizedTenantId = Normalize(tenantId);
-        return await DbContext.RetiredTenants.AnyAsync(
-            entity => entity.NormalizedTenantId == normalizedTenantId,
-            cancellationToken
-        );
-    }
-
-    /// <inheritdoc />
-    public async ValueTask<string?> GetRetiredIssuerHolderOrDefaultAsync(
-        string issuer,
-        CancellationToken cancellationToken
-    )
-    {
-        var normalizedIssuer = Normalize(issuer);
-        return await DbContext
-            .RetiredIssuers.Where(entity => entity.NormalizedIssuer == normalizedIssuer)
-            .Select(entity => entity.TenantId)
-            .SingleOrDefaultAsync(cancellationToken);
     }
 
     /// <inheritdoc />
@@ -1039,20 +975,19 @@ internal class TenantStore(
         CancellationToken cancellationToken
     )
     {
-        var hasClients = await DbContext
-            .Clients.IgnoreQueryFilters()
-            .AnyAsync(client => client.TenantId == tenantEntity.Id, cancellationToken);
+        var hasClients = await DbContext.Clients.AnyAsync(
+            client => client.TenantId == tenantEntity.Id,
+            cancellationToken
+        );
         if (hasClients)
         {
             return true;
         }
 
-        return await DbContext
-            .ResourceServers.IgnoreQueryFilters()
-            .AnyAsync(
-                resourceServer =>
-                    resourceServer.TenantId == tenantEntity.Id && !resourceServer.IsSystem,
-                cancellationToken
-            );
+        return await DbContext.ResourceServers.AnyAsync(
+            resourceServer =>
+                resourceServer.TenantId == tenantEntity.Id && !resourceServer.IsSystem,
+            cancellationToken
+        );
     }
 }

@@ -1,5 +1,9 @@
 # A release whose database is a Postgres operator's Secret (CloudNativePG's `<cluster>-app`), with a separate schema
 # credential for the migration Job. No connection string is built by hand.
+cell:
+  name: ci-database-parts
+  region: ci
+  isControlPlane: true
 allowedHosts:
   - id.example.com
 tenantResolution:
@@ -8,6 +12,7 @@ tenantResolution:
 database:
   parts:
     existingSecret: identity-db-app
+  runtimeRole: ncode_identity_app
 migrations:
   database:
     parts:
@@ -18,7 +23,3 @@ secretProtection:
     keySecret: identity-root-key
   recovery:
     publicKeyConfigMap: identity-recovery-key
-  # Names this release's keys, so a render that sets a remote key provider on top of these values passes the
-  # deployment check; with no provider set, nothing uses it.
-  remoteKeys:
-    deployment: ci-database-parts

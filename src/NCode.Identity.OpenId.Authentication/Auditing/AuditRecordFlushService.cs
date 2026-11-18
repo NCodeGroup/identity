@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.Authentication.Logging;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Authentication.Auditing;
@@ -21,6 +22,7 @@ namespace NCode.Identity.OpenId.Authentication.Auditing;
 internal sealed class AuditRecordFlushService(
     AuditRecordQueue queue,
     IStoreManagerFactory storeManagerFactory,
+    IAmbientTenantAccessor ambientTenantAccessor,
     IOptions<AuditRecordOptions> options,
     TimeProvider timeProvider,
     ILogger<AuditRecordFlushService> logger
@@ -48,6 +50,8 @@ internal sealed class AuditRecordFlushService(
     private AuditRecordQueue Queue { get; } = queue;
 
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
+
+    private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
 
     private AuditRecordOptions Options { get; } = options.Value;
 
@@ -179,6 +183,8 @@ internal sealed class AuditRecordFlushService(
     {
         try
         {
+            // A batch holds the audit records of every tenant.
+            using var _ = AmbientTenantAccessor.BeginUnscoped("audit record flush");
             await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
             var store = storeManager.GetStore<IAuditRecordStore>();
             await store.AddAsync(Batch, cancellationToken);

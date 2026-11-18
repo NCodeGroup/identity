@@ -12,8 +12,8 @@ function renderApp(props: Parameters<typeof App>[0]) {
   );
 }
 
-// The consent and account surfaces load through their default same-origin fetch; a request that never settles keeps
-// the tests hermetic and the surfaces in their initial state.
+// The consent and account surfaces load through their default same-origin fetch; a request that never settles keeps the
+// tests hermetic and the surfaces in their initial state.
 beforeEach(() => {
   vi.stubGlobal(
     'fetch',

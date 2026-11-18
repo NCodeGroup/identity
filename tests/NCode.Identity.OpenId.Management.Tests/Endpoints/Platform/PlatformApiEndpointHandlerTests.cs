@@ -5,15 +5,19 @@ using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Authentication.Clients;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Environments;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts;
@@ -52,6 +56,7 @@ public sealed class PlatformApiEndpointHandlerTests : IDisposable
     private Mock<IMediator> MockMediator { get; }
     private Mock<IMasterKeyManager> MockMasterKeyManager { get; }
     private Mock<IManagementAuditRecorder> MockManagementAuditRecorder { get; }
+    private Mock<IPlatformDirectory> MockPlatformDirectory { get; }
     private PlatformApiEndpointHandler Handler { get; }
 
     public PlatformApiEndpointHandlerTests()
@@ -73,8 +78,13 @@ public sealed class PlatformApiEndpointHandlerTests : IDisposable
 
         MockMasterKeyManager = MockRepository.Create<IMasterKeyManager>();
         MockManagementAuditRecorder = MockRepository.Create<IManagementAuditRecorder>();
+        MockPlatformDirectory = MockRepository.Create<IPlatformDirectory>();
 
-        Handler = new PlatformApiEndpointHandler(
+        Handler = CreateHandler(isControlPlane: true);
+    }
+
+    private PlatformApiEndpointHandler CreateHandler(bool isControlPlane) =>
+        new(
             MockStoreManagerFactory.Object,
             MockAuthorizationService.Object,
             MockCryptoService.Object,
@@ -85,12 +95,15 @@ public sealed class PlatformApiEndpointHandlerTests : IDisposable
             MockTeamClientCoherenceChecker.Object,
             MockMasterKeyManager.Object,
             MockManagementAuditRecorder.Object,
-            NullLogger<PlatformApiEndpointHandler>.Instance
+            MockPlatformDirectory.Object,
+            NullLogger<PlatformApiEndpointHandler>.Instance,
+            Options.Create(new CellOptions { IsControlPlane = isControlPlane })
         );
-    }
 
-    // Only a request that changes the resource records it.
-    private void SetupPlatformChangedAudit() =>
+    // Only a request that changes the resource records it. A saved change is published to the directory unless the
+    // test sets up its own publish.
+    private void SetupPlatformChangedAudit(bool publishes = true)
+    {
         MockManagementAuditRecorder
             .Setup(x =>
                 x.RecordPlatformChangedAsync(
@@ -100,6 +113,25 @@ public sealed class PlatformApiEndpointHandlerTests : IDisposable
                 )
             )
             .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+        if (publishes)
+        {
+            SetupPlatformPublish(_ => { });
+        }
+    }
+
+    private void SetupPlatformPublish(Action<PlatformDocument> capture) =>
+        MockPlatformDirectory
+            .Setup(x => x.PublishAsync(It.IsAny<PlatformDocument>(), It.IsAny<CancellationToken>()))
+            .Callback((PlatformDocument document, CancellationToken _) => capture(document))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+    private void SetupPlatformPublishUnavailable() =>
+        MockPlatformDirectory
+            .Setup(x => x.PublishAsync(It.IsAny<PlatformDocument>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new DirectoryUnavailableException("The directory is down."))
             .Verifiable();
 
     public void Dispose()
@@ -1261,6 +1293,87 @@ public sealed class PlatformApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task UpdateSettingsAsync_AfterTheWriteCommits_PublishesThePlatformDocument()
+    {
+        SetupValidSettings();
+        SetupStore();
+        var settings = CreateSettings("settings-ct", EmptyObject());
+        MockPlatformStore
+            .Setup(x => x.GetSettingsOrDefaultAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(settings)
+            .Verifiable();
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupClientCoherenceCheck();
+        MockPlatformStore
+            .Setup(x => x.UpdateSettingsAsync(settings, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+        SetupPlatformChangedAudit(publishes: false);
+        SetupPlatformSettingsChanged();
+        PlatformDocument? published = null;
+        SetupPlatformPublish(document => published = document);
+
+        var result = await Handler.UpdateSettingsAsync(
+            CreateHttpContext(authenticated: true),
+            CreateAddPatch("foo", "bar"),
+            ifMatch: null,
+            CancellationToken.None
+        );
+
+        Assert.IsType<NoContent>(result);
+        Assert.NotNull(published);
+        Assert.Equal("""{"foo":"bar"}""", published.Settings.GetRawText());
+        Assert.Equal(0, published.Sequence);
+    }
+
+    [Fact]
+    public async Task UpdateSettingsAsync_WhenTheDirectoryIsUnavailable_Returns503WithRetryAfterAfterAuditingAndAnnouncing()
+    {
+        SetupValidSettings();
+        SetupStore();
+        var settings = CreateSettings("settings-ct", EmptyObject());
+        MockPlatformStore
+            .Setup(x => x.GetSettingsOrDefaultAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(settings)
+            .Verifiable();
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupClientCoherenceCheck();
+        MockPlatformStore
+            .Setup(x => x.UpdateSettingsAsync(settings, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+        SetupPlatformChangedAudit(publishes: false);
+        SetupPlatformSettingsChanged();
+        SetupPlatformPublishUnavailable();
+
+        var httpContext = CreateHttpContext(authenticated: true);
+
+        var result = await Handler.UpdateSettingsAsync(
+            httpContext,
+            CreateAddPatch("foo", "bar"),
+            ifMatch: null,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, problem.StatusCode);
+        Assert.Equal(
+            $"{GlobalDirectoryProtocol.UnavailableRetryAfterSeconds}",
+            httpContext.Response.Headers.RetryAfter.ToString()
+        );
+    }
+
+    [Fact]
     public async Task UpdateSettingsAsync_WhenIfMatchMatches_AppliesPatch()
     {
         SetupValidSettings();
@@ -1719,6 +1832,38 @@ public sealed class PlatformApiEndpointHandlerTests : IDisposable
                 CancellationToken.None
             )
         );
+    }
+
+    [Fact]
+    public void Map_OnTheControlPlane_MapsThePlatformRoutes()
+    {
+        var routes = MapRoutes(CreateHandler(isControlPlane: true));
+
+        Assert.Contains("/platform/settings", routes);
+        Assert.Contains("/platform/encryption-keys/rekey", routes);
+    }
+
+    [Fact]
+    public void Map_OnAnotherCell_MapsNoRoute()
+    {
+        var routes = MapRoutes(CreateHandler(isControlPlane: false));
+
+        Assert.Empty(routes);
+    }
+
+    private static string[] MapRoutes(PlatformApiEndpointHandler handler)
+    {
+        var app = WebApplication.CreateSlimBuilder().Build();
+        handler.Map(app);
+
+        return
+        [
+            .. ((IEndpointRouteBuilder)app)
+                .DataSources.SelectMany(dataSource => dataSource.Endpoints)
+                .OfType<RouteEndpoint>()
+                .Select(endpoint => endpoint.RoutePattern.RawText?.TrimEnd('/') ?? string.Empty)
+                .Order(StringComparer.Ordinal),
+        ];
     }
 
     #endregion

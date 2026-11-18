@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using NCode.Identity.Events;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Logging;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Platform;
 using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
@@ -37,6 +38,7 @@ internal sealed class OwnerRootKeyValidationService(
     IMaterializedPlatformAccessor materializedPlatformAccessor,
     IOwnerRootKeyManager ownerRootKeyManager,
     IStoreManagerFactory storeManagerFactory,
+    IAmbientTenantAccessor ambientTenantAccessor,
     IExpiringKeySet expiringKeySet,
     IEventPublisher eventPublisher,
     IOptions<SecretProtectionOptions> options,
@@ -60,6 +62,7 @@ internal sealed class OwnerRootKeyValidationService(
         materializedPlatformAccessor;
     private IOwnerRootKeyManager OwnerRootKeyManager { get; } = ownerRootKeyManager;
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
+    private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
     private IExpiringKeySet ExpiringKeySet { get; } = expiringKeySet;
     private IEventPublisher EventPublisher { get; } = eventPublisher;
     private IOptions<SecretProtectionOptions> Options { get; } = options;
@@ -125,6 +128,9 @@ internal sealed class OwnerRootKeyValidationService(
         {
             return;
         }
+
+        // The pass validates the root keys of every owner, outside any request.
+        using var unscoped = AmbientTenantAccessor.BeginUnscoped("owner root key validation");
 
         var validatedBefore = now - RootKeys.ValidationInterval;
         var retryBefore = now - RootKeys.RetryInterval;

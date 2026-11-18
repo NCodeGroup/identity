@@ -14,40 +14,15 @@ import {
   useValidateTenantRootKeyMutation,
   type ApiError,
 } from '@ncode/store';
-import {
-  ConfirmDialog,
-  DataStateBoundary,
-  EncryptionKeyTable,
-  EncryptionRootKeyCard,
-  EncryptionRootKeyFormDialog,
-  emptyEncryptionRootKeyFormValues,
-  type EncryptionRootKeyFormValues,
-} from '@ncode/ui';
+import { ConfirmDialog, DataStateBoundary, EncryptionKeyTable } from '@ncode/ui';
+import { useTenantCell } from '../tenantCell.js';
+import { RootKeySection } from './RootKeySection.js';
 
 export type OwnerEncryptionKeysTabProps = {
   readonly owner: EncryptionKeyOwner;
   /** The owner noun used in headings and copy (e.g. "tenant", "platform"). */
   readonly ownerLabel: string;
 };
-
-/**
- * The message of a failed root key request: the validation messages of a rejected field, else the server's problem
- * detail or title (such as the failure of the probe that validates the key).
- */
-function rootKeyErrorMessage(failure: unknown): string {
-  const data = (failure as { data?: unknown } | undefined)?.data;
-  const errors =
-    data && typeof data === 'object' ? (data as { errors?: unknown }).errors : undefined;
-  if (errors && typeof errors === 'object') {
-    const messages = Object.values(errors).flatMap((value) =>
-      Array.isArray(value) ? value.filter((m): m is string => typeof m === 'string') : [],
-    );
-    if (messages.length > 0) {
-      return messages.join(' ');
-    }
-  }
-  return apiErrorMessage(failure as ApiError);
-}
 
 type TenantRootKeySectionProps = {
   readonly tenantId: string;
@@ -69,93 +44,21 @@ function TenantRootKeySection({
   const [setRootKey, { isLoading: isSetting }] = useSetTenantRootKeyMutation();
   const [removeRootKey, { isLoading: isRemoving }] = useRemoveTenantRootKeyMutation();
   const [validateRootKey, { isLoading: isValidating }] = useValidateTenantRootKeyMutation();
-  const [setting, setSetting] = useState(false);
-  const [setError, setSetError] = useState<string | undefined>(undefined);
-  const [removing, setRemoving] = useState(false);
-  const [removeError, setRemoveError] = useState<string | undefined>(undefined);
-  const [validateError, setValidateError] = useState<string | undefined>(undefined);
-
-  const closeSet = () => {
-    setSetting(false);
-    setSetError(undefined);
-  };
-
-  const closeRemove = () => {
-    setRemoving(false);
-    setRemoveError(undefined);
-  };
-
-  const handleSet = async (values: EncryptionRootKeyFormValues) => {
-    setSetError(undefined);
-    try {
-      await setRootKey({ tenantId, body: values }).unwrap();
-      closeSet();
-    } catch (failure) {
-      setSetError(rootKeyErrorMessage(failure));
-    }
-  };
-
-  const handleRemove = async () => {
-    setRemoveError(undefined);
-    try {
-      await removeRootKey({ tenantId }).unwrap();
-      closeRemove();
-    } catch (failure) {
-      setRemoveError(rootKeyErrorMessage(failure));
-    }
-  };
-
-  const handleValidate = async () => {
-    setValidateError(undefined);
-    try {
-      await validateRootKey({ tenantId }).unwrap();
-    } catch (failure) {
-      setValidateError(rootKeyErrorMessage(failure));
-    }
-  };
+  const cell = useTenantCell();
 
   return (
-    <>
-      {validateError && (
-        <Alert severity="error" data-testid="root-key-validate-error">
-          {validateError}
-        </Alert>
-      )}
-      <EncryptionRootKeyCard
-        rootKey={rootKey}
-        canSet={providers.length > 0}
-        isBusy={isSetting || isRemoving || isValidating}
-        onSet={() => setSetting(true)}
-        onValidate={() => void handleValidate()}
-        onRemove={() => setRemoving(true)}
-      />
-      <EncryptionRootKeyFormDialog
-        open={setting}
-        initialValues={{
-          ...emptyEncryptionRootKeyFormValues,
-          provider: rootKey?.provider ?? emptyEncryptionRootKeyFormValues.provider,
-          keyReference: rootKey?.keyReference ?? emptyEncryptionRootKeyFormValues.keyReference,
-          accessIdentity:
-            rootKey?.accessIdentity ?? emptyEncryptionRootKeyFormValues.accessIdentity,
-        }}
-        providers={providers}
-        accessBinding={accessBinding}
-        isSubmitting={isSetting}
-        error={setError}
-        onSubmit={(values) => void handleSet(values)}
-        onCancel={closeSet}
-      />
-      <ConfirmDialog
-        open={removing}
-        title="Remove root key"
-        message="The keys are rewrapped under the deployment's root key. Any that cannot be unwrapped yet are retried in the background, and the root key is removed once none remains under it."
-        confirmLabel="Remove"
-        isBusy={isRemoving}
-        error={removeError}
-        onConfirm={() => void handleRemove()}
-        onCancel={closeRemove}
-      />
-    </>
+    <RootKeySection
+      ownerLabel="tenant"
+      rootKey={rootKey}
+      providers={providers}
+      accessBinding={accessBinding}
+      isSetting={isSetting}
+      isRemoving={isRemoving}
+      isValidating={isValidating}
+      onSet={(values) => setRootKey({ tenantId, body: values, cell }).unwrap()}
+      onRemove={() => removeRootKey({ tenantId, cell }).unwrap()}
+      onValidate={() => validateRootKey({ tenantId, cell }).unwrap()}
+    />
   );
 }
 
@@ -170,7 +73,9 @@ function TenantRootKeySection({
  * the platform never does.
  */
 export function OwnerEncryptionKeysTab({ owner, ownerLabel }: OwnerEncryptionKeysTabProps) {
-  const { data, isLoading, error } = useListEncryptionKeysQuery(owner);
+  const cell = useTenantCell();
+  const ownerWithCell = { ...owner, cell };
+  const { data, isLoading, error } = useListEncryptionKeysQuery(ownerWithCell);
   const [rekey, { isLoading: isRekeying }] = useRekeyEncryptionKeysMutation();
   const [confirming, setConfirming] = useState(false);
   const [rekeyError, setRekeyError] = useState<string | undefined>(undefined);
@@ -183,7 +88,7 @@ export function OwnerEncryptionKeysTab({ owner, ownerLabel }: OwnerEncryptionKey
   const handleConfirm = async () => {
     setRekeyError(undefined);
     try {
-      await rekey(owner).unwrap();
+      await rekey(ownerWithCell).unwrap();
       closeDialog();
     } catch (failure) {
       setRekeyError(apiErrorMessage(failure as ApiError));

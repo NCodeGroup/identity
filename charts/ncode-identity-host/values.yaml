@@ -24,6 +24,169 @@ environment: Production
 # The host names the host answers to (AllowedHosts). Required; '*' is refused.
 allowedHosts: []
 
+# The cell this release runs (Cell): a host, its database, its Valkey and its KMS keys, in one region. Required: name and
+# region.
+cell:
+  # The cell's name, unique across the platform: 1 to 31 characters of lowercase letters, digits and single hyphens,
+  # starting with a letter and ending with a letter or digit, with no two hyphens in a row. It is also the tag that the
+  # host's remote-key sweep reads to find the keys of this cell, so every replica and release that shares the cell's
+  # database uses it, and no other cell in the same AWS account, vault or key ring does. Required.
+  name: ""
+  # The region the cell runs in, in the same form as the name. Tenants of one region move between its cells. Required.
+  region: ""
+  # The kind of the cell, such as shared, dedicated or sovereign.
+  kind: shared
+  # The cloud regions the cell's infrastructure spans. The KMS adapters refuse a key outside them.
+  cloudRegions: []
+  # The absolute URL at which the cell's management API is reachable. Empty when the cell has none. Required when
+  # directory.url is set: the cell registers it with the directory.
+  managementUrl: ""
+  # true when the cell is the control-plane cell, which serves platform and team management and setup.
+  isControlPlane: false
+  # The issuer of the control-plane cell. Required when isControlPlane is false: the cell accepts platform and team
+  # management tokens from it. Required when directory.url is set: the cell asks it for the token it presents to the
+  # directory. An `https` URL, or an `http` URL on a loopback host, with no user information, query or fragment.
+  controlPlaneIssuer: ""
+
+# The cell's backup (ncode.io/backup-location). The chart starts no backup itself.
+backup:
+  # Where the cell's backups are kept, such as a bucket or a volume snapshot class. When set, the pods that own a
+  # database, those of the host, the directory and their migration Jobs, carry it as the ncode.io/backup-location
+  # annotation for the backup tool to read. Empty adds no annotation.
+  location: ""
+
+# The OpenTelemetry export of every pod the chart runs. Every pod carries OTEL_RESOURCE_ATTRIBUTES with cell.name and
+# cell.region, so a signal names its cell.
+telemetry:
+  # The OTLP collector's absolute URL (OTEL_EXPORTER_OTLP_ENDPOINT). Empty sets none.
+  otlpEndpoint: ""
+
+# The global directory, the service that reserves tenant and team identifiers platform-wide, places each tenant in a cell
+# and publishes team documents. The cell reaches it through url, and a release can run the directory itself through
+# enabled.
+directory:
+  # The directory's absolute URL (Directory:Url), which selects the remote directory adapters. Empty keeps the local
+  # adapters, which serve one cell on its own with no extra service. Required when cell.isControlPlane is false: a cell
+  # outside the control plane reaches the platform's directory. An `https` URL, or an `http` URL on a loopback host,
+  # with no user information, query or fragment. The clientId, keyRing and keys values are refused while url is empty.
+  url: ""
+  # The machine client the cell authenticates as (Directory:ClientId), cell-<cell.name>. Required when url is set.
+  clientId: ""
+  # The name of the key ring whose key signs the client's assertions (Directory:KeyRing). Required when url is set.
+  keyRing: ""
+  # The keys of the key ring that keyRing names, which sign the assertions of the cell's client cell-<cell.name>
+  # (KeyRings:<keyRing>). Holds a PEM key from a Secret, keys a key management service holds, or both, and at least one
+  # key. Required when url is set.
+  keys:
+    # Secret holding the client's private key under the key '<keyRing>.pem'; the key's id is the value of keyRing.
+    pemSecret: ""
+    # Keys a key management service holds, by key id: provider (aws-kms, azure-key-vault or google-cloud-kms), keyId
+    # (an AWS KMS key or alias ARN, a Key Vault key version identifier or a Cloud KMS crypto key version name),
+    # algorithm, secretType, keySizeBits and, for an elliptic-curve key, curve.
+    remoteKeys: {}
+    #  cell-client:
+    #    provider: aws-kms
+    #    keyId: arn:aws:kms:us-west-2:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab
+    #    algorithm: ES256
+    #    secretType: ecc
+    #    keySizeBits: 256
+    #    curve: P-256
+  # Runs the directory host as its own Deployment, with a Service and a pre-install and pre-upgrade Job that applies its
+  # migrations. The directory keeps its single-use state in process, so it runs one replica. The issuer, controlPlaneCell,
+  # allowedHosts, database, migrations.database, tls, serviceAccount, image and extra* values are refused while enabled
+  # is false.
+  enabled: false
+  # The issuer of the control-plane cell (DirectoryServer:Issuer), whose bearer tokens the directory accepts. Required
+  # when enabled. An `https` URL, or an `http` URL on a loopback host, with no user information, query or fragment.
+  issuer: ""
+  # The name of the control-plane cell (DirectoryServer:ControlPlaneCell), the only cell that writes the platform and the
+  # teams. Required when enabled.
+  controlPlaneCell: ""
+  # The host names the directory answers to (AllowedHosts), such as the host of url. The probes send the first. Required
+  # when enabled; '*' is refused.
+  allowedHosts: []
+  image:
+    repository: ghcr.io/ncodegroup/ncode-identity-directory
+    # Defaults to the chart's appVersion.
+    tag: ""
+    # When set, the image is pulled by digest and the tag is ignored.
+    digest: ""
+    pullPolicy: IfNotPresent
+  # The directory's own Postgres database (ConnectionStrings:directory), never the cell's, as the runtime role. Required
+  # when enabled: name either existingSecret, a Secret holding the finished Npgsql connection string, or
+  # parts.existingSecret, a Secret holding the connection's parts (DirectoryDatabase), as a Postgres operator writes it;
+  # never both. The Deployment reads the connection as the runtime role, and the migration Job reads the same settings
+  # with the schema owner's credentials (migrations.database). The role the connection logs in as must not own the
+  # tables, be a superuser or bypass row-level security.
+  database:
+    # The runtime role's name (DirectoryMigration:RuntimeRole), lower-case letters, digits and underscores. Required
+    # when enabled. The migration Job grants the role access to the directory's tables after it migrates.
+    runtimeRole: ""
+    existingSecret: ""
+    connectionStringKey: connection-string
+    # The defaults are the keys of a CloudNativePG <cluster>-app Secret. An empty portKey leaves the port out.
+    parts:
+      existingSecret: ""
+      hostKey: host
+      portKey: port
+      databaseKey: dbname
+      usernameKey: user
+      passwordKey: password
+  # A kubernetes.io/tls Secret the operator created, with tls.crt and tls.key, that the directory serves. Its
+  # certificate names the host of url. Required when enabled.
+  tls:
+    existingSecret: ""
+  service:
+    type: ClusterIP
+    port: 443
+  # The ServiceAccount the directory's pods run under, which mounts no token because the directory never calls the
+  # Kubernetes API. create makes it; name is its name, or the directory's full name when create is true and empty, or
+  # 'default' when create is false and empty. The migration Job runs before the chart's own account exists on a first
+  # install, so it uses the namespace's default account unless create is false, when it runs under the account name
+  # names.
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+  migrations:
+    # The owner's connection, the one that creates and changes the directory's schema and grants the runtime role
+    # (DirectoryMigration:RuntimeRole). Required when enabled, in the same two forms as directory.database: name either
+    # existingSecret or parts.existingSecret, never both. The Job reads it through the same settings the Deployment
+    # reads (ConnectionStrings:directory or DirectoryDatabase), so only the Job holds the owner's credentials and the
+    # Deployment connects without schema rights.
+    database:
+      existingSecret: ""
+      # An empty key falls back to the same key of directory.database, so a Secret of the same shape needs only its
+      # name.
+      connectionStringKey: ""
+      parts:
+        existingSecret: ""
+        hostKey: ""
+        portKey: ""
+        databaseKey: ""
+        usernameKey: ""
+        passwordKey: ""
+    backoffLimit: 1
+    activeDeadlineSeconds: 600
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  # Any other directory setting, as environment variables, and extra volumes. The migration Job receives the
+  # environment variables too.
+  extraEnv: []
+  extraEnvFrom: []
+  extraVolumes: []
+  extraVolumeMounts: []
+
 tenantResolution:
   # OpenId:TenantResolution:StrategyCode. Settings for another strategy go in extraEnv.
   strategyCode: StaticSingle
@@ -44,10 +207,14 @@ apiReference:
   documentEnabled: false
   pageEnabled: false
 
-# The Postgres database (ConnectionStrings:openiddb). It also persists the Data Protection key ring. Required: name
-# either existingSecret, a Secret holding the finished Npgsql connection string, or parts.existingSecret, a Secret
-# holding the connection's parts, as a Postgres operator writes it; never both.
+# The Postgres database (ConnectionStrings:openiddb) the pods read, as the runtime role. It also persists the Data
+# Protection key ring. Required: name either existingSecret, a Secret holding the finished Npgsql connection string, or
+# parts.existingSecret, a Secret holding the connection's parts, as a Postgres operator writes it; never both. The role
+# the connection logs in as must not own the tables, be a superuser or bypass row-level security.
 database:
+  # The runtime role's name. Required while migrations.enabled is true, when the migration Job grants the role access to
+  # the tables after it migrates, and may be empty otherwise. The pods connect as it.
+  runtimeRole: ""
   existingSecret: ""
   connectionStringKey: connection-string
   # The defaults are the keys of a CloudNativePG <cluster>-app Secret. An empty portKey leaves the port out.
@@ -63,13 +230,13 @@ database:
 # migration must stay compatible with the previous release, which keeps serving until the rollout finishes.
 migrations:
   enabled: true
-  # A connection allowed to change the schema. Defaults to the database Secret; name a separate one so the running host
-  # connects without schema rights.
+  # The owner's connection, the one that creates and changes the schema. Required when migrations.enabled is true, in
+  # the same two forms as database: name either existingSecret or parts.existingSecret, never both. Only the migration
+  # Job reads it, so the running host connects without schema rights.
   database:
     existingSecret: ""
     connectionStringKey: ""
-    # Used when its existingSecret or parts.existingSecret is set, else the migration Job uses database. An empty key
-    # falls back to database.parts.
+    # An empty key falls back to the same key under database.parts, so a Secret of the same shape needs only its name.
     parts:
       existingSecret: ""
       hostKey: ""
@@ -183,14 +350,12 @@ secretProtection:
       hardwareProtected: true
   # The keys the host creates in those services (SecretProtection:RemoteKeys) and the sweep that destroys the ones no
   # stored secret names.
+  # The host tags the keys it creates with cell.name, and the sweep destroys only keys of that name. A cell is one
+  # database of stored secrets: every replica and release that shares the database uses its name, and no other cell in
+  # the same AWS account, vault or key ring uses it, because each cell destroys every key of its name that its own
+  # database does not name.
   remoteKeys:
-    # Names this release's keys in a shared KMS scope (an AWS account, a vault or a key ring): lowercase letters, digits
-    # and hyphens, at most 40 characters. Required when an enabled remote key provider has its location, because it then
-    # creates keys. The sweep destroys only keys tagged with it. A deployment is one database of stored secrets: every
-    # replica and release that shares the database uses its name, and no other deployment in the same AWS account, vault
-    # or key ring uses it, because each deployment destroys every key of its name that its own database does not name.
-    deployment: ""
-    # Whether the background sweep destroys orphaned keys. It runs only when deployment is set.
+    # Whether the background sweep destroys orphaned keys.
     sweepEnabled: true
     # How often the sweep runs, as a time span.
     sweepInterval: "1.00:00:00"
@@ -225,7 +390,8 @@ setup:
     # The key of the setup token in existingSecret. Required when existingSecret is set.
     key: token
   # A Job from the host image that runs the 'setup' command, which creates the root administrator once and exits 0 on an
-  # instance that is already initialized, so it can run on every release. It needs no setup token.
+  # instance that is already initialized, so it can run on every release. It needs no setup token. Setup runs in the
+  # control-plane cell only, so enabled is refused unless cell.isControlPlane is true.
   job:
     enabled: false
     # Secret holding the root administrator's user name, email and password under the keys below. Required when the Job is
@@ -429,8 +595,8 @@ managementConsole:
   # Bff:Frontends:mgmt:Authority. Defaults to tenantResolution.staticSingle.issuer under StaticSingle. The console calls
   # the management API at /api on its origin.
   authority: ""
-  # The console's two key rings: client is Bff:KeyRings:mgmt-client, which signs the client's assertions, and dpop is
-  # Bff:KeyRings:mgmt-dpop, which signs its DPoP proofs. Each holds a PEM key from a Secret, keys a key management
+  # The console's two key rings: client is KeyRings:mgmt-client, which signs the client's assertions, and dpop is
+  # KeyRings:mgmt-dpop, which signs its DPoP proofs. Each holds a PEM key from a Secret, keys a key management
   # service holds, or both, and at least one key (ADR-1479, ADR-1485).
   keyRings:
     client:

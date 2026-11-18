@@ -44,19 +44,20 @@ public sealed class TeamEntity : ISupportConcurrencyToken
     public required string NormalizedTeamId { get; init; }
 
     /// <summary>
-    /// Gets the surrogate identifier of the team directly above this one, or <see langword="null"/> for a top-level
-    /// team. A team never moves.
+    /// Gets or sets the surrogate identifier of the team directly above this one, or <see langword="null"/> for a
+    /// top-level team. A team moves only when a mirrored team document names another parent.
     /// </summary>
     [ForeignKey(nameof(ParentTeam))]
-    public long? ParentTeamId { get; init; }
+    public long? ParentTeamId { get; set; }
 
     /// <summary>
-    /// Gets the team path: the identifiers of the teams from this team's top-level team down to this team, each
-    /// followed by <c>/</c>, after a leading <c>/</c>. It is built when the team is created and never changes.
+    /// Gets or sets the team path: the identifiers of the teams from this team's top-level team down to this team, each
+    /// followed by <c>/</c>, after a leading <c>/</c>. It is built when the team is created and changes only when a
+    /// mirrored team document moves the team or a team above it.
     /// </summary>
     [Unicode(false)]
     [MaxLength(OpenIdMaxLengths.TeamPath)]
-    public required string Path { get; init; }
+    public required string Path { get; set; }
 
     /// <inheritdoc />
     [Unicode(false)]
@@ -90,6 +91,12 @@ public sealed class TeamEntity : ISupportConcurrencyToken
     public required JsonElement SettingsJson { get; set; }
 
     /// <summary>
+    /// Gets or sets the root keys the team brings, keyed by region, as the schema-versioned JSON envelope of their
+    /// payload, whose map is empty when the team brings none.
+    /// </summary>
+    public required JsonElement RootKeysJson { get; set; }
+
+    /// <summary>
     /// Gets or sets the fingerprint of the settings the team's tenants were last reconciled against.
     /// </summary>
     [Unicode(false)]
@@ -101,12 +108,18 @@ public sealed class TeamEntity : ISupportConcurrencyToken
     /// </summary>
     public JsonElement? ReconciledSettingsJson { get; set; }
 
+    /// <summary>
+    /// Gets or sets the sequence of the directory change whose team document this row last mirrored, or <c>0</c> for a
+    /// row that no document wrote.
+    /// </summary>
+    public long DirectorySequence { get; set; }
+
     // navigation properties
 
     /// <summary>
-    /// Gets the team directly above this one, or <see langword="null"/> for a top-level team.
+    /// Gets or sets the team directly above this one, or <see langword="null"/> for a top-level team.
     /// </summary>
-    public TeamEntity? ParentTeam { get; init; }
+    public TeamEntity? ParentTeam { get; set; }
 
     // ReSharper disable once EntityFramework.ModelValidation.CircularDependency
     // We use DTOs to avoid circular dependencies.

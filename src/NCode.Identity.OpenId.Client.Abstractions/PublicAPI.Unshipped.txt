@@ -2,6 +2,7 @@
 abstract NCode.Identity.OpenId.Client.TokenRequest.AddGrantParameters(System.Collections.Generic.ICollection<System.Collections.Generic.KeyValuePair<string!, string!>>! parameters) -> void
 abstract NCode.Identity.OpenId.Client.TokenRequest.GrantType.get -> string!
 const NCode.Identity.OpenId.Client.OpenIdClientDefaults.HttpClientName = "NCode.Identity.OpenId.Client" -> string!
+const NCode.Identity.OpenId.Client.OpenIdClientDefaults.KeyRingsSectionName = "KeyRings" -> string!
 const NCode.Identity.OpenId.Client.OpenIdClientDefaults.MutualTlsHttpClientNamePrefix = "NCode.Identity.OpenId.Client.MutualTls:" -> string!
 const NCode.Identity.OpenId.Client.TokenValidationFailureCodes.AlgorithmNotPermitted = "algorithm_not_permitted" -> string!
 const NCode.Identity.OpenId.Client.TokenValidationFailureCodes.DecryptionFailed = "decryption_failed" -> string!
@@ -13,6 +14,7 @@ const NCode.Identity.OpenId.Client.TokenValidationFailureCodes.InvalidLifetime =
 const NCode.Identity.OpenId.Client.TokenValidationFailureCodes.InvalidSignature = "invalid_signature" -> string!
 const NCode.Identity.OpenId.Client.TokenValidationFailureCodes.InvalidToken = "invalid_token" -> string!
 const NCode.Identity.OpenId.Client.TokenValidationFailureCodes.InvalidTokenType = "invalid_token_type" -> string!
+const NCode.Identity.OpenId.Client.TokenValidationFailureCodes.IssuerUnavailable = "issuer_unavailable" -> string!
 const NCode.Identity.OpenId.Client.TokenValidationFailureCodes.MaxAgeExceeded = "max_age_exceeded" -> string!
 const NCode.Identity.OpenId.Client.TokenValidationFailureCodes.NonceMismatch = "nonce_mismatch" -> string!
 const NCode.Identity.OpenId.Client.TokenValidationFailureCodes.NotYetValid = "not_yet_valid" -> string!
@@ -100,6 +102,8 @@ NCode.Identity.OpenId.Client.IDPoPProofFactory.CreateResourceProofAsync(NCode.Id
 NCode.Identity.OpenId.Client.IDPoPProofFactory.RecordNonce(System.Uri! requestUri, string! nonce) -> void
 NCode.Identity.OpenId.Client.IIdTokenValidator
 NCode.Identity.OpenId.Client.IIdTokenValidator.ValidateAsync(NCode.Identity.OpenId.Client.ClientRegistration! registration, NCode.Identity.OpenId.Client.IdTokenValidationRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Client.IdTokenValidationResult!>
+NCode.Identity.OpenId.Client.IIssuerAccessTokenValidator
+NCode.Identity.OpenId.Client.IIssuerAccessTokenValidator.ValidateAsync(string! issuer, string! audience, string! token, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Client.IssuerAccessTokenResult!>
 NCode.Identity.OpenId.Client.ILogoutTokenValidator
 NCode.Identity.OpenId.Client.ILogoutTokenValidator.ValidateAsync(NCode.Identity.OpenId.Client.ClientRegistration! registration, NCode.Identity.OpenId.Client.LogoutTokenValidationRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Client.LogoutTokenValidationResult!>
 NCode.Identity.OpenId.Client.ILogoutTokenValidator.TryRecordHandledAsync(NCode.Identity.OpenId.Client.ClientRegistration! registration, NCode.Identity.OpenId.Client.LogoutTokenValidationResult! result, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
@@ -108,6 +112,15 @@ NCode.Identity.OpenId.Client.IProviderKeySetResolver.GetSigningKeysAsync(string!
 NCode.Identity.OpenId.Client.IProviderKeySetResolver.RefreshSigningKeysAsync(string! authority, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.Secrets.Collections.ISecretKeyCollection!>
 NCode.Identity.OpenId.Client.IProviderMetadataResolver
 NCode.Identity.OpenId.Client.IProviderMetadataResolver.GetMetadataAsync(string! authority, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Client.OpenIdProviderMetadata!>
+NCode.Identity.OpenId.Client.IssuerAccessTokenResult
+NCode.Identity.OpenId.Client.IssuerAccessTokenResult.FailureCode.get -> string?
+NCode.Identity.OpenId.Client.IssuerAccessTokenResult.FailureReason.get -> string?
+NCode.Identity.OpenId.Client.IssuerAccessTokenResult.Issuer.get -> string?
+NCode.Identity.OpenId.Client.IssuerAccessTokenResult.IssuerAccessTokenResult(string! failureCode, string! failureReason) -> void
+NCode.Identity.OpenId.Client.IssuerAccessTokenResult.IssuerAccessTokenResult(System.Text.Json.JsonElement payload, string! issuer) -> void
+NCode.Identity.OpenId.Client.IssuerAccessTokenResult.IsUnavailable.get -> bool
+NCode.Identity.OpenId.Client.IssuerAccessTokenResult.IsValid.get -> bool
+NCode.Identity.OpenId.Client.IssuerAccessTokenResult.Payload.get -> System.Text.Json.JsonElement
 NCode.Identity.OpenId.Client.ITokenClient
 NCode.Identity.OpenId.Client.ITokenClient.RequestTokenAsync(NCode.Identity.OpenId.Client.ClientRegistration! registration, NCode.Identity.OpenId.Client.TokenRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Client.TokenResult!>
 NCode.Identity.OpenId.Client.ITokenRevocationClient

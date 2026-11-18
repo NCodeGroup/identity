@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using JetBrains.Annotations;
+using NCode.Identity.Secrets.Options;
 
 namespace NCode.Identity.Secrets.AwsKms.Options;
 
@@ -24,6 +25,13 @@ public sealed class AwsKmsRemoteKeyProviderOptions
     /// decrypts with and destroys keys in the region each key's ARN names.
     /// </summary>
     public string? Region { get; set; }
+
+    /// <summary>
+    /// Gets or sets the system names of the AWS regions, such as <c>us-west-2</c>, in which the provider may create
+    /// keys. A <see cref="Region"/> that is not listed is refused. When it is empty, any region is allowed. When
+    /// <see cref="KeyResidencyOptions.CloudRegions"/> names cloud regions, they replace this list.
+    /// </summary>
+    public List<string> AllowedRegions { get; set; } = [];
 
     /// <summary>
     /// Gets or sets the number of days, from 7 to 30, that AWS KMS waits before it deletes a key that the provider

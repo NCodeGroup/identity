@@ -432,6 +432,78 @@ internal class AzureKeyVaultRemoteKeyProvider(
     }
 
     /// <inheritdoc />
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="keyId"/> is not that of a Key Vault key version.
+    /// </exception>
+    public async ValueTask RetagKeyAsync(
+        string keyId,
+        string deployment,
+        CancellationToken cancellationToken
+    )
+    {
+        ArgumentNullException.ThrowIfNull(keyId);
+        ArgumentNullException.ThrowIfNull(deployment);
+
+        if (!AzureKeyVaultKeyId.IsKeyVersionId(keyId))
+        {
+            throw new ArgumentException(
+                "The key identifier is not that of a Key Vault key version.",
+                nameof(keyId)
+            );
+        }
+
+        // The key lives in the vault that its identifier names, which stays right when the configured vault changes.
+        var identifier = new KeyVaultKeyIdentifier(new Uri(keyId));
+
+        try
+        {
+            await ClientFactory.ExecuteKeyClientAsync(
+                identifier.VaultUri,
+                async (client, token) =>
+                {
+                    // An update replaces the whole tag map, so the other tags are read first and written back.
+                    var current = await client.GetKeyAsync(
+                        identifier.Name,
+                        identifier.Version,
+                        token
+                    );
+
+                    var properties = current.Value.Properties;
+                    properties.Tags[DeploymentTagKey] = deployment;
+
+                    return await client.UpdateKeyPropertiesAsync(
+                        properties,
+                        keyOperations: null,
+                        token
+                    );
+                },
+                cancellationToken
+            );
+        }
+        catch (RequestFailedException exception) when (exception.Status == 404)
+        {
+            // The key version is already deleted.
+        }
+    }
+
+    /// <inheritdoc />
+    public bool IsInLocation(string keyId)
+    {
+        ArgumentNullException.ThrowIfNull(keyId);
+
+        var vaultUri = ProviderOptions.Value.VaultUri;
+        return Uri.TryCreate(vaultUri, UriKind.Absolute, out var vault)
+            && AzureKeyVaultKeyId.IsKeyVersionId(keyId)
+            && Uri.Compare(
+                new Uri(keyId),
+                vault,
+                UriComponents.SchemeAndServer,
+                UriFormat.SafeUnescaped,
+                StringComparison.OrdinalIgnoreCase
+            ) == 0;
+    }
+
+    /// <inheritdoc />
     /// <exception cref="InvalidOperationException">
     /// Thrown when the configured vault URI is not set.
     /// </exception>

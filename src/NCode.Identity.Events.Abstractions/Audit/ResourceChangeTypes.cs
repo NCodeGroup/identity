@@ -36,4 +36,19 @@ public static class ResourceChangeTypes
     /// The resource received another resource's promotable configuration.
     /// </summary>
     public const string Promoted = "promoted";
+
+    /// <summary>
+    /// The resource was exported from the cell that holds it, to move it to another cell.
+    /// </summary>
+    public const string Exported = "exported";
+
+    /// <summary>
+    /// The resource was imported into the cell that receives it from another cell.
+    /// </summary>
+    public const string Imported = "imported";
+
+    /// <summary>
+    /// The resource's rows were released from the cell that held it, after it moved to another cell.
+    /// </summary>
+    public const string Released = "released";
 }

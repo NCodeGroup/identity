@@ -105,15 +105,29 @@ internal class GoogleCloudKmsKeyWrapper(
         [NotNullWhen(false)] out string? failure
     )
     {
-        if (GoogleCloudKmsKeyName.IsCryptoKeyName(keyReference))
+        if (!GoogleCloudKmsKeyName.IsCryptoKeyName(keyReference))
         {
-            failure = null;
-            return true;
+            failure =
+                "must be the resource name of a Cloud KMS crypto key without a version, such as projects/my-project/locations/global/keyRings/tenants/cryptoKeys/tenant-root";
+            return false;
         }
 
-        failure =
-            "must be the resource name of a Cloud KMS crypto key without a version, such as projects/my-project/locations/global/keyRings/tenants/cryptoKeys/tenant-root";
-        return false;
+        var allowedLocations = RootKeyOptions.Value.AllowedLocations;
+        if (
+            allowedLocations.Count > 0
+            && !allowedLocations.Contains(
+                GoogleCloudKmsKeyName.GetLocation(keyReference),
+                StringComparer.Ordinal
+            )
+        )
+        {
+            failure =
+                $"must be the resource name of a Cloud KMS crypto key in one of the allowed locations: {string.Join(", ", allowedLocations)}";
+            return false;
+        }
+
+        failure = null;
+        return true;
     }
 
     /// <inheritdoc />
@@ -135,8 +149,8 @@ internal class GoogleCloudKmsKeyWrapper(
 
     /// <inheritdoc />
     /// <exception cref="ArgumentException">
-    /// Thrown when the key reference of <paramref name="referencedKey"/> is not a Cloud KMS crypto key name, or its
-    /// access identity is set and is not the email address of a service account.
+    /// Thrown when the key reference of <paramref name="referencedKey"/> is not a Cloud KMS crypto key name in an
+    /// allowed location, or its access identity is set and is not the email address of a service account.
     /// </exception>
     /// <exception cref="IOException">
     /// Thrown when the service does not confirm the integrity of the request and response, or reports a crypto key
@@ -151,21 +165,18 @@ internal class GoogleCloudKmsKeyWrapper(
     {
         ArgumentNullException.ThrowIfNull(referencedKey);
 
-        if (!GoogleCloudKmsKeyName.IsCryptoKeyName(referencedKey.KeyReference))
+        if (!TryValidateKeyReference(referencedKey.KeyReference, out var failure))
         {
-            throw new ArgumentException(
-                "The key reference is not a Cloud KMS crypto key name.",
-                nameof(referencedKey)
-            );
+            throw new ArgumentException($"The key reference {failure}.", nameof(referencedKey));
         }
 
         if (
             referencedKey.Access is { } access
-            && !TryValidateAccessIdentity(access.Identity, out _)
+            && !TryValidateAccessIdentity(access.Identity, out var accessFailure)
         )
         {
             throw new ArgumentException(
-                "The access identity is not the email address of a Google Cloud service account.",
+                $"The access identity {accessFailure}.",
                 nameof(referencedKey)
             );
         }

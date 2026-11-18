@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using Microsoft.AspNetCore.HostFiltering;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -63,14 +62,6 @@ internal sealed class ManagementConsoleBuilder
                 ManagementConsoleFrontendValidator
             >()
         );
-
-        serviceCollection.TryAddEnumerable(
-            ServiceDescriptor.Singleton<
-                IValidateOptions<HostFilteringOptions>,
-                ManagementConsoleHostFilteringValidator
-            >()
-        );
-        serviceCollection.AddOptions<HostFilteringOptions>().ValidateOnStart();
 
         serviceCollection.TryAddSingleton<SinglePageBundle<ManagementConsolePage>>(CreateBundle);
         serviceCollection.TryAddSingleton<ManagementConsoleBootstrapHandler>();

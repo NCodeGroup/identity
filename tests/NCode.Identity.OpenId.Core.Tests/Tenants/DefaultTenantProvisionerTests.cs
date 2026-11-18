@@ -1,11 +1,13 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using Moq;
 using NCode.Identity.AspNetCore;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
@@ -45,6 +47,12 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
         MockTenantResolver = Mocks.Create<ITenantResolver>();
         MockMediator = Mocks.Create<IMediator>();
         MockTeamProvisioner = Mocks.Create<ITeamProvisioner>();
+
+        // The unscoped scopes the provisioner opens around its cross-tenant reads and writes; the tests that assert
+        // them verify the calls.
+        MockAmbientTenantAccessor
+            .Setup(x => x.BeginUnscoped(It.IsAny<string>()))
+            .Returns(Mock.Of<IDisposable>());
 
         Provisioner = new DefaultTenantProvisioner(
             MockStoreManagerFactory.Object,
@@ -179,6 +187,7 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
         );
 
         Assert.Same(existing, result);
+        MockAmbientTenantAccessor.Verify(x => x.BeginUnscoped("tenant provisioning"), Times.Once);
     }
 
     [Fact]
@@ -240,6 +249,56 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
         Assert.Equal(workloadAlias, result.MtlsEndpointAliasAuthority);
         Assert.Equal("Acme", result.DisplayName);
         Assert.False(result.IsDisabled);
+    }
+
+    [Fact]
+    public async Task EnsureCreatedAsync_WhenTenantIsNew_StoresEmptyObjectSettings()
+    {
+        SetupTeam();
+        SetupStoreManager();
+        SetupGetTenant(WorkloadTenantId, (PersistedTenant?)null);
+        MockTenantResolver
+            .Setup(x => x.GetDefaultIssuerAsync(WorkloadTenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(WorkloadIssuer)
+            .Verifiable();
+        MockTenantResolver
+            .Setup(x =>
+                x.GetDefaultMtlsEndpointAliasAuthorityAsync(
+                    WorkloadTenantId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((string?)null)
+            .Verifiable();
+        MockTenantResolver
+            .Setup(x =>
+                x.ValidateTenantAsync(
+                    WorkloadTenantId,
+                    WorkloadIssuer,
+                    null,
+                    MockStoreManager.Object,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync([])
+            .Verifiable();
+        MockTenantStore
+            .Setup(x => x.AddAsync(It.IsAny<PersistedTenant>(), It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+        var result = await Provisioner.EnsureCreatedAsync(
+            TeamId,
+            WorkloadTenantId,
+            "Acme",
+            CancellationToken.None
+        );
+
+        Assert.True(JsonElement.DeepEquals(JsonElements.EmptyObject, result.Settings.Value));
     }
 
     [Fact]
@@ -417,6 +476,7 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
         Assert.Equal(TenantPlane.Root, command.Context.Plane);
         Assert.Same(MockStoreManager.Object, command.Context.StoreManager);
         MockAmbientTenantAccessor.Verify(x => x.BeginScope(RootTenantId), Times.Once);
+        MockAmbientTenantAccessor.Verify(x => x.BeginUnscoped("tenant lookup"), Times.Once);
     }
 
     [Fact]

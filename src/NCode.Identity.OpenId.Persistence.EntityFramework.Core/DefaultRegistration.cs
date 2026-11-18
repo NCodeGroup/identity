@@ -5,6 +5,9 @@ using JetBrains.Annotations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using NCode.Identity.Json;
+using NCode.Identity.OpenId.GlobalDirectory;
+using NCode.Identity.OpenId.Persistence.EntityFramework.Core.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.Persistence;
@@ -25,8 +28,9 @@ public static class DefaultRegistration
     {
         /// <summary>
         /// Registers the reusable Entity Framework persistence framework and the core OpenID schema slice: the core
-        /// model contributor (which adds the core entities to the shared <see cref="OpenIdDbContext"/>) and the core
-        /// stores. Make sure to also register the Entity Framework <see cref="DbContext"/> itself.
+        /// model contributor (which adds the core entities to the shared <see cref="OpenIdDbContext"/>), the core
+        /// stores and the schema-versioned serializer of the payloads they store as JSON. Make sure to also register
+        /// the Entity Framework <see cref="DbContext"/> itself.
         /// </summary>
         /// <typeparam name="TDbContext">The type of the <see cref="DbContext"/> to use.</typeparam>
         /// <returns>The <see cref="IServiceBuilder{T}"/> proving the store-manager framework is registered, which the
@@ -41,8 +45,17 @@ public static class DefaultRegistration
                 ServiceDescriptor.Singleton<IOpenIdModelContributor, CoreModelContributor>()
             );
 
+            // The team store and the local team directory write and read the root keys of each team row through the
+            // one serializer of the payloads stored at rest. TryAdd keeps a serializer registered first.
+            serviceCollection.AddPersistedPayloadSerializer();
+
             serviceCollection.AddStore<TDbContext, IPlatformStore, PlatformStore>();
             serviceCollection.AddStore<TDbContext, IInstanceSetupStore, InstanceSetupStore>();
+            serviceCollection.AddStore<
+                TDbContext,
+                IDirectoryFeedCheckpointStore,
+                DirectoryFeedCheckpointStore
+            >();
             serviceCollection.AddStore<TDbContext, ITenantStore, TenantStore>();
             serviceCollection.AddStore<TDbContext, ITeamStore, TeamStore>();
             serviceCollection.AddStore<TDbContext, IClientStore, ClientStore>();
@@ -71,6 +84,14 @@ public static class DefaultRegistration
                 IFederatedIdentityStore,
                 FederatedIdentityStore
             >();
+
+            // The local directory adapters answer from the cell's own tables. Each call opens its own context through
+            // the context factory and commits its own writes, so the adapters are singletons. TryAdd lets a remote
+            // adapter registered first win.
+            serviceCollection.TryAddSingleton<ITenantDirectory, LocalTenantDirectory>();
+            serviceCollection.TryAddSingleton<ITeamDirectory, LocalTeamDirectory>();
+            serviceCollection.TryAddSingleton<IPlatformDirectory, LocalPlatformDirectory>();
+            serviceCollection.TryAddSingleton<ICellDirectory, LocalCellDirectory>();
 
             return newBuilder;
         }

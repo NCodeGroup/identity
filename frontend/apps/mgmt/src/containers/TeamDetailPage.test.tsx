@@ -189,6 +189,35 @@ describe('TeamDetailPage', () => {
     expect(await screen.findByTestId('owners-row-bob')).toBeInTheDocument();
   });
 
+  it('shows the team root keys per region on the encryption keys surface', async () => {
+    installFetch((url, method) => {
+      if (url === 'https://api.test/api/cells') {
+        return jsonResponse([
+          { name: 'eu-1', region: 'eu-west', kind: 'shared', isControlPlane: true },
+        ]);
+      }
+      if (url.endsWith('/api/teams/acme/encryption-keys/root-keys')) {
+        return jsonResponse({
+          rootKeys: [
+            {
+              region: 'eu-west',
+              provider: 'aws-kms',
+              keyReference: 'arn:aws:kms:eu-west-1:111122223333:key/abc',
+            },
+          ],
+          rootKeyProviders: ['aws-kms'],
+          rootKeyAccessBinding: 'team:acme',
+        });
+      }
+      throw new Error(`Unexpected ${method} ${url}`);
+    });
+
+    renderPage('encryption-keys');
+
+    expect(await screen.findByTestId('team-root-key-region-eu-west')).toBeInTheDocument();
+    expect(await screen.findByTestId('root-key-provider')).toHaveTextContent('aws-kms');
+  });
+
   it('shows the team usage ledger on the usage tab and narrows it to a chosen range', async () => {
     const calls = installFetch((url, method) => {
       if (url.includes('/api/teams/acme/usage?from=2026-10-21&to=2026-10-21')) {

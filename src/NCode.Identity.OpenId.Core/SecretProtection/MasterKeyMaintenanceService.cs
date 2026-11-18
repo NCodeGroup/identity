@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using NCode.Identity.Events;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Logging;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Platform;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence;
@@ -37,6 +38,7 @@ internal sealed class MasterKeyMaintenanceService(
     IMaterializedPlatformAccessor materializedPlatformAccessor,
     IMasterKeyManager masterKeyManager,
     IStoreManagerFactory storeManagerFactory,
+    IAmbientTenantAccessor ambientTenantAccessor,
     IExpiringKeySet expiringKeySet,
     IEventPublisher eventPublisher,
     ITenantResolver tenantResolver,
@@ -61,6 +63,7 @@ internal sealed class MasterKeyMaintenanceService(
         materializedPlatformAccessor;
     private IMasterKeyManager MasterKeyManager { get; } = masterKeyManager;
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
+    private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
     private IExpiringKeySet ExpiringKeySet { get; } = expiringKeySet;
     private IEventPublisher EventPublisher { get; } = eventPublisher;
     private ITenantResolver TenantResolver { get; } = tenantResolver;
@@ -119,6 +122,9 @@ internal sealed class MasterKeyMaintenanceService(
         var leaseExpiresWhen = TimeProvider.GetUtcNow() + MasterKeys.MaintenanceInterval / 2;
         if (!await ExpiringKeySet.TryAddAsync(LeaseKey, leaseExpiresWhen, cancellationToken))
             return;
+
+        // The pass rotates and rewraps the master keys of every owner, outside any request.
+        using var unscoped = AmbientTenantAccessor.BeginUnscoped("master key maintenance");
 
         await RotateOverdueAsync(cancellationToken);
         await RewrapAndDestroyRetiredAsync(cancellationToken);

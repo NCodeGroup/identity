@@ -3,9 +3,14 @@ export { createAppTheme } from './theme/createAppTheme.js';
 export { AppThemeProvider, type AppThemeProviderProps } from './theme/AppThemeProvider.js';
 export { ScopeBadge, type ScopeBadgeProps, type ScopeKind } from './components/ScopeBadge.js';
 export { DataStateBoundary, type DataStateBoundaryProps } from './components/DataStateBoundary.js';
+export {
+  UnavailableCellsAlert,
+  type UnavailableCellsAlertProps,
+} from './components/UnavailableCellsAlert.js';
 export { BootstrapScreen, type BootstrapScreenProps } from './components/BootstrapScreen.js';
 export {
   TenantTable,
+  type TenantCellRow,
   type TenantEnvironmentRow,
   type TenantRow,
   type TenantTableProps,
@@ -43,9 +48,21 @@ export {
   type TenantAddressInput,
   type TenantAddressPreview,
   type TenantAddressPreviewFailure,
+  type TenantCellOption,
   type TenantFormDialogProps,
   type TenantFormValues,
 } from './components/TenantFormDialog.js';
+export {
+  TenantMoveDialog,
+  type TenantMoveDialogCell,
+  type TenantMoveDialogOperations,
+  type TenantMoveDialogProps,
+  type TenantMoveDialogTransferKey,
+} from './components/TenantMoveDialog.js';
+export {
+  TenantMoveOutcomeUnknownError,
+  TenantPlacedElsewhereError,
+} from './components/tenantMove.js';
 export {
   TenantPromotionDialog,
   type TenantPromotionDialogChange,
@@ -55,6 +72,7 @@ export {
   type TenantPromotionDialogProps,
   type TenantPromotionDialogReport,
   type TenantPromotionDialogRequest,
+  type TenantPromotionDialogTenant,
 } from './components/TenantPromotionDialog.js';
 export {
   TeamFormDialog,

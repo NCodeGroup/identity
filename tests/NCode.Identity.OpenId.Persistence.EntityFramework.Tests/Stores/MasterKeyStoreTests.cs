@@ -67,6 +67,7 @@ public sealed class MasterKeyStoreTests : IDisposable
             RootKeyId = $"root-key-{version}",
             RootKeyReference = version % 2 == 0 ? $"kms://root-{version}" : null,
             RootKeyAccessIdentity = version % 2 == 0 ? $"role://root-{version}" : null,
+            RootKeyAccessBinding = version % 2 == 0 ? $"team:team-{version}" : null,
             RootWrappedKey = $"root-wrapped-key-{version}",
             RecoveryKeyId = $"recovery-key-{version}",
             RecoveryWrappedKey = $"recovery-wrapped-key-{version}",
@@ -163,6 +164,7 @@ public sealed class MasterKeyStoreTests : IDisposable
         );
         Assert.NotNull(actual.RootKeyReference);
         Assert.NotNull(actual.RootKeyAccessIdentity);
+        Assert.NotNull(actual.RootKeyAccessBinding);
 
         Assert.Equal(expected.KeyId, actual.KeyId);
         Assert.Equal(SecretOwnerTypes.Tenant, actual.OwnerType);
@@ -174,6 +176,7 @@ public sealed class MasterKeyStoreTests : IDisposable
         Assert.Equal(expected.RootKeyId, actual.RootKeyId);
         Assert.Equal(expected.RootKeyReference, actual.RootKeyReference);
         Assert.Equal(expected.RootKeyAccessIdentity, actual.RootKeyAccessIdentity);
+        Assert.Equal(expected.RootKeyAccessBinding, actual.RootKeyAccessBinding);
         Assert.Equal(expected.RootWrappedKey, actual.RootWrappedKey);
         Assert.Equal(expected.RecoveryKeyId, actual.RecoveryKeyId);
         Assert.Equal(expected.RecoveryWrappedKey, actual.RecoveryWrappedKey);
@@ -301,6 +304,8 @@ public sealed class MasterKeyStoreTests : IDisposable
         var originalToken = masterKey.ConcurrencyToken;
         masterKey.RootKeyProvider = KeyWrapperNames.AwsKms;
         masterKey.RootKeyId = "new-root-key";
+        masterKey.RootKeyAccessIdentity = "role://new";
+        masterKey.RootKeyAccessBinding = "team:new-team";
         masterKey.RootWrappedKey = "new-root-wrapped-key";
         masterKey.RecoveryKeyId = null;
         masterKey.RecoveryWrappedKey = null;
@@ -317,6 +322,8 @@ public sealed class MasterKeyStoreTests : IDisposable
         );
         Assert.Equal(KeyWrapperNames.AwsKms, actual.RootKeyProvider);
         Assert.Equal("new-root-key", actual.RootKeyId);
+        Assert.Equal("role://new", actual.RootKeyAccessIdentity);
+        Assert.Equal("team:new-team", actual.RootKeyAccessBinding);
         Assert.Equal("new-root-wrapped-key", actual.RootWrappedKey);
         Assert.Null(actual.RecoveryKeyId);
         Assert.Null(actual.RecoveryWrappedKey);

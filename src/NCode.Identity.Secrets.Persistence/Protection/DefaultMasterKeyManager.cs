@@ -19,8 +19,8 @@ namespace NCode.Identity.Secrets.Persistence.Protection;
 /// failing root key leaves the owner untouched. The retire and the insert are two units of work, because one save would
 /// depend on the provider writing the update before the insert under the unique index of the active keys. A failed
 /// insert re-activates the retired row, and a successor that another replica stored first is adopted. The successor of
-/// an owner that brings a root key is wrapped under that key, with no recovery copy, and a rotation of an owner whose
-/// root key is unavailable fails before anything is written.
+/// an owner that has a root key, its own or the nearest ancestor's, is wrapped under that key, with no recovery copy,
+/// and a rotation of an owner whose root key is unavailable fails before anything is written.
 /// </remarks>
 // See ADR-1407 and ADR-1414.
 internal sealed class DefaultMasterKeyManager(
@@ -28,6 +28,7 @@ internal sealed class DefaultMasterKeyManager(
     IStoreManagerFactory storeManagerFactory,
     IRecoveryKeyWrapper recovery,
     MasterKeyFactory factory,
+    INearestOwnerRootKeyResolver nearestRootKeyResolver,
     IEnumerable<IProtectedValueSource> sources,
     IEnumerable<IMasterKeyChangeObserver> observers,
     IOptions<SecretProtectionOptions> options,
@@ -49,6 +50,8 @@ internal sealed class DefaultMasterKeyManager(
     private IRecoveryKeyWrapper Recovery { get; } = recovery;
 
     private MasterKeyFactory Factory { get; } = factory;
+
+    private INearestOwnerRootKeyResolver NearestRootKeyResolver { get; } = nearestRootKeyResolver;
 
     private IReadOnlyList<IProtectedValueSource> Sources { get; } = [.. sources];
 
@@ -353,7 +356,8 @@ internal sealed class DefaultMasterKeyManager(
             .ListAsync(owner.Normalize(), cancellationToken);
     }
 
-    // Reads the master keys of the owner and the root key it brings through one store manager.
+    // Reads the master keys of the owner and the root key that wraps them, the owner's own or the nearest ancestor's,
+    // through one store manager.
     private async ValueTask<(
         IReadOnlyList<PersistedMasterKey> Rows,
         PersistedOwnerRootKey? RootKey
@@ -362,9 +366,11 @@ internal sealed class DefaultMasterKeyManager(
         var key = owner.Normalize();
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var rows = await storeManager.GetStore<IMasterKeyStore>().ListAsync(key, cancellationToken);
-        var rootKey = await storeManager
-            .GetStore<IOwnerRootKeyStore>()
-            .FindAsync(key, cancellationToken);
+        var rootKey = await NearestRootKeyResolver.FindNearestAsync(
+            storeManager.GetStore<IOwnerRootKeyStore>(),
+            key,
+            cancellationToken
+        );
 
         return (rows, rootKey);
     }

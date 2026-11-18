@@ -50,6 +50,9 @@ const NCode.Identity.Events.Audit.AuditResourceTypes.Session = "session" -> stri
 const NCode.Identity.Events.Audit.AuditSeverities.Critical = "critical" -> string!
 const NCode.Identity.Events.Audit.AuditSeverities.Info = "info" -> string!
 const NCode.Identity.Events.Audit.AuditSeverities.Warning = "warning" -> string!
+const NCode.Identity.Events.Audit.ResourceChangeTypes.Exported = "exported" -> string!
+const NCode.Identity.Events.Audit.ResourceChangeTypes.Imported = "imported" -> string!
+const NCode.Identity.Events.Audit.ResourceChangeTypes.Released = "released" -> string!
 NCode.Identity.Events.Audit.AuditActor
 NCode.Identity.Events.Audit.AuditActor.AuditActor(string! Type, string? Id = null) -> void
 NCode.Identity.Events.Audit.AuditActor.Id.get -> string?

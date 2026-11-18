@@ -27,12 +27,13 @@ configuration. No package of the client references an ASP.NET Core shared framew
 
 1. **Packages.** `.Client.Abstractions` references `Jose.Abstractions`, `Jwt.Abstractions`, `Protocol.Abstractions`,
    `Secrets.Abstractions`, `NCode.Identity.Json` and `NCode.Identity.Registration`. `NCode.Identity.OpenId.Client`
-   references only `.Client.Abstractions`, `Jwt.Abstractions`, `SharedState.Abstractions` and `NCode.Identity.Json`
+   references `.Client.Abstractions`, `Jose.Abstractions`, `Jwt.Abstractions`, `Secrets.Abstractions`,
+   `SharedState.Abstractions`, `NCode.Identity.Json` and `NCode.Identity.Registration`
    ([ADR-1500](1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md)),
-   plus six `Microsoft.Extensions.*` packages (`DependencyInjection.Abstractions`, `Http`, `Logging.Abstractions`,
-   `Options`, `Primitives` and `Diagnostics`), `Polly.Core`, `NCode.Base64Url`, `NCode.Buffers` and
-   `Nerdbank.Streams`. The namespace is `NCode.Identity.OpenId.Client`, and the
-   options are in `NCode.Identity.OpenId.Client.Options`.
+   plus seven `Microsoft.Extensions.*` packages (`DependencyInjection.Abstractions`, `Diagnostics`,
+   `Hosting.Abstractions`, `Http`, `Logging.Abstractions`, `Options` and `Primitives`), `Polly.Core`, `NCode.Base64Url`,
+   `NCode.Buffers` and `Nerdbank.Streams`. The namespace is `NCode.Identity.OpenId.Client`, and the options are in
+   `NCode.Identity.OpenId.Client.Options`.
 2. **No ASP.NET Core runtime.** A console app or worker needs only `Microsoft.NETCore.App`. Status codes are the internal
    named `int` constants of `ProviderStatusCodes` (`Status200OK`, `Status201Created`) in
    `NCode.Identity.OpenId.Client.Http`, and authorization-request query values are percent-encoded with
@@ -40,16 +41,23 @@ configuration. No package of the client references an ASP.NET Core shared framew
    `ProtocolPackageDependencyTests` guards the rule: no `Microsoft.AspNetCore.*` assembly, no `Microsoft.AspNetCore.App`
    runtime in the test host's runtimeconfig, no `Microsoft.Extensions.Telemetry.*` package and no OP package.
 3. **Which client a call is for.** A consumer builds a `ClientRegistration(authority, clientId, authenticationMethod)`
-   with an optional `KeyRing` and passes it to every call. The protocol client binds no configuration; the BFF binds its
-   own section and validates the names at startup.
+   with an optional `KeyRing` and passes it to every call. A call binds no configuration: the BFF binds its own section
+   and validates the names at startup, and the one section the client binds is a host's key rings (decision 4).
 4. **Credentials come from a named key ring.** `KeyRing` names a keyed `ISecretKeyCollectionProvider`
-   (`AddKeyedSingleton<ISecretKeyCollectionProvider>(name, …)`), read through `IClientKeyRingProvider`. The keys rotate
-   and can be held in a key management service
+   (`AddKeyedSingleton<ISecretKeyCollectionProvider>(name, …)`), read through `IClientKeyRingProvider`.
+   `AddOpenIdClientKeyRings(section)` binds a host's key rings by name from one configuration section, strictly, loads
+   every ring from PEM files and key management service keys through a hosted service when the host starts, and
+   registers a keyed provider for each
+   ([ADR-1439](1439-a-bff-loads-its-configured-key-rings-at-start-and-refuses-frontends-naming-an-unknown-ring.md)).
+   The keys rotate and can be held in a key management service
    ([ADR-1479](1479-a-protocol-clients-and-a-bffs-keys-can-be-held-in-a-key-management-service.md)).
 5. **The endpoint rule.** An authority or endpoint URL is `https`, or `http` only on a loopback host (`Uri.IsLoopback`).
    The check applies to the raw string as well as the parsed `Uri`: the string starts with its scheme, contains no
    whitespace and has no fragment, and an authority also has no query. Loopback `http` reaches only the same machine, and
-   it lets the client run against the in-process OP in tests.
+   it lets the client run against the in-process OP in tests. The directory's URL and the control-plane issuers follow
+   the same scheme rule through `AbsoluteUri.TryParseServiceUrl`, which also refuses user information and judges the
+   text as written; a cell's management URL is `https`, or `http` in local development, through
+   `AbsoluteUri.TryParseHttpsServiceUrl` and `AbsoluteUri.TryParseAnyHttpServiceUrl`.
 6. **Discovery.** The client fetches `<authority without trailing '/'>/.well-known/openid-configuration`. The returned
    `issuer` equals the authority string ordinally (OIDC Discovery §4.3). `token_endpoint` and `jwks_uri` are required, and
    every endpoint member that is present passes the endpoint rule. A violation is an `OpenIdProviderException`.
@@ -125,7 +133,8 @@ configuration. No package of the client references an ASP.NET Core shared framew
 
 ## Consequences
 
-- A consumer builds a `ClientRegistration` and registers a keyed key ring under the name it gives as `KeyRing`.
+- A consumer builds a `ClientRegistration` and registers a keyed key ring under the name it gives as `KeyRing`, or
+  names the ring in the section that `AddOpenIdClientKeyRings` binds.
 - A console app or worker that uses the client needs only `Microsoft.NETCore.App`. An ASP.NET Core host such as the
   backend-for-frontend resolves the same `Microsoft.Extensions.*` assemblies from its shared framework.
 - The framework cannot return unnoticed. Restoring with the framework reference fails with NU1510, because the direct

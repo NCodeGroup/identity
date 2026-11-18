@@ -1,5 +1,9 @@
 # A production release whose root key is a local key, and whose tenants may bring a root key from AWS KMS or Google Cloud
 # KMS, which the host reaches through web identity and workload identity federation.
+cell:
+  name: ci-tenant-root-keys
+  region: ci
+  isControlPlane: true
 allowedHosts:
   - id.example.com
 tenantResolution:
@@ -7,6 +11,10 @@ tenantResolution:
     issuer: https://id.example.com
 database:
   existingSecret: identity-database
+  runtimeRole: ncode_identity_app
+migrations:
+  database:
+    existingSecret: identity-database-owner
 secretProtection:
   rootKeyProvider: local
   local:

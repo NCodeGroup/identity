@@ -65,7 +65,7 @@ frames only the clients' logout origins
 **The seam is the setting, not a fork.** Both mechanisms reuse the session model and the end-session pipeline, with no
 persistence, table or migration of their own. Enabling either one is a setting change; the platform's settings are the
 cascade root
-([ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md)).
+([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
 
 ## Options considered
 
@@ -111,5 +111,5 @@ cascade root
   endpoints self-register and self-advertise.
 - [ADR-1256](1256-every-page-the-server-writes-has-a-strict-content-security-policy-and-is-framed-only-by-design.md),
   [ADR-1223](1223-a-session-that-ends-unused-is-terminated-once-in-the-background.md) and
-  [ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md): the
+  [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md): the
   framing, background termination and settings-root records this one relies on.

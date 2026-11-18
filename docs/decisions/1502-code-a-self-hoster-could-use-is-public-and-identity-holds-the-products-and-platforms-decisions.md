@@ -28,7 +28,7 @@ platform.** Anything in the private repository that a self-hoster would want bel
 
 | Repository                     | Visibility | Holds |
 | ------------------------------ | ---------- | ----- |
-| `NCodeGroup/identity`          | Public     | The NuGet packages (`src/`), the deployables (`hosts/`), the host and console images, the host chart (`charts/ncode-identity-host`), the web apps' pnpm workspace (`frontend/`), and the decisions and issues of the product and its platform |
+| `NCodeGroup/identity`          | Public     | The NuGet packages (`src/`), the deployables (`hosts/`), the host, console and directory images, the host chart (`charts/ncode-identity-host`), the web apps' pnpm workspace (`frontend/`), and the decisions and issues of the product and its platform |
 | `NCodeGroup/identity-platform` | Public     | The reusable OpenTofu modules, Kustomize components and stacks, and the live configuration for `lab` and `production` ([ADR-1132](1132-platform-infrastructure-code-is-public-on-github-and-its-state-and-backups-live-in-aws.md), [ADR-1133](1133-the-hosted-platform-runs-only-the-published-artifacts-it-offers-self-hosters.md)) |
 | `NCodeGroup/identity-cloud`    | Private    | Only the managed offering's proprietary parts: billing and metering, sign-up, the customer portal, support tooling and private runbooks |
 
@@ -62,8 +62,8 @@ platform.** Anything in the private repository that a self-hoster would want bel
    - NuGet packages: `NCode.Identity.*`
      ([ADR-1500](1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md)),
      under the `NCode` ID prefix the NCode Group holds on nuget.org.
-   - The chart and the images: the chart `ncode-identity-host`, the images `ghcr.io/ncodegroup/ncode-identity-host` and
-     `ghcr.io/ncodegroup/ncode-identity-management-console`.
+   - The chart and the images: the chart `ncode-identity-host`, the images `ghcr.io/ncodegroup/ncode-identity-host`,
+     `ghcr.io/ncodegroup/ncode-identity-management-console` and `ghcr.io/ncodegroup/ncode-identity-directory`.
    - npm workspace packages: `@ncode/*`, every one `"private": true` and none published: the root `@ncode/frontend`,
      packages such as `@ncode/ui` and `@ncode/api`, and the apps `@ncode/app-*`.
    - Domains: the domains are

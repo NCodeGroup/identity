@@ -89,7 +89,7 @@ can probe the cache, so it too seeds only on a miss.
 
 `POST /api/teams/{teamId}/tenants` commits the tenant row, records the creator as owner, seeds, and answers with the
 returned committed row, so the tenant's system resource servers exist before its first request
-([ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md)).
+([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
 
 `TenantResolution:Root` groups the root tenant's `TenantId`, `DisplayName`, `Issuer` and `MtlsEndpointAliasAuthority`,
 and its team's `TeamId` and `TeamDisplayName`.
@@ -161,7 +161,7 @@ assignment instead ([ADR-1512](1512-an-instance-is-set-up-once-through-a-one-tim
   mediator ladder.
 - [ADR-1012](1012-concurrency-tokens-are-interceptor-managed-and-a-lost-race-surfaces-as-a-store-neutral-exception.md):
   the interceptor-managed concurrency tokens.
-- [ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md): the control plane and the root tenant; the team and the create
+- [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md): the control plane and the root tenant; the team and the create
   route.
 - [ADR-1417](1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md): plane-aware resource-server
   seeding.

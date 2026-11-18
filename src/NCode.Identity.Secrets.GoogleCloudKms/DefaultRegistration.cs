@@ -5,6 +5,7 @@ using JetBrains.Annotations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using NCode.Identity.Registration;
 using NCode.Identity.Secrets.GoogleCloudKms.Facades;
 using NCode.Identity.Secrets.GoogleCloudKms.Options;
@@ -52,6 +53,14 @@ public static class DefaultRegistration
                         .BindStrictly(options)
                 )
                 .ValidateOnStart();
+
+            // A key that a caller names stays in the cloud locations the composition names for the deployment's keys.
+            serviceCollection.TryAddEnumerable(
+                ServiceDescriptor.Singleton<
+                    IPostConfigureOptions<GoogleCloudKmsKeyWrapperOptions>,
+                    GoogleCloudKmsKeyResidencyOptionsSetup
+                >()
+            );
 
             serviceCollection.TryAddSingleton(TimeProvider.System);
             serviceCollection.TryAddSingleton<

@@ -7,8 +7,8 @@
 ## Context
 
 A protocol client's key ring is a keyed `ISecretKeyCollectionProvider`
-([ADR-1285](1285-the-protocol-client-is-a-framework-free-library-over-the-familys-jose-stack-and-named-key-rings.md)), and a BFF loads its
-key rings from PEM files
+([ADR-1285](1285-the-protocol-client-is-a-framework-free-library-over-the-familys-jose-stack-and-named-key-rings.md)), and the
+protocol client loads named key rings from a configuration section, from PEM files
 ([ADR-1439](1439-a-bff-loads-its-configured-key-rings-at-start-and-refuses-frontends-naming-an-unknown-ring.md)). Without a key management
 service (KMS), the private halves of the client-assertion, DPoP and decryption keys live in the memory of every
 replica.
@@ -29,8 +29,8 @@ deployment's tag
 ## Decision
 
 **A key ring entry can name a key that a KMS holds. One resolver reads such a key for the secret generator, the
-serializer and every key ring, one prover proves it for the management API and the BFF, and a BFF reads and proves
-every key ring when the host starts.**
+serializer and every key ring, one prover proves it for the management API and the protocol client, and the protocol
+client reads and proves every configured key ring when the host starts.**
 
 1. **One resolver.** `IRemoteKeyResolver` (`NCode.Identity.Secrets.Abstractions`, namespace
    `NCode.Identity.Secrets.RemoteKeys`; `DefaultRemoteKeyResolver` in `NCode.Identity.Secrets`, registered by
@@ -44,7 +44,7 @@ every key ring when the host starts.**
      creates the `IRemoteSecretKey` through the descriptor's `CreateRemoteKey` and sets `Use` and `Algorithm` from the
      row: `metadata with { Use = binding.Algorithm.Use, Algorithm = binding.Algorithm.Algorithm }`.
 
-   The secret generator's create and bind, the serializer's stored remote secrets, every BFF key ring and a host that
+   The secret generator's create and bind, the serializer's stored remote secrets, every configured key ring and a host that
    composes a client key ring in code use the resolver, so one path resolves and reads a remote key.
 2. **One refusal signal.** `RemoteKeyRefusedException` (sealed, `Exception`, `NCode.Identity.Secrets.Abstractions`,
    namespace `NCode.Identity.Secrets.RemoteKeys`) is what the resolver, the generator and the prover throw for a
@@ -62,25 +62,26 @@ every key ring when the host starts.**
 
    A failed proof (`JoseException`, `CryptographicException` or a payload that differs) and an `alg` that is no
    registered signature or key-management algorithm throw `RemoteKeyRefusedException`; any other exception
-   propagates. The management importer and the BFF use the prover, so the proof logic exists once.
+   propagates. The management importer and the protocol client's key rings use the prover, so the proof logic exists once.
 4. **Remote key providers register on the secrets library.** `Add<Vendor>RemoteKeyProvider` and
    `Add<Vendor>RemoteKeyProviderIfConfigured` extend `IServiceBuilder<SecretsLibrary>`, because the port and its
-   catalogs are secrets-library services and a BFF composes no persistence library. The key wrappers stay on
+   catalogs are secrets-library services and a BFF or a protocol client composes no persistence library. The key wrappers stay on
    `IServiceBuilder<SecretPersistenceLibrary>`. The section is `SecretProtection:RemoteKeyProviders:<Vendor>` in every
    host, so one provider has one section; no `Bff:` child section is used, because `Bff` binds strictly and the child
    would give one provider two names. The OP host registers a vendor on `identityServer.SecretsLibraryBuilder`
    only when its section exists, and the management console's host registers every vendor on
    `managementConsole.IdentityBffBuilder.SecretsLibraryBuilder` without a key-creation location, so it creates no key.
-5. **The protocol client needs no library change.** `PrivateKeyJwtClientAuthenticator` and `DefaultDPoPProofService`
+5. **The protocol client uses a remote key as it uses a local one.** `PrivateKeyJwtClientAuthenticator` and `DefaultDPoPProofService`
    sign through `SignatureAlgorithm.SignAsync`, the provider-JWT validator decrypts through the asynchronous JWE path,
    and the credential selector matches a key's metadata `Use` and `Algorithm`, which the row sets. A host that
    composes the client in code reads each key with `IRemoteKeyResolver` and proves it with `IRemoteKeyProver` before
    its key ring is first resolved.
-6. **BFF key ring entries.** `Bff:KeyRings:{name}:RemoteKeys:{kid}` binds
-   `BffRemoteKeyOptions { Provider, KeyId, Algorithm, SecretType, KeySizeBits, Curve }`. The entry's name is the
+6. **Key ring entries.** `KeyRings:{name}:RemoteKeys:{kid}`, under the section that `AddOpenIdClientKeyRings` binds, binds
+   `ClientRemoteKeyOptions { Provider, KeyId, Algorithm, SecretType, KeySizeBits, Curve }`. The entry's name is the
    `kid`, as a PEM file's name is. Every selector field is explicit, because an RSA algorithm fits several sizes. A key
-   ring lists PEM files, remote keys or both, at least one key, and no id twice. The options validator fails startup
-   with one message per problem: an empty ring, a duplicate id, a key without an id, a malformed provider name
+   ring lists PEM files, remote keys or both, at least one key, and no two ids equal without case. The options validator
+   fails startup with one message per problem: an empty ring, a duplicate id, a key without an id, an id that is not
+   letters and digits in groups separated by single `.`, `_` or `-` of at most 64 characters, a malformed provider name
    (lowercase letters and digits in groups separated by single hyphens), a blank `KeyId`, `Algorithm` or `SecretType`,
    and a non-positive `KeySizeBits`. Whether the provider is registered and has the row is checked when the ring loads
    (rule 7).
@@ -90,14 +91,14 @@ every key ring when the host starts.**
 7. **A remote key is resolved, read and proved as its ring loads, and a failure stops the host.** The ring loads as
    [ADR-1439](1439-a-bff-loads-its-configured-key-rings-at-start-and-refuses-frontends-naming-an-unknown-ring.md) describes.
    A remote key is resolved, read and proved before its ring loads, so a key that the deployment's identity cannot
-   read or use stops the host with `The BFF cannot load the remote key '{kid}' of the key ring '{ring}' from the remote
+   read or use stops the host with `The key ring '{ring}' cannot load the remote key '{kid}' from the remote
    key provider '{provider}': {reason}`, with the cause as the inner exception. A ring's keyed provider resolves once
    `StartingAsync` has run: a service that resolves it earlier, such as an eager
    singleton or an options validator, gets an `InvalidOperationException` that names the ring. The BFF resolves a ring
    only when a request uses it, and the set check of
    [ADR-1439](1439-a-bff-loads-its-configured-key-rings-at-start-and-refuses-frontends-naming-an-unknown-ring.md) asks only whether the ring is
    registered (`IClientKeyRingProvider.HasKeyRing`), so nothing resolves a ring before it loads.
-8. **A ring's KMS key is the operator's.** Neither the BFF nor the protocol client creates, tags or destroys a KMS
+8. **A ring's KMS key is the operator's.** Neither a BFF nor the protocol client creates, tags or destroys a KMS
    key, so neither needs `SecretProtection:RemoteKeys:Deployment`, and no stored secret names a key ring's key: it is
    not a reference that `IRemoteKeyReferenceStore` reads. The sweep lists only keys whose group name begins `ncid-`
    and that carry its deployment's tag
@@ -117,14 +118,14 @@ every key ring when the host starts.**
 - **The public half in configuration.** Rejected: the operator exports and pastes it, and a mismatch shows only at the
   first use.
 - **Lazy loading on first use.** Rejected: it blocks on I/O, and a broken key surfaces at the first login.
-- **Configuration-driven key rings in the protocol client package.** Rejected: keyed dependency injection is the
-  library's seam, and the turnkey BFF owns configuration.
+- **Key ring entries inside the `Bff` section.** Rejected: key rings are the protocol client's, so a host that composes
+  a client without a BFF configures the same entries.
 - **A `Bff:RemoteKeyProviders` section.** Rejected: it gives one provider two names (rule 4).
 - **No start-time proof.** Rejected: a missing sign or decrypt permission surfaces only at the first login.
 - **Key ring keys restricted to signing.** Rejected: the row decides the use, and the client decrypts with its ring.
-- **Recording key ring keys for the sweep.** Rejected: the BFF has no secret store, and the keys are the operator's.
+- **Recording key ring keys for the sweep.** Rejected: the protocol client has no secret store, and the keys are the operator's.
 - **Chosen: one resolver, one prover and a start-time read and proof of every ring.** A broken key stops the host
-  before it serves a login, and the generator, the management API and the BFF share one path.
+  before it serves a login, and the generator, the management API and the protocol client share one path.
 
 ## Consequences
 

@@ -11,9 +11,15 @@ It requires Kubernetes 1.30 or later.
 
 The chart takes no secret values. It references Secrets you create in the release's namespace:
 
-- `database.existingSecret` or `database.parts.existingSecret`: the Postgres database, as a Secret holding the finished
-  Npgsql connection string under the `connection-string` key, or as the Secret your Postgres operator writes, with no
-  Secret of your own to build; see [Database and Valkey](#database-and-valkey).
+- `database.existingSecret` or `database.parts.existingSecret`: the Postgres database as the runtime role's connection,
+  the one the pods read, as a Secret holding the finished Npgsql connection string under the `connection-string` key,
+  or as the Secret your Postgres operator writes, with no Secret of your own to build; see
+  [Database and Valkey](#database-and-valkey).
+- `migrations.database.existingSecret` or `migrations.database.parts.existingSecret`: the schema owner's connection,
+  read only by the migration Job, in the same two forms. The role has the right to create and change the schema; the
+  runtime role does not.
+- `database.runtimeRole`: the name of the runtime role, a value rather than a Secret. Required while
+  `migrations.enabled` is `true`, when the migration Job grants the role access to the tables.
 - `secretProtection.local.keySecret`: a Secret holding the local root key under the `key` key (base64url, 32 bytes).
   The root key encrypts every stored secret and the Data Protection key ring, so back it up and never change it in
   place; see [Secret protection](#secret-protection).
@@ -23,8 +29,6 @@ The chart takes no secret values. It references Secrets you create in the releas
 - `valkey.existingSecret` or `valkey.parts.existingSecret`, for more than one replica: the Valkey server, as a Secret
   holding the finished connection string under the `connection-string` key, or as the Secret your Valkey operator
   writes, with no Secret of your own to build; see [Database and Valkey](#database-and-valkey).
-- `migrations.database`, optional: a connection with the right to change the schema, used only by the migration Job,
-  in either form (`existingSecret` or `parts.existingSecret`). It defaults to `database`.
 - cert-manager, unless `backendTls.existingSecret` names a Secret: the chart creates the `Certificate` (and, without
   `backendTls.certManager.issuerRef.name`, a private CA) that issues the pods' serving certificate; see
   [Transport security](#transport-security). The chart also creates the ingress `Certificate` `<release>-ingress`
@@ -40,12 +44,15 @@ The chart takes no secret values. It references Secrets you create in the releas
 Create each Secret in the release's namespace, and name it in the value that references it. The key names below are the
 chart's defaults; each is a value you can change.
 
-The database connection string, as `database.existingSecret` reads it. Use the Npgsql connection string of your
-database; the placeholders are yours:
+The database connection string of the runtime role, as `database.existingSecret` reads it, and of the schema owner, as
+`migrations.database.existingSecret` reads it. Use the Npgsql connection string of your database; the placeholders are
+yours:
 
 ```bash
 kubectl create secret generic identity-database \
-  --from-literal=connection-string='Host=<host>;Database=<database>;Username=<user>;Password=<password>'
+  --from-literal=connection-string='Host=<host>;Database=<database>;Username=<runtime role>;Password=<password>'
+kubectl create secret generic identity-database-owner \
+  --from-literal=connection-string='Host=<host>;Database=<database>;Username=<owner>;Password=<password>'
 ```
 
 The Valkey connection string, as `valkey.existingSecret` reads it, for more than one replica. Use your server's
@@ -80,16 +87,18 @@ Secrets `ExternalSecret` that writes the same Secret with the same keys works th
 
 ## Published artifacts
 
-Every merge to `main` and every release tag `v*.*.*` publishes four artifacts to GHCR at one version
-(`0.0.1-alpha.<n>` for a merge to `main`, the tag's version for a release tag), through the Publish artifacts workflow ([ADR-1505](../../docs/decisions/1505-every-merge-to-main-publishes-the-host-image-the-console-image-the-chart-and-the-openapi-document-at-one-prerelease-version.md)):
+Every merge to `main` and every release tag `v*.*.*` publishes five artifacts to GHCR at one version
+(`0.0.1-alpha.<n>` for a merge to `main`, the tag's version for a release tag), through the Publish artifacts workflow ([ADR-1505](../../docs/decisions/1505-every-merge-to-main-publishes-the-host-console-and-directory-images-the-chart-and-the-openapi-document-at-one-prerelease-version.md)):
 
 - `ghcr.io/ncodegroup/ncode-identity-host:<version>`, the host image.
 - `ghcr.io/ncodegroup/ncode-identity-management-console:<version>`, the management console image.
+- `ghcr.io/ncodegroup/ncode-identity-directory:<version>`, the global directory image, which `directory.enabled` runs.
 - `oci://ghcr.io/ncodegroup/charts/ncode-identity-host`, this chart, at version `<version>`.
 - `oci://ghcr.io/ncodegroup/openapi/ncode-identity-host` at version `<version>`, the host's OpenAPI document (`v1.json`), which `oras pull` fetches.
 
-The chart pins its image tags to its own `appVersion`, so following the chart follows the images. A stable version also tags both images `latest`. A Flux `HelmRelease`
-or `helm install` takes a semver range that includes prereleases, such as `>=0.0.1-alpha`, to follow them.
+The chart pins its image tags to its own `appVersion`, so following the chart follows the images. A stable version also
+tags every image `latest`. A Flux `HelmRelease` or `helm install` takes a semver range that includes prereleases, such
+as `>=0.0.1-alpha`, to follow them.
 
 Verify the chart signature, then the host image provenance:
 
@@ -106,8 +115,9 @@ gh attestation verify oci://ghcr.io/ncodegroup/ncode-identity-host:<version> --r
 Each package's access is set once, in GitHub: no API sets a package's Actions access, its repository link or its
 visibility. A package the workflow creates is linked to this repository and the workflow can write to it, but it starts
 private. A package first pushed by hand is neither linked nor writable by the workflow, and the workflow's push to it
-fails. For each of `ncode-identity-host`, `ncode-identity-management-console`, `charts/ncode-identity-host` and
-`openapi/ncode-identity-host`, open the package from the organization's **Packages** tab and:
+fails. For each of `ncode-identity-host`, `ncode-identity-management-console`, `ncode-identity-directory`,
+`charts/ncode-identity-host` and `openapi/ncode-identity-host`, open the package from the organization's **Packages**
+tab and:
 
 1. In **Package settings**, under **Manage Actions access**, click **Add repository**, choose `NCodeGroup/identity`
    and give it the **Write** role.
@@ -122,17 +132,119 @@ points here.
 
 ```bash
 helm install identity charts/ncode-identity-host \
+  --set cell.name=prod-1 --set cell.region=eu --set cell.isControlPlane=true \
   --set 'allowedHosts={id.example.com}' \
   --set tenantResolution.staticSingle.issuer=https://id.example.com \
-  --set database.parts.existingSecret=pg-app \
+  --set database.parts.existingSecret=pg-runtime --set database.runtimeRole=ncode_identity_app \
+  --set migrations.database.parts.existingSecret=pg-app \
   --set secretProtection.rootKeyProvider=local --set secretProtection.local.keySecret=identity-root-key --set secretProtection.recovery.publicKeyConfigMap=identity-recovery-key
 ```
 
-`pg-app` is a CloudNativePG cluster's Secret; a deployer without an operator names a connection-string Secret with
-`database.existingSecret` instead (see [Database and Valkey](#database-and-valkey)).
+`pg-app` is a CloudNativePG cluster's Secret for the schema owner, and `pg-runtime` holds the runtime role's connection
+(see [Database and Valkey](#database-and-valkey)); a deployer without an operator names connection-string Secrets with
+`database.existingSecret` and `migrations.database.existingSecret` instead. The release is one cell, named and placed by
+`cell.name` and `cell.region` (see [The cell](#the-cell)).
 
 `ci/high-availability-values.yaml` shows a rolling three-replica release with Valkey, an ingress, and a retired local
-root key.
+root key. `ci/cell-values.yaml` shows a cell that is not the control plane, and `ci/directory-values.yaml` the
+control-plane cell that runs the directory and reaches it as its own machine client.
+
+## The cell
+
+A release is one cell: a host, its database, its Valkey and its KMS keys, in one region
+([ADR-1411](../../docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)). The `cell` values name
+it, and the chart renders them as the `Cell` section the host binds:
+
+- `cell.name`, required, the cell's name, unique across the platform: 1 to 31 characters of lowercase letters, digits
+  and single hyphens, starting with a letter and ending with a letter or digit, with no two hyphens in a row
+  (`Cell__Name`). It is also the tag the host's remote-key sweep reads, so every replica and release that shares the
+  cell's database uses it;
+- `cell.region`, required, the region the cell runs in, in the same form (`Cell__Region`). Tenants of one region move
+  between its cells;
+- `cell.kind` (default `shared`), an open name such as `shared`, `dedicated` or `sovereign` (`Cell__Kind`);
+- `cell.cloudRegions` (default empty), the cloud regions the cell's infrastructure spans, rendered as
+  `Cell__CloudRegions__<i>` (the KMS adapters refuse a key outside them);
+- `cell.managementUrl`, the absolute URL at which the cell's management API is reachable, rendered when set
+  (`Cell__ManagementUrl`) and required when `directory.url` is set, because the cell registers it with the directory;
+- `cell.isControlPlane` (default `false`), whether the cell is the control-plane cell, which serves platform and team
+  management and setup (`Cell__IsControlPlane`);
+- `cell.controlPlaneIssuer`, the issuer of the control-plane cell (`Cell__ControlPlane__Issuer`), required when
+  `cell.isControlPlane` is `false` because the cell accepts platform and team management tokens from it, and when
+  `directory.url` is set because the cell asks it for the token it presents to the directory.
+
+A cell reaches the platform's directory through the `directory` values, rendered as the `Directory` section
+(`Directory__Url`, `Directory__ClientId`, `Directory__KeyRing`) when `directory.url` is set, and then
+`directory.clientId` and `directory.keyRing` are required. `directory.url` selects the remote directory, as
+`Directory:Url` does in the host: while it is empty, the cell keeps the local adapters and the chart refuses
+`directory.clientId`, `directory.keyRing`, `directory.keys.pemSecret` and `directory.keys.remoteKeys`. The key ring that
+`directory.keyRing` names holds the keys that sign the assertions of the cell's client, `cell-<cell.name>`, and is
+rendered as `KeyRings__<directory.keyRing>__…`:
+
+- `directory.keys.pemSecret`, a Secret holding the client's private key under the key `<directory.keyRing>.pem`, which
+  the Deployment's pods mount at `/etc/ncode-identity/directory-key`; the key's id is the value of `directory.keyRing`;
+- `directory.keys.remoteKeys`, keys that a key management service holds, by key id, each with `provider`, `keyId`,
+  `algorithm`, `secretType`, `keySizeBits` and, for an elliptic-curve key, `curve`, as for the console's key rings.
+
+The key ring needs at least one key, and rendering fails when it has none, when a remote key's `keyId` does not fit its
+provider, or when two keys share an id, compared without case.
+
+The cell's `directory` values say the same as the platform's bootstrap runbook: for every cell that sets
+`directory.url`, the control-plane cell included, the platform's operator registers the machine client
+`cell-<cell.name>` in the control-plane cell's root tenant with its key ring's public keys, and `directory.url`,
+`directory.clientId`, `directory.keyRing` and `directory.keys.*` give the cell the client and its private keys. A
+control-plane cell without `directory.url` keeps the local adapters, so its teams and platform changes never reach the
+directory. [Run the cells of a platform](../../docs/platform-bootstrap.md#9-run-the-cells-of-a-platform) lists the
+steps. Only the Deployment carries the directory client's settings and key: the setup and secret-protection Jobs run
+offline commands that never call the directory.
+
+`directory.enabled` (default `false`) runs the directory host from the same release, which suits the release of the
+control-plane cell or a release of its own. It deploys the directory as one replica with a Service and a pre-install
+and pre-upgrade Job that applies its migrations, and requires:
+
+- `directory.issuer`, the issuer of the control-plane cell, whose bearer tokens the directory accepts
+  (`DirectoryServer__Issuer`);
+- `directory.controlPlaneCell`, the name of the control-plane cell, the only cell that writes the platform and the teams
+  (`DirectoryServer__ControlPlaneCell`);
+- `directory.allowedHosts`, the host names the directory answers to, such as the host of `directory.url`; `*` is
+  refused;
+- `directory.database`, the runtime role's connection to a database of its own, never the cell's, which only the
+  directory's Deployment receives. It takes one of two forms, and never both: `directory.database.existingSecret`, a
+  Secret that holds the finished Npgsql connection string under `directory.database.connectionStringKey` (default
+  `connection-string`), which the Deployment receives as `ConnectionStrings__directory`; or
+  `directory.database.parts.existingSecret`, a Secret that holds the connection's parts, as a Postgres operator writes
+  it, which the Deployment receives as `DirectoryDatabase__Host`, `DirectoryDatabase__Port`, `DirectoryDatabase__Name`,
+  `DirectoryDatabase__Username` and `DirectoryDatabase__Password`, each from the key that `directory.database.parts`
+  names with `hostKey`, `portKey`, `databaseKey`, `usernameKey` and `passwordKey`. The defaults are the keys of a
+  CloudNativePG `<cluster>-app` Secret, an empty `portKey` leaves the port out, and the host, database, user and
+  password keys must name a key. The connection logs in as the runtime role, which owns no table;
+- `directory.database.runtimeRole`, that runtime role's name, lower-case letters, digits and underscores, which the
+  migration Job grants data access to the directory's tables (`DirectoryMigration__RuntimeRole`);
+- `directory.migrations.database`, the connection of the role that owns the directory's schema, which only the migration
+  Job reads: the Job connects as the schema owner and the Deployment as the runtime role. It takes the same two forms,
+  `directory.migrations.database.existingSecret` or `directory.migrations.database.parts.existingSecret`, never both,
+  and the Job receives it under the same names as the Deployment, `ConnectionStrings__directory` or
+  `DirectoryDatabase__*`, with the owner's credentials. An empty `connectionStringKey` or parts key falls back to the
+  same key under `directory.database`, so a Secret of the same shape needs only its name;
+- `directory.tls.existingSecret`, a `kubernetes.io/tls` Secret whose certificate names the host of `directory.url`,
+  because the directory serves HTTPS only.
+
+`directory.image.*`, `directory.service`, `directory.migrations.backoffLimit`,
+`directory.migrations.activeDeadlineSeconds`, `directory.migrations.resources`, `directory.resources`, `directory.extraEnv`,
+`directory.extraEnvFrom`, `directory.extraVolumes` and `directory.extraVolumeMounts` tune the directory's Deployment and
+Job. The directory host answers audience `urn:ncode:directory` with scope `directory`.
+
+The directory runs under its own ServiceAccount, without a token mounted, because it never calls the Kubernetes API.
+`directory.serviceAccount` names or creates it: `create` (default `true`) makes it, `name` overrides its name, which is
+the directory's full name, `<release full name>-directory`, when `create` is `true` and `name` is empty, and `default`
+when `create` is `false` and `name` is empty, and `annotations` annotate it. The migration Job runs before the chart's own
+account exists on a first install, so it uses the namespace's default account unless `create` is `false`, when it runs
+under the account `name` names.
+
+`backup.location` names where the cell's backups are kept, such as a bucket or a volume snapshot class. When set, the
+pods that own a database, those of the host, the directory and their migration Jobs, carry it as the
+`ncode.io/backup-location` annotation for the backup tool to read; the chart starts no backup itself.
+`telemetry.otlpEndpoint` sets `OTEL_EXPORTER_OTLP_ENDPOINT` on every pod, and every pod carries
+`OTEL_RESOURCE_ATTRIBUTES` with `cell.name` and `cell.region`, so a signal names its cell.
 
 ## What the chart refuses
 
@@ -152,10 +264,12 @@ Rendering fails, before anything is applied, when:
 - `backendTls.caPublisher.enabled` is `true`, the management console is enabled with a certificate of your own in
   `managementConsole.backendTls.existingSecret`, and `managementConsole.backendTls.caConfigMap` is empty, because the
   console's CA ConfigMap would fall back to the one the publisher writes, which holds only the chart's private CA;
-- neither `database.existingSecret` nor `database.parts.existingSecret` is set, a connection (`database` or
-  `migrations.database`) sets both, a connection's `existingSecret` is set and the key of its connection string,
-  `connectionStringKey`, is empty (a `migrations.database` key falls back to the one under `database`), or a parts
-  Secret leaves `hostKey`, `databaseKey`, `usernameKey` or `passwordKey` empty;
+- neither `database.existingSecret` nor `database.parts.existingSecret` is set; `migrations.enabled` is `true` and
+  neither `migrations.database.existingSecret` nor `migrations.database.parts.existingSecret` is set, or
+  `database.runtimeRole` is empty; `database.runtimeRole` is set and is not a lower-case Postgres role name; a
+  connection (`database` or `migrations.database`) sets both forms, a connection's `existingSecret` is set and the key
+  of its connection string, `connectionStringKey`, is empty (a `migrations.database` key falls back to the one under
+  `database`), or a parts Secret leaves `hostKey`, `databaseKey`, `usernameKey` or `passwordKey` empty;
 - a Valkey connection (`valkey` or `managementConsole.valkey`) sets both `existingSecret` and `parts.existingSecret`,
   sets `existingSecret` and leaves `connectionStringKey` empty, or has a parts Secret that leaves `hostKey` empty. The
   other `parts` keys may be empty, because an empty key leaves that part out;
@@ -177,9 +291,26 @@ Rendering fails, before anything is applied, when:
 - a `secretProtection.remoteKeyProviders` location, `awsKms.region`, `azureKeyVault.vaultUri` or
   `googleCloudKms.keyRing`, is set and the provider's `enabled` is `false`, because a location registers nothing on its
   own;
-- an enabled `secretProtection.remoteKeyProviders` provider has its location and
-  `secretProtection.remoteKeys.deployment` is empty, because the provider creates keys and the sweep finds them by the
-  deployment;
+- `cell.name` or `cell.region` is empty or is not a cell name (1 to 31 characters of lowercase letters, digits and
+  single hyphens, starting with a letter and ending with a letter or digit, with no two hyphens in a row), or
+  `cell.isControlPlane` is `false` and `cell.controlPlaneIssuer` is empty, because the host's remote-key sweep reads the
+  cell's name and a cell that is not the control plane reaches the control plane's issuer;
+- `directory.url` is set and `cell.controlPlaneIssuer` is empty, because the cell asks the control-plane cell's issuer
+  for the token it presents to the directory;
+- `directory.url` is set and `directory.clientId` is not `cell-<cell.name>` or `cell.managementUrl` is empty, because
+  the directory knows a cell by its machine client and the cell registers its management URL with the directory;
+- `directory.clientId` is set and is not `cell-` followed by a cell name, the machine client the cell authenticates as;
+- a value of the cell's directory client (`directory.clientId`, `directory.keyRing`, `directory.keys.pemSecret` or
+  `directory.keys.remoteKeys`) is set and `directory.url` is empty, because the chart then renders none of them and the
+  cell keeps the local adapters;
+- a `directory.url` or `directory.issuer` is set and is not an absolute `https` URL, or an `http` URL on a loopback
+  host, written with its authority and with no user information, query, fragment or white space; a
+  `cell.controlPlaneIssuer` is not such a URL while the host reads it, which is when `cell.isControlPlane` is `false`
+  or `directory.url` is set; a `cell.managementUrl` is set and is not such an `https` URL;
+- a value that configures the directory host (`directory.issuer`, `directory.controlPlaneCell`,
+  `directory.allowedHosts`, `directory.database`, `directory.migrations.database`, `directory.tls`,
+  `directory.serviceAccount`, `directory.image` or `directory.extra*`) is set and `directory.enabled` is `false`,
+  because the chart then runs no directory host;
 - a key management service is used, as `secretProtection.rootKeyProvider`, in `secretProtection.ownerRootKeys.providers`
   or enabled under `secretProtection.remoteKeyProviders`, and its workload credentials are half set: only one of
   `secretProtection.azureKeyVault.workloadIdentity.tenantId` and `clientId` is set, or
@@ -211,9 +342,11 @@ Rendering fails, before anything is applied, when:
 ## Migrations
 
 The host does not migrate on boot. Before each install and upgrade, a Helm hook Job runs the migration worker from the
-host's image and applies the pending EF Core migrations. Helm waits for it: a failed migration fails the release before
-any pod is replaced, and the Job stays until the next release so its logs can be read. Helm's `--timeout` must cover
-the migrations.
+host's image as the schema owner (`migrations.database`) and applies the pending EF Core migrations. It then enables
+row-level security on the tenant tables and grants the runtime role (`database.runtimeRole`) access to the tables, so
+the pods connect as a role that cannot change the schema or bypass row-level security. Helm waits for it: a failed
+migration fails the release before any pod is replaced, and the Job stays until the next release so its logs can be
+read. Helm's `--timeout` must cover the migrations.
 
 The previous version keeps serving while the Job runs and until the rollout ends, so every migration must keep it
 working: add first, and drop or rename only in a later release
@@ -246,7 +379,8 @@ console, the step says so and takes a pasted set.
 
 To create the root administrator without a browser, enable `setup.job`. It renders a Job per release revision that runs
 the host image's `setup` command, creates the root administrator from the Secret named in `setup.job.existingSecret`, and
-exits 0 on an instance that is already initialized. The setup values:
+exits 0 on an instance that is already initialized. Setup runs in the control-plane cell only, so the chart refuses
+`setup.job.enabled` unless `cell.isControlPlane` is `true`. The setup values:
 
 | Value                                    | Meaning                                                                                     |
 |------------------------------------------|---------------------------------------------------------------------------------------------|
@@ -633,11 +767,9 @@ workload identity. The values are:
   `hardwareProtected` (default `true`);
 - `secretProtection.remoteKeyProviders.googleCloudKms.keyRing`, the key ring in which keys are created, and
   `hardwareProtected` (default `true`);
-- `secretProtection.remoteKeys.deployment`, which names this release's keys in a shared KMS scope (an AWS account, a
-  vault or a key ring): lowercase letters, digits and hyphens, at most 40 characters. It is required when an enabled
-  provider has its location. A deployment is one database of stored secrets: every replica and release that shares the
-  database uses its name, and no other deployment in the same AWS account, vault or key ring uses it, because each
-  deployment destroys every key of its name that its own database does not name;
+- the tag of the keys the host creates is `cell.name`: a cell is one database of stored secrets, so every replica and
+  release that shares the database uses its name, and no other cell in the same AWS account, vault or key ring uses it,
+  because each cell destroys every key of its name that its own database does not name;
 - `secretProtection.remoteKeys.sweepEnabled` (default `true`), `sweepInterval` (default `1.00:00:00`) and
   `sweepGracePeriod` (default `1.00:00:00`, between one hour and 365 days), which control the background sweep that
   destroys the keys no stored secret names
@@ -648,16 +780,13 @@ The chart renders an enabled provider as `SecretProtection__RemoteKeyProviders__
 ([ADR-1485](../../docs/decisions/1485-the-host-chart-enables-server-kms-vendors-and-holds-console-key-rings-under-the-consoles-identity.md));
 it renders `pendingWindowInDays` and `hardwareProtected` whenever the provider is enabled and its location only when
 set, and `hardwareProtected` applies only to the keys the provider creates; a provider that is not enabled renders
-nothing and no tenant can choose it; the deployment renders as `SecretProtection__RemoteKeys__Deployment` with
-`__SweepEnabled`, `__SweepInterval` and `__SweepGracePeriod`.
+nothing and no tenant can choose it; the sweep renders as `SecretProtection__RemoteKeys__SweepEnabled`,
+`__SweepInterval` and `__SweepGracePeriod`, and the host derives the sweep's tag from `Cell:Name`.
 
 An enabled provider with its location creates keys: `tenant_key_provider` can name it, the host does not start unless it
 holds every signing and encryption key the database provisions through it, and the sweep destroys only keys tagged with
-the deployment, older than the grace period, that no stored secret names. A release that enables such a provider
-without `secretProtection.remoteKeys.deployment` is refused:
-`secretProtection.remoteKeys.deployment must name this deployment when an enabled remote key provider creates keys,
-because its region, vaultUri or keyRing is set: lowercase letters, digits and hyphens.` A location on a provider that is
-not enabled is refused too:
+the cell's name, older than the grace period, that no stored secret names. A location on a provider that is
+not enabled is refused:
 `secretProtection.remoteKeyProviders.<vendor>.<location> is set and <vendor>.enabled is false: set enabled to register
 the provider, or clear <location>.` `ci/remote-key-providers-values.yaml` shows a release that creates keys in all
 three.
@@ -667,7 +796,7 @@ creates none
 ([ADR-1474](../../docs/decisions/1474-a-remote-key-provider-is-described-by-data-and-reads-signs-and-decrypts-by-key-identifier.md)):
 the management API binds a key by its identifier and the server reads, signs with and decrypts with it;
 `tenant_key_provider` cannot name the provider, the management API refuses to create a key in it, the sweep skips it,
-and the release needs no `secretProtection.remoteKeys.deployment`; the server never destroys a key it binds.
+and the release names no key-creating location; the server never destroys a key it binds.
 `ci/bind-only-remote-key-providers-values.yaml` shows a release that binds keys in all three.
 
 ```yaml
@@ -701,12 +830,18 @@ proves the key before it stores it: AWS `kms:GetPublicKey` plus `kms:Sign`, `kms
 as the key's algorithm says, Azure `Key Vault Crypto User` on the key, Google `cloudkms.cryptoKeyVersions.viewPublicKey`
 plus `.useToSign` or `.useToDecrypt`. A provider without its location needs only these.
 
-Scope the identity to the deployment's keys: on AWS, condition `kms:ScheduleKeyDeletion` on
-`aws:ResourceTag/ncode-identity:deployment` equal to the deployment name, and `kms:CreateKey` and `kms:TagResource` on
-`aws:RequestTag/ncode-identity:deployment`, so it creates and destroys only keys of its deployment (`kms:ListKeys`
-names no resource, and a bound key carries no such tag); on Azure, a role assignment cannot be conditioned on a key's
-tags, so give each deployment a vault of its own and a custom role without delete and purge; on Google, a grant on a key
-ring covers every crypto key in it, so give each deployment a key ring of its own.
+Scope the identity to the cell's keys: on AWS, condition `kms:ScheduleKeyDeletion` on
+`aws:ResourceTag/ncode-identity:deployment` equal to the cell's name (`cell.name`) and `kms:CreateKey` on
+`aws:RequestTag/ncode-identity:deployment` equal to it, so it creates and destroys only keys of its cell (`kms:ListKeys`
+names no resource, and a bound key carries no such tag), and condition `kms:TagResource` on
+`aws:RequestTag/ncode-identity:deployment` being one of the names of the cells of its region, because a tenant move tags
+a moved tenant's keys with the target cell's name and an undone import tags them back; on Azure, a role assignment
+cannot be conditioned on a key's tags, so give each cell a vault of its own, and the cells of a region that move tenants
+between them one vault for the region, with a custom role without delete and purge; on Google, a grant on a key ring
+covers every crypto key in it, so give each cell a key ring of its own, and the cells of a region that move tenants
+between them one key ring for the region, with `cloudkms.cryptoKeys.get` and `cloudkms.cryptoKeys.update` for the move's
+retag. Cells that move tenants share one AWS account and region, one vault or one key ring, because the target cell's
+sweep lists only its own location ([tenant move runbook](../../docs/tenant-move.md#0-before-you-start)).
 
 **Choosing a provider.** A tenant, a team or the platform selects a provider with the setting
 `tenant_key_provider`, whose value is empty (local keys) or an enabled provider with its location: `aws-kms`,
@@ -752,8 +887,8 @@ kubectl create secret generic identity-mgmt-dpop-key --from-file=mgmt-dpop.pem
 ```
 
 Name the Secrets in `managementConsole.keyRings.client.pemSecret` and `managementConsole.keyRings.dpop.pemSecret`. The
-chart mounts each read-only and points `Bff__KeyRings__mgmt-client__PemFiles__0` and
-`Bff__KeyRings__mgmt-dpop__PemFiles__0` at the files. To hold a ring's keys in a key management service instead or as
+chart mounts each read-only and points `KeyRings__mgmt-client__PemFiles__0` and
+`KeyRings__mgmt-dpop__PemFiles__0` at the files. To hold a ring's keys in a key management service instead or as
 well, see [The console's keys in a key management service](#the-consoles-keys-in-a-key-management-service).
 
 Register `mgmt-console` with the server as a confidential client of the control-plane tenant, with the metadata of
@@ -790,9 +925,11 @@ Pass console settings such as `ManagementConsole__Branding__DisplayName` through
 
 ```bash
 helm install identity charts/ncode-identity-host \
+  --set cell.name=prod-1 --set cell.region=eu --set cell.isControlPlane=true \
   --set 'allowedHosts={id.example.com}' \
   --set tenantResolution.staticSingle.issuer=https://id.example.com \
-  --set database.parts.existingSecret=pg-app \
+  --set database.parts.existingSecret=pg-runtime --set database.runtimeRole=ncode_identity_app \
+  --set migrations.database.parts.existingSecret=pg-app \
   --set secretProtection.rootKeyProvider=local --set secretProtection.local.keySecret=identity-root-key --set secretProtection.recovery.publicKeyConfigMap=identity-recovery-key \
   --set managementConsole.enabled=true --set managementConsole.host=manage.example.com \
   --set managementConsole.keyRings.client.pemSecret=identity-mgmt-client-key \
@@ -803,8 +940,8 @@ helm install identity charts/ncode-identity-host \
 
 ### The console's keys in a key management service
 
-Each console key ring, `managementConsole.keyRings.client` (`Bff:KeyRings:mgmt-client`) and
-`managementConsole.keyRings.dpop` (`Bff:KeyRings:mgmt-dpop`), holds a PEM key from a Secret, keys that a key management
+Each console key ring, `managementConsole.keyRings.client` (`KeyRings:mgmt-client`) and
+`managementConsole.keyRings.dpop` (`KeyRings:mgmt-dpop`), holds a PEM key from a Secret, keys that a key management
 service holds, or both. A key a key management service holds signs every request the console makes, so the private key
 never reaches the pod
 ([ADR-1479](../../docs/decisions/1479-a-protocol-clients-and-a-bffs-keys-can-be-held-in-a-key-management-service.md),
@@ -841,7 +978,7 @@ managementConsole:
         roleArn: arn:aws:iam::111122223333:role/ncode-identity-management-console
 ```
 
-The chart renders each remote key as `Bff__KeyRings__<ring>__RemoteKeys__<kid>__Provider`, `__KeyId`, `__Algorithm`,
+The chart renders each remote key as `KeyRings__<ring>__RemoteKeys__<kid>__Provider`, `__KeyId`, `__Algorithm`,
 `__SecretType`, `__KeySizeBits` and `__Curve`, where `<ring>` is `mgmt-client` or `mgmt-dpop`. The console image
 registers the AWS KMS, Azure Key Vault and Google Cloud KMS providers without a key-creation location, and the console
 reads every key where the key's own identifier names, so the chart renders no
@@ -868,7 +1005,7 @@ server's.
 
 The console reads and proves each key at start. A key it cannot read or use stops it, and a rotation of the key takes
 effect when the console restarts. The key is the operator's: the console never creates, tags or destroys it. Keep it
-out of the `ncid-` groups and out of the tag of `secretProtection.remoteKeys.deployment`, in a scope of its own, so the
+out of the `ncid-` groups and out of the tag of `cell.name`, in a scope of its own, so the
 server's sweep never names it. Keep the DPoP key in a Secret unless the threat model needs it in a key management
 service and the request rate fits the service's quota
 ([ADR-1479](../../docs/decisions/1479-a-protocol-clients-and-a-bffs-keys-can-be-held-in-a-key-management-service.md)).
@@ -1142,7 +1279,8 @@ missing Secret stays in `CreateContainerConfigError`. The example's release name
 
 | Kind        | Name                       | Keys                            | Holds                                                                                              |
 |-------------|----------------------------|---------------------------------|----------------------------------------------------------------------------------------------------|
-| `Secret`    | `identity-database`        | `connection-string`             | The Npgsql connection string of the database, or use `database.parts.existingSecret`.              |
+| `Secret`    | `identity-database`        | `connection-string`             | The runtime role's Npgsql connection string, or use `database.parts.existingSecret`.               |
+| `Secret`    | `identity-database-owner`  | `connection-string`             | The schema owner's Npgsql connection string, or use `migrations.database.parts.existingSecret`.    |
 | `Secret`    | `identity-root-key`        | `key`                           | The local root key; see [Creating the local root key Secret](#creating-the-local-root-key-secret). |
 | `ConfigMap` | `identity-recovery-key`    | `recovery-public.pem`           | The recovery public key; see [Creating the recovery key](#creating-the-recovery-key).              |
 | `Secret`    | `identity-setup-token`     | `token`                         | The setup token, at least 32 characters; see [First use](#first-use).                              |
@@ -1232,7 +1370,7 @@ spec:
   chart:
     spec:
       chart: ncode-identity-host
-      # The chart's appVersion pins both images, so a range that includes prereleases rolls the images out too.
+      # The chart's appVersion pins every image, so a range that includes prereleases rolls the images out too.
       version: ">=0.0.1-alpha"
       sourceRef:
         kind: HelmRepository
@@ -1248,6 +1386,10 @@ spec:
   values:
     # The release's values: one replica behind Traefik, the management console on its own host, and the root
     # administrator created by the setup Job. Every Secret and the ConfigMap named here exists before the release.
+    cell:
+      name: ci-gitops
+      region: ci
+      isControlPlane: true
     allowedHosts:
       - id.example.com
     tenantResolution:
@@ -1258,6 +1400,10 @@ spec:
         - 10.42.0.0/16
     database:
       existingSecret: identity-database
+      runtimeRole: ncode_identity_app
+    migrations:
+      database:
+        existingSecret: identity-database-owner
     secretProtection:
       rootKeyProvider: local
       local:
@@ -1307,8 +1453,8 @@ spec:
 ```
 
 - `version: ">=0.0.1-alpha"` selects the newest chart version in the range, prereleases included, which covers every
-  `0.0.1-alpha.<n>` that a merge to `main` publishes. The chart's `appVersion` pins both images, so a newer chart
-  version rolls the host and the console out too. Name one exact version to stop following.
+  `0.0.1-alpha.<n>` that a merge to `main` publishes. The chart's `appVersion` pins every image, so a newer chart
+  version rolls the host, the console and the directory out too. Name one exact version to stop following.
 - `timeout` is Helm's wait for each operation, the migration Job included, so it outlasts the Job's
   `migrations.activeDeadlineSeconds` (600 seconds). Raise both for a long migration.
 - `install.remediation` retries a failed install three times, uninstalling between attempts. `upgrade.remediation`
@@ -1374,7 +1520,14 @@ without a release enabling it.
 
 ## Database and Valkey
 
-The Postgres database takes one of two forms, and a connection never takes both:
+The Postgres database takes two credentials. `database` is the runtime role's connection, which the pods read, and
+`migrations.database` is the schema owner's connection, which only the migration Job reads. `database` is always
+required, `migrations.database` is required while `migrations.enabled` is `true`, and `migrations.database` never falls
+back to `database`. `database.runtimeRole` names the runtime role, and the Job grants it access to the tables, so it is
+required while `migrations.enabled` is `true`. The runtime role must not own the tables, be a superuser or have
+`BYPASSRLS`: the host refuses to start when it does.
+
+Each connection takes one of two forms, and a connection never takes both:
 
 - `database.existingSecret` names a Secret that holds the finished Npgsql connection string under
   `database.connectionStringKey` (`connection-string` by default). The pods receive it as `ConnectionStrings__openiddb`.
@@ -1395,21 +1548,22 @@ The key that holds each part is a value, and the defaults are the keys of a Clou
 An empty `portKey` leaves the port out, and Npgsql uses 5432. The host, database, user and password keys must name a
 key.
 
-For a CloudNativePG cluster named `pg`, its `pg-app` Secret works as it is:
+For a CloudNativePG cluster named `pg`, its `pg-app` Secret works as the owner's connection as it is, and a Secret of
+the same shape holds the runtime role's:
 
 ```shell
---set database.parts.existingSecret=pg-app
+--set migrations.database.parts.existingSecret=pg-app
+--set database.parts.existingSecret=pg-runtime --set database.runtimeRole=ncode_identity_app
 ```
 
-To give the migration Job the Secret of a role with the right to change the schema, name it under
-`migrations.database.parts`. Its keys default to the ones under `database.parts`, so a Secret of the same shape needs
+The keys of `migrations.database.parts` default to the ones under `database.parts`, so a Secret of the same shape needs
 only its name:
 
 ```yaml
 migrations:
   database:
     parts:
-      existingSecret: pg-schema
+      existingSecret: pg-app
 ```
 
 The host assembles the connection with the password quoted, so any password works, including one that holds `;`, `'`
@@ -1471,5 +1625,5 @@ more
 
 The image writes one JSON object per line to standard output, with a UTC timestamp, so a log collector keeps an entry
 and its exception in one record
-([ADR-1248](../../docs/decisions/1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)). Set
+([ADR-1248](../../docs/decisions/1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)). Set
 `Logging__Console__FormatterName=simple` in `extraEnv` to write text instead.

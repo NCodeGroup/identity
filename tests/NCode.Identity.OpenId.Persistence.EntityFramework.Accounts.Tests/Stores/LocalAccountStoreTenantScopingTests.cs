@@ -35,6 +35,8 @@ public sealed class LocalAccountStoreTenantScopingTests : IDisposable
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
         Accessor = Provider.GetRequiredService<TestAmbientTenantAccessor>();
         var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
+        DbContext.SeedTenant(idGenerator, TenantA);
+        DbContext.SeedTenant(idGenerator, TenantB);
         Store = new LocalAccountStore(
             Mock.Of<IStoreProvider>(),
             idGenerator,
@@ -113,7 +115,7 @@ public sealed class LocalAccountStoreTenantScopingTests : IDisposable
     {
         await SeedAsync(CancellationToken.None);
 
-        Accessor.TenantId = null;
+        using var scope = Accessor.BeginUnscoped("test");
         Assert.NotNull(await Store.GetByIdOrDefaultAsync(AccountA, CancellationToken.None));
         Assert.NotNull(await Store.GetByIdOrDefaultAsync(AccountB, CancellationToken.None));
     }

@@ -81,7 +81,7 @@ over shared, scoped `@ncode/*` packages, and a layering rule keeps each layer in
   ([ADR-1071](1071-the-aspire-apphost-runs-the-local-stack-in-health-gated-order-after-checking-the-frontend-toolchain.md)).
 - **Scopes are distinct contexts.** The management surface models platform, team and tenant scopes as distinct browsing
   contexts with their own navigation, cache tags and authorization gating, never one filtered list
-  ([ADR-1411](1411-the-platform-is-the-deployment-root-a-team-groups-tenants-and-tenants-share-one-database.md)).
+  ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
 - **Branding through a provider.** Theme tokens sit behind a provider in `@ncode/ui`. A bundle's deployment branding
   arrives in its bootstrap document, and the host embeds a tenant's sign-in branding in the page the `apps/auth` bundle
   mounts over

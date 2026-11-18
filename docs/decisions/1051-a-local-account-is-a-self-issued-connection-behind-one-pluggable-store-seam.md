@@ -94,9 +94,15 @@ Both extend `IServiceBuilder<StoreManagerLibrary>` and are opt-in packages the c
   management does ([ADR-1057](1057-local-account-management-is-an-opt-in-capability-that-provisions-the-principal-eagerly-and-authorizes-per-tenant.md)),
   commits both in one unit of work.
 - `AddAspNetIdentityLocalAccountStore<TUser>()` in `NCode.Identity.OpenId.Accounts.AspNetIdentity`
-  (`TUser : IdentityUser, new()`) implements the seam over `UserManager<TUser>`. It treats Identity's lockout as
-  disabled and uses an empty `TenantId`. Because such a store does not take part in the `OpenIdDbContext` unit of work,
-  `EntityStoreManager` resolves it through a DbContext-less store-factory fallback.
+  (`TUser : IdentityUser, ITenantBoundUser, new()`) implements the seam over `UserManager<TUser>`. `ITenantBoundUser`,
+  the contract of a user that belongs to one tenant, is in `NCode.Identity.OpenId.Accounts.Abstractions`. The adapter
+  treats Identity's lockout as disabled and maps a local account's `TenantId` as empty. Because such a store does not
+  take part in the `OpenIdDbContext` unit of work, `EntityStoreManager` resolves it through a DbContext-less
+  store-factory fallback. The adapter stays store-agnostic: it names no Entity Framework Core type. The opt-in
+  `NCode.Identity.OpenId.Accounts.AspNetIdentity.EntityFrameworkCore` package references only the accounts abstractions
+  of the family and holds `HasTenantLookupLengths()` for a host whose Identity model is an `IdentityDbContext`, which
+  sizes `UserName`, `NormalizedUserName`, `Email` and `NormalizedEmail` from `AccountMaxLengths` in one call, tested
+  over a real Identity model. A host on another store sizes the four columns itself.
 
 Any other store (LDAP, a bespoke table, an external API) is a third implementation of the same seam.
 

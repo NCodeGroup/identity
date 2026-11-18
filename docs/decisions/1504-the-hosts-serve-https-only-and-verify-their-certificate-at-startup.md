@@ -56,10 +56,10 @@ The environment's name never skips the check.
    framework's HTTPS redirection only when `LocalDevelopment:Enabled` is set. A deployment has no plain-HTTP endpoint,
    so it has nothing to redirect. A local-development host keeps the framework's redirect, which it relies on when it
    binds HTTPS and HTTP together.
-5. **The image's TLS contract.** Both images set `ASPNETCORE_URLS=https://+:8443`, which takes precedence over the base
-   image's `ASPNETCORE_HTTP_PORTS`, read the certificate from `/etc/ncode-identity/tls/tls.crt` and the key from
-   `/etc/ncode-identity/tls/tls.key` (`Kestrel__Certificates__Default__Path` and `__KeyPath`), and expose port 8443.
-   The mount point is the contract.
+5. **The image's TLS contract.** The host, console and directory images each set `ASPNETCORE_URLS=https://+:8443`, which
+   takes precedence over the base image's `ASPNETCORE_HTTP_PORTS`, read the certificate from
+   `/etc/ncode-identity/tls/tls.crt` and the key from `/etc/ncode-identity/tls/tls.key`
+   (`Kestrel__Certificates__Default__Path` and `__KeyPath`), and expose port 8443. The mount point is the contract.
 6. **The chart serves HTTPS.** The server's and the console's Deployments carry the TLS environment, the mount and the
    volume. The migration Job runs before cert-manager has created the Secret, and the secret-protection Job runs an
    offline command that binds no endpoint; neither carries a TLS environment, mount or volume. The container port is

@@ -7,9 +7,16 @@ using Microsoft.Extensions.Options;
 using Moq;
 using NCode.Identity.Jose;
 using NCode.Identity.Jwt;
+using NCode.Identity.OpenId.Client.Authentication;
+using NCode.Identity.OpenId.Client.Authorization;
+using NCode.Identity.OpenId.Client.Discovery;
 using NCode.Identity.OpenId.Client.Http;
+using NCode.Identity.OpenId.Client.Keys;
 using NCode.Identity.OpenId.Client.MutualTls;
 using NCode.Identity.OpenId.Client.Options;
+using NCode.Identity.OpenId.Client.ProofOfPossession;
+using NCode.Identity.OpenId.Client.Tokens;
+using NCode.Identity.OpenId.Client.UserInfo;
 using NCode.Identity.Registration;
 using NCode.Identity.Secrets;
 using NCode.Identity.SharedState;
@@ -59,23 +66,33 @@ public sealed class DefaultRegistrationTests : IAsyncLifetime
 
     #region AddOpenIdClientLibrary Tests
 
-    [Fact]
-    public void AddOpenIdClientLibrary_RegistersThePublicServices()
+    [Theory]
+    [InlineData(typeof(IProviderMetadataResolver), typeof(DefaultProviderMetadataResolver))]
+    [InlineData(typeof(IProviderKeySetResolver), typeof(DefaultProviderKeySetResolver))]
+    [InlineData(typeof(IClientKeyRingProvider), typeof(DefaultClientKeyRingProvider))]
+    [InlineData(typeof(IAuthorizationRequestClient), typeof(DefaultAuthorizationRequestClient))]
+    [InlineData(typeof(ITokenClient), typeof(DefaultTokenClient))]
+    [InlineData(typeof(IUserInfoClient), typeof(DefaultUserInfoClient))]
+    [InlineData(typeof(IDPoPProofFactory), typeof(DefaultDPoPProofFactory))]
+    [InlineData(typeof(ITokenRevocationClient), typeof(DefaultTokenRevocationClient))]
+    [InlineData(typeof(IIdTokenValidator), typeof(DefaultIdTokenValidator))]
+    [InlineData(typeof(ILogoutTokenValidator), typeof(DefaultLogoutTokenValidator))]
+    [InlineData(typeof(IIssuerAccessTokenValidator), typeof(DefaultIssuerAccessTokenValidator))]
+    public void AddOpenIdClientLibrary_Always_RegistersTheDefaultImplementationAsASingleton(
+        Type serviceType,
+        Type implementationType
+    )
     {
         JwtBuilder.AddOpenIdClientLibrary();
         Services.AddSingleton(new Mock<IExpiringKeySet>(MockBehavior.Strict).Object);
 
+        var descriptor = Assert.Single(Services, x => x.ServiceType == serviceType);
+        Assert.Equal(implementationType, descriptor.ImplementationType);
+        Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
+
         var provider = BuildProvider();
 
-        Assert.NotNull(provider.GetRequiredService<IProviderMetadataResolver>());
-        Assert.NotNull(provider.GetRequiredService<IProviderKeySetResolver>());
-        Assert.NotNull(provider.GetRequiredService<IClientKeyRingProvider>());
-        Assert.NotNull(provider.GetRequiredService<IAuthorizationRequestClient>());
-        Assert.NotNull(provider.GetRequiredService<ITokenClient>());
-        Assert.NotNull(provider.GetRequiredService<IDPoPProofFactory>());
-        Assert.NotNull(provider.GetRequiredService<ITokenRevocationClient>());
-        Assert.NotNull(provider.GetRequiredService<IIdTokenValidator>());
-        Assert.NotNull(provider.GetRequiredService<ILogoutTokenValidator>());
+        Assert.IsType(implementationType, provider.GetRequiredService(serviceType));
     }
 
     [Fact]

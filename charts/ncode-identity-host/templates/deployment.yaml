@@ -2,6 +2,7 @@
 {{- include "identity-host.backendTls.validate" . }}
 {{- $valkey := include "identity-host.valkeyEnabled" . }}
 {{- $googleCloudCredentials := include "identity-host.kmsCredentials.googleCloudCredentialConfiguration" (include "identity-host.kmsCredentials.server" . | fromYaml) }}
+{{- $backupAnnotations := include "identity-host.backupAnnotations" . | trim }}
 {{- $probeHost := include "identity-host.probeHost" . }}
 apiVersion: apps/v1
 kind: Deployment
@@ -35,10 +36,13 @@ spec:
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- if or .Values.podAnnotations $googleCloudCredentials }}
+      {{- if or .Values.podAnnotations $googleCloudCredentials $backupAnnotations }}
       annotations:
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with $backupAnnotations }}
+        {{- . | nindent 8 }}
         {{- end }}
         {{- if $googleCloudCredentials }}
         # A changed configuration restarts the pods, which read it only at start.
@@ -80,6 +84,9 @@ spec:
               protocol: TCP
           env:
             {{- include "identity-host.hostEnv" . | trim | nindent 12 }}
+            {{- with include "identity-host.directoryClientEnv" . }}
+            {{- . | trim | nindent 12 }}
+            {{- end }}
             {{- include "identity-host.backendTls.env" . | nindent 12 }}
             {{- if .Values.setup.token.existingSecret }}
             - name: Setup__Token
@@ -144,11 +151,17 @@ spec:
           {{- end }}
           volumeMounts:
             {{- include "identity-host.hostVolumeMounts" . | trim | nindent 12 }}
+            {{- with include "identity-host.directoryClientVolumeMounts" . }}
+            {{- . | trim | nindent 12 }}
+            {{- end }}
             - name: backend-tls
               mountPath: /etc/ncode-identity/tls
               readOnly: true
       volumes:
         {{- include "identity-host.hostVolumes" . | trim | nindent 8 }}
+        {{- with include "identity-host.directoryClientVolumes" . }}
+        {{- . | trim | nindent 8 }}
+        {{- end }}
         - name: backend-tls
           secret:
             secretName: {{ include "identity-host.backendTls.secretName" . }}

@@ -90,7 +90,13 @@ composition root chooses: in-process for one replica, Valkey for several.**
      ([ADR-1510](1510-the-host-chart-passes-a-valkey-servers-address-and-password-as-parts-and-the-adapter-assembles-the-connection.md)).
      The `Valkey` section binds `ValkeyOptions` strictly
      ([ADR-1137](1137-configuration-binds-strictly-and-every-option-timer-period-and-retention-is-validated-at-startup.md)):
-     `KeyPrefix`, default `ncode-identity:`, so several deployments can share one server; braces are not allowed in it.
+     `KeyPrefix`, default `ncode-identity:`; braces are not allowed in it. The adapter appends the deployment that
+     `SharedStateOptions.Deployment` in `NCode.Identity.SharedState.Abstractions` names, and `:`. The server's
+     `AddConfiguration` names the cell
+     ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md))
+     as that deployment, so every key of a cell starts `ncode-identity:{cell}:`, where `{cell}` stands for `Cell:Name`,
+     and the cells that share one server keep to their own keys, whichever host composes the server with the adapter. A
+     composition that names no deployment, such as a BFF, keeps the prefix as configured.
    - Without a connection, neither the connection string nor the `ValkeyConnection` parts, the call registers nothing
      and the in-process adapters stay. A `Valkey` section without a connection, both forms at once, a malformed
      connection string, one that names no server, parts without `Host`, a `Port` outside 1-65535 and an `Ssl` that is
@@ -154,6 +160,9 @@ composition root chooses: in-process for one replica, Valkey for several.**
   strings, and a hash needs a script for every operation, not just replace.
 - **One key per index member** beside a plain set. Rejected: two keys per member and no single-key pruning, so expired
   members would need a separate sweep.
+- **The cell's name appended by the reference host, or read from the cell by the adapter.** Rejected: any other host
+  that composes the server with the adapter would share every key with the other cells on its server, and an adapter
+  that reads the cell would carry the global directory's contracts into hosts that run no cell, such as a BFF.
 - **Chosen:** expiring key, value and index ports with in-process defaults and opt-in Valkey adapters.
 
 ## Consequences

@@ -60,14 +60,26 @@ public interface IRoleAssignmentStore : IStore
 
     /// <summary>
     /// Gets every role assignment granted to the specified principal (used by the authorization decision, which then
-    /// filters to the resource's ancestor nodes).
+    /// filters to the resource's ancestor nodes). It reads across tenants, so it runs only in an unscoped scope.
     /// </summary>
     /// <param name="principalId">The identifier of the principal.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the principal's
     /// assignments.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the ambient scope is not unscoped.</exception>
     ValueTask<IReadOnlyList<PersistedRoleAssignment>> GetByPrincipalAsync(
         string principalId,
         CancellationToken cancellationToken
     );
+
+    /// <summary>
+    /// Removes every role assignment granted to the specified principal, ownership included, in every tenant. It reads
+    /// across tenants, so it runs only in an unscoped scope, and the caller saves the removal in that scope.
+    /// </summary>
+    /// <param name="principalId">The identifier of the principal.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the ambient scope is not unscoped.</exception>
+    // See ADR-1018 and ADR-1212.
+    ValueTask RemoveByPrincipalAsync(string principalId, CancellationToken cancellationToken);
 }

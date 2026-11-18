@@ -10,7 +10,7 @@ namespace NCode.Identity.OpenId.Integration.Tests.Infrastructure;
 
 /// <summary>
 /// A <see cref="BootstrapAdminApplicationFactory"/> with the supplied configuration overlaid and
-/// <see cref="TestRemoteKeyProvider"/> registered. The host seeds the bootstrap administrator, runs in the deployment
+/// <see cref="TestRemoteKeyProvider"/> registered. The host seeds the bootstrap administrator, runs in the cell
 /// <c>integration</c> and does not sweep, unless the configuration says otherwise, so a test clock never destroys a
 /// test's keys.
 /// </summary>
@@ -20,7 +20,7 @@ public sealed class RemoteKeyApplicationFactory(
     string controlPlaneTenantId = HostApplicationFactory.TenantId
 ) : BootstrapAdminApplicationFactory(new Dictionary<string, string?>(), controlPlaneTenantId)
 {
-    private const string DeploymentKey = "SecretProtection:RemoteKeys:Deployment";
+    private const string CellNameKey = "Cell:Name";
     private const string SweepEnabledKey = "SecretProtection:RemoteKeys:SweepEnabled";
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -28,7 +28,7 @@ public sealed class RemoteKeyApplicationFactory(
         base.ConfigureWebHost(builder);
 
         var overlay = new Dictionary<string, string?>(configuration, StringComparer.Ordinal);
-        overlay.TryAdd(DeploymentKey, "integration");
+        overlay.TryAdd(CellNameKey, "integration");
         overlay.TryAdd(SweepEnabledKey, "false");
 
         builder.ConfigureAppConfiguration(configurationBuilder =>

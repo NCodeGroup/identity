@@ -64,6 +64,14 @@ public static class SecretsLibraryRegistration
                 >()
             );
 
+            // The provider creates keys only in the cloud locations the composition names for the deployment's keys.
+            serviceCollection.TryAddEnumerable(
+                ServiceDescriptor.Singleton<
+                    IPostConfigureOptions<GoogleCloudKmsRemoteKeyProviderOptions>,
+                    GoogleCloudKmsKeyResidencyOptionsSetup
+                >()
+            );
+
             serviceCollection.TryAddSingleton(TimeProvider.System);
             serviceCollection.TryAddSingleton<
                 IGoogleCloudKmsClientFactory,

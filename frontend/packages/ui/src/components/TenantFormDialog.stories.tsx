@@ -39,6 +39,18 @@ export const Edit: Story = {
   },
 };
 
+export const WithCells: Story = {
+  args: {
+    title: 'Create tenant',
+    submitLabel: 'Create',
+    initialValues: { ...emptyTenantFormValues, cell: 'eu-1' },
+    cells: [
+      { name: 'eu-1', region: 'eu-west' },
+      { name: 'us-1', region: 'us-east' },
+    ],
+  },
+};
+
 export const Submitting: Story = {
   args: {
     title: 'Edit tenant',

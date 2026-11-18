@@ -52,6 +52,7 @@ spec:
           env:
             - name: HOME
               value: /tmp
+            {{- include "identity-host.telemetryEnv" . | trim | nindent 12 }}
           securityContext:
             {{- include "identity-host.containerSecurityContext" . | nindent 12 }}
           {{- with $publisher.resources }}

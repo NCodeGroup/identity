@@ -14,6 +14,7 @@ using NCode.Identity.OpenId.Authentication.Sessions;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.Platform;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.SharedState;
@@ -33,6 +34,7 @@ public sealed class EndedSessionTerminationServiceTests : BaseTests
 
     private Mock<IMaterializedPlatformAccessor> MockMaterializedPlatformAccessor { get; }
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }
+    private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
     private Mock<IStoreManager> MockStoreManager { get; }
     private Mock<IGrantStore> MockGrantStore { get; }
     private Mock<IOpenIdContextFactory> MockOpenIdContextFactory { get; }
@@ -47,6 +49,7 @@ public sealed class EndedSessionTerminationServiceTests : BaseTests
     {
         MockMaterializedPlatformAccessor = CreateStrictMock<IMaterializedPlatformAccessor>();
         MockStoreManagerFactory = CreateStrictMock<IStoreManagerFactory>();
+        MockAmbientTenantAccessor = CreateStrictMock<IAmbientTenantAccessor>();
         MockStoreManager = CreateStrictMock<IStoreManager>();
         MockGrantStore = CreateStrictMock<IGrantStore>();
         MockOpenIdContextFactory = CreateStrictMock<IOpenIdContextFactory>();
@@ -57,6 +60,7 @@ public sealed class EndedSessionTerminationServiceTests : BaseTests
             MockMaterializedPlatformAccessor.Object,
             RootServiceProvider.GetRequiredService<IServiceScopeFactory>(),
             MockStoreManagerFactory.Object,
+            MockAmbientTenantAccessor.Object,
             MockOpenIdContextFactory.Object,
             MockSessionService.Object,
             MockExpiringKeySet.Object,
@@ -117,6 +121,10 @@ public sealed class EndedSessionTerminationServiceTests : BaseTests
 
     private void SetupStores()
     {
+        MockAmbientTenantAccessor
+            .Setup(x => x.BeginUnscoped("ended session termination"))
+            .Returns(Mock.Of<IDisposable>())
+            .Verifiable();
         MockStoreManagerFactory
             .Setup(x => x.CreateAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(MockStoreManager.Object)
@@ -161,6 +169,10 @@ public sealed class EndedSessionTerminationServiceTests : BaseTests
         params (string SessionId, bool Terminated)[] sessions
     )
     {
+        MockAmbientTenantAccessor
+            .Setup(x => x.BeginScope(tenantId))
+            .Returns(Mock.Of<IDisposable>())
+            .Verifiable(Times.Once);
         MockOpenIdContextFactory
             .Setup(x =>
                 x.CreateForBackgroundAsync(
@@ -222,6 +234,10 @@ public sealed class EndedSessionTerminationServiceTests : BaseTests
         SetupLease(acquired: true);
         SetupStores();
         SetupPage(cursor: null, nextCursor: null, CreateGrant("t1", "s1"), CreateGrant("t2", "s3"));
+        MockAmbientTenantAccessor
+            .Setup(x => x.BeginScope("t1"))
+            .Returns(Mock.Of<IDisposable>())
+            .Verifiable(Times.Once);
         MockOpenIdContextFactory
             .Setup(x =>
                 x.CreateForBackgroundAsync(
@@ -272,6 +288,10 @@ public sealed class EndedSessionTerminationServiceTests : BaseTests
         SetupStores();
         SetupPage(cursor: null, nextCursor: null, [CreateGrant("t1", "s1")], cancellationToken);
         var mockContext = CreateContext();
+        MockAmbientTenantAccessor
+            .Setup(x => x.BeginScope("t1"))
+            .Returns(Mock.Of<IDisposable>())
+            .Verifiable(Times.Once);
         MockOpenIdContextFactory
             .Setup(x =>
                 x.CreateForBackgroundAsync(It.IsAny<IServiceProvider>(), "t1", cancellationToken)

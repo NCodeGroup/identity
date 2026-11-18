@@ -9,6 +9,7 @@ using NCode.Identity.Jose;
 using NCode.Identity.Jwt;
 using NCode.Identity.OpenId;
 using NCode.Identity.OpenId.Authentication;
+using NCode.Identity.OpenId.Client;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.Registration;
 using NCode.Identity.Secrets;
@@ -55,6 +56,12 @@ public interface IIdentityServerBuilder : IServiceBuilder<IdentityServer>
     /// Gets the builder for configuring the JSON Web Tokens library.
     /// </summary>
     IServiceBuilder<JwtLibrary> JwtLibraryBuilder { get; }
+
+    /// <summary>
+    /// Gets the builder for configuring the OpenID client library, which loads the named key rings and calls the global
+    /// directory service.
+    /// </summary>
+    IServiceBuilder<OpenIdClientLibrary> OpenIdClientLibraryBuilder { get; }
 
     /// <summary>
     /// Gets the builder for configuring the settings library.

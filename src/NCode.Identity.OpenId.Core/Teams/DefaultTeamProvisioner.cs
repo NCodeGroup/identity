@@ -1,7 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Text.Json;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.Persistence.Stores;
@@ -41,7 +41,7 @@ internal sealed class DefaultTeamProvisioner(IStoreManagerFactory storeManagerFa
             {
                 TeamId = teamId,
                 ConcurrencyToken = Guid.NewGuid().ToString("N"),
-                Value = JsonSerializer.SerializeToElement(null, typeof(object)),
+                Value = JsonElements.EmptyObject,
             },
             ConcurrencyToken = Guid.NewGuid().ToString("N"),
         };

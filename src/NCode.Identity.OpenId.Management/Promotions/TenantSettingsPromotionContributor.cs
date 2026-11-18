@@ -4,7 +4,6 @@
 using System.Text.Json;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Management.Auditing;
-using NCode.Identity.OpenId.Management.Contracts.Teams;
 using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Settings;
@@ -157,7 +156,7 @@ internal class TenantSettingsPromotionContributor(
 
     private PromotedSettings Compose(TenantPromotionContext context) =>
         PromotedSettingsComposer.Compose(
-            context.SourceTenant.Settings.Value,
+            context.Source.Settings,
             context.TargetTenant.Settings.Value,
             context.GetEnvironmentSettingsOrDefault(
                 ManagementResourceTypes.Tenant,

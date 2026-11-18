@@ -6,18 +6,21 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Options;
+using NCode.Identity.Jose;
 using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Contracts.Caller;
 using NCode.Identity.OpenId.Management.Contracts.Teams;
 using NCode.Identity.OpenId.Management.Contracts.Tenants;
+using NCode.Identity.OpenId.Management.ControlPlane;
 using NCode.Identity.OpenId.Management.Endpoints.Teams;
 using NCode.Identity.OpenId.Management.Endpoints.Tenants;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
-using NCode.Identity.OpenId.PrincipalResolution;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Registration.AspNetCore;
 
@@ -26,7 +29,7 @@ namespace NCode.Identity.OpenId.Management.Endpoints.Caller;
 /*
 
 GET api/me
-GET api/me/teams
+GET api/me/teams (control-plane cell only)
 GET api/me/tenants
 
 */
@@ -35,22 +38,32 @@ GET api/me/tenants
 /// Provides the API endpoints that tell the caller of the management API where it holds authority: the principal it
 /// acts as, whether it administers the platform, the role assignments it holds, and the teams and tenants it holds a
 /// role at. Authority stays per resource and the token names no team, so every answer is read from the caller's role
-/// assignments at the time of the request. It answers only a caller that the management authentication filter
-/// authenticated from a management access token, which it reads from <see cref="IManagementCallerFeature"/>; any other
-/// request gets the authentication-required problem.
+/// assignments at the time of the request. The principal is the control-plane principal that
+/// <see cref="IControlPlaneAuthority"/> resolves the caller's <c>sub</c> and <c>client_id</c> claims to, and the role
+/// assignments are those the cell holds for it. Team role assignments are held only in the control-plane cell, so
+/// <c>GET api/me/teams</c> is mapped only there; the other routes are mapped in every cell. It answers only a caller
+/// that the management authentication filter authenticated from a management access token, which it reads from
+/// <see cref="IManagementCallerFeature"/>; any other request gets the authentication-required problem.
 /// </summary>
 // See ADR-1465 and ADR-1044.
 internal class CallerApiEndpointHandler(
     IStoreManagerFactory storeManagerFactory,
     IAuthorizationService authorizationService,
-    IPrincipalResolver principalResolver,
-    IAmbientTenantAccessor ambientTenantAccessor
+    IControlPlaneAuthority controlPlaneAuthority,
+    IAmbientTenantAccessor ambientTenantAccessor,
+    IOptions<CellOptions> cellOptions
 ) : IEndpointProvider
 {
+    /// <summary>
+    /// The reason of the unscoped scope in which the handler reads the caller's role assignments.
+    /// </summary>
+    internal const string UnscopedReason = "caller role assignments";
+
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IAuthorizationService AuthorizationService { get; } = authorizationService;
-    private IPrincipalResolver PrincipalResolver { get; } = principalResolver;
+    private IControlPlaneAuthority ControlPlaneAuthority { get; } = controlPlaneAuthority;
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
+    private CellOptions CellOptions { get; } = cellOptions.Value;
 
     /// <inheritdoc />
     public void Map(IEndpointRouteBuilder endpoints)
@@ -58,11 +71,17 @@ internal class CallerApiEndpointHandler(
         var me = endpoints
             .MapGroup("/me")
             .WithTags(OpenIdConstants.EndpointTags.Caller)
+            .AddEndpointFilter<RouteGroupBuilder, ControlPlaneScopeEndpointFilter>()
             .ProducesProblem(StatusCodes.Status401Unauthorized);
 
         me.MapGet("", GetCallerAsync).Produces<CallerResource>();
-        me.MapGet("/teams", ListTeamsAsync).Produces<CollectionResource<TeamResource>>();
         me.MapGet("/tenants", ListTenantsAsync).Produces<CollectionResource<TenantResource>>();
+
+        // Team role assignments are held only in the control-plane cell.
+        if (CellOptions.IsControlPlane)
+        {
+            me.MapGet("/teams", ListTeamsAsync).Produces<CollectionResource<TeamResource>>();
+        }
     }
 
     /// <summary>
@@ -116,7 +135,6 @@ internal class CallerApiEndpointHandler(
     )
     {
         var (principalId, assignments) = await GetAssignmentsAsync(
-            openIdContext,
             caller,
             storeManager,
             cancellationToken
@@ -220,14 +238,9 @@ internal class CallerApiEndpointHandler(
     {
         return await AnswerCallerAsync(
             httpContext,
-            async (openIdContext, caller, storeManager, ct) =>
+            async (_, caller, storeManager, ct) =>
             {
-                var (_, assignments) = await GetAssignmentsAsync(
-                    openIdContext,
-                    caller,
-                    storeManager,
-                    ct
-                );
+                var (_, assignments) = await GetAssignmentsAsync(caller, storeManager, ct);
                 var resourceIds = GetResourceIds(assignments, nodeType).ToList();
                 var items = await readAndMapAsync(storeManager, resourceIds, ct);
                 var collection = new CollectionResource<TResource>
@@ -277,9 +290,10 @@ internal class CallerApiEndpointHandler(
     }
 
     /// <summary>
-    /// Gets the caller's principal and the role assignments it holds; a caller that resolves to no principal holds none.
+    /// Gets the caller's principal and the role assignments it holds; a caller that resolves to no principal holds
+    /// none. The principal is the one <see cref="IControlPlaneAuthority"/> resolves the caller's <c>sub</c> and
+    /// <c>client_id</c> claims to, and a caller missing either claim resolves to none.
     /// </summary>
-    /// <param name="openIdContext">The <see cref="OpenIdContext"/> for the current request.</param>
     /// <param name="user">The <see cref="ClaimsPrincipal"/> of the caller.</param>
     /// <param name="storeManager">The <see cref="IStoreManager"/> to read through.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
@@ -289,25 +303,39 @@ internal class CallerApiEndpointHandler(
         string? PrincipalId,
         IReadOnlyList<PersistedRoleAssignment> Assignments
     )> GetAssignmentsAsync(
-        OpenIdContext openIdContext,
         ClaimsPrincipal user,
         IStoreManager storeManager,
         CancellationToken cancellationToken
     )
     {
-        var principalId = await PrincipalResolver.ResolvePrincipalIdOrDefaultAsync(
-            openIdContext,
-            user,
-            storeManager,
+        var subject = user.FindFirstValue(JoseClaimNames.Payload.Sub);
+        var clientId = user.FindFirstValue(JoseClaimNames.Payload.ClientId);
+        if (string.IsNullOrEmpty(subject) || string.IsNullOrEmpty(clientId))
+        {
+            return (null, []);
+        }
+
+        var authority = await ControlPlaneAuthority.GetAsync(
+            new ControlPlaneAuthorityRequest { Subject = subject, ClientId = clientId },
             cancellationToken
         );
+
+        var principalId = authority.PrincipalId;
         if (string.IsNullOrEmpty(principalId))
         {
             return (null, []);
         }
 
-        var store = storeManager.GetStore<IRoleAssignmentStore>();
-        var assignments = await store.GetByPrincipalAsync(principalId, cancellationToken);
+        IReadOnlyList<PersistedRoleAssignment> assignments;
+
+        // A principal's assignments are stored under the tenant of each node that holds them, so they are read across
+        // tenants. See ADR-1018.
+        using (AmbientTenantAccessor.BeginUnscoped(UnscopedReason))
+        {
+            var store = storeManager.GetStore<IRoleAssignmentStore>();
+            assignments = await store.GetByPrincipalAsync(principalId, cancellationToken);
+        }
+
         return (principalId, assignments);
     }
 

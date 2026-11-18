@@ -13,6 +13,7 @@ import {
   useListSecretsQuery,
   useRotateSecretMutation,
 } from '@ncode/store';
+import { useTenantCell } from '../tenantCell.js';
 import { SecretsManager } from './SecretsManager.js';
 
 export type OwnerSecretsTabProps = {
@@ -29,7 +30,8 @@ export type OwnerSecretsTabProps = {
  * for a tenant owner.
  */
 export function OwnerSecretsTab({ owner, ownerLabel }: OwnerSecretsTabProps) {
-  const { data, isLoading, error } = useListSecretsQuery(owner);
+  const cell = useTenantCell();
+  const { data, isLoading, error } = useListSecretsQuery({ ...owner, cell });
   const [createSecret, { isLoading: isCreating }] = useCreateSecretMutation();
   const [deleteSecret, { isLoading: isDeleting }] = useDeleteSecretMutation();
   const [rotateSecret, { isLoading: isRotating }] = useRotateSecretMutation();
@@ -49,22 +51,22 @@ export function OwnerSecretsTab({ owner, ownerLabel }: OwnerSecretsTabProps) {
       loadError={Boolean(error)}
       isCreating={isCreating || isCreatingRemote}
       isDeleting={isDeleting}
-      onCreate={(body) => createSecret({ owner, body }).unwrap()}
-      onDelete={(secretId) => deleteSecret({ owner, secretId }).unwrap()}
-      onExportPublicKey={(secretId) => getPublicKey({ owner, secretId }).unwrap()}
+      onCreate={(body) => createSecret({ owner, body, cell }).unwrap()}
+      onDelete={(secretId) => deleteSecret({ owner, secretId, cell }).unwrap()}
+      onExportPublicKey={(secretId) => getPublicKey({ owner, secretId, cell }).unwrap()}
       {...(clientOwner
         ? {
             onRotate: (secretId: string, body: RotateSecretRequest) =>
-              rotateSecret({ owner: clientOwner, secretId, body }).unwrap(),
+              rotateSecret({ owner: clientOwner, secretId, body, cell }).unwrap(),
             isRotating,
           }
         : {})}
       {...(tenantOwner
         ? {
             onCreateRemote: (body: CreateRemoteSecretRequest) =>
-              createRemoteSecret({ tenantId: tenantOwner.tenantId, body }).unwrap(),
+              createRemoteSecret({ tenantId: tenantOwner.tenantId, body, cell }).unwrap(),
             onImportRemote: (body: ImportRemoteSecretRequest) =>
-              importRemoteSecret({ tenantId: tenantOwner.tenantId, body }).unwrap(),
+              importRemoteSecret({ tenantId: tenantOwner.tenantId, body, cell }).unwrap(),
             isBinding,
           }
         : {})}

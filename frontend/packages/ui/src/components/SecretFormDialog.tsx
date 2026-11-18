@@ -201,8 +201,8 @@ export function SecretFormDialog({
 
   // The secret types are discovered from the server (ADR-1150), so a type a package contributes, such as `okp`, is
   // offered without the form knowing it. The selected type is always one the form offers: the seeded type when it is
-  // offered, otherwise the first offered type, and none while the types load, so the select never holds a value it
-  // has no option for.
+  // offered, otherwise the first offered type, and none while the types load, so the select never holds a value it has
+  // no option for.
   const secretType = secretTypes.includes(values.secretType)
     ? values.secretType
     : (secretTypes[0] ?? '');
@@ -219,9 +219,9 @@ export function SecretFormDialog({
   );
   const keySizeRanges = keyTypeFor(selectedAlgorithm, secretType)?.keyBitSizes ?? [];
   const [singleRange] = keySizeRanges;
-  // An algorithm bound to curves, such as ES256K or EdDSA, offers only those, since a curve of the same size is not
-  // one it accepts (ADR-1389); a curve fixes the key size. Two curves can share a size, so a secret type with curves
-  // takes a curve and never leaves it to the size.
+  // An algorithm bound to curves, such as ES256K or EdDSA, offers only those, since a curve of the same size is not one
+  // it accepts (ADR-1389); a curve fixes the key size. Two curves can share a size, so a secret type with curves takes
+  // a curve and never leaves it to the size.
   const offeredCurves = curvesFor(secretType, selectedAlgorithm, discovered, eccCurves ?? []);
   const selectedCurve = offeredCurves.find((curve) => curve.curveName === values.curve);
   const curveRequired = offeredCurves.length > 0;
@@ -349,9 +349,9 @@ export function SecretFormDialog({
                 value={secretType}
                 onChange={(event) => {
                   const chosenType = event.target.value;
-                  // A curve belongs to its type, so the type's first curve is selected; the discovered algorithm and use
-                  // are re-derived on selection, so no algorithm narrows the curves yet. The shown key size carries over
-                  // to a type without curves.
+                  // A curve belongs to its type, so the type's first curve is selected; the discovered algorithm and
+                  // use are re-derived on selection, so no algorithm narrows the curves yet. The shown key size carries
+                  // over to a type without curves.
                   const [firstCurve] = curvesFor(
                     chosenType,
                     undefined,

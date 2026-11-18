@@ -142,7 +142,7 @@ public class TenantKeyProvisioningTests
             CancellationToken.None
         );
 
-        using var serviceScope = factory.Services.CreateScope();
+        using var serviceScope = factory.CreateTenantScope();
         await serviceScope
             .ServiceProvider.GetRequiredService<ITenantProvisioner>()
             .SeedAsync(HostApplicationFactory.TenantId, CancellationToken.None);
@@ -173,7 +173,7 @@ public class TenantKeyProvisioningTests
             revision => revision.TenantId == HostApplicationFactory.TenantId
         );
 
-        using var serviceScope = factory.Services.CreateScope();
+        using var serviceScope = factory.CreateTenantScope();
         await using var storeManager = await serviceScope
             .ServiceProvider.GetRequiredService<IStoreManagerFactory>()
             .CreateAsync(CancellationToken.None);
@@ -488,7 +488,7 @@ public class TenantKeyProvisioningTests
         CancellationToken cancellationToken
     )
     {
-        using var serviceScope = factory.Services.CreateScope();
+        using var serviceScope = factory.CreateTenantScope(tenantId);
         await using var storeManager = await serviceScope
             .ServiceProvider.GetRequiredService<IStoreManagerFactory>()
             .CreateAsync(cancellationToken);

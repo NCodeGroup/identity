@@ -192,4 +192,40 @@ public class GoogleCloudKmsKeyNameTests
     }
 
     #endregion
+
+    #region GetLocation Tests
+
+    [Theory]
+    [InlineData(KeyRingName)]
+    [InlineData(CryptoKeyName)]
+    [InlineData(CryptoKeyVersionName)]
+    public void GetLocation_ResourceName_ReturnsLocation(string name)
+    {
+        var result = GoogleCloudKmsKeyName.GetLocation(name);
+
+        Assert.Equal("us-central1", result);
+    }
+
+    [Fact]
+    public void GetLocation_GlobalLocation_ReturnsGlobal()
+    {
+        const string value = "projects/my-project/locations/global/keyRings/ncode-identity";
+
+        var result = GoogleCloudKmsKeyName.GetLocation(value);
+
+        Assert.Equal("global", result);
+    }
+
+    [Fact]
+    public void GetLocation_DomainScopedProject_ReturnsLocation()
+    {
+        const string value =
+            "projects/example.com:my-project/locations/europe-west1/keyRings/ncode-identity/cryptoKeys/root";
+
+        var result = GoogleCloudKmsKeyName.GetLocation(value);
+
+        Assert.Equal("europe-west1", result);
+    }
+
+    #endregion
 }

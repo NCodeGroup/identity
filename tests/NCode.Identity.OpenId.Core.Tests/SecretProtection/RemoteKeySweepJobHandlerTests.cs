@@ -10,6 +10,7 @@ using NCode.Identity.Events;
 using NCode.Identity.Events.Audit;
 using NCode.Identity.OpenId.Core.Tests;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.OpenId.SecretProtection;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
@@ -43,6 +44,7 @@ public sealed class RemoteKeySweepJobHandlerTests : BaseTests
     private Mock<IRemoteKeyProvider> Provider { get; }
     private Mock<IStoreManagerFactory> StoreManagerFactory { get; }
     private Mock<IStoreManager> StoreManager { get; }
+    private Mock<IAmbientTenantAccessor> AmbientTenantAccessor { get; }
     private Mock<IRemoteKeyReferenceStore> Store { get; }
     private Mock<IRemoteSecretDestroyer> Destroyer { get; }
     private Mock<IEventPublisher> Publisher { get; }
@@ -56,6 +58,7 @@ public sealed class RemoteKeySweepJobHandlerTests : BaseTests
         Provider = CreateStrictMock<IRemoteKeyProvider>();
         StoreManagerFactory = CreateStrictMock<IStoreManagerFactory>();
         StoreManager = CreateStrictMock<IStoreManager>();
+        AmbientTenantAccessor = CreateStrictMock<IAmbientTenantAccessor>();
         Store = CreateStrictMock<IRemoteKeyReferenceStore>();
         Destroyer = CreateStrictMock<IRemoteSecretDestroyer>();
         Publisher = CreateStrictMock<IEventPublisher>();
@@ -67,6 +70,7 @@ public sealed class RemoteKeySweepJobHandlerTests : BaseTests
             Catalog.Object,
             DescriptorCatalog.Object,
             StoreManagerFactory.Object,
+            AmbientTenantAccessor.Object,
             Destroyer.Object,
             Publisher.Object,
             TenantResolver.Object,
@@ -133,9 +137,13 @@ public sealed class RemoteKeySweepJobHandlerTests : BaseTests
             .Verifiable();
     }
 
-    // The store manager that a page read opens, for the tests that read the references.
+    // The store manager that a page read opens, for the tests that read the references. The read is unscoped.
     private void SetupStore()
     {
+        AmbientTenantAccessor
+            .Setup(x => x.BeginUnscoped("remote key sweep"))
+            .Returns(Mock.Of<IDisposable>())
+            .Verifiable(Times.Once());
         StoreManagerFactory
             .Setup(x => x.CreateAsync(It.IsAny<CancellationToken>()))
             .Returns(() => new ValueTask<IStoreManager>(StoreManager.Object))

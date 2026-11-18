@@ -78,24 +78,6 @@ public class BffStoreKeysTests : BaseTests
 
     #endregion
 
-    #region ClientMember Tests
-
-    [Fact]
-    public void ClientMember_Always_RoundTripsThroughTryParseClientMember()
-    {
-        var client = new BffSessionClient("web", "https://op.example/a|b%7C", "client|id%");
-        var absoluteExpiresAt = new DateTimeOffset(2030, 5, 6, 7, 8, 9, TimeSpan.Zero);
-
-        var member = BffStoreKeys.ClientMember(client, absoluteExpiresAt);
-        var parsed = BffStoreKeys.TryParseClientMember(member, out var result);
-
-        Assert.True(parsed);
-        Assert.Equal(client, result);
-        Assert.StartsWith("2030-05-06|web|", member, StringComparison.Ordinal);
-    }
-
-    #endregion
-
     #region ClientMemberExpiresAt Tests
 
     [Fact]
@@ -110,18 +92,89 @@ public class BffStoreKeysTests : BaseTests
 
     #endregion
 
-    #region TryParseClientMember Tests
+    #region ClientMember Tests
+
+    [Fact]
+    public void ClientMember_ThenTryParseClientMember_RoundTripsTheDigest()
+    {
+        var client = new BffSessionClient("web", "https://op.example", "client-1");
+        var absoluteExpiresAt = new DateTimeOffset(2030, 5, 6, 23, 59, 59, TimeSpan.FromHours(-7));
+
+        var member = BffStoreKeys.ClientMember(client, absoluteExpiresAt);
+        var parsed = BffStoreKeys.TryParseClientMember(member, out var digest);
+
+        Assert.True(parsed);
+        Assert.Equal(BffStoreKeys.ClientDigest(client), digest);
+        Assert.StartsWith("2030-05-07:", member, StringComparison.Ordinal);
+    }
 
     [Theory]
-    [InlineData("")]
-    [InlineData("2030-05-06|web|authority")]
-    [InlineData("2030-05-06|web|authority|client|extra")]
-    public void TryParseClientMember_Malformed_ReturnsFalse(string member)
+    [InlineData("2030-13-40:digest")]
+    [InlineData("not-a-day:digest")]
+    [InlineData("digest")]
+    [InlineData("2030-5-07:abc")]
+    [InlineData("02030-05-07:abc")]
+    public void TryParseClientMember_WhenTheDayIsMalformed_ReturnsFalse(string member)
     {
-        var result = BffStoreKeys.TryParseClientMember(member, out var client);
+        var parsed = BffStoreKeys.TryParseClientMember(member, out var digest);
 
-        Assert.False(result);
-        Assert.Equal(default, client);
+        Assert.False(parsed);
+        Assert.Empty(digest);
+    }
+
+    [Fact]
+    public void TryParseClientMember_WhenThereIsNoSeparator_ReturnsFalse()
+    {
+        var parsed = BffStoreKeys.TryParseClientMember("2030-05-07abc", out var digest);
+
+        Assert.False(parsed);
+        Assert.Empty(digest);
+    }
+
+    [Fact]
+    public void TryParseClientMember_WhenTheDigestIsEmpty_ReturnsFalse()
+    {
+        var parsed = BffStoreKeys.TryParseClientMember("2030-05-07:", out var digest);
+
+        Assert.False(parsed);
+        Assert.Empty(digest);
+    }
+
+    #endregion
+
+    #region ClientMemberValue Tests
+
+    [Fact]
+    public void ClientMemberValue_Always_PrefixesTheMember()
+    {
+        var client = new BffSessionClient("web", "https://op.example", "client-1");
+        var member = BffStoreKeys.ClientMember(
+            client,
+            new DateTimeOffset(2030, 5, 6, 12, 0, 0, TimeSpan.Zero)
+        );
+
+        var result = BffStoreKeys.ClientMemberValue(member);
+
+        Assert.Equal("bff:client-member:2030-05-06:" + BffStoreKeys.ClientDigest(client), result);
+    }
+
+    [Fact]
+    public void ClientMemberValue_DifferentMembers_Differ()
+    {
+        var client = new BffSessionClient("web", "https://op.example", "client-1");
+        var first = BffStoreKeys.ClientMember(
+            client,
+            new DateTimeOffset(2030, 5, 6, 12, 0, 0, TimeSpan.Zero)
+        );
+        var second = BffStoreKeys.ClientMember(
+            client,
+            new DateTimeOffset(2030, 5, 7, 12, 0, 0, TimeSpan.Zero)
+        );
+
+        Assert.NotEqual(
+            BffStoreKeys.ClientMemberValue(first),
+            BffStoreKeys.ClientMemberValue(second)
+        );
     }
 
     #endregion

@@ -4,9 +4,21 @@ import {
   TenantPromotionDialog,
   type TenantPromotionDialogProps,
   type TenantPromotionDialogReport,
+  type TenantPromotionDialogTenant,
 } from './TenantPromotionDialog.js';
 
-const tenantIds = ['dev', 'staging', 'prod'];
+const tenants: readonly TenantPromotionDialogTenant[] = [
+  { tenantId: 'dev', cell: 'eu-1', region: 'eu' },
+  { tenantId: 'staging', cell: 'eu-1', region: 'eu' },
+  { tenantId: 'prod', cell: 'eu-2', region: 'eu' },
+  { tenantId: 'us-prod', cell: 'us-1', region: 'us' },
+];
+
+const copiedTenants: readonly TenantPromotionDialogTenant[] = [
+  { tenantId: 'acme', cell: 'eu-1', region: 'eu' },
+  { tenantId: 'acme', cell: 'eu-2', region: 'eu' },
+  { tenantId: 'staging', cell: 'eu-1', region: 'eu' },
+];
 
 const baseReport: TenantPromotionDialogReport = {
   sourceTenantId: 'dev',
@@ -23,7 +35,7 @@ const baseReport: TenantPromotionDialogReport = {
 function renderDialog(overrides: Partial<TenantPromotionDialogProps> = {}) {
   const props: TenantPromotionDialogProps = {
     open: true,
-    tenantIds,
+    tenants,
     onPreview: vi.fn(),
     onPromote: vi.fn(),
     onCancel: vi.fn(),
@@ -34,8 +46,8 @@ function renderDialog(overrides: Partial<TenantPromotionDialogProps> = {}) {
 }
 
 function choose(source: string, target: string) {
-  fireEvent.change(screen.getByTestId('promotion-source'), { target: { value: source } });
   fireEvent.change(screen.getByTestId('promotion-target'), { target: { value: target } });
+  fireEvent.change(screen.getByTestId('promotion-source'), { target: { value: source } });
 }
 
 describe('TenantPromotionDialog', () => {
@@ -44,17 +56,45 @@ describe('TenantPromotionDialog', () => {
     expect(screen.getByTestId('promotion-preview')).toBeDisabled();
     expect(screen.getByTestId('promotion-promote')).toBeDisabled();
 
-    choose('dev', 'dev');
+    choose('eu-1/dev', 'eu-1/dev');
     expect(screen.getByTestId('promotion-preview')).toBeDisabled();
 
-    choose('dev', 'staging');
+    choose('eu-1/dev', 'eu-1/staging');
     expect(screen.getByTestId('promotion-preview')).toBeEnabled();
     expect(screen.getByTestId('promotion-promote')).toBeDisabled();
   });
 
-  it('previews the chosen pair', () => {
+  it('previews the chosen pair with the cell of each tenant', () => {
     const { props } = renderDialog();
-    choose('dev', 'staging');
+    choose('eu-1/dev', 'eu-1/staging');
+    fireEvent.click(screen.getByTestId('promotion-preview'));
+    expect(props.onPreview).toHaveBeenCalledWith({
+      sourceTenantId: 'dev',
+      targetTenantId: 'staging',
+      sourceCell: 'eu-1',
+      targetCell: 'eu-1',
+      environmentSettings: [],
+    });
+  });
+
+  it('carries the source cell and the target cell of a pair in different cells', () => {
+    const { props } = renderDialog();
+    choose('eu-1/dev', 'eu-2/prod');
+    fireEvent.click(screen.getByTestId('promotion-preview'));
+    expect(props.onPreview).toHaveBeenCalledWith({
+      sourceTenantId: 'dev',
+      targetTenantId: 'prod',
+      sourceCell: 'eu-1',
+      targetCell: 'eu-2',
+      environmentSettings: [],
+    });
+  });
+
+  it('carries no cell for tenants that have none', () => {
+    const { props } = renderDialog({
+      tenants: [{ tenantId: 'dev' }, { tenantId: 'staging' }],
+    });
+    choose('/dev', '/staging');
     fireEvent.click(screen.getByTestId('promotion-preview'));
     expect(props.onPreview).toHaveBeenCalledWith({
       sourceTenantId: 'dev',
@@ -63,12 +103,83 @@ describe('TenantPromotionDialog', () => {
     });
   });
 
+  it('offers as sources only the tenants of the target region, the target excluded', () => {
+    renderDialog();
+    expect(screen.getByTestId('promotion-source')).toBeDisabled();
+
+    fireEvent.change(screen.getByTestId('promotion-target'), { target: { value: 'eu-1/staging' } });
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: /source tenant/i }));
+    const options = screen.getAllByRole('option').map((option) => option.textContent);
+    expect(options).toEqual(['dev (eu-1)', 'prod (eu-2)']);
+  });
+
+  it('forgets a source that is not in the region of a newly chosen target', () => {
+    renderDialog();
+    choose('eu-1/dev', 'eu-1/staging');
+    expect(screen.getByTestId('promotion-source')).toHaveValue('eu-1/dev');
+
+    fireEvent.change(screen.getByTestId('promotion-target'), {
+      target: { value: 'us-1/us-prod' },
+    });
+    expect(screen.getByTestId('promotion-source')).toHaveValue('');
+    expect(screen.getByTestId('promotion-preview')).toBeDisabled();
+  });
+
+  it('offers no source for a target whose region is not known', () => {
+    renderDialog({
+      tenants: [
+        { tenantId: 'dev', cell: 'eu-1', region: null },
+        { tenantId: 'us-prod', cell: 'us-1', region: null },
+      ],
+    });
+    fireEvent.change(screen.getByTestId('promotion-target'), {
+      target: { value: 'us-1/us-prod' },
+    });
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: /source tenant/i }));
+    expect(screen.queryAllByRole('option')).toHaveLength(0);
+    expect(
+      screen.getByText(
+        "The region of the target's cell is not known, so no tenant is offered as its source.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('promotion-preview')).toBeDisabled();
+  });
+
+  it('offers the other tenants without a cell as sources of a target without one', () => {
+    renderDialog({
+      tenants: [
+        { tenantId: 'dev' },
+        { tenantId: 'staging' },
+        { tenantId: 'eu-prod', cell: 'eu-1', region: 'eu' },
+      ],
+    });
+    fireEvent.change(screen.getByTestId('promotion-target'), { target: { value: '/staging' } });
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: /source tenant/i }));
+    const options = screen.getAllByRole('option').map((option) => option.textContent);
+    expect(options).toEqual(['dev']);
+  });
+
+  it('offers no tenant without a cell as a source of a target in a cell, even one naming the target region', () => {
+    renderDialog({
+      tenants: [
+        { tenantId: 'dev' },
+        { tenantId: 'qa', region: 'eu' },
+        { tenantId: 'staging', cell: 'eu-1', region: 'eu' },
+        { tenantId: 'prod', cell: 'eu-2', region: 'eu' },
+      ],
+    });
+    fireEvent.change(screen.getByTestId('promotion-target'), { target: { value: 'eu-2/prod' } });
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: /source tenant/i }));
+    const options = screen.getAllByRole('option').map((option) => option.textContent);
+    expect(options).toEqual(['staging (eu-1)']);
+  });
+
   it('lists the changes and enables Promote for a clean preview of the chosen pair', () => {
     const { props } = renderDialog({ report: baseReport });
     expect(screen.queryByTestId('promotion-changes')).not.toBeInTheDocument();
     expect(screen.getByTestId('promotion-promote')).toBeDisabled();
 
-    choose('dev', 'staging');
+    choose('eu-1/dev', 'eu-1/staging');
     expect(screen.getByTestId('promotion-changes')).toHaveTextContent('web');
     expect(screen.getByTestId('promotion-changes')).toHaveTextContent('resource_server');
     expect(screen.getByTestId('promotion-changes')).toHaveTextContent('updated');
@@ -78,13 +189,15 @@ describe('TenantPromotionDialog', () => {
     expect(props.onPromote).toHaveBeenCalledWith({
       sourceTenantId: 'dev',
       targetTenantId: 'staging',
+      sourceCell: 'eu-1',
+      targetCell: 'eu-1',
       environmentSettings: [],
     });
   });
 
   it('ignores a report for another pair', () => {
     renderDialog({ report: baseReport });
-    choose('dev', 'prod');
+    choose('eu-1/dev', 'eu-2/prod');
     expect(screen.queryByTestId('promotion-changes')).not.toBeInTheDocument();
     expect(screen.getByTestId('promotion-promote')).toBeDisabled();
   });
@@ -99,7 +212,7 @@ describe('TenantPromotionDialog', () => {
         ],
       },
     });
-    choose('dev', 'staging');
+    choose('eu-1/dev', 'eu-1/staging');
     const alerts = screen.getAllByTestId('promotion-report-error');
     expect(alerts).toHaveLength(2);
     expect(alerts[0]).toHaveTextContent('client web: The client is host managed.');
@@ -121,7 +234,7 @@ describe('TenantPromotionDialog', () => {
         ],
       },
     });
-    choose('dev', 'staging');
+    choose('eu-1/dev', 'eu-1/staging');
     expect(screen.getByTestId('promotion-notes')).toHaveTextContent(
       'The promotion leaves client bootstrap. The host configures the client.',
     );
@@ -163,7 +276,7 @@ describe('TenantPromotionDialog', () => {
         ],
       },
     });
-    choose('dev', 'staging');
+    choose('eu-1/dev', 'eu-1/staging');
     fireEvent.change(screen.getByTestId('environment-setting-client-web-redirect_uris'), {
       target: { value: '["https://staging.example/cb"]' },
     });
@@ -174,6 +287,8 @@ describe('TenantPromotionDialog', () => {
     expect(props.onPromote).toHaveBeenCalledWith({
       sourceTenantId: 'dev',
       targetTenantId: 'staging',
+      sourceCell: 'eu-1',
+      targetCell: 'eu-1',
       environmentSettings: [
         {
           resourceType: 'client',
@@ -202,7 +317,7 @@ describe('TenantPromotionDialog', () => {
         ],
       },
     });
-    choose('dev', 'staging');
+    choose('eu-1/dev', 'eu-1/staging');
     const field = screen.getByTestId('environment-setting-client-web-redirect_uris');
     fireEvent.change(field, { target: { value: '[oops' } });
     expect(field).toHaveAttribute('aria-invalid', 'true');
@@ -216,7 +331,7 @@ describe('TenantPromotionDialog', () => {
 
   it('shows a success alert and a Close button for an applied report', () => {
     const { props } = renderDialog({ report: { ...baseReport, isApplied: true } });
-    choose('dev', 'staging');
+    choose('eu-1/dev', 'eu-1/staging');
     expect(screen.getByTestId('promotion-applied')).toHaveTextContent('Promoted.');
     expect(screen.queryByTestId('promotion-promote')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('promotion-close'));
@@ -225,7 +340,7 @@ describe('TenantPromotionDialog', () => {
 
   it('disables the actions while busy', () => {
     renderDialog({ report: baseReport, isBusy: true });
-    choose('dev', 'staging');
+    choose('eu-1/dev', 'eu-1/staging');
     expect(screen.getByTestId('promotion-preview')).toBeDisabled();
     expect(screen.getByTestId('promotion-promote')).toBeDisabled();
     expect(screen.getByTestId('promotion-cancel')).toBeDisabled();
@@ -239,13 +354,37 @@ describe('TenantPromotionDialog', () => {
 
   it('resets the selections each time it opens', () => {
     const { props, rerender } = renderDialog();
-    choose('dev', 'staging');
+    choose('eu-1/dev', 'eu-1/staging');
     rerender(<TenantPromotionDialog {...props} open />);
-    expect(screen.getByTestId('promotion-source')).toHaveValue('dev');
+    expect(screen.getByTestId('promotion-source')).toHaveValue('eu-1/dev');
 
     rerender(<TenantPromotionDialog {...props} open={false} />);
     rerender(<TenantPromotionDialog {...props} open />);
     expect(screen.getByTestId('promotion-source')).toHaveValue('');
     expect(screen.getByTestId('promotion-target')).toHaveValue('');
+  });
+
+  it('offers each copy of a tenant that two cells list as its own target', () => {
+    renderDialog({ tenants: copiedTenants });
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: /target tenant/i }));
+    const options = screen.getAllByRole('option').map((option) => option.textContent);
+    expect(options).toEqual(['acme (eu-1)', 'acme (eu-2)', 'staging (eu-1)']);
+  });
+
+  it('promotes into the copy of the target in its chosen cell', () => {
+    const { props } = renderDialog({ tenants: copiedTenants });
+    choose('eu-1/staging', 'eu-2/acme');
+    fireEvent.click(screen.getByTestId('promotion-preview'));
+    expect(props.onPreview).toHaveBeenCalledWith({
+      sourceTenantId: 'staging',
+      targetTenantId: 'acme',
+      sourceCell: 'eu-1',
+      targetCell: 'eu-2',
+      environmentSettings: [],
+    });
+
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: /source tenant/i }));
+    const options = screen.getAllByRole('option').map((option) => option.textContent);
+    expect(options).toEqual(['staging (eu-1)']);
   });
 });

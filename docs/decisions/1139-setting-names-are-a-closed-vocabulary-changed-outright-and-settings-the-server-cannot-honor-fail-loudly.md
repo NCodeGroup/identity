@@ -73,6 +73,11 @@ stored or skipped.**
    ([ADR-1140](1140-setting-values-are-validated-against-their-domain-not-only-their-type.md)) and the scopes a setting applies to
    ([ADR-1149](1149-settings-declare-the-scopes-they-apply-to-and-the-scopes-are-a-registered-cascade.md)) are checked at the same entry points with the same
    outcome. A composed-server test pins every setting name the library defines to a registered descriptor.
+10. **A stored settings document is a JSON object.** Every writer stores a document with no settings as the empty
+    object, never as `null`: a management create whose `settings` is `null`, the platform row, the teams and tenants the
+    provisioners create and the resource servers a seed adds. `ISettingSerializer` reads a `null` document as one with
+    no settings, so a request may send one, while a reader of a stored document's raw JSON, such as the tenant-limit
+    check of the global directory and of a cell, takes a document of any other kind as unreadable.
 
 ## Options considered
 
@@ -89,8 +94,11 @@ stored or skipped.**
 - **A retired-descriptor state, or one retired descriptor per removed pre-release setting.** Rejected: it keeps a name
   registered that nothing reads, and every removal adds a descriptor, a reason and a later cleanup for stored documents
   that no reader depends on.
+- **`null` for a document with no settings.** Rejected: an empty document then has two forms, so every reader of a
+  stored document's raw JSON must take both, and the team document a cell publishes for a team whose settings are `null`
+  is one the global directory refuses.
 - **Chosen:** a closed vocabulary of registered descriptors, rejection wherever a setting enters, a fail-closed read,
-  and outright change of a setting.
+  outright change of a setting, and one stored form, the empty object, for a document with no settings.
 
 ## Consequences
 
@@ -103,6 +111,10 @@ stored or skipped.**
   the document or `build/dev-db-reset.ps1` resets the database.
 - Tests cover the reader, the validator, `ValidateSettings` on each create and update, the fail-closed read, and the
   composed-server test that pins each defined setting name to a descriptor.
+- A team, tenant, platform or resource server that the server creates on its own stores the same settings document as a
+  management create without settings, so the global directory takes the team document that a cell publishes for a team
+  it provisioned
+  ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
 
 ## References
 
@@ -112,7 +124,8 @@ stored or skipped.**
   [ADR-1149](1149-settings-declare-the-scopes-they-apply-to-and-the-scopes-are-a-registered-cascade.md),
   [ADR-1165](1165-a-tenants-stored-issuer-is-its-single-origin-and-its-mtls-alias-a-routed-second-host.md),
   [ADR-1180](1180-each-host-contexts-migrations-run-before-the-rollout-and-only-expand-the-schema.md),
-  [ADR-1245](1245-management-requests-list-incoherent-clients-name-unreadable-stored-settings-and-let-a-write-repair-them.md)
+  [ADR-1245](1245-management-requests-list-incoherent-clients-name-unreadable-stored-settings-and-let-a-write-repair-them.md),
+  [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)
 - RFC 7591 section 3.2.1; issue #535
 - `DefaultSettingConfigurationReader`, `PlatformSettingsOptionsValidator`, `ISettingSerializer`, `SettingDescriptor`,
   `ISettingCollection`, `IClientScopeService`, `PersistedTenant.MtlsEndpointAliasAuthority`, `build/dev-db-reset.ps1`

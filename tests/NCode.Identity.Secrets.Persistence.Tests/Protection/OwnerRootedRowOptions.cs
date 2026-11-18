@@ -22,4 +22,9 @@ public sealed class OwnerRootedRowOptions
     /// Gets the access identity of the owner root key, or <see langword="null"/> for none.
     /// </summary>
     public string? AccessIdentity { get; init; }
+
+    /// <summary>
+    /// Gets the owner of the owner root key, or <see langword="null"/> for the owner of the tests.
+    /// </summary>
+    public SecretOwner? RootKeyOwner { get; init; }
 }

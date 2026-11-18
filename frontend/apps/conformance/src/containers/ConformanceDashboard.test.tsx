@@ -171,8 +171,8 @@ describe('ConformanceDashboard', () => {
     expect(await screen.findByTestId('summary')).toBeInTheDocument();
     expect(loadDiscovery).toHaveBeenLastCalledWith('https://op2.test', expect.any(AbortSignal));
 
-    // A superseded load that fails late must neither surface its error nor mark the new issuer as loading again.
-    // No UI change is expected, so there is nothing to await with findBy; act settles the rejection deterministically.
+    // A superseded load that fails late must neither surface its error nor mark the new issuer as loading again. No UI
+    // change is expected, so there is nothing to await with findBy; act settles the rejection deterministically.
     await act(async () => superseded.reject(new Error('stale failure')));
 
     expect(screen.getByTestId('summary')).toBeInTheDocument();

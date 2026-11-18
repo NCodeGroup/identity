@@ -11,9 +11,10 @@ export type CollectionResource<T> = {
 };
 
 /**
- * Mirror of an RFC 9457 problem details response and the extension members that
- * `ManagementProblemMembers` names. `retryAfterSeconds` is the whole number of seconds to wait,
- * the same value as the `Retry-After` header.
+ * Mirror of an RFC 9457 problem details response and the extension members that `ManagementProblemMembers` names.
+ * `retryAfterSeconds` is the whole number of seconds to wait, the same value as the `Retry-After` header, `placedCell`
+ * is the cell the global directory already places a tenant in, which the `409` of a tenant export carries, and
+ * `moveOutcome` is `unknown` when a tenant import cannot tell whether the global directory moved the tenant.
  */
 export type ManagementProblem = {
   readonly type?: string;
@@ -21,6 +22,8 @@ export type ManagementProblem = {
   readonly status?: number;
   readonly detail?: string;
   readonly retryAfterSeconds?: number;
+  readonly placedCell?: string;
+  readonly moveOutcome?: string;
 };
 
 /** Mirror of `TenantResource`. */
@@ -52,10 +55,10 @@ export type TenantEnvironmentResource = {
 };
 
 /**
- * Mirror of `CreateTenantRequest`. The tenant id is chosen by its creator and cannot change: 1 to 63
- * lowercase letters, digits, or hyphens that starts and ends with a letter or digit. `settings` is
- * the initial JSON settings object (empty by default; settings have their own PATCH endpoint). A `null`
- * issuer or mTLS endpoint alias takes the one the server's tenant strategy derives for the tenant.
+ * Mirror of `CreateTenantRequest`. The tenant id is chosen by its creator and cannot change: 1 to 63 lowercase letters,
+ * digits, or hyphens that start and end with a letter or digit. `settings` is the initial JSON settings object (empty
+ * by default; settings have their own PATCH endpoint). A `null` issuer or mTLS endpoint alias takes the one the
+ * server's tenant strategy derives for the tenant.
  */
 export type CreateTenantRequest = {
   readonly tenantId: string;
@@ -115,13 +118,61 @@ export type TenantPromotionEnvironmentSettings = {
   readonly settings: Readonly<Record<string, unknown>>;
 };
 
+/** Mirror of `TenantConfigurationScope`: a scope of an exported resource server. */
+export type TenantConfigurationScope = {
+  readonly value: string;
+  readonly description?: string | null;
+  readonly isSystem: boolean;
+};
+
+/** Mirror of `TenantConfigurationResourceServer`: a resource server of an exported tenant, with its scopes. */
+export type TenantConfigurationResourceServer = {
+  readonly resourceServerId: string;
+  readonly identifier: string;
+  readonly name: string;
+  readonly isSystem: boolean;
+  readonly isDisabled: boolean;
+  readonly settings: Readonly<Record<string, unknown>>;
+  readonly scopes: readonly TenantConfigurationScope[];
+};
+
+/** Mirror of `TenantConfigurationClient`: a client of an exported tenant; it carries no secrets. */
+export type TenantConfigurationClient = {
+  readonly clientId: string;
+  readonly isDisabled: boolean;
+  readonly resourceServerId?: string | null;
+  readonly settings: Readonly<Record<string, unknown>>;
+};
+
+/** Mirror of `TenantConfigurationClientGrant`: the scopes a client may request from a resource server. */
+export type TenantConfigurationClientGrant = {
+  readonly clientId: string;
+  readonly resourceServerId: string;
+  readonly scopes: readonly string[];
+};
+
 /**
- * Mirror of `PromoteTenantRequest`: the configuration of one tenant of a team promoted into another tenant of the
- * same team. `environmentSettings` supplies values that belong to the target's environment.
+ * Mirror of `TenantConfigurationDocument`: the configuration of one tenant (settings, clients, client grants and
+ * resource servers, never secrets), stamped with the region of the cell that exported it.
+ */
+export type TenantConfigurationDocument = {
+  readonly sourceTenantId: string;
+  readonly region: string;
+  readonly settings: Readonly<Record<string, unknown>>;
+  readonly clients: readonly TenantConfigurationClient[];
+  readonly clientGrants: readonly TenantConfigurationClientGrant[];
+  readonly resourceServers: readonly TenantConfigurationResourceServer[];
+};
+
+/**
+ * Mirror of `PromoteTenantRequest`: the configuration promoted into the tenant whose route carries the request. The
+ * source is either `sourceTenantId`, a tenant of the same cell, or `source`, a configuration exported from another cell
+ * of the region; a request names one of them. `environmentSettings` supplies values that belong to the target's
+ * environment.
  */
 export type PromoteTenantRequest = {
-  readonly sourceTenantId: string;
-  readonly targetTenantId: string;
+  readonly sourceTenantId?: string;
+  readonly source?: TenantConfigurationDocument;
   readonly environmentSettings: readonly TenantPromotionEnvironmentSettings[];
 };
 
@@ -179,6 +230,17 @@ export type TeamResource = {
   readonly parentTeamId?: string | null;
 };
 
+/**
+ * Mirror of `CellResource`: one cell of the platform, with the region it serves and whether it is the control plane.
+ */
+export type CellResource = {
+  readonly name: string;
+  readonly region: string;
+  /** The cell's kind, such as `shared`, `dedicated` or `sovereign`. */
+  readonly kind: string;
+  readonly isControlPlane: boolean;
+};
+
 /** Mirror of `RoleAssignmentResource`: one role a principal holds at one node of the resource tree. */
 export type RoleAssignmentResource = {
   readonly assignmentId: string;
@@ -196,7 +258,10 @@ export type RoleHolderResource = {
   readonly roleName: string;
 };
 
-/** Mirror of `RoleListResource`: the principals that hold one role at a node and whether the caller may grant and revoke it there (ADR-1465). */
+/**
+ * Mirror of `RoleListResource`: the principals that hold one role at a node and whether the caller may grant and revoke
+ * it there (ADR-1465).
+ */
 export type RoleListResource = {
   readonly items: readonly RoleHolderResource[];
   readonly canChange: boolean;
@@ -250,21 +315,30 @@ export type ClientResource = {
   readonly resourceServerId: string | null;
   /** The client's principal, which role assignments name to grant the client authority. */
   readonly principalId: string;
-  /** The type of the node that owns this machine client — `platform` or `team` — or `null` for an ordinary client (ADR-1466). */
+  /**
+   * The type of the node that owns this machine client — `platform` or `team` — or `null` for an ordinary client
+   * (ADR-1466).
+   */
   readonly owningNodeType: string | null;
-  /** The identifier of the node that owns this machine client: the team's id, or `platform`; `null` for an ordinary client. */
+  /**
+   * The identifier of the node that owns this machine client: the team's id, or `platform`; `null` for an ordinary
+   * client.
+   */
   readonly owningNodeId: string | null;
 };
 
 /**
- * Mirror of `CreateClientRequest`. The client id is server-generated (not supplied), and `settings`
- * is the initial JSON settings object (empty by default; settings have their own PATCH endpoint).
- * `resourceServerId` binds the new client to the resource server it acts for; the binding cannot
- * change after the client is created.
+ * Mirror of `CreateClientRequest`. The client id is generated by the server. Only a cell's platform machine client sets
+ * `clientId`, as `cell-` followed by the cell name; every other request leaves it unset. `jwks` is the client's public
+ * JSON Web Key Set (for `private_key_jwt`), and `settings` is the initial JSON settings object (empty by default;
+ * settings have their own PATCH endpoint). `resourceServerId` binds the new client to the resource server it acts for;
+ * the binding cannot change after the client is created.
  */
 export type CreateClientRequest = {
+  readonly clientId?: string;
   readonly isDisabled: boolean;
   readonly resourceServerId?: string | null;
+  readonly jwks?: unknown;
   readonly settings: Readonly<Record<string, unknown>>;
 };
 
@@ -607,7 +681,10 @@ export type EffectiveSettingsResource = {
   readonly settings: Readonly<Record<string, unknown>>;
 };
 
-/** Mirror of `SettingLimitsResource`: the limits an owner's settings may carry and whether the caller may change them (ADR-1418). */
+/**
+ * Mirror of `SettingLimitsResource`: the limits an owner's settings may carry and whether the caller may change them
+ * (ADR-1418).
+ */
 export type SettingLimitsResource = {
   readonly names: readonly string[];
   readonly canChange: boolean;
@@ -688,8 +765,8 @@ export type CreatedInitialAccessTokenResource = {
 
 // See ADR-1407.
 /**
- * Mirror of `EncryptionKeyResource` — one master key of a tenant or of the platform. It carries no key material, wrapped
- * key or key check.
+ * Mirror of `EncryptionKeyResource` — one master key of a tenant or of the platform. It carries no key material,
+ * wrapped key or key check.
  */
 export type EncryptionKeyResource = {
   readonly keyId: string;
@@ -759,6 +836,32 @@ export type EncryptionKeysResource = {
   readonly rootKeyAccessBinding: string | null;
 };
 
+/**
+ * Mirror of `TeamRootKeyResource` — the root key a team brings for one region: the key wrapper that reaches it, the
+ * reference that names it and the identity the server reaches it through. It carries no key material.
+ */
+export type TeamRootKeyResource = {
+  readonly region: string;
+  /** The name of the key wrapper that reaches the key, such as `aws-kms`. */
+  readonly provider: string;
+  /** The reference that names the key at its provider, such as a KMS key ARN. */
+  readonly keyReference: string;
+  /** The identity the server reaches the key through, or absent when it uses the deployment's own identity. */
+  readonly accessIdentity?: string | null;
+};
+
+/** Mirror of `TeamRootKeysResource` — the root keys of a team per region, with what the team may choose from. */
+export type TeamRootKeysResource = {
+  readonly rootKeys: readonly TeamRootKeyResource[];
+  /** The key wrapper names the team may choose a root key from. */
+  readonly rootKeyProviders: readonly string[];
+  /**
+   * The value an identity the team grants can require of the server, such as the external ID of an AWS role's trust
+   * policy.
+   */
+  readonly rootKeyAccessBinding: string;
+};
+
 /** Mirror of `EncryptionKeyRotationResource` — the result of a rekey. */
 export type EncryptionKeyRotationResource = {
   readonly activeKey: EncryptionKeyResource;
@@ -788,4 +891,49 @@ export type EncryptionRootKeyChangeResource = {
   readonly rewrappedKeys: number;
   /** How many master keys could not be rewrapped yet. */
   readonly failedKeys: number;
+};
+
+/**
+ * Mirror of `TenantTransferKeyResource` — the one-time transfer key a cell issues to receive a tenant: its `kid` and
+ * the public key as a JSON Web Key (`jwk`) for the `ECDH-ES+A256KW` algorithm.
+ */
+export type TenantTransferKeyResource = {
+  readonly kid: string;
+  readonly jwk: Readonly<Record<string, unknown>>;
+};
+
+/**
+ * Mirror of `TenantExportRequest` — the request to export a disabled tenant: the public half (`jwk`) of the receiving
+ * cell's transfer key, to which the export is sealed, and the name of the cell the tenant is offered to (`targetCell`),
+ * which the package names, so only that cell imports it.
+ */
+export type TenantExportRequest = {
+  readonly jwk: Readonly<Record<string, unknown>>;
+  /**
+   * The name of the cell that receives the tenant; the exporting cell offers the tenant to it in the global directory.
+   */
+  readonly targetCell: string;
+};
+
+/**
+ * Mirror of `TenantExportResource` — the export of a disabled tenant as a compact JWE (`package`) to the receiving
+ * cell's transfer key.
+ */
+export type TenantExportResource = {
+  readonly package: string;
+};
+
+/**
+ * Mirror of `TenantImportRequest` — the request to import a tenant: the `kid` of the transfer key the receiving cell
+ * issued and the sealed export (`package`) sealed to it.
+ */
+export type TenantImportRequest = {
+  readonly kid: string;
+  readonly package: string;
+};
+
+/** Mirror of `TenantImportResource` — the tenant a cell imported and the cell it came from. */
+export type TenantImportResource = {
+  readonly tenantId: string;
+  readonly sourceCell: string;
 };

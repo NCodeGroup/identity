@@ -55,6 +55,13 @@ public sealed class PersistedAuditRecord
     public required string Severity { get; init; }
 
     /// <summary>
+    /// Gets the name of the cell that wrote the record.
+    /// </summary>
+    // See ADR-1303.
+    [MaxLength(OpenIdMaxLengths.CellName)]
+    public required string Cell { get; init; }
+
+    /// <summary>
     /// Gets the identifier of the tenant the audited operation belongs to, or <see langword="null"/>.
     /// </summary>
     [MaxLength(MaxLengths.ResourceId)]

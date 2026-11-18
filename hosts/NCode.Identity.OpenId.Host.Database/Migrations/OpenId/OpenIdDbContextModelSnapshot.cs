@@ -36,6 +36,9 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnicode(false)
                         .HasColumnType("character varying(300)");
 
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -50,6 +53,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     b.HasKey("Id");
 
                     b.HasIndex("LocalAccountEntityId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("LocalAccountClaims", (string)null);
                 });
@@ -116,11 +121,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnicode(false)
                         .HasColumnType("character varying(100)");
 
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .IsUnicode(false)
-                        .HasColumnType("character varying(300)");
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("UserName")
                         .IsRequired()
@@ -129,6 +131,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .HasColumnType("character varying(300)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
 
                     b.HasIndex("NormalizedTenantId", "NormalizedEmail");
 
@@ -155,6 +159,12 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .HasMaxLength(100)
                         .IsUnicode(false)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Cell")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(32)");
 
                     b.Property<string>("ClientId")
                         .HasMaxLength(300)
@@ -224,6 +234,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     b.HasIndex("TraceId");
 
                     b.HasIndex("ActorId", "EventTime");
+
+                    b.HasIndex("Cell", "EventTime");
 
                     b.HasIndex("ClientId", "EventTime");
 
@@ -498,6 +510,28 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnique();
 
                     b.ToTable("Consents", (string)null);
+                });
+
+            modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.DirectoryFeedCheckpointEntity", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(300)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<long>("AppliedSequence")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(50)");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("DirectoryFeedCheckpoint", (string)null);
                 });
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.FederatedIdentityEntity", b =>
@@ -844,6 +878,11 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     b.Property<DateTimeOffset?>("RetiredWhen")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("RootKeyAccessBinding")
+                        .HasMaxLength(351)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(351)");
+
                     b.Property<string>("RootKeyAccessIdentity")
                         .HasMaxLength(1024)
                         .IsUnicode(false)
@@ -983,6 +1022,9 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .HasMaxLength(50)
                         .IsUnicode(false)
                         .HasColumnType("character varying(50)");
+
+                    b.Property<long>("DirectorySequence")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Key")
                         .IsRequired()
@@ -1460,6 +1502,9 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnicode(false)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<long>("DirectorySequence")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("DisplayName")
                         .IsRequired()
                         .IsUnicode(true)
@@ -1489,6 +1534,10 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .HasColumnType("character varying(50)");
 
                     b.Property<string>("ReconciledSettingsJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("RootKeysJson")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("SettingsConcurrencyToken")
@@ -1678,6 +1727,12 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     b.Property<long>("Id")
                         .HasColumnType("bigint");
 
+                    b.Property<string>("Cell")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("character varying(32)");
+
                     b.Property<string>("ConcurrencyToken")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -1727,6 +1782,25 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .WithMany("Claims")
                         .HasForeignKey("LocalAccountEntityId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TenantEntity", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Accounts.Entities.LocalAccountEntity", b =>
+                {
+                    b.HasOne("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TenantEntity", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.AuditRecordResourceEntity", b =>

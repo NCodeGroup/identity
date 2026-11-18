@@ -75,6 +75,10 @@ public abstract class SecretProtectionTestBase : BaseTests
             .Setup(x => x.FindAsync(owner, It.IsAny<CancellationToken>()))
             .Returns(new ValueTask<PersistedOwnerRootKey?>((PersistedOwnerRootKey?)null))
             .Verifiable();
+        rootKeyStore
+            .Setup(x => x.FindAsync(SecretOwner.Platform, It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<PersistedOwnerRootKey?>((PersistedOwnerRootKey?)null))
+            .Verifiable();
 
         var storeManager = CreateStrictMock<IStoreManager>();
         storeManager.Setup(x => x.GetStore<IMasterKeyStore>()).Returns(store.Object).Verifiable();

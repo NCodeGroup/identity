@@ -5,6 +5,7 @@ using JetBrains.Annotations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using NCode.Identity.Registration;
 using NCode.Identity.SharedState.Valkey.Facades;
 using NCode.Identity.SharedState.Valkey.Options;
@@ -123,6 +124,14 @@ public static class DefaultRegistration
                 .AddOptions<ValkeyOptions>()
                 .Configure(options => section.BindStrictly(options))
                 .ValidateOnStart();
+
+            // Every key and channel carries the deployment the composition names, such as the identity server's cell.
+            serviceCollection.TryAddEnumerable(
+                ServiceDescriptor.Singleton<
+                    IPostConfigureOptions<ValkeyOptions>,
+                    ValkeyDeploymentOptionsSetup
+                >()
+            );
 
             serviceCollection.AddMetrics();
             serviceCollection.TryAddSingleton(TimeProvider.System);
