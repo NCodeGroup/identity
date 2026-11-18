@@ -258,7 +258,13 @@ public class DefaultOwnerRootKeyManagerTests : BaseTests
             .Verifiable(times ?? Times.AtLeastOnce());
     }
 
-    private void ExpectRewrap(MasterKeyRewrapResult result) =>
+    private void ExpectRewrap(
+        MasterKeyRewrapResult result,
+        SecretOwner? owner = null,
+        bool includeDescendants = false
+    )
+    {
+        var expectedOwner = owner ?? NormalizedOwner;
         Rewrapper
             .Setup(x =>
                 x.RewrapAsync(
@@ -266,13 +272,15 @@ public class DefaultOwnerRootKeyManagerTests : BaseTests
                         request.NonconformingOnly
                         && !request.DryRun
                         && !request.RecoveryOnly
-                        && request.Owner == null
+                        && request.Owner == expectedOwner
+                        && request.IncludeDescendants == includeDescendants
                     ),
                     It.IsAny<CancellationToken>()
                 )
             )
             .Returns(new ValueTask<MasterKeyRewrapResult>(result))
             .Verifiable();
+    }
 
     #region SetAsync Tests
 
@@ -847,7 +855,7 @@ public class DefaultOwnerRootKeyManagerTests : BaseTests
         var team = new SecretOwner(SecretOwnerTypes.Team, "team-a");
         Stores.Seed(CreateTeamRootKey(team, OwnerRootKeyStates.Removing));
         Stores.Seed(CreateRow(1, Time.GetUtcNow().AddDays(-1), rootKeyReference: Reference));
-        ExpectRewrap(new MasterKeyRewrapResult(1, 0, 0, 0));
+        ExpectRewrap(new MasterKeyRewrapResult(1, 0, 0, 0), team, includeDescendants: true);
 
         var validation = await CreateManager().ValidateAsync(team, CancellationToken.None);
 
@@ -914,7 +922,7 @@ public class DefaultOwnerRootKeyManagerTests : BaseTests
     }
 
     [Fact]
-    public async Task Set_TheCompletion_RewrapsTheMasterKeysOfEveryOwner()
+    public async Task Set_TheCompletionForATenant_RewrapsOnlyTheTenantsMasterKeys()
     {
         Stores.Seed(CreateRow(1, Time.GetUtcNow().AddDays(-400)));
         ExpectEvictAndNotify();
@@ -934,7 +942,8 @@ public class DefaultOwnerRootKeyManagerTests : BaseTests
         await CreateManager().SetAsync(Owner, Request(), CancellationToken.None);
 
         Assert.NotNull(captured);
-        Assert.Null(captured.Owner);
+        Assert.Equal(NormalizedOwner, captured.Owner);
+        Assert.False(captured.IncludeDescendants);
         Assert.True(captured.NonconformingOnly);
     }
 
@@ -963,6 +972,21 @@ public class DefaultOwnerRootKeyManagerTests : BaseTests
         Assert.Null(validation.Change);
         Assert.Equal(Time.GetUtcNow(), validation.RootKey?.ValidatedWhen);
         Assert.Equal(OwnerRootKeyStates.Active, validation.RootKey?.State);
+    }
+
+    [Fact]
+    public async Task Validate_TeamKey_RewrapsTheMasterKeysOfTheTeamAndOfTheOwnersUnderIt()
+    {
+        var team = new SecretOwner(SecretOwnerTypes.Team, "team-a");
+        Stores.Seed(CreateTeamRootKey(team, OwnerRootKeyStates.Active));
+        Stores.Seed(
+            CreateRow(1, Time.GetUtcNow().AddDays(-1), rootKeyReference: Reference, owner: team)
+        );
+        ExpectRewrap(new MasterKeyRewrapResult(1, 0, 0, 0), team, includeDescendants: true);
+
+        var validation = await CreateManager().ValidateAsync(team, CancellationToken.None);
+
+        Assert.Equal(new MasterKeyRewrapResult(1, 0, 0, 0), validation.Rewrap);
     }
 
     [Fact]

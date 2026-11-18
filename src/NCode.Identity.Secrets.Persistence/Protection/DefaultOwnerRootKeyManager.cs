@@ -650,9 +650,19 @@ internal sealed class DefaultOwnerRootKeyManager(
         return OwnerRootKeyInfo.From(binding);
     }
 
+    // A tenant is no other owner's ancestor, so a change of its root key reaches only its own master keys; any other
+    // owner's key reaches those of the owners under it and those still under the key too.
+    private static MasterKeyRewrapRequest CreateRewrapRequest(SecretOwner key) =>
+        new()
+        {
+            NonconformingOnly = true,
+            Owner = key,
+            IncludeDescendants = key.TenantId is null,
+        };
+
     // Rotates the owner's master key onto its root key when the active one does not sit under the key it names, and
-    // conforms every other master key to it, including the master keys that sit under the key through another access
-    // identity.
+    // conforms to it the master keys whose root it can be, including those under the key through another access
+    // identity or binding.
     // See ADR-1414.
     private async ValueTask<(
         MasterKeyRotation? Rotation,
@@ -681,10 +691,7 @@ internal sealed class DefaultOwnerRootKeyManager(
             }
         }
 
-        var rewrap = await Rewrapper.RewrapAsync(
-            new MasterKeyRewrapRequest { NonconformingOnly = true },
-            cancellationToken
-        );
+        var rewrap = await Rewrapper.RewrapAsync(CreateRewrapRequest(key), cancellationToken);
 
         return (rotation, rewrap);
     }
@@ -737,19 +744,15 @@ internal sealed class DefaultOwnerRootKeyManager(
         return count;
     }
 
-    // Moves every master key of every owner that sits under the binding's key onto the nearest other root key, since a
-    // change of one owner's key reaches every owner that inherits it, and deletes the binding once no master key
-    // remains under the key. The binding is read again after the move, because the store renews its concurrency token
-    // with every save.
+    // Moves the master keys whose root the key can be onto the nearest other root key, and deletes the binding once no
+    // master key under the key remains that does not conform to its owner's nearest root key. The binding is read again
+    // after the move, because the store renews its concurrency token with every save.
     private async ValueTask<(
         OwnerRootKeyInfo? Remaining,
         MasterKeyRewrapResult Rewrap
     )> CompleteRemovalAsync(SecretOwner key, CancellationToken cancellationToken)
     {
-        var rewrap = await Rewrapper.RewrapAsync(
-            new MasterKeyRewrapRequest { NonconformingOnly = true },
-            cancellationToken
-        );
+        var rewrap = await Rewrapper.RewrapAsync(CreateRewrapRequest(key), cancellationToken);
 
         var (binding, _) = await ReadAsync(key, cancellationToken);
         if (binding is null)
