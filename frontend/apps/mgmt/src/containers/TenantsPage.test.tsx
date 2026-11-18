@@ -153,8 +153,8 @@ describe('TenantsPage (list states)', () => {
     );
 
     const onOpenTenant = renderPage(vi.fn(), undefined, { ...runtime, cells: ['eu-1', 'us-1'] });
-    fireEvent.click(await screen.findByTestId('tenant-row-acme-dev'));
-    fireEvent.click(screen.getByTestId('tenant-row-globex-dev'));
+    fireEvent.click(await screen.findByTestId('tenant-row-eu-1/acme-dev'));
+    fireEvent.click(screen.getByTestId('tenant-row-us-1/globex-dev'));
 
     expect(onOpenTenant).toHaveBeenNthCalledWith(1, 'acme-dev', 'eu-1');
     expect(onOpenTenant).toHaveBeenNthCalledWith(2, 'globex-dev', 'us-1');
@@ -173,9 +173,9 @@ describe('TenantsPage (list states)', () => {
 
     expect(await screen.findByRole('columnheader', { name: 'Cell' })).toBeInTheDocument();
     await waitFor(() =>
-      expect(screen.getByTestId('tenant-cell-acme-dev')).toHaveTextContent('eu-1eu-west'),
+      expect(screen.getByTestId('tenant-cell-eu-1/acme-dev')).toHaveTextContent('eu-1eu-west'),
     );
-    expect(screen.getByTestId('tenant-cell-globex-dev')).toHaveTextContent('us-1us-east');
+    expect(screen.getByTestId('tenant-cell-us-1/globex-dev')).toHaveTextContent('us-1us-east');
     expect(screen.queryByTestId('unavailable-cells')).not.toBeInTheDocument();
   });
 
@@ -199,7 +199,7 @@ describe('TenantsPage (list states)', () => {
 
     renderPage(vi.fn(), undefined, { ...runtime, cells: ['eu-1', 'us-1'] });
 
-    expect(await screen.findByTestId('tenant-row-acme-dev')).toBeInTheDocument();
+    expect(await screen.findByTestId('tenant-row-eu-1/acme-dev')).toBeInTheDocument();
     expect(screen.getByTestId('unavailable-cells')).toHaveTextContent(
       'The cell us-1 did not answer, so its tenants are not listed.',
     );
@@ -383,7 +383,7 @@ describe('TenantsPage (CRUD wiring)', () => {
 
     renderPage(vi.fn(), 0, { ...runtime, cells: ['eu-1', 'us-1'] });
     await waitFor(() =>
-      expect(screen.getByTestId('tenant-cell-acme-dev')).toHaveTextContent('eu-west'),
+      expect(screen.getByTestId('tenant-cell-eu-1/acme-dev')).toHaveTextContent('eu-west'),
     );
 
     fireEvent.click(screen.getByTestId('create-tenant'));
@@ -479,7 +479,7 @@ describe('TenantsPage (CRUD wiring)', () => {
     });
 
     renderPage(vi.fn(), undefined, { ...runtime, cells: ['eu-1', 'us-1'] });
-    fireEvent.click(await screen.findByTestId('tenant-edit-acme-dev'));
+    fireEvent.click(await screen.findByTestId('tenant-edit-eu-1/acme-dev'));
     fireEvent.change(screen.getByTestId('tenant-display-name'), {
       target: { value: 'Acme Corp' },
     });
@@ -487,7 +487,7 @@ describe('TenantsPage (CRUD wiring)', () => {
     await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true));
     await waitFor(() => expect(screen.queryByTestId('tenant-form-submit')).not.toBeInTheDocument());
 
-    fireEvent.click(screen.getByTestId('tenant-delete-globex-dev'));
+    fireEvent.click(screen.getByTestId('tenant-delete-us-1/globex-dev'));
     fireEvent.click(await screen.findByTestId('confirm-accept'));
     await waitFor(() => expect(calls.some((c) => c.method === 'DELETE')).toBe(true));
 
@@ -942,9 +942,9 @@ describe('TenantsPage (promotion across cells)', () => {
 
   async function openPromotion(target: string, source: string) {
     renderPage(vi.fn(), undefined, config);
-    expect(await screen.findByTestId('tenant-row-acme-us')).toBeInTheDocument();
+    expect(await screen.findByTestId('tenant-row-us-1/acme-us')).toBeInTheDocument();
     await waitFor(() =>
-      expect(screen.getByTestId('tenant-cell-acme-us')).toHaveTextContent('us-1us-east'),
+      expect(screen.getByTestId('tenant-cell-us-1/acme-us')).toHaveTextContent('us-1us-east'),
     );
     fireEvent.click(screen.getByTestId('promote-tenant'));
     fireEvent.change(screen.getByTestId('promotion-target'), { target: { value: target } });
@@ -1019,9 +1019,9 @@ describe('TenantsPage (promotion across cells)', () => {
     installCells();
 
     renderPage(vi.fn(), undefined, config);
-    expect(await screen.findByTestId('tenant-row-acme-us')).toBeInTheDocument();
+    expect(await screen.findByTestId('tenant-row-us-1/acme-us')).toBeInTheDocument();
     await waitFor(() =>
-      expect(screen.getByTestId('tenant-cell-acme-us')).toHaveTextContent('us-1us-east'),
+      expect(screen.getByTestId('tenant-cell-us-1/acme-us')).toHaveTextContent('us-1us-east'),
     );
     fireEvent.click(screen.getByTestId('promote-tenant'));
     fireEvent.change(screen.getByTestId('promotion-target'), { target: { value: 'globex-dev' } });

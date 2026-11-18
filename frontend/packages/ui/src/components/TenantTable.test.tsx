@@ -65,15 +65,15 @@ describe('TenantTable', () => {
   it('hides the Cell column by default', () => {
     render(<TenantTable tenants={cellTenants} />);
     expect(screen.queryByRole('columnheader', { name: 'Cell' })).not.toBeInTheDocument();
-    expect(screen.queryByTestId('tenant-cell-root')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('tenant-cell-eu-1/root')).not.toBeInTheDocument();
   });
 
   it('shows the name and region of each tenant cell, and an empty cell without one', () => {
     render(<TenantTable tenants={cellTenants} showCell />);
     expect(screen.getByRole('columnheader', { name: 'Cell' })).toBeInTheDocument();
-    expect(screen.getByTestId('tenant-cell-root')).toHaveTextContent('eu-1');
-    expect(screen.getByTestId('tenant-cell-root')).toHaveTextContent('eu-west');
-    expect(screen.getByTestId('tenant-cell-sandbox')).toHaveTextContent(/^us-1$/);
+    expect(screen.getByTestId('tenant-cell-eu-1/root')).toHaveTextContent('eu-1');
+    expect(screen.getByTestId('tenant-cell-eu-1/root')).toHaveTextContent('eu-west');
+    expect(screen.getByTestId('tenant-cell-us-1/sandbox')).toHaveTextContent(/^us-1$/);
     expect(screen.getByTestId('tenant-cell-old')).toBeEmptyDOMElement();
   });
 
@@ -81,7 +81,7 @@ describe('TenantTable', () => {
     const onSelect = vi.fn();
     render(<TenantTable tenants={tenants} onSelect={onSelect} />);
     fireEvent.click(screen.getByTestId('tenant-row-root'));
-    expect(onSelect).toHaveBeenCalledWith('root');
+    expect(onSelect).toHaveBeenCalledWith('root', undefined);
   });
 
   it('renders no actions column when no edit/delete callbacks are supplied', () => {
@@ -95,7 +95,7 @@ describe('TenantTable', () => {
     const onEdit = vi.fn();
     render(<TenantTable tenants={tenants} onSelect={onSelect} onEdit={onEdit} />);
     fireEvent.click(screen.getByTestId('tenant-edit-root'));
-    expect(onEdit).toHaveBeenCalledWith('root');
+    expect(onEdit).toHaveBeenCalledWith('root', undefined);
     expect(onSelect).not.toHaveBeenCalled();
   });
 
@@ -104,7 +104,36 @@ describe('TenantTable', () => {
     const onDelete = vi.fn();
     render(<TenantTable tenants={tenants} onSelect={onSelect} onDelete={onDelete} />);
     fireEvent.click(screen.getByTestId('tenant-delete-old'));
-    expect(onDelete).toHaveBeenCalledWith('old');
+    expect(onDelete).toHaveBeenCalledWith('old', undefined);
     expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('tells apart the rows of one tenant that two cells list', () => {
+    const onSelect = vi.fn();
+    const onEdit = vi.fn();
+    const onDelete = vi.fn();
+    const rows: TenantRow[] = [
+      { ...tenants[0]!, cell: { name: 'eu-1', region: 'eu-west' } },
+      { ...tenants[0]!, displayName: 'Root moved', cell: { name: 'eu-2', region: 'eu-west' } },
+    ];
+    render(
+      <TenantTable
+        tenants={rows}
+        showCell
+        onSelect={onSelect}
+        onEdit={onEdit}
+        onDelete={onDelete}
+      />,
+    );
+    expect(screen.getByTestId('tenant-environment-eu-1/root')).toBeInTheDocument();
+    expect(screen.getByTestId('tenant-environment-eu-2/root')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('tenant-edit-eu-2/root'));
+    fireEvent.click(screen.getByTestId('tenant-delete-eu-2/root'));
+    fireEvent.click(screen.getByTestId('tenant-row-eu-1/root'));
+
+    expect(onEdit).toHaveBeenCalledWith('root', 'eu-2');
+    expect(onDelete).toHaveBeenCalledWith('root', 'eu-2');
+    expect(onSelect).toHaveBeenCalledWith('root', 'eu-1');
   });
 });
