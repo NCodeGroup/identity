@@ -1,5 +1,5 @@
 {
-  "name": "@ncode/vite-config",
+  "name": "@ncodegroup/identity-vite-config",
   "version": "0.0.0",
   "private": true,
   "description": "The one Vite and Vitest configuration every NCode.Identity frontend workspace builds and tests from: the test gates and the standalone, backend-served and BFF-served surface presets.",
@@ -22,7 +22,7 @@
     "vite": "^8.3.4"
   },
   "devDependencies": {
-    "@ncode/test-support": "workspace:*",
+    "@ncodegroup/identity-test-support": "workspace:*",
     "@types/node": "^26.6.5",
     "@vitest/coverage-v8": "^5.0.5",
     "typescript": "^6.0.3",

@@ -3,7 +3,7 @@
  * terminal or a stable JSON document for CI consumption.
  */
 
-import type { ProbeOutcome, ProbeReport } from '@ncode/conformance-core';
+import type { ProbeOutcome, ProbeReport } from '@ncodegroup/identity-conformance-core';
 
 const OUTCOME_LABEL: Record<ProbeOutcome, string> = {
   verified: 'VERIFIED',

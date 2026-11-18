@@ -1,8 +1,8 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { act, render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { Provider } from 'react-redux';
-import { createAppStore, type BffUser } from '@ncode/store';
-import type { BffRuntimeConfig } from '@ncode/config';
+import { createAppStore, type BffUser } from '@ncodegroup/identity-store';
+import type { BffRuntimeConfig } from '@ncodegroup/identity-config';
 import { App } from './App.js';
 // Each surface is a lazily loaded chunk (ADR-1151). Loading the modules first lets each lazy surface resolve from the
 // module cache, so a test waits for the surface's data and render rather than a cold transform of its chunk.

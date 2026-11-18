@@ -3,7 +3,7 @@ import {
   useGetCallerQuery,
   useListCallerTeamsQuery,
   useListCallerTenantsQuery,
-} from '@ncode/store';
+} from '@ncodegroup/identity-store';
 import { toCallerAccess, type CallerAccess } from './access.js';
 
 /**

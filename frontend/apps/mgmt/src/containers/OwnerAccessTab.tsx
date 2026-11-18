@@ -1,5 +1,5 @@
 import Stack from '@mui/material/Stack';
-import type { RoleOwner } from '@ncode/api';
+import type { RoleOwner } from '@ncodegroup/identity-api';
 import { RoleAssignmentsManager } from './RoleAssignmentsManager.js';
 
 export type OwnerAccessTabProps = {

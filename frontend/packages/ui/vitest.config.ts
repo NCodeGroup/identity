@@ -1,4 +1,4 @@
-import { defineTestConfig } from '@ncode/vite-config';
+import { defineTestConfig } from '@ncodegroup/identity-vite-config';
 
 export default defineTestConfig({
   environment: 'jsdom',

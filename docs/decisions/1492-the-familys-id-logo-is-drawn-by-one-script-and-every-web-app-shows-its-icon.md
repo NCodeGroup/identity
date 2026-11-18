@@ -106,7 +106,7 @@ serves.**
     [ADR-1253](1253-a-tenant-brands-its-sign-in-pages-through-settings-and-the-bundle-mounts-over-the-hosts-page.md)).
 13. **The checks.** `build/favicon-copies.ps1`, run by the `favicon copies` stage of `./build/dod.ps1` through its
     fixture tests, fails on an app copy that differs from, or has no counterpart in, `brand/favicon/`. Each app's
-    `src/favicon.test.ts` checks its links and its three files against the family icon set that `@ncode/test-support`
+    `src/favicon.test.ts` checks its links and its three files against the family icon set that `@ncodegroup/identity-test-support`
     holds once. For each host and each icon, one case reads the built `index.html`, finds the icon's link and serves the
     linked asset through `SinglePageBundle.ServeAsset` with its image type, and one integration test requests an icon
     through the host's assets route and gets its image type. The pages' own policy tests hold their `img-src 'self'`.

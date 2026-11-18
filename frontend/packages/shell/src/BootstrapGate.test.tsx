@@ -3,9 +3,9 @@ import { act, render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { useTheme } from '@mui/material/styles';
 import { describe, expect, it, vi } from 'vitest';
-import type { RuntimeConfig, RuntimeConfigLoader } from '@ncode/config';
-import { createAppStore, runtimeConfigLoaded, type AppStore } from '@ncode/store';
-import { createAppTheme } from '@ncode/ui';
+import type { RuntimeConfig, RuntimeConfigLoader } from '@ncodegroup/identity-config';
+import { createAppStore, runtimeConfigLoaded, type AppStore } from '@ncodegroup/identity-store';
+import { createAppTheme } from '@ncodegroup/identity-ui';
 import { BootstrapGate } from './BootstrapGate.js';
 
 const runtime: RuntimeConfig = {

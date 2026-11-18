@@ -21,8 +21,8 @@ import {
   type TenantFormValues,
   type TenantPromotionDialogRequest,
   type TenantRow,
-} from '@ncode/ui';
-import type { PromoteTenantRequest, TenantPromotionResource } from '@ncode/api';
+} from '@ncodegroup/identity-ui';
+import type { PromoteTenantRequest, TenantPromotionResource } from '@ncodegroup/identity-api';
 import {
   apiErrorMessage,
   useAppSelector,
@@ -38,7 +38,7 @@ import {
   useUpdateTenantMutation,
   type ApiError,
   type CellTenantResource,
-} from '@ncode/store';
+} from '@ncodegroup/identity-store';
 
 export type TenantsPageProps = {
   /** The team whose tenants are listed and created. */

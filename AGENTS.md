@@ -153,7 +153,7 @@ compiles it and no gate tests it
   and `NCID0004` reports an `IgnoreQueryFilters()` call that no `// Cross-tenant: <why>` comment explains
   ([ADR-1018](docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md))
 - **Frontend (`frontend/`)** — the pnpm workspace of the web apps (`apps/auth`, `apps/mgmt`, `apps/playground`,
-  `apps/conformance`, `apps/conformance-runner`) and their shared `@ncode/*` packages, with a gate of its own
+  `apps/conformance`, `apps/conformance-runner`) and their shared `@ncodegroup/identity-*` packages, with a gate of its own
   ([ADR-1064](docs/decisions/1064-one-frontend-platform-of-shared-packages-and-thin-app-shells-serves-every-web-surface.md))
 - **Logo** — `brand/`, the family's logo kit: the `{id}` mark as SVG masters and as the PNG and ICO files each platform
   takes, which every package, the host chart and the README show. `brand/build.py` draws every file there, so change

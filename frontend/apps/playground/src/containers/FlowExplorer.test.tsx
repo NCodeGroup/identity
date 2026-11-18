@@ -2,9 +2,9 @@ import { StrictMode, type ReactNode } from 'react';
 import { webcrypto } from 'node:crypto';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
-import { AppThemeProvider } from '@ncode/ui';
-import type { FetchLike } from '@ncode/auth';
-import type { OpenIdRuntimeConfig } from '@ncode/config';
+import { AppThemeProvider } from '@ncodegroup/identity-ui';
+import type { FetchLike } from '@ncodegroup/identity-auth';
+import type { OpenIdRuntimeConfig } from '@ncodegroup/identity-config';
 import { FlowExplorer, type FlowExplorerProps } from './FlowExplorer.js';
 import { AuthError, TRANSACTION_KEY, type FlowDeps, type FlowTransaction } from '../flow.js';
 

@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchRawDiscovery, type RawDiscovery } from '@ncode/conformance-core';
+import { fetchRawDiscovery, type RawDiscovery } from '@ncodegroup/identity-conformance-core';
 import { loadDiscovery } from './discovery.js';
 
-vi.mock(import('@ncode/conformance-core'), async (importOriginal) => ({
+vi.mock(import('@ncodegroup/identity-conformance-core'), async (importOriginal) => ({
   ...(await importOriginal()),
   fetchRawDiscovery: vi.fn(),
 }));

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PLATFORM_SCOPE, teamScope, tenantScope } from '@ncode/api';
+import { PLATFORM_SCOPE, teamScope, tenantScope } from '@ncodegroup/identity-api';
 import {
   DEFAULT_ROUTE,
   HOME_ROUTE,

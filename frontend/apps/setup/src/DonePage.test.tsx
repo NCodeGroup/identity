@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { AppThemeProvider } from '@ncode/ui';
+import { AppThemeProvider } from '@ncodegroup/identity-ui';
 import { DonePage, FIRST_INSTANCE_DOCS_URL } from './DonePage.js';
 import type { CreatedRoot, SetupTokenSource } from './setupApi.js';
 

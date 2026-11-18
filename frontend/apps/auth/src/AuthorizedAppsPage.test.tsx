@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
-import { AppThemeProvider } from '@ncode/ui';
+import { AppThemeProvider } from '@ncodegroup/identity-ui';
 import { AuthorizedAppsPage, type AuthorizedApplication } from './AuthorizedAppsPage.js';
 
 function renderPage(props: Parameters<typeof AuthorizedAppsPage>[0]) {

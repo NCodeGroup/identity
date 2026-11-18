@@ -3,7 +3,7 @@ import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Plugin, PluginOption } from 'vite';
-import { ASYNC_UTIL_TIMEOUT_MS } from '@ncode/test-support';
+import { ASYNC_UTIL_TIMEOUT_MS } from '@ncodegroup/identity-test-support';
 import {
   BROWSER_TEST_TIMEOUT_MS,
   CHUNK_SIZE_LIMIT_KB,

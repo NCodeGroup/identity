@@ -2,7 +2,7 @@ import { Fragment, lazy, Suspense, useEffect } from 'react';
 import CircularProgress from '@mui/material/CircularProgress';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
-import { useAppSelector, useGetTeamQuery, useGetTenantQuery } from '@ncode/store';
+import { useAppSelector, useGetTeamQuery, useGetTenantQuery } from '@ncodegroup/identity-store';
 import { AppLayout } from './components/AppLayout.js';
 import { permittedRoute, teamExit, tenantExit } from './access.js';
 import { useCallerAccess } from './useCallerAccess.js';

@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
-import { DataStateBoundary, SettingsEditor } from '@ncode/ui';
+import { DataStateBoundary, SettingsEditor } from '@ncodegroup/identity-ui';
 import type {
   EffectiveSettingsResource,
   SettingLimitsResource,
   SettingsResource,
-} from '@ncode/api';
-import { apiErrorMessage, type ApiError } from '@ncode/store';
+} from '@ncodegroup/identity-api';
+import { apiErrorMessage, type ApiError } from '@ncodegroup/identity-store';
 
 export type SettingsManagerProps = {
   readonly settings: SettingsResource | undefined;

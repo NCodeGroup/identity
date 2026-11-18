@@ -38,14 +38,14 @@ The Selenium-driven sign-in and consent surface that the external suite automate
 
 **The Playground explores only the recommended authorization-code flow, and the conformance harness measures the
 provider against the whole published spec surface through a data-first catalog whose entries name the actor that can
-exercise them.** Both are standalone Vite SPAs on the shared `@ncode/*` platform.
+exercise them.** Both are standalone Vite SPAs on the shared `@ncodegroup/identity-*` platform.
 
 ### The Playground
 
 `apps/playground` is an OAuth 2.1 / OpenID Connect flow explorer. It discovers the provider and walks authorization
 code with PKCE `S256` end to end, shows every artifact (the verifier and challenge, `state`, `nonce`, the authorize
 URL, the token response and the decoded JWT header and claims), and exercises UserInfo, refresh and RP-Initiated
-Logout. The flow orchestration is the UI-free, unit-tested `flow.ts`, composed from the shared `@ncode/auth`
+Logout. The flow orchestration is the UI-free, unit-tested `flow.ts`, composed from the shared `@ncodegroup/identity-auth`
 primitives. It offers only the authorization-code flow: implicit, hybrid front-channel-token and password flows cannot
 be selected, matching the security-practice default.
 
@@ -68,7 +68,7 @@ Both join the Aspire AppHost graph health-gated on the API
 - **A spec-coverage matrix.** It answers how much of the published surface exists, and complements the audit rather
   than replacing it, because the two answer different questions.
 
-The framework-free logic lives in `@ncode/conformance-core` (`audit.ts`, `coverage.ts`, `discovery.ts`,
+The framework-free logic lives in `@ncodegroup/identity-conformance-core` (`audit.ts`, `coverage.ts`, `discovery.ts`,
 `probes.ts`), pure and unit-tested.
 
 ### The coverage catalog
@@ -89,7 +89,7 @@ PAR, the response-mode matrix, `prompt`, `max_age`, `acr` and `claims`, and the 
 
 ### The probe runner and the external suite
 
-The headless `@ncode/app-conformance-runner` CLI drives the legs a browser cannot: `client_credentials`,
+The headless `@ncodegroup/identity-app-conformance-runner` CLI drives the legs a browser cannot: `client_credentials`,
 introspection and revocation with client authentication, device code, CIBA, `private_key_jwt`, DPoP, mTLS and
 back-channel logout. It signs with a Node `crypto` key loaded through `--private-key` and `--dpop-key`, infers the
 algorithm from the key (overridable), builds the compact-JWS client assertion (OpenID Connect Core §9) and the DPoP

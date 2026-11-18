@@ -8,7 +8,7 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import type { OpenIdRuntimeConfig } from '@ncode/config';
+import type { OpenIdRuntimeConfig } from '@ncodegroup/identity-config';
 import { CodeBlock } from '../components/CodeBlock.js';
 import { StepCard, type StepStatus } from '../components/StepCard.js';
 import {

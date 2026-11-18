@@ -34,7 +34,7 @@ they write one-line JSON logs.
 - The host image builds `apps/auth` in a Node stage with the workspace's pinned pnpm, serves it from `/app/auth` with
   `InteractiveAuthentication__BundleRootPath=/app/auth`, and carries the migration worker in `/app/migrations`.
 - `hosts/NCode.Identity.ManagementConsole.Host/Dockerfile` mirrors it with the same pinned bases. It builds
-  `@ncode/app-mgmt`, serves `/app/mgmt` with `ManagementConsole__BundleRootPath=/app/mgmt`, and runs as UID 1654 on
+  `@ncodegroup/identity-app-mgmt`, serves `/app/mgmt` with `ManagementConsole__BundleRootPath=/app/mgmt`, and runs as UID 1654 on
   8443.
 - `hosts/NCode.Identity.OpenId.GlobalDirectory.Host/Dockerfile` mirrors it with the same pinned .NET bases and no Node
   stage, because the directory serves no web bundle. It runs as UID 1654 on 8443, and its own `migrate` command applies

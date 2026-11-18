@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import type { RuntimeConfigLoader } from '@ncode/config';
-import { runtimeConfigLoaded, useAppDispatch, useAppSelector } from '@ncode/store';
-import { AppThemeProvider, BootstrapScreen } from '@ncode/ui';
+import type { RuntimeConfigLoader } from '@ncodegroup/identity-config';
+import { runtimeConfigLoaded, useAppDispatch, useAppSelector } from '@ncodegroup/identity-store';
+import { AppThemeProvider, BootstrapScreen } from '@ncodegroup/identity-ui';
 
 export type BootstrapGateProps = {
   /**

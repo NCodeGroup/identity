@@ -1,4 +1,4 @@
-import { defineStandaloneSurfaceConfig } from '@ncode/vite-config';
+import { defineStandaloneSurfaceConfig } from '@ncodegroup/identity-vite-config';
 
 // The conformance posture dashboard. Port 5175 is the one the developer CORS allowlist and the AppHost endpoint assume.
 // Its bootstrap document comes from the dedicated conformance OP host (`conformanceapi`): a second Playground instance

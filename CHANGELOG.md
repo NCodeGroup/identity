@@ -14,7 +14,7 @@ Until the first stable release, the [Unreleased] section describes the product a
 ### Added
 
 - **A setup wizard at `/setup` creates an instance's first administrator.** Setup runs once per platform, on the
-  control-plane cell only. The OP serves the `@ncode/app-setup` bundle
+  control-plane cell only. The OP serves the `@ncodegroup/identity-app-setup` bundle
   (`frontend/apps/setup`) under a per-response CSP nonce, and the wizard asks for the setup token, reads it from the URL
   fragment (`#token=`, beside the optional `consoleUrl` and `consoleClientId`) and strips them from the address bar,
   checks the token through `POST /setup/api/token` before it moves on, so a wrong token keeps the operator on the token
@@ -315,7 +315,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   `MapEndpointGroups()` call maps it. The document carries the API base, issuer, client id, scopes, feature flags and
   branding, and, with nothing configured, publishes the serving tenant's issuer (its stored one, or the one its strategy derives before the tenant is
   provisioned; the root tenant's when the request names none) and the host's root-relative path base as the API base,
-  so a single-origin host serves every tier from one bundle with no configuration. `@ncode/config`'s `loadRuntimeConfig` sends the bundle's
+  so a single-origin host serves every tier from one bundle with no configuration. `@ncodegroup/identity-config`'s `loadRuntimeConfig` sends the bundle's
   `SurfaceKind` as `?surface=`, and `FrontendBootstrapOptions.Surfaces` maps each surface to a `FrontendSurfaceOptions`
   override: client id and scopes override the default, so a read-only surface publishes none; feature flags merge;
   branding falls back. The bootstrap types (`FrontendBootstrapOptions`, `FrontendSurfaceOptions`,
@@ -634,7 +634,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   ([ADR-1152](docs/decisions/1152-the-frontend-pins-node-and-pnpm-once-gates-dependencies-by-release-age-and-tracks-supported-upstreams.md)).
 
 - **Frontend tests fail on warnings, and frontend coverage holds a floor.** A test that logs `console.error` or
-  `console.warn` fails, through a console guard in the test-only `@ncode/test-support` workspace (the usual culprit is a
+  `console.warn` fails, through a console guard in the test-only `@ncodegroup/identity-test-support` workspace (the usual culprit is a
   React "not wrapped in act(...)" warning, meaning the test asserted before an update settled). A test that makes no
   assertion fails, lint fails on any warning, and tests, stories and setup files are type-checked. Each workspace's
   coverage measures every source file and holds a floor at its level, enforced by `pnpm run test:report` in CI
@@ -2104,7 +2104,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   or return `consent_required` under `prompt=none`.
 
 - **The OpenID Provider hosts an interactive login and consent surface.** A React and Material UI app
-  (`@ncode/app-auth`, `apps/auth`) on the shared frontend platform is served by the host, same-origin, under
+  (`@ncodegroup/identity-app-auth`, `apps/auth`) on the shared frontend platform is served by the host, same-origin, under
   `/account/*`, backed by the opt-in leaf capability package `NCode.Identity.OpenId.Authentication.Interactive` (+
   `.Abstractions`, under the `NCode.Identity.OpenId.Authentication.Interactive.*` namespaces), which
   `NCode.Identity.Server` references like any other capability (`AddInteractiveAuthentication` /
@@ -2140,14 +2140,14 @@ Until the first stable release, the [Unreleased] section describes the product a
   and the server-rendered forms post to page-relative `login` and `consent`. Every page the surface serves sets
   `<base href="{tenant path}/account/">`; the `apps/auth` bundle builds with a relative base and resolves its API and
   page paths against `document.baseURI`, so one build works beneath any tenant. The host adds no middleware for the
-  bundle, and `defineBackendServedSurfaceConfig` in `@ncode/vite-config` takes no `base`. See
+  bundle, and `defineBackendServedSurfaceConfig` in `@ncodegroup/identity-vite-config` takes no `base`. See
   [ADR-1193](docs/decisions/1193-the-interactive-surface-uses-the-tenant-route-host-only-cookies-and-one-shared-single-page-bundle-helper.md).
 
 - **The `apps/auth` bundle's files are cached for a year and served without resolving the tenant.** The host serves only
   the bundle's content-hashed `assets` directory, at `GET|HEAD {tenant}/account/assets/{**asset}`, with
   `Cache-Control: public, max-age=31536000, immutable` and its `ETag` and `Last-Modified` validators, from a route group
   that resolves no tenant, so a returning browser loads the bundle without a request. Other files of the bundle's
-  directory, such as `index.html`, are not served, and `@ncode/vite-config` pins `build.assetsDir` to `assets`
+  directory, such as `index.html`, are not served, and `@ncodegroup/identity-vite-config` pins `build.assetsDir` to `assets`
   ([ADR-1193](docs/decisions/1193-the-interactive-surface-uses-the-tenant-route-host-only-cookies-and-one-shared-single-page-bundle-helper.md),
   issue [#221](https://github.com/NCodeGroup/identity/issues/221)).
 
@@ -2230,7 +2230,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   carries the tenant's branding, in the bootstrap document's `branding` shape, in a
   `<script type="application/json" id="branding">` block after its `<base>`, and the bundle themes itself from it
   without a request: it themes the surface with the colors and mode, draws the logo, and titles the login and account
-  pages with the display name; a page without branding gets the default theme. `@ncode/config` exports
+  pages with the display name; a page without branding gets the default theme. `@ncodegroup/identity-config` exports
   `parseBrandingConfig`, which the bootstrap parser uses too, so a malformed branding token is dropped, never trusted.
   A tenant that sets `branding_favicon_uri` shows that icon in its pages' tabs instead of the family's: the host links
   it, drops the bundle's family icon links, and admits its origin in the page's `img-src`
@@ -2267,9 +2267,9 @@ Until the first stable release, the [Unreleased] section describes the product a
 
 - **One TypeScript UI platform serves every frontend surface (`frontend`).** Management, login/consent, playground
   and OIDC conformance surfaces share React + Material UI, Redux Toolkit + RTK Query, Vite, Vitest + React Testing
-  Library and Storybook, orchestrated by pnpm workspaces + Turborepo and pinned through Corepack. Shared `@ncode/*`
+  Library and Storybook, orchestrated by pnpm workspaces + Turborepo and pinned through Corepack. Shared `@ncodegroup/identity-*`
   packages (`config` runtime discovery, `api` RTK Query client with a global/tenant scope model, `store` Redux assembly,
-  `ui` MUI design system) back thin per-surface app shells, including the management console (`@ncode/app-mgmt`) with
+  `ui` MUI design system) back thin per-surface app shells, including the management console (`@ncodegroup/identity-app-mgmt`) with
   global-vs-tenant boundary browsing. Bundles are tier-agnostic: all configuration is discovered at runtime from the
   serving host and nothing is baked in at build time, and a branding seam supports per-tenant theming. The toolchain is
   isolated under `frontend` and is separate from the .NET Definition of Done. See
@@ -2613,7 +2613,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   ([ADR-1303](docs/decisions/1303-audit-records-are-kept-in-an-indexed-store-that-each-replica-writes-in-batches.md)
   decision 6, issue [#384](https://github.com/NCodeGroup/identity/issues/384)).
 
-- **`@ncode/auth` holds the Playground's public-client protocol helpers.** The framework-free `@ncode/auth` package
+- **`@ncodegroup/identity-auth` holds the Playground's public-client protocol helpers.** The framework-free `@ncodegroup/identity-auth` package
   implements OAuth 2.0 authorization code with PKCE (`S256`): verifier and challenge generation, the authorize redirect,
   state/CSRF validation, code-for-token exchange, refresh and ID-token subject extraction, all injectable and
   unit-tested (including the RFC 7636 test vector).
@@ -2630,7 +2630,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   [#236](https://github.com/NCodeGroup/identity/issues/236)).
 
 - **Management console cache tags are scoped.** Every tag id names the scope that owns the resource (`scopeTagId` in
-  `@ncode/api`), so a mutation in the platform scope or one tenant refetches only that scope's caches, as
+  `@ncodegroup/identity-api`), so a mutation in the platform scope or one tenant refetches only that scope's caches, as
   [ADR-1064](docs/decisions/1064-one-frontend-platform-of-shared-packages-and-thin-app-shells-serves-every-web-surface.md) intends.
 
 - **The management console creates, edits and deletes tenants.** RTK Query mutations
@@ -2643,7 +2643,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   alias cannot be used; it re-judges an existing tenant's address only when its issuer or alias changes. The tenant
   table shows each tenant's issuer, alias and environment, highlights every non-production environment, and filters by
   environment type. Edits send the resource's `concurrencyToken` as `If-Match` over a `replace`-only JSON Patch; the
-  UI-free `replacePatch` helper (`@ncode/api`) and the RFC 7807-aware `apiErrorMessage` helper (`@ncode/store`) are
+  UI-free `replacePatch` helper (`@ncodegroup/identity-api`) and the RFC 7807-aware `apiErrorMessage` helper (`@ncodegroup/identity-store`) are
   unit-tested directly (issues [#134](https://github.com/NCodeGroup/identity/issues/134),
   [#157](https://github.com/NCodeGroup/identity/issues/157), [#412](https://github.com/NCodeGroup/identity/issues/412)).
 
@@ -2670,9 +2670,9 @@ Until the first stable release, the [Unreleased] section describes the product a
   [ADR-1257](docs/decisions/1257-the-management-console-addresses-every-owners-secrets-settings-and-roles-through-one-owner-value.md)).
 
 - **The management console reaches every owner's secrets and settings through one endpoint per operation.**
-  `@ncode/store` exposes `useListSecretsQuery`, `useCreateSecretMutation`, `useDeleteSecretMutation`,
+  `@ncodegroup/identity-store` exposes `useListSecretsQuery`, `useCreateSecretMutation`, `useDeleteSecretMutation`,
   `useRotateSecretMutation`, `useLazyGetSecretPublicKeyQuery`, `useGetSettingsQuery`, `useGetEffectiveSettingsQuery` and
-  `useUpdateSettingsMutation`, each taking a `ManagementOwner` from `@ncode/api`, and `OwnerSecretsTab` and
+  `useUpdateSettingsMutation`, each taking a `ManagementOwner` from `@ncodegroup/identity-api`, and `OwnerSecretsTab` and
   `OwnerSettingsTab` serve every detail page: clients, resource servers, the tenant's own surfaces, teams and the platform
   ([ADR-1257](docs/decisions/1257-the-management-console-addresses-every-owners-secrets-settings-and-roles-through-one-owner-value.md),
   issue [#236](https://github.com/NCodeGroup/identity/issues/236)).
@@ -2680,7 +2680,7 @@ Until the first stable release, the [Unreleased] section describes the product a
 - **The management console manages owners and administrators.** A team's and a tenant's Access surface lists, grants
   and revokes their administrators and owners, and a client's and a resource server's Access tab their owners, through
   `useListRoleAssignmentsQuery`, `useAddRoleAssignmentMutation` and `useRemoveRoleAssignmentMutation`, each taking a
-  `RoleList` from `@ncode/api`. A list offers its grant form and revoke controls only when it answers `canChange`,
+  `RoleList` from `@ncodegroup/identity-api`. A list offers its grant form and revoke controls only when it answers `canChange`,
   shows itself read-only otherwise, and every role list refreshes after any grant or revoke
   ([#582](https://github.com/NCodeGroup/identity/issues/582),
   [#623](https://github.com/NCodeGroup/identity/issues/623),
@@ -2706,7 +2706,7 @@ Until the first stable release, the [Unreleased] section describes the product a
 
 - **The management console edits settings beside their effective view.** An owner's Settings tab edits the opaque
   persisted settings JSON beside a read-only effective-settings view. Because settings are an open object, a save sends
-  a top-level add/remove/replace JSON Patch diff, built by the UI-free `@ncode/api` `diffPatch` helper, with the owner's
+  a top-level add/remove/replace JSON Patch diff, built by the UI-free `@ncodegroup/identity-api` `diffPatch` helper, with the owner's
   `concurrencyToken` as `If-Match`. The stateless MUI `GrantTable`, `SecretTable`, `SecretFormDialog`,
   `RevealSecretDialog` and `SettingsEditor` components are Storybook-driven and unit-tested (issue
   [#134](https://github.com/NCodeGroup/identity/issues/134)).
@@ -3036,7 +3036,7 @@ Until the first stable release, the [Unreleased] section describes the product a
 
 - **The management console reads its session from its BFF.** The `RuntimeConfig` union and `loadBffRuntimeConfig`, the
   `session` slice and `fetchBffUser`, `SessionGate` (poll, expiry and visibility probes, `BroadcastChannel`), sign-out
-  by the logout form, `defineBffServedSurfaceConfig` and `readCspNonce` in `@ncode/ui` give the console its session
+  by the logout form, `defineBffServedSurfaceConfig` and `readCspNonce` in `@ncodegroup/identity-ui` give the console its session
   from `/bff/user`
   ([ADR-1438](docs/decisions/1438-the-management-console-holds-no-token-and-reads-its-session-from-its-bff.md)).
 
@@ -3902,7 +3902,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   of the product and its platform; `NCodeGroup/identity-platform` holds the reusable OpenTofu modules, Kustomize
   components and stacks and the platform's live configuration for `lab` and `production`; and the private
   `NCodeGroup/identity-cloud` holds only the managed offering's proprietary parts. NuGet packages are named
-  `NCode.Identity.*`, the chart and images `ncode-identity-*`, the npm workspace packages `@ncode/*`, all private,
+  `NCode.Identity.*`, the chart and images `ncode-identity-*`, the npm workspace packages `@ncodegroup/identity-*`, all private,
   and the platform's domains `ncodeid.*` ([#760](https://github.com/NCodeGroup/identity/issues/760),
   [ADR-1502](docs/decisions/1502-code-a-self-hoster-could-use-is-public-and-identity-holds-the-products-and-platforms-decisions.md)).
 
@@ -4006,17 +4006,17 @@ Until the first stable release, the [Unreleased] section describes the product a
   Review's pin bump a group of its own.
 
 - **Every frontend surface boots through one shared gate.** The Management console, the Playground and the
-  conformance dashboard share `BootstrapGate` from the `@ncode/shell` workspace, the one package allowed to depend on
+  conformance dashboard share `BootstrapGate` from the `@ncodegroup/identity-shell` workspace, the one package allowed to depend on
   both the store and the design system, which loads the runtime configuration before the app renders. Its loading and
-  error views are a stateless `BootstrapScreen` in `@ncode/ui`. Each surface names itself once, in `main.tsx`, through
+  error views are a stateless `BootstrapScreen` in `@ncodegroup/identity-ui`. Each surface names itself once, in `main.tsx`, through
   `createRuntimeConfigLoader({ surface })`, or the console through `createBffRuntimeConfigLoader()`, and
   `loadRuntimeConfig` defaults the serving origin to the page's own. One
   test suite covers the gate: a loader that ignores its abort signal and settles late never overwrites newer
   configuration, configuration that reaches the store another way clears an earlier error, and an error without a
   message shows the generic one. `SurfaceKind` is an open vocabulary, so a surface needs only its host override, not a
-  change to `@ncode/config`. See [ADR-1064](docs/decisions/1064-one-frontend-platform-of-shared-packages-and-thin-app-shells-serves-every-web-surface.md).
+  change to `@ncodegroup/identity-config`. See [ADR-1064](docs/decisions/1064-one-frontend-platform-of-shared-packages-and-thin-app-shells-serves-every-web-surface.md).
 
-- **Every frontend workspace builds and tests from one Vite preset.** The `@ncode/vite-config` workspace owns the test
+- **Every frontend workspace builds and tests from one Vite preset.** The `@ncodegroup/identity-vite-config` workspace owns the test
   gates and the three serving models (standalone, backend-served and BFF-served), and each workspace's Vite or Vitest
   config is one call that states its coverage floors. Every workspace collects `.test.tsx` files, including those on
   the `node` test environment, and each standalone dev server pins the port its redirect URI and CORS origin assume. Locally, Turborepo re-runs a
@@ -4030,8 +4030,8 @@ Until the first stable release, the [Unreleased] section describes the product a
   response and the decoded JWT header and claims, then exercises UserInfo, refresh and RP-Initiated Logout; it offers no
   implicit, hybrid or resource-owner-password flow. It has a **Force consent (`prompt=consent`)** toggle, the
   developer-seeded `playground-spa` client sets `require_consent = true` (`DeveloperSpaClientSeed.RequireConsent`), and
-  `@ncode/auth`'s `buildAuthorizeUrl` takes an optional OIDC `prompt` and `nonce`. It is a standalone Vite SPA on the
-  shared `@ncode/*` platform, on port `5174` in the Aspire AppHost.
+  `@ncodegroup/identity-auth`'s `buildAuthorizeUrl` takes an optional OIDC `prompt` and `nonce`. It is a standalone Vite SPA on the
+  shared `@ncodegroup/identity-*` platform, on port `5174` in the Aspire AppHost.
 
 - **The conformance dashboard (`apps/conformance`) audits the OP's security posture and measures it against the full
   published OAuth, OIDC, CIBA and FAPI catalog** (issues [#135](https://github.com/NCodeGroup/identity/issues/135),
@@ -4047,13 +4047,13 @@ Until the first stable release, the [Unreleased] section describes the product a
   `browser`, `probe-runner` and `external-suite` exercise boundary. The dashboard is organized into tabs (Overview,
   Security audit, Coverage, Probes, Suite config) with collapsible coverage categories whose gaps start expanded, and it
   shows only the current issuer's audit: a discovery load superseded by an issuer change never updates it, whether it
-  fails or succeeds late. It is a standalone Vite SPA on the shared `@ncode/*` platform, on port `5175` in the Aspire
+  fails or succeeds late. It is a standalone Vite SPA on the shared `@ncodegroup/identity-*` platform, on port `5175` in the Aspire
   AppHost, and a development and conformance convenience only
   ([ADR-1025](docs/decisions/1025-the-family-is-greenfield-and-pre-release-tracks-its-public-api-and-models-auth0-parity-plus.md)).
 
 - **The headless conformance probe runner exercises the legs a browser cannot drive** (issue
   [#129](https://github.com/NCodeGroup/identity/issues/129),
-  [ADR-1084](docs/decisions/1084-the-playground-explores-the-recommended-flow-and-the-conformance-harness-measures-the-published-spec-surface.md)). The `@ncode/app-conformance-runner` CLI
+  [ADR-1084](docs/decisions/1084-the-playground-explores-the-recommended-flow-and-the-conformance-harness-measures-the-published-spec-surface.md)). The `@ncodegroup/identity-app-conformance-runner` CLI
   exercises the confidential and server-initiated legs: `client_credentials`, token introspection and revocation with
   client authentication, device-code issuance and polling, CIBA, `private_key_jwt`, DPoP/mTLS, and back-channel logout.
   Each probe reports `verified`, `failed` or `skipped` (with an actionable reason, such as an unadvertised capability or
@@ -4062,7 +4062,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   non-zero on any failure, making it a CI pre-flight for the external certified suite
   ([#124](https://github.com/NCodeGroup/identity/issues/124)). The framework-free, injectable-fetch conformance logic
   (discovery fetch, the security audit, the spec-coverage catalog and the browser-drivable probes) lives in the shared,
-  unit-tested `@ncode/conformance-core` package used by both the dashboard (`apps/conformance`) and the runner.
+  unit-tested `@ncodegroup/identity-conformance-core` package used by both the dashboard (`apps/conformance`) and the runner.
   Development and conformance tooling only, outside the .NET inner loop
   ([ADR-1025](docs/decisions/1025-the-family-is-greenfield-and-pre-release-tracks-its-public-api-and-models-auth0-parity-plus.md)).
 
@@ -4085,7 +4085,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   [ADR-1084](docs/decisions/1084-the-playground-explores-the-recommended-flow-and-the-conformance-harness-measures-the-published-spec-surface.md)). A runnable harness under
   [`build/conformance/`](build/conformance) drives the suite against the OpenID host end to end:
   [`run-conformance.ps1`](build/conformance/run-conformance.ps1) launches the OP on the reachable HTTPS origin (the
-  `Conformance` launch profile), runs the headless `@ncode/app-conformance-runner` probe runner as a fast pre-flight,
+  `Conformance` launch profile), runs the headless `@ncodegroup/identity-app-conformance-runner` probe runner as a fast pre-flight,
   brings the suite up from prebuilt Docker images (no Java build), drives the Config OP and Basic OP plans headlessly
   through `run-test-plan.py` gated on the committed `expected-failures.json` / `expected-skips.json` baselines, and
   tears everything down, surfacing one exit code. The config templates (`oidcc-basic.json` with its `browser` automation
@@ -5855,7 +5855,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   `ContentSecurityPolicyDirectives` and `ContentSecurityPolicySources` build it. The interactive pages run only the
   `apps/auth` scripts and styles that carry the response's nonce, including a page served to a browser that already
   holds the antiforgery cookie, and a bundle served from `InteractiveAuthentication:BundleRootPath` runs its scripts
-  only when its build writes the nonce placeholder (`@ncode/vite-config`'s `CSP_NONCE_PLACEHOLDER`); the `form_post`
+  only when its build writes the nonce placeholder (`@ncodegroup/identity-vite-config`'s `CSP_NONCE_PLACEHOLDER`); the `form_post`
   response runs only its own script and may be framed only by its redirect URI's origin; the front-channel logout page
   frames only the clients' logout origins; the `check_session_iframe` runs only its script and stays embeddable
   ([ADR-1256](docs/decisions/1256-every-page-the-server-writes-has-a-strict-content-security-policy-and-is-framed-only-by-design.md),

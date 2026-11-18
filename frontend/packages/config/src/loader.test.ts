@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { defineStandaloneSurfaceConfig } from '@ncode/vite-config';
+import { defineStandaloneSurfaceConfig } from '@ncodegroup/identity-vite-config';
 import {
   BOOTSTRAP_PATH,
   DISCOVERY_PATH,

@@ -1,5 +1,5 @@
 {
-  "name": "@ncode/ui",
+  "name": "@ncodegroup/identity-ui",
   "version": "0.0.0",
   "private": true,
   "description": "Material UI design system and stateless presentational components for NCode.Identity frontends.",
@@ -24,15 +24,15 @@
     "@emotion/styled": "^11.13.0",
     "@mui/icons-material": "^9.5.0",
     "@mui/material": "^9.5.0",
-    "@ncode/config": "workspace:*"
+    "@ncodegroup/identity-config": "workspace:*"
   },
   "peerDependencies": {
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
   "devDependencies": {
-    "@ncode/test-support": "workspace:*",
-    "@ncode/vite-config": "workspace:*",
+    "@ncodegroup/identity-test-support": "workspace:*",
+    "@ncodegroup/identity-vite-config": "workspace:*",
     "@storybook/react-vite": "^10.6.2",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.0.1",

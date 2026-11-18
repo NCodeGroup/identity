@@ -146,7 +146,7 @@ function buildOptions(): BuildConfig {
   };
 }
 
-/** The well-known path of the bootstrap document every bundle fetches from its serving host (`@ncode/config`). */
+/** The well-known path of the bootstrap document every bundle fetches from its serving host (`@ncodegroup/identity-config`). */
 const BOOTSTRAP_PATH = '/config/bootstrap.json';
 
 const COVERAGE_METRICS = ['statements', 'branches', 'functions', 'lines'] as const;
@@ -168,7 +168,7 @@ function assertPort(port: number): void {
 
 /**
  * The test timeout, in milliseconds, of a suite that simulates a browser. It leaves room for at least three Testing
- * Library waits, each bounded by `ASYNC_UTIL_TIMEOUT_MS` from `@ncode/test-support`, so a test that waits on a few
+ * Library waits, each bounded by `ASYNC_UTIL_TIMEOUT_MS` from `@ncodegroup/identity-test-support`, so a test that waits on a few
  * renders fails with the library's DOM report rather than a bare timeout. The preset names that constant in prose only:
  * it must not import a workspace package (ADR-1151).
  */

@@ -1,4 +1,4 @@
-import { DISCOVERY_PATH } from '@ncode/config';
+import { DISCOVERY_PATH } from '@ncodegroup/identity-config';
 import type { RawDiscovery } from './audit.js';
 
 /** Minimal fetch surface so discovery retrieval is testable without a DOM/network. */
@@ -9,7 +9,7 @@ export type FetchLike = (
 
 /**
  * Fetches the OpenID Provider's full, raw discovery metadata so the audit can inspect every advertised field — a
- * superset of the subset `@ncode/config` normalizes for app wiring. Throws when the document cannot be retrieved or
+ * superset of the subset `@ncodegroup/identity-config` normalizes for app wiring. Throws when the document cannot be retrieved or
  * is not a JSON object.
  */
 export async function fetchRawDiscovery(

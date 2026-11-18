@@ -3,10 +3,10 @@ import { createRoot } from 'react-dom/client';
 import { Provider } from 'react-redux';
 import createCache from '@emotion/cache';
 import { CacheProvider } from '@emotion/react';
-import { createBffRuntimeConfigLoader } from '@ncode/config';
-import { BootstrapGate } from '@ncode/shell';
-import { createAppStore } from '@ncode/store';
-import { readCspNonce } from '@ncode/ui';
+import { createBffRuntimeConfigLoader } from '@ncodegroup/identity-config';
+import { BootstrapGate } from '@ncodegroup/identity-shell';
+import { createAppStore } from '@ncodegroup/identity-store';
+import { readCspNonce } from '@ncodegroup/identity-ui';
 import { SessionGate } from './SessionGate.js';
 import { App } from './App.js';
 

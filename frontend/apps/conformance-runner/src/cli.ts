@@ -6,7 +6,7 @@
  * process to {@link runCli}.
  */
 
-import type { ProbeFetch } from '@ncode/conformance-core';
+import type { ProbeFetch } from '@ncodegroup/identity-conformance-core';
 import { parseArgs, USAGE, type RunnerConfig } from './config.js';
 import { exitCode, formatReport, toJson } from './report.js';
 import { runConformanceRunner, type RunnerDeps } from './runner.js';

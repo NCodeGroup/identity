@@ -6,7 +6,7 @@ Management, Auth/Consent/Login, Playground, and OIDC conformance. Decision recor
 
 > **One workspace of scoped packages.** It lives under `frontend/` in the product's repository
 > ([ADR-1502](../docs/decisions/1502-code-a-self-hoster-could-use-is-public-and-identity-holds-the-products-and-platforms-decisions.md)),
-> and every shared concern is a scoped `@ncode/*` package consumed only through its public entry point (no deep
+> and every shared concern is a scoped `@ncodegroup/identity-*` package consumed only through its public entry point (no deep
 > cross-package imports).
 
 ## Stack
@@ -67,44 +67,44 @@ command -v nvs >/dev/null 2>&1 && nvs auto on
 ```
 frontend/
   packages/
-    config/   @ncode/config  — tier-agnostic runtime discovery (no UI)
-    api/      @ncode/api     — RTK Query client + management scope model (no UI)
-    store/    @ncode/store   — Redux store assembly, slices, typed hooks
-    ui/       @ncode/ui      — MUI design system + stateless components + Storybook
-    shell/    @ncode/shell   — stateful app-shell containers shared by the surfaces (the runtime-config BootstrapGate)
-    conformance-core/ @ncode/conformance-core — framework-free conformance logic (discovery, audit, spec-coverage, probes)
-    test-support/ @ncode/test-support — test-only Vitest support shared by every workspace (the console guard, the Testing Library wait timeout and the family icon set)
-    vite-config/  @ncode/vite-config — the Vite/Vitest preset every workspace builds and tests from
+    config/   @ncodegroup/identity-config  — tier-agnostic runtime discovery (no UI)
+    api/      @ncodegroup/identity-api     — RTK Query client + management scope model (no UI)
+    store/    @ncodegroup/identity-store   — Redux store assembly, slices, typed hooks
+    ui/       @ncodegroup/identity-ui      — MUI design system + stateless components + Storybook
+    shell/    @ncodegroup/identity-shell   — stateful app-shell containers shared by the surfaces (the runtime-config BootstrapGate)
+    conformance-core/ @ncodegroup/identity-conformance-core — framework-free conformance logic (discovery, audit, spec-coverage, probes)
+    test-support/ @ncodegroup/identity-test-support — test-only Vitest support shared by every workspace (the console guard, the Testing Library wait timeout and the family icon set)
+    vite-config/  @ncodegroup/identity-vite-config — the Vite/Vitest preset every workspace builds and tests from
   apps/
-    mgmt/     @ncode/app-mgmt — Management console (served by its BFF host, `NCode.Identity.ManagementConsole.Host`)
-    auth/     @ncode/app-auth — Interactive login/consent surface (OP-hosted under /account/*)
-    playground/   @ncode/app-playground — OAuth 2.1 / OIDC authorization-code + PKCE flow explorer (dev server :5174)
-    conformance/  @ncode/app-conformance — Security-posture & conformance-readiness dashboard (dev server :5175)
-    conformance-runner/ @ncode/app-conformance-runner — headless CLI probing the confidential/server-initiated legs (ADR-1084)
+    mgmt/     @ncodegroup/identity-app-mgmt — Management console (served by its BFF host, `NCode.Identity.ManagementConsole.Host`)
+    auth/     @ncodegroup/identity-app-auth — Interactive login/consent surface (OP-hosted under /account/*)
+    playground/   @ncodegroup/identity-app-playground — OAuth 2.1 / OIDC authorization-code + PKCE flow explorer (dev server :5174)
+    conformance/  @ncodegroup/identity-app-conformance — Security-posture & conformance-readiness dashboard (dev server :5175)
+    conformance-runner/ @ncodegroup/identity-app-conformance-runner — headless CLI probing the confidential/server-initiated legs (ADR-1084)
 ```
 
 ## Architectural invariants
 
-1. **Stateless presentational components.** Components in `@ncode/ui` (and app `components/`) are
+1. **Stateless presentational components.** Components in `@ncodegroup/identity-ui` (and app `components/`) are
    prop-driven and hold no store/fetch state, so they render in Storybook and under RTL in isolation.
    Local state is allowed only when intrinsic to a control and it does not break isolated rendering.
    They render as a pure function of their props: ambient values such as the clock come in as props
    (e.g. `GrantTable`'s `now`), never from a read during render — the React lint rules (`purity`) flag it.
 2. **Stateful containers at the top.** State and side effects live in container components
    (`apps/*/src/containers/`) and the shell, which wire Redux + RTK Query and pass plain props down. A container that
-   more than one surface needs (the runtime-config `BootstrapGate`) lives in `@ncode/shell`, the one package that may
-   depend on both `@ncode/store` and `@ncode/ui`: `@ncode/ui` stays store-free and `@ncode/store` stays UI-free
+   more than one surface needs (the runtime-config `BootstrapGate`) lives in `@ncodegroup/identity-shell`, the one package that may
+   depend on both `@ncodegroup/identity-store` and `@ncodegroup/identity-ui`: `@ncodegroup/identity-ui` stays store-free and `@ncodegroup/identity-store` stays UI-free
    ([ADR-1064](../docs/decisions/1064-one-frontend-platform-of-shared-packages-and-thin-app-shells-serves-every-web-surface.md)).
 3. **UI-free services/logic are unit-tested directly.** Validation, discovery parsing, PKCE, and the
-   platform, team and tenant boundary rules live in plain modules (`@ncode/config`, `@ncode/api/scope`) with
+   platform, team and tenant boundary rules live in plain modules (`@ncodegroup/identity-config`, `@ncodegroup/identity-api/scope`) with
    their own Vitest suites.
 4. **RTK Query is the default for server state.** Hand-rolled thunks are the exception.
-5. **One bundle, every tier.** No tier value is baked at build time; `@ncode/config` discovers the API
+5. **One bundle, every tier.** No tier value is baked at build time; `@ncodegroup/identity-config` discovers the API
    base, issuer, auth endpoints, feature flags, and branding at boot from the serving host's
    `/config/bootstrap.json` + the OP's `/.well-known/openid-configuration`.
 6. **The platform, team and tenant security boundary is first-class** — distinct browsing contexts, cache tags,
    and authorization gating, never one list with a filter.
-7. **Branding is a runtime seam.** `@ncode/ui` themes from runtime `BrandingConfig`. The interactive
+7. **Branding is a runtime seam.** `@ncodegroup/identity-ui` themes from runtime `BrandingConfig`. The interactive
    surface (`apps/auth`) reads its tenant's branding from the JSON block the host embeds in every page it
    serves with the bundle (`<script type="application/json" id="branding">`, `BRANDING_ELEMENT_ID`), parses
    it with `parseBrandingConfig`, and mounts at once over the server-rendered page (ADR-1253).
@@ -125,25 +125,25 @@ Run from `frontend/`:
 ```sh
 pnpm install              # install the workspace
 pnpm dev                  # run the WHOLE frontend stack (Turborepo): dev servers + build-watch
-pnpm --filter @ncode/app-mgmt dev    # build-watch the Management console's dist (its BFF host serves it)
+pnpm --filter @ncodegroup/identity-app-mgmt dev    # build-watch the Management console's dist (its BFF host serves it)
 pnpm test                 # run all unit tests
 pnpm run test:report      # same, plus per-package JUnit (test-results/) and coverage (coverage/) — what CI runs;
                           # every package runs to completion even when one fails, so the report is never truncated;
                           # fails when a package drops below its coverage floor
 pnpm lint                 # lint all packages (warnings fail: --max-warnings 0)
 pnpm typecheck            # type-check all packages, including tests, stories, and setup files
-pnpm --filter @ncode/ui storybook    # component workbench
+pnpm --filter @ncodegroup/identity-ui storybook    # component workbench
 pnpm build                # build all packages/apps
 ```
 
 ### Test gates — warnings are errors
 
 A green run means more than "no assertion failed".
-The gates are set once, in the [`@ncode/vite-config`](packages/vite-config) preset that every workspace's Vite or Vitest
+The gates are set once, in the [`@ncodegroup/identity-vite-config`](packages/vite-config) preset that every workspace's Vite or Vitest
 config calls with its own coverage floors ([ADR-1151](../docs/decisions/1151-every-frontend-workspace-builds-and-tests-from-one-preset-that-fails-on-warnings-and-oversized-chunks.md)):
 
 - **A test that logs `console.error` or `console.warn` fails.** Every workspace's `vitest.setup.ts` registers
-  `failOnConsole` from [`@ncode/test-support`](packages/test-support). The usual cause is a React
+  `failOnConsole` from [`@ncodegroup/identity-test-support`](packages/test-support). The usual cause is a React
   _"not wrapped in act(...)"_ warning: the test asserted before an async update (a resolved promise, an RTK Query
   fetch, a transition) settled. Await the settled UI with `findBy…` / `waitFor` rather than wrapping calls in `act`.
   When logging _is_ the behavior under test, mock the method in that test
@@ -159,11 +159,11 @@ config calls with its own coverage floors ([ADR-1151](../docs/decisions/1151-eve
   Vitest enforces them whenever coverage is collected (`pnpm run test:report`, which CI runs). When a change raises a
   workspace's coverage, raise its floor in the same change; lowering one needs a stated reason.
 
-A new workspace joins these gates by adding `"@ncode/test-support": "workspace:*"` and
-`"@ncode/vite-config": "workspace:*"` to its `devDependencies`, a `vitest.setup.ts` that calls
+A new workspace joins these gates by adding `"@ncodegroup/identity-test-support": "workspace:*"` and
+`"@ncodegroup/identity-vite-config": "workspace:*"` to its `devDependencies`, a `vitest.setup.ts` that calls
 `failOnConsole({ beforeEach, afterEach })` (listed in the tsconfig `include`), `--max-warnings 0` on its `lint` script,
 and a one-call config: `defineTestConfig({ environment, coverage })` in `vitest.config.ts` for a package, or a surface
-preset in `vite.config.ts` for an app (below). `@ncode/test-support` itself keeps a hand-written config that states the
+preset in `vite.config.ts` for an app (below). `@ncodegroup/identity-test-support` itself keeps a hand-written config that states the
 same gates, because the preset depends on it and turbo rejects a cyclic workspace graph.
 
 ### The `dev` script encodes each app's serving model
@@ -197,7 +197,7 @@ The build gives each a content-hashed name under `assets/`, which the app's host
 `img-src 'self'`; a standalone app's dev server serves the folder as it is. No app links the web manifest, because none
 is offered as an installed app. `build/favicon-copies.ps1` (the `favicon copies` stage of `./build/dod.ps1`) fails when
 a copy differs from the kit's file, and each app's `src/favicon.test.ts` checks its links and files against the family
-icon set that `@ncode/test-support` holds
+icon set that `@ncodegroup/identity-test-support` holds
 ([ADR-1492](../docs/decisions/1492-the-familys-id-logo-is-drawn-by-one-script-and-every-web-app-shows-its-icon.md)).
 
 ## Runtime configuration
@@ -224,7 +224,7 @@ issuer or scope:
 }
 ```
 
-`@ncode/config` models the runtime configuration as a union discriminated by `kind`: `OpenIdRuntimeConfig`
+`@ncodegroup/identity-config` models the runtime configuration as a union discriminated by `kind`: `OpenIdRuntimeConfig`
 (`kind: 'openid'`, from `createRuntimeConfigLoader`, which also reads the issuer's OpenID discovery) and
 `BffRuntimeConfig` (`kind: 'bff'`, from `createBffRuntimeConfigLoader`, which fetches only the bootstrap document and no
 discovery).
@@ -236,7 +236,7 @@ it forwards to the management API.
 Every bundle gets this document from the host at runtime — there is no static dev copy to drift.
 
 Each standalone surface boots through the one [`BootstrapGate`](packages/shell/src/BootstrapGate.tsx) from
-`@ncode/shell`, given the surface's loader in its `main.tsx`:
+`@ncodegroup/identity-shell`, given the surface's loader in its `main.tsx`:
 
 ```tsx
 const loadRuntimeConfig = createRuntimeConfigLoader({ surface: 'playground' });
@@ -246,12 +246,12 @@ const loadRuntimeConfig = createRuntimeConfigLoader({ surface: 'playground' });
 </BootstrapGate>;
 ```
 
-The gate shows the stateless `BootstrapScreen` (from `@ncode/ui`, default theme) until the configuration is in the
+The gate shows the stateless `BootstrapScreen` (from `@ncodegroup/identity-ui`, default theme) until the configuration is in the
 store, then renders the app themed by the discovered branding. The loader defaults the serving origin to the page's own
 `location.origin`, so the surface name is the only per-app binding. Pass the gate a stable loader: a new one abandons an
 unfinished load and starts over.
 
-> **Surface-aware.** Each bundle declares its `SurfaceKind` when it loads config, which `@ncode/config` sends as
+> **Surface-aware.** Each bundle declares its `SurfaceKind` when it loads config, which `@ncodegroup/identity-config` sends as
 > `?surface=` (for example `/config/bootstrap.json?surface=playground`). The host maps that to a per-surface override
 > (`FrontendBootstrapOptions.Surfaces`) so every surface gets its **own** public client id and scopes from the one
 > endpoint — the Playground discovers `playground-spa`, while the read-only conformance dashboard gets no client at all
@@ -259,7 +259,7 @@ unfinished load and starts over.
 > `?surface=`, receives the host default, which is the OP's: it names no client and no feature flag, and serves the
 > public-client and read-only surfaces only. `SurfaceKind` is an open vocabulary: it lists the
 > shipped surfaces but accepts any name, so a new surface needs only its host override, not a change to
-> `@ncode/config`.
+> `@ncodegroup/identity-config`.
 
 `NCode.Identity.Server` binds the `Frontend` configuration section and registers the endpoint through the
 single `IIdentityServerBuilder.AddFrontendBootstrap(configuration)` seam — the host's existing
@@ -275,7 +275,7 @@ single-origin host needs no configuration
   the console host that serves them, at its own origin; they send no `?surface=`.
 - **Standalone bundles** (e.g. `apps/playground`, served by its own Vite dev server) don't share the OP's origin, so the
   Vite dev server **proxies** `/config/bootstrap.json` to the OP host instead of shipping a static copy (the
-  `bootstrapHost` of `defineStandaloneSurfaceConfig` in [`@ncode/vite-config`](packages/vite-config/src/preset.ts)).
+  `bootstrapHost` of `defineStandaloneSurfaceConfig` in [`@ncodegroup/identity-vite-config`](packages/vite-config/src/preset.ts)).
   The proxy target comes from the Aspire service-discovery variable the surface's resource receives via
   `WithReference(api)` ([ADR-1071](../docs/decisions/1071-the-aspire-apphost-runs-the-local-stack-in-health-gated-order-after-checking-the-frontend-toolchain.md)), falling back to the pinned
   origin (`https://localhost:5001`) when run outside Aspire — so local dev exercises the real runtime endpoint.
@@ -306,7 +306,7 @@ any management scope binds the audience — see [ADR-1044](../docs/decisions/104
   loopback addresses), so a tab learns that a session ended from its next probe.
 
 The Playground stays a public client on purpose: it drives a live authorization-code + PKCE round trip against the OP
-from the browser, so it keeps `@ncode/auth`, the framework-free package of the protocol helpers: PKCE
+from the browser, so it keeps `@ncodegroup/identity-auth`, the framework-free package of the protocol helpers: PKCE
 (`generateCodeVerifier`, `deriveCodeChallenge`), the authorize and end-session URLs, callback parsing and the token
 requests (`exchangeCodeForToken`, `refreshAccessToken`). Randomness, SHA-256 and `fetch` are all injected.
 
@@ -367,12 +367,12 @@ with an error naming that script when the files are missing; under Aspire the Ap
 
 ## Gotchas (hard-won)
 
-- **Internal packages are consumed as TypeScript source, not built `.d.ts`.** Each `@ncode/*` package
+- **Internal packages are consumed as TypeScript source, not built `.d.ts`.** Each `@ncodegroup/identity-*` package
   exposes `src/index.ts` via its `main`/`types`; Vite and Vitest bundle the source directly. There is
   **no `tsc --build`/`composite`/project-references** — those emit `.d.ts` that get resolved _alongside_
   the source, producing "two different types ... unrelated" errors. Package `build` is type-check only
   (`tsc --noEmit`); only the app emits a bundle.
-- **`@ncode/vite-config` is loaded by Node itself, so it follows stricter rules.** Vite bundles a `vite.config.ts` but
+- **`@ncodegroup/identity-vite-config` is loaded by Node itself, so it follows stricter rules.** Vite bundles a `vite.config.ts` but
   leaves its bare imports external, so Node imports the preset's TypeScript source directly by stripping its types.
   It is one module, [`src/preset.ts`](packages/vite-config/src/preset.ts) (its `exports` point there, not at an
   `index.ts`), that uses only erasable syntax (`erasableSyntaxOnly`) and has no relative or workspace imports: Node
@@ -397,7 +397,7 @@ with an error naming that script when the files are missing; under Aspire the Ap
   `fetchBaseQuery` calls.
 - **Testing Library and test timeouts.** Every jsdom workspace's `vitest.setup.ts` calls
   `configureAsyncUtilTimeout(configure)`, which gives each `findBy…` and `waitFor` `ASYNC_UTIL_TIMEOUT_MS` (10 s) from
-  `@ncode/test-support` in place of Testing Library's 1 s default. The preset gives every browser-simulating suite
+  `@ncodegroup/identity-test-support` in place of Testing Library's 1 s default. The preset gives every browser-simulating suite
   `BROWSER_TEST_TIMEOUT_MS` (30 s), at least three waits, instead of Vitest's 5 s default, so a stuck wait fails with
   Testing Library's DOM report rather than a bare test timeout. A jsdom test that renders a full MUI screen spends
   seconds in the first render (theme and emotion setup), and v8 coverage instrumentation — which CI always collects
@@ -468,8 +468,8 @@ with an error naming that script when the files are missing; under Aspire the Ap
   [`apiErrorMessage`](packages/store/src/apiError.ts) rather than re-deriving messages in each container.
 - **A resource every owner has is one endpoint per operation, keyed by a `ManagementOwner`.** Secrets belong to
   a tenant, or a client or resource server in a scope; settings also belong to the platform and to a team.
-  `@ncode/api`'s [`owner.ts`](packages/api/src/owner.ts) builds each owner's API path (`ownerApiPath`) and cache tags (`ownerTagId`,
-  `ownerEffectiveTagId`), and `@ncode/store` defines `listSecrets`, `getSettings` and the rest once. A new owner kind is
+  `@ncodegroup/identity-api`'s [`owner.ts`](packages/api/src/owner.ts) builds each owner's API path (`ownerApiPath`) and cache tags (`ownerTagId`,
+  `ownerEffectiveTagId`), and `@ncodegroup/identity-store` defines `listSecrets`, `getSettings` and the rest once. A new owner kind is
   a member of `ManagementOwner`, never another set of endpoints; the detail pages render `OwnerSecretsTab` and
   `OwnerSettingsTab` (ADR-1257).
 - **A query that checks live input shows its result only while the result describes that input.** RTK Query keeps
@@ -477,7 +477,7 @@ with an error naming that script when the files are missing; under Aspire the Ap
   so a preview of the old input would be shown as the current one. Compare the hook's `originalArgs` with the input as
   it is now and drop the result when they differ, as the tenant form's address preview in
   [`TenantsPage`](apps/mgmt/src/containers/TenantsPage.tsx) does. Turn such a query off with the `{ skip }` option:
-  apps reach RTK Query only through `@ncode/store` and do not depend on `@reduxjs/toolkit`, so `skipToken` is not
+  apps reach RTK Query only through `@ncodegroup/identity-store` and do not depend on `@reduxjs/toolkit`, so `skipToken` is not
   importable there.
 - **A `data-testid` on a MUI control lands on the root, not the native input.** `<Switch data-testid=…>`
   (and friends) forward the attribute to the outer element, so `getByTestId(...)` returns a `<span>` and
@@ -554,6 +554,6 @@ with an error naming that script when the files are missing; under Aspire the Ap
   in its `tsconfig.json` (overriding the base, which adds `DOM`) so the global `fetch`/`Response`/`Buffer`/
   `process` come from `@types/node`, not from two conflicting lib declarations. It has no Vite bundle; `build`
   is type-check only (`tsc --noEmit`) like a package, and it runs from TypeScript source via **`vite-node`**
-  (`"start": "vite-node src/main.ts --"`), which resolves workspace `@ncode/*` packages as source — plain
+  (`"start": "vite-node src/main.ts --"`), which resolves workspace `@ncodegroup/identity-*` packages as source — plain
   `node` cannot, because those packages' `main` points at `./src/index.ts`. The trailing `--` in the `start`
   script lets `vite-node` forward CLI args to the program; the arg parser ignores a stray `--`.

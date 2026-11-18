@@ -1,4 +1,4 @@
-import { FAMILY_ICON_FILE_NAMES, FAMILY_ICON_LINKS } from '@ncode/test-support';
+import { FAMILY_ICON_FILE_NAMES, FAMILY_ICON_LINKS } from '@ncodegroup/identity-test-support';
 import { describe, expect, it } from 'vitest';
 import indexHtml from '../index.html?raw';
 

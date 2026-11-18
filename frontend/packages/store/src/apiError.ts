@@ -1,6 +1,6 @@
 import type { FetchBaseQueryError } from '@reduxjs/toolkit/query';
 import type { SerializedError } from '@reduxjs/toolkit';
-import type { ManagementProblem } from '@ncode/api';
+import type { ManagementProblem } from '@ncodegroup/identity-api';
 
 /** The error shape RTK Query surfaces from a failed query/mutation. */
 export type ApiError = FetchBaseQueryError | SerializedError;

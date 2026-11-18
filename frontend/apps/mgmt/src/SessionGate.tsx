@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import type { BffRuntimeConfig } from '@ncode/config';
+import type { BffRuntimeConfig } from '@ncodegroup/identity-config';
 import {
   fetchBffUser,
   sessionEnded,
   sessionStarted,
   useAppDispatch,
   useAppSelector,
-} from '@ncode/store';
-import { BootstrapScreen, SignInScreen } from '@ncode/ui';
+} from '@ncodegroup/identity-store';
+import { BootstrapScreen, SignInScreen } from '@ncodegroup/identity-ui';
 import {
   SESSION_ENDED_NOTICE,
   SESSION_POLL_INTERVAL_MS,

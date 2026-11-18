@@ -10,8 +10,8 @@ import {
   TeamTable,
   emptyTeamFormValues,
   type TeamFormValues,
-} from '@ncode/ui';
-import type { TeamResource } from '@ncode/api';
+} from '@ncodegroup/identity-ui';
+import type { TeamResource } from '@ncodegroup/identity-api';
 import {
   apiErrorMessage,
   useCreateChildTeamMutation,
@@ -21,7 +21,7 @@ import {
   useListTeamsQuery,
   useUpdateTeamMutation,
   type ApiError,
-} from '@ncode/store';
+} from '@ncodegroup/identity-store';
 
 type DialogState =
   | { readonly kind: 'none' }

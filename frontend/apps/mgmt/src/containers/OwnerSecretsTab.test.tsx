@@ -1,9 +1,9 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
-import { createAppStore, managementApi } from '@ncode/store';
-import type { SecretOwner, SecretResource } from '@ncode/api';
-import type { BffRuntimeConfig } from '@ncode/config';
+import { createAppStore, managementApi } from '@ncodegroup/identity-store';
+import type { SecretOwner, SecretResource } from '@ncodegroup/identity-api';
+import type { BffRuntimeConfig } from '@ncodegroup/identity-config';
 import { OwnerSecretsTab } from './OwnerSecretsTab.js';
 
 const runtime: BffRuntimeConfig = {

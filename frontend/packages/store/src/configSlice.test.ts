@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RuntimeConfig } from '@ncode/config';
+import type { RuntimeConfig } from '@ncodegroup/identity-config';
 import { configSlice, runtimeConfigLoaded } from './configSlice.js';
 
 const runtime: RuntimeConfig = {

@@ -4,7 +4,7 @@
  * so the orchestration is testable without a network.
  */
 
-import { fetchRawDiscovery, type ProbeFetch, type ProbeReport } from '@ncode/conformance-core';
+import { fetchRawDiscovery, type ProbeFetch, type ProbeReport } from '@ncodegroup/identity-conformance-core';
 import { toProbeContext, type RunnerConfig } from './config.js';
 import { runProbeRunner } from './probeRunner.js';
 import type { ClientAssertionSigner, DpopProofFactory } from './probeRunner.js';

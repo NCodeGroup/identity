@@ -1,4 +1,4 @@
-import { PLATFORM_SCOPE, teamScope, tenantScope, type ManagementScope } from '@ncode/api';
+import { PLATFORM_SCOPE, teamScope, tenantScope, type ManagementScope } from '@ncodegroup/identity-api';
 
 /**
  * The console's URL is its navigation state. The path names the security boundary first and the surface within it

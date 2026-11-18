@@ -64,8 +64,8 @@ platform.** Anything in the private repository that a self-hoster would want bel
      under the `NCode` ID prefix the NCode Group holds on nuget.org.
    - The chart and the images: the chart `ncode-identity-host`, the images `ghcr.io/ncodegroup/ncode-identity-host`,
      `ghcr.io/ncodegroup/ncode-identity-management-console` and `ghcr.io/ncodegroup/ncode-identity-directory`.
-   - npm workspace packages: `@ncode/*`, every one `"private": true` and none published: the root `@ncode/frontend`,
-     packages such as `@ncode/ui` and `@ncode/api`, and the apps `@ncode/app-*`.
+   - npm workspace packages: `@ncodegroup/identity-*`, every one `"private": true` and none published: the root `@ncodegroup/identity-frontend`,
+     packages such as `@ncodegroup/identity-ui` and `@ncodegroup/identity-api`, and the apps `@ncodegroup/identity-app-*`.
    - Domains: the domains are
      [ADR-1495](1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md)'s.
 8. **GitHub names.** Every link and reference spells a repository as its GitHub name, such as

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import Alert from '@mui/material/Alert';
-import type { EncryptionRootKeyResource } from '@ncode/api';
-import { apiErrorMessage, type ApiError } from '@ncode/store';
+import type { EncryptionRootKeyResource } from '@ncodegroup/identity-api';
+import { apiErrorMessage, type ApiError } from '@ncodegroup/identity-store';
 import {
   ConfirmDialog,
   EncryptionRootKeyCard,
@@ -9,7 +9,7 @@ import {
   emptyEncryptionRootKeyFormValues,
   type EncryptionRootKeyFormValues,
   type EncryptionRootKeyRow,
-} from '@ncode/ui';
+} from '@ncodegroup/identity-ui';
 
 export type RootKeySectionProps = {
   /** The noun for the owner that brings the root key, such as `tenant` or `team`. */

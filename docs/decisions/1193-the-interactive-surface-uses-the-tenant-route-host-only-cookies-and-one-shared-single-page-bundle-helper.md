@@ -88,7 +88,7 @@ named for its tenant, and one general helper reads a single-page bundle and serv
 10. **Only the `assets` directory is servable.** The bundle's file provider is rooted at `assets`, so a path that leaves
     it, a hidden file and a file of an unknown content type answer `404`, and `index.html` is never served.
 11. **`ServeAsset` sends `Cache-Control: public, max-age=31536000, immutable`** with `ETag`, `Last-Modified` and range
-    support. A `404` carries no cache lifetime. `@ncode/vite-config`, the shared preset
+    support. A `404` carries no cache lifetime. `@ncodegroup/identity-vite-config`, the shared preset
     ([ADR-1151](1151-every-frontend-workspace-builds-and-tests-from-one-preset-that-fails-on-warnings-and-oversized-chunks.md)),
     pins `build.assetsDir` to `assets`.
 12. **`[BuiltAuthBundleFact]` tests the real build.** `InteractiveBundleShellTests` runs the host's split against the
@@ -133,7 +133,7 @@ named for its tenant, and one general helper reads a single-page bundle and serv
 - A hashed file is cached for a year and revalidated by the validators once it expires; a browser sends no request for a
   fresh one.
 - An asset request resolves no tenant, so it answers the same public files for every tenant segment.
-- `assets` is a contract between the host and `@ncode/vite-config`: a bundle built with another directory has no file
+- `assets` is a contract between the host and `@ncodegroup/identity-vite-config`: a bundle built with another directory has no file
   the host serves.
 - One implementation, tested in `NCode.Identity.AspNetCore.Tests`, serves both bundles.
 - The host's split of `index.html` is tested against the real build in the Frontend CI workflow, so the .NET gate needs

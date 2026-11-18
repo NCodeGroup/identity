@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { emptyClientFormValues, type ClientFormValues } from '@ncode/ui';
-import type { ClientResource } from '@ncode/api';
+import { emptyClientFormValues, type ClientFormValues } from '@ncodegroup/identity-ui';
+import type { ClientResource } from '@ncodegroup/identity-api';
 import {
   apiErrorMessage,
   useDeleteClientMutation,
   useUpdateClientMutation,
   type ApiError,
-} from '@ncode/store';
+} from '@ncodegroup/identity-store';
 import { useTenantCell } from '../tenantCell.js';
 
 type DialogState =

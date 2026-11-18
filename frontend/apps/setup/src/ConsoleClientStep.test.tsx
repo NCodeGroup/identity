@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { AppThemeProvider } from '@ncode/ui';
+import { AppThemeProvider } from '@ncodegroup/identity-ui';
 import { ConsoleClientStep, type ConsoleClientStepProps } from './ConsoleClientStep.js';
 import type { RootAccount } from './RootAccountStep.js';
 import type { ConsoleHint } from './consoleHint.js';

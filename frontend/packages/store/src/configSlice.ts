@@ -1,5 +1,5 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import type { RuntimeConfig } from '@ncode/config';
+import type { RuntimeConfig } from '@ncodegroup/identity-config';
 
 export type ConfigState = {
   readonly runtime: RuntimeConfig | null;

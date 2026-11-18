@@ -5,7 +5,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Container from '@mui/material/Container';
 import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
-import { useAppSelector } from '@ncode/store';
+import { useAppSelector } from '@ncodegroup/identity-store';
 import { createFlowDeps } from './flow.js';
 
 // The surface's container is its own chunk, so the shell renders before it loads (ADR-1151).

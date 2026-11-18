@@ -1,5 +1,5 @@
 {
-  "name": "@ncode/shell",
+  "name": "@ncodegroup/identity-shell",
   "version": "0.0.0",
   "private": true,
   "description": "Stateful app-shell containers shared by the NCode.Identity frontend surfaces: the boot gate that loads a bundle's runtime configuration into the store and themes the app from its branding.",
@@ -18,9 +18,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@ncode/config": "workspace:*",
-    "@ncode/store": "workspace:*",
-    "@ncode/ui": "workspace:*"
+    "@ncodegroup/identity-config": "workspace:*",
+    "@ncodegroup/identity-store": "workspace:*",
+    "@ncodegroup/identity-ui": "workspace:*"
   },
   "peerDependencies": {
     "react": "^19.3.1",
@@ -30,8 +30,8 @@
     "@emotion/react": "^11.13.3",
     "@emotion/styled": "^11.13.0",
     "@mui/material": "^9.5.0",
-    "@ncode/test-support": "workspace:*",
-    "@ncode/vite-config": "workspace:*",
+    "@ncodegroup/identity-test-support": "workspace:*",
+    "@ncodegroup/identity-vite-config": "workspace:*",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.0.1",
     "@types/react": "^19.3.0",

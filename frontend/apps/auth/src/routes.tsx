@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import type { BrandingConfig } from '@ncode/config';
+import type { BrandingConfig } from '@ncodegroup/identity-config';
 import { AuthorizationErrorPage } from './AuthorizationErrorPage.js';
 import { ConsentForm } from './ConsentForm.js';
 import { LoginForm } from './LoginForm.js';

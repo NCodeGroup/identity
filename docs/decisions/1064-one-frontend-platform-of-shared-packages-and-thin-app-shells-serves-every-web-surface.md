@@ -25,7 +25,7 @@ for.
 ## Decision
 
 **One TypeScript pnpm workspace under `frontend/` in the product repository holds every web surface as a thin app shell
-over shared, scoped `@ncode/*` packages, and a layering rule keeps each layer independently testable.**
+over shared, scoped `@ncodegroup/identity-*` packages, and a layering rule keeps each layer independently testable.**
 
 - **Surfaces and toolchain.** The surfaces are `apps/auth`, `apps/mgmt`, `apps/playground`, `apps/conformance` and the
   headless `apps/conformance-runner`. The workspace is React, Material UI, Redux Toolkit with RTK Query, Vite, Vitest
@@ -36,22 +36,22 @@ over shared, scoped `@ncode/*` packages, and a layering rule keeps each layer in
   `pnpm install --frozen-lockfile`, `format:check`, `lint`, `typecheck`, `build` and `test:report`. `node_modules/`,
   `dist/`, `.turbo/` and coverage output are git-ignored.
 - **Shared packages.** Each is used only through its public entry point:
-  - `@ncode/config` discovers the runtime configuration.
-  - `@ncode/store` holds the store, the typed hooks, the session slice and the RTK Query `managementApi` with its base
+  - `@ncodegroup/identity-config` discovers the runtime configuration.
+  - `@ncodegroup/identity-store` holds the store, the typed hooks, the session slice and the RTK Query `managementApi` with its base
     query and cache tags.
-  - `@ncode/api` holds the management wire contracts and the platform, team and tenant scope model, free of UI and Redux.
-  - `@ncode/ui` is the stateless design system and its theme.
-  - `@ncode/shell` holds the shared stateful containers.
-  - `@ncode/auth` holds the public-client protocol helpers.
-  - `@ncode/conformance-core`, `@ncode/test-support` and `@ncode/vite-config` serve the conformance surfaces, the tests
+  - `@ncodegroup/identity-api` holds the management wire contracts and the platform, team and tenant scope model, free of UI and Redux.
+  - `@ncodegroup/identity-ui` is the stateless design system and its theme.
+  - `@ncodegroup/identity-shell` holds the shared stateful containers.
+  - `@ncodegroup/identity-auth` holds the public-client protocol helpers.
+  - `@ncodegroup/identity-conformance-core`, `@ncodegroup/identity-test-support` and `@ncodegroup/identity-vite-config` serve the conformance surfaces, the tests
     and the build.
 - **Layering is the testability invariant.** Presentational components are stateless: they hold no store or fetch
   state, and local state is allowed only when it is intrinsic to a control and does not break isolated rendering. They
   render in Storybook and under React Testing Library without a store. Containers at the top of a screen wire Redux and
   RTK Query. Non-trivial logic lives in UI-free, unit-tested modules. RTK Query is the default for server state.
   Breaking the layering is a review failure.
-- **Where a container lives.** `@ncode/ui` depends on no store, and `@ncode/store` and `@ncode/config` hold no UI. A
-  container that more than one surface uses, such as `BootstrapGate`, lives in `@ncode/shell`, the one package that may
+- **Where a container lives.** `@ncodegroup/identity-ui` depends on no store, and `@ncodegroup/identity-store` and `@ncodegroup/identity-config` hold no UI. A
+  container that more than one surface uses, such as `BootstrapGate`, lives in `@ncodegroup/identity-shell`, the one package that may
   depend on both. A container that one surface uses, such as the console's `SessionGate`, stays in its app.
 - **One bundle, every tier.** A bundle is built once and nothing tier-specific is baked in. On boot the `playground`,
   `conformance` and `mgmt` bundles fetch `/config/bootstrap.json` from their serving host, which owns that document, and
@@ -64,7 +64,7 @@ over shared, scoped `@ncode/*` packages, and a layering rule keeps each layer in
   override: its client id and scopes replace the default, its feature flags merge per key and its branding falls back. An
   unknown or absent surface gets the default.
 - **An open surface name.** `SurfaceKind` is the shipped names plus `(string & {})`, an open vocabulary
-  ([ADR-1150](1150-vocabularies-are-open-unless-provably-closed.md)), so a new surface needs no change to `@ncode/config`.
+  ([ADR-1150](1150-vocabularies-are-open-unless-provably-closed.md)), so a new surface needs no change to `@ncodegroup/identity-config`.
   Each standalone OpenID surface declares itself once, in `main.tsx`, by passing `createRuntimeConfigLoader({ surface })`
   to `BootstrapGate`. The console passes `createBffRuntimeConfigLoader()`
   ([ADR-1438](1438-the-management-console-holds-no-token-and-reads-its-session-from-its-bff.md)). `loadRuntimeConfig`
@@ -74,7 +74,7 @@ over shared, scoped `@ncode/*` packages, and a layering rule keeps each layer in
   (`(signal: AbortSignal) => Promise<RuntimeConfig>`), so a test passes its own loader instead of mocking a module. A new
   loader abandons an unfinished load, a failure belongs to the loader that produced it, only the current load reports, and
   configuration that reaches the store any other way wins. Its loading and error views are the stateless `BootstrapScreen`
-  in `@ncode/ui`, with stories, rendered in the default theme because no branding is known yet.
+  in `@ncodegroup/identity-ui`, with stories, rendered in the default theme because no branding is known yet.
 - **Serving models.** Each app's `dev` script encodes how it is served. Backend-served `auth` and BFF-served `mgmt` run
   `vite build --watch`; standalone `playground` and `conformance` run Vite dev servers. Adding a surface to the AppHost
   is one `AddViteApp` or `AddJavaScriptApp` line
@@ -82,7 +82,7 @@ over shared, scoped `@ncode/*` packages, and a layering rule keeps each layer in
 - **Scopes are distinct contexts.** The management surface models platform, team and tenant scopes as distinct browsing
   contexts with their own navigation, cache tags and authorization gating, never one filtered list
   ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
-- **Branding through a provider.** Theme tokens sit behind a provider in `@ncode/ui`. A bundle's deployment branding
+- **Branding through a provider.** Theme tokens sit behind a provider in `@ncodegroup/identity-ui`. A bundle's deployment branding
   arrives in its bootstrap document, and the host embeds a tenant's sign-in branding in the page the `apps/auth` bundle
   mounts over
   ([ADR-1253](1253-a-tenant-brands-its-sign-in-pages-through-settings-and-the-bundle-mounts-over-the-hosts-page.md)).
@@ -102,8 +102,8 @@ over shared, scoped `@ncode/*` packages, and a layering rule keeps each layer in
   without that cost.
 - **A closed `SurfaceKind`.** Rejected: a misspelled surface gets the host default, which fails visibly at the first
   sign-in, while a closed union makes every new surface edit a library.
-- **The boot gate in `@ncode/ui` or `@ncode/store`.** Rejected: a store-backed container breaks the stateless, store-free
-  `@ncode/ui`, and in `@ncode/store` it would make the UI-free state package depend on Material UI.
+- **The boot gate in `@ncodegroup/identity-ui` or `@ncodegroup/identity-store`.** Rejected: a store-backed container breaks the stateless, store-free
+  `@ncodegroup/identity-ui`, and in `@ncodegroup/identity-store` it would make the UI-free state package depend on Material UI.
 - **A gate that loads by itself from a `surface` prop.** Rejected: a test must mock a module to control the load, and a
   surface that loads differently cannot use it.
 - **A `bootstrap.ts` per app.** Rejected: the copies differ by one string.
@@ -121,7 +121,7 @@ over shared, scoped `@ncode/*` packages, and a layering rule keeps each layer in
 - The layering is a maintained convention, written in [`frontend/README.md`](../../frontend/README.md). State in a
   presentational component or logic in a component breaks Storybook and unit isolation.
 - The serving host and the bundle are coupled through the bootstrap document: the host must publish one the bundle
-  understands. The management REST contracts are a typed dependency of `@ncode/api`, so a contract change reaches the
+  understands. The management REST contracts are a typed dependency of `@ncodegroup/identity-api`, so a contract change reaches the
   client types.
 - A surface's only boot-time binding is the `surface` it passes in `main.tsx`, and the next container that two surfaces
   share has a home with the dependencies it needs.

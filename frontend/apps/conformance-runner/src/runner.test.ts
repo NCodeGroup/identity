@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ProbeFetch, ProbeResponse } from '@ncode/conformance-core';
+import type { ProbeFetch, ProbeResponse } from '@ncodegroup/identity-conformance-core';
 import { runConformanceRunner } from './runner.js';
 import type { RunnerConfig } from './config.js';
 

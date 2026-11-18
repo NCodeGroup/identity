@@ -1,7 +1,7 @@
 /**
  * Probe-runner probes (UI-free, unit-tested) — the confidential and server-initiated legs a browser cannot drive.
  *
- * The browser dashboard's active probes ([@ncode/conformance-core](../../../packages/conformance-core/src/probes.ts))
+ * The browser dashboard's active probes ([@ncodegroup/identity-conformance-core](../../../packages/conformance-core/src/probes.ts))
  * verify the CORS-reachable, credential-free endpoints. These probes complete the picture for the legs that need a
  * client secret, an asymmetric client key, a client certificate, or a server-to-server call the browser secret model
  * and CORS forbid: `client_credentials`, introspection/revocation with client authentication, `private_key_jwt`,
@@ -10,7 +10,7 @@
  * without a network or real keys. See [ADR-1084](../../../../docs/decisions/1084-the-playground-explores-the-recommended-flow-and-the-conformance-harness-measures-the-published-spec-surface.md).
  */
 
-import type { ProbeFetch, ProbeReport, ProbeResult, RawDiscovery } from '@ncode/conformance-core';
+import type { ProbeFetch, ProbeReport, ProbeResult, RawDiscovery } from '@ncodegroup/identity-conformance-core';
 
 /** How the runner authenticates a confidential client at the token/introspection/revocation endpoints. */
 export type ClientAuthMethod = 'client_secret_basic' | 'client_secret_post';

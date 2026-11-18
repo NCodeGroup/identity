@@ -1,4 +1,4 @@
-import { parseBrandingConfig, type BrandingConfig } from '@ncode/config';
+import { parseBrandingConfig, type BrandingConfig } from '@ncodegroup/identity-config';
 
 /** The id of the `<script type="application/json">` element in which the host embeds the tenant's branding. */
 export const BRANDING_ELEMENT_ID = 'branding';

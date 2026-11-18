@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import type { CoverageReport } from '@ncode/conformance-core';
+import type { CoverageReport } from '@ncodegroup/identity-conformance-core';
 import { CoverageMatrix } from './CoverageMatrix.js';
 
 const report: CoverageReport = {

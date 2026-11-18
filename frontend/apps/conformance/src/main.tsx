@@ -1,9 +1,9 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Provider } from 'react-redux';
-import { createRuntimeConfigLoader } from '@ncode/config';
-import { BootstrapGate } from '@ncode/shell';
-import { createAppStore } from '@ncode/store';
+import { createRuntimeConfigLoader } from '@ncodegroup/identity-config';
+import { BootstrapGate } from '@ncodegroup/identity-shell';
+import { createAppStore } from '@ncodegroup/identity-store';
 import { App } from './App.js';
 
 const store = createAppStore();

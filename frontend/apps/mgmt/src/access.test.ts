@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { CallerResource, TeamResource } from '@ncode/api';
-import type { CellTenantResource } from '@ncode/store';
+import type { CallerResource, TeamResource } from '@ncodegroup/identity-api';
+import type { CellTenantResource } from '@ncodegroup/identity-store';
 import {
   permittedRoute,
   soleDestination,

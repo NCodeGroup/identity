@@ -1,7 +1,7 @@
 import { webcrypto } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { FetchLike } from '@ncode/auth';
-import type { OpenIdRuntimeConfig } from '@ncode/config';
+import type { FetchLike } from '@ncodegroup/identity-auth';
+import type { OpenIdRuntimeConfig } from '@ncodegroup/identity-config';
 import {
   AuthError,
   beginFlow,

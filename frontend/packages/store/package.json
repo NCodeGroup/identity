@@ -1,5 +1,5 @@
 {
-  "name": "@ncode/store",
+  "name": "@ncodegroup/identity-store",
   "version": "0.0.0",
   "private": true,
   "description": "Redux Toolkit store assembly, slices, and typed hooks for NCode.Identity frontends.",
@@ -18,8 +18,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@ncode/api": "workspace:*",
-    "@ncode/config": "workspace:*",
+    "@ncodegroup/identity-api": "workspace:*",
+    "@ncodegroup/identity-config": "workspace:*",
     "@reduxjs/toolkit": "^2.2.7",
     "react-redux": "^9.1.2"
   },
@@ -27,8 +27,8 @@
     "react": "^19.3.1"
   },
   "devDependencies": {
-    "@ncode/test-support": "workspace:*",
-    "@ncode/vite-config": "workspace:*",
+    "@ncodegroup/identity-test-support": "workspace:*",
+    "@ncodegroup/identity-vite-config": "workspace:*",
     "@types/react": "^19.3.0",
     "@vitest/coverage-v8": "^5.0.5",
     "react": "^19.3.1",

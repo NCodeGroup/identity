@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { AppThemeProvider } from '@ncode/ui';
+import { AppThemeProvider } from '@ncodegroup/identity-ui';
 import { LogoutConfirmPage } from './LogoutConfirmPage.js';
 import { LocaleProvider } from './i18n/LocaleContext.js';
 

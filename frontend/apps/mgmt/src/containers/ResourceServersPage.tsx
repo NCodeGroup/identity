@@ -10,8 +10,8 @@ import {
   ResourceServerTable,
   emptyResourceServerFormValues,
   type ResourceServerFormValues,
-} from '@ncode/ui';
-import type { ResourceServerResource } from '@ncode/api';
+} from '@ncodegroup/identity-ui';
+import type { ResourceServerResource } from '@ncodegroup/identity-api';
 import {
   apiErrorMessage,
   useCreateResourceServerMutation,
@@ -19,7 +19,7 @@ import {
   useListResourceServersQuery,
   useUpdateResourceServerMutation,
   type ApiError,
-} from '@ncode/store';
+} from '@ncodegroup/identity-store';
 import { useTenantCell } from '../tenantCell.js';
 import { ResourceServerDetailPage } from './ResourceServerDetailPage.js';
 

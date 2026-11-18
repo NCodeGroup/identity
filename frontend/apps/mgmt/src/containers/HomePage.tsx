@@ -2,12 +2,12 @@ import { useEffect } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
-import { DataStateBoundary, TeamTable, TenantTable, UnavailableCellsAlert } from '@ncode/ui';
+import { DataStateBoundary, TeamTable, TenantTable, UnavailableCellsAlert } from '@ncodegroup/identity-ui';
 import {
   useGetCallerQuery,
   useListCallerTeamsQuery,
   useListCallerTenantsQuery,
-} from '@ncode/store';
+} from '@ncodegroup/identity-store';
 import { soleDestination } from '../access.js';
 import { platformRoute, teamRoute, tenantRoute, type ConsoleRoute } from '../routes.js';
 import { useCallerAccess } from '../useCallerAccess.js';

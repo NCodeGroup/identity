@@ -10,7 +10,7 @@ namespace NCode.Identity.ManagementConsole;
 
 /// <summary>
 /// The serializable runtime bootstrap document that the console publishes to its bundle. Property names serialize to
-/// the camelCase shape <c>@ncode/config</c> parses; the branding is omitted when absent so the document stays minimal.
+/// the camelCase shape <c>@ncodegroup/identity-config</c> parses; the branding is omitted when absent so the document stays minimal.
 /// </summary>
 internal sealed record ManagementConsoleBootstrapDocument
 {

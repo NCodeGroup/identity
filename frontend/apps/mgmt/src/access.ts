@@ -1,5 +1,5 @@
-import type { CallerResource, TeamResource } from '@ncode/api';
-import type { CellTenantResource } from '@ncode/store';
+import type { CallerResource, TeamResource } from '@ncodegroup/identity-api';
+import type { CellTenantResource } from '@ncodegroup/identity-store';
 import { HOME_ROUTE, platformRoute, teamRoute, tenantRoute, type ConsoleRoute } from './routes.js';
 
 /**

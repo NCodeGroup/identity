@@ -10,8 +10,8 @@ import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import { DataStateBoundary } from '@ncode/ui';
-import type { OpenIdRuntimeConfig } from '@ncode/config';
+import { DataStateBoundary } from '@ncodegroup/identity-ui';
+import type { OpenIdRuntimeConfig } from '@ncodegroup/identity-config';
 import {
   auditDiscovery,
   buildCoverageReport,
@@ -19,7 +19,7 @@ import {
   type AuditReport,
   type CoverageReport,
   type RawDiscovery,
-} from '@ncode/conformance-core';
+} from '@ncodegroup/identity-conformance-core';
 import { loadDiscovery as defaultLoadDiscovery } from '../discovery.js';
 import { CoverageMatrix } from '../components/CoverageMatrix.js';
 import { CoverageStatusChip } from '../components/CoverageStatusChip.js';

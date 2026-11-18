@@ -34,7 +34,7 @@ Three facts shape how that administrator is created:
 setup creates a root global administrator.**
 
 1. **The control-plane cell's OP serves a setup wizard at `/setup`.** A cell that is not the control plane
-   (`Cell:IsControlPlane` is unset) maps no `/setup` route, so every `/setup` path answers 404 there. The page is the `@ncode/app-setup` bundle. It reads the instance state
+   (`Cell:IsControlPlane` is unset) maps no `/setup` route, so every `/setup` path answers 404 there. The page is the `@ncodegroup/identity-app-setup` bundle. It reads the instance state
    from `GET /setup/api/status`, checks the token with `POST /setup/api/token`, and creates the root administrator with
    `POST /setup/api/root`. After it creates the root, it lists the instance's addresses and the remaining configuration,
    and links to the first-use document.

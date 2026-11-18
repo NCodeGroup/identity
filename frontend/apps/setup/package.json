@@ -1,5 +1,5 @@
 {
-  "name": "@ncode/app-setup",
+  "name": "@ncodegroup/identity-app-setup",
   "version": "0.0.0",
   "private": true,
   "description": "NCode.Identity first-run setup wizard (OP-hosted SPA).",
@@ -17,14 +17,14 @@
     "@emotion/react": "^11.13.3",
     "@emotion/styled": "^11.13.0",
     "@mui/material": "^9.5.0",
-    "@ncode/config": "workspace:*",
-    "@ncode/ui": "workspace:*",
+    "@ncodegroup/identity-config": "workspace:*",
+    "@ncodegroup/identity-ui": "workspace:*",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
   "devDependencies": {
-    "@ncode/test-support": "workspace:*",
-    "@ncode/vite-config": "workspace:*",
+    "@ncodegroup/identity-test-support": "workspace:*",
+    "@ncodegroup/identity-vite-config": "workspace:*",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.0.1",
     "@types/react": "^19.3.0",

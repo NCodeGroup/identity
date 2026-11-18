@@ -22,7 +22,7 @@ COPY frontend/ ./
 RUN npm install --global --no-fund --no-audit "$(node --print "require('./package.json').packageManager")"
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile
-RUN pnpm exec turbo run build --filter=@ncode/app-auth --filter=@ncode/app-setup
+RUN pnpm exec turbo run build --filter=@ncodegroup/identity-app-auth --filter=@ncodegroup/identity-app-setup
 
 # The host and its migration worker, published framework-dependent for the target architecture. The worker ships in
 # the host's image so the schema a release migrates to is always the schema that release's host reads (ADR-1180).

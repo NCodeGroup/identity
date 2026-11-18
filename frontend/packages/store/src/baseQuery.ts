@@ -4,7 +4,7 @@ import {
   type FetchArgs,
   type FetchBaseQueryError,
 } from '@reduxjs/toolkit/query';
-import type { RuntimeConfig } from '@ncode/config';
+import type { RuntimeConfig } from '@ncodegroup/identity-config';
 import { sessionEnded } from './sessionSlice.js';
 
 /**
