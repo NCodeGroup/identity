@@ -308,21 +308,20 @@ Until the first stable release, the [Unreleased] section describes the product a
   [ADR-1370](docs/decisions/1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)).
 
 - **`IIdentityServerBuilder.AddFrontendBootstrap(configuration)` publishes a surface-aware runtime frontend bootstrap
-  document at `/config/bootstrap.json`** (issue [#136](https://github.com/NCodeGroup/identity/issues/136),
-  [ADR-1064](docs/decisions/1064-one-frontend-platform-of-shared-packages-and-thin-app-shells-serves-every-web-surface.md),
-  [ADR-1084](docs/decisions/1084-the-playground-explores-the-recommended-flow-and-the-conformance-harness-measures-the-published-spec-surface.md)). It binds the `Frontend` configuration section
-  into `FrontendBootstrapOptions` and registers the endpoint as an `IEndpointProvider`, so the host's single
-  `MapEndpointGroups()` call maps it. The document carries the API base, issuer, client id, scopes, feature flags and
-  branding, and, with nothing configured, publishes the serving tenant's issuer (its stored one, or the one its strategy derives before the tenant is
-  provisioned; the root tenant's when the request names none) and the host's root-relative path base as the API base,
-  so a single-origin host serves every tier from one bundle with no configuration. `@ncodegroup/identity-config`'s `loadRuntimeConfig` sends the bundle's
-  `SurfaceKind` as `?surface=`, and `FrontendBootstrapOptions.Surfaces` maps each surface to a `FrontendSurfaceOptions`
-  override: client id and scopes override the default, so a read-only surface publishes none; feature flags merge;
-  branding falls back. The bootstrap types (`FrontendBootstrapOptions`, `FrontendSurfaceOptions`,
-  `FrontendBrandingOptions`) are in the `NCode.Identity.Server.Frontend` namespace. The reference host's Development
-  document publishes developer branding, `playground-spa` for the playground
-  and no client for the conformance dashboard, and the Vite dev servers proxy `/config/bootstrap.json` to the host
-  through Aspire service discovery (`WithReference(api)`), so local development consumes the runtime endpoint.
+  document at `/config/bootstrap.json`** (issue [#136](https://github.com/NCodeGroup/identity/issues/136), [ADR-1064](docs/decisions/1064-one-frontend-platform-of-shared-packages-and-thin-app-shells-serves-every-web-surface.md), [ADR-1084](docs/decisions/1084-the-playground-explores-the-recommended-flow-and-the-conformance-harness-measures-the-published-spec-surface.md)). It binds the `Frontend`
+  configuration section into `FrontendBootstrapOptions` and registers the endpoint as an `IEndpointProvider`, so the
+  host's single `MapEndpointGroups()` call maps it. The document carries the API base, issuer, client id, scopes,
+  feature flags and branding, and, with nothing configured, publishes the serving tenant's issuer (its stored one, or
+  the one its strategy derives before the tenant is provisioned; the root tenant's when the request names none) and the
+  host's root-relative path base as the API base, so a single-origin host serves every tier from one bundle with no
+  configuration. `@ncodegroup/identity-config`'s `loadRuntimeConfig` sends the bundle's `SurfaceKind` as `?surface=`,
+  and `FrontendBootstrapOptions.Surfaces` maps each surface to a `FrontendSurfaceOptions` override: client id and scopes
+  override the default, so a read-only surface publishes none; feature flags merge; branding falls back. The bootstrap
+  types (`FrontendBootstrapOptions`, `FrontendSurfaceOptions`, `FrontendBrandingOptions`) are in the
+  `NCode.Identity.Server.Frontend` namespace. The reference host's Development document publishes developer branding,
+  `playground-spa` for the playground and no client for the conformance dashboard, and the Vite dev servers proxy
+  `/config/bootstrap.json` to the host through Aspire service discovery (`WithReference(api)`), so local development
+  consumes the runtime endpoint.
 
 - **`AddConformanceSeed(IConfiguration)` seeds the clients and test user the OpenID Foundation conformance suite
   drives** (issues [#127](https://github.com/NCodeGroup/identity/issues/127),
@@ -634,12 +633,12 @@ Until the first stable release, the [Unreleased] section describes the product a
   ([ADR-1152](docs/decisions/1152-the-frontend-pins-node-and-pnpm-once-gates-dependencies-by-release-age-and-tracks-supported-upstreams.md)).
 
 - **Frontend tests fail on warnings, and frontend coverage holds a floor.** A test that logs `console.error` or
-  `console.warn` fails, through a console guard in the test-only `@ncodegroup/identity-test-support` workspace (the usual culprit is a
-  React "not wrapped in act(...)" warning, meaning the test asserted before an update settled). A test that makes no
-  assertion fails, lint fails on any warning, and tests, stories and setup files are type-checked. Each workspace's
-  coverage measures every source file and holds a floor at its level, enforced by `pnpm run test:report` in CI
-  ([ADR-1151](docs/decisions/1151-every-frontend-workspace-builds-and-tests-from-one-preset-that-fails-on-warnings-and-oversized-chunks.md)).
-  The conformance runner's CLI logic lives in a tested `cli.ts`, and its `--help` documents exit code `2`.
+  `console.warn` fails, through a console guard in the test-only `@ncodegroup/identity-test-support` workspace (the
+  usual culprit is a React "not wrapped in act(...)" warning, meaning the test asserted before an update settled). A
+  test that makes no assertion fails, lint fails on any warning, and tests, stories and setup files are type-checked.
+  Each workspace's coverage measures every source file and holds a floor at its level, enforced by
+  `pnpm run test:report` in CI ([ADR-1151](docs/decisions/1151-every-frontend-workspace-builds-and-tests-from-one-preset-that-fails-on-warnings-and-oversized-chunks.md)). The conformance runner's CLI logic lives in a tested `cli.ts`, and its
+  `--help` documents exit code `2`.
 
 - **The JOSE serializer encodes and decodes the Compact, Flattened and General JSON serializations, with multiple
   signatures and recipients (RFC 7515 §7.2, RFC 7516 §7.2).** The JSON serializations carry multiple signatures (JWS) or
@@ -2104,8 +2103,8 @@ Until the first stable release, the [Unreleased] section describes the product a
   or return `consent_required` under `prompt=none`.
 
 - **The OpenID Provider hosts an interactive login and consent surface.** A React and Material UI app
-  (`@ncodegroup/identity-app-auth`, `apps/auth`) on the shared frontend platform is served by the host, same-origin, under
-  `/account/*`, backed by the opt-in leaf capability package `NCode.Identity.OpenId.Authentication.Interactive` (+
+  (`@ncodegroup/identity-app-auth`, `apps/auth`) on the shared frontend platform is served by the host, same-origin,
+  under `/account/*`, backed by the opt-in leaf capability package `NCode.Identity.OpenId.Authentication.Interactive` (+
   `.Abstractions`, under the `NCode.Identity.OpenId.Authentication.Interactive.*` namespaces), which
   `NCode.Identity.Server` references like any other capability (`AddInteractiveAuthentication` /
   `UseInteractiveAuthentication`). Its endpoints register as an `IEndpointProvider` under an
@@ -2114,8 +2113,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   (`InteractiveAuthenticationDefaults.CookieSchemeName`) that the authorize endpoint's challenge redirects into, issues
   the cookie session, and honors a server-validated local return URL. The shell resolves its surfaces (account, consent,
   login) through a declarative route table, and the forms expose stable automation ids (`username`, `password`, `login`,
-  `consent-allow`, `consent-deny`). See [ADR-1062](docs/decisions/1062-the-op-serves-an-opt-in-interactive-sign-in-and-consent-surface-with-a-pluggable-credential-verifier.md); issues
-  [#125](https://github.com/NCodeGroup/identity/issues/125), [#135](https://github.com/NCodeGroup/identity/issues/135).
+  `consent-allow`, `consent-deny`). See [ADR-1062](docs/decisions/1062-the-op-serves-an-opt-in-interactive-sign-in-and-consent-surface-with-a-pluggable-credential-verifier.md); issues [#125](https://github.com/NCodeGroup/identity/issues/125), [#135](https://github.com/NCodeGroup/identity/issues/135).
 
 - **The interactive login surface is backend-agnostic through a pluggable credential verifier.** Credential verification
   goes through the `IInteractiveCredentialVerifier` seam in the `.Abstractions` package; its local-account
@@ -2147,9 +2145,8 @@ Until the first stable release, the [Unreleased] section describes the product a
   the bundle's content-hashed `assets` directory, at `GET|HEAD {tenant}/account/assets/{**asset}`, with
   `Cache-Control: public, max-age=31536000, immutable` and its `ETag` and `Last-Modified` validators, from a route group
   that resolves no tenant, so a returning browser loads the bundle without a request. Other files of the bundle's
-  directory, such as `index.html`, are not served, and `@ncodegroup/identity-vite-config` pins `build.assetsDir` to `assets`
-  ([ADR-1193](docs/decisions/1193-the-interactive-surface-uses-the-tenant-route-host-only-cookies-and-one-shared-single-page-bundle-helper.md),
-  issue [#221](https://github.com/NCodeGroup/identity/issues/221)).
+  directory, such as `index.html`, are not served, and `@ncodegroup/identity-vite-config` pins `build.assetsDir` to
+  `assets` ([ADR-1193](docs/decisions/1193-the-interactive-surface-uses-the-tenant-route-host-only-cookies-and-one-shared-single-page-bundle-helper.md), issue [#221](https://github.com/NCodeGroup/identity/issues/221)).
 
 - **The interactive login and consent pages work without JavaScript, and the bundle mounts at once over the page the
   host rendered.** The server renders a real `<form>` (login: `username`/`password`/`login`; consent: a per-scope
@@ -2265,15 +2262,15 @@ Until the first stable release, the [Unreleased] section describes the product a
   `NCode.Identity.AspNetCore` references `NCode.Buffers` ([#513](https://github.com/NCodeGroup/identity/issues/513),
   [ADR-1256](docs/decisions/1256-every-page-the-server-writes-has-a-strict-content-security-policy-and-is-framed-only-by-design.md)).
 
-- **One TypeScript UI platform serves every frontend surface (`frontend`).** Management, login/consent, playground
-  and OIDC conformance surfaces share React + Material UI, Redux Toolkit + RTK Query, Vite, Vitest + React Testing
-  Library and Storybook, orchestrated by pnpm workspaces + Turborepo and pinned through Corepack. Shared `@ncodegroup/identity-*`
-  packages (`config` runtime discovery, `api` RTK Query client with a global/tenant scope model, `store` Redux assembly,
-  `ui` MUI design system) back thin per-surface app shells, including the management console (`@ncodegroup/identity-app-mgmt`) with
-  global-vs-tenant boundary browsing. Bundles are tier-agnostic: all configuration is discovered at runtime from the
-  serving host and nothing is baked in at build time, and a branding seam supports per-tenant theming. The toolchain is
-  isolated under `frontend` and is separate from the .NET Definition of Done. See
-  [ADR-1064](docs/decisions/1064-one-frontend-platform-of-shared-packages-and-thin-app-shells-serves-every-web-surface.md).
+- **One TypeScript UI platform serves every frontend surface (`frontend`).** Management, login/consent, playground and
+  OIDC conformance surfaces share React + Material UI, Redux Toolkit + RTK Query, Vite, Vitest + React Testing Library
+  and Storybook, orchestrated by pnpm workspaces + Turborepo and pinned through Corepack. Shared
+  `@ncodegroup/identity-*` packages (`config` runtime discovery, `api` RTK Query client with a global/tenant scope
+  model, `store` Redux assembly, `ui` MUI design system) back thin per-surface app shells, including the management
+  console (`@ncodegroup/identity-app-mgmt`) with global-vs-tenant boundary browsing. Bundles are tier-agnostic: all
+  configuration is discovered at runtime from the serving host and nothing is baked in at build time, and a branding
+  seam supports per-tenant theming. The toolchain is isolated under `frontend` and is separate from the .NET Definition
+  of Done. See [ADR-1064](docs/decisions/1064-one-frontend-platform-of-shared-packages-and-thin-app-shells-serves-every-web-surface.md).
 
 - **The frontend runs on React 19 and Material UI 9.** This covers every surface, including the login and consent pages
   the OpenID Provider host serves. Components style through `sx` and pass input attributes through `slotProps`, and
@@ -2613,10 +2610,10 @@ Until the first stable release, the [Unreleased] section describes the product a
   ([ADR-1303](docs/decisions/1303-audit-records-are-kept-in-an-indexed-store-that-each-replica-writes-in-batches.md)
   decision 6, issue [#384](https://github.com/NCodeGroup/identity/issues/384)).
 
-- **`@ncodegroup/identity-auth` holds the Playground's public-client protocol helpers.** The framework-free `@ncodegroup/identity-auth` package
-  implements OAuth 2.0 authorization code with PKCE (`S256`): verifier and challenge generation, the authorize redirect,
-  state/CSRF validation, code-for-token exchange, refresh and ID-token subject extraction, all injectable and
-  unit-tested (including the RFC 7636 test vector).
+- **`@ncodegroup/identity-auth` holds the Playground's public-client protocol helpers.** The framework-free
+  `@ncodegroup/identity-auth` package implements OAuth 2.0 authorization code with PKCE (`S256`): verifier and challenge
+  generation, the authorize redirect, state/CSRF validation, code-for-token exchange, refresh and ID-token subject
+  extraction, all injectable and unit-tested (including the RFC 7636 test vector).
 
 - **The management console's address bar is its navigation state.** The console routes to the caller's home,
   `/home`, and by scope and surface: `/teams`, `/settings` and `/encryption-keys` in the platform scope,
@@ -2643,9 +2640,8 @@ Until the first stable release, the [Unreleased] section describes the product a
   alias cannot be used; it re-judges an existing tenant's address only when its issuer or alias changes. The tenant
   table shows each tenant's issuer, alias and environment, highlights every non-production environment, and filters by
   environment type. Edits send the resource's `concurrencyToken` as `If-Match` over a `replace`-only JSON Patch; the
-  UI-free `replacePatch` helper (`@ncodegroup/identity-api`) and the RFC 7807-aware `apiErrorMessage` helper (`@ncodegroup/identity-store`) are
-  unit-tested directly (issues [#134](https://github.com/NCodeGroup/identity/issues/134),
-  [#157](https://github.com/NCodeGroup/identity/issues/157), [#412](https://github.com/NCodeGroup/identity/issues/412)).
+  UI-free `replacePatch` helper (`@ncodegroup/identity-api`) and the RFC 7807-aware `apiErrorMessage` helper
+  (`@ncodegroup/identity-store`) are unit-tested directly (issues [#134](https://github.com/NCodeGroup/identity/issues/134), [#157](https://github.com/NCodeGroup/identity/issues/157), [#412](https://github.com/NCodeGroup/identity/issues/412)).
 
 - **The management console manages clients.** Within a tenant the console creates, edits and deletes clients through
   RTK Query mutations addressed by the tenant (`createClient`/`updateClient`/`deleteClient` take a `tenantId`), a
@@ -2672,19 +2668,16 @@ Until the first stable release, the [Unreleased] section describes the product a
 - **The management console reaches every owner's secrets and settings through one endpoint per operation.**
   `@ncodegroup/identity-store` exposes `useListSecretsQuery`, `useCreateSecretMutation`, `useDeleteSecretMutation`,
   `useRotateSecretMutation`, `useLazyGetSecretPublicKeyQuery`, `useGetSettingsQuery`, `useGetEffectiveSettingsQuery` and
-  `useUpdateSettingsMutation`, each taking a `ManagementOwner` from `@ncodegroup/identity-api`, and `OwnerSecretsTab` and
-  `OwnerSettingsTab` serve every detail page: clients, resource servers, the tenant's own surfaces, teams and the platform
-  ([ADR-1257](docs/decisions/1257-the-management-console-addresses-every-owners-secrets-settings-and-roles-through-one-owner-value.md),
-  issue [#236](https://github.com/NCodeGroup/identity/issues/236)).
+  `useUpdateSettingsMutation`, each taking a `ManagementOwner` from `@ncodegroup/identity-api`, and `OwnerSecretsTab`
+  and `OwnerSettingsTab` serve every detail page: clients, resource servers, the tenant's own surfaces, teams and the
+  platform ([ADR-1257](docs/decisions/1257-the-management-console-addresses-every-owners-secrets-settings-and-roles-through-one-owner-value.md), issue [#236](https://github.com/NCodeGroup/identity/issues/236)).
 
-- **The management console manages owners and administrators.** A team's and a tenant's Access surface lists, grants
-  and revokes their administrators and owners, and a client's and a resource server's Access tab their owners, through
+- **The management console manages owners and administrators.** A team's and a tenant's Access surface lists, grants and
+  revokes their administrators and owners, and a client's and a resource server's Access tab their owners, through
   `useListRoleAssignmentsQuery`, `useAddRoleAssignmentMutation` and `useRemoveRoleAssignmentMutation`, each taking a
-  `RoleList` from `@ncodegroup/identity-api`. A list offers its grant form and revoke controls only when it answers `canChange`,
-  shows itself read-only otherwise, and every role list refreshes after any grant or revoke
-  ([#582](https://github.com/NCodeGroup/identity/issues/582),
-  [#623](https://github.com/NCodeGroup/identity/issues/623),
-  [ADR-1465](docs/decisions/1465-role-lists-share-one-audited-grant-and-revoke-flow-and-a-caller-discovers-its-own-assignments.md)).
+  `RoleList` from `@ncodegroup/identity-api`. A list offers its grant form and revoke controls only when it answers
+  `canChange`, shows itself read-only otherwise, and every role list refreshes after any grant or revoke ([#582](https://github.com/NCodeGroup/identity/issues/582),
+  [#623](https://github.com/NCodeGroup/identity/issues/623), [ADR-1465](docs/decisions/1465-role-lists-share-one-audited-grant-and-revoke-flow-and-a-caller-discovers-its-own-assignments.md)).
 
 - **The management console manages secrets with a one-time reveal.** An owner's Secrets tab creates, lists and deletes
   secrets; generated key material is shown exactly once in a `RevealSecretDialog` with a copy affordance and is never
@@ -2706,10 +2699,9 @@ Until the first stable release, the [Unreleased] section describes the product a
 
 - **The management console edits settings beside their effective view.** An owner's Settings tab edits the opaque
   persisted settings JSON beside a read-only effective-settings view. Because settings are an open object, a save sends
-  a top-level add/remove/replace JSON Patch diff, built by the UI-free `@ncodegroup/identity-api` `diffPatch` helper, with the owner's
-  `concurrencyToken` as `If-Match`. The stateless MUI `GrantTable`, `SecretTable`, `SecretFormDialog`,
-  `RevealSecretDialog` and `SettingsEditor` components are Storybook-driven and unit-tested (issue
-  [#134](https://github.com/NCodeGroup/identity/issues/134)).
+  a top-level add/remove/replace JSON Patch diff, built by the UI-free `@ncodegroup/identity-api` `diffPatch` helper,
+  with the owner's `concurrencyToken` as `If-Match`. The stateless MUI `GrantTable`, `SecretTable`, `SecretFormDialog`,
+  `RevealSecretDialog` and `SettingsEditor` components are Storybook-driven and unit-tested (issue [#134](https://github.com/NCodeGroup/identity/issues/134)).
 
 - **The management console manages a tenant's grants and mints initial access tokens.** The tenant's Grants surface
   lists persisted grants with subject and client filters and revokes them one by one or as a filtered bulk operation
@@ -3036,9 +3028,8 @@ Until the first stable release, the [Unreleased] section describes the product a
 
 - **The management console reads its session from its BFF.** The `RuntimeConfig` union and `loadBffRuntimeConfig`, the
   `session` slice and `fetchBffUser`, `SessionGate` (poll, expiry and visibility probes, `BroadcastChannel`), sign-out
-  by the logout form, `defineBffServedSurfaceConfig` and `readCspNonce` in `@ncodegroup/identity-ui` give the console its session
-  from `/bff/user`
-  ([ADR-1438](docs/decisions/1438-the-management-console-holds-no-token-and-reads-its-session-from-its-bff.md)).
+  by the logout form, `defineBffServedSurfaceConfig` and `readCspNonce` in `@ncodegroup/identity-ui` give the console
+  its session from `/bff/user` ([ADR-1438](docs/decisions/1438-the-management-console-holds-no-token-and-reads-its-session-from-its-bff.md)).
 
 - **The BFF is proven in real browsers and against a second OpenID Provider.** The `End-to-end` check runs
   `./build/e2e.ps1`, which drives the BFF with Playwright in Chromium, Firefox and WebKit against Keycloak in a
@@ -3902,8 +3893,10 @@ Until the first stable release, the [Unreleased] section describes the product a
   of the product and its platform; `NCodeGroup/identity-platform` holds the reusable OpenTofu modules, Kustomize
   components and stacks and the platform's live configuration for `lab` and `production`; and the private
   `NCodeGroup/identity-cloud` holds only the managed offering's proprietary parts. NuGet packages are named
-  `NCode.Identity.*`, the chart and images `ncode-identity-*`, the npm workspace packages `@ncodegroup/identity-*`, all private,
+  `NCode.Identity.*`, the chart and images `ncode-identity-*`, the npm workspace packages `@ncodegroup/identity-*`,
+  all private, under the `@ncodegroup` scope the NCode Group holds, so no other party can publish under their names,
   and the platform's domains `ncodeid.*` ([#760](https://github.com/NCodeGroup/identity/issues/760),
+  [#860](https://github.com/NCodeGroup/identity/issues/860),
   [ADR-1502](docs/decisions/1502-code-a-self-hoster-could-use-is-public-and-identity-holds-the-products-and-platforms-decisions.md)).
 
 - **The build reports a field that could be an auto-property.** `NCode.Identity.Analyzers`, the repository's own Roslyn
@@ -4005,66 +3998,59 @@ Until the first stable release, the [Unreleased] section describes the product a
 - **Dependabot waits three days before it offers a NuGet package, action or base image release**, and gives NCode
   Review's pin bump a group of its own.
 
-- **Every frontend surface boots through one shared gate.** The Management console, the Playground and the
-  conformance dashboard share `BootstrapGate` from the `@ncodegroup/identity-shell` workspace, the one package allowed to depend on
+- **Every frontend surface boots through one shared gate.** The Management console, the Playground and the conformance
+  dashboard share `BootstrapGate` from the `@ncodegroup/identity-shell` workspace, the one package allowed to depend on
   both the store and the design system, which loads the runtime configuration before the app renders. Its loading and
-  error views are a stateless `BootstrapScreen` in `@ncodegroup/identity-ui`. Each surface names itself once, in `main.tsx`, through
-  `createRuntimeConfigLoader({ surface })`, or the console through `createBffRuntimeConfigLoader()`, and
-  `loadRuntimeConfig` defaults the serving origin to the page's own. One
-  test suite covers the gate: a loader that ignores its abort signal and settles late never overwrites newer
-  configuration, configuration that reaches the store another way clears an earlier error, and an error without a
-  message shows the generic one. `SurfaceKind` is an open vocabulary, so a surface needs only its host override, not a
-  change to `@ncodegroup/identity-config`. See [ADR-1064](docs/decisions/1064-one-frontend-platform-of-shared-packages-and-thin-app-shells-serves-every-web-surface.md).
+  error views are a stateless `BootstrapScreen` in `@ncodegroup/identity-ui`. Each surface names itself once, in
+  `main.tsx`, through `createRuntimeConfigLoader({ surface })`, or the console through `createBffRuntimeConfigLoader()`,
+  and `loadRuntimeConfig` defaults the serving origin to the page's own. One test suite covers the gate: a loader that
+  ignores its abort signal and settles late never overwrites newer configuration, configuration that reaches the store
+  another way clears an earlier error, and an error without a message shows the generic one. `SurfaceKind` is an open
+  vocabulary, so a surface needs only its host override, not a change to `@ncodegroup/identity-config`. See
+  [ADR-1064](docs/decisions/1064-one-frontend-platform-of-shared-packages-and-thin-app-shells-serves-every-web-surface.md).
 
-- **Every frontend workspace builds and tests from one Vite preset.** The `@ncodegroup/identity-vite-config` workspace owns the test
-  gates and the three serving models (standalone, backend-served and BFF-served), and each workspace's Vite or Vitest
-  config is one call that states its coverage floors. Every workspace collects `.test.tsx` files, including those on
-  the `node` test environment, and each standalone dev server pins the port its redirect URI and CORS origin assume. Locally, Turborepo re-runs a
-  workspace's tests and type-check when an internal package it depends on, `tsconfig.base.json`, or `eslint.config.js`
-  changes. See [ADR-1151](docs/decisions/1151-every-frontend-workspace-builds-and-tests-from-one-preset-that-fails-on-warnings-and-oversized-chunks.md).
+- **Every frontend workspace builds and tests from one Vite preset.** The `@ncodegroup/identity-vite-config` workspace
+  owns the test gates and the three serving models (standalone, backend-served and BFF-served), and each workspace's
+  Vite or Vitest config is one call that states its coverage floors. Every workspace collects `.test.tsx` files,
+  including those on the `node` test environment, and each standalone dev server pins the port its redirect URI and CORS
+  origin assume. Locally, Turborepo re-runs a workspace's tests and type-check when an internal package it depends on,
+  `tsconfig.base.json`, or `eslint.config.js` changes. See [ADR-1151](docs/decisions/1151-every-frontend-workspace-builds-and-tests-from-one-preset-that-fails-on-warnings-and-oversized-chunks.md).
 
 - **`apps/playground` is an authorization-code + PKCE (`S256`) flow explorer that exercises the OP's consent surface out
-  of the box** (issue [#135](https://github.com/NCodeGroup/identity/issues/135),
-  [ADR-1084](docs/decisions/1084-the-playground-explores-the-recommended-flow-and-the-conformance-harness-measures-the-published-spec-surface.md)). The Playground discovers the provider and
-  walks the flow end to end, surfacing the PKCE verifier and challenge, `state`, `nonce`, the authorize URL, the token
-  response and the decoded JWT header and claims, then exercises UserInfo, refresh and RP-Initiated Logout; it offers no
-  implicit, hybrid or resource-owner-password flow. It has a **Force consent (`prompt=consent`)** toggle, the
-  developer-seeded `playground-spa` client sets `require_consent = true` (`DeveloperSpaClientSeed.RequireConsent`), and
-  `@ncodegroup/identity-auth`'s `buildAuthorizeUrl` takes an optional OIDC `prompt` and `nonce`. It is a standalone Vite SPA on the
-  shared `@ncodegroup/identity-*` platform, on port `5174` in the Aspire AppHost.
+  of the box** (issue [#135](https://github.com/NCodeGroup/identity/issues/135), [ADR-1084](docs/decisions/1084-the-playground-explores-the-recommended-flow-and-the-conformance-harness-measures-the-published-spec-surface.md)). The Playground discovers the provider and walks the flow end to end,
+  surfacing the PKCE verifier and challenge, `state`, `nonce`, the authorize URL, the token response and the decoded JWT
+  header and claims, then exercises UserInfo, refresh and RP-Initiated Logout; it offers no implicit, hybrid or
+  resource-owner-password flow. It has a **Force consent (`prompt=consent`)** toggle, the developer-seeded
+  `playground-spa` client sets `require_consent = true` (`DeveloperSpaClientSeed.RequireConsent`), and
+  `@ncodegroup/identity-auth`'s `buildAuthorizeUrl` takes an optional OIDC `prompt` and `nonce`. It is a standalone Vite
+  SPA on the shared `@ncodegroup/identity-*` platform, on port `5174` in the Aspire AppHost.
 
 - **The conformance dashboard (`apps/conformance`) audits the OP's security posture and measures it against the full
-  published OAuth, OIDC, CIBA and FAPI catalog** (issues [#135](https://github.com/NCodeGroup/identity/issues/135),
-  [#129](https://github.com/NCodeGroup/identity/issues/129),
-  [ADR-1084](docs/decisions/1084-the-playground-explores-the-recommended-flow-and-the-conformance-harness-measures-the-published-spec-surface.md)). It audits the published discovery metadata
-  against OAuth 2.1, RFC 9700, OpenID Connect Core and Discovery, and RFC 7636/8414/7009/7662/9126, flags insecure or
-  deprecated configuration, and reports OpenID Foundation Basic and Config OP readiness and the external-suite
-  configuration (issuer, alias, RP callback URL). A spec-coverage matrix classifies every capability from the live
-  discovery document, independent of what is implemented, so a gap surfaces as an explicit, attributable row and the
-  matrix detects regressions (a capability that stops being advertised or turns non-conformant changes its row). A
-  user-triggered active-probe panel exercises the browser-reachable endpoints (JWKS validity, the RFC 6749 §5.2
+  published OAuth, OIDC, CIBA and FAPI catalog** (issues [#135](https://github.com/NCodeGroup/identity/issues/135), [#129](https://github.com/NCodeGroup/identity/issues/129), [ADR-1084](docs/decisions/1084-the-playground-explores-the-recommended-flow-and-the-conformance-harness-measures-the-published-spec-surface.md)). It audits the published
+  discovery metadata against OAuth 2.1, RFC 9700, OpenID Connect Core and Discovery, and RFC 7636/8414/7009/7662/9126,
+  flags insecure or deprecated configuration, and reports OpenID Foundation Basic and Config OP readiness and the
+  external-suite configuration (issuer, alias, RP callback URL). A spec-coverage matrix classifies every capability from
+  the live discovery document, independent of what is implemented, so a gap surfaces as an explicit, attributable row
+  and the matrix detects regressions (a capability that stops being advertised or turns non-conformant changes its row).
+  A user-triggered active-probe panel exercises the browser-reachable endpoints (JWKS validity, the RFC 6749 §5.2
   token-error contract, UserInfo's `401`, and PAR when advertised) to turn advertised into verified; ADR-1084 sets the
   `browser`, `probe-runner` and `external-suite` exercise boundary. The dashboard is organized into tabs (Overview,
   Security audit, Coverage, Probes, Suite config) with collapsible coverage categories whose gaps start expanded, and it
   shows only the current issuer's audit: a discovery load superseded by an issuer change never updates it, whether it
-  fails or succeeds late. It is a standalone Vite SPA on the shared `@ncodegroup/identity-*` platform, on port `5175` in the Aspire
-  AppHost, and a development and conformance convenience only
-  ([ADR-1025](docs/decisions/1025-the-family-is-greenfield-and-pre-release-tracks-its-public-api-and-models-auth0-parity-plus.md)).
+  fails or succeeds late. It is a standalone Vite SPA on the shared `@ncodegroup/identity-*` platform, on port `5175` in
+  the Aspire AppHost, and a development and conformance convenience only ([ADR-1025](docs/decisions/1025-the-family-is-greenfield-and-pre-release-tracks-its-public-api-and-models-auth0-parity-plus.md)).
 
-- **The headless conformance probe runner exercises the legs a browser cannot drive** (issue
-  [#129](https://github.com/NCodeGroup/identity/issues/129),
-  [ADR-1084](docs/decisions/1084-the-playground-explores-the-recommended-flow-and-the-conformance-harness-measures-the-published-spec-surface.md)). The `@ncodegroup/identity-app-conformance-runner` CLI
-  exercises the confidential and server-initiated legs: `client_credentials`, token introspection and revocation with
-  client authentication, device-code issuance and polling, CIBA, `private_key_jwt`, DPoP/mTLS, and back-channel logout.
-  Each probe reports `verified`, `failed` or `skipped` (with an actionable reason, such as an unadvertised capability or
-  a missing credential), so an unimplemented backend feature surfaces as an explicit gap; a network error on the
-  device-code token poll fails the device-authorization probe alone and the run carries on, and the runner exits
-  non-zero on any failure, making it a CI pre-flight for the external certified suite
-  ([#124](https://github.com/NCodeGroup/identity/issues/124)). The framework-free, injectable-fetch conformance logic
-  (discovery fetch, the security audit, the spec-coverage catalog and the browser-drivable probes) lives in the shared,
-  unit-tested `@ncodegroup/identity-conformance-core` package used by both the dashboard (`apps/conformance`) and the runner.
-  Development and conformance tooling only, outside the .NET inner loop
-  ([ADR-1025](docs/decisions/1025-the-family-is-greenfield-and-pre-release-tracks-its-public-api-and-models-auth0-parity-plus.md)).
+- **The headless conformance probe runner exercises the legs a browser cannot drive** (issue [#129](https://github.com/NCodeGroup/identity/issues/129), [ADR-1084](docs/decisions/1084-the-playground-explores-the-recommended-flow-and-the-conformance-harness-measures-the-published-spec-surface.md)).
+  The `@ncodegroup/identity-app-conformance-runner` CLI exercises the confidential and server-initiated legs:
+  `client_credentials`, token introspection and revocation with client authentication, device-code issuance and polling,
+  CIBA, `private_key_jwt`, DPoP/mTLS, and back-channel logout. Each probe reports `verified`, `failed` or `skipped`
+  (with an actionable reason, such as an unadvertised capability or a missing credential), so an unimplemented backend
+  feature surfaces as an explicit gap; a network error on the device-code token poll fails the device-authorization
+  probe alone and the run carries on, and the runner exits non-zero on any failure, making it a CI pre-flight for the
+  external certified suite ([#124](https://github.com/NCodeGroup/identity/issues/124)). The framework-free, injectable-fetch conformance logic (discovery fetch, the
+  security audit, the spec-coverage catalog and the browser-drivable probes) lives in the shared, unit-tested
+  `@ncodegroup/identity-conformance-core` package used by both the dashboard (`apps/conformance`) and the runner.
+  Development and conformance tooling only, outside the .NET inner loop ([ADR-1025](docs/decisions/1025-the-family-is-greenfield-and-pre-release-tracks-its-public-api-and-models-auth0-parity-plus.md)).
 
 - **The probe runner signs its asymmetric legs with Node `crypto`** (issues
   [#130](https://github.com/NCodeGroup/identity/issues/130), [#334](https://github.com/NCodeGroup/identity/issues/334),
@@ -4079,13 +4065,10 @@ Until the first stable release, the [Unreleased] section describes the product a
   salt. Development and conformance tooling only, outside the .NET inner loop
   ([ADR-1025](docs/decisions/1025-the-family-is-greenfield-and-pre-release-tracks-its-public-api-and-models-auth0-parity-plus.md)).
 
-- **The OpenID Foundation Conformance Suite is the certified oracle behind the in-house pre-flight** (issues
-  [#129](https://github.com/NCodeGroup/identity/issues/129), [#131](https://github.com/NCodeGroup/identity/issues/131),
-  [#124](https://github.com/NCodeGroup/identity/issues/124),
-  [ADR-1084](docs/decisions/1084-the-playground-explores-the-recommended-flow-and-the-conformance-harness-measures-the-published-spec-surface.md)). A runnable harness under
-  [`build/conformance/`](build/conformance) drives the suite against the OpenID host end to end:
-  [`run-conformance.ps1`](build/conformance/run-conformance.ps1) launches the OP on the reachable HTTPS origin (the
-  `Conformance` launch profile), runs the headless `@ncodegroup/identity-app-conformance-runner` probe runner as a fast pre-flight,
+- **The OpenID Foundation Conformance Suite is the certified oracle behind the in-house pre-flight** (issues [#129](https://github.com/NCodeGroup/identity/issues/129),
+  [#131](https://github.com/NCodeGroup/identity/issues/131), [#124](https://github.com/NCodeGroup/identity/issues/124), [ADR-1084](docs/decisions/1084-the-playground-explores-the-recommended-flow-and-the-conformance-harness-measures-the-published-spec-surface.md)). A runnable harness under [`build/conformance/`](build/conformance) drives the suite against the
+  OpenID host end to end: [`run-conformance.ps1`](build/conformance/run-conformance.ps1) launches the OP on the reachable HTTPS origin (the `Conformance`
+  launch profile), runs the headless `@ncodegroup/identity-app-conformance-runner` probe runner as a fast pre-flight,
   brings the suite up from prebuilt Docker images (no Java build), drives the Config OP and Basic OP plans headlessly
   through `run-test-plan.py` gated on the committed `expected-failures.json` / `expected-skips.json` baselines, and
   tears everything down, surfacing one exit code. The config templates (`oidcc-basic.json` with its `browser` automation
@@ -4100,11 +4083,10 @@ Until the first stable release, the [Unreleased] section describes the product a
   plan on overrun and reports a clear failure, and the suite script's own retry bounds (`CONFORMANCE_RETRY_TIMEOUT`,
   `CONFORMANCE_RESTART_RETRIES`, `CONFORMANCE_MAX_CONSECUTIVE_FAILURES`) are pinned so `run-test-plan.py` self-aborts
   quickly whatever the cloned upstream's defaults. It is not part of `build/dod.ps1` (Docker and Python 3, slow) and
-  runs as an opt-in gate; a nightly CI pipeline for it is tracked in
-  [#129](https://github.com/NCodeGroup/identity/issues/129). The one-time Windows setup (Python install manager,
-  per-user NVS, both hosts entries) is documented in [`build/conformance/README.md`](build/conformance/README.md),
-  persisting `nvs auto on` in the pwsh / Git Bash profiles in [`frontend/README.md`](frontend/README.md), and
-  the harness in [`docs/conformance/external-suite.md`](docs/conformance/external-suite.md).
+  runs as an opt-in gate; a nightly CI pipeline for it is tracked in [#129](https://github.com/NCodeGroup/identity/issues/129). The one-time Windows setup (Python
+  install manager, per-user NVS, both hosts entries) is documented in [`build/conformance/README.md`](build/conformance/README.md), persisting
+  `nvs auto on` in the pwsh / Git Bash profiles in [`frontend/README.md`](frontend/README.md), and the harness in
+  [`docs/conformance/external-suite.md`](docs/conformance/external-suite.md).
 
 - **The browser-driven Basic OP conformance plan runs at `parallel=2`** (issue
   [#131](https://github.com/NCodeGroup/identity/issues/131)). Cross-module contamination is structurally impossible: the
@@ -5855,11 +5837,10 @@ Until the first stable release, the [Unreleased] section describes the product a
   `ContentSecurityPolicyDirectives` and `ContentSecurityPolicySources` build it. The interactive pages run only the
   `apps/auth` scripts and styles that carry the response's nonce, including a page served to a browser that already
   holds the antiforgery cookie, and a bundle served from `InteractiveAuthentication:BundleRootPath` runs its scripts
-  only when its build writes the nonce placeholder (`@ncodegroup/identity-vite-config`'s `CSP_NONCE_PLACEHOLDER`); the `form_post`
-  response runs only its own script and may be framed only by its redirect URI's origin; the front-channel logout page
-  frames only the clients' logout origins; the `check_session_iframe` runs only its script and stays embeddable
-  ([ADR-1256](docs/decisions/1256-every-page-the-server-writes-has-a-strict-content-security-policy-and-is-framed-only-by-design.md),
-  issue [#303](https://github.com/NCodeGroup/identity/issues/303)).
+  only when its build writes the nonce placeholder (`@ncodegroup/identity-vite-config`'s `CSP_NONCE_PLACEHOLDER`); the
+  `form_post` response runs only its own script and may be framed only by its redirect URI's origin; the front-channel
+  logout page frames only the clients' logout origins; the `check_session_iframe` runs only its script and stays
+  embeddable ([ADR-1256](docs/decisions/1256-every-page-the-server-writes-has-a-strict-content-security-policy-and-is-framed-only-by-design.md), issue [#303](https://github.com/NCodeGroup/identity/issues/303)).
 
 - **A host serves its OpenAPI document and API reference page only where the operator enables them, and the page runs
   under a strict Content-Security-Policy.** `ApiReference:DocumentEnabled` and `ApiReference:PageEnabled` are `false` by
