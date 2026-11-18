@@ -34,13 +34,13 @@ public static class RuntimeRolePostureCheckRegistration
         {
             ArgumentNullException.ThrowIfNull(serviceCollection);
 
-            return serviceCollection.AddHostedService(
-                serviceProvider => new RuntimeRolePostureCheck(
-                    new NpgsqlRuntimeRolePostureReader(connectionString),
-                    localDevelopment,
-                    serviceProvider.GetRequiredService<ILogger<RuntimeRolePostureCheck>>()
-                )
-            );
+            return serviceCollection.AddHostedService(serviceProvider =>
+            {
+                var postureReader = new NpgsqlRuntimeRolePostureReader(connectionString);
+                var logger = serviceProvider.GetRequiredService<ILogger<RuntimeRolePostureCheck>>();
+
+                return new RuntimeRolePostureCheck(postureReader, localDevelopment, logger);
+            });
         }
     }
 }

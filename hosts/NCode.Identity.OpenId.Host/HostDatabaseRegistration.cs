@@ -60,10 +60,11 @@ internal static class HostDatabaseRegistration
 
             serviceCollection.AddDbContextFactory<OpenIdDbContext>(
                 (serviceProvider, dbOptions) =>
-                    dbOptions.UseOpenIdNpgsql(
-                        connectionString,
-                        serviceProvider.GetRequiredService<IAmbientTenantAccessor>()
-                    )
+                {
+                    var ambientTenantAccessor =
+                        serviceProvider.GetRequiredService<IAmbientTenantAccessor>();
+                    dbOptions.UseOpenIdNpgsql(connectionString, ambientTenantAccessor);
+                }
             );
             serviceCollection.AddDbContext<DeveloperDataProtectionDbContext>(dbOptions =>
                 dbOptions.UseDataProtectionNpgsql(connectionString)
@@ -76,10 +77,8 @@ internal static class HostDatabaseRegistration
             // The host refuses to start when the role it connects as is a superuser, bypasses row-level security or
             // owns the tables, because the tenant policies would not apply to it; 'LocalDevelopment:Enabled' only warns
             // (ADR-1370).
-            serviceCollection.AddRuntimeRolePostureCheck(
-                connectionString,
-                configuration.IsLocalDevelopment()
-            );
+            var localDevelopment = configuration.IsLocalDevelopment();
+            serviceCollection.AddRuntimeRolePostureCheck(connectionString, localDevelopment);
 
             // The replica is ready only while it can reach the database it serves every request from.
             serviceCollection

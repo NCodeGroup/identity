@@ -30,16 +30,24 @@ internal sealed class OpenIdDbContextDesignTimeFactory
     /// <returns>The service provider, which lives as long as the contexts built over it.</returns>
     // The context resolves its id-generation convention and model contributors from the application service
     // provider; the same contributors must be registered so the generated migration includes every slice.
-    internal static ServiceProvider CreateServiceProvider() =>
-        new ServiceCollection()
-            .AddSingleton<IIdGenerator<long>>(new IdGenerator(0))
+    internal static ServiceProvider CreateServiceProvider()
+    {
+        var idGenerator = new IdGenerator(0);
+
+        return new ServiceCollection()
+            .AddSingleton<IIdGenerator<long>>(idGenerator)
             .AddEntityFrameworkCorePersistence<OpenIdDbContext>()
             .AddLocalAccountEntityFramework()
             .ServiceCollection.BuildServiceProvider();
+    }
 
-    public OpenIdDbContext CreateDbContext(string[] args) =>
-        HostDatabase.CreateUnscopedOpenIdContext(
-            CreateServiceProvider(),
+    public OpenIdDbContext CreateDbContext(string[] args)
+    {
+        var serviceProvider = CreateServiceProvider();
+
+        return HostDatabase.CreateUnscopedOpenIdContext(
+            serviceProvider,
             DesignTimeConnectionString
         );
+    }
 }

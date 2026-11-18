@@ -52,8 +52,10 @@ public sealed class TenantSessionInterceptor(IAmbientTenantAccessor ambientTenan
         var setConfig = connection.CreateCommand();
         setConfig.CommandText = SetConfigCommandText;
         setConfig.Transaction = transaction;
-        setConfig.Parameters.Add(CreateParameter(setConfig, "t", state.Tenant));
-        setConfig.Parameters.Add(CreateParameter(setConfig, "u", state.Unscoped));
+        var tenantParameter = CreateParameter(setConfig, "t", state.Tenant);
+        setConfig.Parameters.Add(tenantParameter);
+        var unscopedParameter = CreateParameter(setConfig, "u", state.Unscoped);
+        setConfig.Parameters.Add(unscopedParameter);
         return setConfig;
     }
 
@@ -301,12 +303,10 @@ public sealed class TenantSessionInterceptor(IAmbientTenantAccessor ambientTenan
         (string Tenant, string Unscoped) state
     )
     {
-        AppliedStates.AddOrUpdate(
-            connection,
-            new StrongBox<(string, string, DbTransaction?)>(
-                (state.Tenant, state.Unscoped, transaction)
-            )
+        var appliedState = new StrongBox<(string, string, DbTransaction?)>(
+            (state.Tenant, state.Unscoped, transaction)
         );
+        AppliedStates.AddOrUpdate(connection, appliedState);
         if (transaction is not null)
             AppliedTransactions.AddOrUpdate(transaction, connection);
     }

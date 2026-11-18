@@ -114,8 +114,10 @@ internal static class DirectoryDatabase
         if (unknown.Count == 0)
             return;
 
+        var unknownIdentifiers = string.Join(", ", unknown);
+
         throw new InvalidOperationException(
-            $"The directory database's DirectoryDbContext migrations history records {string.Join(", ", unknown)}, "
+            $"The directory database's DirectoryDbContext migrations history records {unknownIdentifiers}, "
                 + "which this host does not hold, so its migrations cannot be applied to it. The directory's "
                 + "DbContext has one InitialCreate, which is re-scaffolded with a fresh identifier on each model "
                 + "change. Drop and recreate the directory's database, then run the migrate command again."
@@ -151,14 +153,13 @@ internal static class DirectoryDatabase
         var appliedMigrations = await dbContext.Database.GetAppliedMigrationsAsync(
             cancellationToken
         );
-        ThrowIfUnknownMigrationsApplied(appliedMigrations, dbContext.Database.GetMigrations());
+        var knownMigrations = dbContext.Database.GetMigrations();
+        ThrowIfUnknownMigrationsApplied(appliedMigrations, knownMigrations);
 
         await dbContext.Database.MigrateAsync(cancellationToken);
 
-        var statements = DirectoryDatabaseGrants.CreateStatements(
-            dbContext.GetService<IDesignTimeModel>().Model,
-            runtimeRole
-        );
+        var designTimeModel = dbContext.GetService<IDesignTimeModel>().Model;
+        var statements = DirectoryDatabaseGrants.CreateStatements(designTimeModel, runtimeRole);
 
         await dbContext
             .Database.CreateExecutionStrategy()

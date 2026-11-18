@@ -42,10 +42,14 @@ public static class HostDatabase
         this DbContextOptionsBuilder options,
         string connectionString,
         IAmbientTenantAccessor ambientTenantAccessor
-    ) =>
-        options
+    )
+    {
+        var tenantSessionInterceptor = new TenantSessionInterceptor(ambientTenantAccessor);
+
+        return options
             .UseNpgsql(connectionString, npgsql => npgsql.MigrationsAssembly(MigrationsAssembly))
-            .AddInterceptors(new TenantSessionInterceptor(ambientTenantAccessor));
+            .AddInterceptors(tenantSessionInterceptor);
+    }
 
     /// <summary>
     /// Configures the <see cref="DeveloperDataProtectionDbContext"/> options to use Npgsql against
@@ -88,10 +92,12 @@ public static class HostDatabase
         optionsBuilder.UseOpenIdNpgsql(connectionString, ambientTenantAccessor);
         optionsBuilder.UseApplicationServiceProvider(serviceProvider);
 
+        var modelContributors = serviceProvider.GetServices<IOpenIdModelContributor>();
+
         return new OpenIdDbContext(
             optionsBuilder.Options,
             ambientTenantAccessor,
-            serviceProvider.GetServices<IOpenIdModelContributor>()
+            modelContributors
         );
     }
 

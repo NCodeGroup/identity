@@ -59,11 +59,9 @@ public static class MigrationRunner
         await openIdContext.Database.MigrateAsync(cancellationToken);
         await dataProtectionContext.Database.MigrateAsync(cancellationToken);
 
-        var statements = CreateAccessStatements(
-            openIdContext.GetService<IDesignTimeModel>().Model,
-            dataProtectionContext.GetService<IDesignTimeModel>().Model,
-            runtimeRole
-        );
+        var openIdModel = openIdContext.GetService<IDesignTimeModel>().Model;
+        var dataProtectionModel = dataProtectionContext.GetService<IDesignTimeModel>().Model;
+        var statements = CreateAccessStatements(openIdModel, dataProtectionModel, runtimeRole);
 
         await using var transaction = await openIdContext.Database.BeginTransactionAsync(
             cancellationToken
@@ -90,12 +88,13 @@ public static class MigrationRunner
         string runtimeRole
     )
     {
-        var statements = new List<string>(
-            RowLevelSecurity.CreateStatements(openIdModel, runtimeRole)
+        var openIdStatements = RowLevelSecurity.CreateStatements(openIdModel, runtimeRole);
+        var statements = new List<string>(openIdStatements);
+        var dataProtectionStatements = RowLevelSecurity.CreateGrantStatements(
+            dataProtectionModel,
+            runtimeRole
         );
-        statements.AddRange(
-            RowLevelSecurity.CreateGrantStatements(dataProtectionModel, runtimeRole)
-        );
+        statements.AddRange(dataProtectionStatements);
         return statements;
     }
 
@@ -108,11 +107,9 @@ public static class MigrationRunner
     )
     {
         var appliedMigrations = await context.Database.GetAppliedMigrationsAsync(cancellationToken);
-        ThrowIfUnknownMigrationsApplied(
-            context.GetType().Name,
-            appliedMigrations,
-            context.Database.GetMigrations()
-        );
+        var contextName = context.GetType().Name;
+        var knownMigrations = context.Database.GetMigrations();
+        ThrowIfUnknownMigrationsApplied(contextName, appliedMigrations, knownMigrations);
     }
 
     /// <summary>
@@ -136,8 +133,10 @@ public static class MigrationRunner
         if (unknown.Count == 0)
             return;
 
+        var unknownIdentifiers = string.Join(", ", unknown);
+
         throw new InvalidOperationException(
-            $"The database's {contextName} migrations history records {string.Join(", ", unknown)}, which this host "
+            $"The database's {contextName} migrations history records {unknownIdentifiers}, which this host "
                 + $"does not hold, so its {contextName} migrations cannot be applied to it. Each host database "
                 + "context has one InitialCreate, which is re-scaffolded with a fresh identifier on each model "
                 + "change. Stop the AppHost and reset the local database with build/dev-db-reset.ps1; the next "
