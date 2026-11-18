@@ -4321,14 +4321,14 @@ Until the first stable release, the [Unreleased] section describes the product a
   import repeats over the rows an interrupted import left, and the release removes the source's rows without retiring
   an identifier or destroying a remote key. A move that the directory does not confirm is read back from the
   placement: the import completes when the directory places the tenant in the target cell, undoes itself when it
-  places it in the source cell, and otherwise keeps what it wrote and answers `503` that the outcome of the move is
-  unknown, with the problem's `moveOutcome` (`ManagementProblemMembers.MoveOutcome`) set to `unknown`. An export
-  that the directory refuses because it places the tenant in another cell names that cell in the problem's
-  `placedCell` (`ManagementProblemMembers.PlacedCell`). The console runs the four calls as Move, keeps a failed move
-  and its Retry when its dialog is closed and opened again, offers Release, which runs only the release at the
-  source, when the export names `placedCell`, says that the outcome is unknown when the import's `moveOutcome` is
-  `unknown`, says when the list of cells is loading or could not be loaded, and opens the tenant's surface in the
-  cell it moved to once the move completes
+  places it in the source cell or in no cell, and otherwise keeps what it wrote and answers `503` that the outcome of
+  the move is unknown, with the problem's `moveOutcome` (`ManagementProblemMembers.MoveOutcome`) set to `unknown`. An
+  export that the directory refuses because it places the tenant in another cell names that cell in the problem's
+  `placedCell` (`ManagementProblemMembers.PlacedCell`). The console runs the four calls as Move, keeps a failed move and
+  its Retry when its dialog is closed and opened again, offers Release, which runs only the release at the source, when
+  the export names `placedCell`, says that the outcome is unknown when the import's `moveOutcome` is `unknown`, says
+  when the list of cells is loading or could not be loaded, and opens the tenant's surface in the cell it moved to once
+  the move completes
   ([ADR-1514](docs/decisions/1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md),
   [`docs/tenant-move.md`](docs/tenant-move.md)).
 

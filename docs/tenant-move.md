@@ -98,16 +98,17 @@ keys, points the remote keys that the tenant's secrets reference at `<target>`, 
 tenant's placement from `<source>` to `<target>`, which it does only for `<target>` calling on the unexpired move offer
 that the export recorded (any other caller gets `403`). The directory can commit a move that it does not confirm, so
 when the move answers a conflict, cannot be reached, is cancelled or fails, the import reads the placement back: a
-placement in `<target>` completes the import, a placement in `<source>` undoes it, and any other answer leaves the
-outcome unknown. The tenant stays disabled in `<target>`. The audit record `tenant.imported` names the source cell.
+placement in `<target>` completes the import, a placement in `<source>` or in no cell undoes it, and a placement in
+another cell, or a directory that cannot be read, leaves the outcome unknown. The tenant stays disabled in `<target>`.
+The audit record `tenant.imported` names the source cell.
 
 | Status | Meaning                                                                                                                                                                                                                                                                                                         |
 | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `200`  | The tenant is imported and placed in `<target>`, also when the directory committed a move that it did not confirm. |
-| `409`  | The directory places the tenant in no cell or already in `<target>`; or the directory refuses the move and still places the tenant in `<source>` (`<source>` holds no unexpired move offer to `<target>`, a cell is not registered, or the cells are in different regions). Nothing the import wrote remains. |
+| `409`  | The directory places the tenant in no cell or already in `<target>`; or the directory refuses the move (`<source>` holds no unexpired move offer to `<target>`, a cell is not registered, or the cells are in different regions) and places the tenant in `<source>` or in no cell. Nothing the import wrote remains. |
 | `413`  | The request is larger than a move admits, 64 MiB plus 64 KiB. Nothing is imported. |
 | `422`  | The `kid` is empty, or the transfer key is unknown, expired or already used; the package is not sealed to a transfer key (its header does not name `ECDH-ES+A256KW` and `A256GCM`), does not decrypt with the key or is malformed; its region is not `<target>`'s region; it names a target cell other than `<target>`; it has a section that `<target>` does not import; the root key that the tenant brings fails `<target>`'s root-key checks; or the tenant's secrets reference a remote key of a provider that `<target>` does not register, or one outside the location that `<target>`'s provider uses. Nothing the import wrote remains. |
-| `503`  | The directory is unavailable, with a `Retry-After` header, before the import writes anything, or at a move after which the directory still places the tenant in `<source>`; nothing the import wrote remains. Or the outcome of the move is unknown, also with a `Retry-After` header: the directory cannot be read back or places the tenant in neither cell, and `<target>` keeps what the import wrote; the problem's `moveOutcome` member is then `unknown` ([recovering](#recovering-from-a-failed-stage)). |
+| `503`  | The directory is unavailable, with a `Retry-After` header, before the import writes anything, or at a move after which the directory places the tenant in `<source>` or in no cell; nothing the import wrote remains. Or the outcome of the move is unknown, also with a `Retry-After` header: the directory cannot be read back or places the tenant in a cell other than `<source>` and `<target>`, and `<target>` keeps what the import wrote; the problem's `moveOutcome` member is then `unknown` ([recovering](#recovering-from-a-failed-stage)). |
 
 **Verify:** `GET <target-api>/api/tenants/<tenant>` answers `200` with `isDisabled` `true`.
 
@@ -198,6 +199,9 @@ the move again from the transfer key: an export that then finds the tenant place
     `<source>` instead. A tenant that `<target>` holds while the directory places it in `<source>` is the residue of an
     import that stopped before its move, and the next import removes those rows before it imports.
   - `409` from the directory: register both cells in the directory, or choose a `<target>` of the tenant's region.
+  - `409` because the directory places the tenant in no cell, before the import or after its move: the tenant was
+    deleted and its identifier retired while it moved, so the move has nothing to finish and `<target>` holds none
+    of it.
   - `413` for the ceiling: the tenant's package is over a move's 64 MiB, which the export also refuses with `422`, and
     the tenant cannot move until it is smaller.
   - `422` for a region: choose a `<target>` of the package's region.
