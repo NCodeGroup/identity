@@ -8,9 +8,9 @@ using JetBrains.Annotations;
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
-/// Contains the rule for the form of a cell's name and its region: 1 to <see cref="MaxLabelLength"/> lowercase letters,
-/// digits or hyphens that start with a letter and end with a letter or digit. A cell's machine client identifier is
-/// <see cref="GlobalDirectoryProtocol.CellClientIdPrefix"/> followed by its name.
+/// Contains the rule for the form of a cell's name and its region: <see cref="Description"/>. A cell's machine client
+/// identifier is <see cref="GlobalDirectoryProtocol.CellClientIdPrefix"/> followed by its name. Every valid cell name
+/// is also a valid tag of the keys a cell creates in a key management service.
 /// </summary>
 [PublicAPI]
 public static partial class CellLabelRules
@@ -20,9 +20,16 @@ public static partial class CellLabelRules
     /// </summary>
     public const int MaxLabelLength = 31;
 
-    // A lowercase RFC 1123 host label that starts with a letter. '\z' rather than '$', which also matches before a
-    // trailing newline. The first and last characters and the up to 29 between them spell MaxLabelLength.
-    [GeneratedRegex(@"^[a-z](?:[a-z0-9-]{0,29}[a-z0-9])?\z", RegexOptions.CultureInvariant)]
+    /// <summary>
+    /// Gets the rule for a cell's name and region in words, which every validation message that refuses one states.
+    /// </summary>
+    public static string Description { get; } =
+        $"1 to {MaxLabelLength} characters of lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit, with no two hyphens in a row";
+
+    // A lowercase letter, then letters and digits that each take at most one hyphen before them, so no hyphen ends the
+    // label or follows another. '\z' rather than '$', which also matches before a trailing newline. MaxLabelLength
+    // bounds the length outside the pattern.
+    [GeneratedRegex(@"^[a-z](?:-?[a-z0-9])*\z", RegexOptions.CultureInvariant)]
     private static partial Regex LabelRegex();
 
     /// <summary>
@@ -31,5 +38,7 @@ public static partial class CellLabelRules
     /// <param name="label">The value to check.</param>
     /// <returns><see langword="true"/> when the value is a valid label; otherwise, <see langword="false"/>.</returns>
     public static bool IsValidLabel([NotNullWhen(true)] string? label) =>
-        !string.IsNullOrEmpty(label) && LabelRegex().IsMatch(label);
+        !string.IsNullOrEmpty(label)
+        && label.Length <= MaxLabelLength
+        && LabelRegex().IsMatch(label);
 }

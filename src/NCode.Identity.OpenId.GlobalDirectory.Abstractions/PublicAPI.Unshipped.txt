@@ -178,3 +178,4 @@ static NCode.Identity.OpenId.GlobalDirectory.ReservationResult.Reserved() -> NCo
 NCode.Identity.OpenId.GlobalDirectory.CellLabelRules
 const NCode.Identity.OpenId.GlobalDirectory.CellLabelRules.MaxLabelLength = 31 -> int
 static NCode.Identity.OpenId.GlobalDirectory.CellLabelRules.IsValidLabel(string? label) -> bool
+static NCode.Identity.OpenId.GlobalDirectory.CellLabelRules.Description.get -> string!

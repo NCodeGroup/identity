@@ -13,6 +13,7 @@ public class CellLabelRulesTests : BaseTests
     [InlineData("a")]
     [InlineData("cell-a")]
     [InlineData("region-1")]
+    [InlineData("eu-1")]
     public void IsValidLabel_WithALowercaseLabel_ReturnsTrue(string label)
     {
         Assert.True(CellLabelRules.IsValidLabel(label));
@@ -24,6 +25,8 @@ public class CellLabelRulesTests : BaseTests
     [InlineData("West-Europe")]
     [InlineData("1cell")]
     [InlineData("cell-")]
+    [InlineData("prod--eu")]
+    [InlineData("prod-")]
     [InlineData("cell_a")]
     [InlineData("cell\n")]
     public void IsValidLabel_WithAnInvalidLabel_ReturnsFalse(string? label)
