@@ -423,13 +423,15 @@ describe('TenantDetailPage', () => {
 
     /**
      * Stubs the console's reads and the four calls of a move; `failing` is the URL suffix of a call that fails;
-     * `placedCell` makes the export answer `409` naming the cell the directory places the tenant in.
+     * `placedCell` makes the export answer `409` naming the cell the directory places the tenant in;
+     * `isCellListFailing` makes the platform's cell list fail.
      */
     function installMoveFetch(options: {
       readonly isPlatformAdministrator?: boolean;
       readonly isDisabled?: boolean;
       readonly failing?: string;
       readonly placedCell?: string;
+      readonly isCellListFailing?: boolean;
     }) {
       return installFetch((url, method) => {
         if (url.endsWith('/api/me')) {
@@ -440,7 +442,9 @@ describe('TenantDetailPage', () => {
           });
         }
         if (url.endsWith('/api/cells')) {
-          return jsonResponse(cells);
+          return options.isCellListFailing
+            ? jsonResponse({ title: 'Bad Gateway' }, 502)
+            : jsonResponse(cells);
         }
         if (url.endsWith('/cells/eu-1/api/tenants/acme') && method === 'GET') {
           return jsonResponse({ tenantId: 'acme', isDisabled: options.isDisabled ?? true });
@@ -521,6 +525,19 @@ describe('TenantDetailPage', () => {
       fireEvent.mouseDown(screen.getByRole('combobox', { name: /target cell/i }));
 
       expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual(['eu-2']);
+    });
+
+    it('says the list of cells could not be loaded when the platform cells cannot be read', async () => {
+      installMoveFetch({ isCellListFailing: true });
+      renderPage('secrets', 'eu-1');
+
+      await waitFor(() => expect(screen.getByTestId('move-tenant')).toBeEnabled());
+      fireEvent.click(screen.getByTestId('move-tenant'));
+
+      expect(await screen.findByTestId('move-cells-failed')).toHaveTextContent(
+        'The list of cells could not be loaded.',
+      );
+      expect(screen.queryByTestId('move-no-cells')).not.toBeInTheDocument();
     });
 
     it('closes the move dialog without a call when cancelled', async () => {
