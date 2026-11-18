@@ -7,10 +7,10 @@
 
 ## Context
 
-The reference host and the management console's host are deployables, and each ships as a container image that runs in
-Kubernetes. An image that serves a production workload has to be small, hold nothing an attacker could use after a
-compromise, run without privilege, build for the architectures clusters use, and carry the web bundle it serves, so the
-deployment needs no second artifact.
+The reference host, the management console's host and the global directory's host are deployables, and each ships as a
+container image that runs in Kubernetes. An image that serves a production workload has to be small, hold nothing an
+attacker could use after a compromise, run without privilege, build for the architectures clusters use, and carry the
+web bundle it serves, if it serves one, so the deployment needs no second artifact.
 
 Three more forces shape the images:
 
@@ -22,8 +22,8 @@ Three more forces shape the images:
 
 ## Decision
 
-The host image and the console image are chiseled, non-root, multi-arch and digest-pinned, and they write one-line JSON
-logs.
+The host image, the console image and the directory image are chiseled, non-root, multi-arch and digest-pinned, and
+they write one-line JSON logs.
 
 ### The runtime image
 
@@ -36,6 +36,9 @@ logs.
 - `hosts/NCode.Identity.ManagementConsole.Host/Dockerfile` mirrors it with the same pinned bases. It builds
   `@ncode/app-mgmt`, serves `/app/mgmt` with `ManagementConsole__BundleRootPath=/app/mgmt`, and runs as UID 1654 on
   8443.
+- `hosts/NCode.Identity.OpenId.GlobalDirectory.Host/Dockerfile` mirrors it with the same pinned .NET bases and no Node
+  stage, because the directory serves no web bundle. It runs as UID 1654 on 8443, and its own `migrate` command applies
+  the directory's migrations, so the image carries no separate migration worker.
 - An image carries only the `appsettings.json` of its host, never the local-development overlays
   ([ADR-1370](1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)).
 
@@ -69,13 +72,14 @@ from `version.json`, whose assembly version omits git height. The version an ima
 - The Node major is a literal. The `Host image` and `Console image` workflows fail unless the Dockerfile names
   `node:<major>-trixie-slim@sha256:` for the major in `frontend/.node-version`. The .NET major moves with the target
   framework.
-- Dependabot's weekly `docker` entry covers both Dockerfile directories with at most 5 pull requests, a 3-day cooldown,
-  the groups `docker-base-images` and `docker-security`, and `version-update:semver-major` ignored. It runs while issue
-  #36 pauses the other ecosystems, because a digest gets operating-system fixes only through it.
+- Dependabot's weekly `docker` entry covers the three Dockerfile directories with at most 5 pull requests, a 3-day
+  cooldown, the groups `docker-base-images` and `docker-security`, and `version-update:semver-major` ignored. It runs
+  while [#36](https://github.com/NCodeGroup/identity/issues/36) pauses the other ecosystems, because a digest gets
+  operating-system fixes only through it.
 
 ### Logs
 
-- The final stage of both images sets `Logging__Console__FormatterName=json`,
+- The final stage of every image sets `Logging__Console__FormatterName=json`,
   `Logging__Console__FormatterOptions__UseUtcTimestamp=true` and `Logging__Console__FormatterOptions__TimestampFormat=O`.
   Each entry is one JSON object on one line, holding the timestamp (UTC, `+00:00`), level, category, event id, message,
   state and an escaped exception.
@@ -85,9 +89,10 @@ from `version.json`, whose assembly version omits git height. The version an ima
 
 ### The checks
 
-The `Host image` workflow (a required check) and the `Console image` workflow (job `Build console image`) build both
-architectures without pushing, on the same triggers, `merge_group` included. They fail unless `docker image inspect` of
-the amd64 image lists the three logging settings and the TLS contract of
+The `Host image` workflow (a required check), the `Console image` workflow (job `Build console image`) and the
+`Directory image` workflow (job `Build directory image`) build both architectures without pushing, on the same
+triggers, `merge_group` included. They fail unless `docker image inspect` of the amd64 image lists the three logging
+settings and the TLS contract of
 [ADR-1504](1504-the-hosts-serve-https-only-and-verify-their-certificate-at-startup.md), and exposes only
 8443. `ProgramTests` pins the `json` formatter.
 
@@ -130,5 +135,6 @@ the amd64 image lists the three logging settings and the TLS contract of
 - [project-template ADR-0115](project-template/0115-a-host-logs-to-standard-output.md): logs go to standard output, and
   their format is configuration.
 - Code: `hosts/NCode.Identity.OpenId.Host/Dockerfile`, `hosts/NCode.Identity.ManagementConsole.Host/Dockerfile`,
-  `.dockerignore`, `.github/dependabot.yml`, `.github/workflows/host-image.yml`,
+  `hosts/NCode.Identity.OpenId.GlobalDirectory.Host/Dockerfile`, `.dockerignore`, `.github/dependabot.yml`,
+  `.github/workflows/host-image.yml`, `.github/workflows/directory-image.yml`,
   `tests/NCode.Identity.OpenId.Integration.Tests/ProgramTests.cs`.
