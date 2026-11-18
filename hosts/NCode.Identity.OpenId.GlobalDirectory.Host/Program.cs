@@ -79,16 +79,22 @@ serviceCollection
 var directoryConnectionString = DirectoryDatabase.GetConnectionString(configuration);
 serviceCollection.AddDirectoryDatabase(directoryConnectionString);
 
-await using var app = builder.Build();
+// RunAsync disposes the app when the host stops or fails to start, and each command disposes it when the command ends.
+// An exception before either leaves the app to the ending process, so a test host that runs this entry point reports
+// that exception instead of a disposed app.
+var app = builder.Build();
 
-// The command runs against the built services, never starts the hosted services or binds a port, and returns its exit
-// code.
+// The command runs against the built services, never starts the hosted services or binds a port, disposes the services
+// when it ends, and returns its exit code.
 if (migrate)
-    return await DirectoryMigrateCommand.RunAsync(
-        app.Services,
-        configuration,
-        CancellationToken.None
-    );
+{
+    await using (app)
+        return await DirectoryMigrateCommand.RunAsync(
+            app.Services,
+            configuration,
+            CancellationToken.None
+        );
+}
 
 // MUST be the first middleware: it refuses a request whose connection does not carry the reverse proxy's client
 // certificate (except the liveness and readiness probes) before anything else reads it. A no-op unless

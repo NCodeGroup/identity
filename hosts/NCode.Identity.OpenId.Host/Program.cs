@@ -183,15 +183,25 @@ serviceCollection.AddDatabaseDeveloperPageExceptionFilter();
 // ADR-1370); without a connection, as in hermetic test hosts, the OpenID context is in memory.
 serviceCollection.AddHostDatabase(configuration);
 
-await using var app = builder.Build();
+// RunAsync disposes the app when the host stops or fails to start, and each command disposes it when the command ends.
+// An exception before either leaves the app to the ending process, so a test host that runs this entry point reports
+// that exception instead of a disposed app.
+var app = builder.Build();
 
-// A command runs against the built services, never starts the hosted services or binds a port, and returns its exit
-// code. These are the only branches this file keeps, because only the entry point can return an exit code.
+// A command runs against the built services, never starts the hosted services or binds a port, disposes the services
+// when it ends, and returns its exit code. These are the only branches this file keeps, because only the entry point
+// can return an exit code.
 if (secretProtectionCommand is not null)
-    return await secretProtectionCommand.RunAsync(app.Services, CancellationToken.None);
+{
+    await using (app)
+        return await secretProtectionCommand.RunAsync(app.Services, CancellationToken.None);
+}
 
 if (instanceSetupCommand is not null)
-    return await instanceSetupCommand.RunAsync(app.Services, CancellationToken.None);
+{
+    await using (app)
+        return await instanceSetupCommand.RunAsync(app.Services, CancellationToken.None);
+}
 
 // MUST be the first middleware, before even the forwarded headers: it refuses a request whose connection does not carry
 // the reverse proxy's client certificate (except the liveness and readiness probes) before anything else reads it. A
