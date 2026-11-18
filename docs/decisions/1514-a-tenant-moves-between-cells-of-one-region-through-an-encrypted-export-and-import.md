@@ -167,8 +167,9 @@ tenant in the cell it moved to once the move completes.
 - A tenant moves only while its package is at most 64 MiB, its local accounts included, and a proxy in front of the
   target cell admits a request body of 64 MiB plus 64 KiB. A larger tenant cannot move.
 - An import whose move the directory does not confirm can end with the target holding the tenant while the directory
-  still places it in the source. The target keeps that copy, and the tenant's remote keys keep the target's tag, until a
-  repeated import clears it or completes the move, so the operator finishes such a move instead of abandoning it.
+  cannot be read back or places the tenant in a cell other than the source and the target. The target keeps that copy,
+  and the tenant's remote keys keep the target's tag, until a repeated import clears it or completes the move, so the
+  operator finishes such a move instead of abandoning it.
 - The cells of a region that move tenants share their key management location, and each cell's identity can tag the
   others' keys, so each identity reaches the region's keys and not only its own cell's.
 

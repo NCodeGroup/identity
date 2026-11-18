@@ -200,8 +200,7 @@ the move again from the transfer key: an export that then finds the tenant place
     import that stopped before its move, and the next import removes those rows before it imports.
   - `409` from the directory: register both cells in the directory, or choose a `<target>` of the tenant's region.
   - `409` because the directory places the tenant in no cell, before the import or after its move: the tenant was
-    deleted and its identifier retired while it moved, so the move has nothing to finish and `<target>` holds none
-    of it.
+    deleted and its identifier retired while it moved, so the move has nothing to finish and `<target>` holds no copy.
   - `413` for the ceiling: the tenant's package is over a move's 64 MiB, which the export also refuses with `422`, and
     the tenant cannot move until it is smaller.
   - `422` for a region: choose a `<target>` of the package's region.
