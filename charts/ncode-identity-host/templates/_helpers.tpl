@@ -1179,11 +1179,12 @@ The environment of the management console container.
 {{- end }}
 
 {{/*
-The fully qualified name of the directory's resources. The release's fully qualified name is shortened first so the name,
-with its suffix, fits the 63-character limit.
+The fully qualified name of the directory's resources. The release's fully qualified name is shortened to 53
+characters first so the name, with its 10-character "-directory" suffix, fits the 63-character limit of a Service name
+(a DNS-1035 label).
 */}}
 {{- define "identity-host.directory.fullname" -}}
-{{- printf "%s-directory" (include "identity-host.fullname" . | trunc 54 | trimSuffix "-") }}
+{{- printf "%s-directory" (include "identity-host.fullname" . | trunc 53 | trimSuffix "-") }}
 {{- end }}
 
 {{/*

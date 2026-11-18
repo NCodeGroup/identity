@@ -427,7 +427,7 @@ jobs:
           expect "$controlPlane" 'Directory__Url' 'Directory__ClientId' 'KeyRings__cell-client__PemFiles__0' \
             'Cell__ManagementUrl' 'Cell__ControlPlane__Issuer'
 
-      - name: Give the migration Job the host's extra settings and a valid name
+      - name: Give the migration Job the host's extra settings, and the Job and the directory Service valid names
         run: |
           base="$CHART/ci/single-replica-values.yaml"
           job=$(helm template release "$CHART" --values "$base" --show-only templates/migration-job.yaml \
@@ -446,6 +446,15 @@ jobs:
             --show-only templates/migration-job.yaml | awk '/^  name:/ { print $2; exit }')
           if [ "${#name}" -gt 63 ]; then
             echo "::error::The migration Job name '$name' is longer than 63 characters."
+            exit 1
+          fi
+          # A Service's name is a DNS-1035 label of at most 63 characters. The 52-character release name puts a letter,
+          # not a hyphen, at the 54th character of the full name, so a full name one character too long would show.
+          name=$(helm template a-fifty-two-character-release-name-for-the-directory "$CHART" \
+            --values "$CHART/ci/directory-values.yaml" --show-only templates/directory-service.yaml \
+            | awk '/^  name:/ { print $2; exit }')
+          if [ -z "$name" ] || [ "${#name}" -gt 63 ]; then
+            echo "::error::The directory Service name '$name' is longer than 63 characters."
             exit 1
           fi
 
