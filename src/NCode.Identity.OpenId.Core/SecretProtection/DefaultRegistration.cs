@@ -34,63 +34,65 @@ internal static class DefaultRegistration
         {
             var serviceCollection = builder.ServiceCollection;
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IProtectedValueSource, PersistedSecretValueSource>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IProtectedValueSource, GrantPayloadValueSource>()
-            );
+            var persistedSecretSource = ServiceDescriptor.Singleton<
+                IProtectedValueSource,
+                PersistedSecretValueSource
+            >();
+            serviceCollection.TryAddEnumerable(persistedSecretSource);
+            var grantPayloadSource = ServiceDescriptor.Singleton<
+                IProtectedValueSource,
+                GrantPayloadValueSource
+            >();
+            serviceCollection.TryAddEnumerable(grantPayloadSource);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IMasterKeyChangeObserver, MasterKeyChangeAnnouncer>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IReplicaBroadcastHandler,
-                    MasterKeyChangeBroadcastHandler
-                >()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Scoped<
-                    IDispatchJobHandler<MasterKeyRewrapJob>,
-                    MasterKeyRewrapJobHandler
-                >()
-            );
+            var masterKeyChangeObserver = ServiceDescriptor.Singleton<
+                IMasterKeyChangeObserver,
+                MasterKeyChangeAnnouncer
+            >();
+            serviceCollection.TryAddEnumerable(masterKeyChangeObserver);
+            var masterKeyChangeBroadcastHandler = ServiceDescriptor.Singleton<
+                IReplicaBroadcastHandler,
+                MasterKeyChangeBroadcastHandler
+            >();
+            serviceCollection.TryAddEnumerable(masterKeyChangeBroadcastHandler);
+            var masterKeyRewrapJobHandler = ServiceDescriptor.Scoped<
+                IDispatchJobHandler<MasterKeyRewrapJob>,
+                MasterKeyRewrapJobHandler
+            >();
+            serviceCollection.TryAddEnumerable(masterKeyRewrapJobHandler);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IOwnerRootKeyChangeObserver,
-                    OwnerRootKeyChangeAnnouncer
-                >()
-            );
+            var ownerRootKeyChangeObserver = ServiceDescriptor.Singleton<
+                IOwnerRootKeyChangeObserver,
+                OwnerRootKeyChangeAnnouncer
+            >();
+            serviceCollection.TryAddEnumerable(ownerRootKeyChangeObserver);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IOwnerRootKeyPolicy, ControlPlaneTenantRootKeyPolicy>()
-            );
+            var ownerRootKeyPolicy = ServiceDescriptor.Singleton<
+                IOwnerRootKeyPolicy,
+                ControlPlaneTenantRootKeyPolicy
+            >();
+            serviceCollection.TryAddEnumerable(ownerRootKeyPolicy);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IOpenIdExceptionTranslator,
-                    OwnerRootKeyUnavailableExceptionTranslator
-                >()
-            );
+            var exceptionTranslator = ServiceDescriptor.Singleton<
+                IOpenIdExceptionTranslator,
+                OwnerRootKeyUnavailableExceptionTranslator
+            >();
+            serviceCollection.TryAddEnumerable(exceptionTranslator);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Scoped<
-                    IDispatchJobHandler<RemoteKeySweepJob>,
-                    RemoteKeySweepJobHandler
-                >()
-            );
+            var remoteKeySweepJobHandler = ServiceDescriptor.Scoped<
+                IDispatchJobHandler<RemoteKeySweepJob>,
+                RemoteKeySweepJobHandler
+            >();
+            serviceCollection.TryAddEnumerable(remoteKeySweepJobHandler);
 
             // The secret persistence library registers its default resolver with TryAdd, so Replace makes the team
             // chain win whichever registration runs first; TryAdd here would keep the library default, which
             // AddIdentityServer registers first. A host registers its own resolver after AddIdentityServer().
-            serviceCollection.Replace(
-                ServiceDescriptor.Singleton<
-                    ISecretOwnerParentResolver,
-                    TeamChainSecretOwnerParentResolver
-                >()
-            );
+            var teamChainParentResolver = ServiceDescriptor.Singleton<
+                ISecretOwnerParentResolver,
+                TeamChainSecretOwnerParentResolver
+            >();
+            serviceCollection.Replace(teamChainParentResolver);
 
             serviceCollection.AddHostedService<MasterKeyMaintenanceService>();
             serviceCollection.AddHostedService<OwnerRootKeyValidationService>();

@@ -49,10 +49,8 @@ internal class BffSessionRetirement(
         ArgumentNullException.ThrowIfNull(frontends);
 
         var complete = true;
-        var clients = await store.FindClientsAsync(
-            [.. frontends.Frontends.Select(x => x.Client)],
-            cancellationToken
-        );
+        BffSessionClient[] configuredClients = [.. frontends.Frontends.Select(x => x.Client)];
+        var clients = await store.FindClientsAsync(configuredClients, cancellationToken);
         var groups = clients.GroupBy(x => x.Frontend, StringComparer.Ordinal);
         foreach (var group in groups)
         {
@@ -68,9 +66,11 @@ internal class BffSessionRetirement(
             if (stale.Count == 0)
                 continue;
 
+            var leaseExpiresWhen =
+                timeProvider.GetUtcNow() + frontends.Options.SessionRetirement.LeaseDuration;
             var lease = await store.TryAcquireRefreshLeaseAsync(
                 "retire:" + frontend,
-                timeProvider.GetUtcNow() + frontends.Options.SessionRetirement.LeaseDuration,
+                leaseExpiresWhen,
                 cancellationToken
             );
             if (lease is null)

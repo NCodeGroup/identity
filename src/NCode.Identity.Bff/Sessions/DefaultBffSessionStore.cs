@@ -85,8 +85,9 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
             );
 
             var client = metadata.Client;
+            var clientIndex = BffStoreKeys.ClientIndex(client);
             await indexes.AddMemberAsync(
-                BffStoreKeys.ClientIndex(client),
+                clientIndex,
                 record.StoreKey,
                 metadata.AbsoluteExpiresAt,
                 cancellationToken
@@ -98,9 +99,10 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
                 client,
                 out var clientValue
             );
+            var memberValueKey = BffStoreKeys.ClientMemberValue(member);
             // A value that is already present holds the same client, so it stays.
             await values.TryAddAsync(
-                BffStoreKeys.ClientMemberValue(member),
+                memberValueKey,
                 clientValue,
                 memberExpiresAt,
                 cancellationToken
@@ -204,11 +206,8 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
             await indexes.RemoveMemberAsync(subjectIndex, storeKey, cancellationToken);
 
             var client = metadata.Client;
-            await indexes.RemoveMemberAsync(
-                BffStoreKeys.ClientIndex(client),
-                storeKey,
-                cancellationToken
-            );
+            var clientIndex = BffStoreKeys.ClientIndex(client);
+            await indexes.RemoveMemberAsync(clientIndex, storeKey, cancellationToken);
 
             return removed;
         }
@@ -270,10 +269,8 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
             );
 
             var clients = new List<BffSessionClient>();
-            var resolved = new HashSet<string>(
-                except.Select(BffStoreKeys.ClientDigest),
-                StringComparer.Ordinal
-            );
+            var exceptDigests = except.Select(BffStoreKeys.ClientDigest);
+            var resolved = new HashSet<string>(exceptDigests, StringComparer.Ordinal);
             foreach (var member in members)
             {
                 if (
@@ -282,10 +279,8 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
                 )
                     continue;
 
-                var stored = await values.GetAsync(
-                    BffStoreKeys.ClientMemberValue(member),
-                    cancellationToken
-                );
+                var memberValueKey = BffStoreKeys.ClientMemberValue(member);
+                var stored = await values.GetAsync(memberValueKey, cancellationToken);
                 if (
                     stored is not { } found
                     || BffSessionClientSerializer.Deserialize(found.Value.Span) is not { } client
@@ -331,11 +326,8 @@ internal class DefaultBffSessionStore(IExpiringValueSet values, IExpiringIndexSe
     {
         try
         {
-            await indexes.RemoveMemberAsync(
-                BffStoreKeys.ClientIndex(client),
-                storeKey,
-                cancellationToken
-            );
+            var clientIndex = BffStoreKeys.ClientIndex(client);
+            await indexes.RemoveMemberAsync(clientIndex, storeKey, cancellationToken);
         }
         catch (Exception exception) when (IsStoreFailure(exception, cancellationToken))
         {

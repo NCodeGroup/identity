@@ -74,8 +74,14 @@ internal sealed class DefaultPlatformDocumentApplier(
 
         if (isApplied)
         {
+            var previousSettingsCopy = previousSettings.Clone();
+            var settingsCopy = settings.Clone();
+            var settingsChanged = new PlatformSettingsChangedCommand(
+                previousSettingsCopy,
+                settingsCopy
+            );
             await PostCommitCommandSender.SendAsync(
-                new PlatformSettingsChangedCommand(previousSettings.Clone(), settings.Clone()),
+                settingsChanged,
                 exception => Logger.DirectoryPlatformChangeNotSent(exception),
                 cancellationToken
             );

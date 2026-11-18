@@ -102,7 +102,9 @@ public sealed class CrossTenantQueryAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        context.ReportDiagnostic(Diagnostic.Create(Rule, nameToken.GetLocation()));
+        var location = nameToken.GetLocation();
+        var diagnostic = Diagnostic.Create(Rule, location);
+        context.ReportDiagnostic(diagnostic);
     }
 
     /// <summary>

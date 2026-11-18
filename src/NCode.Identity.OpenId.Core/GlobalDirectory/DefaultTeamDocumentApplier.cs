@@ -123,8 +123,9 @@ internal sealed class DefaultTeamDocumentApplier(
 
         if (isApplied)
         {
+            var teamChanged = new TeamChangedCommand(document.TeamId, settingsChanged);
             await PostCommitCommandSender.SendAsync(
-                new TeamChangedCommand(document.TeamId, settingsChanged),
+                teamChanged,
                 exception => Logger.DirectoryTeamChangeNotSent(document.TeamId, exception),
                 cancellationToken
             );
@@ -134,11 +135,8 @@ internal sealed class DefaultTeamDocumentApplier(
                 return;
 
             // The mirror follows the committed row, so it runs on a bounded token of its own, as the command does.
-            await MirrorRootKeyAsync(
-                document.TeamId,
-                persistedTeam.RootKeys.GetValueOrDefault(CellOptions.Region),
-                cancellationToken
-            );
+            var rootKeyReference = persistedTeam.RootKeys.GetValueOrDefault(CellOptions.Region);
+            await MirrorRootKeyAsync(document.TeamId, rootKeyReference, cancellationToken);
         }
     }
 
@@ -155,10 +153,11 @@ internal sealed class DefaultTeamDocumentApplier(
             var enabledTeams = teams.Items.Where(team => !team.IsDisabled).ToList();
             if (enabledTeams.Count > 0)
             {
+                var enabledTeamIds = enabledTeams.ConvertAll(team => team.TeamId);
                 var currentKeys = (
                     await OwnerRootKeyManager.GetManyAsync(
                         SecretOwnerTypes.Team,
-                        enabledTeams.ConvertAll(team => team.TeamId),
+                        enabledTeamIds,
                         cancellationToken
                     )
                 ).ToDictionary(key => key.Owner.OwnerId, StringComparer.OrdinalIgnoreCase);
@@ -199,10 +198,8 @@ internal sealed class DefaultTeamDocumentApplier(
             );
             if (keys.Items.Count > 0)
             {
-                var existingTeamIds = await GetExistingTeamIdsAsync(
-                    [.. keys.Items.Select(key => key.Owner.OwnerId)],
-                    cancellationToken
-                );
+                string[] ownerIds = [.. keys.Items.Select(key => key.Owner.OwnerId)];
+                var existingTeamIds = await GetExistingTeamIdsAsync(ownerIds, cancellationToken);
                 foreach (var key in keys.Items)
                 {
                     if (existingTeamIds.Contains(key.Owner.OwnerId))
@@ -414,8 +411,9 @@ internal sealed class DefaultTeamDocumentApplier(
             await storeManager.SaveChangesAsync(cancellationToken);
         }
 
+        var teamChanged = new TeamChangedCommand(teamId, false);
         await PostCommitCommandSender.SendAsync(
-            new TeamChangedCommand(teamId, false),
+            teamChanged,
             exception => Logger.DirectoryTeamChangeNotSent(teamId, exception),
             cancellationToken
         );
