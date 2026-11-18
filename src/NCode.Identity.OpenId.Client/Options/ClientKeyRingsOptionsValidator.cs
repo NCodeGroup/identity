@@ -18,29 +18,19 @@ internal sealed class ClientKeyRingsOptionsValidator(IHostEnvironment environmen
     : IValidateOptions<ClientKeyRingsOptions>
 {
     /// <summary>
-    /// Checks one remote key of a key ring: it has an id, its provider is a valid remote key provider name, its key id,
-    /// algorithm and secret type are not blank, and its key size is positive. Each failure is named
-    /// <c>{keyRingKey}:RemoteKeys:{id}</c>, and a refused provider name or key size is stated in its failure.
+    /// Checks one remote key of a key ring: its provider is a valid remote key provider name, its key id, algorithm and
+    /// secret type are not blank, and its key size is positive. Each failure is named <paramref name="key"/>, and a
+    /// refused provider name or key size is stated in its failure.
     /// </summary>
-    /// <param name="keyRingKey">The configuration path of the key ring that holds the remote key.</param>
-    /// <param name="id">The id of the remote key within the key ring.</param>
+    /// <param name="key">The configuration path of the remote key, <c>{keyRingKey}:RemoteKeys:{id}</c>.</param>
     /// <param name="remoteKey">The options of the remote key, or <c>null</c> when its section is empty.</param>
     /// <param name="failures">The list that collects every failure found.</param>
     private static void ValidateRemoteKey(
-        string keyRingKey,
-        string id,
+        string key,
         ClientRemoteKeyOptions? remoteKey,
         List<string> failures
     )
     {
-        if (string.IsNullOrWhiteSpace(id))
-        {
-            failures.Add($"{keyRingKey}:RemoteKeys has a key without an id.");
-            return;
-        }
-
-        var key = $"{keyRingKey}:RemoteKeys:{id}";
-
         var provider = remoteKey?.Provider;
         if (!RemoteKeyReference.IsValidProviderName(provider))
         {
@@ -145,10 +135,17 @@ internal sealed class ClientKeyRingsOptionsValidator(IHostEnvironment environmen
 
             foreach (var (id, remoteKey) in remoteKeys.OrderBy(x => x.Key, StringComparer.Ordinal))
             {
-                if (!string.IsNullOrWhiteSpace(id) && !ids.Add(id))
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    failures.Add($"{keyRingKey}:RemoteKeys has a key without an id.");
+                    continue;
+                }
+
+                if (!ids.Add(id))
                     duplicateIds.Add(id);
 
-                ValidateRemoteKey(keyRingKey, id, remoteKey, failures);
+                var remoteKeyPath = $"{keyRingKey}:RemoteKeys:{id}";
+                ValidateRemoteKey(remoteKeyPath, remoteKey, failures);
             }
 
             foreach (var id in duplicateIds)
