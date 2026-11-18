@@ -1,5 +1,24 @@
 import { describe, expect, it } from 'vitest';
-import { apiErrorMessage } from './apiError.js';
+import { apiErrorMessage, apiProblem } from './apiError.js';
+
+describe('apiProblem', () => {
+  it('returns the problem body with its extension members', () => {
+    expect(apiProblem({ status: 409, data: { title: 'Conflict', placedCell: 'eu-2' } })).toEqual({
+      title: 'Conflict',
+      placedCell: 'eu-2',
+    });
+  });
+
+  it('returns undefined for no error, an error raised before a response and a body that is not an object', () => {
+    expect(apiProblem(undefined)).toBeUndefined();
+    expect(apiProblem({ message: 'boom' })).toBeUndefined();
+    expect(
+      apiProblem({ status: 'FETCH_ERROR', error: 'TypeError: Failed to fetch' }),
+    ).toBeUndefined();
+    expect(apiProblem({ status: 502, data: 'Bad Gateway' })).toBeUndefined();
+    expect(apiProblem({ status: 409, data: undefined })).toBeUndefined();
+  });
+});
 
 describe('apiErrorMessage', () => {
   it('returns the fallback when there is no error', () => {

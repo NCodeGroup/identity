@@ -64,6 +64,18 @@ function statusMessage(
 }
 
 /**
+ * The RFC 9457 problem details body of an RTK Query error, its extension members included, or `undefined` when the
+ * error carries none: no error, an error raised before a response, or a body that is not an object.
+ */
+export function apiProblem(error: ApiError | undefined): ManagementProblem | undefined {
+  if (!error || !isFetchBaseQueryError(error)) {
+    return undefined;
+  }
+  const data = error.data;
+  return data && typeof data === 'object' ? (data as ManagementProblem) : undefined;
+}
+
+/**
  * Turns an RTK Query error into a human-readable message. The Management API returns RFC 9457 Problem Details
  * (`{ detail, title, status }`), so a server-supplied message is preferred: the field messages of a validation problem
  * come first, then the `detail`, the `title` and the status-aware fallback. When the problem carries a positive whole
@@ -80,7 +92,7 @@ export function apiErrorMessage(
 
   if (isFetchBaseQueryError(error)) {
     const data = error.data;
-    const problem = data && typeof data === 'object' ? (data as ManagementProblem) : undefined;
+    const problem = apiProblem(error);
     const fieldMessages = validationMessages(data);
     const message =
       fieldMessages.length > 0 ? fieldMessages.join(' ') : statusMessage(error, problem, fallback);
