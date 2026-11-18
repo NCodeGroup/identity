@@ -1081,15 +1081,17 @@ app.MapFallbackToFile("index.html");                    // the SPA itself, same 
 ```
 
 A BFF reads the key rings its frontends name from PEM files, from keys that a key management service (KMS) holds, or
-from both. The key rings are the protocol client's: `AddIdentityBff` points `AddOpenIdClientKeyRings` at the
-host's top-level `KeyRings` section, so `KeyRings:{name}` configures the key ring `{name}` and registers a keyed
+from both. The key rings are the protocol client's: `AddIdentityBff` points `AddOpenIdClientKeyRings` at the host's
+top-level `KeyRings` section, so `KeyRings:{name}` configures the key ring `{name}` and registers a keyed
 `ISecretKeyCollectionProvider` under that name, which a frontend's `ClientAuthentication:KeyRing` or `DPoP:KeyRing`
 refers to. `PemFiles` lists the files of the ring. Each file holds one EC or RSA private key (PKCS#8, SEC1 or PKCS#1),
-read through sensitive buffers, and a key's `kid` is its file name without the extension. A relative path resolves
-against the content root. `RemoteKeys:{kid}` names a key that a KMS holds, with `Provider` (the remote key provider's
-name, such as `aws-kms`, `azure-key-vault` or `google-cloud-kms`), `KeyId` (the KMS's identifier for the key),
-`Algorithm` (the JOSE `alg`), `SecretType` (`rsa` or `ecc`), `KeySizeBits` and `Curve` (for an elliptic-curve key). The
-host registers the provider on the secrets library's builder, as the sketch shows for AWS KMS.
+read through sensitive buffers, and a key's `kid` is its file name without the extension. A key ring's name and each
+key's `kid` are letters and digits in groups separated by single `.`, `_` or `-`, at most 64 characters, and two `kid`s
+of one ring compare without case. A relative path resolves against the content root. `RemoteKeys:{kid}` names a key that
+a KMS holds, with `Provider` (the remote key provider's name, such as `aws-kms`, `azure-key-vault` or
+`google-cloud-kms`), `KeyId` (the KMS's identifier for the key), `Algorithm` (the JOSE `alg`), `SecretType` (`rsa` or
+`ecc`), `KeySizeBits` and `Curve` (for an elliptic-curve key). The host registers the provider on the secrets library's
+builder, as the sketch shows for AWS KMS.
 
 The remote key provider's row for the algorithm decides whether a remote key signs (client assertions and DPoP proofs)
 or decrypts (encrypted ID tokens and UserInfo responses), so one ring holds a signing key and a decryption key side by
@@ -1157,10 +1159,11 @@ source registers the keyed provider in code and configures no entry for it
   `IdleTimeout`.
 - The antiforgery cookie's name does not start with `__Host-`, or the cookie is not `Secure`, has a `Path` other than
   `/`, or has a `Domain`.
-- `KeyRings` has a key ring without a name, or a key ring lists neither a PEM file nor a remote key. A `PemFiles`
-  entry is blank or names a file that does not exist, a remote key has no id, a remote key's `Provider` is not a remote
-  key provider's name, or its `KeyId`, `Algorithm` or `SecretType` is blank or its `KeySizeBits` is not positive, and
-  one key ring holds two keys with the same id.
+- `KeyRings` has a key ring without a name or whose name breaks the id rule, or a key ring lists neither a PEM file nor
+  a remote key. A `PemFiles` entry is blank or names a file that does not exist, a key has no id or an id that breaks
+  the id rule, a remote key's `Provider` is not a remote key provider's name, or its `KeyId`, `Algorithm` or
+  `SecretType` is blank or its `KeySizeBits` is not positive, or one key ring holds two keys whose ids are equal without
+  case.
 - A remote key's provider is not registered or has no row for its algorithm, size and curve, or its public half cannot
   be read or its proof fails. The host stops when it starts, and the message names the key ring, the key and the
   provider.
