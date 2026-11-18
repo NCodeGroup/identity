@@ -499,6 +499,49 @@ describe('TenantsPage (CRUD wiring)', () => {
     );
   });
 
+  it('opens, edits and deletes the copy of a tenant in the cell of its row when two cells list it', async () => {
+    const moved = { ...acme, displayName: 'Acme moved', concurrencyToken: 'c9' };
+    const calls = installFetch((url, method) => {
+      if (url.endsWith('/api/cells')) {
+        return jsonResponse(cellList);
+      }
+      if (url.endsWith('/cells/eu-1/api/teams/acme/tenants')) {
+        return jsonResponse({ items: [acme] });
+      }
+      if (url.endsWith('/cells/us-1/api/teams/acme/tenants')) {
+        return jsonResponse({ items: [moved] });
+      }
+      if (method === 'PATCH' || method === 'DELETE') {
+        return new Response(null, { status: 204 });
+      }
+      throw new Error(`Unexpected ${method} ${url}`);
+    });
+
+    const onOpenTenant = renderPage(vi.fn(), undefined, { ...runtime, cells: ['eu-1', 'us-1'] });
+    fireEvent.click(await screen.findByTestId('tenant-row-us-1/acme-dev'));
+    expect(onOpenTenant).toHaveBeenCalledWith('acme-dev', 'us-1');
+
+    fireEvent.click(screen.getByTestId('tenant-edit-us-1/acme-dev'));
+    expect(screen.getByTestId('tenant-display-name')).toHaveValue('Acme moved');
+    fireEvent.change(screen.getByTestId('tenant-display-name'), {
+      target: { value: 'Acme US' },
+    });
+    fireEvent.click(screen.getByTestId('tenant-form-submit'));
+    await waitFor(() => expect(screen.queryByTestId('tenant-form-submit')).not.toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId('tenant-delete-us-1/acme-dev'));
+    fireEvent.click(await screen.findByTestId('confirm-accept'));
+    await waitFor(() => expect(calls.some((c) => c.method === 'DELETE')).toBe(true));
+    await waitFor(() => expect(screen.queryByTestId('confirm-accept')).not.toBeInTheDocument());
+
+    const patch = calls.find((c) => c.method === 'PATCH');
+    expect(patch?.url).toBe('https://api.test/cells/us-1/api/tenants/acme-dev');
+    expect(patch?.ifMatch).toBe('c9');
+    expect(calls.find((c) => c.method === 'DELETE')?.url).toBe(
+      'https://api.test/cells/us-1/api/tenants/acme-dev',
+    );
+  });
+
   it('prefills the edit form from a tenant with an issuer and discards it on cancel', async () => {
     const calls = installFetch((url, method) => {
       if (url.endsWith('/api/teams/acme/tenants') && method === 'GET') {

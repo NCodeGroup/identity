@@ -182,16 +182,20 @@ export function TenantsPage({
     setPromotionError(undefined);
     setDialog({ kind: 'promote' });
   };
-  const openEdit = (tenantId: string) => {
-    const tenant = tenants.find((t) => t.tenantId === tenantId);
+  // A row names its tenant by id and cell, because two cells list one tenant while it moves
+  // between them.
+  const findTenant = (tenantId: string, cell: string | undefined) =>
+    tenants.find((tenant) => tenant.tenantId === tenantId && tenant.cell === cell);
+  const openEdit = (tenantId: string, cell: string | undefined) => {
+    const tenant = findTenant(tenantId, cell);
     if (!tenant) {
       return;
     }
     setFormError(undefined);
     setDialog({ kind: 'edit', tenant });
   };
-  const openDelete = (tenantId: string) => {
-    const tenant = tenants.find((t) => t.tenantId === tenantId);
+  const openDelete = (tenantId: string, cell: string | undefined) => {
+    const tenant = findTenant(tenantId, cell);
     if (!tenant) {
       return;
     }
@@ -423,10 +427,9 @@ export function TenantsPage({
         <TenantTable
           tenants={visibleTenants}
           showCell={cellNames.length > 0}
-          onSelect={(tenantId) => {
-            // The tenant opens in its own cell, which the list carries; a tenant without one opens
-            // in the control plane.
-            const cell = tenants.find((tenant) => tenant.tenantId === tenantId)?.cell;
+          onSelect={(tenantId, cell) => {
+            // The tenant opens in the cell of its row; a tenant without one opens in the control
+            // plane.
             if (cell === undefined) {
               onOpenTenant(tenantId);
             } else {
