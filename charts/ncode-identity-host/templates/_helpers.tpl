@@ -396,6 +396,9 @@ applied. Rendered for its side effect only.
 {{- if and .Values.setup.token.existingSecret (not .Values.setup.token.key) }}
 {{- fail "setup.token.key must name the key that holds the setup token in setup.token.existingSecret." }}
 {{- end }}
+{{- if and .Values.setup.job.enabled (not .Values.cell.isControlPlane) }}
+{{- fail "setup.job.enabled requires cell.isControlPlane: setup runs in the control-plane cell only." }}
+{{- end }}
 {{- if and .Values.setup.job.enabled (not .Values.setup.job.existingSecret) }}
 {{- fail "setup.job.existingSecret must name the Secret holding the root administrator's user name and password when setup.job.enabled is true." }}
 {{- end }}
