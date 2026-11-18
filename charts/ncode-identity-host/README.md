@@ -151,9 +151,10 @@ A release is one cell: a host, its database, its Valkey and its KMS keys, in one
 ([ADR-1411](../../docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)). The `cell` values name
 it, and the chart renders them as the `Cell` section the host binds:
 
-- `cell.name`, required, the cell's name, unique across the platform: a lowercase letter, then lowercase letters, digits
-  and hyphens, at most 31 characters (`Cell__Name`). It is also the tag the host's remote-key sweep reads, so every
-  replica and release that shares the cell's database uses it;
+- `cell.name`, required, the cell's name, unique across the platform: 1 to 31 characters of lowercase letters, digits
+  and single hyphens, starting with a letter and ending with a letter or digit, with no two hyphens in a row
+  (`Cell__Name`). It is also the tag the host's remote-key sweep reads, so every replica and release that shares the
+  cell's database uses it;
 - `cell.region`, required, the region the cell runs in, in the same form (`Cell__Region`). Tenants of one region move
   between its cells;
 - `cell.kind` (default `shared`), an open name such as `shared`, `dedicated` or `sovereign` (`Cell__Kind`);
@@ -283,14 +284,15 @@ Rendering fails, before anything is applied, when:
 - a `secretProtection.remoteKeyProviders` location, `awsKms.region`, `azureKeyVault.vaultUri` or
   `googleCloudKms.keyRing`, is set and the provider's `enabled` is `false`, because a location registers nothing on its
   own;
-- `cell.name` or `cell.region` is empty or is not a lowercase label (a lowercase letter, then lowercase letters, digits
-  and hyphens, at most 31 characters), or `cell.isControlPlane` is `false` and `cell.controlPlaneIssuer` is empty,
-  because the host's remote-key sweep reads the cell's name and a cell that is not the control plane reaches the control
-  plane's issuer;
+- `cell.name` or `cell.region` is empty or is not a cell name (1 to 31 characters of lowercase letters, digits and
+  single hyphens, starting with a letter and ending with a letter or digit, with no two hyphens in a row), or
+  `cell.isControlPlane` is `false` and `cell.controlPlaneIssuer` is empty, because the host's remote-key sweep reads the
+  cell's name and a cell that is not the control plane reaches the control plane's issuer;
 - `directory.url` is set and `cell.controlPlaneIssuer` is empty, because the cell asks the control-plane cell's issuer
   for the token it presents to the directory;
 - `directory.url` is set and `directory.clientId` is not `cell-<cell.name>` or `cell.managementUrl` is empty, because
   the directory knows a cell by its machine client and the cell registers its management URL with the directory;
+- `directory.clientId` is set and is not `cell-` followed by a cell name, the machine client the cell authenticates as;
 - a value of the cell's directory client (`directory.clientId`, `directory.keyRing`, `directory.keys.pemSecret` or
   `directory.keys.remoteKeys`) is set and `directory.url` is empty, because the chart then renders none of them and the
   cell keeps the local adapters;

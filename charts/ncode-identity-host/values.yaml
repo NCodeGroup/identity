@@ -27,10 +27,10 @@ allowedHosts: []
 # The cell this release runs (Cell): a host, its database, its Valkey and its KMS keys, in one region. Required: name and
 # region.
 cell:
-  # The cell's name, unique across the platform: a lowercase letter, then lowercase letters, digits and hyphens, at most
-  # 31 characters. It is also the tag that the host's remote-key sweep reads to find the keys of this cell, so every
-  # replica and release that shares the cell's database uses it, and no other cell in the same AWS account, vault or key
-  # ring does. Required.
+  # The cell's name, unique across the platform: 1 to 31 characters of lowercase letters, digits and single hyphens,
+  # starting with a letter and ending with a letter or digit, with no two hyphens in a row. It is also the tag that the
+  # host's remote-key sweep reads to find the keys of this cell, so every replica and release that shares the cell's
+  # database uses it, and no other cell in the same AWS account, vault or key ring does. Required.
   name: ""
   # The region the cell runs in, in the same form as the name. Tenants of one region move between its cells. Required.
   region: ""
