@@ -180,10 +180,13 @@ jobs:
         env:
           HOST: ${{ steps.host.outputs.digest }}
           CONSOLE: ${{ steps.console.outputs.digest }}
+          DIRECTORY: ${{ steps.directory.outputs.digest }}
         run: |
           cosign sign --yes "ghcr.io/ncodegroup/ncode-identity-host@$env:HOST"
           if ($LASTEXITCODE -ne 0) { throw "cosign sign failed." }
           cosign sign --yes "ghcr.io/ncodegroup/ncode-identity-management-console@$env:CONSOLE"
+          if ($LASTEXITCODE -ne 0) { throw "cosign sign failed." }
+          cosign sign --yes "ghcr.io/ncodegroup/ncode-identity-directory@$env:DIRECTORY"
           if ($LASTEXITCODE -ne 0) { throw "cosign sign failed." }
 
       - name: Attest the host image
@@ -198,6 +201,13 @@ jobs:
         with:
           subject-name: ghcr.io/ncodegroup/ncode-identity-management-console
           subject-digest: ${{ steps.console.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest the directory image
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ghcr.io/ncodegroup/ncode-identity-directory
+          subject-digest: ${{ steps.directory.outputs.digest }}
           push-to-registry: true
 
       - name: Set up Helm
@@ -287,6 +297,7 @@ jobs:
       VERSION: ${{ needs.version.outputs.version }}
       HOST: ${{ needs.publish.outputs.host-digest }}
       CONSOLE: ${{ needs.publish.outputs.console-digest }}
+      DIRECTORY: ${{ needs.publish.outputs.directory-digest }}
       CHART: ${{ needs.publish.outputs.chart-digest }}
       OPENAPI: ${{ needs.publish.outputs.openapi-digest }}
       IDENTITY: https://github.com/NCodeGroup/identity/.github/workflows/publish-artifacts.yml@${{ github.ref }}
@@ -309,7 +320,7 @@ jobs:
       - name: Both architectures are published
         shell: pwsh
         run: |
-          foreach ($image in 'ncode-identity-host', 'ncode-identity-management-console') {
+          foreach ($image in 'ncode-identity-host', 'ncode-identity-management-console', 'ncode-identity-directory') {
             $raw = docker buildx imagetools inspect --raw "ghcr.io/ncodegroup/${image}:$env:VERSION"
             if ($LASTEXITCODE -ne 0) { throw "docker buildx imagetools inspect failed for $image. $env:PACKAGE_HINT" }
             $index = $raw | ConvertFrom-Json
@@ -325,6 +336,7 @@ jobs:
           $refs = @(
             "ncode-identity-host@$env:HOST",
             "ncode-identity-management-console@$env:CONSOLE",
+            "ncode-identity-directory@$env:DIRECTORY",
             "charts/ncode-identity-host@$env:CHART",
             "openapi/ncode-identity-host@$env:OPENAPI"
           )
@@ -341,6 +353,7 @@ jobs:
           $refs = @(
             "ncode-identity-host@$env:HOST",
             "ncode-identity-management-console@$env:CONSOLE",
+            "ncode-identity-directory@$env:DIRECTORY",
             "charts/ncode-identity-host@$env:CHART",
             "openapi/ncode-identity-host@$env:OPENAPI"
           )
