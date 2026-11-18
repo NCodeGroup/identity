@@ -3024,9 +3024,9 @@ Until the first stable release, the [Unreleased] section describes the product a
   `SecretType`, `KeySizeBits` and `Curve`, the provider's row deciding whether it signs or decrypts. Every configured
   key ring loads before the host serves: a remote key's public half is read from its KMS and the key proves it holds the
   private half, and `/bff/jwks` publishes the half without a KMS call. The host validates the entries when it starts,
-  and refuses a key ring that holds no key or one id twice. A set of frontends whose `ClientAuthentication:KeyRing` or
-  `DPoP:KeyRing` names a key ring that `IClientKeyRingProvider.HasKeyRing` does not find is refused, when the host
-  starts and on every configuration change
+  and refuses a key ring that holds no key or one id twice, or that a keyed `ISecretKeyCollectionProvider` registered in
+  code already provides. A set of frontends whose `ClientAuthentication:KeyRing` or `DPoP:KeyRing` names a key ring that
+  `IClientKeyRingProvider.HasKeyRing` does not find is refused, when the host starts and on every configuration change
   ([#614](https://github.com/NCodeGroup/identity/issues/614),
   [#651](https://github.com/NCodeGroup/identity/issues/651),
   [ADR-1439](docs/decisions/1439-a-bff-loads-its-configured-key-rings-at-start-and-refuses-frontends-naming-an-unknown-ring.md),

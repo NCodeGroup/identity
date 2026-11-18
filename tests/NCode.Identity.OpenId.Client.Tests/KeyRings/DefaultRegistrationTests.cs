@@ -143,33 +143,46 @@ public sealed class DefaultRegistrationTests : BaseTests, IAsyncLifetime
     }
 
     [Fact]
-    public void AddOpenIdClientKeyRings_WithANameAlreadyRegistered_Throws()
+    public void AddOpenIdClientKeyRings_WithANameAlreadyRegistered_FailsValidationNamingTheKeyRing()
     {
         var builder = ServiceCollection.NewBuilder<OpenIdClientLibrary>();
-        builder.AddOpenIdClientKeyRings(CreateSection("alpha"));
+        var firstSection = CreateSection("alpha");
+        var secondSection = CreateSection("alpha");
+        builder.AddOpenIdClientKeyRings(firstSection);
+        builder.AddOpenIdClientKeyRings(secondSection);
+        var provider = BuildProvider();
+        var options = provider.GetRequiredService<IOptions<ClientKeyRingsOptions>>();
 
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            builder.AddOpenIdClientKeyRings(CreateSection("alpha"))
+        var exception = Assert.Throws<OptionsValidationException>(() => options.Value);
+
+        Assert.Contains(
+            $"{SectionPath}:alpha names a key ring that a keyed ISecretKeyCollectionProvider already provides",
+            exception.Message
         );
-
-        Assert.Contains("'alpha'", exception.Message);
-        Assert.Contains($"'{SectionPath}'", exception.Message);
     }
 
     [Fact]
-    public void AddOpenIdClientKeyRings_WithANameRegisteredAsAKeyedProvider_Throws()
+    public void AddOpenIdClientKeyRings_WithANameRegisteredAsAKeyedProvider_FailsValidationAndKeepsTheRegisteredProvider()
     {
         ServiceCollection.AddKeyedSingleton<ISecretKeyCollectionProvider>(
             "alpha",
             (_, _) => throw new NotSupportedException()
         );
         var builder = ServiceCollection.NewBuilder<OpenIdClientLibrary>();
+        var section = CreateSection("alpha");
+        builder.AddOpenIdClientKeyRings(section);
+        var provider = BuildProvider();
+        var options = provider.GetRequiredService<IOptions<ClientKeyRingsOptions>>();
 
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            builder.AddOpenIdClientKeyRings(CreateSection("alpha"))
+        var exception = Assert.Throws<OptionsValidationException>(() => options.Value);
+
+        Assert.Contains(
+            $"{SectionPath}:alpha names a key ring that a keyed ISecretKeyCollectionProvider already provides",
+            exception.Message
         );
-
-        Assert.Contains("'alpha'", exception.Message);
+        Assert.Throws<NotSupportedException>(() =>
+            provider.GetRequiredKeyedService<ISecretKeyCollectionProvider>("alpha")
+        );
     }
 
     #endregion

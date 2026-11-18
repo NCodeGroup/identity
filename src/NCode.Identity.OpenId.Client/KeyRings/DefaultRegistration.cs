@@ -19,6 +19,17 @@ namespace NCode.Identity.OpenId.Client.KeyRings;
 [PublicAPI]
 public static class DefaultRegistration
 {
+    /// <summary>
+    /// Gets whether a service descriptor registers the keyed <see cref="ISecretKeyCollectionProvider"/> of a key ring.
+    /// </summary>
+    /// <param name="descriptor">The service descriptor to check.</param>
+    /// <param name="name">The name of the key ring.</param>
+    /// <returns><see langword="true"/> when the descriptor registers the key ring's provider.</returns>
+    private static bool IsKeyRingProvider(ServiceDescriptor descriptor, string name) =>
+        descriptor.ServiceType == typeof(ISecretKeyCollectionProvider)
+        && descriptor.IsKeyedService
+        && Equals(descriptor.ServiceKey, name);
+
     /// <param name="builder">The <see cref="IServiceBuilder{T}"/> to configure services for
     /// <see cref="OpenIdClientLibrary"/>.</param>
     extension(IServiceBuilder<OpenIdClientLibrary> builder)
@@ -30,12 +41,12 @@ public static class DefaultRegistration
         /// <see cref="ISecretKeyCollectionProvider"/>, named after the key ring, returns the loaded key ring for every
         /// key ring configured when this method is called. A keyed provider resolves once the host starts: resolving it
         /// earlier, such as from an eager singleton or an options validator, throws an
-        /// <see cref="InvalidOperationException"/> that names the key ring.
+        /// <see cref="InvalidOperationException"/> that names the key ring. A configured key ring that a keyed
+        /// <see cref="ISecretKeyCollectionProvider"/> already provides when this method is called fails validation when
+        /// the host starts, and the provider registered in code stays the one resolved.
         /// </summary>
         /// <param name="section">The configuration section whose children are the key rings, by name.</param>
         /// <returns>The <see cref="IServiceBuilder{T}"/> so that additional calls can be chained.</returns>
-        /// <exception cref="InvalidOperationException">A key ring is already registered as a keyed
-        /// <see cref="ISecretKeyCollectionProvider"/> under its name.</exception>
         // See ADR-1439.
         // See ADR-1479.
         public IServiceBuilder<OpenIdClientLibrary> AddOpenIdClientKeyRings(
@@ -48,20 +59,11 @@ public static class DefaultRegistration
             var serviceCollection = builder.ServiceCollection;
             var names = section.GetChildren().Select(child => child.Key).ToList();
 
+            var registeredInCode = new HashSet<string>(StringComparer.Ordinal);
             foreach (var name in names)
             {
-                if (
-                    serviceCollection.Any(descriptor =>
-                        descriptor.ServiceType == typeof(ISecretKeyCollectionProvider)
-                        && descriptor.IsKeyedService
-                        && Equals(descriptor.ServiceKey, name)
-                    )
-                )
-                {
-                    throw new InvalidOperationException(
-                        $"The key ring '{name}' of '{section.Path}' is already registered as a keyed {nameof(ISecretKeyCollectionProvider)}."
-                    );
-                }
+                if (serviceCollection.Any(descriptor => IsKeyRingProvider(descriptor, name)))
+                    registeredInCode.Add(name);
             }
 
             serviceCollection
@@ -70,6 +72,7 @@ public static class DefaultRegistration
                 {
                     options.SectionPath = section.Path;
                     section.BindStrictly(options.KeyRings);
+                    options.RegisteredInCode.UnionWith(registeredInCode);
                 })
                 .ValidateOnStart();
             serviceCollection.TryAddEnumerable(
@@ -87,6 +90,9 @@ public static class DefaultRegistration
 
             foreach (var name in names)
             {
+                if (registeredInCode.Contains(name))
+                    continue;
+
                 serviceCollection.AddKeyedSingleton<ISecretKeyCollectionProvider>(
                     name,
                     (serviceProvider, _) =>

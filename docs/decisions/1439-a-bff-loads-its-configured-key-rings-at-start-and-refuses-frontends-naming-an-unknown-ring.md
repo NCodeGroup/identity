@@ -52,14 +52,16 @@ registers the keyed provider in code.**
 4. **Sensitive buffers.** The loader reads a file into a sensitive buffer, decodes it into a sensitive character buffer
    and hands that buffer to the secret-key factory, never an ordinary string or array.
 5. **The path.** A relative path resolves against the host's content root, and an absolute path is used as it is.
-6. **Startup validation.** The key rings' options validator fails startup with one message per problem: an unnamed ring, a ring
-   with no PEM file or remote key, a blank or missing file, and a duplicate key id.
+6. **Startup validation.** The key rings' options validator fails startup with one message per problem: an unnamed
+   ring, a ring with no PEM file or remote key, a blank or missing file, a duplicate key id, and a configured ring that
+   a keyed provider registered in code already provides.
 7. **Load at start.** `ClientKeyRingLoader`, an `IHostedLifecycleService`, loads every ring in `StartingAsync`, and a
    failure stops the host. A ring changes only when the process restarts, so a ring that a configuration change adds
    needs a restart.
 8. **Code registration is the seam.** A host that holds its keys elsewhere registers its own keyed
-   `ISecretKeyCollectionProvider` under the key ring's name and configures no `KeyRings` entry for that name. The
-   configuration is the built-in source, and keyed dependency injection is the open seam.
+   `ISecretKeyCollectionProvider` under the key ring's name and configures no `KeyRings` entry for that name; an entry
+   for it fails the startup validation, and the provider registered in code stays the one resolved. The configuration is
+   the built-in source, and keyed dependency injection is the open seam.
 9. **The provider says whether a ring exists.** `IClientKeyRingProvider.HasKeyRing(keyRing)` says whether `GetKeyRing`
    finds the key ring, and loads no key. `DefaultClientKeyRingProvider` answers through `IServiceProviderIsKeyedService`.
 10. **`BffKeyRingCheck` refuses an unknown ring.** The library registers it as an `IBffFrontendSetCheck`. It refuses a
@@ -90,8 +92,8 @@ registers the keyed provider in code.**
 - A key's id comes from its file name, so renaming a file changes the `kid` that a published JWKS carries and that a
   client's registration refers to.
 - A key ring's files are read once, when the host starts, so a rotation takes effect when the process starts again.
-- A host that registers a keyed provider in code for a name that `KeyRings` also configures has two registrations
-  for one key; the host configures a name in one place only.
+- A host configures a key ring in one place only: a `KeyRings` entry for a name that a keyed provider registered in
+  code already provides stops the host when it starts.
 - The validator checks that each file exists and the loader checks that each file parses; a wrong key type stops the
   host when it starts.
 - A misspelled key ring name never reaches a token request.

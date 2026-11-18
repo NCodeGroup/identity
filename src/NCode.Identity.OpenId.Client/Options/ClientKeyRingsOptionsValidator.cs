@@ -3,14 +3,16 @@
 
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using NCode.Identity.Secrets.Collections;
 using NCode.Identity.Secrets.RemoteKeys;
 
 namespace NCode.Identity.OpenId.Client.Options;
 
 /// <summary>
 /// Validates <see cref="ClientKeyRingsOptions"/> when the host starts, so a key ring that cannot load stops the host
-/// instead of failing on the first request. Each key ring is named <c>{SectionPath}:{name}</c> in the failures, and a
-/// relative PEM path is read against <see cref="IHostEnvironment.ContentRootPath"/>.
+/// instead of failing on the first request. A key ring that a keyed <see cref="ISecretKeyCollectionProvider"/> already
+/// provides in code is refused. Each key ring is named <c>{SectionPath}:{name}</c> in the failures, and a relative PEM
+/// path is read against <see cref="IHostEnvironment.ContentRootPath"/>.
 /// </summary>
 // See ADR-1439.
 // See ADR-1479.
@@ -65,6 +67,12 @@ internal sealed class ClientKeyRingsOptionsValidator(IHostEnvironment environmen
 
         List<string> failures = [];
         ValidateKeyRings(options.SectionPath, options.KeyRings, failures);
+        foreach (var keyRingName in options.RegisteredInCode.Order(StringComparer.Ordinal))
+        {
+            failures.Add(
+                $"{options.SectionPath}:{keyRingName} names a key ring that a keyed {nameof(ISecretKeyCollectionProvider)} already provides; a key ring is registered once, in code or in configuration."
+            );
+        }
 
         return failures.Count == 0
             ? ValidateOptionsResult.Success

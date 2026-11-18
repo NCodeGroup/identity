@@ -138,6 +138,27 @@ public sealed class ClientKeyRingsOptionsValidatorTests : BaseTests
     }
 
     [Fact]
+    public void Validate_WhenAKeyRingIsRegisteredInCode_FailsNamingIt()
+    {
+        var options = CreateOptions();
+        options.KeyRings["alpha"] = new ClientKeyRingOptions
+        {
+            RemoteKeys = { ["kms-sig"] = CreateValidRemoteKey() },
+        };
+        options.RegisteredInCode.Add("alpha");
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Equal(
+            [
+                $"{SectionPath}:alpha names a key ring that a keyed ISecretKeyCollectionProvider already provides; a key ring is registered once, in code or in configuration.",
+            ],
+            result.Failures ?? []
+        );
+    }
+
+    [Fact]
     public void Validate_WhenRemoteKeyHasNoId_Fails()
     {
         var options = CreateOptions();

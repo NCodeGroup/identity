@@ -1,6 +1,8 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using NCode.Identity.Secrets.Collections;
+
 namespace NCode.Identity.OpenId.Client.Options;
 
 /// <summary>
@@ -21,4 +23,11 @@ internal sealed class ClientKeyRingsOptions
     /// Gets or sets the configuration path of the section that the key rings are bound from, such as <c>KeyRings</c>.
     /// </summary>
     public string SectionPath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the names of the configured key rings that a keyed <see cref="ISecretKeyCollectionProvider"/>
+    /// already provided when the key rings were added. A key ring is registered once, in code or in configuration, so
+    /// validation refuses each of them.
+    /// </summary>
+    public HashSet<string> RegisteredInCode { get; set; } = new(StringComparer.Ordinal);
 }
