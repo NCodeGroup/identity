@@ -184,8 +184,8 @@ serviceCollection.AddDatabaseDeveloperPageExceptionFilter();
 serviceCollection.AddHostDatabase(configuration);
 
 // RunAsync disposes the app when the host stops or fails to start, and each command disposes it when the command ends.
-// An exception before either leaves the app to the ending process, so a test host that runs this entry point reports
-// that exception instead of a disposed app.
+// An exception before either leaves the app to its owner, the ending process or a test host's factory, so the factory
+// reports that exception instead of a disposed app.
 var app = builder.Build();
 
 // A command runs against the built services, never starts the hosted services or binds a port, disposes the services
