@@ -126,8 +126,7 @@ and the docs say "tenant root key" or "team root key". A team's key is held per 
     the changed key can be, with the engine of
     [ADR-1408](1408-an-offline-host-command-rewraps-every-master-key-under-the-configured-root-and-recovery-keys.md). A
     tenant's key reaches the tenant's master keys; any other owner's key reaches the owner's, those of every owner under
-    it and every master key still under the key it names, so a team's key reaches its tenants, and the platform's key
-    reaches every master key.
+    it and every master key still under the key it names, so a team's key reaches its tenants.
 17. **Re-validation runs on one replica and the ring checks the rest.** `OwnerRootKeyValidationService` takes a lease
     every `RetryInterval` and validates an `active` key every `ValidationInterval`, an `unavailable` or `removing` key
     every `RetryInterval`. Every state change calls `IOwnerRootKeyChangeObserver`, whose OpenId.Core implementation
