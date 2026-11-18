@@ -28,13 +28,15 @@ drawing has its strokes between pixels and looks soft. A wordmark set in a font 
 on that font, and an SVG shown as an image cannot load one. A second copy of the drawing code, in another repository or
 another language, drifts from the first: a margin or an encoder changes in one and not the other.
 
-The four web apps under `frontend/apps` are served in two ways. `auth` is the sign-in and account bundle: the OP host
+The five web apps under `frontend/apps` are served in two ways. `auth` is the sign-in and account bundle: the OP host
 serves it beneath each tenant's route, with a relative base
 ([ADR-1193](1193-the-interactive-surface-uses-the-tenant-route-host-only-cookies-and-one-shared-single-page-bundle-helper.md)).
 `mgmt` is the management console: its BFF host serves it at its origin's root, and writes each response's nonce into the
 page
 ([ADR-1437](1437-the-management-console-is-a-confidential-client-whose-own-bff-host-serves-only-the-console.md)).
-`conformance` and `playground` are developer surfaces that run on their own Vite servers.
+`conformance` and `playground` are developer surfaces that run on their own Vite servers. `setup`, the first-run
+wizard, is a bundle the OP host serves at `/setup`, as it serves `auth`
+([ADR-1512](1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md)).
 
 The kit's `brand/README.md` describes a site that serves the favicon files at its root, but neither host serves a file at
 the root of a bundle. Each serves only the bundle's `assets/` directory, with an immutable cache. Every page the server
