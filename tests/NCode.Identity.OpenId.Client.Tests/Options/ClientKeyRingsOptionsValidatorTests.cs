@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Microsoft.Extensions.Hosting;
-using NCode.Identity.OpenId.Client.KeyRings;
+using NCode.Identity.OpenId.Client.Options;
 using Xunit;
 
-namespace NCode.Identity.OpenId.Client.Tests.KeyRings;
+namespace NCode.Identity.OpenId.Client.Tests.Options;
 
 public sealed class ClientKeyRingsOptionsValidatorTests : BaseTests
 {

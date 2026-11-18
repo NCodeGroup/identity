@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using NCode.Identity.Jose;
+using NCode.Identity.OpenId.Client.Options;
 using NCode.Identity.Secrets.Keys;
 using NCode.Identity.Secrets.RemoteKeys;
 

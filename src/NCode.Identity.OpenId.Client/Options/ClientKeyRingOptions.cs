@@ -3,7 +3,7 @@
 
 using JetBrains.Annotations;
 
-namespace NCode.Identity.OpenId.Client.KeyRings;
+namespace NCode.Identity.OpenId.Client.Options;
 
 /// <summary>
 /// Configures one named client key ring that the host loads when it starts, from PEM files, keys that a key management

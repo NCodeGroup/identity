@@ -1,7 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-namespace NCode.Identity.OpenId.Client.KeyRings;
+namespace NCode.Identity.OpenId.Client.Options;
 
 /// <summary>
 /// Holds the named client key rings that <c>AddOpenIdClientKeyRings</c> binds from a configuration section, and the

@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using NCode.Identity.OpenId.Client.Options;
 using NCode.Identity.Registration;
 using NCode.Identity.Secrets.Collections;
 

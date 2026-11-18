@@ -5,7 +5,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using NCode.Identity.Secrets.RemoteKeys;
 
-namespace NCode.Identity.OpenId.Client.KeyRings;
+namespace NCode.Identity.OpenId.Client.Options;
 
 /// <summary>
 /// Validates <see cref="ClientKeyRingsOptions"/> when the host starts, so a key ring that cannot load stops the host

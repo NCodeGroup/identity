@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using NCode.Identity.Jose;
 using NCode.Identity.OpenId.Client.KeyRings;
+using NCode.Identity.OpenId.Client.Options;
 using NCode.Identity.Secrets;
 using NCode.Identity.Secrets.Keys;
 using NCode.Identity.Secrets.RemoteKeys;

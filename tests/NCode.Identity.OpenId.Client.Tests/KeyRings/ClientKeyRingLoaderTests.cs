@@ -9,6 +9,7 @@ using Moq;
 using NCode.Buffers;
 using NCode.Identity.Jose;
 using NCode.Identity.OpenId.Client.KeyRings;
+using NCode.Identity.OpenId.Client.Options;
 using NCode.Identity.Secrets;
 using NCode.Identity.Secrets.Collections;
 using NCode.Identity.Secrets.Keys;

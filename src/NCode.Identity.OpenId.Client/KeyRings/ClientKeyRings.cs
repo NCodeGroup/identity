@@ -3,6 +3,7 @@
 
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Options;
+using NCode.Identity.OpenId.Client.Options;
 using NCode.Identity.Secrets.Collections;
 
 namespace NCode.Identity.OpenId.Client.KeyRings;

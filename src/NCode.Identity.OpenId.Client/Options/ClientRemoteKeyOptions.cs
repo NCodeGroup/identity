@@ -3,7 +3,7 @@
 
 using JetBrains.Annotations;
 
-namespace NCode.Identity.OpenId.Client.KeyRings;
+namespace NCode.Identity.OpenId.Client.Options;
 
 /// <summary>
 /// Configures one key of a client key ring that a key management service holds. Bound from the
