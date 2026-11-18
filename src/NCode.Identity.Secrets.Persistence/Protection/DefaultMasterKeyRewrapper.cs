@@ -18,12 +18,15 @@ namespace NCode.Identity.Secrets.Persistence.Protection;
 /// else its nearest ancestor's, otherwise the configured root key provider. A row that already sits under that root key
 /// is examined only, and a row that is moved under it loses its recovery copy; a row moved under the deployment's root
 /// key gets a recovery copy when a recovery public key is configured, and when none is, the existing recovery copy is
-/// left as it is, because a recovery path is never removed silently.
+/// left as it is, because a recovery path is never removed silently. A request for an owner and its descendants pages
+/// every row, keeps those of the owner, of the owners under it and those still under the key its root key names, and
+/// resolves the root key of the owners it keeps only.
 /// </remarks>
 // See ADR-1408 and ADR-1414.
 internal sealed class DefaultMasterKeyRewrapper(
     MasterKeyFactory factory,
     INearestOwnerRootKeyResolver nearestRootKeyResolver,
+    ISecretOwnerParentResolver parentResolver,
     IStoreManagerFactory storeManagerFactory,
     IRecoveryKeyWrapper recovery,
     ILogger<DefaultMasterKeyRewrapper> logger
@@ -36,6 +39,8 @@ internal sealed class DefaultMasterKeyRewrapper(
     private MasterKeyFactory Factory { get; } = factory;
 
     private INearestOwnerRootKeyResolver NearestRootKeyResolver { get; } = nearestRootKeyResolver;
+
+    private ISecretOwnerParentResolver ParentResolver { get; } = parentResolver;
 
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
 
@@ -67,7 +72,7 @@ internal sealed class DefaultMasterKeyRewrapper(
             SecretOwnerComparer.Instance
         );
 
-        if (request.Owner is { } owner)
+        if (request.Owner is { } owner && !request.IncludeDescendants)
         {
             var rows = await ListAsync(owner, rootKeys, cancellationToken);
             foreach (var row in rows)
@@ -80,10 +85,22 @@ internal sealed class DefaultMasterKeyRewrapper(
         }
         else
         {
+            // The platform owner is every other owner's ancestor, so a request for it keeps every row.
+            var scope =
+                request.Owner is { } root
+                && !string.Equals(
+                    root.OwnerType,
+                    SecretOwnerTypes.Platform,
+                    StringComparison.OrdinalIgnoreCase
+                )
+                    ? root.Normalize()
+                    : (SecretOwner?)null;
+            var inherits = new Dictionary<SecretOwner, bool>(SecretOwnerComparer.Instance);
+
             string? cursor = null;
             do
             {
-                var page = await GetPageAsync(cursor, rootKeys, cancellationToken);
+                var page = await GetPageAsync(cursor, scope, rootKeys, inherits, cancellationToken);
                 foreach (var row in page.Items)
                 {
                     total = Add(
@@ -134,10 +151,13 @@ internal sealed class DefaultMasterKeyRewrapper(
     }
 
     // Reads a page of rows and the root key of each owner on it that this run has not read yet through the same unit of
-    // work.
+    // work. When a scope is set, only the rows of the scope, of the owners under it and those still under the key its
+    // root key names are kept, and only their owners' root keys are read.
     private async ValueTask<PagedResult<PersistedMasterKey>> GetPageAsync(
         string? cursor,
+        SecretOwner? scope,
         Dictionary<SecretOwner, PersistedOwnerRootKey?> rootKeys,
+        Dictionary<SecretOwner, bool> inherits,
         CancellationToken cancellationToken
     )
     {
@@ -146,8 +166,65 @@ internal sealed class DefaultMasterKeyRewrapper(
             .GetStore<IMasterKeyStore>()
             .GetPageAsync(new PageRequest { Limit = PageSize, Cursor = cursor }, cancellationToken);
 
-        await ReadRootKeysAsync(storeManager, page.Items, rootKeys, cancellationToken);
-        return page;
+        if (scope is not { } owner)
+        {
+            await ReadRootKeysAsync(storeManager, page.Items, rootKeys, cancellationToken);
+            return page;
+        }
+
+        var kept = await SelectAsync(storeManager, owner, page.Items, inherits, cancellationToken);
+        await ReadRootKeysAsync(storeManager, kept, rootKeys, cancellationToken);
+        return new PagedResult<PersistedMasterKey> { Items = kept, NextCursor = page.NextCursor };
+    }
+
+    // Keeps the rows that sit under the key the root key of the owner names, whatever its state, and those of the
+    // owners that inherit from the owner.
+    private async ValueTask<IReadOnlyList<PersistedMasterKey>> SelectAsync(
+        IStoreManager storeManager,
+        SecretOwner owner,
+        IReadOnlyList<PersistedMasterKey> rows,
+        Dictionary<SecretOwner, bool> inherits,
+        CancellationToken cancellationToken
+    )
+    {
+        var key = await storeManager
+            .GetStore<IOwnerRootKeyStore>()
+            .FindAsync(owner, cancellationToken);
+
+        var kept = new List<PersistedMasterKey>();
+        foreach (var row in rows)
+        {
+            if (
+                (key is not null && MasterKeyFactory.IsWrappedByKey(row, key))
+                || await InheritsAsync(row.Owner, owner, inherits, cancellationToken)
+            )
+            {
+                kept.Add(row);
+            }
+        }
+
+        return kept;
+    }
+
+    // Determines whether a candidate is the owner or has the owner among its ancestors, once per candidate in a run.
+    private async ValueTask<bool> InheritsAsync(
+        SecretOwner candidate,
+        SecretOwner owner,
+        Dictionary<SecretOwner, bool> inherits,
+        CancellationToken cancellationToken
+    )
+    {
+        if (inherits.TryGetValue(candidate, out var known))
+            return known;
+
+        var result =
+            SecretOwnerComparer.Instance.Equals(candidate, owner)
+            || (
+                await ParentResolver.GetAncestorsAsync(candidate.Normalize(), cancellationToken)
+            ).Contains(owner, SecretOwnerComparer.Instance);
+
+        inherits[candidate] = result;
+        return result;
     }
 
     private async ValueTask ReadRootKeysAsync(
