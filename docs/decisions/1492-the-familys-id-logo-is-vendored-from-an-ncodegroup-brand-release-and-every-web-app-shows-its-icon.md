@@ -1,7 +1,7 @@
 # 1492. The family's {id} logo is vendored from an NCodeGroup/brand release, and every web app shows its icon
 
 - **Status:** Accepted
-- **Date:** 2026-11-10
+- **Date:** 2026-11-18
 - **Deciders:** NCode Group
 
 ## Context
@@ -13,12 +13,20 @@ preview is 1280 by 640 pixels. GitLab takes an avatar of at most 200 KiB. Micros
 215 pixels, at most 100 KB, with a solid background. Artifact Hub and cluster dashboards show the icon a Helm chart
 names.
 
-The family belongs to the NCode Group, whose mark is `{N}`: an N between curly braces in one blue, `#0033CC`, drawn by
-`brand/build.py` of [`NCodeGroup/project-template`](https://github.com/NCodeGroup/project-template).
+The family belongs to the NCode Group, whose mark is `{N}`: an N between curly braces in one blue, `#0033CC`.
+[NCodeGroup/brand](https://github.com/NCodeGroup/brand) draws the kit of every NCode mark, the group's `{N}` and this
+family's `{id}`, with one kit writer, from each kit's geometry as data
+([its ADR-1007](https://github.com/NCodeGroup/brand/blob/v0.11.0/docs/decisions/1007-every-ncode-marks-kit-is-drawn-here-by-one-kit-writer.md)).
+Each of its releases is immutable, and its archive holds `manifest.json`, the size and SHA-256 of every released file,
+under a build provenance attestation from its publish workflow. Its `vendoring/vendor-brand.mjs` copies the files a
+consumer's lock names from that archive and checks them offline
+([its ADR-1001](https://github.com/NCodeGroup/brand/blob/v0.11.0/docs/decisions/1001-consumers-vendor-files-from-a-tagged-release-and-check-their-hashes.md),
+[its ADR-1009](https://github.com/NCodeGroup/brand/blob/v0.11.0/docs/decisions/1009-a-release-carries-an-attested-archive-and-vendor-brand-verifies-it-before-writing.md)).
 
 Pictures exported by hand for each place drift apart in proportion and color. A small icon scaled down from a large
 drawing has its strokes between pixels and looks soft. A wordmark set in a font makes every file that shows it depend
-on that font, and an SVG shown as an image cannot load one.
+on that font, and an SVG shown as an image cannot load one. A second copy of the drawing code, in another repository or
+another language, drifts from the first: a margin or an encoder changes in one and not the other.
 
 The four web apps under `frontend/apps` are served in two ways. `auth` is the sign-in and account bundle: the OP host
 serves it beneath each tenant's route, with a relative base
@@ -42,9 +50,9 @@ any shape, which a browser would squash into a 16-pixel square if it were a tab 
 ## Decision
 
 **The family's logo is `{id}`: the letters i and d between the braces of the NCode Group's mark, in the group's
-palette. `brand/build.py` draws every file of it, and `brand/` holds them. Each web app carries copies of the kit's
-browser icons, links them from its `index.html`, and its build content-hashes them into the `assets/` its host already
-serves.**
+palette. NCodeGroup/brand draws every file of it, and `brand/` holds them, vendored from one of its releases and checked
+against the SHA-256 its lock pins. Each web app carries copies of the kit's browser icons, links them from its
+`index.html`, and its build content-hashes them into the `assets/` its host already serves.**
 
 ### The logo and its kit
 
