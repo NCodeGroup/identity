@@ -45,10 +45,10 @@ SOFTWARE.
 ## Inter
 
 The wordmark "NCode Identity" and the descriptor line under it, in the lockups under `brand/lockup/`, on the cards
-under `brand/github/` and `brand/social/` and as outlines in `brand/outlines.json`, are set in Inter Display Medium and
-Inter Display Regular of Inter 4.1 (<https://github.com/rsms/inter>) and converted to outlines. `brand/outlines.py`
-produces them from the release's `Inter-4.1.zip`, after it verifies the SHA-256 of the archive and of each font file it
-reads.
+under `brand/github/` and `brand/social/` and as path data in `brand/outlines.json`, are set in Inter Display Medium
+and Inter Display Regular of Inter 4.1 (<https://github.com/rsms/inter>) and converted to outlines. NCodeGroup/brand
+(<https://github.com/NCodeGroup/brand>) produces them from the release's `Inter-4.1.zip`, whose SHA-256 its kit's source
+pins, and `brand/` vendors them from one of its releases.
 
 Inter is distributed under the following license:
 
