@@ -104,133 +104,128 @@ internal sealed class DefaultDirectoryStore(
     )
     {
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
-        return await dbContext
-            .Database.CreateExecutionStrategy()
-            .ExecuteAsync(
-                async _ =>
+        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
+        return await executionStrategy.ExecuteAsync(
+            async _ =>
+            {
+                // A retried attempt starts from the database, not from the failed attempt's tracked entities.
+                dbContext.ChangeTracker.Clear();
+                await using var transaction = await dbContext.Database.BeginTransactionAsync(
+                    IsolationLevel.Serializable,
+                    cancellationToken
+                );
+
+                var tenantId = reservation.TenantId;
+                var normalizedTenantId = Normalize(tenantId);
+                var normalizedIssuer = Normalize(reservation.Issuer);
+                var normalizedTeamId = reservation.TeamId is { } requestedTeamId
+                    ? Normalize(requestedTeamId)
+                    : null;
+
+                var existing = await dbContext
+                    .Tenants.AsNoTracking()
+                    .Where(entity => entity.NormalizedTenantId == normalizedTenantId)
+                    .Select(entity => new
+                    {
+                        entity.State,
+                        entity.Cell,
+                        entity.NormalizedIssuer,
+                        entity.NormalizedTeamId,
+                    })
+                    .SingleOrDefaultAsync(cancellationToken);
+                if (existing?.State == TenantRecord.StateRetired)
                 {
-                    // A retried attempt starts from the database, not from the failed attempt's tracked entities.
-                    dbContext.ChangeTracker.Clear();
-                    await using var transaction = await dbContext.Database.BeginTransactionAsync(
-                        IsolationLevel.Serializable,
-                        cancellationToken
+                    return ReservationResult.Conflict(
+                        $"The tenant identifier '{tenantId}' belonged to a deleted tenant and is never reissued."
                     );
+                }
 
-                    var tenantId = reservation.TenantId;
-                    var normalizedTenantId = Normalize(tenantId);
-                    var normalizedIssuer = Normalize(reservation.Issuer);
-                    var normalizedTeamId = reservation.TeamId is { } requestedTeamId
-                        ? Normalize(requestedTeamId)
-                        : null;
-
-                    var existing = await dbContext
-                        .Tenants.AsNoTracking()
-                        .Where(entity => entity.NormalizedTenantId == normalizedTenantId)
-                        .Select(entity => new
-                        {
-                            entity.State,
-                            entity.Cell,
-                            entity.NormalizedIssuer,
-                            entity.NormalizedTeamId,
-                        })
-                        .SingleOrDefaultAsync(cancellationToken);
-                    if (existing?.State == TenantRecord.StateRetired)
-                    {
-                        return ReservationResult.Conflict(
-                            $"The tenant identifier '{tenantId}' belonged to a deleted tenant and is never reissued."
-                        );
-                    }
-
-                    if (existing is not null)
-                    {
-                        // A reservation that runs again after its commit's acknowledgement is lost finds its own
-                        // record: the calling cell holds it for the same issuer and team, and no placement has
-                        // consumed it.
-                        if (
-                            existing.State == TenantRecord.StateReserved
-                            && string.Equals(
-                                existing.Cell,
-                                reservation.Cell,
-                                StringComparison.Ordinal
-                            )
-                            && string.Equals(
-                                existing.NormalizedIssuer,
-                                normalizedIssuer,
-                                StringComparison.Ordinal
-                            )
-                            && string.Equals(
-                                existing.NormalizedTeamId,
-                                normalizedTeamId,
-                                StringComparison.Ordinal
-                            )
-                        )
-                        {
-                            return ReservationResult.Reserved();
-                        }
-
-                        return ReservationResult.Conflict(
-                            $"Another tenant already has the identifier '{tenantId}'."
-                        );
-                    }
-
+                if (existing is not null)
+                {
+                    // A reservation that runs again after its commit's acknowledgement is lost finds its own
+                    // record: the calling cell holds it for the same issuer and team, and no placement has
+                    // consumed it.
                     if (
-                        await dbContext.Tenants.AnyAsync(
-                            entity => entity.NormalizedIssuer == normalizedIssuer,
-                            cancellationToken
+                        existing.State == TenantRecord.StateReserved
+                        && string.Equals(existing.Cell, reservation.Cell, StringComparison.Ordinal)
+                        && string.Equals(
+                            existing.NormalizedIssuer,
+                            normalizedIssuer,
+                            StringComparison.Ordinal
+                        )
+                        && string.Equals(
+                            existing.NormalizedTeamId,
+                            normalizedTeamId,
+                            StringComparison.Ordinal
                         )
                     )
                     {
-                        return ReservationResult.Conflict(
-                            $"Another tenant already has the issuer '{reservation.Issuer}'."
-                        );
+                        return ReservationResult.Reserved();
                     }
 
-                    var retiredIssuerDetail = await FindRetiredIssuerConflictAsync(
+                    return ReservationResult.Conflict(
+                        $"Another tenant already has the identifier '{tenantId}'."
+                    );
+                }
+
+                if (
+                    await dbContext.Tenants.AnyAsync(
+                        entity => entity.NormalizedIssuer == normalizedIssuer,
+                        cancellationToken
+                    )
+                )
+                {
+                    return ReservationResult.Conflict(
+                        $"Another tenant already has the issuer '{reservation.Issuer}'."
+                    );
+                }
+
+                var retiredIssuerDetail = await FindRetiredIssuerConflictAsync(
+                    dbContext,
+                    tenantId,
+                    reservation.Issuer,
+                    cancellationToken
+                );
+                if (retiredIssuerDetail is not null)
+                {
+                    return ReservationResult.Conflict(retiredIssuerDetail);
+                }
+
+                if (reservation.TeamId is { } teamId)
+                {
+                    var fullTeamDetail = await FindTeamAtLimitAsync(
                         dbContext,
-                        tenantId,
-                        reservation.Issuer,
+                        teamId,
                         cancellationToken
                     );
-                    if (retiredIssuerDetail is not null)
+                    if (fullTeamDetail is not null)
                     {
-                        return ReservationResult.Conflict(retiredIssuerDetail);
+                        return ReservationResult.Conflict(fullTeamDetail);
                     }
+                }
 
-                    if (reservation.TeamId is { } teamId)
+                var now = TimeProvider.GetUtcNow();
+                dbContext.Tenants.Add(
+                    new TenantRecord
                     {
-                        var fullTeamDetail = await FindTeamAtLimitAsync(
-                            dbContext,
-                            teamId,
-                            cancellationToken
-                        );
-                        if (fullTeamDetail is not null)
-                        {
-                            return ReservationResult.Conflict(fullTeamDetail);
-                        }
+                        TenantId = tenantId,
+                        NormalizedTenantId = normalizedTenantId,
+                        Issuer = reservation.Issuer,
+                        NormalizedIssuer = normalizedIssuer,
+                        NormalizedTeamId = normalizedTeamId,
+                        Cell = reservation.Cell,
+                        State = TenantRecord.StateReserved,
+                        CreatedWhen = now,
+                        ModifiedWhen = now,
                     }
+                );
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
 
-                    var now = TimeProvider.GetUtcNow();
-                    dbContext.Tenants.Add(
-                        new TenantRecord
-                        {
-                            TenantId = tenantId,
-                            NormalizedTenantId = normalizedTenantId,
-                            Issuer = reservation.Issuer,
-                            NormalizedIssuer = normalizedIssuer,
-                            NormalizedTeamId = normalizedTeamId,
-                            Cell = reservation.Cell,
-                            State = TenantRecord.StateReserved,
-                            CreatedWhen = now,
-                            ModifiedWhen = now,
-                        }
-                    );
-                    await dbContext.SaveChangesAsync(cancellationToken);
-                    await transaction.CommitAsync(cancellationToken);
-
-                    return ReservationResult.Reserved();
-                },
-                cancellationToken
-            );
+                return ReservationResult.Reserved();
+            },
+            cancellationToken
+        );
     }
 
     /// <inheritdoc />
@@ -240,68 +235,65 @@ internal sealed class DefaultDirectoryStore(
     )
     {
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
-        return await dbContext
-            .Database.CreateExecutionStrategy()
-            .ExecuteAsync(
-                async _ =>
+        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
+        return await executionStrategy.ExecuteAsync(
+            async _ =>
+            {
+                // A retried attempt starts from the database, not from the failed attempt's tracked entities.
+                dbContext.ChangeTracker.Clear();
+                await using var transaction = await dbContext.Database.BeginTransactionAsync(
+                    IsolationLevel.Serializable,
+                    cancellationToken
+                );
+
+                var tenantId = placement.TenantId;
+                var normalizedTenantId = Normalize(tenantId);
+                var tenant = await dbContext.Tenants.SingleOrDefaultAsync(
+                    entity => entity.NormalizedTenantId == normalizedTenantId,
+                    cancellationToken
+                );
+                if (tenant is null)
                 {
-                    // A retried attempt starts from the database, not from the failed attempt's tracked entities.
-                    dbContext.ChangeTracker.Clear();
-                    await using var transaction = await dbContext.Database.BeginTransactionAsync(
-                        IsolationLevel.Serializable,
-                        cancellationToken
+                    return ReservationResult.Conflict($"The tenant '{tenantId}' is not reserved.");
+                }
+
+                if (tenant.State == TenantRecord.StateRetired)
+                {
+                    // A retired identifier is never reissued, so a placement cannot bring it back.
+                    return ReservationResult.Conflict(
+                        $"The tenant identifier '{tenantId}' belonged to a deleted tenant and is never reissued."
                     );
+                }
 
-                    var tenantId = placement.TenantId;
-                    var normalizedTenantId = Normalize(tenantId);
-                    var tenant = await dbContext.Tenants.SingleOrDefaultAsync(
-                        entity => entity.NormalizedTenantId == normalizedTenantId,
-                        cancellationToken
-                    );
-                    if (tenant is null)
-                    {
-                        return ReservationResult.Conflict(
-                            $"The tenant '{tenantId}' is not reserved."
-                        );
-                    }
-
-                    if (tenant.State == TenantRecord.StateRetired)
-                    {
-                        // A retired identifier is never reissued, so a placement cannot bring it back.
-                        return ReservationResult.Conflict(
-                            $"The tenant identifier '{tenantId}' belonged to a deleted tenant and is never reissued."
-                        );
-                    }
-
-                    if (
-                        !string.Equals(tenant.Cell, placement.Cell, StringComparison.Ordinal)
-                        || !string.Equals(
-                            tenant.NormalizedIssuer,
-                            Normalize(placement.Issuer),
-                            StringComparison.Ordinal
-                        )
+                if (
+                    !string.Equals(tenant.Cell, placement.Cell, StringComparison.Ordinal)
+                    || !string.Equals(
+                        tenant.NormalizedIssuer,
+                        Normalize(placement.Issuer),
+                        StringComparison.Ordinal
                     )
-                    {
-                        return ReservationResult.Conflict(
-                            $"The tenant '{tenantId}' is reserved for another cell or issuer."
-                        );
-                    }
+                )
+                {
+                    return ReservationResult.Conflict(
+                        $"The tenant '{tenantId}' is reserved for another cell or issuer."
+                    );
+                }
 
-                    if (tenant.State == TenantRecord.StatePlaced)
-                    {
-                        return ReservationResult.Reserved();
-                    }
-
-                    tenant.State = TenantRecord.StatePlaced;
-                    tenant.ModifiedWhen = TimeProvider.GetUtcNow();
-
-                    await dbContext.SaveChangesAsync(cancellationToken);
-                    await transaction.CommitAsync(cancellationToken);
-
+                if (tenant.State == TenantRecord.StatePlaced)
+                {
                     return ReservationResult.Reserved();
-                },
-                cancellationToken
-            );
+                }
+
+                tenant.State = TenantRecord.StatePlaced;
+                tenant.ModifiedWhen = TimeProvider.GetUtcNow();
+
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+
+                return ReservationResult.Reserved();
+            },
+            cancellationToken
+        );
     }
 
     /// <inheritdoc />
@@ -332,47 +324,46 @@ internal sealed class DefaultDirectoryStore(
     )
     {
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
-        return await dbContext
-            .Database.CreateExecutionStrategy()
-            .ExecuteAsync(
-                async _ =>
+        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
+        return await executionStrategy.ExecuteAsync(
+            async _ =>
+            {
+                // A retried attempt starts from the database, not from the failed attempt's tracked entities.
+                dbContext.ChangeTracker.Clear();
+                await using var transaction = await dbContext.Database.BeginTransactionAsync(
+                    IsolationLevel.Serializable,
+                    cancellationToken
+                );
+
+                var normalizedTenantId = Normalize(tenantId);
+                var tenant = await dbContext.Tenants.SingleOrDefaultAsync(
+                    entity => entity.NormalizedTenantId == normalizedTenantId,
+                    cancellationToken
+                );
+                if (tenant is null)
                 {
-                    // A retried attempt starts from the database, not from the failed attempt's tracked entities.
-                    dbContext.ChangeTracker.Clear();
-                    await using var transaction = await dbContext.Database.BeginTransactionAsync(
-                        IsolationLevel.Serializable,
-                        cancellationToken
-                    );
-
-                    var normalizedTenantId = Normalize(tenantId);
-                    var tenant = await dbContext.Tenants.SingleOrDefaultAsync(
-                        entity => entity.NormalizedTenantId == normalizedTenantId,
-                        cancellationToken
-                    );
-                    if (tenant is null)
-                    {
-                        // A tenant with no record has nothing to release, whoever asks.
-                        return DirectoryTenantWriteResult.Done();
-                    }
-
-                    if (!IsAuthorized(callerCell, tenant.Cell))
-                    {
-                        return DirectoryTenantWriteResult.Forbidden(WriteForbiddenDetail);
-                    }
-
-                    if (tenant.State != TenantRecord.StateReserved)
-                    {
-                        return DirectoryTenantWriteResult.Done();
-                    }
-
-                    dbContext.Tenants.Remove(tenant);
-                    await dbContext.SaveChangesAsync(cancellationToken);
-                    await transaction.CommitAsync(cancellationToken);
-
+                    // A tenant with no record has nothing to release, whoever asks.
                     return DirectoryTenantWriteResult.Done();
-                },
-                cancellationToken
-            );
+                }
+
+                if (!IsAuthorized(callerCell, tenant.Cell))
+                {
+                    return DirectoryTenantWriteResult.Forbidden(WriteForbiddenDetail);
+                }
+
+                if (tenant.State != TenantRecord.StateReserved)
+                {
+                    return DirectoryTenantWriteResult.Done();
+                }
+
+                dbContext.Tenants.Remove(tenant);
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+
+                return DirectoryTenantWriteResult.Done();
+            },
+            cancellationToken
+        );
     }
 
     /// <inheritdoc />
@@ -384,113 +375,110 @@ internal sealed class DefaultDirectoryStore(
     )
     {
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
-        return await dbContext
-            .Database.CreateExecutionStrategy()
-            .ExecuteAsync(
-                async _ =>
+        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
+        return await executionStrategy.ExecuteAsync(
+            async _ =>
+            {
+                // A retried attempt starts from the database, not from the failed attempt's tracked entities.
+                dbContext.ChangeTracker.Clear();
+                await using var transaction = await dbContext.Database.BeginTransactionAsync(
+                    IsolationLevel.Serializable,
+                    cancellationToken
+                );
+
+                var normalizedTenantId = Normalize(tenantId);
+                var tenant = await dbContext.Tenants.SingleOrDefaultAsync(
+                    entity =>
+                        entity.NormalizedTenantId == normalizedTenantId
+                        && entity.State == TenantRecord.StatePlaced,
+                    cancellationToken
+                );
+                if (tenant is null)
                 {
-                    // A retried attempt starts from the database, not from the failed attempt's tracked entities.
-                    dbContext.ChangeTracker.Clear();
-                    await using var transaction = await dbContext.Database.BeginTransactionAsync(
-                        IsolationLevel.Serializable,
-                        cancellationToken
-                    );
+                    return MoveResult.Conflict($"The tenant '{tenantId}' is not placed in a cell.");
+                }
 
-                    var normalizedTenantId = Normalize(tenantId);
-                    var tenant = await dbContext.Tenants.SingleOrDefaultAsync(
-                        entity =>
-                            entity.NormalizedTenantId == normalizedTenantId
-                            && entity.State == TenantRecord.StatePlaced,
-                        cancellationToken
-                    );
-                    if (tenant is null)
-                    {
-                        return MoveResult.Conflict(
-                            $"The tenant '{tenantId}' is not placed in a cell."
-                        );
-                    }
-
-                    // A move that runs again after its commit's acknowledgement is lost finds the tenant in the
-                    // target cell, which the route allows only as the caller, with the offer consumed.
-                    if (
-                        string.Equals(tenant.Cell, toCell, StringComparison.Ordinal)
-                        && !string.Equals(fromCell, toCell, StringComparison.Ordinal)
-                    )
-                    {
-                        return MoveResult.Moved();
-                    }
-
-                    if (!string.Equals(tenant.Cell, fromCell, StringComparison.Ordinal))
-                    {
-                        return MoveResult.Conflict(
-                            $"The tenant '{tenantId}' is not placed in the cell '{fromCell}'."
-                        );
-                    }
-
-                    if (string.Equals(fromCell, toCell, StringComparison.Ordinal))
-                    {
-                        return MoveResult.Conflict(
-                            $"The tenant '{tenantId}' is already placed in the cell '{toCell}'."
-                        );
-                    }
-
-                    var from = await dbContext
-                        .Cells.AsNoTracking()
-                        .SingleOrDefaultAsync(entity => entity.Name == fromCell, cancellationToken);
-                    if (from is null)
-                    {
-                        return MoveResult.Conflict($"The cell '{fromCell}' is not registered.");
-                    }
-
-                    var to = await dbContext
-                        .Cells.AsNoTracking()
-                        .SingleOrDefaultAsync(entity => entity.Name == toCell, cancellationToken);
-                    if (to is null)
-                    {
-                        return MoveResult.Conflict($"The cell '{toCell}' is not registered.");
-                    }
-
-                    if (!string.Equals(from.Region, to.Region, StringComparison.Ordinal))
-                    {
-                        return MoveResult.Conflict(
-                            $"The cells '{fromCell}' and '{toCell}' are in different regions, and a tenant moves only within its region."
-                        );
-                    }
-
-                    var offer = await dbContext.TenantMoveOffers.SingleOrDefaultAsync(
-                        entity => entity.NormalizedTenantId == normalizedTenantId,
-                        cancellationToken
-                    );
-                    if (
-                        offer is null
-                        || !string.Equals(offer.FromCell, fromCell, StringComparison.Ordinal)
-                        || !string.Equals(offer.ToCell, toCell, StringComparison.Ordinal)
-                    )
-                    {
-                        return MoveResult.Conflict(
-                            $"The cell '{fromCell}' has not offered the tenant '{tenantId}' to the cell '{toCell}'."
-                        );
-                    }
-
-                    var now = TimeProvider.GetUtcNow();
-                    if (offer.ExpiresWhen <= now)
-                    {
-                        return MoveResult.Conflict(
-                            $"The offer of the tenant '{tenantId}' to the cell '{toCell}' has expired."
-                        );
-                    }
-
-                    dbContext.TenantMoveOffers.Remove(offer);
-                    tenant.Cell = toCell;
-                    tenant.ModifiedWhen = now;
-
-                    await dbContext.SaveChangesAsync(cancellationToken);
-                    await transaction.CommitAsync(cancellationToken);
-
+                // A move that runs again after its commit's acknowledgement is lost finds the tenant in the
+                // target cell, which the route allows only as the caller, with the offer consumed.
+                if (
+                    string.Equals(tenant.Cell, toCell, StringComparison.Ordinal)
+                    && !string.Equals(fromCell, toCell, StringComparison.Ordinal)
+                )
+                {
                     return MoveResult.Moved();
-                },
-                cancellationToken
-            );
+                }
+
+                if (!string.Equals(tenant.Cell, fromCell, StringComparison.Ordinal))
+                {
+                    return MoveResult.Conflict(
+                        $"The tenant '{tenantId}' is not placed in the cell '{fromCell}'."
+                    );
+                }
+
+                if (string.Equals(fromCell, toCell, StringComparison.Ordinal))
+                {
+                    return MoveResult.Conflict(
+                        $"The tenant '{tenantId}' is already placed in the cell '{toCell}'."
+                    );
+                }
+
+                var from = await dbContext
+                    .Cells.AsNoTracking()
+                    .SingleOrDefaultAsync(entity => entity.Name == fromCell, cancellationToken);
+                if (from is null)
+                {
+                    return MoveResult.Conflict($"The cell '{fromCell}' is not registered.");
+                }
+
+                var to = await dbContext
+                    .Cells.AsNoTracking()
+                    .SingleOrDefaultAsync(entity => entity.Name == toCell, cancellationToken);
+                if (to is null)
+                {
+                    return MoveResult.Conflict($"The cell '{toCell}' is not registered.");
+                }
+
+                if (!string.Equals(from.Region, to.Region, StringComparison.Ordinal))
+                {
+                    return MoveResult.Conflict(
+                        $"The cells '{fromCell}' and '{toCell}' are in different regions, and a tenant moves only within its region."
+                    );
+                }
+
+                var offer = await dbContext.TenantMoveOffers.SingleOrDefaultAsync(
+                    entity => entity.NormalizedTenantId == normalizedTenantId,
+                    cancellationToken
+                );
+                if (
+                    offer is null
+                    || !string.Equals(offer.FromCell, fromCell, StringComparison.Ordinal)
+                    || !string.Equals(offer.ToCell, toCell, StringComparison.Ordinal)
+                )
+                {
+                    return MoveResult.Conflict(
+                        $"The cell '{fromCell}' has not offered the tenant '{tenantId}' to the cell '{toCell}'."
+                    );
+                }
+
+                var now = TimeProvider.GetUtcNow();
+                if (offer.ExpiresWhen <= now)
+                {
+                    return MoveResult.Conflict(
+                        $"The offer of the tenant '{tenantId}' to the cell '{toCell}' has expired."
+                    );
+                }
+
+                dbContext.TenantMoveOffers.Remove(offer);
+                tenant.Cell = toCell;
+                tenant.ModifiedWhen = now;
+
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+
+                return MoveResult.Moved();
+            },
+            cancellationToken
+        );
     }
 
     /// <inheritdoc />
@@ -502,106 +490,103 @@ internal sealed class DefaultDirectoryStore(
     )
     {
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
-        return await dbContext
-            .Database.CreateExecutionStrategy()
-            .ExecuteAsync(
-                async _ =>
+        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
+        return await executionStrategy.ExecuteAsync(
+            async _ =>
+            {
+                // A retried attempt starts from the database, not from the failed attempt's tracked entities.
+                dbContext.ChangeTracker.Clear();
+                await using var transaction = await dbContext.Database.BeginTransactionAsync(
+                    IsolationLevel.Serializable,
+                    cancellationToken
+                );
+
+                var normalizedTenantId = Normalize(tenantId);
+                var tenant = await dbContext
+                    .Tenants.AsNoTracking()
+                    .SingleOrDefaultAsync(
+                        entity =>
+                            entity.NormalizedTenantId == normalizedTenantId
+                            && entity.State == TenantRecord.StatePlaced,
+                        cancellationToken
+                    );
+                if (tenant is null)
                 {
-                    // A retried attempt starts from the database, not from the failed attempt's tracked entities.
-                    dbContext.ChangeTracker.Clear();
-                    await using var transaction = await dbContext.Database.BeginTransactionAsync(
-                        IsolationLevel.Serializable,
-                        cancellationToken
+                    return MoveOfferResult.Conflict(
+                        $"The tenant '{tenantId}' is not placed in a cell."
                     );
+                }
 
-                    var normalizedTenantId = Normalize(tenantId);
-                    var tenant = await dbContext
-                        .Tenants.AsNoTracking()
-                        .SingleOrDefaultAsync(
-                            entity =>
-                                entity.NormalizedTenantId == normalizedTenantId
-                                && entity.State == TenantRecord.StatePlaced,
-                            cancellationToken
-                        );
-                    if (tenant is null)
-                    {
-                        return MoveOfferResult.Conflict(
-                            $"The tenant '{tenantId}' is not placed in a cell."
-                        );
-                    }
-
-                    if (!string.Equals(tenant.Cell, fromCell, StringComparison.Ordinal))
-                    {
-                        return MoveOfferResult.Conflict(
-                            $"The tenant '{tenantId}' is not placed in the cell '{fromCell}'."
-                        );
-                    }
-
-                    if (string.Equals(fromCell, toCell, StringComparison.Ordinal))
-                    {
-                        return MoveOfferResult.Conflict(
-                            $"The tenant '{tenantId}' is already placed in the cell '{toCell}'."
-                        );
-                    }
-
-                    var from = await dbContext
-                        .Cells.AsNoTracking()
-                        .SingleOrDefaultAsync(entity => entity.Name == fromCell, cancellationToken);
-                    if (from is null)
-                    {
-                        return MoveOfferResult.Conflict(
-                            $"The cell '{fromCell}' is not registered."
-                        );
-                    }
-
-                    var to = await dbContext
-                        .Cells.AsNoTracking()
-                        .SingleOrDefaultAsync(entity => entity.Name == toCell, cancellationToken);
-                    if (to is null)
-                    {
-                        return MoveOfferResult.Conflict($"The cell '{toCell}' is not registered.");
-                    }
-
-                    if (!string.Equals(from.Region, to.Region, StringComparison.Ordinal))
-                    {
-                        return MoveOfferResult.Conflict(
-                            $"The cells '{fromCell}' and '{toCell}' are in different regions, and a tenant moves only within its region."
-                        );
-                    }
-
-                    var now = TimeProvider.GetUtcNow();
-                    var offer = await dbContext.TenantMoveOffers.SingleOrDefaultAsync(
-                        entity => entity.NormalizedTenantId == normalizedTenantId,
-                        cancellationToken
+                if (!string.Equals(tenant.Cell, fromCell, StringComparison.Ordinal))
+                {
+                    return MoveOfferResult.Conflict(
+                        $"The tenant '{tenantId}' is not placed in the cell '{fromCell}'."
                     );
-                    if (offer is null)
-                    {
-                        dbContext.TenantMoveOffers.Add(
-                            new TenantMoveOfferRecord
-                            {
-                                NormalizedTenantId = normalizedTenantId,
-                                FromCell = fromCell,
-                                ToCell = toCell,
-                                CreatedWhen = now,
-                                ExpiresWhen = now.AddHours(MoveOfferLifetimeHours),
-                            }
-                        );
-                    }
-                    else
-                    {
-                        offer.FromCell = fromCell;
-                        offer.ToCell = toCell;
-                        offer.CreatedWhen = now;
-                        offer.ExpiresWhen = now.AddHours(MoveOfferLifetimeHours);
-                    }
+                }
 
-                    await dbContext.SaveChangesAsync(cancellationToken);
-                    await transaction.CommitAsync(cancellationToken);
+                if (string.Equals(fromCell, toCell, StringComparison.Ordinal))
+                {
+                    return MoveOfferResult.Conflict(
+                        $"The tenant '{tenantId}' is already placed in the cell '{toCell}'."
+                    );
+                }
 
-                    return MoveOfferResult.Offered();
-                },
-                cancellationToken
-            );
+                var from = await dbContext
+                    .Cells.AsNoTracking()
+                    .SingleOrDefaultAsync(entity => entity.Name == fromCell, cancellationToken);
+                if (from is null)
+                {
+                    return MoveOfferResult.Conflict($"The cell '{fromCell}' is not registered.");
+                }
+
+                var to = await dbContext
+                    .Cells.AsNoTracking()
+                    .SingleOrDefaultAsync(entity => entity.Name == toCell, cancellationToken);
+                if (to is null)
+                {
+                    return MoveOfferResult.Conflict($"The cell '{toCell}' is not registered.");
+                }
+
+                if (!string.Equals(from.Region, to.Region, StringComparison.Ordinal))
+                {
+                    return MoveOfferResult.Conflict(
+                        $"The cells '{fromCell}' and '{toCell}' are in different regions, and a tenant moves only within its region."
+                    );
+                }
+
+                var now = TimeProvider.GetUtcNow();
+                var offer = await dbContext.TenantMoveOffers.SingleOrDefaultAsync(
+                    entity => entity.NormalizedTenantId == normalizedTenantId,
+                    cancellationToken
+                );
+                if (offer is null)
+                {
+                    dbContext.TenantMoveOffers.Add(
+                        new TenantMoveOfferRecord
+                        {
+                            NormalizedTenantId = normalizedTenantId,
+                            FromCell = fromCell,
+                            ToCell = toCell,
+                            CreatedWhen = now,
+                            ExpiresWhen = now.AddHours(MoveOfferLifetimeHours),
+                        }
+                    );
+                }
+                else
+                {
+                    offer.FromCell = fromCell;
+                    offer.ToCell = toCell;
+                    offer.CreatedWhen = now;
+                    offer.ExpiresWhen = now.AddHours(MoveOfferLifetimeHours);
+                }
+
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+
+                return MoveOfferResult.Offered();
+            },
+            cancellationToken
+        );
     }
 
     /// <inheritdoc />
@@ -633,74 +618,73 @@ internal sealed class DefaultDirectoryStore(
     )
     {
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
-        return await dbContext
-            .Database.CreateExecutionStrategy()
-            .ExecuteAsync(
-                async _ =>
+        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
+        return await executionStrategy.ExecuteAsync(
+            async _ =>
+            {
+                // A retried attempt starts from the database, not from the failed attempt's tracked entities.
+                dbContext.ChangeTracker.Clear();
+                await using var transaction = await dbContext.Database.BeginTransactionAsync(
+                    IsolationLevel.Serializable,
+                    cancellationToken
+                );
+
+                var tenantId = retirement.TenantId;
+                var normalizedTenantId = Normalize(tenantId);
+                var tenant = await dbContext.Tenants.SingleOrDefaultAsync(
+                    entity => entity.NormalizedTenantId == normalizedTenantId,
+                    cancellationToken
+                );
+                if (!IsAuthorized(callerCell, tenant?.Cell))
                 {
-                    // A retried attempt starts from the database, not from the failed attempt's tracked entities.
-                    dbContext.ChangeTracker.Clear();
-                    await using var transaction = await dbContext.Database.BeginTransactionAsync(
-                        IsolationLevel.Serializable,
-                        cancellationToken
+                    return DirectoryTenantWriteResult.Forbidden(WriteForbiddenDetail);
+                }
+
+                var now = TimeProvider.GetUtcNow();
+                string? issuer;
+                if (tenant is null)
+                {
+                    // A tenant with no record holds no issuer the directory knows, so the retirement names it.
+                    issuer = retirement.Issuer;
+                    dbContext.Tenants.Add(
+                        new TenantRecord
+                        {
+                            TenantId = tenantId,
+                            NormalizedTenantId = normalizedTenantId,
+                            State = TenantRecord.StateRetired,
+                            CreatedWhen = now,
+                            ModifiedWhen = now,
+                        }
                     );
-
-                    var tenantId = retirement.TenantId;
-                    var normalizedTenantId = Normalize(tenantId);
-                    var tenant = await dbContext.Tenants.SingleOrDefaultAsync(
-                        entity => entity.NormalizedTenantId == normalizedTenantId,
-                        cancellationToken
-                    );
-                    if (!IsAuthorized(callerCell, tenant?.Cell))
-                    {
-                        return DirectoryTenantWriteResult.Forbidden(WriteForbiddenDetail);
-                    }
-
-                    var now = TimeProvider.GetUtcNow();
-                    string? issuer;
-                    if (tenant is null)
-                    {
-                        // A tenant with no record holds no issuer the directory knows, so the retirement names it.
-                        issuer = retirement.Issuer;
-                        dbContext.Tenants.Add(
-                            new TenantRecord
-                            {
-                                TenantId = tenantId,
-                                NormalizedTenantId = normalizedTenantId,
-                                State = TenantRecord.StateRetired,
-                                CreatedWhen = now,
-                                ModifiedWhen = now,
-                            }
-                        );
-                    }
-                    else if (tenant.State == TenantRecord.StateRetired)
-                    {
-                        return DirectoryTenantWriteResult.Done();
-                    }
-                    else
-                    {
-                        // The issuer the tenant holds is retired, so no other tenant can take it, whatever the
-                        // retirement names. A retired record holds no issuer: the issuer is recorded as retired, below.
-                        issuer = tenant.Issuer;
-                        tenant.State = TenantRecord.StateRetired;
-                        tenant.Issuer = null;
-                        tenant.NormalizedIssuer = null;
-                        tenant.NormalizedTeamId = null;
-                        tenant.ModifiedWhen = now;
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(issuer))
-                    {
-                        await AddRetiredIssuerAsync(dbContext, tenantId, issuer, cancellationToken);
-                    }
-
-                    await dbContext.SaveChangesAsync(cancellationToken);
-                    await transaction.CommitAsync(cancellationToken);
-
+                }
+                else if (tenant.State == TenantRecord.StateRetired)
+                {
                     return DirectoryTenantWriteResult.Done();
-                },
-                cancellationToken
-            );
+                }
+                else
+                {
+                    // The issuer the tenant holds is retired, so no other tenant can take it, whatever the
+                    // retirement names. A retired record holds no issuer: the issuer is recorded as retired, below.
+                    issuer = tenant.Issuer;
+                    tenant.State = TenantRecord.StateRetired;
+                    tenant.Issuer = null;
+                    tenant.NormalizedIssuer = null;
+                    tenant.NormalizedTeamId = null;
+                    tenant.ModifiedWhen = now;
+                }
+
+                if (!string.IsNullOrWhiteSpace(issuer))
+                {
+                    await AddRetiredIssuerAsync(dbContext, tenantId, issuer, cancellationToken);
+                }
+
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+
+                return DirectoryTenantWriteResult.Done();
+            },
+            cancellationToken
+        );
     }
 
     /// <inheritdoc />
@@ -737,112 +721,104 @@ internal sealed class DefaultDirectoryStore(
     )
     {
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
-        return await dbContext
-            .Database.CreateExecutionStrategy()
-            .ExecuteAsync(
-                async _ =>
+        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
+        return await executionStrategy.ExecuteAsync(
+            async _ =>
+            {
+                // A retried attempt starts from the database, not from the failed attempt's tracked entities.
+                dbContext.ChangeTracker.Clear();
+                await using var transaction = await dbContext.Database.BeginTransactionAsync(
+                    IsolationLevel.Serializable,
+                    cancellationToken
+                );
+
+                var tenantId = change.TenantId;
+                var normalizedTenantId = Normalize(tenantId);
+                var tenant = await dbContext.Tenants.SingleOrDefaultAsync(
+                    entity => entity.NormalizedTenantId == normalizedTenantId,
+                    cancellationToken
+                );
+                if (!IsAuthorized(callerCell, tenant?.Cell))
                 {
-                    // A retried attempt starts from the database, not from the failed attempt's tracked entities.
-                    dbContext.ChangeTracker.Clear();
-                    await using var transaction = await dbContext.Database.BeginTransactionAsync(
-                        IsolationLevel.Serializable,
-                        cancellationToken
+                    return DirectoryTenantWriteResult.Forbidden(WriteForbiddenDetail);
+                }
+
+                if (tenant is null)
+                {
+                    return DirectoryTenantWriteResult.NotFound(
+                        $"The tenant '{tenantId}' has no record."
                     );
+                }
 
-                    var tenantId = change.TenantId;
-                    var normalizedTenantId = Normalize(tenantId);
-                    var tenant = await dbContext.Tenants.SingleOrDefaultAsync(
-                        entity => entity.NormalizedTenantId == normalizedTenantId,
-                        cancellationToken
+                if (tenant.State == TenantRecord.StateRetired)
+                {
+                    return DirectoryTenantWriteResult.Conflict(
+                        $"The tenant '{tenantId}' is retired."
                     );
-                    if (!IsAuthorized(callerCell, tenant?.Cell))
-                    {
-                        return DirectoryTenantWriteResult.Forbidden(WriteForbiddenDetail);
-                    }
+                }
 
-                    if (tenant is null)
-                    {
-                        return DirectoryTenantWriteResult.NotFound(
-                            $"The tenant '{tenantId}' has no record."
-                        );
-                    }
-
-                    if (tenant.State == TenantRecord.StateRetired)
-                    {
-                        return DirectoryTenantWriteResult.Conflict(
-                            $"The tenant '{tenantId}' is retired."
-                        );
-                    }
-
-                    var storedIssuer = tenant.NormalizedIssuer;
-                    var newIssuer = change.Issuer is { } issuerValue
-                        ? Normalize(issuerValue)
-                        : null;
-                    if (string.Equals(storedIssuer, newIssuer, StringComparison.Ordinal))
-                    {
-                        // The tenant already holds the new issuer, so a retried change is done.
-                        return DirectoryTenantWriteResult.Done();
-                    }
-
-                    var previousIssuer = change.PreviousIssuer is { } previousValue
-                        ? Normalize(previousValue)
-                        : null;
-                    if (!string.Equals(storedIssuer, previousIssuer, StringComparison.Ordinal))
-                    {
-                        return DirectoryTenantWriteResult.Conflict(
-                            $"The tenant '{tenantId}' does not hold the issuer '{change.PreviousIssuer}'."
-                        );
-                    }
-
-                    if (change.Issuer is { } issuer)
-                    {
-                        if (
-                            await dbContext.Tenants.AnyAsync(
-                                entity =>
-                                    entity.NormalizedIssuer == newIssuer
-                                    && entity.NormalizedTenantId != normalizedTenantId,
-                                cancellationToken
-                            )
-                        )
-                        {
-                            return DirectoryTenantWriteResult.Conflict(
-                                $"Another tenant already has the issuer '{issuer}'."
-                            );
-                        }
-
-                        var retiredIssuerDetail = await FindRetiredIssuerConflictAsync(
-                            dbContext,
-                            tenantId,
-                            issuer,
-                            cancellationToken
-                        );
-                        if (retiredIssuerDetail is not null)
-                        {
-                            return DirectoryTenantWriteResult.Conflict(retiredIssuerDetail);
-                        }
-                    }
-
-                    if (tenant.Issuer is { } heldIssuer)
-                    {
-                        await AddRetiredIssuerAsync(
-                            dbContext,
-                            tenantId,
-                            heldIssuer,
-                            cancellationToken
-                        );
-                    }
-
-                    tenant.Issuer = change.Issuer;
-                    tenant.NormalizedIssuer = newIssuer;
-                    tenant.ModifiedWhen = TimeProvider.GetUtcNow();
-
-                    await dbContext.SaveChangesAsync(cancellationToken);
-                    await transaction.CommitAsync(cancellationToken);
-
+                var storedIssuer = tenant.NormalizedIssuer;
+                var newIssuer = change.Issuer is { } issuerValue ? Normalize(issuerValue) : null;
+                if (string.Equals(storedIssuer, newIssuer, StringComparison.Ordinal))
+                {
+                    // The tenant already holds the new issuer, so a retried change is done.
                     return DirectoryTenantWriteResult.Done();
-                },
-                cancellationToken
-            );
+                }
+
+                var previousIssuer = change.PreviousIssuer is { } previousValue
+                    ? Normalize(previousValue)
+                    : null;
+                if (!string.Equals(storedIssuer, previousIssuer, StringComparison.Ordinal))
+                {
+                    return DirectoryTenantWriteResult.Conflict(
+                        $"The tenant '{tenantId}' does not hold the issuer '{change.PreviousIssuer}'."
+                    );
+                }
+
+                if (change.Issuer is { } issuer)
+                {
+                    if (
+                        await dbContext.Tenants.AnyAsync(
+                            entity =>
+                                entity.NormalizedIssuer == newIssuer
+                                && entity.NormalizedTenantId != normalizedTenantId,
+                            cancellationToken
+                        )
+                    )
+                    {
+                        return DirectoryTenantWriteResult.Conflict(
+                            $"Another tenant already has the issuer '{issuer}'."
+                        );
+                    }
+
+                    var retiredIssuerDetail = await FindRetiredIssuerConflictAsync(
+                        dbContext,
+                        tenantId,
+                        issuer,
+                        cancellationToken
+                    );
+                    if (retiredIssuerDetail is not null)
+                    {
+                        return DirectoryTenantWriteResult.Conflict(retiredIssuerDetail);
+                    }
+                }
+
+                if (tenant.Issuer is { } heldIssuer)
+                {
+                    await AddRetiredIssuerAsync(dbContext, tenantId, heldIssuer, cancellationToken);
+                }
+
+                tenant.Issuer = change.Issuer;
+                tenant.NormalizedIssuer = newIssuer;
+                tenant.ModifiedWhen = TimeProvider.GetUtcNow();
+
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+
+                return DirectoryTenantWriteResult.Done();
+            },
+            cancellationToken
+        );
     }
 
     /// <summary>
@@ -1362,67 +1338,66 @@ internal sealed class DefaultDirectoryStore(
     )
     {
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
-        return await dbContext
-            .Database.CreateExecutionStrategy()
-            .ExecuteAsync(
-                async _ =>
+        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
+        return await executionStrategy.ExecuteAsync(
+            async _ =>
+            {
+                // A retried attempt starts from the database, not from the failed attempt's tracked entities.
+                dbContext.ChangeTracker.Clear();
+                await using var transaction = await dbContext.Database.BeginTransactionAsync(
+                    IsolationLevel.Serializable,
+                    cancellationToken
+                );
+
+                var normalizedTeamId = Normalize(teamId);
+                var existingState = await dbContext
+                    .Teams.AsNoTracking()
+                    .Where(entity => entity.NormalizedTeamId == normalizedTeamId)
+                    .Select(entity => entity.State)
+                    .SingleOrDefaultAsync(cancellationToken);
+                if (existingState == TeamRecord.StateRetired)
                 {
-                    // A retried attempt starts from the database, not from the failed attempt's tracked entities.
-                    dbContext.ChangeTracker.Clear();
-                    await using var transaction = await dbContext.Database.BeginTransactionAsync(
-                        IsolationLevel.Serializable,
-                        cancellationToken
+                    return ReservationResult.Conflict(
+                        $"The team identifier '{teamId}' belonged to a deleted team and is never reissued."
                     );
+                }
 
-                    var normalizedTeamId = Normalize(teamId);
-                    var existingState = await dbContext
-                        .Teams.AsNoTracking()
-                        .Where(entity => entity.NormalizedTeamId == normalizedTeamId)
-                        .Select(entity => entity.State)
-                        .SingleOrDefaultAsync(cancellationToken);
-                    if (existingState == TeamRecord.StateRetired)
-                    {
-                        return ReservationResult.Conflict(
-                            $"The team identifier '{teamId}' belonged to a deleted team and is never reissued."
-                        );
-                    }
-
-                    if (existingState == TeamRecord.StateReserved)
-                    {
-                        // Only the control-plane cell reserves a team, so a reservation that no publish has consumed
-                        // is the caller's own, which a reservation that runs again after its commit's acknowledgement
-                        // is lost finds.
-                        return ReservationResult.Reserved();
-                    }
-
-                    if (existingState is not null)
-                    {
-                        return ReservationResult.Conflict(
-                            $"Another team already has the identifier '{teamId}'."
-                        );
-                    }
-
-                    dbContext.Teams.Add(
-                        new TeamRecord
-                        {
-                            TeamId = teamId,
-                            NormalizedTeamId = normalizedTeamId,
-                            NormalizedPath = await GetTeamPathAsync(
-                                dbContext,
-                                normalizedTeamId,
-                                null,
-                                cancellationToken
-                            ),
-                            State = TeamRecord.StateReserved,
-                        }
-                    );
-                    await dbContext.SaveChangesAsync(cancellationToken);
-                    await transaction.CommitAsync(cancellationToken);
-
+                if (existingState == TeamRecord.StateReserved)
+                {
+                    // Only the control-plane cell reserves a team, so a reservation that no publish has consumed
+                    // is the caller's own, which a reservation that runs again after its commit's acknowledgement
+                    // is lost finds.
                     return ReservationResult.Reserved();
-                },
-                cancellationToken
-            );
+                }
+
+                if (existingState is not null)
+                {
+                    return ReservationResult.Conflict(
+                        $"Another team already has the identifier '{teamId}'."
+                    );
+                }
+
+                dbContext.Teams.Add(
+                    new TeamRecord
+                    {
+                        TeamId = teamId,
+                        NormalizedTeamId = normalizedTeamId,
+                        NormalizedPath = await GetTeamPathAsync(
+                            dbContext,
+                            normalizedTeamId,
+                            null,
+                            cancellationToken
+                        ),
+                        State = TeamRecord.StateReserved,
+                    }
+                );
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+
+                return ReservationResult.Reserved();
+            },
+            cancellationToken
+        );
     }
 
     /// <inheritdoc />
@@ -1456,120 +1431,115 @@ internal sealed class DefaultDirectoryStore(
     )
     {
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
-        return await dbContext
-            .Database.CreateExecutionStrategy()
-            .ExecuteAsync(
-                async token =>
+        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
+        return await executionStrategy.ExecuteAsync(
+            async token =>
+            {
+                // A retried attempt starts from the database, not from the failed attempt's tracked entities.
+                dbContext.ChangeTracker.Clear();
+                await using var transaction = await dbContext.Database.BeginTransactionAsync(
+                    IsolationLevel.Serializable,
+                    token
+                );
+
+                var normalizedTeamId = Normalize(document.TeamId);
+                var team = await dbContext.Teams.SingleOrDefaultAsync(
+                    entity => entity.NormalizedTeamId == normalizedTeamId,
+                    token
+                );
+                if (team is { State: TeamRecord.StateRetired })
                 {
-                    // A retried attempt starts from the database, not from the failed attempt's tracked entities.
-                    dbContext.ChangeTracker.Clear();
-                    await using var transaction = await dbContext.Database.BeginTransactionAsync(
-                        IsolationLevel.Serializable,
-                        token
-                    );
+                    // A retired identifier is never reissued, so a document cannot bring it back.
+                    return DirectoryTeamWriteResult.Done();
+                }
 
-                    var normalizedTeamId = Normalize(document.TeamId);
-                    var team = await dbContext.Teams.SingleOrDefaultAsync(
-                        entity => entity.NormalizedTeamId == normalizedTeamId,
-                        token
-                    );
-                    if (team is { State: TeamRecord.StateRetired })
-                    {
-                        // A retired identifier is never reissued, so a document cannot bring it back.
-                        return DirectoryTeamWriteResult.Done();
-                    }
+                var normalizedParentTeamId = document.ParentTeamId is { } parentTeamId
+                    ? Normalize(parentTeamId)
+                    : null;
 
-                    var normalizedParentTeamId = document.ParentTeamId is { } parentTeamId
-                        ? Normalize(parentTeamId)
-                        : null;
-
-                    // A published team keeps its path; publishing its parent re-paths it when it was placed before
-                    // its parent.
-                    var teamPath = team is { State: TeamRecord.StatePublished }
-                        ? team.NormalizedPath
-                        : await GetTeamPathAsync(
-                            dbContext,
-                            normalizedTeamId,
-                            normalizedParentTeamId,
-                            token
-                        );
-
-                    // A path deeper than the directory stores is refused before anything is written.
-                    if (GetTeamDepth(teamPath) > DirectoryLimits.MaxTeamDepth)
-                    {
-                        return DirectoryTeamWriteResult.Refused(
-                            GetTeamTooDeepDetail(document.TeamId)
-                        );
-                    }
-
-                    // The directory assigns the sequence, so the stored document carries none: it is read back from the
-                    // record.
-                    var documentJson = PayloadSerializer
-                        .Serialize(document with { Sequence = 0 }, JsonOptions)
-                        .GetRawText();
-                    var change = new DirectoryChangeRecord
-                    {
-                        Sequence = await NextSequenceAsync(dbContext, token),
-                        TeamId = document.TeamId,
-                        DocumentJson = documentJson,
-                    };
-
-                    // A change carries the team's whole document, so the feed keeps only the team's latest change,
-                    // whose sequence the team row holds.
-                    if (team is { Sequence: > 0 })
-                    {
-                        var previousSequence = team.Sequence;
-                        await dbContext
-                            .Changes.Where(entity => entity.Sequence == previousSequence)
-                            .ExecuteDeleteAsync(token);
-                    }
-                    dbContext.Changes.Add(change);
-                    await dbContext.SaveChangesAsync(token);
-
-                    if (team is null)
-                    {
-                        team = new TeamRecord
-                        {
-                            TeamId = document.TeamId,
-                            NormalizedTeamId = normalizedTeamId,
-                            NormalizedPath = teamPath,
-                            State = TeamRecord.StatePublished,
-                        };
-                        dbContext.Teams.Add(team);
-                    }
-
-                    team.State = TeamRecord.StatePublished;
-                    team.NormalizedParentTeamId = normalizedParentTeamId;
-                    team.NormalizedPath = teamPath;
-                    team.DocumentJson = documentJson;
-                    team.Sequence = change.Sequence;
-
-                    var tooDeepTeamId = await RepathOrphanedChildrenAsync(
+                // A published team keeps its path; publishing its parent re-paths it when it was placed before
+                // its parent.
+                var teamPath = team is { State: TeamRecord.StatePublished }
+                    ? team.NormalizedPath
+                    : await GetTeamPathAsync(
                         dbContext,
                         normalizedTeamId,
-                        teamPath,
+                        normalizedParentTeamId,
                         token
                     );
-                    if (tooDeepTeamId is not null)
+
+                // A path deeper than the directory stores is refused before anything is written.
+                if (GetTeamDepth(teamPath) > DirectoryLimits.MaxTeamDepth)
+                {
+                    return DirectoryTeamWriteResult.Refused(GetTeamTooDeepDetail(document.TeamId));
+                }
+
+                // The directory assigns the sequence, so the stored document carries none: it is read back from the
+                // record.
+                var documentJson = PayloadSerializer
+                    .Serialize(document with { Sequence = 0 }, JsonOptions)
+                    .GetRawText();
+                var change = new DirectoryChangeRecord
+                {
+                    Sequence = await NextSequenceAsync(dbContext, token),
+                    TeamId = document.TeamId,
+                    DocumentJson = documentJson,
+                };
+
+                // A change carries the team's whole document, so the feed keeps only the team's latest change,
+                // whose sequence the team row holds.
+                if (team is { Sequence: > 0 })
+                {
+                    var previousSequence = team.Sequence;
+                    await dbContext
+                        .Changes.Where(entity => entity.Sequence == previousSequence)
+                        .ExecuteDeleteAsync(token);
+                }
+                dbContext.Changes.Add(change);
+                await dbContext.SaveChangesAsync(token);
+
+                if (team is null)
+                {
+                    team = new TeamRecord
                     {
-                        // Returning before the commit rolls the transaction back, so the change record, the sequence
-                        // and the team row are discarded, and no child is re-pathed.
-                        return DirectoryTeamWriteResult.Refused(
-                            GetTeamTooDeepDetail(tooDeepTeamId)
-                        );
-                    }
+                        TeamId = document.TeamId,
+                        NormalizedTeamId = normalizedTeamId,
+                        NormalizedPath = teamPath,
+                        State = TeamRecord.StatePublished,
+                    };
+                    dbContext.Teams.Add(team);
+                }
 
-                    // The re-pathed rows are saved before the subtree query reads their new paths.
-                    await dbContext.SaveChangesAsync(token);
-                    await ResequenceDescendantsAsync(dbContext, teamPath, token);
+                team.State = TeamRecord.StatePublished;
+                team.NormalizedParentTeamId = normalizedParentTeamId;
+                team.NormalizedPath = teamPath;
+                team.DocumentJson = documentJson;
+                team.Sequence = change.Sequence;
 
-                    await dbContext.SaveChangesAsync(token);
-                    await transaction.CommitAsync(token);
+                var tooDeepTeamId = await RepathOrphanedChildrenAsync(
+                    dbContext,
+                    normalizedTeamId,
+                    teamPath,
+                    token
+                );
+                if (tooDeepTeamId is not null)
+                {
+                    // Returning before the commit rolls the transaction back, so the change record, the sequence
+                    // and the team row are discarded, and no child is re-pathed.
+                    return DirectoryTeamWriteResult.Refused(GetTeamTooDeepDetail(tooDeepTeamId));
+                }
 
-                    return DirectoryTeamWriteResult.Done();
-                },
-                cancellationToken
-            );
+                // The re-pathed rows are saved before the subtree query reads their new paths.
+                await dbContext.SaveChangesAsync(token);
+                await ResequenceDescendantsAsync(dbContext, teamPath, token);
+
+                await dbContext.SaveChangesAsync(token);
+                await transaction.CommitAsync(token);
+
+                return DirectoryTeamWriteResult.Done();
+            },
+            cancellationToken
+        );
     }
 
     /// <inheritdoc />
@@ -1597,73 +1567,72 @@ internal sealed class DefaultDirectoryStore(
     async ValueTask ITeamDirectory.RetireAsync(string teamId, CancellationToken cancellationToken)
     {
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
-        await dbContext
-            .Database.CreateExecutionStrategy()
-            .ExecuteAsync(
-                async token =>
+        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
+        await executionStrategy.ExecuteAsync(
+            async token =>
+            {
+                // A retried attempt starts from the database, not from the failed attempt's tracked entities.
+                dbContext.ChangeTracker.Clear();
+                await using var transaction = await dbContext.Database.BeginTransactionAsync(
+                    IsolationLevel.Serializable,
+                    token
+                );
+
+                var normalizedTeamId = Normalize(teamId);
+                var team = await dbContext.Teams.SingleOrDefaultAsync(
+                    entity => entity.NormalizedTeamId == normalizedTeamId,
+                    token
+                );
+                if (team is { State: TeamRecord.StateRetired })
                 {
-                    // A retried attempt starts from the database, not from the failed attempt's tracked entities.
-                    dbContext.ChangeTracker.Clear();
-                    await using var transaction = await dbContext.Database.BeginTransactionAsync(
-                        IsolationLevel.Serializable,
-                        token
-                    );
+                    return;
+                }
 
-                    var normalizedTeamId = Normalize(teamId);
-                    var team = await dbContext.Teams.SingleOrDefaultAsync(
-                        entity => entity.NormalizedTeamId == normalizedTeamId,
-                        token
-                    );
-                    if (team is { State: TeamRecord.StateRetired })
-                    {
-                        return;
-                    }
+                var change = new DirectoryChangeRecord
+                {
+                    Sequence = await NextSequenceAsync(dbContext, token),
+                    TeamId = teamId,
+                    DocumentJson = null,
+                };
 
-                    var change = new DirectoryChangeRecord
+                // The retire is the team's last state, so the feed keeps only it in place of the team's latest
+                // change, whose sequence the team row holds.
+                if (team is { Sequence: > 0 })
+                {
+                    var previousSequence = team.Sequence;
+                    await dbContext
+                        .Changes.Where(entity => entity.Sequence == previousSequence)
+                        .ExecuteDeleteAsync(token);
+                }
+                dbContext.Changes.Add(change);
+                await dbContext.SaveChangesAsync(token);
+
+                if (team is null)
+                {
+                    team = new TeamRecord
                     {
-                        Sequence = await NextSequenceAsync(dbContext, token),
                         TeamId = teamId,
-                        DocumentJson = null,
+                        NormalizedTeamId = normalizedTeamId,
+                        NormalizedPath = await GetTeamPathAsync(
+                            dbContext,
+                            normalizedTeamId,
+                            null,
+                            token
+                        ),
+                        State = TeamRecord.StateRetired,
                     };
+                    dbContext.Teams.Add(team);
+                }
 
-                    // The retire is the team's last state, so the feed keeps only it in place of the team's latest
-                    // change, whose sequence the team row holds.
-                    if (team is { Sequence: > 0 })
-                    {
-                        var previousSequence = team.Sequence;
-                        await dbContext
-                            .Changes.Where(entity => entity.Sequence == previousSequence)
-                            .ExecuteDeleteAsync(token);
-                    }
-                    dbContext.Changes.Add(change);
-                    await dbContext.SaveChangesAsync(token);
+                team.State = TeamRecord.StateRetired;
+                team.DocumentJson = null;
+                team.Sequence = change.Sequence;
 
-                    if (team is null)
-                    {
-                        team = new TeamRecord
-                        {
-                            TeamId = teamId,
-                            NormalizedTeamId = normalizedTeamId,
-                            NormalizedPath = await GetTeamPathAsync(
-                                dbContext,
-                                normalizedTeamId,
-                                null,
-                                token
-                            ),
-                            State = TeamRecord.StateRetired,
-                        };
-                        dbContext.Teams.Add(team);
-                    }
-
-                    team.State = TeamRecord.StateRetired;
-                    team.DocumentJson = null;
-                    team.Sequence = change.Sequence;
-
-                    await dbContext.SaveChangesAsync(token);
-                    await transaction.CommitAsync(token);
-                },
-                cancellationToken
-            );
+                await dbContext.SaveChangesAsync(token);
+                await transaction.CommitAsync(token);
+            },
+            cancellationToken
+        );
     }
 
     /// <inheritdoc />
@@ -1795,48 +1764,47 @@ internal sealed class DefaultDirectoryStore(
     )
     {
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
-        await dbContext
-            .Database.CreateExecutionStrategy()
-            .ExecuteAsync(
-                async _ =>
+        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
+        await executionStrategy.ExecuteAsync(
+            async _ =>
+            {
+                // A retried attempt starts from the database, not from the failed attempt's tracked entities.
+                dbContext.ChangeTracker.Clear();
+                await using var transaction = await dbContext.Database.BeginTransactionAsync(
+                    IsolationLevel.Serializable,
+                    cancellationToken
+                );
+
+                var cell = await dbContext.Cells.SingleOrDefaultAsync(
+                    entity => entity.Name == descriptor.Name,
+                    cancellationToken
+                );
+                if (cell is null)
                 {
-                    // A retried attempt starts from the database, not from the failed attempt's tracked entities.
-                    dbContext.ChangeTracker.Clear();
-                    await using var transaction = await dbContext.Database.BeginTransactionAsync(
-                        IsolationLevel.Serializable,
-                        cancellationToken
+                    dbContext.Cells.Add(
+                        new CellRecord
+                        {
+                            Name = descriptor.Name,
+                            Region = descriptor.Region,
+                            Kind = descriptor.Kind,
+                            ManagementUrl = descriptor.ManagementUrl,
+                            IsControlPlane = descriptor.IsControlPlane,
+                        }
                     );
+                }
+                else
+                {
+                    cell.Region = descriptor.Region;
+                    cell.Kind = descriptor.Kind;
+                    cell.ManagementUrl = descriptor.ManagementUrl;
+                    cell.IsControlPlane = descriptor.IsControlPlane;
+                }
 
-                    var cell = await dbContext.Cells.SingleOrDefaultAsync(
-                        entity => entity.Name == descriptor.Name,
-                        cancellationToken
-                    );
-                    if (cell is null)
-                    {
-                        dbContext.Cells.Add(
-                            new CellRecord
-                            {
-                                Name = descriptor.Name,
-                                Region = descriptor.Region,
-                                Kind = descriptor.Kind,
-                                ManagementUrl = descriptor.ManagementUrl,
-                                IsControlPlane = descriptor.IsControlPlane,
-                            }
-                        );
-                    }
-                    else
-                    {
-                        cell.Region = descriptor.Region;
-                        cell.Kind = descriptor.Kind;
-                        cell.ManagementUrl = descriptor.ManagementUrl;
-                        cell.IsControlPlane = descriptor.IsControlPlane;
-                    }
-
-                    await dbContext.SaveChangesAsync(cancellationToken);
-                    await transaction.CommitAsync(cancellationToken);
-                },
-                cancellationToken
-            );
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            },
+            cancellationToken
+        );
     }
 
     /// <inheritdoc />
@@ -1893,63 +1861,62 @@ internal sealed class DefaultDirectoryStore(
     )
     {
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
-        await dbContext
-            .Database.CreateExecutionStrategy()
-            .ExecuteAsync(
-                async token =>
+        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
+        await executionStrategy.ExecuteAsync(
+            async token =>
+            {
+                // A retried attempt starts from the database, not from the failed attempt's tracked entities.
+                dbContext.ChangeTracker.Clear();
+                await using var transaction = await dbContext.Database.BeginTransactionAsync(
+                    IsolationLevel.Serializable,
+                    token
+                );
+
+                // The directory assigns the sequence, so the stored document carries none: it is read back from the
+                // record.
+                var documentJson = PayloadSerializer
+                    .Serialize(document with { Sequence = 0 }, JsonOptions)
+                    .GetRawText();
+                var change = new DirectoryChangeRecord
                 {
-                    // A retried attempt starts from the database, not from the failed attempt's tracked entities.
-                    dbContext.ChangeTracker.Clear();
-                    await using var transaction = await dbContext.Database.BeginTransactionAsync(
-                        IsolationLevel.Serializable,
-                        token
+                    Sequence = await NextSequenceAsync(dbContext, token),
+                    TeamId = null,
+                    DocumentJson = documentJson,
+                };
+
+                // A change carries the platform's whole document, so the feed keeps only the platform's latest
+                // change.
+                await dbContext
+                    .Changes.Where(entity => entity.TeamId == null)
+                    .ExecuteDeleteAsync(token);
+                dbContext.Changes.Add(change);
+                await dbContext.SaveChangesAsync(token);
+
+                var platform = await dbContext.Platforms.SingleOrDefaultAsync(
+                    entity => entity.Id == PlatformRecord.SingletonId,
+                    token
+                );
+                if (platform is null)
+                {
+                    dbContext.Platforms.Add(
+                        new PlatformRecord
+                        {
+                            DocumentJson = documentJson,
+                            Sequence = change.Sequence,
+                        }
                     );
+                }
+                else
+                {
+                    platform.DocumentJson = documentJson;
+                    platform.Sequence = change.Sequence;
+                }
 
-                    // The directory assigns the sequence, so the stored document carries none: it is read back from the
-                    // record.
-                    var documentJson = PayloadSerializer
-                        .Serialize(document with { Sequence = 0 }, JsonOptions)
-                        .GetRawText();
-                    var change = new DirectoryChangeRecord
-                    {
-                        Sequence = await NextSequenceAsync(dbContext, token),
-                        TeamId = null,
-                        DocumentJson = documentJson,
-                    };
-
-                    // A change carries the platform's whole document, so the feed keeps only the platform's latest
-                    // change.
-                    await dbContext
-                        .Changes.Where(entity => entity.TeamId == null)
-                        .ExecuteDeleteAsync(token);
-                    dbContext.Changes.Add(change);
-                    await dbContext.SaveChangesAsync(token);
-
-                    var platform = await dbContext.Platforms.SingleOrDefaultAsync(
-                        entity => entity.Id == PlatformRecord.SingletonId,
-                        token
-                    );
-                    if (platform is null)
-                    {
-                        dbContext.Platforms.Add(
-                            new PlatformRecord
-                            {
-                                DocumentJson = documentJson,
-                                Sequence = change.Sequence,
-                            }
-                        );
-                    }
-                    else
-                    {
-                        platform.DocumentJson = documentJson;
-                        platform.Sequence = change.Sequence;
-                    }
-
-                    await dbContext.SaveChangesAsync(token);
-                    await transaction.CommitAsync(token);
-                },
-                cancellationToken
-            );
+                await dbContext.SaveChangesAsync(token);
+                await transaction.CommitAsync(token);
+            },
+            cancellationToken
+        );
     }
 
     /// <inheritdoc />

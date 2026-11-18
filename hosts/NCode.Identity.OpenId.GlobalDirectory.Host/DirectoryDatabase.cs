@@ -161,20 +161,17 @@ internal static class DirectoryDatabase
         var designTimeModel = dbContext.GetService<IDesignTimeModel>().Model;
         var statements = DirectoryDatabaseGrants.CreateStatements(designTimeModel, runtimeRole);
 
-        await dbContext
-            .Database.CreateExecutionStrategy()
-            .ExecuteAsync(
-                async token =>
-                {
-                    await using var transaction = await dbContext.Database.BeginTransactionAsync(
-                        token
-                    );
-                    foreach (var statement in statements)
-                        await dbContext.Database.ExecuteSqlRawAsync(statement, token);
-                    await transaction.CommitAsync(token);
-                },
-                cancellationToken
-            );
+        var executionStrategy = dbContext.Database.CreateExecutionStrategy();
+        await executionStrategy.ExecuteAsync(
+            async token =>
+            {
+                await using var transaction = await dbContext.Database.BeginTransactionAsync(token);
+                foreach (var statement in statements)
+                    await dbContext.Database.ExecuteSqlRawAsync(statement, token);
+                await transaction.CommitAsync(token);
+            },
+            cancellationToken
+        );
     }
 
     extension(DbContextOptionsBuilder builder)
