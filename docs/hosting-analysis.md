@@ -431,11 +431,11 @@ A platform is a global directory over independent cells.
 
 - **A cell** is one identity host, its one Postgres database, its Valkey and its KMS keys, in one region. A cell's
   tenants share that database and are separated by fail-closed scoping, and a tenant lives in exactly one cell, so its
-  data, keys and sessions stay in that cell's region. A cell is named by `Cell:Name` (at most 31 characters,
-  `^[a-z][a-z0-9-]{0,30}$`) and also has a `Cell:Region`, a `Cell:Kind` (`shared`, `dedicated` or `sovereign`), the
-  cloud regions its keys may live in and a management URL. Capacity and blast radius are managed by how many tenants a
-  cell hosts and how many cells run; a dedicated cell gives compliance isolation. A platform of one cell needs nothing
-  else.
+  data, keys and sessions stay in that cell's region. A cell is named by `Cell:Name` (1 to 31 characters of lowercase
+  letters, digits and single hyphens, starting with a letter and ending with a letter or digit, with no two hyphens in
+  a row) and also has a `Cell:Region`, a `Cell:Kind` (`shared`, `dedicated` or `sovereign`), the cloud regions its keys
+  may live in and a management URL. Capacity and blast radius are managed by how many tenants a cell hosts and how many
+  cells run; a dedicated cell gives compliance isolation. A platform of one cell needs nothing else.
 - **The control-plane cell** is the cell that sets `Cell:IsControlPlane`. It holds the platform and team authority, the
   platform and team settings, setup and the team root keys, and it serves the platform and team management routes and
   `auth.ncodeid.net`. Setup runs once per platform, in the control-plane cell only

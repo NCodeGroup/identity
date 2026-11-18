@@ -35,7 +35,7 @@ listed key that no stored secret names and that is older than a grace period.**
    commit, the generator when anything after creation fails, and the sweep.
 2. **A cell names itself.** `SecretProtection:RemoteKeys:Deployment` (lowercase letters and digits in
    hyphen-separated groups, at most 40 characters) is the sweep tag. The Server post-configures it from `Cell:Name`, so
-   the tag is the cell's name
+   the tag is the cell's name and every cell name has the tag's form
    ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)),
    required only when a provider that creates keys is described. It
    tags every created key (`ncode-identity:deployment` on AWS, `ncode-identity-deployment` on Azure tags and Google
