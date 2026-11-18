@@ -87,15 +87,16 @@ Secrets `ExternalSecret` that writes the same Secret with the same keys works th
 
 ## Published artifacts
 
-Every merge to `main` and every release tag `v*.*.*` publishes four artifacts to GHCR at one version
+Every merge to `main` and every release tag `v*.*.*` publishes five artifacts to GHCR at one version
 (`0.0.1-alpha.<n>` for a merge to `main`, the tag's version for a release tag), through the Publish artifacts workflow ([ADR-1505](../../docs/decisions/1505-every-merge-to-main-publishes-the-host-image-the-console-image-the-chart-and-the-openapi-document-at-one-prerelease-version.md)):
 
 - `ghcr.io/ncodegroup/ncode-identity-host:<version>`, the host image.
 - `ghcr.io/ncodegroup/ncode-identity-management-console:<version>`, the management console image.
+- `ghcr.io/ncodegroup/ncode-identity-directory:<version>`, the global directory image, which `directory.enabled` runs.
 - `oci://ghcr.io/ncodegroup/charts/ncode-identity-host`, this chart, at version `<version>`.
 - `oci://ghcr.io/ncodegroup/openapi/ncode-identity-host` at version `<version>`, the host's OpenAPI document (`v1.json`), which `oras pull` fetches.
 
-The chart pins its image tags to its own `appVersion`, so following the chart follows the images. A stable version also tags both images `latest`. A Flux `HelmRelease`
+The chart pins its image tags to its own `appVersion`, so following the chart follows the images. A stable version also tags every image `latest`. A Flux `HelmRelease`
 or `helm install` takes a semver range that includes prereleases, such as `>=0.0.1-alpha`, to follow them.
 
 Verify the chart signature, then the host image provenance:
@@ -113,8 +114,9 @@ gh attestation verify oci://ghcr.io/ncodegroup/ncode-identity-host:<version> --r
 Each package's access is set once, in GitHub: no API sets a package's Actions access, its repository link or its
 visibility. A package the workflow creates is linked to this repository and the workflow can write to it, but it starts
 private. A package first pushed by hand is neither linked nor writable by the workflow, and the workflow's push to it
-fails. For each of `ncode-identity-host`, `ncode-identity-management-console`, `charts/ncode-identity-host` and
-`openapi/ncode-identity-host`, open the package from the organization's **Packages** tab and:
+fails. For each of `ncode-identity-host`, `ncode-identity-management-console`, `ncode-identity-directory`,
+`charts/ncode-identity-host` and `openapi/ncode-identity-host`, open the package from the organization's **Packages**
+tab and:
 
 1. In **Package settings**, under **Manage Actions access**, click **Add repository**, choose `NCodeGroup/identity`
    and give it the **Write** role.
@@ -1362,7 +1364,7 @@ spec:
   chart:
     spec:
       chart: ncode-identity-host
-      # The chart's appVersion pins both images, so a range that includes prereleases rolls the images out too.
+      # The chart's appVersion pins every image, so a range that includes prereleases rolls the images out too.
       version: ">=0.0.1-alpha"
       sourceRef:
         kind: HelmRepository
@@ -1445,8 +1447,8 @@ spec:
 ```
 
 - `version: ">=0.0.1-alpha"` selects the newest chart version in the range, prereleases included, which covers every
-  `0.0.1-alpha.<n>` that a merge to `main` publishes. The chart's `appVersion` pins both images, so a newer chart
-  version rolls the host and the console out too. Name one exact version to stop following.
+  `0.0.1-alpha.<n>` that a merge to `main` publishes. The chart's `appVersion` pins every image, so a newer chart
+  version rolls the host, the console and the directory out too. Name one exact version to stop following.
 - `timeout` is Helm's wait for each operation, the migration Job included, so it outlasts the Job's
   `migrations.activeDeadlineSeconds` (600 seconds). Raise both for a long migration.
 - `install.remediation` retries a failed install three times, uninstalling between attempts. `upgrade.remediation`

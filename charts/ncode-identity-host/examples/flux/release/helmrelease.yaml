@@ -11,7 +11,7 @@ spec:
   chart:
     spec:
       chart: ncode-identity-host
-      # The chart's appVersion pins both images, so a range that includes prereleases rolls the images out too.
+      # The chart's appVersion pins every image, so a range that includes prereleases rolls the images out too.
       version: ">=0.0.1-alpha"
       sourceRef:
         kind: HelmRepository
