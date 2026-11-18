@@ -6,7 +6,7 @@
 
 ## Context
 
-The host image, the console image and the host chart are what a deployment runs
+The host image, the console image, the directory image and the host chart are what a deployment runs
 ([ADR-1133](1133-the-hosted-platform-runs-only-the-published-artifacts-it-offers-self-hosters.md)). A consumer deploys
 every merge to `main` automatically, so each merge needs artifacts to deploy. Nerdbank.GitVersioning gives a
 public-release build one version string for every commit, so it cannot tell two merges apart. The chart pins its image
@@ -16,23 +16,23 @@ same version as the images and the chart.
 
 ## Decision
 
-**Every push to `main` and every release tag publishes the host image, the console image, the chart and the OpenAPI
-document at one version.**
+**Every push to `main` and every release tag publishes the host image, the console image, the directory image, the
+chart and the OpenAPI document at one version.**
 
 1. **The `Publish artifacts` workflow publishes on every push to `main`** and on a manual run on `main`. Its jobs are
    `version`, `publish` and `verify`. It publishes `ghcr.io/ncodegroup/ncode-identity-host:V`,
-   `ghcr.io/ncodegroup/ncode-identity-management-console:V`,
+   `ghcr.io/ncodegroup/ncode-identity-management-console:V`, `ghcr.io/ncodegroup/ncode-identity-directory:V`,
    `oci://ghcr.io/ncodegroup/charts/ncode-identity-host:V` and
    `oci://ghcr.io/ncodegroup/openapi/ncode-identity-host:V`. The images are linux/amd64 and linux/arm64 and carry the
    source, revision, version, licenses and title labels. A release tag `v*.*.*` on `main` or a release line publishes
-   the same four artifacts at the tag's version.
+   the same five artifacts at the tag's version.
 2. **The version is `<version.json prerelease>.<first-parent commit count>`**, such as `0.0.1-alpha.57`, printed by
    `build/artifact-version.ps1`. The image tags, the chart `version` and the chart `appVersion` are equal
    (`helm package --version V --app-version V`). A semver range that includes prereleases, such as `>=0.0.1-alpha`,
    selects the newest. A release tag publishes at its own version, which `build/artifact-version.ps1 -Tag` checks
-   against the `major.minor` line of `version.json`; a stable version also tags both images `latest`, and a prerelease
+   against the `major.minor` line of `version.json`; a stable version also tags every image `latest`, and a prerelease
    never does.
-3. **Each artifact is signed and attested.** `cosign sign` signs each of the four digests keylessly, under the identity
+3. **Each artifact is signed and attested.** `cosign sign` signs each of the five digests keylessly, under the identity
    `https://github.com/NCodeGroup/identity/.github/workflows/publish-artifacts.yml@refs/heads/main`, or
    `@refs/tags/<tag>` for a release tag. `actions/attest-build-provenance` attests each digest. The images carry a
    BuildKit SBOM.
@@ -79,7 +79,8 @@ document at one version.**
 
 ## Consequences
 
-- A consumer follows one version range and receives the host, the console, the chart and the OpenAPI document together.
+- A consumer follows one version range and receives the host, the console, the directory, the chart and the OpenAPI
+  document together.
 - The pre-deploy migration Job refuses a database whose migration history is ahead of the image's migrations
   ([ADR-1180](1180-each-host-contexts-migrations-run-before-the-rollout-and-only-expand-the-schema.md)).
 - A package created outside this workflow, including `openapi/ncode-identity-host`, needs this repository's write
