@@ -2,9 +2,9 @@
 # architecture.
 #
 # The image is the deployable artifact (ADR-1133), so a change that breaks its build — a project the publish needs, the
-# allow-list .dockerignore — fails here rather than at release. Nothing is pushed. Every stage that runs commands runs
-# on the runner's own architecture and cross-publishes, so the arm64 image builds without emulation (ADR-1248). The
-# image serves HTTPS only (ADR-1504).
+# allow-list .dockerignore — fails here rather than at release. Nothing is pushed: the Publish artifacts workflow
+# publishes to GHCR (ADR-1505). Every stage that runs commands runs on the runner's own architecture and
+# cross-publishes, so the arm64 image builds without emulation (ADR-1248). The image serves HTTPS only (ADR-1504).
 name: Directory image
 
 on:
