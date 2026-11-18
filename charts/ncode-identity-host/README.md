@@ -181,7 +181,7 @@ A cell reaches the platform's directory through the `directory` values, rendered
 rendered as `KeyRings__<directory.keyRing>__…`:
 
 - `directory.keys.pemSecret`, a Secret holding the client's private key under the key `<directory.keyRing>.pem`, which
-  the pods mount at `/etc/ncode-identity/directory-key`; the key's id is the value of `directory.keyRing`;
+  the Deployment's pods mount at `/etc/ncode-identity/directory-key`; the key's id is the value of `directory.keyRing`;
 - `directory.keys.remoteKeys`, keys that a key management service holds, by key id, each with `provider`, `keyId`,
   `algorithm`, `secretType`, `keySizeBits` and, for an elliptic-curve key, `curve`, as for the console's key rings.
 
