@@ -47,7 +47,7 @@ internal sealed class DirectoryClientOptionsValidator : IValidateOptions<Directo
         )
         {
             failures.Add(
-                $"{Prefix}:{nameof(DirectoryClientOptions.ClientId)} '{options.ClientId}' must be '{GlobalDirectoryProtocol.CellClientIdPrefix}' followed by the cell's name, a lower-case DNS label."
+                $"{Prefix}:{nameof(DirectoryClientOptions.ClientId)} '{options.ClientId}' must be '{GlobalDirectoryProtocol.CellClientIdPrefix}' followed by the cell's name: {CellLabelRules.Description}."
             );
         }
 

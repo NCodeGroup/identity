@@ -964,8 +964,7 @@ internal class ClientApiEndpointHandler(
         return isCellClientId
             ? null
             : ClientIdRefused(
-                $"A platform client's identifier is '{prefix}' followed by a cell name: 1 to {CellLabelRules.MaxLabelLength} lowercase letters, "
-                    + "digits or hyphens that start with a letter and end with a letter or digit."
+                $"A platform client's identifier is '{prefix}' followed by a cell name: {CellLabelRules.Description}."
             );
     }
 
