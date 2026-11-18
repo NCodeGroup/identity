@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import AddIcon from '@mui/icons-material/Add';
-import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
@@ -11,6 +10,7 @@ import {
   TenantFormDialog,
   TenantPromotionDialog,
   TenantTable,
+  UnavailableCellsAlert,
   allTenantEnvironments,
   emptyTenantFormValues,
   isValidTenantId,
@@ -409,15 +409,7 @@ export function TenantsPage({
           </Button>
         </Box>
       </Box>
-      {unavailableCells.length > 0 && (
-        <Alert severity="warning" sx={{ mb: 1 }} data-testid="unavailable-cells">
-          {unavailableCells.map((cell) => (
-            <div
-              key={cell}
-            >{`The cell ${cell} did not answer, so its tenants are not listed.`}</div>
-          ))}
-        </Alert>
-      )}
+      <UnavailableCellsAlert cells={unavailableCells} />
       <DataStateBoundary
         isLoading={isLoading}
         error={error ? 'Failed to load tenants.' : undefined}

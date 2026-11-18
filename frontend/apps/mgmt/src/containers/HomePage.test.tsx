@@ -49,11 +49,15 @@ const tenant = {
   isDisabled: false,
 };
 
-/** Serves the caller's resource, its teams and its tenants; any other request is unexpected. */
+/**
+ * Serves the caller's resource, its teams and its tenants; any other request is unexpected; `unavailableCell` names a
+ * cell that does not answer.
+ */
 function installFetch(options: {
   readonly isPlatformAdministrator: boolean;
   readonly teams: readonly unknown[];
   readonly tenants: readonly unknown[];
+  readonly unavailableCell?: string;
 }) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const request = input as Request;
@@ -66,6 +70,12 @@ function installFetch(options: {
     }
     if (request.method === 'GET' && request.url.endsWith('/api/me/teams')) {
       return jsonResponse({ items: options.teams });
+    }
+    if (
+      request.method === 'GET' &&
+      request.url.endsWith(`/cells/${options.unavailableCell}/api/me/tenants`)
+    ) {
+      return jsonResponse({ title: 'Bad Gateway' }, 502);
     }
     if (request.method === 'GET' && request.url.endsWith('/api/me/tenants')) {
       return jsonResponse({ items: options.tenants });
@@ -139,6 +149,39 @@ describe('HomePage', () => {
       expect(onNavigate).toHaveBeenCalledWith(platformRoute('teams'), { replace: true }),
     );
     expect(onNavigate).toHaveBeenCalledTimes(1);
+  });
+
+  it('names each cell that did not answer and opens no sole destination while one did not', async () => {
+    installFetch({
+      isPlatformAdministrator: false,
+      teams: [team],
+      tenants: [],
+      unavailableCell: 'us-1',
+    });
+
+    const onNavigate = renderPage(vi.fn(), { ...runtime, cells: ['eu-1', 'us-1'] });
+
+    expect(await screen.findByTestId('unavailable-cells')).toHaveTextContent(
+      'The cell us-1 did not answer, so its tenants are not listed.',
+    );
+    await screen.findByTestId('team-row-support');
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  it('does not say the caller holds no role while a cell did not answer', async () => {
+    installFetch({
+      isPlatformAdministrator: false,
+      teams: [],
+      tenants: [],
+      unavailableCell: 'us-1',
+    });
+
+    const onNavigate = renderPage(vi.fn(), { ...runtime, cells: ['eu-1', 'us-1'] });
+
+    await screen.findByTestId('unavailable-cells');
+    await waitFor(() => expect(screen.queryByTestId('data-loading')).not.toBeInTheDocument());
+    expect(screen.queryByTestId('data-empty')).not.toBeInTheDocument();
+    expect(onNavigate).not.toHaveBeenCalled();
   });
 
   it('shows the empty message when the caller holds no role', async () => {
