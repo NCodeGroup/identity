@@ -3,7 +3,7 @@
 
 <#
 .SYNOPSIS
-    Prints the version the artifact-publishing workflow gives the host image, the console image and the host chart.
+    Prints the version the artifact-publishing workflow gives every artifact it publishes.
 .DESCRIPTION
     Nerdbank.GitVersioning gives a public-release build the same version for every commit (0.0.1-alpha on main), so
     the artifact version is not taken from it. The version is the prerelease in version.json followed by the number of
