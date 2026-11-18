@@ -5,7 +5,7 @@ import {
   type TenantMoveDialogCell,
   type TenantMoveDialogOperations,
 } from './TenantMoveDialog.js';
-import { TenantPlacedElsewhereError } from './tenantMove.js';
+import { TenantMoveOutcomeUnknownError, TenantPlacedElsewhereError } from './tenantMove.js';
 
 const cells: readonly TenantMoveDialogCell[] = [
   { name: 'eu-1', region: 'eu' },
@@ -124,5 +124,19 @@ export const PlacedElsewhere: Story = {
   play: async () => {
     await startMove();
     await screen.findByTestId('move-release');
+  },
+};
+
+export const OutcomeUnknown: Story = {
+  args: {
+    operations: {
+      ...succeeding,
+      importTenant: () =>
+        Promise.reject(new TenantMoveOutcomeUnknownError('The outcome of the move is unknown.')),
+    },
+  },
+  play: async () => {
+    await startMove();
+    await screen.findByTestId('move-failure');
   },
 };
