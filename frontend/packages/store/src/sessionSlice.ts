@@ -37,8 +37,8 @@ export const sessionSlice = createSlice({
   name: 'session',
   initialState,
   reducers: {
-    // Return a fresh state rather than mutating the Immer draft: the user is immutable and replaced
-    // wholesale, and its readonly fields don't satisfy the writable-draft type.
+    // Return a fresh state rather than mutating the Immer draft: the user is immutable and replaced wholesale, and its
+    // readonly fields don't satisfy the writable-draft type.
     sessionStarted(_state, action: PayloadAction<BffUser>): SessionState {
       return { status: 'signed-in', user: action.payload };
     },

@@ -10,8 +10,8 @@ failOnConsole({ beforeEach, afterEach });
 // README).
 configureAsyncUtilTimeout(configure);
 
-// The host serves the page with its base set to the setup surface, so the bundle's relative URLs resolve beneath it; the
-// tests run with the host served at the root.
+// The host serves the page with its base set to the setup surface, so the bundle's relative URLs resolve beneath it;
+// the tests run with the host served at the root.
 const base = document.createElement('base');
 base.setAttribute('href', '/setup/');
 document.head.append(base);

@@ -19,7 +19,8 @@ export default defineConfig({
         'src/main.{ts,tsx}',
         'src/index.ts',
       ],
-      // Floors at the level reached, rounded down (ADR-1151): raise them as coverage rises; lowering one needs a reason.
+      // Floors at the level reached, rounded down (ADR-1151): raise them as coverage rises; lowering one needs a
+      // reason.
       thresholds: { statements: 100, branches: 100, functions: 100, lines: 100 },
     },
   },

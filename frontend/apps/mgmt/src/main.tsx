@@ -13,8 +13,8 @@ import { App } from './App.js';
 const store = createAppStore();
 const loadRuntimeConfig = createBffRuntimeConfigLoader();
 
-// Emotion writes the theme's styles into `<style>` elements, which the page's Content-Security-Policy admits only
-// with the host's nonce.
+// Emotion writes the theme's styles into `<style>` elements, which the page's Content-Security-Policy admits only with
+// the host's nonce.
 const nonce = readCspNonce(document);
 const styleCache = createCache({
   key: 'mgmt',
