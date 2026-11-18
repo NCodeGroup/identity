@@ -425,6 +425,15 @@ jobs:
               fi
             done
           }
+          reject() {
+            local rendered="$1"; shift
+            for unexpected in "$@"; do
+              if grep -q -- "$unexpected" <<< "$rendered"; then
+                echo "::error::The release renders what it must not: $unexpected"
+                exit 1
+              fi
+            done
+          }
           cell=$(helm template release "$CHART" --values "$CHART/ci/cell-values.yaml" --show-only templates/deployment.yaml)
           expect "$cell" 'Cell__ControlPlane__Issuer' 'Cell__CloudRegions__1' 'KeyRings__cell-client__PemFiles__0' 'directory-key'
           # The control-plane cell reaches the directory as its own machine client, like every other cell.
@@ -432,6 +441,16 @@ jobs:
             --show-only templates/deployment.yaml)
           expect "$controlPlane" 'Directory__Url' 'Directory__ClientId' 'KeyRings__cell-client__PemFiles__0' \
             'Cell__ManagementUrl' 'Cell__ControlPlane__Issuer'
+          # The offline Jobs never call the directory, so neither carries the directory client's settings or its key.
+          rewrap=$(helm template release "$CHART" --values "$CHART/ci/cell-values.yaml" \
+            --set secretProtection.rewrapJob.enabled=true --set secretProtection.rewrapJob.command=rewrap \
+            --show-only templates/secret-protection-job.yaml)
+          expect "$rewrap" 'Cell__ControlPlane__Issuer'
+          reject "$rewrap" 'Directory__Url' 'KeyRings__cell-client' 'directory-key'
+          setup=$(helm template release "$CHART" --values "$CHART/ci/directory-values.yaml" \
+            --set setup.token.existingSecret=identity-setup-token --set setup.job.enabled=true \
+            --set setup.job.existingSecret=identity-setup-root --show-only templates/setup-job.yaml)
+          reject "$setup" 'Directory__Url' 'KeyRings__cell-client' 'directory-key'
 
       - name: Give the migration Job the host's extra settings, and the Job and the directory Service valid names
         run: |

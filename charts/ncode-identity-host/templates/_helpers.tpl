@@ -738,40 +738,6 @@ same configuration the pods it rewraps keys for read.
 - name: Cell__ControlPlane__Issuer
   value: {{ . | quote }}
 {{- end }}
-{{- $directory := .Values.directory }}
-{{- if $directory.url }}
-- name: Directory__Url
-  value: {{ $directory.url | quote }}
-{{- with $directory.clientId }}
-- name: Directory__ClientId
-  value: {{ . | quote }}
-{{- end }}
-{{- with $directory.keyRing }}
-- name: Directory__KeyRing
-  value: {{ . | quote }}
-{{- end }}
-{{- if $directory.keys.pemSecret }}
-- name: {{ printf "KeyRings__%s__PemFiles__0" $directory.keyRing }}
-  value: {{ printf "/etc/ncode-identity/directory-key/%s.pem" $directory.keyRing | quote }}
-{{- end }}
-{{- range $kid, $key := $directory.keys.remoteKeys }}
-{{- $prefix := printf "KeyRings__%s__RemoteKeys__%s" $directory.keyRing $kid }}
-- name: {{ $prefix }}__Provider
-  value: {{ $key.provider | quote }}
-- name: {{ $prefix }}__KeyId
-  value: {{ $key.keyId | quote }}
-- name: {{ $prefix }}__Algorithm
-  value: {{ $key.algorithm | quote }}
-- name: {{ $prefix }}__SecretType
-  value: {{ $key.secretType | quote }}
-- name: {{ $prefix }}__KeySizeBits
-  value: {{ $key.keySizeBits | quote }}
-{{- with $key.curve }}
-- name: {{ $prefix }}__Curve
-  value: {{ . | quote }}
-{{- end }}
-{{- end }}
-{{- end }}
 {{ include "identity-host.telemetryEnv" . | trim }}
 - name: OpenId__TenantResolution__StrategyCode
   value: {{ .Values.tenantResolution.strategyCode | quote }}
@@ -881,6 +847,47 @@ same configuration the pods it rewraps keys for read.
 {{- end }}
 
 {{/*
+The environment of the cell's directory client, which only the Deployment carries: the setup and secret-protection
+Jobs run the host's offline commands, which never call the directory, so neither holds the client's settings or key.
+*/}}
+{{- define "identity-host.directoryClientEnv" -}}
+{{- $directory := .Values.directory }}
+{{- if $directory.url }}
+- name: Directory__Url
+  value: {{ $directory.url | quote }}
+{{- with $directory.clientId }}
+- name: Directory__ClientId
+  value: {{ . | quote }}
+{{- end }}
+{{- with $directory.keyRing }}
+- name: Directory__KeyRing
+  value: {{ . | quote }}
+{{- end }}
+{{- if $directory.keys.pemSecret }}
+- name: {{ printf "KeyRings__%s__PemFiles__0" $directory.keyRing }}
+  value: {{ printf "/etc/ncode-identity/directory-key/%s.pem" $directory.keyRing | quote }}
+{{- end }}
+{{- range $kid, $key := $directory.keys.remoteKeys }}
+{{- $prefix := printf "KeyRings__%s__RemoteKeys__%s" $directory.keyRing $kid }}
+- name: {{ $prefix }}__Provider
+  value: {{ $key.provider | quote }}
+- name: {{ $prefix }}__KeyId
+  value: {{ $key.keyId | quote }}
+- name: {{ $prefix }}__Algorithm
+  value: {{ $key.algorithm | quote }}
+- name: {{ $prefix }}__SecretType
+  value: {{ $key.secretType | quote }}
+- name: {{ $prefix }}__KeySizeBits
+  value: {{ $key.keySizeBits | quote }}
+{{- with $key.curve }}
+- name: {{ $prefix }}__Curve
+  value: {{ . | quote }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
 The volume mounts of the host container, which the Deployment and the host's Jobs share.
 */}}
 {{- define "identity-host.hostVolumeMounts" -}}
@@ -905,13 +912,19 @@ The volume mounts of the host container, which the Deployment and the host's Job
   mountPath: {{ printf "%s/recovery" $secretProtectionRoot }}
   readOnly: true
 {{- end }}
+{{- with .Values.extraVolumeMounts }}
+{{- toYaml . | nindent 0 }}
+{{- end }}
+{{- end }}
+
+{{/*
+The volume mount of the directory client's key, which only the Deployment carries.
+*/}}
+{{- define "identity-host.directoryClientVolumeMounts" -}}
 {{- if and .Values.directory.url .Values.directory.keys.pemSecret }}
 - name: directory-key
   mountPath: /etc/ncode-identity/directory-key
   readOnly: true
-{{- end }}
-{{- with .Values.extraVolumeMounts }}
-{{- toYaml . | nindent 0 }}
 {{- end }}
 {{- end }}
 
@@ -942,6 +955,15 @@ The volumes of the host pod, which the Deployment and the host's Jobs share.
     name: {{ . }}
     defaultMode: 0440
 {{- end }}
+{{- with .Values.extraVolumes }}
+{{- toYaml . | nindent 0 }}
+{{- end }}
+{{- end }}
+
+{{/*
+The volume of the directory client's key, which only the Deployment carries.
+*/}}
+{{- define "identity-host.directoryClientVolumes" -}}
 {{- if and .Values.directory.url .Values.directory.keys.pemSecret }}
 - name: directory-key
   secret:
@@ -950,9 +972,6 @@ The volumes of the host pod, which the Deployment and the host's Jobs share.
       - key: {{ printf "%s.pem" .Values.directory.keyRing }}
         path: {{ printf "%s.pem" .Values.directory.keyRing }}
     defaultMode: 0440
-{{- end }}
-{{- with .Values.extraVolumes }}
-{{- toYaml . | nindent 0 }}
 {{- end }}
 {{- end }}
 

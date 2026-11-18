@@ -194,7 +194,8 @@ The cell's `directory` values say the same as the platform's bootstrap runbook: 
 `directory.clientId`, `directory.keyRing` and `directory.keys.*` give the cell the client and its private keys. A
 control-plane cell without `directory.url` keeps the local adapters, so its teams and platform changes never reach the
 directory. [Run the cells of a platform](../../docs/platform-bootstrap.md#9-run-the-cells-of-a-platform) lists the
-steps.
+steps. Only the Deployment carries the directory client's settings and key: the setup and secret-protection Jobs run
+offline commands that never call the directory.
 
 `directory.enabled` (default `false`) runs the directory host from the same release, which suits the release of the
 control-plane cell or a release of its own. It deploys the directory as one replica with a Service and a pre-install
