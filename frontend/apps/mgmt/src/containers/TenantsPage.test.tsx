@@ -747,8 +747,8 @@ describe('TenantsPage (promotion)', () => {
   };
 
   function chooseTenants() {
-    fireEvent.change(screen.getByTestId('promotion-target'), { target: { value: 'globex-dev' } });
-    fireEvent.change(screen.getByTestId('promotion-source'), { target: { value: 'acme-dev' } });
+    fireEvent.change(screen.getByTestId('promotion-target'), { target: { value: '/globex-dev' } });
+    fireEvent.change(screen.getByTestId('promotion-source'), { target: { value: '/acme-dev' } });
   }
 
   it('enables Promote only when the team has two tenants', async () => {
@@ -997,7 +997,7 @@ describe('TenantsPage (promotion across cells)', () => {
   it("sends the source tenant's id to the target's cell when both live in one cell", async () => {
     const calls = installCells();
 
-    await openPromotion('acme-staging', 'acme-dev');
+    await openPromotion('eu-1/acme-staging', 'eu-1/acme-dev');
     fireEvent.click(screen.getByTestId('promotion-preview'));
 
     await waitFor(() => expect(screen.getByTestId('promotion-preview')).toBeEnabled());
@@ -1015,7 +1015,7 @@ describe('TenantsPage (promotion across cells)', () => {
   it("fetches the source's configuration from its cell and sends it inline to the target's cell", async () => {
     const calls = installCells();
 
-    await openPromotion('globex-dev', 'acme-dev');
+    await openPromotion('eu-2/globex-dev', 'eu-1/acme-dev');
     fireEvent.click(screen.getByTestId('promotion-preview'));
 
     await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true));
@@ -1049,7 +1049,7 @@ describe('TenantsPage (promotion across cells)', () => {
       throw new Error(`Unexpected ${method} ${url}`);
     });
 
-    await openPromotion('globex-dev', 'acme-dev');
+    await openPromotion('eu-2/globex-dev', 'eu-1/acme-dev');
     fireEvent.click(screen.getByTestId('promotion-preview'));
 
     expect(await screen.findByTestId('promotion-error')).toHaveTextContent(
@@ -1067,7 +1067,9 @@ describe('TenantsPage (promotion across cells)', () => {
       expect(screen.getByTestId('tenant-cell-us-1/acme-us')).toHaveTextContent('us-1us-east'),
     );
     fireEvent.click(screen.getByTestId('promote-tenant'));
-    fireEvent.change(screen.getByTestId('promotion-target'), { target: { value: 'globex-dev' } });
+    fireEvent.change(screen.getByTestId('promotion-target'), {
+      target: { value: 'eu-2/globex-dev' },
+    });
     fireEvent.mouseDown(screen.getByRole('combobox', { name: /source tenant/i }));
 
     expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([

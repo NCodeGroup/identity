@@ -138,6 +138,14 @@ function tenantLabel(tenant: TenantPromotionDialogTenant): string {
   return tenant.cell === undefined ? tenant.tenantId : `${tenant.tenantId} (${tenant.cell})`;
 }
 
+/**
+ * The key and the option value of a tenant: its cell and its id, because two cells list one tenant while it moves
+ * between them.
+ */
+function tenantKey(tenant: TenantPromotionDialogTenant): string {
+  return `${tenant.cell ?? ''}/${tenant.tenantId}`;
+}
+
 type ParsedValue =
   { readonly isValid: true; readonly value: unknown } | { readonly isValid: false };
 
@@ -160,7 +168,8 @@ function parseValue(text: string): ParsedValue | undefined {
  * typed values are local because they are intrinsic to the controlled inputs (they reset each time the dialog opens);
  * the report, the busy flag and every failure are the container's to supply, as is the work of previewing and
  * promoting. The request carries each tenant's cell so the container can address the target's cell and, when the source
- * lives in another cell, fetch its configuration there.
+ * lives in another cell, fetch its configuration there. Each tenant option is keyed and valued by its cell and its
+ * tenant id, because two cells list one tenant while it moves between them.
  */
 export function TenantPromotionDialog({
   open,
@@ -172,23 +181,24 @@ export function TenantPromotionDialog({
   onPromote,
   onCancel,
 }: TenantPromotionDialogProps) {
-  const [selectedSourceId, setSelectedSourceId] = useState('');
-  const [targetTenantId, setTargetTenantId] = useState('');
+  const [selectedSourceKey, setSelectedSourceKey] = useState('');
+  const [targetKey, setTargetKey] = useState('');
   const [texts, setTexts] = useState<Readonly<Record<string, string>>>({});
   const wasOpenRef = useRef(open);
 
   // Reset only on the rising edge of `open`, so a re-render while open never discards in-progress edits.
   useEffect(() => {
     if (open && !wasOpenRef.current) {
-      setSelectedSourceId('');
-      setTargetTenantId('');
+      setSelectedSourceKey('');
+      setTargetKey('');
       setTexts({});
     }
     wasOpenRef.current = open;
   }, [open]);
 
   // A tenant is promoted only within its region, so the sources are the target's region's tenants, the target excluded.
-  const target = tenants.find((tenant) => tenant.tenantId === targetTenantId);
+  const target = tenants.find((tenant) => tenantKey(tenant) === targetKey);
+  const targetTenantId = target?.tenantId ?? '';
   const sources =
     target === undefined
       ? []
@@ -200,7 +210,7 @@ export function TenantPromotionDialog({
     target.cell !== undefined &&
     (target.region === null || target.region === undefined);
   // A source chosen for another target that is not in this target's region is no longer selected.
-  const source = sources.find((tenant) => tenant.tenantId === selectedSourceId);
+  const source = sources.find((tenant) => tenantKey(tenant) === selectedSourceKey);
   const sourceTenantId = source?.tenantId ?? '';
 
   const isPair = source !== undefined && target !== undefined;
@@ -278,14 +288,14 @@ export function TenantPromotionDialog({
           <TextField
             select
             label="Target tenant"
-            value={targetTenantId}
-            onChange={(event) => setTargetTenantId(event.target.value)}
+            value={targetKey}
+            onChange={(event) => setTargetKey(event.target.value)}
             helperText="The tenant that receives it. Secrets, keys and environment-bound values stay with their tenant."
             fullWidth
             slotProps={{ htmlInput: { 'data-testid': 'promotion-target' } }}
           >
             {tenants.map((tenant) => (
-              <MenuItem key={tenant.tenantId} value={tenant.tenantId}>
+              <MenuItem key={tenantKey(tenant)} value={tenantKey(tenant)}>
                 {tenantLabel(tenant)}
               </MenuItem>
             ))}
@@ -293,8 +303,8 @@ export function TenantPromotionDialog({
           <TextField
             select
             label="Source tenant"
-            value={sourceTenantId}
-            onChange={(event) => setSelectedSourceId(event.target.value)}
+            value={source === undefined ? '' : tenantKey(source)}
+            onChange={(event) => setSelectedSourceKey(event.target.value)}
             disabled={target === undefined}
             helperText={
               isTargetRegionUnknown
@@ -305,7 +315,7 @@ export function TenantPromotionDialog({
             slotProps={{ htmlInput: { 'data-testid': 'promotion-source' } }}
           >
             {sources.map((tenant) => (
-              <MenuItem key={tenant.tenantId} value={tenant.tenantId}>
+              <MenuItem key={tenantKey(tenant)} value={tenantKey(tenant)}>
                 {tenantLabel(tenant)}
               </MenuItem>
             ))}
