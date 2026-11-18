@@ -20,7 +20,8 @@
     fenced code block end it. A single-line /** ... */ comment is a paragraph of its own.
 
     The check judges the paragraphs a change touches: a paragraph is touched when any of its lines differs between the
-    working tree and the merge base of HEAD and -Base, or when its file is untracked. -All judges every paragraph.
+    working tree and the merge base of HEAD and -Base, when a deletion removed lines right before or after one of its
+    lines, or when its file is untracked. -All judges every paragraph.
 
     Outputs one string per problem, sorted ordinally by path and then by line, and nothing when clean:
     - a line longer than 120 characters, unless its text is one token, such as a long <see cref="..."/>, or it is the
@@ -455,6 +456,16 @@ function Read-DocFile([string]$FullPath, [string]$RelativePath, [bool]$IsTypeScr
             }
             $start = [int]$header.Groups[1].Value
             $count = if ($header.Groups[2].Success) { [int]$header.Groups[2].Value } else { 1 }
+            # A pure deletion (+N,0) leaves no line of its own: it touches the lines on either side of it, N and N + 1,
+            # so a paragraph it shortens is judged again.
+            if ($count -eq 0) {
+                foreach ($n in @($start, ($start + 1))) {
+                    if ($n -ge 1 -and $n -le $lines.Length) {
+                        $touched[$n] = $true
+                    }
+                }
+                continue
+            }
             for ($n = $start; $n -lt $start + $count -and $n -lt $touched.Length; $n++) {
                 $touched[$n] = $true
             }

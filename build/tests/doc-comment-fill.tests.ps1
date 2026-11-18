@@ -184,6 +184,17 @@ try {
     Assert-Problems 'an old under-filled line in a paragraph with an edited line is reported' $repository @(
         "src/A/Widget.cs(5): $underFilled")
 
+    $paragraph = @(
+        '/// <summary>',
+        "/// $(New-Prose 100)",
+        '/// Internationalization is a first word too long to fit on the line above it.',
+        '/// Last line.',
+        '/// </summary>')
+    $repository = New-Repository 'deleted-line' @{ 'src/A/Widget.cs' = New-CSharp $paragraph }
+    Write-FixtureFile (Join-Path $repository 'src/A/Widget.cs') (New-CSharp @($paragraph[0], $paragraph[1], $paragraph[3], $paragraph[4]))
+    Assert-Problems 'a deletion that leaves the line before it under-filled is reported' $repository @(
+        "src/A/Widget.cs(4): $underFilled")
+
     $repository = New-Repository 'boundaries' @{ 'src/A/Widget.cs' = New-CSharp }
     Write-FixtureFile (Join-Path $repository 'src/A/Widget.cs') (New-CSharp @(
             '/// <summary>',
