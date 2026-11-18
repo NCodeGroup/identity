@@ -88,11 +88,12 @@ function stagesOf(sourceCell: string, targetCell: string): readonly Stage[] {
  * and what remains, and it outlasts closing the dialog, so opening it again shows the failure and its Retry. Retry
  * resumes from the failed stage, so the stages that finished do not run again, except after a failed import, which
  * spends the transfer key, so Retry then runs from the transfer key. An export that finds the tenant already placed in
- * another cell offers Release instead, which runs only the release of the copy the tenant's own cell holds. While the
- * platform's cells load, or when they cannot be loaded, the dialog says so instead of saying that the region has no
- * other cell. Closing it after a completed move hands `onMoved` the cell the tenant moved to. The chosen cell and the
- * progress are local because the dialog runs the sequence itself; the calls are the container's to supply, so this
- * package holds no store.
+ * another cell offers Release instead, which runs only the release of the copy the tenant's own cell holds. An import
+ * that cannot tell whether the global directory moved the tenant says that the outcome is unknown instead of saying
+ * where the tenant is. While the platform's cells load, or when they cannot be loaded, the dialog says so instead of
+ * saying that the region has no other cell. Closing it after a completed move hands `onMoved` the cell the tenant moved
+ * to. The chosen cell and the progress are local because the dialog runs the sequence itself; the calls are the
+ * container's to supply, so this package holds no store.
  */
 export function TenantMoveDialog({
   open,
@@ -261,9 +262,11 @@ export function TenantMoveDialog({
               </Typography>
               {failure.placedCell === undefined && (
                 <Typography variant="body2">
-                  {failure.stage < tenantMoveStages.release
-                    ? `The tenant has not moved and is still at ${sourceCell}.`
-                    : `The tenant is imported into ${receivingCell}; ${sourceCell} still holds it until it is released.`}
+                  {failure.isOutcomeUnknown === true
+                    ? `The outcome of the move is unknown: the global directory may already place the tenant in ${receivingCell}. Read its placement before you release it at ${sourceCell}; Retry starts the move again.`
+                    : failure.stage < tenantMoveStages.release
+                      ? `The tenant has not moved and is still at ${sourceCell}.`
+                      : `The tenant is imported into ${receivingCell}; ${sourceCell} still holds it until it is released.`}
                 </Typography>
               )}
             </Alert>

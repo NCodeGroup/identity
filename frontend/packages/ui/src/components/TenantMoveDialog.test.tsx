@@ -6,7 +6,7 @@ import {
   type TenantMoveDialogOperations,
   type TenantMoveDialogProps,
 } from './TenantMoveDialog.js';
-import { TenantPlacedElsewhereError } from './tenantMove.js';
+import { TenantMoveOutcomeUnknownError, TenantPlacedElsewhereError } from './tenantMove.js';
 
 const cells: readonly TenantMoveDialogCell[] = [
   { name: 'eu-1', region: 'eu' },
@@ -523,5 +523,25 @@ describe('TenantMoveDialog', () => {
     expect(calls).toEqual(['release eu-1 acme']);
     expect(operations.createTransferKey).toHaveBeenCalledTimes(1);
     expect(operations.importTenant).not.toHaveBeenCalled();
+  });
+
+  it('says that the outcome is unknown, not that the tenant has not moved, when the import cannot tell', async () => {
+    const operations: TenantMoveDialogOperations = {
+      ...createOperations(),
+      importTenant: vi.fn(async () => {
+        throw new TenantMoveOutcomeUnknownError('The outcome of the move is unknown.');
+      }),
+    };
+    renderDialog({ operations });
+    choose('eu-2');
+
+    fireEvent.click(screen.getByTestId('move-confirm'));
+
+    const failure = await screen.findByTestId('move-failure');
+    expect(failure).toHaveTextContent(
+      'The outcome of the move is unknown: the global directory may already place the tenant in eu-2. Read its placement before you release it at eu-1; Retry starts the move again.',
+    );
+    expect(failure).not.toHaveTextContent('The tenant has not moved');
+    expect(screen.getByTestId('move-retry')).toBeInTheDocument();
   });
 });
