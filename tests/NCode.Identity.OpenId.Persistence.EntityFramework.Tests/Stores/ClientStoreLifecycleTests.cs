@@ -233,7 +233,7 @@ public sealed class ClientStoreLifecycleTests : IDisposable
     }
 
     [Fact]
-    public async Task RemoveAsync_LeavesTheRoleAssignmentsTheClientsPrincipalHolds()
+    public async Task RemoveAsync_Always_LeavesTheRoleAssignmentsTheClientsPrincipalHolds()
     {
         await SeedClientAsync([], CancellationToken.None);
         var client = await Store.GetOrDefaultAsync(ClientId, CancellationToken.None);
