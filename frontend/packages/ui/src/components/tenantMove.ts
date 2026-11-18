@@ -23,6 +23,17 @@ export class TenantPlacedElsewhereError extends Error {
 }
 
 /**
+ * The error the import of a move rejects with when the receiving cell cannot tell whether the global directory moved
+ * the tenant: the import kept what it wrote, and the tenant may already be placed in the receiving cell.
+ */
+export class TenantMoveOutcomeUnknownError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'TenantMoveOutcomeUnknownError';
+  }
+}
+
+/**
  * The four calls of a move, each addressed to the cell it concerns (decoupled from the API contract). Each rejects with
  * an `Error` whose message says why it failed.
  */
@@ -40,7 +51,11 @@ export type TenantMoveOperations = {
     targetCell: string,
     jwk: Readonly<Record<string, unknown>>,
   ) => Promise<string>;
-  /** Imports `sealedPackage` into `cell`, the receiving cell, with the transfer key named `kid`. */
+  /**
+   * Imports `sealedPackage` into `cell`, the receiving cell, with the transfer key named `kid`. Rejects with a
+   * {@link TenantMoveOutcomeUnknownError} when the receiving cell cannot tell whether the global directory moved the
+   * tenant.
+   */
   readonly importTenant: (cell: string, kid: string, sealedPackage: string) => Promise<void>;
   /** Releases what `cell`, the tenant's own cell, still holds of the tenant that moved. */
   readonly releaseMovedTenant: (cell: string, tenantId: string) => Promise<void>;
@@ -70,6 +85,11 @@ export type TenantMoveFailure = {
    * the copy its own cell holds remains; absent for every other failure.
    */
   readonly placedCell?: string;
+  /**
+   * Whether the import could not tell whether the global directory moved the tenant, so the tenant may already be
+   * placed in the receiving cell; absent for every other failure.
+   */
+  readonly isOutcomeUnknown?: boolean;
 };
 
 /** A move: runs its stages from a given stage and keeps what one stage hands the next. */
@@ -161,7 +181,12 @@ export function createTenantMove(
           // The import spends the transfer key, so a retry asks the receiving cell for another one.
           transferKey = undefined;
           sealedPackage = undefined;
-          return { stage, resumeStage: tenantMoveStages.transferKey, message: errorMessage(error) };
+          return {
+            stage,
+            resumeStage: tenantMoveStages.transferKey,
+            message: errorMessage(error),
+            ...(error instanceof TenantMoveOutcomeUnknownError ? { isOutcomeUnknown: true } : {}),
+          };
         }
         return { stage, resumeStage: stage, message: errorMessage(error) };
       }

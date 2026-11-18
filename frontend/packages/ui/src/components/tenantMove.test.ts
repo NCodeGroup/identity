@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   createTenantMove,
+  TenantMoveOutcomeUnknownError,
   tenantMoveStageCount,
   tenantMoveStages,
   TenantPlacedElsewhereError,
@@ -219,6 +220,22 @@ describe('createTenantMove', () => {
       stage: 3,
       resumeStage: 3,
       message: 'Placed.',
+    });
+  });
+
+  it('marks a failed import whose move outcome is unknown and resumes at the transfer key', async () => {
+    const operations: TenantMoveOperations = {
+      ...createOperations(),
+      importTenant: vi.fn(async () => {
+        throw new TenantMoveOutcomeUnknownError('The outcome of the move is unknown.');
+      }),
+    };
+
+    expect(await createTenantMove(operations, target).run(0)).toStrictEqual({
+      stage: 2,
+      resumeStage: 0,
+      message: 'The outcome of the move is unknown.',
+      isOutcomeUnknown: true,
     });
   });
 
