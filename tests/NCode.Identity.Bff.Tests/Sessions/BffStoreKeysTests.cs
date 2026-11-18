@@ -112,9 +112,20 @@ public class BffStoreKeysTests : BaseTests
     [InlineData("2030-13-40:digest")]
     [InlineData("not-a-day:digest")]
     [InlineData("digest")]
+    [InlineData("2030-5-07:abc")]
+    [InlineData("02030-05-07:abc")]
     public void TryParseClientMember_WhenTheDayIsMalformed_ReturnsFalse(string member)
     {
         var parsed = BffStoreKeys.TryParseClientMember(member, out var digest);
+
+        Assert.False(parsed);
+        Assert.Empty(digest);
+    }
+
+    [Fact]
+    public void TryParseClientMember_WhenThereIsNoSeparator_ReturnsFalse()
+    {
+        var parsed = BffStoreKeys.TryParseClientMember("2030-05-07abc", out var digest);
 
         Assert.False(parsed);
         Assert.Empty(digest);

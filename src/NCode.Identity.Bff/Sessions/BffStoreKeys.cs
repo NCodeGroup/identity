@@ -113,7 +113,7 @@ internal static class BffStoreKeys
 
         var separator = member.IndexOf(ClientMemberSeparator);
         if (
-            separator != ClientMemberDayFormat.Length
+            separator < 0
             || separator == member.Length - 1
             || !DateOnly.TryParseExact(
                 member.AsSpan(0, separator),
