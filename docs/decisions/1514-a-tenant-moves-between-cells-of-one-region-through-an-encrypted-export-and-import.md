@@ -98,7 +98,9 @@ tenant is created there instead.**
      imported and answer the move's own failure. Any other answer, an unreachable directory included, keeps what the
      import wrote and the keys' tags, and answers `503` that the outcome of the move is unknown: a repeated export then
      names the target cell in `placedCell` when the move committed, and a repeated import otherwise clears the target's
-     copy before it imports. The local adapter always answers a conflict, because a single cell has no other cell.
+     copy before it imports. The `503` carries the problem member `moveOutcome` with the value `unknown`, so the console
+     says that the outcome is unknown instead of saying where the tenant is. The local adapter always answers a
+     conflict, because a single cell has no other cell.
    - The remote keys the import found carry the target cell's tag through `IRemoteKeyProvider.RetagKeyAsync`, so the
      target's sweep keeps them and the source's sweep, which lists only keys of its own name, never destroys them. The
      cells of a region that move tenants between them share the location that their providers use, one AWS account and

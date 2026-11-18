@@ -107,7 +107,7 @@ outcome unknown. The tenant stays disabled in `<target>`. The audit record `tena
 | `409`  | The directory places the tenant in no cell or already in `<target>`; or the directory refuses the move and still places the tenant in `<source>` (`<source>` holds no unexpired move offer to `<target>`, a cell is not registered, or the cells are in different regions). Nothing the import wrote remains. |
 | `413`  | The request is larger than a move's 64 MiB and 64 KiB. Nothing is imported. |
 | `422`  | The `kid` is empty, or the transfer key is unknown, expired or already used; the package is not sealed to a transfer key (its header does not name `ECDH-ES+A256KW` and `A256GCM`), does not decrypt with the key or is malformed; its region is not `<target>`'s region; it names a target cell other than `<target>`; it has a section that `<target>` does not import; the root key that the tenant brings fails `<target>`'s root-key checks; or the tenant's secrets reference a remote key of a provider that `<target>` does not register, or one outside the location that `<target>`'s provider uses. Nothing the import wrote remains. |
-| `503`  | The directory is unavailable, with a `Retry-After` header, before the import writes anything, or at a move after which the directory still places the tenant in `<source>`; nothing the import wrote remains. Or the outcome of the move is unknown, also with a `Retry-After` header: the directory cannot be read back or places the tenant in neither cell, and `<target>` keeps what the import wrote ([recovering](#recovering-from-a-failed-stage)). |
+| `503`  | The directory is unavailable, with a `Retry-After` header, before the import writes anything, or at a move after which the directory still places the tenant in `<source>`; nothing the import wrote remains. Or the outcome of the move is unknown, also with a `Retry-After` header: the directory cannot be read back or places the tenant in neither cell, and `<target>` keeps what the import wrote; the problem's `moveOutcome` member is then `unknown` ([recovering](#recovering-from-a-failed-stage)). |
 
 **Verify:** `GET <target-api>/api/tenants/<tenant>` answers `200` with `isDisabled` `true`.
 
@@ -180,7 +180,9 @@ and names the stage that failed, why it failed and the stages that remain. Closi
 reopening it shows the failure and its Retry, which runs the move again from the stage that failed, or from the transfer
 key after a failed import, because the import spends it. When the export answers `409` with `placedCell`, the console
 says that the directory already places the tenant in that cell and offers Release, which runs only the release at
-`<source>`. Closing the dialog after a completed move opens the tenant in the cell it moved to.
+`<source>`. Closing the dialog after a completed move opens the tenant in the cell it moved to. When the import answers
+that the outcome of the move is unknown, the console says so instead of saying where the tenant is, and its Retry runs
+the move again from the transfer key: an export that then finds the tenant placed in `<target>` offers Release.
 
 - **Before the import** (stages 1 to 3). Nothing is placed or written in `<target>`. Repeat the stage. The disable is
   idempotent. An export has no effect on the tenant, so repeating it only writes another `tenant.exported` record. A
