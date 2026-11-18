@@ -6215,6 +6215,25 @@ Until the first stable release, the [Unreleased] section describes the product a
   end in `.Tests` or `.TestSupport`
   ([ADR-1018](docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)).
 
+- **A store method that reads or writes across tenants runs only in an unscoped scope.**
+  `OpenIdDbContext.EnsureUnscoped` throws unless the ambient scope is unscoped, and every store method that ignores the
+  query filter calls it first (`IRoleAssignmentStore.GetByPrincipalAsync` and `RemoveByPrincipalAsync`,
+  `IClientStore.GetByPrincipalOrDefaultAsync`, `ITeamStore.RemoveAsync` and `HasDependentsAsync`, and
+  `ITenantStore.RemoveAsync` and `RemoveFromCellAsync`), because Postgres row-level security filters such a query by
+  the session's tenant too, so a hermetic test catches a caller without the scope. The management API's ownership
+  checks, caller listing, control-plane authority and machine-client role check read a principal's role assignments in
+  every tenant, and a read that stays in one tenant runs in that tenant's scope: the rewrap of a tenant's grants and
+  secrets, the polling refresh of a tenant's keys and settings, and the session check of an access token, so the
+  management API refuses a token whose session was revoked
+  ([ADR-1018](docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)).
+
+- **A promotion trusts no source document.** A promotion refuses the control-plane tenant as its target, because it
+  holds the platform's machine clients and the cells' clients, and refuses with `422`, before it plans, a source
+  document that names a client identifier outside the `client_id` rule (`ClientIdRules`) or in the cells' `cell-`
+  namespace. A grant it writes to a target machine client needs `Create` at the client's owning node
+  ([ADR-1425](docs/decisions/1425-a-team-promotes-one-tenants-configuration-to-another-and-environment-bound-values-stay.md),
+  [ADR-1466](docs/decisions/1466-a-client-is-its-own-principal-and-a-machine-client-acts-only-within-its-owning-node.md)).
+
 - **ASP.NET Core Identity users belong to one tenant.** An `IdentityUser` of the adapter implements `ITenantBoundUser`
   (in `NCode.Identity.OpenId.Accounts.Abstractions`), its `TenantId` is stamped when the store creates it, and a user of
   another tenant is not found. A `TenantLookupNormalizer` prefixes each normalized name and email with
@@ -6246,6 +6265,12 @@ Until the first stable release, the [Unreleased] section describes the product a
   or move a cell only for the client `cell-{name}` of that cell, so one cell cannot register, move a tenant into or
   speak for another. A remote adapter that cannot reach the directory, the control plane or the key set answers `503`,
   never allow, empty or valid.
+
+- **A host is given its cell, and its published configuration names none.** The host's `appsettings.json` has no
+  `Cell` section, so a host that is not given `Cell:Name` and `Cell:Region` refuses to start, and only a host given
+  `Cell:IsControlPlane` serves the control plane; the local-development and conformance overlays name the `local`
+  control-plane cell
+  ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
 
 - **KMS keys are refused outside the cell's cloud regions.** The server's `AddConfiguration` names `Cell:CloudRegions`
   as the `KeyResidencyOptions` of the secrets library, and the AWS KMS adapter replaces its `AllowedRegions` and the
