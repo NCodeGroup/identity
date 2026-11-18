@@ -43,6 +43,8 @@ function renderDialog(overrides: Partial<TenantMoveDialogProps> = {}) {
     isDisabled: true,
     sourceCell: 'eu-1',
     cells,
+    isCellsLoading: false,
+    isCellsFailed: false,
     operations: createOperations(),
     onClose: vi.fn(),
     ...overrides,
@@ -79,6 +81,25 @@ describe('TenantMoveDialog', () => {
     renderDialog({ sourceCell: 'ap-1' });
 
     expect(screen.getByTestId('move-no-cells')).toBeInTheDocument();
+  });
+
+  it('says the cells are loading instead of offering none while they load', () => {
+    renderDialog({ cells: [], isCellsLoading: true });
+
+    expect(screen.getByTestId('move-cells-loading')).toHaveTextContent(
+      'Loading the cells of the platform…',
+    );
+    expect(screen.queryByTestId('move-no-cells')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('move-cells-failed')).not.toBeInTheDocument();
+  });
+
+  it('says the list of cells could not be loaded instead of offering none', () => {
+    renderDialog({ cells: [], isCellsFailed: true });
+
+    expect(screen.getByTestId('move-cells-failed')).toHaveTextContent(
+      'The list of cells could not be loaded.',
+    );
+    expect(screen.queryByTestId('move-no-cells')).not.toBeInTheDocument();
   });
 
   it('disables Move until a cell is chosen', () => {
@@ -377,6 +398,8 @@ describe('TenantMoveDialog', () => {
       isDisabled: true,
       sourceCell: 'eu-1',
       cells,
+      isCellsLoading: false,
+      isCellsFailed: false,
       operations: createOperations(),
       onClose: vi.fn(),
     };
@@ -410,6 +433,8 @@ describe('TenantMoveDialog', () => {
       isDisabled: true,
       sourceCell: 'eu-1',
       cells,
+      isCellsLoading: false,
+      isCellsFailed: false,
       operations,
       onClose: vi.fn(),
     };

@@ -49,6 +49,10 @@ export type TenantMoveDialogProps = {
    * Every cell of the platform; the dialog offers those of the tenant's region other than its own.
    */
   readonly cells: readonly TenantMoveDialogCell[];
+  /** Whether the platform's cells are still loading. */
+  readonly isCellsLoading: boolean;
+  /** Whether the platform's cells could not be loaded. */
+  readonly isCellsFailed: boolean;
   readonly operations: TenantMoveDialogOperations;
   readonly onClose: () => void;
 };
@@ -82,9 +86,10 @@ function stagesOf(sourceCell: string, targetCell: string): readonly Stage[] {
  * and what remains, and it outlasts closing the dialog, so opening it again shows the failure and its Retry. Retry
  * resumes from the failed stage, so the stages that finished do not run again, except after a failed import, which
  * spends the transfer key, so Retry then runs from the transfer key. An export that finds the tenant already placed in
- * another cell offers Release instead, which runs only the release of the copy the tenant's own cell holds. The chosen
- * cell and the progress are local because the dialog runs the sequence itself; the calls are the container's to supply,
- * so this package holds no store.
+ * another cell offers Release instead, which runs only the release of the copy the tenant's own cell holds. While the
+ * platform's cells load, or when they cannot be loaded, the dialog says so instead of saying that the region has no
+ * other cell. The chosen cell and the progress are local because the dialog runs the sequence itself; the calls are the
+ * container's to supply, so this package holds no store.
  */
 export function TenantMoveDialog({
   open,
@@ -92,6 +97,8 @@ export function TenantMoveDialog({
   isDisabled,
   sourceCell,
   cells,
+  isCellsLoading,
+  isCellsFailed,
   operations,
   onClose,
 }: TenantMoveDialogProps) {
@@ -178,11 +185,20 @@ export function TenantMoveDialog({
             Move {tenantId} from {sourceCell} to another cell of its region. The tenant stays
             disabled while it moves.
           </Typography>
-          {targets.length === 0 && (
-            <Alert severity="info" data-testid="move-no-cells">
-              The region of {sourceCell} has no other cell.
-            </Alert>
-          )}
+          {targets.length === 0 &&
+            (isCellsLoading ? (
+              <Alert severity="info" data-testid="move-cells-loading">
+                Loading the cells of the platform…
+              </Alert>
+            ) : isCellsFailed ? (
+              <Alert severity="error" data-testid="move-cells-failed">
+                The list of cells could not be loaded.
+              </Alert>
+            ) : (
+              <Alert severity="info" data-testid="move-no-cells">
+                The region of {sourceCell} has no other cell.
+              </Alert>
+            ))}
           {!isDisabled && !hasStarted && (
             <Alert severity="warning" data-testid="move-enabled">
               Disable {tenantId} before moving it.

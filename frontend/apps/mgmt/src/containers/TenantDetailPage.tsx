@@ -149,6 +149,8 @@ function TenantMoveAction({ tenantId }: TenantTabProps) {
         isDisabled={isDisabled}
         sourceCell={cell}
         cells={cells.data ?? []}
+        isCellsLoading={cells.isLoading}
+        isCellsFailed={Boolean(cells.error)}
         operations={operations}
         onClose={() => setIsOpen(false)}
       />
