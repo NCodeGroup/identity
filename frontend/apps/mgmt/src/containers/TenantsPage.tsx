@@ -124,8 +124,7 @@ export function TenantsPage({
   const tenants = data?.items ?? [];
   const unavailableCells = data?.unavailableCells ?? [];
 
-  // The console forwards to the cells its bootstrap names; the platform's cell list supplies each
-  // one's region.
+  // The console forwards to the cells its bootstrap names; the platform's cell list supplies each one's region.
   const runtime = useAppSelector((state) => state.config.runtime);
   const cellNames = runtime?.kind === 'bff' ? (runtime.cells ?? []) : [];
   const platformCells = useListCellsQuery(undefined, { skip: cellNames.length === 0 }).data ?? [];
@@ -145,8 +144,7 @@ export function TenantsPage({
 
   const [environmentFilter, setEnvironmentFilter] = useState(allTenantEnvironments);
   const environmentTypes = tenantEnvironmentTypes(rows);
-  // A filter whose type no listed tenant has any longer (its last tenant was deleted) shows every
-  // tenant.
+  // A filter whose type no listed tenant has any longer (its last tenant was deleted) shows every tenant.
   const activeEnvironment = environmentTypes.includes(environmentFilter)
     ? environmentFilter
     : allTenantEnvironments;
@@ -182,8 +180,7 @@ export function TenantsPage({
     setPromotionError(undefined);
     setDialog({ kind: 'promote' });
   };
-  // A row names its tenant by id and cell, because two cells list one tenant while it moves
-  // between them.
+  // A row names its tenant by id and cell, because two cells list one tenant while it moves between them.
   const findTenant = (tenantId: string, cell: string | undefined) =>
     tenants.find((tenant) => tenant.tenantId === tenantId && tenant.cell === cell);
   const openEdit = (tenantId: string, cell: string | undefined) => {
@@ -218,9 +215,9 @@ export function TenantsPage({
           ...(controlPlaneCell !== undefined && { cell: controlPlaneCell }),
         };
 
-  // The address is previewed against the server's own rules: for a new tenant through its team's
-  // route, always, and for an existing tenant through its own route, only when its issuer or mTLS
-  // endpoint alias changes, because the server judges an address only when it can change.
+  // The address is previewed against the server's own rules: for a new tenant through its team's route, always, and for
+  // an existing tenant through its own route, only when its issuer or mTLS endpoint alias changes, because the server
+  // judges an address only when it can change.
   const debouncedAddress = useDebouncedValue(addressInput, addressPreviewDelayMs);
   const isAddressUnchanged =
     dialog.kind === 'edit' &&

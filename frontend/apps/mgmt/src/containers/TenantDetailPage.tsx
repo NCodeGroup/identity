@@ -114,11 +114,10 @@ function TenantMoveAction({ tenantId, surface, onNavigate }: TenantMoveActionPro
 
   const isDisabled = tenant.data?.isDisabled === true;
 
-  // Each call rejects with an Error that carries the server's reason, which the dialog shows
-  // against its stage; a problem naming the cell the global directory already places the tenant
-  // in rejects with a TenantPlacedElsewhereError, so the dialog offers the release; an import
-  // whose problem says that the outcome of the move is unknown rejects with a
-  // TenantMoveOutcomeUnknownError, so the dialog says so.
+  // Each call rejects with an Error that carries the server's reason, which the dialog shows against its stage; a
+  // problem naming the cell the global directory already places the tenant in rejects with a
+  // TenantPlacedElsewhereError, so the dialog offers the release; an import whose problem says that the outcome of the
+  // move is unknown rejects with a TenantMoveOutcomeUnknownError, so the dialog says so.
   const run = async <T,>(call: { unwrap: () => Promise<T> }): Promise<T> => {
     try {
       return await call.unwrap();

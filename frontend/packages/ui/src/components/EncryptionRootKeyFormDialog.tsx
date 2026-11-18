@@ -82,8 +82,7 @@ export function EncryptionRootKeyFormDialog({
     wasOpenRef.current = open;
   }, [open, initialValues]);
 
-  // The selected provider is always one the form offers, so the select never holds a value it has
-  // no option for.
+  // The selected provider is always one the form offers, so the select never holds a value it has no option for.
   const provider = providers.includes(values.provider) ? values.provider : (providers[0] ?? '');
   const keyReference = values.keyReference.trim();
   const canSubmit = provider.length > 0 && keyReference.length > 0 && !isSubmitting;

@@ -38,8 +38,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
   const hasUnavailableCells = unavailableCells.length > 0;
 
   useEffect(() => {
-    // A cell that did not answer may hold another destination, so the home opens none on partial
-    // access.
+    // A cell that did not answer may hold another destination, so the home opens none on partial access.
     if (!access || hasUnavailableCells) {
       return;
     }

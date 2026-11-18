@@ -329,8 +329,8 @@ export const managementApi = createApi({
         inCell(cell, `api/tenants/${encodeURIComponent(tenantId)}/configuration`),
       keepUnusedDataFor: 0,
     }),
-    // A preview of the address an existing tenant has, or would have with a proposed issuer or alias. It
-    // is never cached beyond its subscriber, so it always reflects the tenants that exist when it is asked.
+    // A preview of the address an existing tenant has, or would have with a proposed issuer or alias. It is never
+    // cached beyond its subscriber, so it always reflects the tenants that exist when it is asked.
     getTenantAddress: build.query<
       TenantAddressResource,
       WithCell<{ tenantId: string; issuer?: string; mtlsEndpointAliasAuthority?: string }>
@@ -347,8 +347,8 @@ export const managementApi = createApi({
       },
       keepUnusedDataFor: 0,
     }),
-    // A preview of the address a tenant that does not exist yet would have in a team. It is never cached
-    // beyond its subscriber, so it always reflects the tenants that exist when it is asked.
+    // A preview of the address a tenant that does not exist yet would have in a team. It is never cached beyond its
+    // subscriber, so it always reflects the tenants that exist when it is asked.
     getNewTenantAddress: build.query<
       TenantAddressResource,
       WithCell<{
@@ -437,8 +437,8 @@ export const managementApi = createApi({
         { type: 'Caller', id: callerTag },
       ],
     }),
-    // A promotion runs in the target tenant's cell; the body names its source, a tenant of that cell or an
-    // exported configuration.
+    // A promotion runs in the target tenant's cell; the body names its source, a tenant of that cell or an exported
+    // configuration.
     previewTenantPromotion: build.mutation<
       TenantPromotionResource,
       WithCell<{ tenantId: string; body: PromoteTenantRequest }>
@@ -450,8 +450,8 @@ export const managementApi = createApi({
           body,
         }),
     }),
-    // A promotion writes the target tenant's settings, clients and resource servers, so it refreshes the
-    // target's own tags and, for every client and resource server it reports, the item and its settings.
+    // A promotion writes the target tenant's settings, clients and resource servers, so it refreshes the target's own
+    // tags and, for every client and resource server it reports, the item and its settings.
     promoteTenant: build.mutation<
       TenantPromotionResource,
       WithCell<{ tenantId: string; body: PromoteTenantRequest }>
@@ -594,8 +594,8 @@ export const managementApi = createApi({
         { type: 'Client', id: tenantTag(tenantId, clientId) },
       ],
     }),
-    // The machine clients the platform or a team owns (ADR-1466). Each lives in the control-plane tenant, so its
-    // item tag is that tenant's and a change through the tenant's client routes refetches the owner's list.
+    // The machine clients the platform or a team owns (ADR-1466). Each lives in the control-plane tenant, so its item
+    // tag is that tenant's and a change through the tenant's client routes refetches the owner's list.
     listMachineClients: build.query<CollectionResource<ClientResource>, MachineClientOwner>({
       query: (owner) => `${ownerApiPath(owner)}/clients`,
       providesTags: (result, _error, owner) => [
@@ -1080,8 +1080,8 @@ export const managementApi = createApi({
           method: 'POST',
           body: { principalId } satisfies AddRoleHolderRequest,
         }),
-      // A role change can change the caller's own access, its authority over every role list and its authority over
-      // any scope's limits.
+      // A role change can change the caller's own access, its authority over every role list and its authority over any
+      // scope's limits.
       invalidatesTags: ['RoleAssignment', { type: 'Caller', id: callerTag }, 'SettingLimits'],
     }),
     removeRoleAssignment: build.mutation<void, WithCell<{ list: RoleList; principalId: string }>>({
@@ -1090,8 +1090,8 @@ export const managementApi = createApi({
           url: `${roleListApiPath(list)}/${encodeURIComponent(principalId)}`,
           method: 'DELETE',
         }),
-      // A role change can change the caller's own access, its authority over every role list and its authority over
-      // any scope's limits.
+      // A role change can change the caller's own access, its authority over every role list and its authority over any
+      // scope's limits.
       invalidatesTags: ['RoleAssignment', { type: 'Caller', id: callerTag }, 'SettingLimits'],
     }),
   }),
