@@ -130,6 +130,9 @@ jobs:
           refuse --set cell.name=
           refuse --set cell.region=
           refuse --set cell.name=Not_A_Label
+          refuse --set cell.name=prod--eu
+          refuse --set cell.name=prod-
+          refuse --set cell.region=eu--west
           refuse --set cell.isControlPlane=false
           refuse --set secretProtection.remoteKeyProviders.azureKeyVault.enabled=true --set secretProtection.remoteKeyProviders.azureKeyVault.vaultUri=http://contoso.vault.azure.net
           refuse --set secretProtection.remoteKeyProviders.googleCloudKms.enabled=true --set secretProtection.remoteKeyProviders.googleCloudKms.keyRing=projects/p/locations/l/keyRings/r/cryptoKeys/k

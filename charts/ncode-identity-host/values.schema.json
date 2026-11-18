@@ -220,11 +220,13 @@
       "properties": {
         "name": {
           "type": "string",
-          "pattern": "^[a-z][a-z0-9-]{0,30}$"
+          "maxLength": 31,
+          "pattern": "^[a-z](-?[a-z0-9])*$"
         },
         "region": {
           "type": "string",
-          "pattern": "^[a-z][a-z0-9-]{0,30}$"
+          "maxLength": 31,
+          "pattern": "^[a-z](-?[a-z0-9])*$"
         },
         "kind": {
           "type": "string",
@@ -318,7 +320,9 @@
           ]
         },
         "clientId": {
-          "type": "string"
+          "type": "string",
+          "maxLength": 36,
+          "pattern": "^(cell-[a-z](-?[a-z0-9])*)?$"
         },
         "keyRing": {
           "type": "string",
@@ -344,7 +348,8 @@
         },
         "controlPlaneCell": {
           "type": "string",
-          "pattern": "^([a-z][a-z0-9-]{0,30})?$"
+          "maxLength": 31,
+          "pattern": "^([a-z](-?[a-z0-9])*)?$"
         },
         "allowedHosts": {
           "type": "array",
