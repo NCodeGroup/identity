@@ -4507,20 +4507,23 @@ Until the first stable release, the [Unreleased] section describes the product a
   `rootKeyAccessBinding` (such as `tenant:acme`), a service account email it impersonates, or a Microsoft Entra tenant
   ID it requests tokens for — and the server reaches the key through that identity with no stored secret; every master
   key records the identity that reaches it (`rootKeyAccessIdentity`, and the `root_key_access_identity` detail of
-  `master_key.*` audit events), and changing only the identity rewraps the master keys without a rotation.
+  `master_key.*` audit events) and the binding of its key's owner, and changing only the identity rewraps the master
+  keys without a rotation.
   `KeyAccessClientCache<TClient>` keeps a client for an access identity once a call through it succeeds and drops one
   that never worked. `PUT`, `DELETE` and `POST .../validate` on `/api/tenants/{tenantId}/encryption-keys/root-key` set or
   change, remove and validate it (scope `update:encryption_keys`), and `GET .../encryption-keys` reports the root key and
   the providers a tenant may choose (scope `read:encryption_keys`). A `PUT` answers `400` for a field that is blank, not
   allowed, not registered or malformed, `409` with `Retry-After` and `retryAfterSeconds` within twice
   `SecretProtection:MasterKeys:RefreshInterval` of the tenant's last rotation, `412` when it loses a race and `422` when
-  the probe fails; a `DELETE` answers `204` once every master key is under the deployment's root key and `202` while
-  master keys remain under the tenant's key. The server validates a key by wrapping 32 random bytes through it under a
+  the probe fails; a `DELETE` answers `204` once none of the tenant's master keys remains under the key and `202` while
+  some do, and a master key of another owner whose own root key names the same key never holds the removal. The
+  server validates a key by wrapping 32 random bytes through it under a
   context label of its own, unwrapping them and comparing the two in constant time, which proves that the key exists, is
   enabled and grants both the encrypt and the decrypt permission through any provider. Setting or changing the key
   rotates the tenant's master key so that the successor is created under it and rewraps every retired master key under
-  it, because earlier material exists in backups under the deployment's root key; removing it moves the master keys back
-  under the deployment's root key without a rotation. An Azure Key Vault key reference names a host under the
+  it, because earlier material exists in backups under the deployment's root key; removing it moves the master keys
+  under the nearest other root key, the team's when the team brings one and otherwise the deployment's, without a
+  rotation. An Azure Key Vault key reference names a host under the
   deployment's Key Vault or Managed HSM host suffixes
   (`SecretProtection:RootKeyProviders:AzureKeyVault:ReferencedKeyHostSuffixes`, by default the public, China and US
   government cloud domains). Which owners can bring a key is a registered `IOwnerRootKeyPolicy`: the `platform` owner
@@ -6055,9 +6058,11 @@ Until the first stable release, the [Unreleased] section describes the product a
 
 - **Deleting an owner removes the role assignments it anchors.** Deleting a client or a resource server, also when a
   dynamically registered client is deregistered, removes the assignments of every role at its node, ownership included,
-  in the same unit of work. Removing a federated principal, or deleting a local account, removes every role assignment
-  its principal holds, ownership included, in every tenant, and deleting a tenant removes the assignments its principals
-  hold in other tenants ([ADR-1212](docs/decisions/1212-deleting-a-client-resource-server-principal-or-tenant-removes-what-it-owns.md), issues
+  in the same unit of work. Deleting a client through the management API also removes every role assignment its
+  principal holds, in every tenant, and deleting a local account removes every role assignment its principal holds,
+  ownership included, in every tenant, each through `IRoleAssignmentStore.RemoveByPrincipalAsync` and saved in an
+  unscoped scope, and deleting a tenant removes the assignments its principals hold in other tenants
+  ([ADR-1212](docs/decisions/1212-deleting-a-client-resource-server-principal-or-tenant-removes-what-it-owns.md), issues
   [#266](https://github.com/NCodeGroup/identity/issues/266), [#273](https://github.com/NCodeGroup/identity/issues/273)).
 
 - **A platform or team settings PATCH reads only what it checks.** It walks the clients only when a setting that the client
