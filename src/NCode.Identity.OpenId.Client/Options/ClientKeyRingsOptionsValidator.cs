@@ -82,10 +82,11 @@ internal sealed class ClientKeyRingsOptionsValidator(IHostEnvironment environmen
     }
 
     /// <summary>
-    /// Checks every configured key ring, in ordinal order of its name: the section is set, each key ring has a name and
-    /// lists at least one PEM file or remote key, each PEM path is not blank and names a file that exists under
-    /// <see cref="IHostEnvironment.ContentRootPath"/>, each remote key is valid, and no two keys of a key ring share an
-    /// id. A PEM file's id is its file name without its extension.
+    /// Checks every configured key ring, in ordinal order of its name: the section is set, each key ring has a name
+    /// that follows <see cref="KeyRingIdentifiers"/> and lists at least one PEM file or remote key, each PEM path is
+    /// not blank and names a file that exists under <see cref="IHostEnvironment.ContentRootPath"/>, each key's id
+    /// follows <see cref="KeyRingIdentifiers"/>, each remote key is valid, and no two keys of a key ring have ids equal
+    /// without case. A PEM file's id is its file name without its extension.
     /// </summary>
     /// <param name="sectionPath">The configuration path of the key rings section, which prefixes every failure.</param>
     /// <param name="keyRings">The configured key rings by name, or <c>null</c> when the section is not set.</param>
