@@ -4283,18 +4283,24 @@ Until the first stable release, the [Unreleased] section describes the product a
   and `POST …/validate`, on the control-plane cell, set, remove and validate the team's root key for a region. The team
   document carries the per-region references, each cell mirrors its own region's reference into an `OwnerRootKey` row,
   and the master key of an owner is wrapped under the nearest root key: the owner's own, then the nearest ancestor's
-  (tenant, team), then the platform's. A changed team root key rewraps the affected master keys of the cell, and the
-  cell's directory change feed reconciles every mirrored team's key for its region every 15 minutes, so a key that
-  failed its probe or its rotation cooldown is applied once it can be, and removes the owner root key of a team
-  whose row is gone
+  (tenant, team), then the platform's. A master key under an owner root key records the access binding of the key's
+  owner (`RootKeyAccessBinding`), and the server wraps, unwraps and validates through that binding, so the master keys
+  of a tenant under its team's key are reached with the team's binding, `team:<id>`, which the team's trust policy
+  names. A change of an owner's root key rewraps only the master keys whose root it can be: a tenant's key the
+  tenant's own, and a team's key the team's, those of the owners under it and those still under its key. The cell's
+  directory change feed reconciles every mirrored team's key for its region every 15 minutes, so a key that failed its
+  probe or its rotation cooldown is applied once it can be, and removes the owner root key of a team whose row is gone
   ([ADR-1414](docs/decisions/1414-a-tenant-can-wrap-its-master-keys-under-a-root-key-it-controls.md)).
 
 - **The management console reaches every cell.** `GET /api/cells` on the control plane lists each cell's name, region
-  and kind, and the console's Tenants page merges every cell's tenants and shows a Cell column. A tenant's console route
-  carries its cell (`/cells/{cell}/tenants/{tenantId}/{surface}`), the tenant surfaces address that cell's management
-  API, and a promotion stays within one cell, taking another cell's export as an inline document when the two cells
-  share a region
-  ([ADR-1425](docs/decisions/1425-a-team-promotes-one-tenants-configuration-to-another-and-environment-bound-values-stay.md)).
+  and kind, and the console's Tenants page merges every cell's tenants, shows a Cell column and names each cell that
+  did not answer. A tenant's console route carries its cell (`/cells/{cell}/tenants/{tenantId}/{surface}`), the tenant
+  surfaces address that cell's management API, and a promotion stays within one cell, taking another cell's export as
+  an inline document when the two cells share a region. The console tells apart the copies of a tenant that two cells
+  list while it moves: the team's tenant list, the home and the promotion dialog show one row or option per cell,
+  keyed by the cell and the tenant identifier, and each row's Open, Edit and Delete act on that cell's copy
+  ([ADR-1425](docs/decisions/1425-a-team-promotes-one-tenants-configuration-to-another-and-environment-bound-values-stay.md),
+  [ADR-1465](docs/decisions/1465-role-lists-share-one-audited-grant-and-revoke-flow-and-a-caller-discovers-its-own-assignments.md)).
 
 - **A tenant moves between cells of one region.** A platform administrator disables the tenant, takes a one-hour,
   take-once `ECDH-ES+A256KW` transfer key from the target cell (`POST /api/tenant-imports/transfer-keys`), exports the
