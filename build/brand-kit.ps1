@@ -12,7 +12,7 @@
 
     Outputs one string per problem, and nothing when clean:
     - a file under brand/ that brand/brand.lock.json does not name;
-    - each line `node brand/vendor-brand.mjs --check` prints when it fails.
+    - each file problem `vendor-brand.mjs --check` names, and a failed check that names none.
 
     Needs Node.js on PATH, the major frontend/.node-version pins.
 
@@ -56,12 +56,21 @@ if (-not (Get-Command node -CommandType Application -ErrorAction SilentlyContinu
 }
 
 $output = @(& node (Join-Path $Kit 'vendor-brand.mjs') --check --lock $lockPath 2>&1)
-if ($LASTEXITCODE -ne 0) {
+$exitCode = $LASTEXITCODE
+if ($exitCode -ne 0) {
+    # A file problem reads `<path>: <problem>`, and so does the error the script throws (`vendor-brand.mjs: <error>`).
+    # Every other line, such as the hint to restore the files, is dropped, so no sentence's wording matters.
+    $kept = 0
     foreach ($line in $output) {
         $text = "$line".Trim()
-        if ($text -and -not $text.StartsWith('Run "node vendor-brand.mjs')) {
+        if ($text -match '^[^\s:]+: ') {
             $problems.Add("brand/$text")
+            $kept++
         }
+    }
+
+    if ($kept -eq 0) {
+        $problems.Add("brand/brand.lock.json: node brand/vendor-brand.mjs --check exited $exitCode and named no file.")
     }
 }
 

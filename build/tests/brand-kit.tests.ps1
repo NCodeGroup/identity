@@ -29,16 +29,21 @@ function Get-Sha256([byte[]]$Bytes) {
 }
 
 # Builds a kit folder under a named fixture and returns its path. $Files maps a relative path to the file's bytes and
-# $Hashes maps a relative path to the SHA-256 that the lock holds for it. The kit always holds the repository's
-# vendor-brand.mjs, which the lock names.
-function New-Fixture([string]$Name, [hashtable]$Files, [hashtable]$Hashes) {
+# $Hashes maps a relative path to the SHA-256 that the lock holds for it. The kit holds the repository's
+# vendor-brand.mjs, which the lock names, unless $Script gives the text of another script to hold in its place.
+function New-Fixture([string]$Name, [hashtable]$Files, [hashtable]$Hashes, [string]$Script = '') {
     $kit = Join-Path $fixtureRoot $Name 'brand'
     $null = [System.IO.Directory]::CreateDirectory($kit)
     foreach ($relative in $Files.Keys) {
         Write-FixtureFile (Join-Path $kit $relative) $Files[$relative]
     }
 
-    $vendorBytes = [System.IO.File]::ReadAllBytes($vendorScript)
+    $vendorBytes = if ($Script) {
+        [System.Text.UTF8Encoding]::new($false).GetBytes($Script)
+    }
+    else {
+        [System.IO.File]::ReadAllBytes($vendorScript)
+    }
     Write-FixtureFile (Join-Path $kit 'vendor-brand.mjs') $vendorBytes
 
     $entries = [ordered]@{
@@ -111,6 +116,34 @@ try {
     }
     Assert-Problems 'a file the lock does not name is reported' $kit @(
         'brand/extra.png: brand/brand.lock.json does not name it'
+    )
+
+    $kit = New-Fixture 'no-hash' @{
+        'mark/a.svg' = $svg
+    } @{
+        'mark/a.svg' = ''
+    }
+    Assert-Problems 'a lock entry without a SHA-256 is reported' $kit @(
+        'brand/mark/a.svg: the lock has no SHA-256 for it'
+    )
+
+    $kit = New-Fixture 'leaves' @{
+        'mark/a.svg' = $svg
+    } @{
+        'mark/a.svg' = $hash
+        '../x.svg' = $hash
+    }
+    Assert-Problems 'a lock entry that leaves the kit is reported' $kit @(
+        'leaves its folder'
+    )
+
+    $kit = New-Fixture 'silent' @{
+        'mark/a.svg' = $svg
+    } @{
+        'mark/a.svg' = $hash
+    } -Script "process.exit(3);`n"
+    Assert-Problems 'a failed check that names no file is reported' $kit @(
+        'brand/brand.lock.json: node brand/vendor-brand.mjs --check exited 3 and named no file.'
     )
 
     Assert-Problems 'the repository kit has no problems' (Join-Path $PSScriptRoot '..' '..' 'brand') @()
