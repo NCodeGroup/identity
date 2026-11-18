@@ -60,12 +60,12 @@ tenant is created there instead.**
    the move offer recorded for it expires unused. The route is authorized with `Operations.Update` at the platform node,
    writes the audit record `tenant.exported` and never logs its response.
 4. **The target imports the graph and rewraps the master key under its root.** `POST api/tenant-imports` takes the `kid`
-   and the package in a request body of at most 64 MiB and 64 KiB (`413` above it). It answers `422` for an empty `kid`,
-   takes the private key once (`422` when it is gone), and answers `422` before it decrypts a package whose protected
-   header does not name `ECDH-ES+A256KW` and `A256GCM`, so a package sealed to another kind of key is refused before any
-   key decrypts it. It answers `422` when the package's format version is not the target's or its region is not the
-   target's `Cell:Region`, and `409` when the directory places the tenant in the cell. A tenant that the cell holds
-   while the directory places it in another cell is the residue of an import that stopped before its move, and the
+   and the package in a request body of at most 64 MiB plus 64 KiB (`413` above it). It answers `422` for an empty
+   `kid`, takes the private key once (`422` when it is gone), and answers `422` before it decrypts a package whose
+   protected header does not name `ECDH-ES+A256KW` and `A256GCM`, so a package sealed to another kind of key is refused
+   before any key decrypts it. It answers `422` when the package's format version is not the target's or its region is
+   not the target's `Cell:Region`, and `409` when the directory places the tenant in the cell. A tenant that the cell
+   holds while the directory places it in another cell is the residue of an import that stopped before its move, and the
    import removes those rows before it imports. It imports every section in `Order`, each committing on its own, then
    the master keys, which `IMasterKeyTransfer` stores under the target's nearest root key, the tenant's own when it
    carries one. The tenant's own root key passes the checks that `IOwnerRootKeyManager.SetAsync` applies, the owner's
@@ -165,7 +165,7 @@ tenant in the cell it moved to once the move completes.
   target. The release at the source finishes it, and nothing serves the source's copy, because the tenant stays
   disabled there.
 - A tenant moves only while its package is at most 64 MiB, its local accounts included, and a proxy in front of the
-  target cell admits a request body of 64 MiB and 64 KiB. A larger tenant cannot move.
+  target cell admits a request body of 64 MiB plus 64 KiB. A larger tenant cannot move.
 - An import whose move the directory does not confirm can end with the target holding the tenant while the directory
   still places it in the source. The target keeps that copy, and the tenant's remote keys keep the target's tag, until a
   repeated import clears it or completes the move, so the operator finishes such a move instead of abandoning it.

@@ -4310,7 +4310,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   (`POST /api/tenant-imports`), releases it at the source (`POST /api/tenants/{tenantId}/release-moved`), points the
   tenant's DNS record at the target cell's ingress and enables it. The package carries the tenant's records and its
   master keys sealed to the transfer key and is at most 64 MiB, its local accounts included: the export answers `422`
-  for a larger one, and the import route admits a request body of at most 64 MiB and 64 KiB and answers `413` above
+  for a larger one, and the import route admits a request body of at most 64 MiB plus 64 KiB and answers `413` above
   it. The target rewraps the master keys under its own root key and retags the tenant's remote keys with its own name,
   each of which lies in the location its provider uses (`IRemoteKeyProvider.IsInLocation` reads the key's identifier
   and the provider's options), and the Entity Framework local-account store derives each imported account's

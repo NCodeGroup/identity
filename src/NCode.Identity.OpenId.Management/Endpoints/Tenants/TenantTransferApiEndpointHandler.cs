@@ -230,7 +230,7 @@ internal class TenantTransferApiEndpointHandler(
     /// <response code="200">The export, a compact <c>JWE</c> to the recipient key, which names the target cell.</response>
     /// <response code="404">The tenant does not exist.</response>
     /// <response code="409">The tenant is not disabled, or the directory refuses to record the offer of the tenant to the target cell; when the directory places the tenant in another cell, the problem's <c>placedCell</c> names that cell.</response>
-    /// <response code="422">The target cell is not a valid cell name, the recipient key is refused, or it is not an elliptic curve key on <c>P-256</c> for encryption, or the tenant's package is over the 64 MiB ceiling of a tenant move.</response>
+    /// <response code="422">The target cell is not a valid cell name, the recipient key is refused, it is not an elliptic curve key on <c>P-256</c> for encryption, or the tenant's package is over the 64 MiB ceiling of a tenant move.</response>
     /// <response code="503">The global directory is unavailable; nothing is exported.</response>
     [EndpointName("api/tenants/export/create")]
     internal virtual async ValueTask<IResult> ExportTenantAsync(

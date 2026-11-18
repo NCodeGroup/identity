@@ -36,7 +36,7 @@ relative to the API of the cell that each stage names.
   reach the same directory (`Directory:Url`) and are registered in it. A platform of one cell has no other cell to move
   a tenant to: the local directory adapter answers every move with a conflict.
 - **A tenant within a move's ceiling.** A tenant travels as one package of at most 64 MiB, its local accounts included,
-  and the import admits a request body of at most 64 MiB and 64 KiB. The export refuses a larger tenant with `422`, and
+  and the import admits a request body of at most 64 MiB plus 64 KiB. The export refuses a larger tenant with `422`, and
   a proxy in front of `<target>`'s management API admits a request body of that size.
 - **The target can use and retag the tenant's keys.** A tenant's remote keys stay in the key management service: the
   import tags each with `<target>`'s name, and an import that `<target>` undoes tags each back with `<source>`'s name.
@@ -105,7 +105,7 @@ outcome unknown. The tenant stays disabled in `<target>`. The audit record `tena
 | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `200`  | The tenant is imported and placed in `<target>`, also when the directory committed a move that it did not confirm. |
 | `409`  | The directory places the tenant in no cell or already in `<target>`; or the directory refuses the move and still places the tenant in `<source>` (`<source>` holds no unexpired move offer to `<target>`, a cell is not registered, or the cells are in different regions). Nothing the import wrote remains. |
-| `413`  | The request is larger than a move's 64 MiB and 64 KiB. Nothing is imported. |
+| `413`  | The request is larger than a move admits, 64 MiB plus 64 KiB. Nothing is imported. |
 | `422`  | The `kid` is empty, or the transfer key is unknown, expired or already used; the package is not sealed to a transfer key (its header does not name `ECDH-ES+A256KW` and `A256GCM`), does not decrypt with the key or is malformed; its region is not `<target>`'s region; it names a target cell other than `<target>`; it has a section that `<target>` does not import; the root key that the tenant brings fails `<target>`'s root-key checks; or the tenant's secrets reference a remote key of a provider that `<target>` does not register, or one outside the location that `<target>`'s provider uses. Nothing the import wrote remains. |
 | `503`  | The directory is unavailable, with a `Retry-After` header, before the import writes anything, or at a move after which the directory still places the tenant in `<source>`; nothing the import wrote remains. Or the outcome of the move is unknown, also with a `Retry-After` header: the directory cannot be read back or places the tenant in neither cell, and `<target>` keeps what the import wrote; the problem's `moveOutcome` member is then `unknown` ([recovering](#recovering-from-a-failed-stage)). |
 
