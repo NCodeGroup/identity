@@ -19,9 +19,9 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// a change that leaves no row behind is not listed again. A change that loses a concurrency race is applied again,
 /// which reads its rows again, at most <see cref="ConcurrencyAttempts"/> times. One replica runs each pass, under a
 /// lease on the shared-state port keyed by the poll window. The replica that holds the lease also reconciles every
-/// mirrored team's root key for the cell's region through <see cref="ITeamDocumentApplier.ReconcileRootKeysAsync"/>
-/// after the change pages, on its first pass and then once <c>RootKeyReconcileInterval</c> has passed, so a key that
-/// failed its probe or its rotation cooldown is applied once it can be. A directory that cannot be reached throws
+/// mirrored team's root key for the cell's region through <see cref="ITeamRootKeyMirror.ReconcileAsync"/> after the
+/// change pages, on its first pass and then once <c>RootKeyReconcileInterval</c> has passed, so a key that failed its
+/// probe or its rotation cooldown is applied once it can be. A directory that cannot be reached throws
 /// <see cref="DirectoryUnavailableException"/>, which is logged and waits for the next interval, and so does any other
 /// pass that fails.
 /// </summary>
@@ -33,6 +33,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 internal sealed class DirectoryChangeFeedService(
     ITeamDirectory teamDirectory,
     ITeamDocumentApplier teamDocumentApplier,
+    ITeamRootKeyMirror teamRootKeyMirror,
     IPlatformDocumentApplier platformDocumentApplier,
     IDirectoryFeedCheckpoint feedCheckpoint,
     IExpiringKeySet expiringKeySet,
@@ -64,6 +65,7 @@ internal sealed class DirectoryChangeFeedService(
 
     private ITeamDirectory TeamDirectory { get; } = teamDirectory;
     private ITeamDocumentApplier TeamDocumentApplier { get; } = teamDocumentApplier;
+    private ITeamRootKeyMirror TeamRootKeyMirror { get; } = teamRootKeyMirror;
     private IPlatformDocumentApplier PlatformDocumentApplier { get; } = platformDocumentApplier;
     private IDirectoryFeedCheckpoint FeedCheckpoint { get; } = feedCheckpoint;
     private IExpiringKeySet ExpiringKeySet { get; } = expiringKeySet;
@@ -231,7 +233,7 @@ internal sealed class DirectoryChangeFeedService(
         if (LastRootKeyReconcileWhen is { } last && now - last < RootKeyReconcileInterval)
             return;
 
-        await TeamDocumentApplier.ReconcileRootKeysAsync(cancellationToken);
+        await TeamRootKeyMirror.ReconcileAsync(cancellationToken);
         LastRootKeyReconcileWhen = now;
     }
 

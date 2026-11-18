@@ -26,6 +26,8 @@ public class DirectoryChangeFeedServiceTests : BaseTests
 
     private Mock<ITeamDocumentApplier> TeamDocumentApplierMock { get; }
 
+    private Mock<ITeamRootKeyMirror> TeamRootKeyMirrorMock { get; }
+
     private Mock<IPlatformDocumentApplier> PlatformDocumentApplierMock { get; }
 
     private Mock<IDirectoryFeedCheckpoint> FeedCheckpointMock { get; }
@@ -36,6 +38,7 @@ public class DirectoryChangeFeedServiceTests : BaseTests
     {
         TeamDirectoryMock = CreateStrictMock<ITeamDirectory>();
         TeamDocumentApplierMock = CreateStrictMock<ITeamDocumentApplier>();
+        TeamRootKeyMirrorMock = CreateStrictMock<ITeamRootKeyMirror>();
         PlatformDocumentApplierMock = CreateStrictMock<IPlatformDocumentApplier>();
         FeedCheckpointMock = CreateStrictMock<IDirectoryFeedCheckpoint>();
         ExpiringKeySetMock = CreateStrictMock<IExpiringKeySet>();
@@ -45,6 +48,7 @@ public class DirectoryChangeFeedServiceTests : BaseTests
         new(
             TeamDirectoryMock.Object,
             TeamDocumentApplierMock.Object,
+            TeamRootKeyMirrorMock.Object,
             PlatformDocumentApplierMock.Object,
             FeedCheckpointMock.Object,
             ExpiringKeySetMock.Object,
@@ -117,8 +121,8 @@ public class DirectoryChangeFeedServiceTests : BaseTests
         };
 
     private void SetupReconcile(Times times) =>
-        TeamDocumentApplierMock
-            .Setup(x => x.ReconcileRootKeysAsync(It.IsAny<CancellationToken>()))
+        TeamRootKeyMirrorMock
+            .Setup(x => x.ReconcileAsync(It.IsAny<CancellationToken>()))
             .Returns(ValueTask.CompletedTask)
             .Verifiable(times);
 
@@ -258,22 +262,22 @@ public class DirectoryChangeFeedServiceTests : BaseTests
         using var service = CreateService();
 
         await service.RunAsync(CancellationToken.None);
-        TeamDocumentApplierMock.Verify(
-            x => x.ReconcileRootKeysAsync(It.IsAny<CancellationToken>()),
+        TeamRootKeyMirrorMock.Verify(
+            x => x.ReconcileAsync(It.IsAny<CancellationToken>()),
             Times.Once
         );
 
         TimeProvider.Advance(DirectoryChangeFeedService.RootKeyReconcileInterval / 2);
         await service.RunAsync(CancellationToken.None);
-        TeamDocumentApplierMock.Verify(
-            x => x.ReconcileRootKeysAsync(It.IsAny<CancellationToken>()),
+        TeamRootKeyMirrorMock.Verify(
+            x => x.ReconcileAsync(It.IsAny<CancellationToken>()),
             Times.Once
         );
 
         TimeProvider.Advance(DirectoryChangeFeedService.RootKeyReconcileInterval / 2);
         await service.RunAsync(CancellationToken.None);
-        TeamDocumentApplierMock.Verify(
-            x => x.ReconcileRootKeysAsync(It.IsAny<CancellationToken>()),
+        TeamRootKeyMirrorMock.Verify(
+            x => x.ReconcileAsync(It.IsAny<CancellationToken>()),
             Times.Exactly(2)
         );
     }
