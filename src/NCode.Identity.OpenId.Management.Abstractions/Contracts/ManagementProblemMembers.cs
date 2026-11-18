@@ -57,4 +57,10 @@ public static class ManagementProblemMembers
     /// The name of the cell that the global directory places the tenant in, which the problem concerns.
     /// </summary>
     public const string PlacedCell = "placedCell";
+
+    /// <summary>
+    /// The outcome of the move that a tenant import asked the global directory for, when the import cannot report it:
+    /// <c>unknown</c> when the import cannot tell whether the directory moved the tenant.
+    /// </summary>
+    public const string MoveOutcome = "moveOutcome";
 }
