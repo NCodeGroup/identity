@@ -133,8 +133,8 @@ named for its tenant, and one general helper reads a single-page bundle and serv
 - A hashed file is cached for a year and revalidated by the validators once it expires; a browser sends no request for a
   fresh one.
 - An asset request resolves no tenant, so it answers the same public files for every tenant segment.
-- `assets` is a contract between the host and `@ncodegroup/identity-vite-config`: a bundle built with another directory has no file
-  the host serves.
+- `assets` is a contract between the host and `@ncodegroup/identity-vite-config`: a bundle built with another directory
+  has no file the host serves.
 - One implementation, tested in `NCode.Identity.AspNetCore.Tests`, serves both bundles.
 - The host's split of `index.html` is tested against the real build in the Frontend CI workflow, so the .NET gate needs
   no Node.
