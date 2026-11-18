@@ -7,6 +7,7 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import {
   apiErrorMessage,
+  apiProblem,
   type ApiError,
   useCreateTransferKeyMutation,
   useExportTenantMutation,
@@ -20,6 +21,7 @@ import {
 import {
   DataStateBoundary,
   TenantMoveDialog,
+  TenantPlacedElsewhereError,
   TenantUsageTable,
   type TenantMoveDialogOperations,
 } from '@ncode/ui';
@@ -80,7 +82,8 @@ export function TenantDetailPage({ tenantId, surface }: TenantDetailPageProps) {
  * The Move action of a tenant: shown to a platform administrator (the export and the release are authorized at the
  * platform node) when the tenant lives in a named cell, and enabled only while the tenant is disabled. The cells the
  * dialog offers come from the platform's cells, by the region of the tenant's own cell; the four calls of the move each
- * address the cell they concern.
+ * address the cell they concern. An export that the global directory refuses because it already places the tenant in
+ * another cell hands the dialog that cell, so the dialog offers the release of the copy the tenant's own cell holds.
  */
 function TenantMoveAction({ tenantId }: TenantTabProps) {
   const cell = useTenantCell();
@@ -101,12 +104,17 @@ function TenantMoveAction({ tenantId }: TenantTabProps) {
   const isDisabled = tenant.data?.isDisabled === true;
 
   // Each call rejects with an Error that carries the server's reason, which the dialog shows
-  // against its stage.
+  // against its stage; a problem naming the cell the global directory already places the tenant
+  // in rejects with a TenantPlacedElsewhereError, so the dialog offers the release.
   const run = async <T,>(call: { unwrap: () => Promise<T> }): Promise<T> => {
     try {
       return await call.unwrap();
     } catch (error) {
-      throw new Error(apiErrorMessage(error as ApiError), { cause: error });
+      const message = apiErrorMessage(error as ApiError);
+      const placedCell = apiProblem(error as ApiError)?.placedCell;
+      throw typeof placedCell === 'string' && placedCell.length > 0
+        ? new TenantPlacedElsewhereError(message, placedCell, { cause: error })
+        : new Error(message, { cause: error });
     }
   };
   const operations: TenantMoveDialogOperations = {

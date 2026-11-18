@@ -12,7 +12,7 @@ export { configSlice, runtimeConfigLoaded, type ConfigState } from './configSlic
 export { createAppStore, type AppDispatch, type AppStore, type RootState } from './store.js';
 export { useAppDispatch, useAppSelector, useAppStore } from './hooks.js';
 export { dynamicBaseQuery, type ApiRootState } from './baseQuery.js';
-export { apiErrorMessage, type ApiError } from './apiError.js';
+export { apiErrorMessage, apiProblem, type ApiError } from './apiError.js';
 export {
   managementApi,
   useGetCapabilitiesQuery,

@@ -422,12 +422,14 @@ describe('TenantDetailPage', () => {
     ];
 
     /**
-     * Stubs the console's reads and the four calls of a move; `failing` is the URL suffix of a call that fails.
+     * Stubs the console's reads and the four calls of a move; `failing` is the URL suffix of a call that fails;
+     * `placedCell` makes the export answer `409` naming the cell the directory places the tenant in.
      */
     function installMoveFetch(options: {
       readonly isPlatformAdministrator?: boolean;
       readonly isDisabled?: boolean;
       readonly failing?: string;
+      readonly placedCell?: string;
     }) {
       return installFetch((url, method) => {
         if (url.endsWith('/api/me')) {
@@ -442,6 +444,19 @@ describe('TenantDetailPage', () => {
         }
         if (url.endsWith('/cells/eu-1/api/tenants/acme') && method === 'GET') {
           return jsonResponse({ tenantId: 'acme', isDisabled: options.isDisabled ?? true });
+        }
+        if (
+          options.placedCell !== undefined &&
+          url.endsWith('/cells/eu-1/api/tenants/acme/export')
+        ) {
+          return jsonResponse(
+            {
+              title: 'Conflict',
+              detail: 'The tenant is placed in another cell.',
+              placedCell: options.placedCell,
+            },
+            409,
+          );
         }
         if (options.failing !== undefined && url.endsWith(options.failing)) {
           return jsonResponse({ title: 'Conflict', detail: 'The cell refused it.' }, 409);
@@ -540,6 +555,29 @@ describe('TenantDetailPage', () => {
       expect(moves(calls)).toEqual([
         'POST https://api.test/cells/eu-2/api/tenant-imports/transfer-keys',
         'POST https://api.test/cells/eu-1/api/tenants/acme/export',
+      ]);
+    });
+
+    it('offers the release, and runs only the release, when the export finds the tenant placed in another cell', async () => {
+      const calls = installMoveFetch({ placedCell: 'eu-2' });
+      renderPage('secrets', 'eu-1');
+
+      await waitFor(() => expect(screen.getByTestId('move-tenant')).toBeEnabled());
+      fireEvent.click(screen.getByTestId('move-tenant'));
+      await waitFor(() => expect(screen.getByTestId('move-target')).toBeEnabled());
+      fireEvent.change(screen.getByTestId('move-target'), { target: { value: 'eu-2' } });
+      fireEvent.click(screen.getByTestId('move-confirm'));
+
+      expect(await screen.findByTestId('move-failure')).toHaveTextContent(
+        'The global directory already places the tenant in eu-2; release this copy at eu-1.',
+      );
+      fireEvent.click(screen.getByTestId('move-release'));
+
+      expect(await screen.findByTestId('move-done')).toHaveTextContent('Moved to eu-2.');
+      expect(moves(calls)).toEqual([
+        'POST https://api.test/cells/eu-2/api/tenant-imports/transfer-keys',
+        'POST https://api.test/cells/eu-1/api/tenants/acme/export',
+        'POST https://api.test/cells/eu-1/api/tenants/acme/release-moved',
       ]);
     });
 
