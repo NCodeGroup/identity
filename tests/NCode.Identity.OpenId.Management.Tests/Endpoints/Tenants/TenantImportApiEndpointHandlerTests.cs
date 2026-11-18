@@ -1048,13 +1048,19 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
         Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
     }
 
-    [Fact]
-    public async Task ImportTenantAsync_WhenTheDirectoryRefusesTheMoveAndPlacesTheTenantInTheSource_RemovesWhatItImportedAndReturnsConflict()
+    [Theory]
+    [InlineData(SourceCell)]
+    [InlineData(null)]
+    public async Task ImportTenantAsync_WhenTheDirectoryRefusesTheMoveAndPlacesTheTenantInTheSourceOrNoCell_RemovesWhatItImportedAndReturnsConflict(
+        string? placedCell
+    )
     {
         SetupAuthorization(AuthorizationResult.Success());
         SetupPackage();
         SetupStore();
-        SetupPlacementThenReread(() => new(CreatePlacement(SourceCell)));
+        SetupPlacementThenReread(() =>
+            new(placedCell is null ? null : CreatePlacement(placedCell))
+        );
         SetupContributorImports();
         SetupMasterKeyImport();
         SetupProvider();
@@ -1089,13 +1095,19 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
         );
     }
 
-    [Fact]
-    public async Task ImportTenantAsync_WhenTheDirectoryIsUnavailableAtTheMoveAndPlacesTheTenantInTheSource_RemovesWhatItImportedAndReturnsServiceUnavailable()
+    [Theory]
+    [InlineData(SourceCell)]
+    [InlineData(null)]
+    public async Task ImportTenantAsync_WhenTheDirectoryIsUnavailableAtTheMoveAndPlacesTheTenantInTheSourceOrNoCell_RemovesWhatItImportedAndReturnsServiceUnavailable(
+        string? placedCell
+    )
     {
         SetupAuthorization(AuthorizationResult.Success());
         SetupPackage();
         SetupStore();
-        SetupPlacementThenReread(() => new(CreatePlacement(SourceCell)));
+        SetupPlacementThenReread(() =>
+            new(placedCell is null ? null : CreatePlacement(placedCell))
+        );
         SetupContributorImports();
         SetupMasterKeyImport();
         SetupProvider();
@@ -1217,17 +1229,13 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
         Assert.False(tokens[1].CanBeCanceled);
     }
 
-    [Theory]
-    [InlineData("cell-c")]
-    [InlineData(null)]
-    public async Task ImportTenantAsync_WhenTheMoveIsRefusedAndTheDirectoryPlacesTheTenantElsewhere_KeepsWhatItImportedAndReturnsServiceUnavailable(
-        string? cell
-    )
+    [Fact]
+    public async Task ImportTenantAsync_WhenTheMoveIsRefusedAndTheDirectoryPlacesTheTenantInAnotherCell_KeepsWhatItImportedAndReturnsServiceUnavailable()
     {
         SetupAuthorization(AuthorizationResult.Success());
         SetupPackage();
         SetupStore();
-        SetupPlacementThenReread(() => new(cell is null ? null : CreatePlacement(cell)));
+        SetupPlacementThenReread(() => new(CreatePlacement("cell-c")));
         SetupContributorImports();
         SetupMasterKeyImport();
         SetupProvider();
@@ -1258,13 +1266,19 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
         );
     }
 
-    [Fact]
-    public async Task ImportTenantAsync_WhenTheMoveIsCancelledAndTheDirectoryPlacesTheTenantInTheSource_RemovesWhatItImportedAndRethrows()
+    [Theory]
+    [InlineData(SourceCell)]
+    [InlineData(null)]
+    public async Task ImportTenantAsync_WhenTheMoveIsCancelledAndTheDirectoryPlacesTheTenantInTheSourceOrNoCell_RemovesWhatItImportedAndRethrows(
+        string? placedCell
+    )
     {
         SetupAuthorization(AuthorizationResult.Success());
         SetupPackage();
         SetupStore();
-        SetupPlacementThenReread(() => new(CreatePlacement(SourceCell)));
+        SetupPlacementThenReread(() =>
+            new(placedCell is null ? null : CreatePlacement(placedCell))
+        );
         SetupContributorImports();
         SetupMasterKeyImport();
         SetupProvider();

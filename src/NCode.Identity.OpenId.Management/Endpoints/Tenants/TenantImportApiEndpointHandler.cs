@@ -149,10 +149,10 @@ internal class TenantImportApiEndpointHandler(
     /// </param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="200">The tenant is imported and placed in this cell, also after a move that the directory did not confirm.</response>
-    /// <response code="409">The directory places the tenant in this cell or in no cell, or refuses the move while it still places the tenant in the source cell. Nothing the import wrote remains.</response>
+    /// <response code="409">The directory places the tenant in this cell or in no cell, or refuses the move while it places the tenant in the source cell or in no cell. Nothing the import wrote remains.</response>
     /// <response code="413">The request body is larger than a tenant move admits: 64 MiB plus 64 KiB.</response>
     /// <response code="422">The kid is empty, or the transfer key is unknown, expired or already used; the package is not sealed to a transfer key, does not decrypt with it or is malformed, its format version is not one this cell imports, its region is not this cell's region, it is offered to another cell, or it has a section that this cell does not import; the tenant's root key is refused; or a remote key that the tenant's secrets reference belongs to a provider that this cell does not register or lies outside the location this cell uses.</response>
-    /// <response code="503">The global directory is unavailable before the import writes anything, or at a move after which it still places the tenant in the source cell, and nothing the import wrote remains; or the outcome of the move is unknown, this cell keeps what the import wrote, and the problem's <c>moveOutcome</c> is <c>unknown</c>.</response>
+    /// <response code="503">The global directory is unavailable before the import writes anything, or at a move after which it places the tenant in the source cell or in no cell, and nothing the import wrote remains; or the outcome of the move is unknown, this cell keeps what the import wrote, and the problem's <c>moveOutcome</c> is <c>unknown</c>.</response>
     [EndpointName("api/tenant-imports/create")]
     internal virtual async ValueTask<IResult> ImportTenantAsync(
         HttpContext httpContext,
@@ -455,9 +455,9 @@ internal class TenantImportApiEndpointHandler(
     // Moves the tenant's placement to this cell. The directory can commit a move that it does not confirm, such as one
     // whose acknowledgement a timeout loses or whose transaction a retry runs again, so a move that answers a conflict,
     // cannot be reached, is cancelled or fails is read back from the placement: a placement in this cell completes the
-    // import, a placement in the source cell undoes it and answers the move's own failure, and any other answer keeps
-    // what the import wrote and reports that the outcome is unknown. Nothing is returned when the tenant is placed
-    // here.
+    // import; a placement in the source cell or in no cell, where the move cannot have committed, undoes it and answers
+    // the move's own failure; and a placement in another cell, or a directory that cannot be read, keeps what the
+    // import wrote and reports that the outcome is unknown. Nothing is returned when the tenant is placed here.
     private async ValueTask<IResult?> MoveToThisCellAsync(
         HttpContext httpContext,
         string tenantId,
@@ -526,7 +526,7 @@ internal class TenantImportApiEndpointHandler(
 
     // Reads where the directory places the tenant after a move that it did not confirm, on a token of its own so the
     // read runs whatever the request's cancellation: true when it places the tenant in this cell, false when it places
-    // it in the source cell, and null when it places it in another cell or in none, or cannot be reached.
+    // it in the source cell or in no cell, and null when it places it in another cell or cannot be reached.
     [SuppressMessage(
         "Design",
         "NCID0003",
@@ -548,7 +548,7 @@ internal class TenantImportApiEndpointHandler(
         }
 
         return placement?.Cell == CellOptions.Name ? true
-            : placement?.Cell == sourceCell ? false
+            : placement is null || placement.Cell == sourceCell ? false
             : (bool?)null;
     }
 
