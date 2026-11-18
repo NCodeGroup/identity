@@ -44,9 +44,10 @@ warning, and the build fails on any oversized chunk.**
    - `defineStandaloneSurfaceConfig({ port, bootstrapHost, coverage })` serves a surface from its own dev server. The
      port is pinned with `strictPort` (Playground 5174, conformance 5175), and only `/config/bootstrap.json` is proxied,
      to the Aspire service the `bootstrapHost` names, falling back to a fixed origin outside Aspire. The dev server
-     serves over HTTPS as [ADR-1071](1071-the-aspire-apphost-runs-the-local-stack-in-health-gated-order-after-checking-the-frontend-toolchain.md)
-     describes. `@ncodegroup/identity-config`'s tests check that the proxied path is the one
-     `loadRuntimeConfig` fetches.
+     serves over HTTPS as
+     [ADR-1071](1071-the-aspire-apphost-runs-the-local-stack-in-health-gated-order-after-checking-the-frontend-toolchain.md)
+     describes. `@ncodegroup/identity-config`'s tests check that the proxied path is the one `loadRuntimeConfig`
+     fetches.
    - `defineBackendServedSurfaceConfig({ coverage })` builds a bundle the OpenID Provider host serves, with base `./`;
      the host sets the document's `<base href>` to where it serves the bundle
      ([ADR-1193](1193-the-interactive-surface-uses-the-tenant-route-host-only-cookies-and-one-shared-single-page-bundle-helper.md)).

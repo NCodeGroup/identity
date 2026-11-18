@@ -39,8 +39,8 @@ over shared, scoped `@ncodegroup/identity-*` packages, and a layering rule keeps
   - `@ncodegroup/identity-config` discovers the runtime configuration.
   - `@ncodegroup/identity-store` holds the store, the typed hooks, the session slice and the RTK Query `managementApi`
     with its base query and cache tags.
-  - `@ncodegroup/identity-api` holds the management wire contracts and the platform, team and tenant scope model,
-    free of UI and Redux.
+  - `@ncodegroup/identity-api` holds the management wire contracts and the platform, team and tenant scope model, free
+    of UI and Redux.
   - `@ncodegroup/identity-ui` is the stateless design system and its theme.
   - `@ncodegroup/identity-shell` holds the shared stateful containers.
   - `@ncodegroup/identity-auth` holds the public-client protocol helpers.
@@ -66,17 +66,18 @@ over shared, scoped `@ncodegroup/identity-*` packages, and a layering rule keeps
   override: its client id and scopes replace the default, its feature flags merge per key and its branding falls back. An
   unknown or absent surface gets the default.
 - **An open surface name.** `SurfaceKind` is the shipped names plus `(string & {})`, an open vocabulary
-  ([ADR-1150](1150-vocabularies-are-open-unless-provably-closed.md)), so a new surface needs no change to `@ncodegroup/identity-config`.
-  Each standalone OpenID surface declares itself once, in `main.tsx`, by passing `createRuntimeConfigLoader({ surface })`
-  to `BootstrapGate`. The console passes `createBffRuntimeConfigLoader()`
+  ([ADR-1150](1150-vocabularies-are-open-unless-provably-closed.md)), so a new surface needs no change to
+  `@ncodegroup/identity-config`. Each standalone OpenID surface declares itself once, in `main.tsx`, by passing
+  `createRuntimeConfigLoader({ surface })` to `BootstrapGate`. The console passes `createBffRuntimeConfigLoader()`
   ([ADR-1438](1438-the-management-console-holds-no-token-and-reads-its-session-from-its-bff.md)). `loadRuntimeConfig`
   defaults the origin to `location.origin`, the serving host of every bundle because a standalone dev server proxies the
   bootstrap document. No app module binds the origin or the surface.
 - **The gate takes its loader as a prop.** `BootstrapGate`'s `load` is a `RuntimeConfigLoader`
-  (`(signal: AbortSignal) => Promise<RuntimeConfig>`), so a test passes its own loader instead of mocking a module. A new
-  loader abandons an unfinished load, a failure belongs to the loader that produced it, only the current load reports, and
-  configuration that reaches the store any other way wins. Its loading and error views are the stateless `BootstrapScreen`
-  in `@ncodegroup/identity-ui`, with stories, rendered in the default theme because no branding is known yet.
+  (`(signal: AbortSignal) => Promise<RuntimeConfig>`), so a test passes its own loader instead of mocking a module. A
+  new loader abandons an unfinished load, a failure belongs to the loader that produced it, only the current load
+  reports, and configuration that reaches the store any other way wins. Its loading and error views are the stateless
+  `BootstrapScreen` in `@ncodegroup/identity-ui`, with stories, rendered in the default theme because no branding is
+  known yet.
 - **Serving models.** Each app's `dev` script encodes how it is served. Backend-served `auth` and BFF-served `mgmt` run
   `vite build --watch`; standalone `playground` and `conformance` run Vite dev servers. Adding a surface to the AppHost
   is one `AddViteApp` or `AddJavaScriptApp` line

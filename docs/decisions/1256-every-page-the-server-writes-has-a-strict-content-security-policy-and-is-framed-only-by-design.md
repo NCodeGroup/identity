@@ -97,14 +97,13 @@ and the `form_post` response only by its client's origin.**
    encoding of every rendered value, nonce-only scripts and `base-uri` keep an injected form out.
 6. **The bundle carries the page's nonce.** `@ncodegroup/identity-vite-config`'s `defineBackendServedSurfaceConfig` sets
    Vite's `html.cspNonce` to `CSP_NONCE_PLACEHOLDER`, which is `__NCODE_CSP_NONCE__`, so the build writes
-   `nonce="__NCODE_CSP_NONCE__"` on its module script and its modulepreload links, and a
-   `<meta property="csp-nonce">`. `InteractiveBundleShell.NoncePlaceholder` and
-   `ManagementConsoleDefaults.NoncePlaceholder` are the same string, and the host writes the response's nonce in its
-   place only inside the bundle's own segments (prelude, head and tail), never inside a rendered value. The bundle reads
-   the nonce with `readCspNonce` from the meta element's `nonce` property and gives it to its emotion cache, which
-   `createCache` builds for the `auth` key, the document head and that nonce under `CacheProvider`, so MUI's `<style>`
-   elements carry it. The branding `<script type="application/json">` block is a data block that a browser never
-   executes, so CSP does not apply to it.
+   `nonce="__NCODE_CSP_NONCE__"` on its module script and its modulepreload links, and a `<meta property="csp-nonce">`.
+   `InteractiveBundleShell.NoncePlaceholder` and `ManagementConsoleDefaults.NoncePlaceholder` are the same string, and
+   the host writes the response's nonce in its place only inside the bundle's own segments (prelude, head and tail),
+   never inside a rendered value. The bundle reads the nonce with `readCspNonce` from the meta element's `nonce`
+   property and gives it to its emotion cache, which `createCache` builds for the `auth` key, the document head and that
+   nonce under `CacheProvider`, so MUI's `<style>` elements carry it. The branding `<script type="application/json">`
+   block is a data block that a browser never executes, so CSP does not apply to it.
 7. **Some headers are not sent.** `Cross-Origin-Opener-Policy`: a value other than `unsafe-none` on the issuer's pages
    severs `window.opener` for a pop-up sign-in (`display=popup`). `Permissions-Policy`: the pages use no powerful
    feature, and a frame gets none without an `allow` attribute. `Cross-Origin-Resource-Policy`: it applies to

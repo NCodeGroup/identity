@@ -88,10 +88,10 @@ frontend/
 ## Architectural invariants
 
 1. **Stateless presentational components.** Components in `@ncodegroup/identity-ui` (and app `components/`) are
-   prop-driven and hold no store/fetch state, so they render in Storybook and under RTL in isolation.
-   Local state is allowed only when intrinsic to a control and it does not break isolated rendering.
-   They render as a pure function of their props: ambient values such as the clock come in as props
-   (e.g. `GrantTable`'s `now`), never from a read during render — the React lint rules (`purity`) flag it.
+   prop-driven and hold no store/fetch state, so they render in Storybook and under RTL in isolation. Local state is
+   allowed only when intrinsic to a control and it does not break isolated rendering. They render as a pure function of
+   their props: ambient values such as the clock come in as props (e.g. `GrantTable`'s `now`), never from a read during
+   render — the React lint rules (`purity`) flag it.
 2. **Stateful containers at the top.** State and side effects live in container components (`apps/*/src/containers/`)
    and the shell, which wire Redux + RTK Query and pass plain props down. A container that more than one surface needs
    (the runtime-config `BootstrapGate`) lives in `@ncodegroup/identity-shell`, the one package that may depend on both
@@ -103,14 +103,14 @@ frontend/
    their own Vitest suites.
 4. **RTK Query is the default for server state.** Hand-rolled thunks are the exception.
 5. **One bundle, every tier.** No tier value is baked at build time; `@ncodegroup/identity-config` discovers the API
-   base, issuer, auth endpoints, feature flags, and branding at boot from the serving host's
-   `/config/bootstrap.json` + the OP's `/.well-known/openid-configuration`.
+   base, issuer, auth endpoints, feature flags, and branding at boot from the serving host's `/config/bootstrap.json` +
+   the OP's `/.well-known/openid-configuration`.
 6. **The platform, team and tenant security boundary is first-class** — distinct browsing contexts, cache tags,
    and authorization gating, never one list with a filter.
 7. **Branding is a runtime seam.** `@ncodegroup/identity-ui` themes from runtime `BrandingConfig`. The interactive
-   surface (`apps/auth`) reads its tenant's branding from the JSON block the host embeds in every page it
-   serves with the bundle (`<script type="application/json" id="branding">`, `BRANDING_ELEMENT_ID`), parses
-   it with `parseBrandingConfig`, and mounts at once over the server-rendered page (ADR-1253).
+   surface (`apps/auth`) reads its tenant's branding from the JSON block the host embeds in every page it serves with
+   the bundle (`<script type="application/json" id="branding">`, `BRANDING_ELEMENT_ID`), parses it with
+   `parseBrandingConfig`, and mounts at once over the server-rendered page (ADR-1253).
 8. **The interactive surface renders in the language the host selected.** The host writes the locale it selected
    from the request's `ui_locales` and the tenant's settings into the page's `lang` attribute (in place of the
    `__NCODE_LANG__` placeholder of `apps/auth/index.html`), `mountSurface` reads it before it renders, and every
@@ -141,18 +141,19 @@ pnpm build                # build all packages/apps
 
 ### Test gates — warnings are errors
 
-A green run means more than "no assertion failed".
-The gates are set once, in the [`@ncodegroup/identity-vite-config`](packages/vite-config) preset that every workspace's Vite or Vitest
-config calls with its own coverage floors ([ADR-1151](../docs/decisions/1151-every-frontend-workspace-builds-and-tests-from-one-preset-that-fails-on-warnings-and-oversized-chunks.md)):
+A green run means more than "no assertion failed". The gates are set once, in the
+[`@ncodegroup/identity-vite-config`](packages/vite-config) preset that every workspace's Vite or Vitest config calls
+with its own coverage floors
+([ADR-1151](../docs/decisions/1151-every-frontend-workspace-builds-and-tests-from-one-preset-that-fails-on-warnings-and-oversized-chunks.md)):
 
 - **A test that logs `console.error` or `console.warn` fails.** Every workspace's `vitest.setup.ts` registers
-  `failOnConsole` from [`@ncodegroup/identity-test-support`](packages/test-support). The usual cause is a React
-  _"not wrapped in act(...)"_ warning: the test asserted before an async update (a resolved promise, an RTK Query
-  fetch, a transition) settled. Await the settled UI with `findBy…` / `waitFor` rather than wrapping calls in `act`.
-  When logging _is_ the behavior under test, mock the method in that test
-  (`vi.spyOn(console, 'error').mockImplementation(() => {})`) and assert on the spy. The one built-in exemption is
-  Redux Toolkit's load-dependent "…StateInvariantMiddleware took Nms" timing warning, which the guard drops: it would
-  otherwise fail store-backed tests at random under coverage. Keep that list to timing diagnostics.
+  `failOnConsole` from [`@ncodegroup/identity-test-support`](packages/test-support). The usual cause is a React _"not
+  wrapped in act(...)"_ warning: the test asserted before an async update (a resolved promise, an RTK Query fetch, a
+  transition) settled. Await the settled UI with `findBy…` / `waitFor` rather than wrapping calls in `act`. When logging
+  _is_ the behavior under test, mock the method in that test (`vi.spyOn(console, 'error').mockImplementation(() => {})`)
+  and assert on the spy. The one built-in exemption is Redux Toolkit's load-dependent "…StateInvariantMiddleware took
+  Nms" timing warning, which the guard drops: it would otherwise fail store-backed tests at random under coverage. Keep
+  that list to timing diagnostics.
 - **Lint warnings fail** (`--max-warnings 0`), and so does a stale `eslint-disable` comment.
 - **A test that makes no assertion fails** (`expect.requireAssertions`).
 - **Tests, stories, and setup files are type-checked** — no tsconfig excludes them.
@@ -195,8 +196,8 @@ served:
 ### Every app shows the family's icon
 
 Each app links the kit's three files (`favicon.ico`, `favicon.svg` and `apple-touch-icon.png`) from `index.html` with
-the tags [`brand/README.md`](../brand/README.md#favicon) gives, and carries copies of them in its `favicon/` folder.
-The build gives each a content-hashed name under `assets/`, which the app's host serves immutable under its
+the tags [`brand/README.md`](../brand/README.md#favicon) gives, and carries copies of them in its `favicon/` folder. The
+build gives each a content-hashed name under `assets/`, which the app's host serves immutable under its
 `img-src 'self'`; a standalone app's dev server serves the folder as it is. No app links the web manifest, because none
 is offered as an installed app. `build/favicon-copies.ps1` (the `favicon copies` stage of `./build/dod.ps1`) fails when
 a copy differs from the kit's file, and each app's `src/favicon.test.ts` checks its links and files against the family
@@ -258,7 +259,8 @@ abandons an unfinished load and starts over.
 > sends as `?surface=` (for example `/config/bootstrap.json?surface=playground`). The host maps that to a per-surface
 > override (`FrontendBootstrapOptions.Surfaces`) so every surface gets its **own** public client id and scopes from the
 > one endpoint — the Playground discovers `playground-spa`, while the read-only conformance dashboard gets no client at
-> all ([ADR-1084](../docs/decisions/1084-the-playground-explores-the-recommended-flow-and-the-conformance-harness-measures-the-published-spec-surface.md)).
+> all
+> ([ADR-1084](../docs/decisions/1084-the-playground-explores-the-recommended-flow-and-the-conformance-harness-measures-the-published-spec-surface.md)).
 > A surface with no override, or no `?surface=`, receives the host default, which is the OP's: it names no client and no
 > feature flag, and serves the public-client and read-only surfaces only. `SurfaceKind` is an open vocabulary: it lists
 > the shipped surfaces but accepts any name, so a new surface needs only its host override, not a change to
@@ -278,10 +280,12 @@ single-origin host needs no configuration
   the console host that serves them, at its own origin; they send no `?surface=`.
 - **Standalone bundles** (e.g. `apps/playground`, served by its own Vite dev server) don't share the OP's origin, so the
   Vite dev server **proxies** `/config/bootstrap.json` to the OP host instead of shipping a static copy (the
-  `bootstrapHost` of `defineStandaloneSurfaceConfig` in [`@ncodegroup/identity-vite-config`](packages/vite-config/src/preset.ts)).
-  The proxy target comes from the Aspire service-discovery variable the surface's resource receives via
-  `WithReference(api)` ([ADR-1071](../docs/decisions/1071-the-aspire-apphost-runs-the-local-stack-in-health-gated-order-after-checking-the-frontend-toolchain.md)), falling back to the pinned
-  origin (`https://localhost:5001`) when run outside Aspire — so local dev exercises the real runtime endpoint.
+  `bootstrapHost` of `defineStandaloneSurfaceConfig` in
+  [`@ncodegroup/identity-vite-config`](packages/vite-config/src/preset.ts)). The proxy target comes from the Aspire
+  service-discovery variable the surface's resource receives via `WithReference(api)`
+  ([ADR-1071](../docs/decisions/1071-the-aspire-apphost-runs-the-local-stack-in-health-gated-order-after-checking-the-frontend-toolchain.md)),
+  falling back to the pinned origin (`https://localhost:5001`) when run outside Aspire — so local dev exercises the real
+  runtime endpoint.
 
 ## Sessions
 
@@ -371,10 +375,10 @@ with an error naming that script when the files are missing; under Aspire the Ap
 ## Gotchas (hard-won)
 
 - **Internal packages are consumed as TypeScript source, not built `.d.ts`.** Each `@ncodegroup/identity-*` package
-  exposes `src/index.ts` via its `main`/`types`; Vite and Vitest bundle the source directly. There is
-  **no `tsc --build`/`composite`/project-references** — those emit `.d.ts` that get resolved _alongside_
-  the source, producing "two different types ... unrelated" errors. Package `build` is type-check only
-  (`tsc --noEmit`); only the app emits a bundle.
+  exposes `src/index.ts` via its `main`/`types`; Vite and Vitest bundle the source directly. There is **no
+  `tsc --build`/`composite`/project-references** — those emit `.d.ts` that get resolved _alongside_ the source,
+  producing "two different types ... unrelated" errors. Package `build` is type-check only (`tsc --noEmit`); only the
+  app emits a bundle.
 - **`@ncodegroup/identity-vite-config` is loaded by Node itself, so it follows stricter rules.** Vite bundles a
   `vite.config.ts` but leaves its bare imports external, so Node imports the preset's TypeScript source directly by
   stripping its types. It is one module, [`src/preset.ts`](packages/vite-config/src/preset.ts) (its `exports` point
@@ -552,11 +556,11 @@ with an error naming that script when the files are missing; under Aspire the Ap
   the React Compiler checks; `@eslint-react`'s `disable-conflict-eslint-plugin-react-hooks` preset keeps the overlap
   reported once. Its naming rules expect refs to end in `Ref` and a `useState` setter to be `set` + the capitalized
   state name (`[isBusy, setIsBusy]`).
-- **A Node/backend CLI app (not a browser bundle) drops the DOM lib and runs via `vite-node`.** A headless
-  app such as [`apps/conformance-runner`](apps/conformance-runner) sets `lib: ["ES2022"]` + `types: ["node"]`
-  in its `tsconfig.json` (overriding the base, which adds `DOM`) so the global `fetch`/`Response`/`Buffer`/
-  `process` come from `@types/node`, not from two conflicting lib declarations. It has no Vite bundle; `build`
-  is type-check only (`tsc --noEmit`) like a package, and it runs from TypeScript source via **`vite-node`**
-  (`"start": "vite-node src/main.ts --"`), which resolves workspace `@ncodegroup/identity-*` packages as source — plain
-  `node` cannot, because those packages' `main` points at `./src/index.ts`. The trailing `--` in the `start`
-  script lets `vite-node` forward CLI args to the program; the arg parser ignores a stray `--`.
+- **A Node/backend CLI app (not a browser bundle) drops the DOM lib and runs via `vite-node`.** A headless app such as
+  [`apps/conformance-runner`](apps/conformance-runner) sets `lib: ["ES2022"]` + `types: ["node"]` in its `tsconfig.json`
+  (overriding the base, which adds `DOM`) so the global `fetch`/`Response`/`Buffer`/ `process` come from `@types/node`,
+  not from two conflicting lib declarations. It has no Vite bundle; `build` is type-check only (`tsc --noEmit`) like a
+  package, and it runs from TypeScript source via **`vite-node`** (`"start": "vite-node src/main.ts --"`), which
+  resolves workspace `@ncodegroup/identity-*` packages as source — plain `node` cannot, because those packages' `main`
+  points at `./src/index.ts`. The trailing `--` in the `start` script lets `vite-node` forward CLI args to the program;
+  the arg parser ignores a stray `--`.

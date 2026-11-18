@@ -14,8 +14,8 @@ The host renders working no-JavaScript login, consent and authorization error pa
 
 - **Branding is per tenant.** `@ncodegroup/identity-ui` themes from a runtime `BrandingConfig` (display name, logo,
   primary and secondary colors, color mode) and the frontend bootstrap document can carry one
-  ([ADR-1064](1064-one-frontend-platform-of-shared-packages-and-thin-app-shells-serves-every-web-surface.md)). That document is configured per deployment, and the surface a
-  tenant's end-users see is served beneath the tenant route
+  ([ADR-1064](1064-one-frontend-platform-of-shared-packages-and-thin-app-shells-serves-every-web-surface.md)). That
+  document is configured per deployment, and the surface a tenant's end-users see is served beneath the tenant route
   ([ADR-1193](1193-the-interactive-surface-uses-the-tenant-route-host-only-cookies-and-one-shared-single-page-bundle-helper.md)).
   Auth0 offers per-tenant Universal Login branding; this is the equivalent.
 - **A bundle that fetches before it mounts loses input.** The server page stays in place while the bundle waits on the

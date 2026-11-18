@@ -109,8 +109,8 @@ answers `404` and `409` from the rows it read, and each route declares every pro
     `ownerId`, `provider`, `keyReference`, `settingsScope`, `documentError` and `accessIdentity` are the names of the
     extension members the management API writes, and every writer and test uses them. `RetryAfterSeconds` is
     `RetryAfterProblem.MemberName`, so the contracts and the writer name the member once. `ManagementProblem` in
-    `@ncodegroup/identity-api` mirrors the shape, and `apiErrorMessage` in `@ncodegroup/identity-store` appends
-    " Try again in N seconds." when the problem carries a positive whole `retryAfterSeconds`: in seconds below a minute,
+    `@ncodegroup/identity-api` mirrors the shape, and `apiErrorMessage` in `@ncodegroup/identity-store` appends " Try
+    again in N seconds." when the problem carries a positive whole `retryAfterSeconds`: in seconds below a minute,
     otherwise in whole minutes or hours rounded up, and singular for one.
 11. **Tests read the declarations from the routes.** `EndpointProblemMetadata` in
     `tests/NCode.Identity.OpenId.Management.TestSupport` reads a handler's declarations. Each handler's
