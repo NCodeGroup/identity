@@ -4197,48 +4197,67 @@ Until the first stable release, the [Unreleased] section describes the product a
   identifiers platform-wide, places each tenant in a cell and publishes team documents; it holds no personal data. A
   cell names itself through `Cell` (`CellOptions`: `Name`, `Region`, `Kind` of `shared`, `dedicated` or `sovereign`,
   `CloudRegions`, `ManagementUrl`, `IsControlPlane` and `ControlPlane:Issuer`), and a cell that is not the control
-  plane, or that sets `Directory:Url`, names the control plane's issuer.
-  `NCode.Identity.OpenId.GlobalDirectory.Abstractions` holds the ports `ITenantDirectory` (reserve, place, release,
-  retire, change an issuer, find a placement, move between cells of one region), `ITeamDirectory` (reserve, release,
-  publish, retire, get, list changes after a sequence), `IPlatformDirectory` and `ICellDirectory`, their records and
-  `DirectoryUnavailableException`. A cell runs on its own with the local adapters over its own database and no extra
-  service, and `Directory:Url` selects the remote adapters of `NCode.Identity.OpenId.GlobalDirectory`, which fail closed
-  with `503` and `Retry-After` on a transport failure, a timeout or a `5xx`. Creating a tenant reserves its identifier
-  (a team's `max_tenants` is enforced there), saves the tenant and places it, releasing the reservation on failure;
-  serving a tenant's requests never calls the directory, because the cell's own tenant row is authoritative
+  plane, or that sets `Directory:Url`, names the control plane's issuer. A cell's name and region follow one rule
+  (`CellLabelRules`): 1 to 31 characters of lowercase letters, digits and single hyphens, starting with a letter and
+  ending with a letter or digit, with no two hyphens in a row, which the host, the directory, the console, the
+  management API and the chart's values schema enforce and state (`CellLabelRules.Description`), so every cell name is
+  a valid remote-key tag. A cell that sets `Directory:Url` refuses to start unless `Directory:ClientId` is
+  `cell-{Cell:Name}` and `Cell:ManagementUrl` is set, because the directory knows a cell by that machine client and the
+  cell registers its management URL with it. `NCode.Identity.OpenId.GlobalDirectory.Abstractions` holds the ports
+  `ITenantDirectory` (reserve, place with a `TenantPlacementRequest` of the tenant, its issuer and its cell, release,
+  retire, change an issuer, find a placement, whose region is the one its cell registered, move between cells of one
+  region), `ITeamDirectory` (reserve, release, publish, retire, get, list changes after a sequence),
+  `IPlatformDirectory` and `ICellDirectory`, their records and `DirectoryUnavailableException`. A cell runs on its own
+  with the local adapters over its own database and no extra service, and `Directory:Url` selects the remote adapters
+  of `NCode.Identity.OpenId.GlobalDirectory`, which fail closed with `503` and `Retry-After` on a transport failure, a
+  `5xx`, or a call that outlasts `DirectoryClientOptions.RequestTimeout`, its response body included. Creating a tenant
+  reserves its identifier (a team's `max_tenants` is enforced there), saves the tenant and places it, releasing the
+  reservation on failure; serving a tenant's requests never calls the directory, because the cell's own tenant row is
+  authoritative
   ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
 
 - **A directory host serves the global directory.** `NCode.Identity.OpenId.GlobalDirectory.Server` maps the endpoints
-  under `/directory/v1/` (tenants, teams, the platform document, cells and the change feed) over its own
-  `DirectoryDbContext`, and `hosts/NCode.Identity.OpenId.GlobalDirectory.Host` is the deployable, with its own Postgres
-  database, migrations and image (`directory-image.yml`). The host reads its database from the connection string
+  under `/directory/v1/` (tenants, retired issuers, teams, the platform document, cells and the change feed) over its
+  own `DirectoryDbContext`, and `hosts/NCode.Identity.OpenId.GlobalDirectory.Host` is the deployable, with its own
+  Postgres database, migrations and image (`ghcr.io/ncodegroup/ncode-identity-directory`, which `directory-image.yml`
+  builds and the `Publish artifacts` workflow publishes). The host reads its database from the connection string
   `ConnectionStrings:directory` or the `DirectoryDatabase` parts (`Host`, `Port`, `Name`, `Username`, `Password`),
   exactly one of which is set, and its `migrate` command applies the migrations, grants the runtime role that
   `DirectoryMigration:RuntimeRole` names the data access it needs, and refuses a database whose migrations history
   records a migration the host does not hold, with the recovery of dropping and recreating the directory's database. The
   change feed holds each team's and the platform's latest change, each carrying the whole document or the retire, so it
-  stays bounded by the number of teams and a cell reading from the start reads every current document. The host accepts
-  unbound bearer tokens of the control-plane cell's issuer (`DirectoryServer:Issuer`) for the audience
-  `urn:ncode:directory` and the scope `directory`, and refuses a token that carries a `cnf` claim. A request that
-  arrives while that issuer cannot be reached is answered `503` with `Retry-After` and the same wait in the problem's
-  `retryAfterSeconds`. Each cell authenticates as the machine client `cell-{name}` of the control-plane cell's root
-  tenant (`private_key_jwt`; `Directory:ClientId` and `Directory:KeyRing`, whose keys `KeyRings:{name}` holds), which
-  `POST /api/platform/clients` registers with a requested `clientId` and its `jwks`. A cell's token request to the
-  control plane ends after `Directory:TokenRequestTimeout` (30 seconds), and a failed request is remembered for
+  stays bounded by the number of teams and a cell reading from the start reads every current document. A team's change
+  always follows the latest change of each of its ancestors: each publish of a team lists every published team beneath
+  it again, parents first, so a team published before its parent follows it. A page of changes holds at most 768 KiB
+  of documents (`DirectoryLimits.MaxChangePageBytes`) and at least one change, so a page fits the 1 MiB that a cell
+  reads from one response. The host accepts unbound bearer tokens of the control-plane cell's issuer
+  (`DirectoryServer:Issuer`) for the audience `urn:ncode:directory` and the scope `directory`, and refuses a token that
+  carries a `cnf` claim. A request that arrives while that issuer cannot be reached is answered `503` with
+  `Retry-After` and the same wait in the problem's `retryAfterSeconds`. Each cell authenticates as the machine client
+  `cell-{name}` of the control-plane cell's root tenant (`private_key_jwt`; `Directory:ClientId` and
+  `Directory:KeyRing`, whose keys `KeyRings:{name}` holds), which `POST /api/platform/clients` registers with a
+  requested `clientId` and its `jwks`. A cell's token request to the control plane ends after
+  `Directory:TokenRequestTimeout` (30 seconds), and a failed request is remembered for
   `Directory:TokenFailureCacheDuration` (5 seconds). The directory takes platform and team writes only from the
   control-plane cell (`DirectoryServer:ControlPlaneCell`) and authorizes each tenant write against the tenant's stored
   record in the transaction that writes it: the cell that holds the tenant and the control-plane cell write it, and only
   the control-plane cell retires a tenant the directory has no record of; a cell registers only itself, with a
   management URL that is an absolute `https` URL (or `http` in local development) with no user information, query or
-  fragment, and asks to move a tenant only into itself. The directory refuses a tenant or team identifier that the
-  cells' identifier rule refuses (1 to 63 lowercase letters, digits or hyphens that start and end with a letter or
-  digit, a host label); a tenant issuer that is not an absolute `https` URL (or `http` on a loopback host) with no user
-  information, query or fragment; a team document that lacks its settings or its root keys, or a platform document that
-  lacks its settings; a team or platform document whose settings are not a JSON object; and a team document that would
-  nest a team deeper than eight levels, the bound of a cell's team tree. A stored team or platform document whose
-  settings are missing or not a JSON object, `null` included, fails the tenant-limit check, which refuses the
-  reservation, and a cell's remote directory adapter fails closed on a document that lacks its settings or its root
-  keys.
+  fragment, and asks to move a tenant only into itself. A write that runs again after its commit's acknowledgement is
+  lost recognizes its own committed result: a cell's tenant reservation for the same issuer and team that is not yet
+  placed, a team reservation that is not yet published, and a move of a tenant already placed in the target cell each
+  succeed again. A placement's region is the region its cell registered, and the retired-issuer lookup is
+  `GET /directory/v1/retired-issuers?issuer=`, beside the tenant routes, so `GET /directory/v1/tenants/{tenantId}`
+  reads the placement of a tenant of any valid identifier, `retired-issuers` included. The directory refuses a tenant
+  or team identifier that the cells' identifier rule refuses (1 to 63 lowercase letters, digits or hyphens that start
+  and end with a letter or digit, a host label); a tenant issuer that is not an absolute `https` URL (or `http` on a
+  loopback host) with no user information, query or fragment; a team document that lacks its settings or its root
+  keys, or a platform document that lacks its settings; a team or platform document whose settings are not a JSON
+  object; a team or platform document whose JSON exceeds 64 KiB (`422`, `DirectoryLimits.MaxDocumentBytes`); and a
+  team document that would nest a team deeper than eight levels, the bound of a cell's team tree. A stored team or
+  platform document whose settings are missing or not a JSON object, `null` included, fails the tenant-limit check,
+  which refuses the reservation, and a cell's remote directory adapter fails closed on a document that lacks its
+  settings or its root keys.
 
 - **The control plane serves every cell.** The control-plane cell owns platform and team authority, setup and the team
   root keys; every other cell reaches it through remote adapters that fail closed. `IManagementTokenValidator` validates
