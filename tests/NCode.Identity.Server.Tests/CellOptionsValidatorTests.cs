@@ -52,6 +52,7 @@ public sealed class CellOptionsValidatorTests
     [InlineData("eu 1")]
     [InlineData("-eu")]
     [InlineData("eu-")]
+    [InlineData("prod--eu")]
     [InlineData("abcdefghijklmnopqrstuvwxyz0123456")]
     public void Validate_WhenTheNameIsNotALabel_Fails(string value)
     {
@@ -69,6 +70,7 @@ public sealed class CellOptionsValidatorTests
     [InlineData("US-East")]
     [InlineData("2eu")]
     [InlineData("eu.west")]
+    [InlineData("eu--west")]
     public void Validate_WhenTheRegionIsNotALabel_Fails(string value)
     {
         var options = CreateOptions();
@@ -78,6 +80,21 @@ public sealed class CellOptionsValidatorTests
 
         Assert.True(result.Failed);
         Assert.Contains("Cell:Region", result.FailureMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Validate_WhenTheNameHasTwoHyphensInARow_StatesTheRule()
+    {
+        var options = CreateOptions();
+        options.Name = "prod--eu";
+
+        var result = CreateValidator().Validate(name: null, options);
+
+        Assert.True(result.Failed);
+        Assert.Equal(
+            $"Cell:Name 'prod--eu' must be {CellLabelRules.Description}.",
+            result.FailureMessage
+        );
     }
 
     [Theory]

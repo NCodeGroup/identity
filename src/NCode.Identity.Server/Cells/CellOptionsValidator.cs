@@ -11,8 +11,8 @@ namespace NCode.Identity.Server.Cells;
 /// <summary>
 /// Validates <see cref="CellOptions"/>: a cell names itself and its region with lowercase labels, names its kind,
 /// points a cell that is not the control plane at the control plane's issuer, and reaches its management API over
-/// <c>https</c>, or over <c>http</c> in local development. A failure names the key and the rule, never the value,
-/// because a refused URL may carry a password.
+/// <c>https</c>, or over <c>http</c> in local development. A refused label's failure names the key, the value and the
+/// rule; a refused URL's failure names the key and the rule, never the URL, because it may carry a password.
 /// </summary>
 /// <param name="localDevelopmentMode">
 /// The mode that decides whether a management URL may use <c>http</c>.
@@ -68,10 +68,7 @@ internal sealed class CellOptionsValidator(LocalDevelopmentMode localDevelopment
     {
         if (!CellLabelRules.IsValidLabel(value))
         {
-            failures.Add(
-                $"{key} '{value}' must start with a lowercase letter, end with a lowercase letter or digit, and "
-                    + $"hold only lowercase letters, digits and hyphens, at most {CellLabelRules.MaxLabelLength} characters."
-            );
+            failures.Add($"{key} '{value}' must be {CellLabelRules.Description}.");
         }
     }
 
