@@ -77,6 +77,21 @@ public sealed class DefaultRegistrationTests : BaseTests
     }
 
     [Fact]
+    public void AddDirectoryMirrorServices_Always_RegistersTheDefaultTeamRootKeyMirrorAsASingleton()
+    {
+        var serviceCollection = new ServiceCollection();
+
+        CreateBuilder(serviceCollection).AddDirectoryMirrorServices();
+
+        var descriptor = Assert.Single(
+            serviceCollection,
+            x => x.ServiceType == typeof(ITeamRootKeyMirror)
+        );
+        Assert.Equal(typeof(DefaultTeamRootKeyMirror), descriptor.ImplementationType);
+        Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
+    }
+
+    [Fact]
     public void AddDirectoryMirrorServices_WhenAPostCommitCommandSenderIsRegistered_KeepsIt()
     {
         var serviceCollection = new ServiceCollection();
@@ -90,6 +105,22 @@ public sealed class DefaultRegistrationTests : BaseTests
             x => x.ServiceType == typeof(IPostCommitCommandSender)
         );
         Assert.Same(postCommitCommandSender, descriptor.ImplementationInstance);
+    }
+
+    [Fact]
+    public void AddDirectoryMirrorServices_WhenATeamRootKeyMirrorIsRegistered_KeepsIt()
+    {
+        var serviceCollection = new ServiceCollection();
+        var teamRootKeyMirror = CreateStrictMock<ITeamRootKeyMirror>().Object;
+        serviceCollection.AddSingleton(teamRootKeyMirror);
+
+        CreateBuilder(serviceCollection).AddDirectoryMirrorServices();
+
+        var descriptor = Assert.Single(
+            serviceCollection,
+            x => x.ServiceType == typeof(ITeamRootKeyMirror)
+        );
+        Assert.Same(teamRootKeyMirror, descriptor.ImplementationInstance);
     }
 
     [Fact]

@@ -28,6 +28,10 @@ internal static class DefaultRegistration
                 DefaultPostCommitCommandSender
             >();
             builder.ServiceCollection.TryAddSingleton<
+                ITeamRootKeyMirror,
+                DefaultTeamRootKeyMirror
+            >();
+            builder.ServiceCollection.TryAddSingleton<
                 ITeamDocumentApplier,
                 DefaultTeamDocumentApplier
             >();

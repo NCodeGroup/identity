@@ -77,6 +77,9 @@ NCode.Identity.OpenId.GlobalDirectory.ITeamDocumentApplier
 NCode.Identity.OpenId.GlobalDirectory.ITeamDocumentApplier.ApplyAsync(NCode.Identity.OpenId.GlobalDirectory.TeamDocument! document, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.GlobalDirectory.ITeamDocumentApplier.ReconcileRootKeysAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.GlobalDirectory.ITeamDocumentApplier.RetireAsync(string! teamId, long sequence, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.GlobalDirectory.ITeamRootKeyMirror
+NCode.Identity.OpenId.GlobalDirectory.ITeamRootKeyMirror.MirrorAsync(string! teamId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.GlobalDirectory.ITeamRootKeyMirror.ReconcileAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.GlobalDirectory.ITenantDirectory
 NCode.Identity.OpenId.GlobalDirectory.ITenantDirectory.ChangeIssuerAsync(NCode.Identity.OpenId.GlobalDirectory.TenantIssuerChange! change, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.ReservationResult!>
 NCode.Identity.OpenId.GlobalDirectory.ITenantDirectory.GetPlacementOrDefaultAsync(string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.GlobalDirectory.TenantPlacement?>
