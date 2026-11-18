@@ -456,7 +456,8 @@ internal class TenantImportApiEndpointHandler(
     // whose acknowledgement a timeout loses or whose transaction a retry runs again, so a move that answers a conflict,
     // cannot be reached, is cancelled or fails is read back from the placement: a placement in this cell completes the
     // import, a placement in the source cell undoes it and answers the move's own failure, and any other answer keeps
-    // what the import wrote and reports that the outcome is unknown. Nothing is returned when the tenant is placed here.
+    // what the import wrote and reports that the outcome is unknown. Nothing is returned when the tenant is placed
+    // here.
     private async ValueTask<IResult?> MoveToThisCellAsync(
         HttpContext httpContext,
         string tenantId,

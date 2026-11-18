@@ -114,8 +114,9 @@ export function TenantMoveDialog({
   const [placedCell, setPlacedCell] = useState<string>();
   const wasOpenRef = useRef(open);
 
-  // Reset only on the rising edge of `open`, so a re-render while open never discards the progress, and
-  // only when no move failed, so a failed move and its Retry or Release outlast closing the dialog.
+  // Reset only on the rising edge of `open`, so a re-render while open never discards the progress,
+  // and only when no move failed, so a failed move and its Retry or Release outlast closing the
+  // dialog.
   useEffect(() => {
     if (open && !wasOpenRef.current && failedMove === undefined) {
       setTargetCell('');
@@ -134,7 +135,8 @@ export function TenantMoveDialog({
       ? []
       : cells.filter((cell) => cell.name !== sourceCell && cell.region === source.region);
   const target = targets.find((cell) => cell.name === targetCell);
-  // The cell the tenant ends up in: the chosen cell, or the cell the global directory already places it in.
+  // The cell the tenant ends up in: the chosen cell, or the cell the global directory already
+  // places it in.
   const receivingCell = placedCell ?? targetCell;
 
   const stages = target === undefined ? [] : stagesOf(sourceCell, target.name);

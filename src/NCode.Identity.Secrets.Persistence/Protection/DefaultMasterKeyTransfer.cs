@@ -154,8 +154,8 @@ internal sealed class DefaultMasterKeyTransfer(
             );
         }
 
-        // The root key that the package brings passes the checks that setting it would, so a move cannot wrap master keys
-        // under a key that this cell does not allow, such as a key outside its cloud regions.
+        // The root key that the package brings passes the checks that setting it would, so a move cannot wrap master
+        // keys under a key that this cell does not allow, such as a key outside its cloud regions.
         if (
             imported.RootKey is { } bringing
             && OwnerRootKeyRequestValidation.GetRefusalOrDefault(
