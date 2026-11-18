@@ -157,8 +157,11 @@ compiles it and no gate tests it
   packages, with a gate of its own
   ([ADR-1064](docs/decisions/1064-one-frontend-platform-of-shared-packages-and-thin-app-shells-serves-every-web-surface.md))
 - **Logo** — `brand/`, the family's logo kit: the `{id}` mark as SVG masters and as the PNG and ICO files each platform
-  takes, which every package, the host chart and the README show. `brand/build.py` draws every file there, so change
-  the script and run it, never a file it writes
+  takes, which every package, the host chart and the README show. Every file there is
+  vendored from a release of NCodeGroup/brand, which draws it: `brand/brand.lock.json` pins each file's SHA-256,
+  the `brand kit` stage of `./build/dod.ps1` checks them, and
+  `node brand/vendor-brand.mjs --update <version> --lock brand/brand.lock.json` takes another release, never a hand
+  edit
   ([ADR-1492](docs/decisions/1492-the-familys-id-logo-is-vendored-from-an-ncodegroup-brand-release-and-every-web-app-shows-its-icon.md))
 
 The central extensibility model — **service** vs **strategy collection** vs **mediator** — is captured in
