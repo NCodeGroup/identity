@@ -1,13 +1,15 @@
 /**
  * Probe-runner probes (UI-free, unit-tested) — the confidential and server-initiated legs a browser cannot drive.
  *
- * The browser dashboard's active probes ([@ncodegroup/identity-conformance-core](../../../packages/conformance-core/src/probes.ts))
- * verify the CORS-reachable, credential-free endpoints. These probes complete the picture for the legs that need a
- * client secret, an asymmetric client key, a client certificate, or a server-to-server call the browser secret model
- * and CORS forbid: `client_credentials`, introspection/revocation with client authentication, `private_key_jwt`,
- * device-code polling, CIBA, DPoP/mTLS, and back-channel logout. Every probe is a plain async function over an injected
- * {@link ProbeFetch} (and, for the asymmetric legs, an injected signer) so the runner stays deterministic and testable
- * without a network or real keys. See [ADR-1084](../../../../docs/decisions/1084-the-playground-explores-the-recommended-flow-and-the-conformance-harness-measures-the-published-spec-surface.md).
+ * The browser dashboard's active probes
+ * ([@ncodegroup/identity-conformance-core](../../../packages/conformance-core/src/probes.ts)) verify the
+ * CORS-reachable, credential-free endpoints. These probes complete the picture for the legs that need a client secret,
+ * an asymmetric client key, a client certificate, or a server-to-server call the browser secret model and CORS forbid:
+ * `client_credentials`, introspection/revocation with client authentication, `private_key_jwt`, device-code polling,
+ * CIBA, DPoP/mTLS, and back-channel logout. Every probe is a plain async function over an injected {@link ProbeFetch}
+ * (and, for the asymmetric legs, an injected signer) so the runner stays deterministic and testable without a network
+ * or real keys. See
+ * [ADR-1084](../../../../docs/decisions/1084-the-playground-explores-the-recommended-flow-and-the-conformance-harness-measures-the-published-spec-surface.md).
  */
 
 import type {

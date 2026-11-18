@@ -9,8 +9,8 @@ export type FetchLike = (
 
 /**
  * Fetches the OpenID Provider's full, raw discovery metadata so the audit can inspect every advertised field — a
- * superset of the subset `@ncodegroup/identity-config` normalizes for app wiring. Throws when the document cannot be retrieved or
- * is not a JSON object.
+ * superset of the subset `@ncodegroup/identity-config` normalizes for app wiring. Throws when the document cannot be
+ * retrieved or is not a JSON object.
  */
 export async function fetchRawDiscovery(
   issuer: string,

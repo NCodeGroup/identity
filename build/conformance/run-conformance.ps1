@@ -11,8 +11,8 @@
 
       1. launches the OpenID host on the reachable HTTPS host the suite drives (`host.docker.internal:5001`,
          the `Conformance` launch profile — issue #126);
-      2. runs the in-house headless probe runner (`@ncodegroup/identity-app-conformance-runner`) as a fast pre-flight that
-         exercises the confidential / server-initiated legs a browser cannot, failing early before the slower
+      2. runs the in-house headless probe runner (`@ncodegroup/identity-app-conformance-runner`) as a fast pre-flight
+         that exercises the confidential / server-initiated legs a browser cannot, failing early before the slower
          external suite is even started;
       3. brings up the external certified suite from prebuilt Docker images (no Java build);
       4. drives the Config OP + Basic OP plans (or, with -Fapi1Advanced, the FAPI 1.0 Advanced Final plans) headlessly
