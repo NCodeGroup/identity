@@ -85,7 +85,9 @@ Until the first stable release, the [Unreleased] section describes the product a
   `setup` command once per release with `Setup__Root__UserName`, `Setup__Root__Email` and `Setup__Root__Password` from
   an operator Secret (`setup.job.existingSecret`, `userNameKey`, `emailKey`, `passwordKey`), and passes
   `setup.managementConsole` (`clientId`, `baseUrl`, `jwks`) and `setup.automation` (`clientId`, `jwks`) to the
-  command as `Setup__ManagementConsole__*` and `Setup__Automation__*`, so a GitOps install needs no browser
+  command as `Setup__ManagementConsole__*` and `Setup__Automation__*`, so a GitOps install needs no browser. The chart
+  refuses `setup.job.enabled` unless `cell.isControlPlane` is `true`, because setup runs in the control-plane cell
+  only
   ([#776](https://github.com/NCodeGroup/identity/issues/776),
   [#777](https://github.com/NCodeGroup/identity/issues/777),
   [ADR-1512](docs/decisions/1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md)).
@@ -4124,16 +4126,19 @@ Until the first stable release, the [Unreleased] section describes the product a
   form) with a display name, an `isDisabled` flag and a settings document; `GET`/`PATCH`/`DELETE /api/teams/{teamId}`,
   `GET`/`PATCH …/settings`, `GET …/effective-settings`, `GET …/usage`, and `…/owners` and `…/admins` manage it. The
   control-plane cell owns teams: it reserves a team's identifier in the global directory, saves the team and publishes
-  its team document (name, settings, parent team and per-region root-key references), and deleting a team retires its
-  identifier, so no team identifier is reused anywhere on the platform. Every other cell mirrors the team documents
-  into its own team rows through a change feed, so a tenant's cell reads its team from its own database, and the routes
-  that manage a team itself are mapped only on the control-plane cell, while a cell creates and lists its own tenants
-  under the team. A cell keeps the highest sequence it applied in its `DirectoryFeedCheckpoint` row, applies a change
-  that loses a concurrency race again, up to three attempts, and records a retirement's sequence on the disabled row, so
-  a retirement the directory delivers again changes nothing. Every tenant belongs to exactly one team and never changes
-  its team: `POST /api/teams/{teamId}/tenants` creates a tenant under its team and `GET /api/teams/{teamId}/tenants`
-  lists them, `TenantResource` carries `teamId`, and the platform's own team (`TenantResolution:Root:TeamId`, default
-  `platform`) holds the root tenant and every tenant a strategy creates
+  its team document (name, settings, parent team and per-region root-key references), and a creation that fails after
+  the save removes the team before it releases the reservation, so a retry creates the team. Deleting a team retires
+  its identifier, so no team identifier is reused anywhere on the platform. Every other cell mirrors the team
+  documents into its own team rows through a change feed, so a tenant's cell reads its team from its own database, and
+  the routes that manage a team itself are mapped only on the control-plane cell, while a cell creates and lists its own
+  tenants under the team. A cell keeps the highest sequence it applied in its `DirectoryFeedCheckpoint` row, applies a
+  change that loses a concurrency race again, up to three attempts, and records a retirement's sequence on the disabled
+  row, so a retirement the directory delivers again changes nothing. A cell writes nothing for a team whose parent team
+  it does not mirror and logs `DirectoryTeamParentNotMirrored` (event 1050), because the directory lists the team again
+  after its parent. Every tenant belongs to exactly one team and never changes its team:
+  `POST /api/teams/{teamId}/tenants` creates a tenant under its team and `GET /api/teams/{teamId}/tenants` lists them,
+  `TenantResource` carries `teamId`, and the platform's own team (`TenantResolution:Root:TeamId`, default `platform`)
+  holds the root tenant and every tenant a strategy creates
   ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
 
 - **A team can nest beneath a parent team.** `POST /api/teams/{teamId}/teams` creates a team beneath its parent and
