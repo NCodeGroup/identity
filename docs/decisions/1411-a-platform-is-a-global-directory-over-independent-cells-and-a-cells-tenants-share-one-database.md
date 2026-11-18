@@ -82,7 +82,9 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
    setup and the team root keys are held by the cell that sets `Cell:IsControlPlane`. Every other cell reaches the
    control plane through remote adapters that validate management tokens against its issuer and ask its authority
    endpoint who a caller is, and they fail closed. A tenant's own role assignments stay in the tenant's cell. Setup runs
-   once per platform, in the control-plane cell only.
+   once per platform, in the control-plane cell only. A host's published configuration names no cell, so a host that is
+   not given `Cell:Name` and `Cell:Region` refuses to start, and only a host given `Cell:IsControlPlane` serves the
+   control plane.
 5. **A team spans cells.** The control-plane cell owns teams and publishes each team document to the directory. Every
    other cell mirrors team documents into its team rows from the directory's change feed and evicts the caches the
    change touches, so the settings cascade resolves the same way in every cell. A tenant never moves between teams. The

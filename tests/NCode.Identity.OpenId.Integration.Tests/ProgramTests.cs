@@ -143,6 +143,26 @@ public class ProgramTests
 
     #endregion
 
+    #region Cell Tests
+
+    [Fact]
+    public async Task Start_WhenNoSettingNamesTheCell_RefusesToStart()
+    {
+        await using var host = new HostApplicationFactory();
+
+        // In Staging only the host's base configuration loads, as in a deployment that sets no Cell__ variable.
+        await using var factory = host.WithWebHostBuilder(builder =>
+            builder.UseEnvironment(Microsoft.Extensions.Hosting.Environments.Staging)
+        );
+
+        var exception = Record.Exception(() => factory.Services);
+
+        Assert.NotNull(exception);
+        Assert.Contains("Cell:Name", exception.ToString(), StringComparison.Ordinal);
+    }
+
+    #endregion
+
     #region RemoteKeyProviders Tests
 
     [Theory]

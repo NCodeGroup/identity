@@ -387,6 +387,12 @@ the deployment provides:
 - `OpenId__TenantResolution__StaticSingle__Issuer`: the public issuer URL, or another tenant resolution mode. A served
   tenant without an issuer fails closed
   ([ADR-1165](../../docs/decisions/1165-a-tenants-stored-issuer-is-its-single-origin-and-its-mtls-alias-a-routed-second-host.md)).
+- `Cell__Name` and `Cell__Region`: the cell's name, unique across the platform, and the region it runs in, each 1 to 31
+  characters of lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit,
+  with no two hyphens in a row. The name tags the keys the cell creates in a key management service and prefixes its
+  Valkey keys. The control-plane cell also sets `Cell__IsControlPlane=true`, and every other cell sets
+  `Cell__ControlPlane__Issuer` to the control-plane cell's issuer
+  ([ADR-1411](../../docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
 
 More than one replica needs Valkey to share single-use state: set `ConnectionStrings__valkey`, or the parts
 `ValkeyConnection__Host`, `ValkeyConnection__Port`, `ValkeyConnection__Username`, `ValkeyConnection__Password` and
