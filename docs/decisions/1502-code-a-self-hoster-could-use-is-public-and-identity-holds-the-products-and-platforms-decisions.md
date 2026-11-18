@@ -9,7 +9,8 @@
 
 The product has three audiences: consumers of the packages, self-hosters of the host and the platform, and the operators
 of the managed offering. A repository's visibility and name tell a reader which part of the product is open, and a
-package ID or an image name is permanent once it is published.
+package ID or an image name is permanent once it is published. On npm a scope belongs to whoever registered it, and the
+NCode Group holds `@ncodegroup`.
 
 [`NCodeGroup/identity-platform`](https://github.com/NCodeGroup/identity-platform) holds the hosted platform's
 infrastructure as code in a public repository of its own
@@ -64,8 +65,10 @@ platform.** Anything in the private repository that a self-hoster would want bel
      under the `NCode` ID prefix the NCode Group holds on nuget.org.
    - The chart and the images: the chart `ncode-identity-host`, the images `ghcr.io/ncodegroup/ncode-identity-host`,
      `ghcr.io/ncodegroup/ncode-identity-management-console` and `ghcr.io/ncodegroup/ncode-identity-directory`.
-   - npm workspace packages: `@ncodegroup/identity-*`, every one `"private": true` and none published: the root `@ncodegroup/identity-frontend`,
-     packages such as `@ncodegroup/identity-ui` and `@ncodegroup/identity-api`, and the apps `@ncodegroup/identity-app-*`.
+   - npm workspace packages: the `@ncodegroup` scope the NCode Group holds, product first: the workspace root
+     `@ncodegroup/identity-frontend`, the packages `@ncodegroup/identity-<package>` such as `@ncodegroup/identity-ui`
+     and `@ncodegroup/identity-api`, and the apps `@ncodegroup/identity-app-<app>`. Every one is `"private": true`,
+     resolves through `workspace:*` and is not published, and each name is one the NCode Group can publish under.
    - Domains: the domains are
      [ADR-1495](1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md)'s.
 8. **GitHub names.** Every link and reference spells a repository as its GitHub name, such as
@@ -82,6 +85,13 @@ platform.** Anything in the private repository that a self-hoster would want bel
   version in lockstep from one `version.json`, and the console image builds `frontend/`.
 - **Repository names that repeat the organization, such as `NCodeGroup/ncode-identity`.** Rejected: the organization
   already names the company.
+- **npm names under a scope another party holds.** Rejected: that party can publish under it, so a dependency that
+  misses the `workspace:` protocol would install its package.
+- **Unscoped npm names, such as `identity-ui`.** Rejected: anyone can publish an unscoped name first.
+- **npm names without the product, such as `@ncodegroup/ui`.** Rejected: the scope is the organization's, and another
+  NCode product's frontend would want the same names.
+- **The `@nidentity` scope.** Rejected: the product is NCode.Identity, and the fate of that organization is decided in
+  [#752](https://github.com/NCodeGroup/identity/issues/752).
 - **Decisions and issues in `identity-platform`, as the template sets out.** Rejected: the platform's decisions build on
   the product's, so most records would link across repositories, and the work would be split across two queues that
   `/triage-issues` and `/run-issues` read separately.
@@ -101,11 +111,14 @@ platform.** Anything in the private repository that a self-hoster would want bel
   `Closes NCodeGroup/identity#<number>`.
 - Every link and reference spells a repository as its GitHub name; GitHub resolves a link in any capitalization to the
   same repository.
+- Every npm workspace package is named under `@ncodegroup`, so a dependency that resolves from the registry by mistake
+  reaches only a package the NCode Group published.
 
 ## References
 
-- Issues [#760](https://github.com/NCodeGroup/identity/issues/760) and
-  [#438](https://github.com/NCodeGroup/identity/issues/438).
+- Issues [#760](https://github.com/NCodeGroup/identity/issues/760),
+  [#438](https://github.com/NCodeGroup/identity/issues/438) and
+  [#860](https://github.com/NCodeGroup/identity/issues/860).
 - `identity-platform`'s [`AGENTS.md`](https://github.com/NCodeGroup/identity-platform/blob/main/AGENTS.md), which lists
   the overrides.
 - [ADR-1003](1003-the-family-versions-in-lockstep-from-one-version-json-and-ships-source-linked-symbol-packages.md),
