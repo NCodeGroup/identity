@@ -63,6 +63,14 @@ Until the first stable release, the [Unreleased] section describes the product a
   clients are saved with the root administrator ([#777](https://github.com/NCodeGroup/identity/issues/777),
   [ADR-1512](docs/decisions/1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md)).
 
+- **Instance setup stages the root administrator in the control-plane tenant's scope.** The wizard and the `setup`
+  command read and write the platform's `InstanceSetup` row in an unscoped scope and stage the root account, its
+  identity, its `GlobalAdmin` assignment and the setup clients in a scope of the control-plane tenant inside it, so
+  setup runs over the ASP.NET Core Identity account store and checks user names and client identifiers within that
+  tenant alone
+  ([ADR-1512](docs/decisions/1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md),
+  [ADR-1018](docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)).
+
 - **`ILocalAccountCreator` is the one seam that creates a local account.** `ILocalAccountCreator.StageAsync`
   (`NCode.Identity.OpenId.Accounts.Management.Abstractions`) validates a `CreateLocalAccountRequest` (username, password
   policy, claims and metadata) and stages the principal, its self-issued identity and the local account on an
@@ -2355,10 +2363,11 @@ Until the first stable release, the [Unreleased] section describes the product a
   [ADR-1044](docs/decisions/1044-the-management-api-authenticates-its-own-access-tokens-and-a-configured-client-bootstraps-the-first-globaladmin.md)).
 
 - **The management console opens on the caller's home.** `/home` lists the platform for a caller with platform
-  authority and the teams and tenants the caller holds a role at, and opens the only one at once when there is one.
-  A team administrator signs in with the same token as a platform administrator and works within its teams; a
-  platform route sends a caller without platform authority home, and a scope's back control leads home when the
-  caller holds no role at the scope above it ([#566](https://github.com/NCodeGroup/identity/issues/566),
+  authority and the teams and tenants the caller holds a role at, names each cell that did not answer, whose tenants are
+  missing, and opens the only destination at once when there is one and every cell answered. A team administrator signs
+  in with the same token as a platform administrator and works within its teams; a platform route sends a caller
+  without platform authority home, and a scope's back control leads home when the caller holds no role at the scope
+  above it ([#566](https://github.com/NCodeGroup/identity/issues/566),
   [ADR-1465](docs/decisions/1465-role-lists-share-one-audited-grant-and-revoke-flow-and-a-caller-discovers-its-own-assignments.md)).
 
 - **Collection endpoints page through management resources by keyset.** A collection `GET`, such as `GET api/teams`,
