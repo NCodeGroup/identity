@@ -41,6 +41,7 @@ internal sealed class DefaultOwnerRootKeyManager(
     ISecretProtectorProvider protectorProvider,
     IMasterKeyManager masterKeyManager,
     IMasterKeyRewrapper rewrapper,
+    INearestOwnerRootKeyResolver nearestRootKeyResolver,
     IEnumerable<IOwnerRootKeyPolicy> policies,
     IEnumerable<IOwnerRootKeyChangeObserver> observers,
     IOptions<SecretProtectionOptions> options,
@@ -61,6 +62,8 @@ internal sealed class DefaultOwnerRootKeyManager(
     private IMasterKeyManager MasterKeyManager { get; } = masterKeyManager;
 
     private IMasterKeyRewrapper Rewrapper { get; } = rewrapper;
+
+    private INearestOwnerRootKeyResolver NearestRootKeyResolver { get; } = nearestRootKeyResolver;
 
     private IOwnerRootKeyPolicy[] Policies { get; } = [.. policies];
 
@@ -686,14 +689,18 @@ internal sealed class DefaultOwnerRootKeyManager(
         return (rotation, rewrap);
     }
 
-    // Counts the master keys of every owner that are wrapped under the key the binding names, whatever the state of the
-    // binding.
+    // Counts the master keys under the key the binding names that do not conform to their owner's nearest root key,
+    // whatever the state of the binding. A master key of another owner whose own root key names the same key conforms
+    // and stays, so it never holds the removal.
     private async ValueTask<int> CountWrappedByKeyAsync(
         PersistedOwnerRootKey binding,
         CancellationToken cancellationToken
     )
     {
         var count = 0;
+        var nearestRootKeys = new Dictionary<SecretOwner, PersistedOwnerRootKey?>(
+            SecretOwnerComparer.Instance
+        );
         string? cursor = null;
         do
         {
@@ -705,7 +712,25 @@ internal sealed class DefaultOwnerRootKeyManager(
                     cancellationToken
                 );
 
-            count += page.Items.Count(row => MasterKeyFactory.IsWrappedByKey(row, binding));
+            foreach (var row in page.Items)
+            {
+                if (!MasterKeyFactory.IsWrappedByKey(row, binding))
+                    continue;
+
+                if (!nearestRootKeys.TryGetValue(row.Owner, out var nearest))
+                {
+                    nearest = await NearestRootKeyResolver.FindNearestAsync(
+                        storeManager.GetStore<IOwnerRootKeyStore>(),
+                        row.Owner,
+                        cancellationToken
+                    );
+                    nearestRootKeys[row.Owner] = nearest;
+                }
+
+                if (!MasterKeyFactory.Conforms(row, nearest))
+                    count++;
+            }
+
             cursor = page.NextCursor;
         } while (cursor is not null);
 

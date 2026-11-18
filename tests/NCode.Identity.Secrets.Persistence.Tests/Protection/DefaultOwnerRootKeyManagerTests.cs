@@ -36,6 +36,7 @@ public class DefaultOwnerRootKeyManagerTests : BaseTests
     private Mock<IMasterKeyRewrapper> Rewrapper { get; }
     private Mock<IOwnerRootKeyChangeObserver> Observer { get; }
     private Mock<IMasterKeyStore> PagingMasterKeys { get; }
+    private Mock<ISecretOwnerParentResolver> Parents { get; }
     private List<IOwnerRootKeyPolicy> Policies { get; } = [new PlatformOwnerRootKeyPolicy()];
     private FakeReferencedKeyWrapper Kms { get; } = new();
     private InMemoryOwnerRootKeyStores Stores { get; } = new();
@@ -51,8 +52,17 @@ public class DefaultOwnerRootKeyManagerTests : BaseTests
         Rewrapper = CreateStrictMock<IMasterKeyRewrapper>();
         Observer = CreateStrictMock<IOwnerRootKeyChangeObserver>();
         PagingMasterKeys = CreateStrictMock<IMasterKeyStore>();
+        Parents = CreateStrictMock<ISecretOwnerParentResolver>();
         SetupPagingMasterKeys();
+        SetupAncestors();
     }
+
+    // Every owner inherits only the platform, so the nearest root key of an owner is its own or else the deployment's.
+    private void SetupAncestors() =>
+        Parents
+            .Setup(x => x.GetAncestorsAsync(It.IsAny<SecretOwner>(), It.IsAny<CancellationToken>()))
+            .Returns(new ValueTask<IReadOnlyList<SecretOwner>>([SecretOwner.Platform]))
+            .Verifiable(Times.AtMost(int.MaxValue));
 
     // The in-memory stores do not page master keys, so the manager reads the master keys through a store that lists
     // an owner's rows from them and pages every stored row, of every owner, in pages of the requested size.
@@ -111,6 +121,7 @@ public class DefaultOwnerRootKeyManagerTests : BaseTests
             Protectors.Object,
             MasterKeys.Object,
             Rewrapper.Object,
+            new DefaultNearestOwnerRootKeyResolver(Parents.Object),
             Policies,
             [Observer.Object],
             Microsoft.Extensions.Options.Options.Create(Options),
@@ -200,13 +211,14 @@ public class DefaultOwnerRootKeyManagerTests : BaseTests
         DateTimeOffset createdWhen,
         DateTimeOffset? retiredWhen = null,
         string? rootKeyReference = null,
-        string? rootKeyAccessIdentity = null
+        string? rootKeyAccessIdentity = null,
+        SecretOwner? owner = null
     ) =>
         new()
         {
             KeyId = Guid.NewGuid(),
-            OwnerType = NormalizedOwner.OwnerType,
-            OwnerId = NormalizedOwner.OwnerId,
+            OwnerType = (owner ?? NormalizedOwner).OwnerType,
+            OwnerId = (owner ?? NormalizedOwner).OwnerId,
             Version = version,
             CreatedWhen = createdWhen,
             RetiredWhen = retiredWhen,
@@ -843,6 +855,29 @@ public class DefaultOwnerRootKeyManagerTests : BaseTests
         var stored = Assert.Single(Stores.RootKeys);
         Assert.Equal(OwnerRootKeyStates.Removing, stored.State);
         Assert.Equal("1 master keys remain under the owner root key", stored.Failure);
+    }
+
+    [Fact]
+    public async Task Validate_RemovingKeyThatAnotherOwnersKeyAlsoNames_DeletesTheBinding()
+    {
+        Stores.Seed(CreateRootKey(OwnerRootKeyStates.Removing));
+        Stores.Seed(CreateRootKey(ownerType: SecretOwnerTypes.Tenant, ownerId: "tenant-b"));
+        Stores.Seed(
+            CreateRow(
+                1,
+                Time.GetUtcNow().AddDays(-1),
+                rootKeyReference: Reference,
+                owner: SecretOwner.ForTenant("tenant-b")
+            )
+        );
+        ExpectEvictAndNotify(Times.Once());
+        ExpectRewrap(new MasterKeyRewrapResult(0, 0, 0, 0));
+
+        var validation = await CreateManager().ValidateAsync(Owner, CancellationToken.None);
+
+        Assert.Null(validation.RootKey);
+        var remaining = Assert.Single(Stores.RootKeys);
+        Assert.Equal("tenant:tenant-b", remaining.Owner.ToString());
     }
 
     [Fact]

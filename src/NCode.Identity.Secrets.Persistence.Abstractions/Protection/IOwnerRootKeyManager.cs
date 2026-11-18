@@ -167,7 +167,9 @@ public interface IOwnerRootKeyManager
 
     /// <summary>
     /// Starts removing the root key of an owner: new master keys are wrapped under the deployment's root key, and every
-    /// master key moves under it. The record is deleted once no master key remains under the key.
+    /// master key moves under it. The record is deleted once no master key under the key remains that does not conform
+    /// to its owner's nearest root key, so a master key of another owner whose own root key names the same key never
+    /// holds the removal.
     /// </summary>
     /// <param name="owner">The owner whose root key is removed.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
