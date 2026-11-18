@@ -6275,12 +6275,21 @@ Until the first stable release, the [Unreleased] section describes the product a
 - **KMS keys are refused outside the cell's cloud regions.** The server's `AddConfiguration` names `Cell:CloudRegions`
   as the `KeyResidencyOptions` of the secrets library, and the AWS KMS adapter replaces its `AllowedRegions` and the
   Google Cloud KMS adapter its `AllowedLocations` with them, so whichever host composes the server with either adapter
-  refuses a key ARN or location outside them, and a cell's keys stay in the cloud regions of its infrastructure.
+  refuses a key ARN or location outside them, also when it wraps under a key reference that an owner or a moved tenant
+  names, as the Azure Key Vault wrapper refuses a key outside its allowed hosts, and a cell's keys stay in the cloud
+  regions of its infrastructure.
 
 - **A tenant export is sealed to a one-time transfer key and exists only for a disabled tenant.** The export is one
   compact `JWE` to a key the receiving cell published, which that cell hands out once and holds for one hour, so the
   package carries ciphertext secrets and the tenant's master keys sealed to that key and never a plaintext secret; the
-  tenant must be disabled so nothing changes while it moves, and the response is never logged
+  tenant must be disabled so nothing changes while it moves, and the response is never logged. The import answers
+  `422`, before any key decrypts the package or any remote key is retagged, for an empty `kid`, a package whose
+  protected header does not name `ECDH-ES+A256KW` and `A256GCM`, a root key that the checks of
+  `IOwnerRootKeyManager.SetAsync` refuse (the owner's policies, the allowed key wrappers and the cell's cloud regions,
+  which `MasterKeyTransferResult.RefusalDetail` reports), and a remote key outside the location that the target cell's
+  provider uses. While the global directory places a tenant in another cell, deleting the tenant or one of its secrets
+  at the source answers `409` (`503` when the directory cannot be reached), so a moved tenant's source copy never
+  destroys a remote key that the live copy uses, and `release-moved` removes that copy
   ([ADR-1514](docs/decisions/1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md)).
 
 - **Deleting an owner removes what it owns.** `IClientStore.RemoveAsync` removes a client's secrets, grants to resource
