@@ -21,6 +21,7 @@ using NCode.Identity.Jose.Algorithms;
 using NCode.Identity.Jose.Exceptions;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
+using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Management.Transfers;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -151,7 +152,7 @@ internal class TenantImportApiEndpointHandler(
     /// <response code="409">The directory places the tenant in this cell or in no cell, or refuses the move while it still places the tenant in the source cell. Nothing the import wrote remains.</response>
     /// <response code="413">The request is larger than the ceiling of a tenant move, 64 MiB and 64 KiB.</response>
     /// <response code="422">The kid is empty, or the transfer key is unknown, expired or already used; the package is not sealed to a transfer key, does not decrypt with it or is malformed, its format version is not one this cell imports, its region is not this cell's region, it is offered to another cell, or it has a section that this cell does not import; the tenant's root key is refused; or a remote key that the tenant's secrets reference belongs to a provider that this cell does not register or lies outside the location this cell uses.</response>
-    /// <response code="503">The global directory is unavailable before the import writes anything, or at a move after which it still places the tenant in the source cell, and nothing the import wrote remains; or the outcome of the move is unknown, and this cell keeps what the import wrote.</response>
+    /// <response code="503">The global directory is unavailable before the import writes anything, or at a move after which it still places the tenant in the source cell, and nothing the import wrote remains; or the outcome of the move is unknown, this cell keeps what the import wrote, and the problem's <c>moveOutcome</c> is <c>unknown</c>.</response>
     [EndpointName("api/tenant-imports/create")]
     internal virtual async ValueTask<IResult> ImportTenantAsync(
         HttpContext httpContext,
@@ -765,6 +766,7 @@ internal class TenantImportApiEndpointHandler(
             }
         );
 
+    // The problem's moveOutcome tells a caller, such as the console, that the move may have committed.
     private static ProblemHttpResult MoveUnknownProblem(HttpContext httpContext) =>
         RetryAfterProblem.Create(
             httpContext,
@@ -774,6 +776,7 @@ internal class TenantImportApiEndpointHandler(
                 Status = StatusCodes.Status503ServiceUnavailable,
                 Detail =
                     "The outcome of the move is unknown. Read the tenant's placement in the global directory before releasing it at the source; a repeated import clears this cell's copy.",
+                Extensions = { [ManagementProblemMembers.MoveOutcome] = "unknown" },
             }
         );
 }

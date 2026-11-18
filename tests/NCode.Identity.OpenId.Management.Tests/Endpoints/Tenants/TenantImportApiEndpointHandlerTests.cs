@@ -21,6 +21,7 @@ using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
+using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Management.Transfers;
 using NCode.Identity.OpenId.Persistence.DataContracts;
@@ -1117,6 +1118,9 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
             "The global directory is unavailable. Retry the request.",
             problem.ProblemDetails.Detail
         );
+        Assert.False(
+            problem.ProblemDetails.Extensions.ContainsKey(ManagementProblemMembers.MoveOutcome)
+        );
         Assert.Equal(
             [
                 "import-core",
@@ -1202,6 +1206,10 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
             problem.ProblemDetails.Detail
         );
         Assert.Equal(
+            "unknown",
+            problem.ProblemDetails.Extensions[ManagementProblemMembers.MoveOutcome]
+        );
+        Assert.Equal(
             ["import-core", "import-accounts", "import-master-keys", $"retag-{CellName}", "move"],
             Calls
         );
@@ -1239,6 +1247,10 @@ public sealed class TenantImportApiEndpointHandlerTests : IDisposable
         Assert.Equal(
             "The outcome of the move is unknown. Read the tenant's placement in the global directory before releasing it at the source; a repeated import clears this cell's copy.",
             problem.ProblemDetails.Detail
+        );
+        Assert.Equal(
+            "unknown",
+            problem.ProblemDetails.Extensions[ManagementProblemMembers.MoveOutcome]
         );
         Assert.Equal(
             ["import-core", "import-accounts", "import-master-keys", $"retag-{CellName}", "move"],
