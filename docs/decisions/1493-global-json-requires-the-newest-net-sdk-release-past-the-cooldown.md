@@ -48,8 +48,8 @@ correct C#; the compiler is wrong. `global.json` states the lowest SDK the build
    (project-template ADR-0008). It keeps its pull-request limit while issue
    [#36](https://github.com/NCodeGroup/identity/issues/36) pauses the other ecosystems' version updates.
 5. **A floor above the image's SDK fails the image builds.** A proposed floor above the pinned image's SDK fails the
-   host and console image builds until the docker stream's digest update lands, which is decision 2 working as
-   intended.
+   host, console and directory image builds until the docker stream's digest update lands, which is decision 2 working
+   as intended.
 
 ## Options considered
 

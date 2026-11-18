@@ -86,7 +86,8 @@ release the host or the console would refuse.**
    Deployment, Service, token-less ServiceAccount, PodDisruptionBudget, Valkey Secret (`managementConsole.valkey`) and
    restricted pods. Its image serves HTTPS only on port 8443
    ([ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)), and its pods carry the same TLS
-   contract as the server's. Both images share the chart's `appVersion`, so one release deploys both at one version.
+   contract as the server's. Every image the chart deploys, the server's, the console's and the directory's, shares the
+   chart's `appVersion`, so one release deploys them at one version.
 10. **The console's route and URLs are derived.** The route for `managementConsole.host`, an Ingress or an HTTPRoute
     ([ADR-1507](1507-the-host-chart-routes-to-its-https-only-pods-through-gateway-api-a-traefik-ingress-or-the-operators-own-ingress.md)), routes every path to the
     console. `Bff:Frontends:mgmt:Authority` is `managementConsole.authority`, defaulting to the StaticSingle issuer, and
@@ -101,8 +102,8 @@ release the host or the console would refuse.**
 
 ## Options considered
 
-- **A chart for the console.** Rejected: the console's host joins the server's release, both images stay on the chart's
-  `appVersion`, and one install deploys both.
+- **A chart for the console.** Rejected: the console's host joins the server's release, the server's and the console's
+  images stay on the chart's `appVersion`, and one install deploys both.
 - **Sharing the server's Valkey.** Rejected: the console would reach the server's single-use state.
 - **Sharing the server's ServiceAccount.** Rejected: it may carry the server's cloud identities.
 - **Routing machine callers through the console's BFF.** Rejected: machine callers authenticate at the OP directly.
