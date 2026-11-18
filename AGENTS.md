@@ -181,7 +181,8 @@ they cover, and this family's own beside them. A family record never restates a 
 it names it on a `**Refines:**` line, and one that still contradicts it on a `**Conflicts with:**` line with the issue
 that tracks the alignment. A family record relates to no other family record: a changed decision rewrites its record
 in place
-([ADR-1508](docs/decisions/1508-a-decision-record-is-rewritten-when-its-decision-changes-and-relates-only-to-template-records.md)). Cite a template record as `project-template ADR-NNNN`. The family numbers its records from
+([ADR-1508](docs/decisions/1508-a-decision-record-is-rewritten-when-its-decision-changes-and-relates-only-to-template-records.md)). Cite a template record as `project-template ADR-NNNN`. Cite another repository's record as
+`<owner>/<repo> ADR-NNNN`, such as `NCodeGroup/brand ADR-1007`. The family numbers its records from
 1000 and the template below 1000
 ([project-template ADR-0012](docs/decisions/project-template/0012-the-templates-records-are-numbered-below-1000-a-projects-from-1000.md)),
 so a bare ADR number names one record. Eleven family records override template records:

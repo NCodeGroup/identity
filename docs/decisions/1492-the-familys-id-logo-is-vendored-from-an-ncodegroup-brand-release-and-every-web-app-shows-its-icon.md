@@ -16,12 +16,12 @@ names.
 The family belongs to the NCode Group, whose mark is `{N}`: an N between curly braces in one blue, `#0033CC`.
 [NCodeGroup/brand](https://github.com/NCodeGroup/brand) draws the kit of every NCode mark, the group's `{N}` and this
 family's `{id}`, with one kit writer, from each kit's geometry as data
-([its ADR-1007](https://github.com/NCodeGroup/brand/blob/v0.11.0/docs/decisions/1007-every-ncode-marks-kit-is-drawn-here-by-one-kit-writer.md)).
+([NCodeGroup/brand ADR-1007](https://github.com/NCodeGroup/brand/blob/v0.11.0/docs/decisions/1007-every-ncode-marks-kit-is-drawn-here-by-one-kit-writer.md)).
 Each of its releases is immutable, and its archive holds `manifest.json`, the size and SHA-256 of every released file,
 under a build provenance attestation from its publish workflow. Its `vendoring/vendor-brand.mjs` copies the files a
 consumer's lock names from that archive and checks them offline
-([its ADR-1001](https://github.com/NCodeGroup/brand/blob/v0.11.0/docs/decisions/1001-consumers-vendor-files-from-a-tagged-release-and-check-their-hashes.md),
-[its ADR-1009](https://github.com/NCodeGroup/brand/blob/v0.11.0/docs/decisions/1009-a-release-carries-an-attested-archive-and-vendor-brand-verifies-it-before-writing.md)).
+([NCodeGroup/brand ADR-1001](https://github.com/NCodeGroup/brand/blob/v0.11.0/docs/decisions/1001-consumers-vendor-files-from-a-tagged-release-and-check-their-hashes.md),
+[NCodeGroup/brand ADR-1009](https://github.com/NCodeGroup/brand/blob/v0.11.0/docs/decisions/1009-a-release-carries-an-attested-archive-and-vendor-brand-verifies-it-before-writing.md)).
 
 Pictures exported by hand for each place drift apart in proportion and color. A small icon scaled down from a large
 drawing has its strokes between pixels and looks soft. A wordmark set in a font makes every file that shows it depend
@@ -64,7 +64,7 @@ against the SHA-256 its lock pins. Each web app carries copies of the kit's brow
 3. **NCodeGroup/brand draws the kit.** Its kit writer draws `logo/identity/` from the kit's geometry: the mark is
    straight lines and circular arcs on a 64-unit grid, the SVG masters and every PNG and ICO come from the same
    outlines, and each size from 16 to 48 pixels has a pixel-snapped drawing of its own with every stem on whole pixels
-   ([its ADR-1007](https://github.com/NCodeGroup/brand/blob/v0.11.0/docs/decisions/1007-every-ncode-marks-kit-is-drawn-here-by-one-kit-writer.md)).
+   ([NCodeGroup/brand ADR-1007](https://github.com/NCodeGroup/brand/blob/v0.11.0/docs/decisions/1007-every-ncode-marks-kit-is-drawn-here-by-one-kit-writer.md)).
    The wordmark, and the descriptor "OpenID Connect and OAuth 2.x for .NET" that the link previews carry, are outlines
    of Inter Display Medium and Inter Display Regular from Inter 4.1, whose archive's SHA-256 the kit's source pins, so
    no file of the kit needs a font. Inter is under the SIL Open Font License 1.1, and `THIRD-PARTY-NOTICES.md` records
