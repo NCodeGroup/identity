@@ -4,7 +4,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.Host.Database.EndToEnd.Tests.Infrastructure;
 using NCode.Identity.OpenId.Persistence.EntityFramework;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -185,7 +184,6 @@ public sealed class RowLevelSecurityEndToEndTests(PostgresFixture fixture)
     private static ServiceProvider CreatePostureCheckProvider(string connectionString) =>
         new ServiceCollection()
             .AddLogging()
-            .AddSingleton(new LocalDevelopmentMode(false))
             .AddRuntimeRolePostureCheck(connectionString)
             .BuildServiceProvider();
 

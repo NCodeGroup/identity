@@ -17,7 +17,6 @@ public sealed class RuntimeRolePostureCheckRegistrationTests
     {
         var serviceCollection = new ServiceCollection();
         serviceCollection.AddLogging();
-        serviceCollection.AddSingleton(new LocalDevelopmentMode(false));
 
         serviceCollection.AddRuntimeRolePostureCheck("Host=localhost");
 
@@ -25,6 +24,31 @@ public sealed class RuntimeRolePostureCheckRegistrationTests
         Assert.Single(
             serviceProvider.GetServices<IHostedService>().OfType<RuntimeRolePostureCheck>()
         );
+    }
+
+    [Fact]
+    public async Task AddRuntimeRolePostureCheck_WhenNoModeIsRegistered_RegistersTheDeploymentMode()
+    {
+        var serviceCollection = new ServiceCollection();
+
+        serviceCollection.AddRuntimeRolePostureCheck("Host=localhost");
+
+        await using var serviceProvider = serviceCollection.BuildServiceProvider();
+        var mode = serviceProvider.GetRequiredService<LocalDevelopmentMode>();
+        Assert.False(mode.Enabled);
+    }
+
+    [Fact]
+    public async Task AddRuntimeRolePostureCheck_WhenAModeIsRegistered_KeepsIt()
+    {
+        var registeredMode = new LocalDevelopmentMode(true);
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddSingleton(registeredMode);
+
+        serviceCollection.AddRuntimeRolePostureCheck("Host=localhost");
+
+        await using var serviceProvider = serviceCollection.BuildServiceProvider();
+        Assert.Same(registeredMode, serviceProvider.GetRequiredService<LocalDevelopmentMode>());
     }
 
     #endregion
