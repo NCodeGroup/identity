@@ -61,18 +61,25 @@ against the SHA-256 its lock pins. Each web app carries copies of the kit's brow
    NCode Blue `#0033CC`, NCode Blue Light `#809FFF` for dark backgrounds, NCode Navy `#0A1F5C`, and white.
 2. **The wordmark writes the name as two words, "NCode Identity".** The package and namespace names keep their dot,
    `NCode.Identity`. A lockup sets the wordmark beside the mark, or under the mark at twice that size.
-3. **One script draws every file from one geometry.** The mark is straight lines and circular arcs on a 64-unit grid.
-   `brand/build.py` writes the SVG masters from them and rasterizes the same outlines for every PNG and ICO, so no file
-   is exported by hand: a change is an edit to a script and a run, never to a file it writes. Each size from 16 to 48
-   pixels has a pixel-snapped drawing of its own with every stem on whole pixels. The script reads every PNG and ICO
-   entry back, and stops when a file breaks its platform's limit or holds a transparent pixel where the platform takes
-   none. Its output is deterministic.
-4. **Text is outlines.** `brand/outlines.py` converts the wordmark, and the descriptor "OpenID Connect and OAuth 2.x for
-   .NET" that the link previews carry, from a pinned release of [Inter](https://github.com/rsms/inter), after it
-   verifies the SHA-256 of the archive and of each font file it reads. It writes `brand/outlines.json`, which
-   `brand/build.py` reads, so no file of the kit needs a font. Inter is under the SIL Open Font License 1.1, and
-   `THIRD-PARTY-NOTICES.md` records its copyright and license, as it does for the bundled password list
-   ([ADR-1236](1236-a-password-is-judged-by-one-policy-wherever-it-is-set.md)).
+3. **NCodeGroup/brand draws the kit.** Its kit writer draws `logo/identity/` from the kit's geometry: the mark is
+   straight lines and circular arcs on a 64-unit grid, the SVG masters and every PNG and ICO come from the same
+   outlines, and each size from 16 to 48 pixels has a pixel-snapped drawing of its own with every stem on whole pixels
+   ([its ADR-1007](https://github.com/NCodeGroup/brand/blob/v0.11.0/docs/decisions/1007-every-ncode-marks-kit-is-drawn-here-by-one-kit-writer.md)).
+   The wordmark, and the descriptor "OpenID Connect and OAuth 2.x for .NET" that the link previews carry, are outlines
+   of Inter Display Medium and Inter Display Regular from Inter 4.1, whose archive's SHA-256 the kit's source pins, so
+   no file of the kit needs a font. Inter is under the SIL Open Font License 1.1, and `THIRD-PARTY-NOTICES.md` records
+   its copyright and license, as it does for the bundled password list
+   ([ADR-1236](1236-a-password-is-judged-by-one-policy-wherever-it-is-set.md)). A change to the mark, a color, a size
+   or a line of text is made in NCodeGroup/brand and reaches this repository with a release.
+4. **`brand/` is one release's kit, checked against its lock.** Every file of the release's `logo/identity/` is in
+   `brand/` at the same path, beside `brand/README.md`, this repository's guide to them. `brand/brand.lock.json` names
+   each file with its path in the release and its SHA-256, and names `brand/vendor-brand.mjs`, the release's
+   `vendoring/vendor-brand.mjs`, the same way. `node brand/vendor-brand.mjs --update <version> --lock
+   brand/brand.lock.json` takes another release once `gh attestation verify` proves that NCodeGroup/brand's publish
+   workflow built its archive for the release's tag, and no file under `brand/` is edited by hand.
+   `build/brand-kit.ps1`, which the `brand kit` stage of `./build/dod.ps1` runs through its fixture tests, runs `node
+   brand/vendor-brand.mjs --check --lock brand/brand.lock.json` offline and fails on a file the lock names that is
+   missing or differs, and on a file under `brand/` that the lock does not name.
 5. **The repository takes the logo from the kit wherever it shows it.** `Directory.Build.targets` packs
    `brand/nuget/ncode-identity-nuget-tile-blue.png` into every package as its icon. The host chart's `icon` is the
    address of `brand/tile/ncode-identity-tile-blue-256.png` on `main`, so that path is kept. The README opens with the
