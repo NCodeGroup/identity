@@ -3,6 +3,7 @@
 
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.Host.Database.Facades;
 using NCode.Identity.OpenId.Host.Database.Logging;
 
@@ -14,15 +15,15 @@ namespace NCode.Identity.OpenId.Host.Database;
 /// under <c>LocalDevelopment:Enabled</c> it logs one warning and the host starts.
 /// </summary>
 /// <param name="reader">The reader of the posture of the role the host connects as.</param>
-/// <param name="localDevelopment">
-/// Whether the host runs as a local inner-loop host (<c>LocalDevelopment:Enabled</c>), which warns instead of refusing
-/// to start.
+/// <param name="localDevelopmentMode">
+/// The mode that decides whether a role that is not subject to row-level security only warns
+/// (<c>LocalDevelopment:Enabled</c>) instead of stopping the host.
 /// </param>
 /// <param name="logger">The logger that receives the warning.</param>
 // See ADR-1370.
 internal class RuntimeRolePostureCheck(
     IRuntimeRolePostureReader reader,
-    bool localDevelopment,
+    LocalDevelopmentMode localDevelopmentMode,
     ILogger<RuntimeRolePostureCheck> logger
 ) : IHostedService
 {
@@ -35,7 +36,7 @@ internal class RuntimeRolePostureCheck(
 
         var joined = string.Join("; ", violations);
 
-        if (localDevelopment)
+        if (localDevelopmentMode.Enabled)
         {
             logger.RuntimeRolePostureViolated(joined, RuntimeRolePosture.Remedy);
             return;

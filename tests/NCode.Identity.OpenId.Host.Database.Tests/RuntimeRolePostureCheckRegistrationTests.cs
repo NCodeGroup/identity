@@ -3,6 +3,7 @@
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using NCode.Identity.AspNetCore;
 using Xunit;
 
 namespace NCode.Identity.OpenId.Host.Database.Tests;
@@ -16,8 +17,9 @@ public sealed class RuntimeRolePostureCheckRegistrationTests
     {
         var serviceCollection = new ServiceCollection();
         serviceCollection.AddLogging();
+        serviceCollection.AddSingleton(new LocalDevelopmentMode(false));
 
-        serviceCollection.AddRuntimeRolePostureCheck("Host=localhost", false);
+        serviceCollection.AddRuntimeRolePostureCheck("Host=localhost");
 
         await using var serviceProvider = serviceCollection.BuildServiceProvider();
         Assert.Single(

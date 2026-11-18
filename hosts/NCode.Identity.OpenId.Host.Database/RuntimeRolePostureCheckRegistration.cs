@@ -4,6 +4,7 @@
 using JetBrains.Annotations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.Host.Database.Facades;
 
 namespace NCode.Identity.OpenId.Host.Database;
@@ -19,27 +20,24 @@ public static class RuntimeRolePostureCheckRegistration
     {
         /// <summary>
         /// Registers the startup check that refuses to start the host when the role it connects as is not subject to
-        /// row-level security.
+        /// row-level security. The check reads <see cref="LocalDevelopmentMode"/> when the host starts, so a host that
+        /// registers the mode from its configuration warns instead of refusing to start under
+        /// <c>LocalDevelopment:Enabled</c>.
         /// </summary>
         /// <param name="connectionString">The Postgres connection string of the host's runtime role.</param>
-        /// <param name="localDevelopment">
-        /// Whether the host runs as a local inner-loop host (<c>LocalDevelopment:Enabled</c>), which warns instead of
-        /// refusing to start.
-        /// </param>
         /// <returns>The same <see cref="IServiceCollection"/> instance for method chaining.</returns>
-        public IServiceCollection AddRuntimeRolePostureCheck(
-            string connectionString,
-            bool localDevelopment
-        )
+        public IServiceCollection AddRuntimeRolePostureCheck(string connectionString)
         {
             ArgumentNullException.ThrowIfNull(serviceCollection);
 
             return serviceCollection.AddHostedService(serviceProvider =>
             {
                 var postureReader = new NpgsqlRuntimeRolePostureReader(connectionString);
+                var localDevelopmentMode =
+                    serviceProvider.GetRequiredService<LocalDevelopmentMode>();
                 var logger = serviceProvider.GetRequiredService<ILogger<RuntimeRolePostureCheck>>();
 
-                return new RuntimeRolePostureCheck(postureReader, localDevelopment, logger);
+                return new RuntimeRolePostureCheck(postureReader, localDevelopmentMode, logger);
             });
         }
     }

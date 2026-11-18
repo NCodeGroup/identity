@@ -3,6 +3,7 @@
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
+using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.Host.Database.Facades;
 using NCode.Identity.OpenId.Host.Database.Logging;
 using Xunit;
@@ -19,7 +20,7 @@ public sealed class RuntimeRolePostureCheckTests
     private FakeLogger<RuntimeRolePostureCheck> Logger { get; } = new();
 
     private RuntimeRolePostureCheck CreateCheck(FakeReader reader, bool localDevelopment) =>
-        new(reader, localDevelopment, Logger);
+        new(reader, new LocalDevelopmentMode(localDevelopment), Logger);
 
     #region StartAsync Tests
 

@@ -3,7 +3,6 @@
 
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
-using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.Host.Database;
 using NCode.Identity.OpenId.Persistence.EntityFramework;
 using NCode.Identity.OpenId.Persistence.Tenants;
@@ -77,8 +76,7 @@ internal static class HostDatabaseRegistration
             // The host refuses to start when the role it connects as is a superuser, bypasses row-level security or
             // owns the tables, because the tenant policies would not apply to it; 'LocalDevelopment:Enabled' only warns
             // (ADR-1370).
-            var localDevelopment = configuration.IsLocalDevelopment();
-            serviceCollection.AddRuntimeRolePostureCheck(connectionString, localDevelopment);
+            serviceCollection.AddRuntimeRolePostureCheck(connectionString);
 
             // The replica is ready only while it can reach the database it serves every request from.
             serviceCollection
