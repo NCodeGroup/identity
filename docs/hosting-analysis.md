@@ -420,9 +420,9 @@ available and requires at least two years of registration remaining and a `_psl`
 which doesn't need to match the product domain; GitHub remains the single home for source, infrastructure code, CI and
 packages ([ADR-1132](decisions/1132-platform-infrastructure-code-is-public-on-github-and-its-state-and-backups-live-in-aws.md)). On npm the `@ncode` scope
 belongs to an unrelated party, so JavaScript packages publish under the org-owned `@ncodegroup` scope (matching the
-GitHub organization and GitHub Packages' scope rule). The frontend's `@ncodegroup/identity-*` workspace packages are private and
-resolve only through `workspace:*`, so they are renamed only if and when one is published. The family publishes on NuGet
-under the reserved, verified `NCode.` prefix.
+GitHub organization and GitHub Packages' scope rule). The frontend's workspace packages are named under it, product
+first (`@ncodegroup/identity-*`); they are private and resolve only through `workspace:*`. The family publishes on
+NuGet under the reserved, verified `NCode.` prefix.
 
 ### Cells and the global directory
 
