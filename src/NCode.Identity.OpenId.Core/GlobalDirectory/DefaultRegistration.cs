@@ -24,6 +24,10 @@ internal static class DefaultRegistration
         public IServiceBuilder<OpenIdCoreLibrary> AddDirectoryMirrorServices()
         {
             builder.ServiceCollection.TryAddSingleton<
+                IPostCommitCommandSender,
+                DefaultPostCommitCommandSender
+            >();
+            builder.ServiceCollection.TryAddSingleton<
                 ITeamDocumentApplier,
                 DefaultTeamDocumentApplier
             >();

@@ -62,6 +62,37 @@ public sealed class DefaultRegistrationTests : BaseTests
     }
 
     [Fact]
+    public void AddDirectoryMirrorServices_Always_RegistersTheDefaultPostCommitCommandSenderAsASingleton()
+    {
+        var serviceCollection = new ServiceCollection();
+
+        CreateBuilder(serviceCollection).AddDirectoryMirrorServices();
+
+        var descriptor = Assert.Single(
+            serviceCollection,
+            x => x.ServiceType == typeof(IPostCommitCommandSender)
+        );
+        Assert.Equal(typeof(DefaultPostCommitCommandSender), descriptor.ImplementationType);
+        Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
+    }
+
+    [Fact]
+    public void AddDirectoryMirrorServices_WhenAPostCommitCommandSenderIsRegistered_KeepsIt()
+    {
+        var serviceCollection = new ServiceCollection();
+        var postCommitCommandSender = CreateStrictMock<IPostCommitCommandSender>().Object;
+        serviceCollection.AddSingleton(postCommitCommandSender);
+
+        CreateBuilder(serviceCollection).AddDirectoryMirrorServices();
+
+        var descriptor = Assert.Single(
+            serviceCollection,
+            x => x.ServiceType == typeof(IPostCommitCommandSender)
+        );
+        Assert.Same(postCommitCommandSender, descriptor.ImplementationInstance);
+    }
+
+    [Fact]
     public void AddDirectoryMirrorServices_WhenATeamApplierIsRegistered_KeepsIt()
     {
         var serviceCollection = new ServiceCollection();

@@ -58,10 +58,16 @@ public sealed class DefaultTeamDocumentApplierTests : BaseTests
         serviceCollection.AddScoped(_ => MockMediator.Object);
         ServiceProvider = serviceCollection.BuildServiceProvider();
 
+        var serviceScopeFactory = ServiceProvider.GetRequiredService<IServiceScopeFactory>();
+        var postCommitCommandSender = new DefaultPostCommitCommandSender(
+            serviceScopeFactory,
+            TimeProvider
+        );
+
         Applier = new DefaultTeamDocumentApplier(
             MockStoreManagerFactory.Object,
             MockAmbientTenantAccessor.Object,
-            ServiceProvider.GetRequiredService<IServiceScopeFactory>(),
+            postCommitCommandSender,
             MockOwnerRootKeyManager.Object,
             Options.Create(new CellOptions { Region = Region }),
             TimeProvider,

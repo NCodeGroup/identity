@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Text.Json;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NCode.Identity.Json;
 using NCode.Identity.OpenId.Logging;
@@ -23,9 +22,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 // See ADR-1411, ADR-1412 and ADR-1351.
 internal sealed class DefaultPlatformDocumentApplier(
     IStoreManagerFactory storeManagerFactory,
-    IServiceScopeFactory serviceScopeFactory,
+    IPostCommitCommandSender postCommitCommandSender,
     IAmbientTenantAccessor ambientTenantAccessor,
-    TimeProvider timeProvider,
     ILogger<DefaultPlatformDocumentApplier> logger
 ) : IPlatformDocumentApplier
 {
@@ -35,9 +33,8 @@ internal sealed class DefaultPlatformDocumentApplier(
     private const string UnscopedReason = "directory platform mirror";
 
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
-    private IServiceScopeFactory ServiceScopeFactory { get; } = serviceScopeFactory;
+    private IPostCommitCommandSender PostCommitCommandSender { get; } = postCommitCommandSender;
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
-    private TimeProvider TimeProvider { get; } = timeProvider;
     private ILogger<DefaultPlatformDocumentApplier> Logger { get; } = logger;
 
     /// <inheritdoc />
@@ -78,8 +75,6 @@ internal sealed class DefaultPlatformDocumentApplier(
         if (isApplied)
         {
             await PostCommitCommandSender.SendAsync(
-                ServiceScopeFactory,
-                TimeProvider,
                 new PlatformSettingsChangedCommand(previousSettings.Clone(), settings.Clone()),
                 exception => Logger.DirectoryPlatformChangeNotSent(exception),
                 cancellationToken

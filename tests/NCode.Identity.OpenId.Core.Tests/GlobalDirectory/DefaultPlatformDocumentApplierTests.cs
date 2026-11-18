@@ -45,11 +45,16 @@ public sealed class DefaultPlatformDocumentApplierTests : BaseTests
         serviceCollection.AddScoped(_ => MockMediator.Object);
         ServiceProvider = serviceCollection.BuildServiceProvider();
 
+        var serviceScopeFactory = ServiceProvider.GetRequiredService<IServiceScopeFactory>();
+        var postCommitCommandSender = new DefaultPostCommitCommandSender(
+            serviceScopeFactory,
+            TimeProvider
+        );
+
         Applier = new DefaultPlatformDocumentApplier(
             MockStoreManagerFactory.Object,
-            ServiceProvider.GetRequiredService<IServiceScopeFactory>(),
+            postCommitCommandSender,
             MockAmbientTenantAccessor.Object,
-            TimeProvider,
             Logger
         );
     }

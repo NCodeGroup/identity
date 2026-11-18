@@ -11,22 +11,26 @@ using Xunit;
 
 namespace NCode.Identity.OpenId.Core.Tests.GlobalDirectory;
 
-public sealed class PostCommitCommandSenderTests : BaseTests
+public sealed class DefaultPostCommitCommandSenderTests : BaseTests
 {
     private static TeamChangedCommand Command { get; } = new("team-1", true);
 
     private Mock<IMediator> MockMediator { get; }
     private FakeTimeProvider TimeProvider { get; } = new();
     private ServiceProvider ServiceProvider { get; }
+    private DefaultPostCommitCommandSender Sender { get; }
     private List<Exception> Failures { get; } = [];
 
-    public PostCommitCommandSenderTests()
+    public DefaultPostCommitCommandSenderTests()
     {
         MockMediator = CreateStrictMock<IMediator>();
 
         var serviceCollection = new ServiceCollection();
         serviceCollection.AddScoped(_ => MockMediator.Object);
         ServiceProvider = serviceCollection.BuildServiceProvider();
+
+        var serviceScopeFactory = ServiceProvider.GetRequiredService<IServiceScopeFactory>();
+        Sender = new DefaultPostCommitCommandSender(serviceScopeFactory, TimeProvider);
     }
 
     protected override void Dispose(bool disposing)
@@ -40,13 +44,7 @@ public sealed class PostCommitCommandSenderTests : BaseTests
     }
 
     private ValueTask SendAsync(CancellationToken cancellationToken) =>
-        PostCommitCommandSender.SendAsync(
-            ServiceProvider.GetRequiredService<IServiceScopeFactory>(),
-            TimeProvider,
-            Command,
-            Failures.Add,
-            cancellationToken
-        );
+        Sender.SendAsync(Command, Failures.Add, cancellationToken);
 
     #region SendAsync Tests
 

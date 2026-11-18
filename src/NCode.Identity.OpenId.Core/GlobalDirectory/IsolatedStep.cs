@@ -1,14 +1,16 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using NCode.Identity.Persistence;
+
 namespace NCode.Identity.OpenId.GlobalDirectory;
 
 /// <summary>
 /// Runs a step that follows a committed directory write and must never fail it. A failure of the step is handed to a
 /// handler instead of propagating, and a cancellation propagates only when the caller's own token is cancelled, because
 /// the step runs on a bounded token of its own whose timeout also surfaces as an
-/// <see cref="OperationCanceledException"/>. The class is static, like <see cref="PostCommitCommandSender"/>, because
-/// it holds no state and its callers pass the step and the handler they already hold.
+/// <see cref="OperationCanceledException"/>. The class is static, like <see cref="PostCommitWork"/>, because it holds
+/// no state and its callers pass the step and the handler they already hold.
 /// </summary>
 // See ADR-1351.
 internal static class IsolatedStep

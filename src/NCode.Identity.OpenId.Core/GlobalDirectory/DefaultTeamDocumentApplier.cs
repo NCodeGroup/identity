@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Text.Json;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.Logging;
@@ -38,7 +37,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 internal sealed class DefaultTeamDocumentApplier(
     IStoreManagerFactory storeManagerFactory,
     IAmbientTenantAccessor ambientTenantAccessor,
-    IServiceScopeFactory serviceScopeFactory,
+    IPostCommitCommandSender postCommitCommandSender,
     IOwnerRootKeyManager ownerRootKeyManager,
     IOptions<CellOptions> cellOptionsAccessor,
     TimeProvider timeProvider,
@@ -58,7 +57,7 @@ internal sealed class DefaultTeamDocumentApplier(
 
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
-    private IServiceScopeFactory ServiceScopeFactory { get; } = serviceScopeFactory;
+    private IPostCommitCommandSender PostCommitCommandSender { get; } = postCommitCommandSender;
     private IOwnerRootKeyManager OwnerRootKeyManager { get; } = ownerRootKeyManager;
     private CellOptions CellOptions { get; } = cellOptionsAccessor.Value;
     private TimeProvider TimeProvider { get; } = timeProvider;
@@ -125,8 +124,6 @@ internal sealed class DefaultTeamDocumentApplier(
         if (isApplied)
         {
             await PostCommitCommandSender.SendAsync(
-                ServiceScopeFactory,
-                TimeProvider,
                 new TeamChangedCommand(document.TeamId, settingsChanged),
                 exception => Logger.DirectoryTeamChangeNotSent(document.TeamId, exception),
                 cancellationToken
@@ -418,8 +415,6 @@ internal sealed class DefaultTeamDocumentApplier(
         }
 
         await PostCommitCommandSender.SendAsync(
-            ServiceScopeFactory,
-            TimeProvider,
             new TeamChangedCommand(teamId, false),
             exception => Logger.DirectoryTeamChangeNotSent(teamId, exception),
             cancellationToken
