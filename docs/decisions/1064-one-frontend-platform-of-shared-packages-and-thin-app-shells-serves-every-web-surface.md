@@ -37,22 +37,24 @@ over shared, scoped `@ncodegroup/identity-*` packages, and a layering rule keeps
   `dist/`, `.turbo/` and coverage output are git-ignored.
 - **Shared packages.** Each is used only through its public entry point:
   - `@ncodegroup/identity-config` discovers the runtime configuration.
-  - `@ncodegroup/identity-store` holds the store, the typed hooks, the session slice and the RTK Query `managementApi` with its base
-    query and cache tags.
-  - `@ncodegroup/identity-api` holds the management wire contracts and the platform, team and tenant scope model, free of UI and Redux.
+  - `@ncodegroup/identity-store` holds the store, the typed hooks, the session slice and the RTK Query `managementApi`
+    with its base query and cache tags.
+  - `@ncodegroup/identity-api` holds the management wire contracts and the platform, team and tenant scope model,
+    free of UI and Redux.
   - `@ncodegroup/identity-ui` is the stateless design system and its theme.
   - `@ncodegroup/identity-shell` holds the shared stateful containers.
   - `@ncodegroup/identity-auth` holds the public-client protocol helpers.
-  - `@ncodegroup/identity-conformance-core`, `@ncodegroup/identity-test-support` and `@ncodegroup/identity-vite-config` serve the conformance surfaces, the tests
-    and the build.
+  - `@ncodegroup/identity-conformance-core`, `@ncodegroup/identity-test-support` and `@ncodegroup/identity-vite-config`
+    serve the conformance surfaces, the tests and the build.
 - **Layering is the testability invariant.** Presentational components are stateless: they hold no store or fetch
   state, and local state is allowed only when it is intrinsic to a control and does not break isolated rendering. They
   render in Storybook and under React Testing Library without a store. Containers at the top of a screen wire Redux and
   RTK Query. Non-trivial logic lives in UI-free, unit-tested modules. RTK Query is the default for server state.
   Breaking the layering is a review failure.
-- **Where a container lives.** `@ncodegroup/identity-ui` depends on no store, and `@ncodegroup/identity-store` and `@ncodegroup/identity-config` hold no UI. A
-  container that more than one surface uses, such as `BootstrapGate`, lives in `@ncodegroup/identity-shell`, the one package that may
-  depend on both. A container that one surface uses, such as the console's `SessionGate`, stays in its app.
+- **Where a container lives.** `@ncodegroup/identity-ui` depends on no store, and `@ncodegroup/identity-store` and
+  `@ncodegroup/identity-config` hold no UI. A container that more than one surface uses, such as `BootstrapGate`, lives
+  in `@ncodegroup/identity-shell`, the one package that may depend on both. A container that one surface uses, such as
+  the console's `SessionGate`, stays in its app.
 - **One bundle, every tier.** A bundle is built once and nothing tier-specific is baked in. On boot the `playground`,
   `conformance` and `mgmt` bundles fetch `/config/bootstrap.json` from their serving host, which owns that document, and
   an OpenID surface then reads the OP's discovery. The `apps/auth` bundle fetches nothing on boot: it reads what it
@@ -82,9 +84,9 @@ over shared, scoped `@ncodegroup/identity-*` packages, and a layering rule keeps
 - **Scopes are distinct contexts.** The management surface models platform, team and tenant scopes as distinct browsing
   contexts with their own navigation, cache tags and authorization gating, never one filtered list
   ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
-- **Branding through a provider.** Theme tokens sit behind a provider in `@ncodegroup/identity-ui`. A bundle's deployment branding
-  arrives in its bootstrap document, and the host embeds a tenant's sign-in branding in the page the `apps/auth` bundle
-  mounts over
+- **Branding through a provider.** Theme tokens sit behind a provider in `@ncodegroup/identity-ui`. A bundle's
+  deployment branding arrives in its bootstrap document, and the host embeds a tenant's sign-in branding in the page the
+  `apps/auth` bundle mounts over
   ([ADR-1253](1253-a-tenant-brands-its-sign-in-pages-through-settings-and-the-bundle-mounts-over-the-hosts-page.md)).
 
 ## Options considered
@@ -102,8 +104,9 @@ over shared, scoped `@ncodegroup/identity-*` packages, and a layering rule keeps
   without that cost.
 - **A closed `SurfaceKind`.** Rejected: a misspelled surface gets the host default, which fails visibly at the first
   sign-in, while a closed union makes every new surface edit a library.
-- **The boot gate in `@ncodegroup/identity-ui` or `@ncodegroup/identity-store`.** Rejected: a store-backed container breaks the stateless, store-free
-  `@ncodegroup/identity-ui`, and in `@ncodegroup/identity-store` it would make the UI-free state package depend on Material UI.
+- **The boot gate in `@ncodegroup/identity-ui` or `@ncodegroup/identity-store`.** Rejected: a store-backed container
+  breaks the stateless, store-free `@ncodegroup/identity-ui`, and in `@ncodegroup/identity-store` it would make the
+  UI-free state package depend on Material UI.
 - **A gate that loads by itself from a `surface` prop.** Rejected: a test must mock a module to control the load, and a
   surface that loads differently cannot use it.
 - **A `bootstrap.ts` per app.** Rejected: the copies differ by one string.
@@ -121,8 +124,8 @@ over shared, scoped `@ncodegroup/identity-*` packages, and a layering rule keeps
 - The layering is a maintained convention, written in [`frontend/README.md`](../../frontend/README.md). State in a
   presentational component or logic in a component breaks Storybook and unit isolation.
 - The serving host and the bundle are coupled through the bootstrap document: the host must publish one the bundle
-  understands. The management REST contracts are a typed dependency of `@ncodegroup/identity-api`, so a contract change reaches the
-  client types.
+  understands. The management REST contracts are a typed dependency of `@ncodegroup/identity-api`, so a contract change
+  reaches the client types.
 - A surface's only boot-time binding is the `surface` it passes in `main.tsx`, and the next container that two surfaces
   share has a home with the dependencies it needs.
 

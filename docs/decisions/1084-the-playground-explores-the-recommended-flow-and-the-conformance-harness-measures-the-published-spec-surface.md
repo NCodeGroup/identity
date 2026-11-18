@@ -45,9 +45,9 @@ exercise them.** Both are standalone Vite SPAs on the shared `@ncodegroup/identi
 `apps/playground` is an OAuth 2.1 / OpenID Connect flow explorer. It discovers the provider and walks authorization
 code with PKCE `S256` end to end, shows every artifact (the verifier and challenge, `state`, `nonce`, the authorize
 URL, the token response and the decoded JWT header and claims), and exercises UserInfo, refresh and RP-Initiated
-Logout. The flow orchestration is the UI-free, unit-tested `flow.ts`, composed from the shared `@ncodegroup/identity-auth`
-primitives. It offers only the authorization-code flow: implicit, hybrid front-channel-token and password flows cannot
-be selected, matching the security-practice default.
+Logout. The flow orchestration is the UI-free, unit-tested `flow.ts`, composed from the shared
+`@ncodegroup/identity-auth` primitives. It offers only the authorization-code flow: implicit, hybrid front-channel-token
+and password flows cannot be selected, matching the security-practice default.
 
 ### Serving and clients
 
