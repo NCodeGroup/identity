@@ -110,6 +110,11 @@ public partial class ManagementConsolePageHandlerTests : BaseTests
             httpContext.Response.Headers.CacheControl.ToString()
         );
         Assert.Contains("The management console is not built.", body, StringComparison.Ordinal);
+        Assert.Contains(
+            "pnpm --filter @ncodegroup/identity-app-mgmt build",
+            body,
+            StringComparison.Ordinal
+        );
     }
 
     [Fact]
