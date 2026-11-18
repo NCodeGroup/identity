@@ -100,16 +100,10 @@ export function HomePage({ onNavigate }: HomePageProps) {
                 issuer: t.issuer,
                 mtlsEndpointAliasAuthority: t.mtlsEndpointAliasAuthority,
                 isDisabled: t.isDisabled,
+                ...(t.cell !== undefined && { cell: { name: t.cell, region: null } }),
               }))}
-              onSelect={(tenantId) =>
-                onNavigate(
-                  tenantRoute(
-                    tenantId,
-                    undefined,
-                    tenantItems.find((t) => t.tenantId === tenantId)?.cell,
-                  ),
-                )
-              }
+              showCell={tenantItems.some((t) => t.cell !== undefined)}
+              onSelect={(tenantId, cell) => onNavigate(tenantRoute(tenantId, undefined, cell))}
             />
           </Box>
         )}

@@ -105,8 +105,18 @@ describe('HomePage', () => {
 
     const onNavigate = renderPage(vi.fn(), { ...runtime, cells: ['eu-1'] });
 
-    fireEvent.click(await screen.findByTestId('tenant-row-acme'));
+    fireEvent.click(await screen.findByTestId('tenant-row-eu-1/acme'));
     expect(onNavigate).toHaveBeenLastCalledWith(tenantRoute('acme', undefined, 'eu-1'));
+  });
+
+  it('opens the copy of a tenant in the cell of its row when two cells list it', async () => {
+    installFetch({ isPlatformAdministrator: true, teams: [team], tenants: [tenant] });
+
+    const onNavigate = renderPage(vi.fn(), { ...runtime, cells: ['eu-1', 'us-1'] });
+
+    expect(await screen.findByTestId('tenant-cell-us-1/acme')).toHaveTextContent('us-1');
+    fireEvent.click(screen.getByTestId('tenant-row-us-1/acme'));
+    expect(onNavigate).toHaveBeenLastCalledWith(tenantRoute('acme', undefined, 'us-1'));
   });
 
   it('opens the only team with replace', async () => {
