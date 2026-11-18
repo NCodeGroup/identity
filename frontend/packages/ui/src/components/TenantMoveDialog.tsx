@@ -55,6 +55,8 @@ export type TenantMoveDialogProps = {
   readonly isCellsFailed: boolean;
   readonly operations: TenantMoveDialogOperations;
   readonly onClose: () => void;
+  /** Called with the cell the tenant moved to when the dialog closes after a completed move. */
+  readonly onMoved?: (targetCell: string) => void;
 };
 
 type Stage = {
@@ -88,8 +90,9 @@ function stagesOf(sourceCell: string, targetCell: string): readonly Stage[] {
  * spends the transfer key, so Retry then runs from the transfer key. An export that finds the tenant already placed in
  * another cell offers Release instead, which runs only the release of the copy the tenant's own cell holds. While the
  * platform's cells load, or when they cannot be loaded, the dialog says so instead of saying that the region has no
- * other cell. The chosen cell and the progress are local because the dialog runs the sequence itself; the calls are the
- * container's to supply, so this package holds no store.
+ * other cell. Closing it after a completed move hands `onMoved` the cell the tenant moved to. The chosen cell and the
+ * progress are local because the dialog runs the sequence itself; the calls are the container's to supply, so this
+ * package holds no store.
  */
 export function TenantMoveDialog({
   open,
@@ -101,6 +104,7 @@ export function TenantMoveDialog({
   isCellsFailed,
   operations,
   onClose,
+  onMoved,
 }: TenantMoveDialogProps) {
   const [targetCell, setTargetCell] = useState('');
   const [completed, setCompleted] = useState(0);
@@ -176,8 +180,16 @@ export function TenantMoveDialog({
       ? []
       : stages.slice(failure.placedCell === undefined ? failure.stage : failure.resumeStage);
 
+  // Closing after a completed move hands the container the cell the tenant moved to.
+  const handleClose = () => {
+    onClose();
+    if (isMoved) {
+      onMoved?.(receivingCell);
+    }
+  };
+
   return (
-    <Dialog open={open} onClose={isRunning ? undefined : onClose} fullWidth maxWidth="sm">
+    <Dialog open={open} onClose={isRunning ? undefined : handleClose} fullWidth maxWidth="sm">
       <DialogTitle>Move tenant</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
@@ -265,7 +277,7 @@ export function TenantMoveDialog({
       </DialogContent>
       <DialogActions>
         {isMoved ? (
-          <Button variant="contained" onClick={onClose} data-testid="move-close">
+          <Button variant="contained" onClick={handleClose} data-testid="move-close">
             Close
           </Button>
         ) : (

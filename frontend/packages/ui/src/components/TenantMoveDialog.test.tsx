@@ -391,6 +391,42 @@ describe('TenantMoveDialog', () => {
     expect(props.onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('hands onMoved the cell the tenant moved to when it closes after a completed move', async () => {
+    const onMoved = vi.fn();
+    const { props } = renderDialog({ onMoved });
+    choose('eu-3');
+    fireEvent.click(screen.getByTestId('move-confirm'));
+    await screen.findByTestId('move-done');
+
+    fireEvent.click(screen.getByTestId('move-close'));
+
+    expect(onMoved).toHaveBeenCalledTimes(1);
+    expect(onMoved).toHaveBeenCalledWith('eu-3');
+    expect(props.onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes after a completed move without an onMoved', async () => {
+    const { props } = renderDialog();
+    choose('eu-2');
+    fireEvent.click(screen.getByTestId('move-confirm'));
+    await screen.findByTestId('move-done');
+
+    fireEvent.click(screen.getByTestId('move-close'));
+
+    expect(props.onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls no onMoved when it closes before a move completes', () => {
+    const onMoved = vi.fn();
+    const { props } = renderDialog({ onMoved });
+    choose('eu-2');
+
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+
+    expect(props.onClose).toHaveBeenCalledTimes(1);
+    expect(onMoved).not.toHaveBeenCalled();
+  });
+
   it('forgets the chosen cell and the progress when it opens again', async () => {
     const props: TenantMoveDialogProps = {
       open: true,
