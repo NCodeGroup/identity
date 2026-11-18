@@ -137,6 +137,11 @@ against the SHA-256 its lock pins. Each web app carries copies of the kit's brow
 - **A color of its own.** Rejected: the one hue is what makes the logo NCode's, and the letters tell the family apart.
 - **Files exported from a drawing program.** Rejected: nothing keeps a hundred files in step, and the small sizes need
   drawings of their own either way.
+- **A script in this repository that draws the kit.** One repository holds the family's drawing. Rejected: it repeats
+  the code that draws the group's `{N}` kit, so a margin, a size or an encoder changes in one and not the other, and it
+  needs a Python toolchain that nothing else here uses.
+- **A package of the kit, from npm or NuGet.** Rejected: NCodeGroup/brand publishes none, a package adds an entry to
+  every consumer's dependency graph, and a vendored file's change shows in the pull request that takes it.
 - **The wordmark as text in the SVG files.** Smaller files. Rejected: an SVG shown as an image falls back to a font of
   the reader's system.
 - **`public/` and root URLs, as the kit's README describes for a site.** Rejected: neither host serves a file at the
@@ -148,17 +153,23 @@ against the SHA-256 its lock pins. Each web app carries copies of the kit's brow
 - **Reading `brand/` directly from the frontend build.** Rejected: the image builds' context holds no `brand/`
   ([ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)).
 - **Linking the web manifest.** Rejected for the reasons of decision 10.
-- **The chosen design.** One script draws the `{id}` kit, and each app carries hashed copies of its three icons that its
-  host already serves, so nothing is added to a host and no file drifts from the script's output.
+- **The chosen design.** NCodeGroup/brand draws the `{id}` kit, `brand/` vendors one release of it under a lock that the
+  gate checks offline, and each app carries hashed copies of its three icons that its host already serves, so nothing
+  is added to a host and no file drifts from the release.
 
 ## Consequences
 
-- A change to the mark, a color or a line of text is an edit to `brand/build.py` or `brand/outlines.py` and a run of the
-  scripts, and every file changes together.
+- A change to the mark, a color or a line of text is made in NCodeGroup/brand. It reaches this repository when
+  `--update` takes the release that carries it, and the pull request shows every file that changed; one that changes
+  `brand/favicon/` also copies the changed files into each app.
 - The host chart and any README outside the repository read the files by their address on `main`, so a file under
   `brand/` that such an address names keeps its path.
 - A build file that packs or embeds a file from `brand/` makes every project depend on it. The host images are
   published without packing, so their build context does not hold `brand/`.
+- `./build/dod.ps1` needs Node.js on `PATH`, and the CI jobs that run it install the major `frontend/.node-version`
+  pins.
+- Taking a release needs the GitHub CLI, signed in, to download its archive and verify its attestation; checking the kit
+  needs neither the network nor `gh`.
 - Every tab shows the tile.
 - A returning browser fetches no icon again until a kit change renames them, because the hashed files are immutable.
 - A change to `brand/favicon/` fails the `favicon copies` stage until each app's copy is replaced.
@@ -168,9 +179,17 @@ against the SHA-256 its lock pins. Each web app carries copies of the kit's brow
 
 - [`brand/README.md`](../../brand/README.md) — which file is for what, the variants, the colors and the drawing's
   measures.
-- [`brand/build.py`](../../brand/build.py) and [`brand/outlines.py`](../../brand/outlines.py) — the two scripts.
+- [`brand/brand.lock.json`](../../brand/brand.lock.json), [`brand/vendor-brand.mjs`](../../brand/vendor-brand.mjs) and
+  [`build/brand-kit.ps1`](../../build/brand-kit.ps1) — the lock, the script that vendors and checks the kit, and the
+  gate's check.
+- [NCodeGroup/brand ADR-1007](https://github.com/NCodeGroup/brand/blob/v0.11.0/docs/decisions/1007-every-ncode-marks-kit-is-drawn-here-by-one-kit-writer.md),
+  [NCodeGroup/brand ADR-1001](https://github.com/NCodeGroup/brand/blob/v0.11.0/docs/decisions/1001-consumers-vendor-files-from-a-tagged-release-and-check-their-hashes.md)
+  and
+  [NCodeGroup/brand ADR-1009](https://github.com/NCodeGroup/brand/blob/v0.11.0/docs/decisions/1009-a-release-carries-an-attested-archive-and-vendor-brand-verifies-it-before-writing.md)
+  — the kit writer, vendoring from a tagged release, and the attested archive.
 - [`THIRD-PARTY-NOTICES.md`](../../THIRD-PARTY-NOTICES.md) — Inter's copyright and license.
 - Issue [#737](https://github.com/NCodeGroup/identity/issues/737)
+- Issue [#856](https://github.com/NCodeGroup/identity/issues/856)
 - [ADR-1236](1236-a-password-is-judged-by-one-policy-wherever-it-is-set.md) — the bundled list that set the practice for
   third-party material: a pinned source, a script that verifies its SHA-256, and a notice.
 - [ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md) — the
