@@ -427,14 +427,16 @@ describe('TenantDetailPage', () => {
 
     /**
      * Stubs the console's reads and the four calls of a move; `failing` is the URL suffix of a call that fails;
-     * `placedCell` makes the export answer `409` naming the cell the directory places the tenant in;
-     * `isCellListFailing` makes the platform's cell list fail.
+     * `placedCell` makes the export answer `409` naming the cell the directory places the tenant in; `unknownOutcome`
+     * makes the import answer `503` with `moveOutcome` `unknown`; `isCellListFailing` makes the platform's cell list
+     * fail.
      */
     function installMoveFetch(options: {
       readonly isPlatformAdministrator?: boolean;
       readonly isDisabled?: boolean;
       readonly failing?: string;
       readonly placedCell?: string;
+      readonly unknownOutcome?: boolean;
       readonly isCellListFailing?: boolean;
     }) {
       return installFetch((url, method) => {
@@ -464,6 +466,16 @@ describe('TenantDetailPage', () => {
               placedCell: options.placedCell,
             },
             409,
+          );
+        }
+        if (options.unknownOutcome && url.endsWith('/cells/eu-2/api/tenant-imports')) {
+          return jsonResponse(
+            {
+              title: 'Service Unavailable',
+              detail: 'The outcome of the move is unknown.',
+              moveOutcome: 'unknown',
+            },
+            503,
           );
         }
         if (options.failing !== undefined && url.endsWith(options.failing)) {
@@ -617,6 +629,23 @@ describe('TenantDetailPage', () => {
         'POST https://api.test/cells/eu-1/api/tenants/acme/export',
         'POST https://api.test/cells/eu-1/api/tenants/acme/release-moved',
       ]);
+    });
+
+    it('says that the outcome is unknown when the import cannot tell whether the directory moved the tenant', async () => {
+      installMoveFetch({ unknownOutcome: true });
+      renderPage('secrets', 'eu-1');
+
+      await waitFor(() => expect(screen.getByTestId('move-tenant')).toBeEnabled());
+      fireEvent.click(screen.getByTestId('move-tenant'));
+      await waitFor(() => expect(screen.getByTestId('move-target')).toBeEnabled());
+      fireEvent.change(screen.getByTestId('move-target'), { target: { value: 'eu-2' } });
+      fireEvent.click(screen.getByTestId('move-confirm'));
+
+      const failure = await screen.findByTestId('move-failure');
+      expect(failure).toHaveTextContent(
+        'The outcome of the move is unknown: the global directory may already place the tenant in eu-2.',
+      );
+      expect(failure).not.toHaveTextContent('The tenant has not moved');
     });
 
     it('disables the action while the tenant is enabled', async () => {

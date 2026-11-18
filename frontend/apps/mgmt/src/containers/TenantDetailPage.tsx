@@ -21,6 +21,7 @@ import {
 import {
   DataStateBoundary,
   TenantMoveDialog,
+  TenantMoveOutcomeUnknownError,
   TenantPlacedElsewhereError,
   TenantUsageTable,
   type TenantMoveDialogOperations,
@@ -115,15 +116,21 @@ function TenantMoveAction({ tenantId, surface, onNavigate }: TenantMoveActionPro
 
   // Each call rejects with an Error that carries the server's reason, which the dialog shows
   // against its stage; a problem naming the cell the global directory already places the tenant
-  // in rejects with a TenantPlacedElsewhereError, so the dialog offers the release.
+  // in rejects with a TenantPlacedElsewhereError, so the dialog offers the release; an import
+  // whose problem says that the outcome of the move is unknown rejects with a
+  // TenantMoveOutcomeUnknownError, so the dialog says so.
   const run = async <T,>(call: { unwrap: () => Promise<T> }): Promise<T> => {
     try {
       return await call.unwrap();
     } catch (error) {
       const message = apiErrorMessage(error as ApiError);
-      const placedCell = apiProblem(error as ApiError)?.placedCell;
-      throw typeof placedCell === 'string' && placedCell.length > 0
-        ? new TenantPlacedElsewhereError(message, placedCell, { cause: error })
+      const problem = apiProblem(error as ApiError);
+      const placedCell = problem?.placedCell;
+      if (typeof placedCell === 'string' && placedCell.length > 0) {
+        throw new TenantPlacedElsewhereError(message, placedCell, { cause: error });
+      }
+      throw problem?.moveOutcome === 'unknown'
+        ? new TenantMoveOutcomeUnknownError(message, { cause: error })
         : new Error(message, { cause: error });
     }
   };

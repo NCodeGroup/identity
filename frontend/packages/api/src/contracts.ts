@@ -12,8 +12,9 @@ export type CollectionResource<T> = {
 
 /**
  * Mirror of an RFC 9457 problem details response and the extension members that `ManagementProblemMembers` names.
- * `retryAfterSeconds` is the whole number of seconds to wait, the same value as the `Retry-After` header, and
- * `placedCell` is the cell the global directory already places a tenant in, which the `409` of a tenant export carries.
+ * `retryAfterSeconds` is the whole number of seconds to wait, the same value as the `Retry-After` header, `placedCell`
+ * is the cell the global directory already places a tenant in, which the `409` of a tenant export carries, and
+ * `moveOutcome` is `unknown` when a tenant import cannot tell whether the global directory moved the tenant.
  */
 export type ManagementProblem = {
   readonly type?: string;
@@ -22,6 +23,7 @@ export type ManagementProblem = {
   readonly detail?: string;
   readonly retryAfterSeconds?: number;
   readonly placedCell?: string;
+  readonly moveOutcome?: string;
 };
 
 /** Mirror of `TenantResource`. */
