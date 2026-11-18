@@ -4308,14 +4308,27 @@ Until the first stable release, the [Unreleased] section describes the product a
   `targetCell`), which records a move offer from the source cell to the target cell in the directory for the transfer
   key's hour and names the target cell in the package, imports the package into the target cell
   (`POST /api/tenant-imports`), releases it at the source (`POST /api/tenants/{tenantId}/release-moved`), points the
-  tenant's DNS record at the target cell's ingress and enables it, and the console runs the four calls as Move. The
-  package carries the tenant's records and its master keys sealed to the transfer key, and the target rewraps the
-  master keys under its own root key and retags the tenant's remote keys with its own name; grants, consents and
-  sessions end, audit and usage records stay in the source, and the tenant keeps its identifier and issuer. Only the
-  named target cell imports the package, and the directory moves the placement only for the target cell that calls, on
-  that unexpired offer and only between cells of one region (any other caller gets `403`), so a tenant for another
-  region is created in a cell of that region, an import repeats over the rows an interrupted import left, and the
-  release removes the source's rows without retiring an identifier or destroying a remote key
+  tenant's DNS record at the target cell's ingress and enables it. The package carries the tenant's records and its
+  master keys sealed to the transfer key and is at most 64 MiB, its local accounts included: the export answers `422`
+  for a larger one, and the import route admits a request body of at most 64 MiB and 64 KiB and answers `413` above
+  it. The target rewraps the master keys under its own root key and retags the tenant's remote keys with its own name,
+  each of which lies in the location its provider uses (`IRemoteKeyProvider.IsInLocation` reads the key's identifier
+  and the provider's options), and the Entity Framework local-account store derives each imported account's
+  normalized user name and email itself; grants, consents and sessions end, audit and usage records stay in the
+  source, and the tenant keeps its identifier and issuer. Only the named target cell imports the package, and the
+  directory moves the placement only for the target cell that calls, on that unexpired offer and only between cells of
+  one region (any other caller gets `403`), so a tenant for another region is created in a cell of that region, an
+  import repeats over the rows an interrupted import left, and the release removes the source's rows without retiring
+  an identifier or destroying a remote key. A move that the directory does not confirm is read back from the
+  placement: the import completes when the directory places the tenant in the target cell, undoes itself when it
+  places it in the source cell, and otherwise keeps what it wrote and answers `503` that the outcome of the move is
+  unknown, with the problem's `moveOutcome` (`ManagementProblemMembers.MoveOutcome`) set to `unknown`. An export
+  that the directory refuses because it places the tenant in another cell names that cell in the problem's
+  `placedCell` (`ManagementProblemMembers.PlacedCell`). The console runs the four calls as Move, keeps a failed move
+  and its Retry when its dialog is closed and opened again, offers Release, which runs only the release at the
+  source, when the export names `placedCell`, says that the outcome is unknown when the import's `moveOutcome` is
+  `unknown`, says when the list of cells is loading or could not be loaded, and opens the tenant's surface in the
+  cell it moved to once the move completes
   ([ADR-1514](docs/decisions/1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md),
   [`docs/tenant-move.md`](docs/tenant-move.md)).
 
@@ -4334,10 +4347,14 @@ Until the first stable release, the [Unreleased] section describes the product a
   to the runtime role's, so a Secret of the same shape needs only its name. The chart refuses a directory, control-plane
   issuer or management URL that the host would refuse (an `https` URL, or an `http` URL on a loopback host for the
   directory and the issuers, with no user information, query, fragment or white space), a `directory.url` with no
-  `cell.controlPlaneIssuer`, the directory client's values (`directory.clientId`, `directory.keyRing` and
+  `cell.controlPlaneIssuer`, a `directory.url` whose `directory.clientId` is not `cell-<cell.name>` or whose
+  `cell.managementUrl` is empty, the directory client's values (`directory.clientId`, `directory.keyRing` and
   `directory.keys`) while `directory.url` is empty, and the directory host's values while `directory.enabled` is
-  `false`. The `ci/cell-values.yaml` and `ci/directory-values.yaml` releases are linted and rendered by the `Host chart`
-  workflow.
+  `false`. Its values schema holds `cell.name`, `cell.region` and `directory.controlPlaneCell` to the cell-name rule and
+  `directory.clientId` to `cell-` followed by a cell name, and the directory's resource names keep its Service name
+  within 63 characters. `ci/cell-values.yaml` is a cell that is not the control plane, `ci/directory-values.yaml` a
+  control-plane cell that runs the directory and reaches it as its own machine client, and the `Host chart` workflow
+  lints and renders both.
 
 - **A tenant's data carries the cell that wrote it.** `Cell:Name` is stamped on audit records and usage rows, it is the
   tag of the keys a remote key provider creates, and it prefixes every Valkey key, so a cell's records, keys and
