@@ -17,8 +17,9 @@ namespace NCode.Identity.OpenId.Integration.Tests.Infrastructure;
 /// <summary>
 /// A <see cref="HostApplicationFactory"/> that runs the host as a deployment does: the <c>Staging</c> environment with
 /// <c>LocalDevelopment:Enabled</c> off, so every deployment guardrail applies, and a configuration that satisfies the
-/// deployment gate with the values a deployment supplies. The gate runs unchanged; the one service it registers that
-/// needs Kestrel, the transport check, is removed because <see cref="TestServer"/> is not Kestrel.
+/// deployment gate with the values a deployment supplies, including the configuration that names the cell, as a
+/// deployment does. The gate runs unchanged; the one service it registers that needs Kestrel, the transport check, is
+/// removed because <see cref="TestServer"/> is not Kestrel.
 /// </summary>
 /// <param name="configuration">
 /// The configuration keys (colon-delimited paths) and values to overlay on the strict posture, so a test supplies the
@@ -71,6 +72,9 @@ public sealed class StrictPostureHostApplicationFactory(
         {
             ["LocalDevelopment:Enabled"] = "false",
             ["AllowedHosts"] = "localhost",
+            ["Cell:Name"] = "strict-posture",
+            ["Cell:Region"] = "strict-posture",
+            ["Cell:IsControlPlane"] = "true",
             ["SecretProtection:RootKeyProvider"] = "local",
             ["SecretProtection:RootKeyProviders:Local:Key"] = string.Empty,
             ["SecretProtection:RootKeyProviders:Local:KeyPath"] = RootKeyPath,

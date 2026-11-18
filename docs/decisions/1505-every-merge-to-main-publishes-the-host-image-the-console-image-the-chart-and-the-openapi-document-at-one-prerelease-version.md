@@ -57,10 +57,10 @@ document at one version.**
    host and runs the `GenerateOpenApiDocuments` target of `Microsoft.Extensions.ApiDescription.Server` to write
    `artifacts/openapi/v1.json`, in the `Staging` environment with `LocalDevelopment:Enabled`
    ([ADR-1370](1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)),
-   an ephemeral root key and a static issuer, so the host starts without a database or a secret store. With `-Version`
-   the script stamps the artifact version as the document's `info.version`. The full Definition of Done generates the
-   document, and CI uploads it as the `openapi` workflow artifact. The workflow publishes it at every version whatever
-   the `ApiReference` switches of
+   an ephemeral root key, a static issuer and a control-plane cell, so the host starts without a database or a secret
+   store and maps every route. With `-Version` the script stamps the artifact version as the document's `info.version`.
+   The full Definition of Done generates the document, and CI uploads it as the `openapi` workflow artifact. The
+   workflow publishes it at every version whatever the `ApiReference` switches of
    [ADR-1481](1481-the-composition-layer-serves-the-api-reference-only-where-a-host-enables-it-and-each-management-problem-says-when-it-occurs.md)
    say, because the document describes the product, not a deployment.
 
