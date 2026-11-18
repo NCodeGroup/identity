@@ -28,7 +28,11 @@ import type {
   RotateSecretRequest,
   SecretResource,
 } from '@ncodegroup/identity-api';
-import { apiErrorMessage, useGetCapabilitiesQuery, type ApiError } from '@ncodegroup/identity-store';
+import {
+  apiErrorMessage,
+  useGetCapabilitiesQuery,
+  type ApiError,
+} from '@ncodegroup/identity-store';
 
 export type SecretsManagerProps = {
   /** The owner noun used in headings and empty/warning copy (e.g. "client", "tenant", "resource server"). */

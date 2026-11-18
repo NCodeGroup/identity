@@ -2,7 +2,12 @@ import AddIcon from '@mui/icons-material/Add';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
-import { ClientFormDialog, ClientTable, ConfirmDialog, DataStateBoundary } from '@ncodegroup/identity-ui';
+import {
+  ClientFormDialog,
+  ClientTable,
+  ConfirmDialog,
+  DataStateBoundary,
+} from '@ncodegroup/identity-ui';
 import { useCreateClientMutation, useListClientsQuery } from '@ncodegroup/identity-store';
 import { useTenantCell } from '../tenantCell.js';
 import { ClientDetailPage } from './ClientDetailPage.js';

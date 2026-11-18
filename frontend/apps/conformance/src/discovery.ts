@@ -1,4 +1,8 @@
-import { fetchRawDiscovery, type FetchLike, type RawDiscovery } from '@ncodegroup/identity-conformance-core';
+import {
+  fetchRawDiscovery,
+  type FetchLike,
+  type RawDiscovery,
+} from '@ncodegroup/identity-conformance-core';
 
 /** Fetches the OpenID Provider's raw discovery metadata for the discovered issuer using the global fetch. */
 export function loadDiscovery(issuer: string, signal?: AbortSignal): Promise<RawDiscovery> {

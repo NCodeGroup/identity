@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Fragment, StrictMode, type ComponentType, type ReactNode } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
-import { createAppStore, sessionEnded, sessionStarted, type fetchBffUser } from '@ncodegroup/identity-store';
+import {
+  createAppStore,
+  sessionEnded,
+  sessionStarted,
+  type fetchBffUser,
+} from '@ncodegroup/identity-store';
 import type { BffRuntimeConfig, OpenIdRuntimeConfig } from '@ncodegroup/identity-config';
 import { SessionGate } from './SessionGate.js';
 import { SESSION_CHANNEL_NAME, SESSION_ENDED_MESSAGE } from './session.js';

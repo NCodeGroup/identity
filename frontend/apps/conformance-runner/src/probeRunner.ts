@@ -10,7 +10,12 @@
  * without a network or real keys. See [ADR-1084](../../../../docs/decisions/1084-the-playground-explores-the-recommended-flow-and-the-conformance-harness-measures-the-published-spec-surface.md).
  */
 
-import type { ProbeFetch, ProbeReport, ProbeResult, RawDiscovery } from '@ncodegroup/identity-conformance-core';
+import type {
+  ProbeFetch,
+  ProbeReport,
+  ProbeResult,
+  RawDiscovery,
+} from '@ncodegroup/identity-conformance-core';
 
 /** How the runner authenticates a confidential client at the token/introspection/revocation endpoints. */
 export type ClientAuthMethod = 'client_secret_basic' | 'client_secret_post';
