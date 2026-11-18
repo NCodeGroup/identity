@@ -80,13 +80,15 @@ Work that wholly follows a committed change runs on its own bounded token, never
     ([ADR-1315](1315-calls-to-caller-supplied-urls-share-one-guarded-bounded-client-and-one-single-flight-helper.md)). It is not an option.
 11. **The directory feed's team writes.** The directory change feed's token plays the request's part. Once
     `DefaultTeamDocumentApplier` commits a team document or a team's retirement, it sends `TeamChangedCommand` through
-    `IPostCommitCommandSender` and then, unless the team is disabled, mirrors the team's owner root key for the cell's
-    region; each is a `PostCommitWork` step of its own. The feed's token reaches neither step and only decides whether
-    a cancellation is the feed's own, which propagates. A step that fails or that the bound cuts is logged
-    (`DirectoryTeamChangeNotSent`, `DirectoryTeamRootKeyNotApplied`) and the write stands; the next document for the
-    team, or the root-key reconcile of
-    [ADR-1414](1414-a-tenant-can-wrap-its-master-keys-under-a-root-key-it-controls.md), redoes a mirror that failed.
-    The reconcile follows no commit, so it runs on the feed's token.
+    `IPostCommitCommandSender` and then has `ITeamRootKeyMirror` bring the team's owner root key to the committed row;
+    each is a `PostCommitWork` step of its own. `DefaultTeamRootKeyMirror` reads the committed row, so a document and a
+    retirement take one path: it sets the key that the row holds for the cell's region, removes the key when the row
+    holds none or the team has no row, and leaves the key of a disabled team. The feed's token reaches neither step and
+    only decides whether a cancellation is the feed's own, which propagates. A step that fails or that the bound cuts is
+    logged (`DirectoryTeamChangeNotSent`, `DirectoryTeamRootKeyNotApplied`) and the write stands; the next document for
+    the team, or `ITeamRootKeyMirror.ReconcileAsync`, the root-key reconcile of
+    [ADR-1414](1414-a-tenant-can-wrap-its-master-keys-under-a-root-key-it-controls.md), redoes a mirror that failed. The
+    reconcile follows no commit, so it runs on the feed's token.
 
 ## Options considered
 
@@ -120,7 +122,8 @@ Work that wholly follows a committed change runs on its own bounded token, never
 - `PostCommitWork` in `NCode.Identity.Persistence.Abstractions`.
 - `TenantChangedHandler`, `TeamChangedHandler`, `PlatformSettingsChangedHandler`, `IManagementAuditRecorder`,
   `DefaultManagementAuditRecorder`, `IPostCommitSecurityEffects`, `DefaultPostCommitSecurityEffects`,
-  `IPostCommitCommandSender`, `DefaultPostCommitCommandSender` and `DefaultTeamDocumentApplier`.
+  `IPostCommitCommandSender`, `DefaultPostCommitCommandSender`, `DefaultTeamDocumentApplier`, `ITeamRootKeyMirror` and
+  `DefaultTeamRootKeyMirror`.
 - [ADR-1315](1315-calls-to-caller-supplied-urls-share-one-guarded-bounded-client-and-one-single-flight-helper.md).
 - [ADR-1414](1414-a-tenant-can-wrap-its-master-keys-under-a-root-key-it-controls.md).
 - [project-template ADR-0141](project-template/0141-side-effects-after-a-commit-go-through-an-outbox.md).
