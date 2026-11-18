@@ -1,8 +1,11 @@
 # NCode Identity Logo Kit
 
 The NCode Identity mark is `{id}`: `id` for identity, between the curly braces of the NCode Group's mark, `{N}`. This
-folder holds it as vector masters and as the PNG and ICO files that each place it appears in asks for. `build.py` draws
-every file here ([ADR-1492](../docs/decisions/1492-the-familys-id-logo-is-drawn-by-one-script-and-every-web-app-shows-its-icon.md)).
+folder holds it as vector masters and as the PNG and ICO files that each place it appears in asks for. Every file here
+but this one and `brand.lock.json` is the file of the same path under `logo/identity/` in a release of
+[NCodeGroup/brand](https://github.com/NCodeGroup/brand), which draws them
+([ADR-1492](../docs/decisions/1492-the-familys-id-logo-is-vendored-from-an-ncodegroup-brand-release-and-every-web-app-shows-its-icon.md)).
+Change the mark there; [Updating the Kit](#updating-the-kit) says how a release is taken.
 
 | Tile, blue | Tile, white | Tile, dark | Mark | Lockup | Lockup, stacked |
 |---|---|---|---|---|---|
@@ -79,9 +82,9 @@ a dark page is 2.1 to 1, too low to read: use the light mark or a tile there.
   around a hole, and up to 32 the dot is a square. The ICO files and `favicon.svg` use these drawings.
 - The wordmark is "NCode Identity", two words, in Inter Display Medium, with capitals as tall as the mark's d. The
   package and namespace names keep their dot: `NCode.Identity`. The descriptor on the link previews, "OpenID Connect
-  and OAuth 2.x for .NET", is in Inter Display Regular. Both are outlines, so no file needs the font: `outlines.py`
-  converts them from the Inter release it pins and writes `outlines.json`, which `build.py` reads. Inter is copyright
-  The Inter Project Authors and licensed under the SIL Open Font License 1.1, as
+  and OAuth 2.x for .NET", is in Inter Display Regular. Both are outlines, so no file needs the font: NCodeGroup/brand
+  converts them from the Inter release its source pins, and `outlines.json` holds the mark and both lockups as path
+  data. Inter is copyright The Inter Project Authors and licensed under the SIL Open Font License 1.1, as
   [`THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md) records.
 - Leave clear space around the mark of at least the width of one brace, 12 of its 64 units. The files in `mark/`
   already hold 4 units of it at the sides and 8 above and below.
@@ -110,16 +113,17 @@ in `favicon.svg`, by the reader's color scheme.
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 ```
 
-The four web apps under `frontend/apps` link `favicon.ico`, `favicon.svg` and `apple-touch-icon.png` with the first
-three tags, written relative to their `index.html` (`./favicon/favicon.ico`), and carry copies of them in their own
-`favicon/` folders, because an image build's context holds no `brand/`. Each build gives the copies content-hashed names in the
-assets its host serves, and no app links the manifest
-([ADR-1492](../docs/decisions/1492-the-familys-id-logo-is-drawn-by-one-script-and-every-web-app-shows-its-icon.md)). The
-`favicon copies` stage of `./build/dod.ps1` fails when a copy differs from the file here, so after `build.py` changes
+The web apps under `frontend/apps` that show the icon (`auth`, `conformance`, `mgmt`, `playground` and `setup`) link
+`favicon.ico`, `favicon.svg` and `apple-touch-icon.png` with the first three tags, written relative to their
+`index.html` (`./favicon/favicon.ico`), and carry copies of them in their own `favicon/` folders, because an image
+build's context holds no `brand/`. Each build gives the copies content-hashed names in the assets its host serves, and
+no app links the manifest
+([ADR-1492](../docs/decisions/1492-the-familys-id-logo-is-vendored-from-an-ncodegroup-brand-release-and-every-web-app-shows-its-icon.md)).
+The `favicon copies` stage of `./build/dod.ps1` fails when a copy differs from the file here, so when a release changes
 one, copy it to every app:
 
 ```powershell
-foreach ($app in 'auth', 'conformance', 'mgmt', 'playground') { Copy-Item brand/favicon/favicon.ico, brand/favicon/favicon.svg, brand/favicon/apple-touch-icon.png "frontend/apps/$app/favicon/" }
+foreach ($app in 'auth', 'conformance', 'mgmt', 'playground', 'setup') { Copy-Item brand/favicon/favicon.ico, brand/favicon/favicon.svg, brand/favicon/apple-touch-icon.png "frontend/apps/$app/favicon/" }
 ```
 
 ## Badges
@@ -144,26 +148,29 @@ addresses are relative; from another one they are the files' addresses on `main`
 </picture>
 ```
 
-## Build
+## Updating the Kit
 
 ```powershell
-uv run brand/build.py
+node brand/vendor-brand.mjs --check --lock brand/brand.lock.json
+node brand/vendor-brand.mjs --update <version> --lock brand/brand.lock.json
 ```
 
-uv installs the two packages the script pins, numpy and Pillow, for that run. Without uv, install them and run
-`python brand/build.py`. The script rewrites every file in the folders here, and neither this file, the two scripts nor
-`outlines.json`. It reads every PNG and every ICO entry back and stops when one doesn't decode to the picture it drew.
-It also stops when a file breaks its platform's limit: more than 100 KB for My Apps, 200 KiB for GitLab or 1 MB for
-NuGet and GitHub, or a transparent pixel where the platform takes none. `--output <folder>` writes the kit elsewhere.
+Run both from the repository root. `brand.lock.json` pins the release and, for each file, its path in the release and
+its SHA-256. It also names `vendor-brand.mjs`, the release's own script.
 
-To change the mark, edit `MASTER` and `FITTED` in `build.py`; to change a color, the constants above them. To change the
-wordmark or the descriptor, edit `LINES` in `outlines.py`, then run both scripts:
+`--check` runs offline and names each file that is missing or differs. The `brand kit` stage of `./build/dod.ps1` runs
+it through `build/brand-kit.ps1`, which also fails on a file here that the lock does not name.
 
-```powershell
-uv run brand/outlines.py
-uv run brand/build.py
-```
+`--update` needs the GitHub CLI signed in (`gh auth login`). It writes nothing unless `gh attestation verify` proves
+that NCodeGroup/brand's publish workflow built the archive for the release's tag and every file matches its manifest.
+Take the newest release that is at least three days old
+([project-template ADR-0009](../docs/decisions/project-template/0009-new-dependency-versions-wait-a-cooldown.md)),
+review the changed files, and copy a changed favicon file to every app as under [Favicon](#favicon). To take another
+file of the release, add its entry with an empty `sha256` and run `--update`.
 
-`outlines.py` downloads the Inter release it pins, verifies the archive's SHA-256 and that of each font file it reads,
-and writes `outlines.json`; `--archive <file>` takes a release that is already downloaded. Both scripts' output is
-deterministic, so a run that changes no input changes no file.
+## License
+
+The names NCode, NCode Group and NCode Identity and the marks are trademarks of NCode Group. The marks' artwork, every
+file here from the release's `logo/identity/`, is copyright NCode Group, all rights reserved: the repository's Apache
+License 2.0 does not cover them. NCodeGroup/brand's
+[TRADEMARKS.md](https://github.com/NCodeGroup/brand/blob/v0.11.0/TRADEMARKS.md) says how they may be used.

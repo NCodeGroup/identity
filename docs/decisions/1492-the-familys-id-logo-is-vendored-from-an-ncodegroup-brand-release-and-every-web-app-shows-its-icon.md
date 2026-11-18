@@ -1,7 +1,7 @@
-# 1492. The family's {id} logo is drawn by one script, and every web app shows its icon
+# 1492. The family's {id} logo is vendored from an NCodeGroup/brand release, and every web app shows its icon
 
 - **Status:** Accepted
-- **Date:** 2026-11-10
+- **Date:** 2026-11-18
 - **Deciders:** NCode Group
 
 ## Context
@@ -13,20 +13,30 @@ preview is 1280 by 640 pixels. GitLab takes an avatar of at most 200 KiB. Micros
 215 pixels, at most 100 KB, with a solid background. Artifact Hub and cluster dashboards show the icon a Helm chart
 names.
 
-The family belongs to the NCode Group, whose mark is `{N}`: an N between curly braces in one blue, `#0033CC`, drawn by
-`brand/build.py` of [`NCodeGroup/project-template`](https://github.com/NCodeGroup/project-template).
+The family belongs to the NCode Group, whose mark is `{N}`: an N between curly braces in one blue, `#0033CC`.
+[NCodeGroup/brand](https://github.com/NCodeGroup/brand) draws the kit of every NCode mark, the group's `{N}` and this
+family's `{id}`, with one kit writer, from each kit's geometry as data
+([NCodeGroup/brand ADR-1007](https://github.com/NCodeGroup/brand/blob/v0.11.0/docs/decisions/1007-every-ncode-marks-kit-is-drawn-here-by-one-kit-writer.md)).
+Each of its releases is immutable, and its archive holds `manifest.json`, the size and SHA-256 of every released file,
+under a build provenance attestation from its publish workflow. Its `vendoring/vendor-brand.mjs` copies the files a
+consumer's lock names from that archive and checks them offline
+([NCodeGroup/brand ADR-1001](https://github.com/NCodeGroup/brand/blob/v0.11.0/docs/decisions/1001-consumers-vendor-files-from-a-tagged-release-and-check-their-hashes.md),
+[NCodeGroup/brand ADR-1009](https://github.com/NCodeGroup/brand/blob/v0.11.0/docs/decisions/1009-a-release-carries-an-attested-archive-and-vendor-brand-verifies-it-before-writing.md)).
 
 Pictures exported by hand for each place drift apart in proportion and color. A small icon scaled down from a large
 drawing has its strokes between pixels and looks soft. A wordmark set in a font makes every file that shows it depend
-on that font, and an SVG shown as an image cannot load one.
+on that font, and an SVG shown as an image cannot load one. A second copy of the drawing code, in another repository or
+another language, drifts from the first: a margin or an encoder changes in one and not the other.
 
-The four web apps under `frontend/apps` are served in two ways. `auth` is the sign-in and account bundle: the OP host
+The five web apps under `frontend/apps` are served in two ways. `auth` is the sign-in and account bundle: the OP host
 serves it beneath each tenant's route, with a relative base
 ([ADR-1193](1193-the-interactive-surface-uses-the-tenant-route-host-only-cookies-and-one-shared-single-page-bundle-helper.md)).
 `mgmt` is the management console: its BFF host serves it at its origin's root, and writes each response's nonce into the
 page
 ([ADR-1437](1437-the-management-console-is-a-confidential-client-whose-own-bff-host-serves-only-the-console.md)).
-`conformance` and `playground` are developer surfaces that run on their own Vite servers.
+`conformance` and `playground` are developer surfaces that run on their own Vite servers. `setup`, the first-run
+wizard, is a bundle the OP host serves at `/setup`, as it serves `auth`
+([ADR-1512](1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md)).
 
 The kit's `brand/README.md` describes a site that serves the favicon files at its root, but neither host serves a file at
 the root of a bundle. Each serves only the bundle's `assets/` directory, with an immutable cache. Every page the server
@@ -42,9 +52,9 @@ any shape, which a browser would squash into a 16-pixel square if it were a tab 
 ## Decision
 
 **The family's logo is `{id}`: the letters i and d between the braces of the NCode Group's mark, in the group's
-palette. `brand/build.py` draws every file of it, and `brand/` holds them. Each web app carries copies of the kit's
-browser icons, links them from its `index.html`, and its build content-hashes them into the `assets/` its host already
-serves.**
+palette. NCodeGroup/brand draws every file of it, and `brand/` holds them, vendored from one of its releases and checked
+against the SHA-256 its lock pins. Each web app carries copies of the kit's browser icons, links them from its
+`index.html`, and its build content-hashes them into the `assets/` its host already serves.**
 
 ### The logo and its kit
 
@@ -53,18 +63,25 @@ serves.**
    NCode Blue `#0033CC`, NCode Blue Light `#809FFF` for dark backgrounds, NCode Navy `#0A1F5C`, and white.
 2. **The wordmark writes the name as two words, "NCode Identity".** The package and namespace names keep their dot,
    `NCode.Identity`. A lockup sets the wordmark beside the mark, or under the mark at twice that size.
-3. **One script draws every file from one geometry.** The mark is straight lines and circular arcs on a 64-unit grid.
-   `brand/build.py` writes the SVG masters from them and rasterizes the same outlines for every PNG and ICO, so no file
-   is exported by hand: a change is an edit to a script and a run, never to a file it writes. Each size from 16 to 48
-   pixels has a pixel-snapped drawing of its own with every stem on whole pixels. The script reads every PNG and ICO
-   entry back, and stops when a file breaks its platform's limit or holds a transparent pixel where the platform takes
-   none. Its output is deterministic.
-4. **Text is outlines.** `brand/outlines.py` converts the wordmark, and the descriptor "OpenID Connect and OAuth 2.x for
-   .NET" that the link previews carry, from a pinned release of [Inter](https://github.com/rsms/inter), after it
-   verifies the SHA-256 of the archive and of each font file it reads. It writes `brand/outlines.json`, which
-   `brand/build.py` reads, so no file of the kit needs a font. Inter is under the SIL Open Font License 1.1, and
-   `THIRD-PARTY-NOTICES.md` records its copyright and license, as it does for the bundled password list
-   ([ADR-1236](1236-a-password-is-judged-by-one-policy-wherever-it-is-set.md)).
+3. **NCodeGroup/brand draws the kit.** Its kit writer draws `logo/identity/` from the kit's geometry: the mark is
+   straight lines and circular arcs on a 64-unit grid, the SVG masters and every PNG and ICO come from the same
+   outlines, and each size from 16 to 48 pixels has a pixel-snapped drawing of its own with every stem on whole pixels
+   ([NCodeGroup/brand ADR-1007](https://github.com/NCodeGroup/brand/blob/v0.11.0/docs/decisions/1007-every-ncode-marks-kit-is-drawn-here-by-one-kit-writer.md)).
+   The wordmark, and the descriptor "OpenID Connect and OAuth 2.x for .NET" that the link previews carry, are outlines
+   of Inter Display Medium and Inter Display Regular from Inter 4.1, whose archive's SHA-256 the kit's source pins, so
+   no file of the kit needs a font. Inter is under the SIL Open Font License 1.1, and `THIRD-PARTY-NOTICES.md` records
+   its copyright and license, as it does for the bundled password list
+   ([ADR-1236](1236-a-password-is-judged-by-one-policy-wherever-it-is-set.md)). A change to the mark, a color, a size
+   or a line of text is made in NCodeGroup/brand and reaches this repository with a release.
+4. **`brand/` is one release's kit, checked against its lock.** Every file of the release's `logo/identity/` is in
+   `brand/` at the same path, beside `brand/README.md`, this repository's guide to them. `brand/brand.lock.json` names
+   each file with its path in the release and its SHA-256, and names `brand/vendor-brand.mjs`, the release's
+   `vendoring/vendor-brand.mjs`, the same way.
+   `node brand/vendor-brand.mjs --update <version> --lock brand/brand.lock.json` takes another release once
+   `gh attestation verify` proves that NCodeGroup/brand's publish workflow built its archive for the release's tag, and
+   no file under `brand/` is edited by hand. `build/brand-kit.ps1`, which the `brand kit` stage of `./build/dod.ps1`
+   runs through its fixture tests, runs `node brand/vendor-brand.mjs --check --lock brand/brand.lock.json` offline and
+   fails on a file the lock names that is missing or differs, and on a file under `brand/` that the lock does not name.
 5. **The repository takes the logo from the kit wherever it shows it.** `Directory.Build.targets` packs
    `brand/nuget/ncode-identity-nuget-tile-blue.png` into every package as its icon. The host chart's `icon` is the
    address of `brand/tile/ncode-identity-tile-blue-256.png` on `main`, so that path is kept. The README opens with the
@@ -122,6 +139,11 @@ serves.**
 - **A color of its own.** Rejected: the one hue is what makes the logo NCode's, and the letters tell the family apart.
 - **Files exported from a drawing program.** Rejected: nothing keeps a hundred files in step, and the small sizes need
   drawings of their own either way.
+- **A script in this repository that draws the kit.** One repository holds the family's drawing. Rejected: it repeats
+  the code that draws the group's `{N}` kit, so a margin, a size or an encoder changes in one and not the other, and it
+  needs a Python toolchain that nothing else here uses.
+- **A package of the kit, from npm or NuGet.** Rejected: NCodeGroup/brand publishes none, a package adds an entry to
+  every consumer's dependency graph, and a vendored file's change shows in the pull request that takes it.
 - **The wordmark as text in the SVG files.** Smaller files. Rejected: an SVG shown as an image falls back to a font of
   the reader's system.
 - **`public/` and root URLs, as the kit's README describes for a site.** Rejected: neither host serves a file at the
@@ -133,17 +155,23 @@ serves.**
 - **Reading `brand/` directly from the frontend build.** Rejected: the image builds' context holds no `brand/`
   ([ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)).
 - **Linking the web manifest.** Rejected for the reasons of decision 10.
-- **The chosen design.** One script draws the `{id}` kit, and each app carries hashed copies of its three icons that its
-  host already serves, so nothing is added to a host and no file drifts from the script's output.
+- **The chosen design.** NCodeGroup/brand draws the `{id}` kit, `brand/` vendors one release of it under a lock that the
+  gate checks offline, and each app carries hashed copies of its three icons that its host already serves, so nothing
+  is added to a host and no file drifts from the release.
 
 ## Consequences
 
-- A change to the mark, a color or a line of text is an edit to `brand/build.py` or `brand/outlines.py` and a run of the
-  scripts, and every file changes together.
+- A change to the mark, a color or a line of text is made in NCodeGroup/brand. It reaches this repository when
+  `--update` takes the release that carries it, and the pull request shows every file that changed; one that changes
+  `brand/favicon/` also copies the changed files into each app.
 - The host chart and any README outside the repository read the files by their address on `main`, so a file under
   `brand/` that such an address names keeps its path.
 - A build file that packs or embeds a file from `brand/` makes every project depend on it. The host images are
   published without packing, so their build context does not hold `brand/`.
+- `./build/dod.ps1` needs Node.js on `PATH`, and the CI jobs that run it install the major `frontend/.node-version`
+  pins.
+- Taking a release needs the GitHub CLI, signed in, to download its archive and verify its attestation; checking the kit
+  needs neither the network nor `gh`.
 - Every tab shows the tile.
 - A returning browser fetches no icon again until a kit change renames them, because the hashed files are immutable.
 - A change to `brand/favicon/` fails the `favicon copies` stage until each app's copy is replaced.
@@ -153,9 +181,17 @@ serves.**
 
 - [`brand/README.md`](../../brand/README.md) — which file is for what, the variants, the colors and the drawing's
   measures.
-- [`brand/build.py`](../../brand/build.py) and [`brand/outlines.py`](../../brand/outlines.py) — the two scripts.
+- [`brand/brand.lock.json`](../../brand/brand.lock.json), [`brand/vendor-brand.mjs`](../../brand/vendor-brand.mjs) and
+  [`build/brand-kit.ps1`](../../build/brand-kit.ps1) — the lock, the script that vendors and checks the kit, and the
+  gate's check.
+- [NCodeGroup/brand ADR-1007](https://github.com/NCodeGroup/brand/blob/v0.11.0/docs/decisions/1007-every-ncode-marks-kit-is-drawn-here-by-one-kit-writer.md),
+  [NCodeGroup/brand ADR-1001](https://github.com/NCodeGroup/brand/blob/v0.11.0/docs/decisions/1001-consumers-vendor-files-from-a-tagged-release-and-check-their-hashes.md)
+  and
+  [NCodeGroup/brand ADR-1009](https://github.com/NCodeGroup/brand/blob/v0.11.0/docs/decisions/1009-a-release-carries-an-attested-archive-and-vendor-brand-verifies-it-before-writing.md)
+  — the kit writer, vendoring from a tagged release, and the attested archive.
 - [`THIRD-PARTY-NOTICES.md`](../../THIRD-PARTY-NOTICES.md) — Inter's copyright and license.
 - Issue [#737](https://github.com/NCodeGroup/identity/issues/737)
+- Issue [#856](https://github.com/NCodeGroup/identity/issues/856)
 - [ADR-1236](1236-a-password-is-judged-by-one-policy-wherever-it-is-set.md) — the bundled list that set the practice for
   third-party material: a pinned source, a script that verifies its SHA-256, and a notice.
 - [ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md) — the

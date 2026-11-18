@@ -570,19 +570,22 @@ Until the first stable release, the [Unreleased] section describes the product a
   [ADR-1493](docs/decisions/1493-global-json-requires-the-newest-net-sdk-release-past-the-cooldown.md)). See
   [`docs/decisions/`](docs/decisions/).
 
-- **The family has a logo, and one script draws every file of it.** The mark is `{id}`, the letters i and d between the
-  braces of the NCode Group's `{N}`, in the group's blue. `brand/` holds it as SVG masters and as the PNG and ICO files
-  each place takes: a NuGet package icon, a favicon set, pictures for GitHub, GitLab and My Apps, badge logos, social
-  cards, and lockups with the wordmark "NCode Identity". Every package carries the blue tile as its icon, the host
-  chart names it as its own, and the README opens with the lockup. The four web apps show its icon in the browser tab,
-  unless a tenant or the console's branding sets its own icon: each links the kit's ICO, SVG and iOS icon, its build
-  gives them content-hashed names in the assets its host serves, and the `favicon copies` stage of `./build/dod.ps1`
-  keeps every app's copies equal to the kit's. `brand/build.py` draws every file from one geometry, with a drawing of
-  its own for each size from 16 to 48 pixels, and stops when a file breaks its platform's limit. `brand/outlines.py`
-  converts the wordmark to outlines from a pinned release of Inter, whose license `THIRD-PARTY-NOTICES.md` records
+- **The family has a logo, vendored from a release of NCodeGroup/brand.** The mark is `{id}`, the letters i and d
+  between the braces of the NCode Group's `{N}`, in the group's blue. `brand/` holds it as SVG masters and as the PNG
+  and ICO files each place takes: a NuGet package icon, a favicon set, pictures for GitHub, GitLab and My Apps, badge
+  logos, social cards, and lockups with the wordmark "NCode Identity". NCodeGroup/brand draws every file with the kit
+  writer that draws every NCode mark, with a drawing of its own for each size from 16 to 48 pixels, and the wordmark as
+  outlines of Inter, whose license `THIRD-PARTY-NOTICES.md` records. `brand/brand.lock.json` pins the release and each
+  file's SHA-256, `node brand/vendor-brand.mjs --update <version> --lock brand/brand.lock.json` takes another release,
+  and the `brand kit` stage of `./build/dod.ps1` fails on a file that is missing, differs from the lock or is not in it.
+  Every package carries the blue tile as its icon, the host chart names it as its own, and the README opens with the
+  lockup. Every web app shows its icon in the browser tab, unless a tenant or the console's branding sets its own icon:
+  each links the kit's ICO, SVG and iOS icon, its build gives them content-hashed names in the assets its host serves,
+  and the `favicon copies` stage of `./build/dod.ps1` keeps every app's copies equal to the kit's
   ([#737](https://github.com/NCodeGroup/identity/issues/737),
   [#745](https://github.com/NCodeGroup/identity/issues/745),
-  [ADR-1492](docs/decisions/1492-the-familys-id-logo-is-drawn-by-one-script-and-every-web-app-shows-its-icon.md),
+  [#856](https://github.com/NCodeGroup/identity/issues/856),
+  [ADR-1492](docs/decisions/1492-the-familys-id-logo-is-vendored-from-an-ncodegroup-brand-release-and-every-web-app-shows-its-icon.md),
   [ADR-1253](docs/decisions/1253-a-tenant-brands-its-sign-in-pages-through-settings-and-the-bundle-mounts-over-the-hosts-page.md)).
 
 - **Feature branches run a fast gate, and the merge queue runs the full gate.** `./build/dod.ps1 -Affected` (with
@@ -6598,3 +6601,11 @@ Until the first stable release, the [Unreleased] section describes the product a
   is not a JSON object, `null` among them, are not read as "no limit": the global directory and a cell's local directory
   answer the reservation with a conflict that names the platform or the team. The global directory and every cell store
   settings only as a JSON object, the empty object when there are none.
+
+- **The logo kit is taken only from an attested NCodeGroup/brand release and checked offline.**
+  `brand/vendor-brand.mjs --update` writes nothing unless `gh attestation verify` proves that NCodeGroup/brand's publish
+  workflow built the release's archive for its tag on a GitHub-hosted runner and every file matches the release's
+  manifest; it bounds the archive and writes nothing outside `brand/`. `brand/brand.lock.json` pins each vendored
+  file's SHA-256, so the `brand kit` stage of `./build/dod.ps1` fails a file changed by hand
+  ([#856](https://github.com/NCodeGroup/identity/issues/856),
+  [ADR-1492](docs/decisions/1492-the-familys-id-logo-is-vendored-from-an-ncodegroup-brand-release-and-every-web-app-shows-its-icon.md)).

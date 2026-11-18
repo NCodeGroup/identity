@@ -25,6 +25,9 @@
     The build guards stage checks the guards of Directory.Build.targets (ADR-1197, ADR-1385, ADR-1501) against fixture
     projects.
 
+    The brand kit stage runs the fixture tests of ./build/brand-kit.ps1, which end with the repository's own kit, so it
+    needs Node.js on PATH, the major frontend/.node-version pins (ADR-1492).
+
 .PARAMETER Configuration
     The build configuration. Defaults to Release.
 
@@ -227,6 +230,14 @@ try {
         $problems = @(& (Join-Path $PSScriptRoot 'doc-comment-fill.ps1') -Base $Base)
         $problems | ForEach-Object { Write-Host $_ }
         if ($problems.Count -gt 0) { throw "doc comment fill found $($problems.Count) problem(s)." }
+        $global:LASTEXITCODE = 0
+    }
+
+    # Brand kit gate: every file under brand/ but its README is vendored from an NCodeGroup/brand release and pinned by
+    # SHA-256 in brand/brand.lock.json (ADR-1492). Offline and build-free, so it runs before the slow stages. Its
+    # fixture tests end with the repository's own kit, and it needs Node.js on PATH.
+    Invoke-Step 'brand kit' {
+        & (Join-Path $PSScriptRoot 'tests\brand-kit.tests.ps1')
         $global:LASTEXITCODE = 0
     }
 

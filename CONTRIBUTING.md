@@ -18,6 +18,8 @@ enforced quality bar.
 - Windows: run `git config --global core.longpaths true` once. A plan's worktree under
   `.claude/worktrees/` adds enough depth that some paths pass Windows' 260-character limit, and without it
   `git worktree remove` fails with "Filename too long" and leaves the folder behind.
+- Node.js, the major `frontend/.node-version` pins, on `PATH`: the `brand kit` stage of `./build/dod.ps1` runs
+  `brand/vendor-brand.mjs` with it. NVS installs it, as the next item says.
 - Frontend / full-stack (Aspire F5): [NVS](https://github.com/jasongin/nvs); `build/frontend-install.ps1` adds the
   Node major pinned in `frontend/.node-version` and the pinned pnpm — see
   [`frontend/README.md`](frontend/README.md).

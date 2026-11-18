@@ -12,3 +12,9 @@
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+
+   The names NCode, NCode Group and NCode Identity and the marks are not
+   licensed under it: they are trademarks of NCode Group, and the marks'
+   artwork, every file in brand/ that brand/brand.lock.json names but
+   vendor-brand.mjs, is copyright NCode Group, all rights reserved.
+   NCodeGroup/brand's TRADEMARKS.md says how you may use them.

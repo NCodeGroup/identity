@@ -116,6 +116,22 @@ try {
     Add-FixtureFile $fixture '.claude/commands/plan.md' "Cite ADR-1007.`n"
     Assert-Problems 'a template-owned file may cite a sample number' $fixture @()
 
+    $fixture = New-Fixture 'other-repository' @('1001-a.md') @('1001|1001-a.md')
+    Add-FixtureFile $fixture 'notes.md' "See [NCodeGroup/brand ADR-1007](https://github.com/NCodeGroup/brand/blob/v1.0.0/docs/decisions/1007-x.md).`n"
+    Assert-Problems "another repository's record is not checked" $fixture @()
+
+    $fixture = New-Fixture 'url-missing' @('1001-a.md') @('1001|1001-a.md')
+    Add-FixtureFile $fixture 'notes.md' "See https://github.com/NCodeGroup/identity/blob/main/docs/decisions/1003-gone.md for it.`n"
+    Assert-Problems 'a URL to a missing record of this repository is reported' $fixture @('notes.md(1) names 1003-gone.md')
+
+    $fixture = New-Fixture 'cite-own-qualified' @('1001-a.md') @('1001|1001-a.md')
+    Add-FixtureFile $fixture 'notes.md' "See NCodeGroup/identity ADR-1003.`n"
+    Assert-Problems 'a citation qualified with this repository is checked' $fixture @('notes.md(1) cites ADR-1003')
+
+    $fixture = New-Fixture 'cite-unlinked-qualified' @('1001-a.md') @('1001|1001-a.md')
+    Add-FixtureFile $fixture 'notes.md' "Use one and/or ADR-1003.`n"
+    Assert-Problems 'a qualified citation without a link to its repository is checked' $fixture @('notes.md(1) cites ADR-1003')
+
     $shapeHeader = "# 1002. b`n`n- **Status:** Accepted`n- **Date:** 2026-01-01`n- **Deciders:** NCode Group`n"
     $templateRecord = "# 0012-t.md`n"
 

@@ -67,6 +67,10 @@ the two into line; until then the record describes what the code does. These thr
 record here carries. To decide otherwise for good, write a record
 that says `- **Supersedes:** project-template ADR-NNNN` and list the override in [`AGENTS.md`](../../AGENTS.md).
 
+A record of another NCode repository is cited as `<owner>/<repo> ADR-NNNN` and linked at a release tag on the same line,
+so the citation names one record and the link one version of it. `build/adr-index.ps1` checks only this repository's
+records, and reads a citation with no such link as one of them.
+
 ## Index
 
 The records are grouped by area; within an area they are in number order.
@@ -361,4 +365,4 @@ The records are grouped by area; within an area they are in number order.
 | [1442](./1442-a-bff-serves-the-frontends-its-configuration-lists-each-selected-per-request-by-an-open-rule.md) | A BFF serves the frontends its configuration lists, each selected per request by an open rule | Accepted |
 | [1443](./1443-a-bff-session-ends-when-its-frontend-is-removed-or-registered-as-another-client.md) | A BFF session ends when its frontend is removed or registered as another client | Accepted |
 | [1447](./1447-each-host-composes-forwarded-header-trust-and-strict-transport-security-from-one-general-package.md) | Each host composes forwarded-header trust and Strict-Transport-Security from one general package | Accepted |
-| [1492](./1492-the-familys-id-logo-is-drawn-by-one-script-and-every-web-app-shows-its-icon.md) | The family's {id} logo is drawn by one script, and every web app shows its icon | Accepted |
+| [1492](./1492-the-familys-id-logo-is-vendored-from-an-ncodegroup-brand-release-and-every-web-app-shows-its-icon.md) | The family's {id} logo is vendored from an NCodeGroup/brand release, and every web app shows its icon | Accepted |

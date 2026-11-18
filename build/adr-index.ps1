@@ -20,11 +20,13 @@
     - an index row whose link text number is not the number of the file it links;
     - a file listed by more than one index row;
     - a tracked file that names a NNNN-<slug>.md record found in neither docs/decisions/ nor
-      docs/decisions/project-template/ (a link that a rename or renumber broke);
+      docs/decisions/project-template/ (a link that a rename or renumber broke); a URL into another repository names
+      that repository's record and is not checked;
     - a tracked file that points a docs/decisions/0NNN path at docs/decisions/, because the family's records are
       numbered from 1000 and the project template's records live in docs/decisions/project-template/;
     - a tracked file that cites an ADR number (written ADR- and four digits from 1000) that names no record in
-      docs/decisions/, template-owned files excepted;
+      docs/decisions/, template-owned files excepted; a citation written <owner>/<repo> ADR-NNNN whose line links
+      into that repository names that repository's record and is not checked;
     - a family record whose Status line is not exactly Accepted or Proposed;
     - a family record whose Refines, Supersedes or Conflicts with line does not name only project template records;
     - a family record whose header carries a metadata label other than Status, Date, Deciders, Refines, Supersedes and
@@ -37,12 +39,18 @@
     The repository root, whose docs/decisions folder holds README.md and the ADR files. Defaults to the folder above
     this script's.
 
+.PARAMETER Repository
+    The GitHub repository, as owner/name, that holds these records. A URL into another repository, or a citation
+    written <owner>/<repo> ADR-NNNN whose line links into that repository, names that repository's record, so it is
+    not checked. Defaults to NCodeGroup/identity.
+
 .EXAMPLE
     ./build/adr-index.ps1
 #>
 [CmdletBinding()]
 param(
-    [string]$Root = (Split-Path -Parent $PSScriptRoot)
+    [string]$Root = (Split-Path -Parent $PSScriptRoot),
+    [string]$Repository = 'NCodeGroup/identity'
 )
 
 Set-StrictMode -Version Latest
@@ -131,9 +139,17 @@ $known = @(foreach ($folder in $Directory, (Join-Path $Directory 'project-templa
             Get-ChildItem -LiteralPath $folder -Filter '*.md' -File | ForEach-Object { $_.Name }
         }
     })
-foreach ($match in Find-TrackedText '[0-9]{4}-[a-z0-9][a-z0-9-]*\.md') {
-    if ($match.Text -notin $known) {
-        $problems.Add("$($match.Path)($($match.Line)) names $($match.Text), which is in neither docs/decisions/ nor docs/decisions/project-template/.")
+
+# A URL into another repository names that repository's record, which this repository cannot check.
+$ownUrlPrefix = "https://github.com/$Repository/"
+foreach ($match in Find-TrackedText '(https?://[^[:space:]()<>]*/)?[0-9]{4}-[a-z0-9][a-z0-9-]*\.md') {
+    if ($match.Text.StartsWith('http', [StringComparison]::Ordinal) -and
+        -not $match.Text.StartsWith($ownUrlPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+        continue
+    }
+    $name = $match.Text.Substring($match.Text.LastIndexOf('/') + 1)
+    if ($name -notin $known) {
+        $problems.Add("$($match.Path)($($match.Line)) names $name, which is in neither docs/decisions/ nor docs/decisions/project-template/.")
     }
 }
 
@@ -146,12 +162,28 @@ foreach ($match in Find-TrackedText 'docs/decisions/0[0-9]{3}[a-z0-9.-]*') {
 }
 
 # A citation of a record that does not exist is otherwise found only by a reader who looks the number up. Files that
-# the project template owns cite sample numbers, so they are not searched.
+# the project template owns cite sample numbers, so they are not searched. A citation qualified with another
+# repository, <owner>/<repo> ADR-NNNN, names that repository's record, which this repository cannot check, when its
+# line links into that repository; any other prefix (and/or ADR-1003) is not a repository, so the number is checked.
 $familyNumbers = @($onDisk | ForEach-Object { $_.Substring(0, 4) })
+$fileLines = @{}
 $templateOwned = ':(exclude).claude/agents/*', ':(exclude).claude/commands/*', ':(exclude).github/agents/*', ':(exclude).github/prompts/*', ':(exclude).github/skills/*', ':(exclude).template/*', ':(exclude)docs/decisions/project-template/*'
-foreach ($match in Find-TrackedText 'ADR-1[0-9]{3}' $templateOwned) {
-    if ($match.Text.Substring(4) -notin $familyNumbers) {
-        $problems.Add("$($match.Path)($($match.Line)) cites $($match.Text), which names no record in docs/decisions/.")
+foreach ($match in Find-TrackedText '([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+ )?ADR-1[0-9]{3}' $templateOwned) {
+    $space = $match.Text.IndexOf(' ')
+    if ($space -ge 0) {
+        $prefix = $match.Text.Substring(0, $space)
+        if (-not $prefix.Equals($Repository, [StringComparison]::OrdinalIgnoreCase)) {
+            if (-not $fileLines.ContainsKey($match.Path)) {
+                $fileLines[$match.Path] = @(Get-Content -LiteralPath (Join-Path $Root $match.Path))
+            }
+            if ($fileLines[$match.Path][[int]$match.Line - 1].Contains("https://github.com/$prefix/", [StringComparison]::OrdinalIgnoreCase)) {
+                continue
+            }
+        }
+    }
+    $number = $match.Text.Substring($match.Text.Length - 4)
+    if ($number -notin $familyNumbers) {
+        $problems.Add("$($match.Path)($($match.Line)) cites ADR-$number, which names no record in docs/decisions/.")
     }
 }
 

@@ -189,7 +189,7 @@ and shipped versions are serviced from `release/vX.Y` lines beside it
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Build, conventions, and the change workflow                                    |
 | [`GOVERNANCE.md`](GOVERNANCE.md)     | Ownership, versioning, releases, and publishing                                |
 | [`SECURITY.md`](SECURITY.md)         | How to report a vulnerability                                                  |
-| [`brand/`](brand/README.md)          | The logo kit: the `{id}` mark as SVG masters and as the PNG and ICO files each platform takes |
+| [`brand/`](brand/README.md)          | The logo kit, vendored from an NCodeGroup/brand release: the `{id}` mark as SVG masters and as the PNG and ICO files each platform takes |
 
 ## References
 

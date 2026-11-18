@@ -157,9 +157,11 @@ compiles it and no gate tests it
   packages, with a gate of its own
   ([ADR-1064](docs/decisions/1064-one-frontend-platform-of-shared-packages-and-thin-app-shells-serves-every-web-surface.md))
 - **Logo** — `brand/`, the family's logo kit: the `{id}` mark as SVG masters and as the PNG and ICO files each platform
-  takes, which every package, the host chart and the README show. `brand/build.py` draws every file there, so change
-  the script and run it, never a file it writes
-  ([ADR-1492](docs/decisions/1492-the-familys-id-logo-is-drawn-by-one-script-and-every-web-app-shows-its-icon.md))
+  takes, which every package, the host chart and the README show. Every file there is vendored from a release of
+  NCodeGroup/brand, which draws it: `brand/brand.lock.json` pins each file's SHA-256, the `brand kit` stage of
+  `./build/dod.ps1` checks them, and `node brand/vendor-brand.mjs --update <version> --lock brand/brand.lock.json` takes
+  another release, never a hand edit
+  ([ADR-1492](docs/decisions/1492-the-familys-id-logo-is-vendored-from-an-ncodegroup-brand-release-and-every-web-app-shows-its-icon.md))
 
 The central extensibility model — **service** vs **strategy collection** vs **mediator** — is captured in
 [ADR-1001](docs/decisions/1001-behavior-is-a-service-a-strategy-collection-or-a-mediator-seam-chosen-by-one-ladder.md). Extensibility is the family's goal: a
@@ -181,8 +183,9 @@ they cover, and this family's own beside them. A family record never restates a 
 it names it on a `**Refines:**` line, and one that still contradicts it on a `**Conflicts with:**` line with the issue
 that tracks the alignment. A family record relates to no other family record: a changed decision rewrites its record
 in place
-([ADR-1508](docs/decisions/1508-a-decision-record-is-rewritten-when-its-decision-changes-and-relates-only-to-template-records.md)). Cite a template record as `project-template ADR-NNNN`. The family numbers its records from
-1000 and the template below 1000
+([ADR-1508](docs/decisions/1508-a-decision-record-is-rewritten-when-its-decision-changes-and-relates-only-to-template-records.md)).
+Cite a template record as `project-template ADR-NNNN`. Cite another repository's record as `<owner>/<repo> ADR-NNNN`,
+linked to it on the same line. The family numbers its records from 1000 and the template below 1000
 ([project-template ADR-0012](docs/decisions/project-template/0012-the-templates-records-are-numbered-below-1000-a-projects-from-1000.md)),
 so a bare ADR number names one record. Eleven family records override template records:
 
