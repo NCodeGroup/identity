@@ -11,8 +11,10 @@ namespace NCode.Identity.OpenId.Client.Options;
 /// <summary>
 /// Validates <see cref="ClientKeyRingsOptions"/> when the host starts, so a key ring that cannot load stops the host
 /// instead of failing on the first request. A key ring that a keyed <see cref="ISecretKeyCollectionProvider"/> already
-/// provides in code is refused. Each key ring is named <c>{SectionPath}:{name}</c> in the failures, and a relative PEM
-/// path is read against <see cref="IHostEnvironment.ContentRootPath"/>.
+/// provides in code is refused. A key ring's name and each key's id are letters and digits in groups separated by
+/// single '.', '_' or '-', and two ids of a ring are compared without case. Each key ring is named
+/// <c>{SectionPath}:{name}</c> in the failures, and a relative PEM path is read against
+/// <see cref="IHostEnvironment.ContentRootPath"/>.
 /// </summary>
 // See ADR-1439.
 // See ADR-1479.
@@ -108,6 +110,12 @@ internal sealed class ClientKeyRingsOptionsValidator(IHostEnvironment environmen
                 continue;
             }
 
+            if (!KeyRingIdentifiers.IsValid(name))
+            {
+                failures.Add($"{sectionPath}:{name} must be {KeyRingIdentifiers.Description}.");
+                continue;
+            }
+
             var keyRingKey = $"{sectionPath}:{name}";
             var pemFiles = keyRing?.PemFiles ?? [];
             var remoteKeys = keyRing?.RemoteKeys ?? [];
@@ -117,8 +125,8 @@ internal sealed class ClientKeyRingsOptionsValidator(IHostEnvironment environmen
                 continue;
             }
 
-            var ids = new HashSet<string>(StringComparer.Ordinal);
-            var duplicateIds = new SortedSet<string>(StringComparer.Ordinal);
+            var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var duplicateIds = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
 
             for (var i = 0; i < pemFiles.Count; i++)
             {
@@ -132,6 +140,13 @@ internal sealed class ClientKeyRingsOptionsValidator(IHostEnvironment environmen
                 var id = Path.GetFileNameWithoutExtension(path);
                 if (!ids.Add(id))
                     duplicateIds.Add(id);
+
+                if (!KeyRingIdentifiers.IsValid(id))
+                {
+                    failures.Add(
+                        $"{keyRingKey}:PemFiles:{i} names '{path}', whose file name without its extension must be {KeyRingIdentifiers.Description}."
+                    );
+                }
 
                 var fullPath = Path.GetFullPath(path, Environment.ContentRootPath);
                 if (!File.Exists(fullPath))
@@ -150,6 +165,14 @@ internal sealed class ClientKeyRingsOptionsValidator(IHostEnvironment environmen
                     continue;
                 }
 
+                if (!KeyRingIdentifiers.IsValid(id))
+                {
+                    failures.Add(
+                        $"{keyRingKey}:RemoteKeys:{id} must have an id that is {KeyRingIdentifiers.Description}."
+                    );
+                    continue;
+                }
+
                 if (!ids.Add(id))
                     duplicateIds.Add(id);
 
@@ -158,7 +181,11 @@ internal sealed class ClientKeyRingsOptionsValidator(IHostEnvironment environmen
             }
 
             foreach (var id in duplicateIds)
-                failures.Add($"{keyRingKey} holds more than one key with the id '{id}'.");
+            {
+                failures.Add(
+                    $"{keyRingKey} holds more than one key with the id '{id}', compared without case."
+                );
+            }
         }
     }
 }

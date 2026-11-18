@@ -293,7 +293,31 @@ public sealed class ClientKeyRingsOptionsValidatorTests : BaseTests
 
         Assert.True(result.Failed);
         Assert.Equal(
-            [$"{SectionPath}:client holds more than one key with the id 'shared'."],
+            [
+                $"{SectionPath}:client holds more than one key with the id 'shared', compared without case.",
+            ],
+            result.Failures ?? []
+        );
+    }
+
+    [Fact]
+    public void Validate_WhenAPemFileAndARemoteKeyShareAnIdWithoutCase_Fails()
+    {
+        File.WriteAllBytes(Path.Combine(KeysDirectory.FullName, "Shared.pem"), []);
+        var options = CreateOptions();
+        options.KeyRings["client"] = new ClientKeyRingOptions
+        {
+            PemFiles = ["Shared.pem"],
+            RemoteKeys = { ["shared"] = CreateValidRemoteKey() },
+        };
+
+        var result = CreateValidator(KeysDirectory.FullName).Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Equal(
+            [
+                $"{SectionPath}:client holds more than one key with the id 'shared', compared without case.",
+            ],
             result.Failures ?? []
         );
     }
@@ -315,7 +339,71 @@ public sealed class ClientKeyRingsOptionsValidatorTests : BaseTests
 
         Assert.True(result.Failed);
         Assert.Equal(
-            [$"{SectionPath}:client holds more than one key with the id 'shared'."],
+            [
+                $"{SectionPath}:client holds more than one key with the id 'shared', compared without case.",
+            ],
+            result.Failures ?? []
+        );
+    }
+
+    [Theory]
+    [InlineData("a__b")]
+    [InlineData("a b")]
+    [InlineData("-a")]
+    [InlineData("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
+    public void Validate_WhenAKeyRingNameBreaksTheIdRule_Fails(string name)
+    {
+        var options = CreateOptions();
+        options.KeyRings[name] = new ClientKeyRingOptions
+        {
+            RemoteKeys = { ["kms-sig"] = CreateValidRemoteKey() },
+        };
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Equal(
+            [
+                $"{SectionPath}:{name} must be letters and digits in groups separated by single '.', '_' or '-', at most 64 characters.",
+            ],
+            result.Failures ?? []
+        );
+    }
+
+    [Fact]
+    public void Validate_WhenARemoteKeyIdBreaksTheIdRule_Fails()
+    {
+        var options = CreateOptions();
+        options.KeyRings["client"] = new ClientKeyRingOptions
+        {
+            RemoteKeys = { ["a__b"] = CreateValidRemoteKey() },
+        };
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Equal(
+            [
+                $"{SectionPath}:client:RemoteKeys:a__b must have an id that is letters and digits in groups separated by single '.', '_' or '-', at most 64 characters.",
+            ],
+            result.Failures ?? []
+        );
+    }
+
+    [Fact]
+    public void Validate_WhenAPemFileNameBreaksTheIdRule_Fails()
+    {
+        File.WriteAllBytes(Path.Combine(KeysDirectory.FullName, "a__b.pem"), []);
+        var options = CreateOptions();
+        options.KeyRings["client"] = new ClientKeyRingOptions { PemFiles = ["a__b.pem"] };
+
+        var result = CreateValidator(KeysDirectory.FullName).Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Equal(
+            [
+                $"{SectionPath}:client:PemFiles:0 names 'a__b.pem', whose file name without its extension must be letters and digits in groups separated by single '.', '_' or '-', at most 64 characters.",
+            ],
             result.Failures ?? []
         );
     }

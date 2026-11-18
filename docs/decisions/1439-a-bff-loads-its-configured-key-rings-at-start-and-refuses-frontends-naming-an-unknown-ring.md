@@ -52,9 +52,10 @@ registers the keyed provider in code.**
 4. **Sensitive buffers.** The loader reads a file into a sensitive buffer, decodes it into a sensitive character buffer
    and hands that buffer to the secret-key factory, never an ordinary string or array.
 5. **The path.** A relative path resolves against the host's content root, and an absolute path is used as it is.
-6. **Startup validation.** The key rings' options validator fails startup with one message per problem: an unnamed
-   ring, a ring with no PEM file or remote key, a blank or missing file, a duplicate key id, and a configured ring that
-   a keyed provider registered in code already provides.
+6. **Startup validation.** The key rings' options validator fails startup with one message per problem: an unnamed ring,
+   a ring name or key id that is not letters and digits in groups separated by single `.`, `_` or `-` of at most 64
+   characters, a ring with no PEM file or remote key, a blank or missing file, two key ids equal without case, and a
+   configured ring that a keyed provider registered in code already provides.
 7. **Load at start.** `ClientKeyRingLoader`, an `IHostedLifecycleService`, loads every ring in `StartingAsync`, and a
    failure stops the host. A ring changes only when the process restarts, so a ring that a configuration change adds
    needs a restart.
