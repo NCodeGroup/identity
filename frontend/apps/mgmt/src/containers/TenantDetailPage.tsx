@@ -25,7 +25,7 @@ import {
   TenantUsageTable,
   type TenantMoveDialogOperations,
 } from '@ncode/ui';
-import type { TenantOwnSurface } from '../routes.js';
+import { tenantRoute, type ConsoleRoute, type TenantOwnSurface } from '../routes.js';
 import { useTenantCell } from '../tenantCell.js';
 import { OwnerAccessTab } from './OwnerAccessTab.js';
 import { OwnerEncryptionKeysTab } from './OwnerEncryptionKeysTab.js';
@@ -36,10 +36,19 @@ export type TenantDetailPageProps = {
   readonly tenantId: string;
   /** The tenant surface the address bar names. */
   readonly surface: TenantOwnSurface;
+  /** Opens a route: after a completed move, the same surface of the tenant in the cell it moved to. */
+  readonly onNavigate: (route: ConsoleRoute) => void;
 };
 
 type TenantTabProps = {
   readonly tenantId: string;
+};
+
+type TenantMoveActionProps = {
+  readonly tenantId: string;
+  /** The tenant surface the address bar names, which the tenant opens on in the cell it moved to. */
+  readonly surface: TenantOwnSurface;
+  readonly onNavigate: (route: ConsoleRoute) => void;
 };
 
 /**
@@ -51,7 +60,7 @@ type TenantTabProps = {
  * structural (a tenant administrator can never address another tenant). A platform administrator also gets the
  * {@link TenantMoveAction}.
  */
-export function TenantDetailPage({ tenantId, surface }: TenantDetailPageProps) {
+export function TenantDetailPage({ tenantId, surface, onNavigate }: TenantDetailPageProps) {
   const owner = { kind: 'tenant', tenantId } as const;
 
   return (
@@ -65,7 +74,7 @@ export function TenantDetailPage({ tenantId, surface }: TenantDetailPageProps) {
             {tenantId}
           </Typography>
         </Stack>
-        <TenantMoveAction tenantId={tenantId} />
+        <TenantMoveAction tenantId={tenantId} surface={surface} onNavigate={onNavigate} />
       </Box>
       {surface === 'secrets' && <OwnerSecretsTab owner={owner} ownerLabel="tenant" />}
       {surface === 'encryption-keys' && (
@@ -84,8 +93,9 @@ export function TenantDetailPage({ tenantId, surface }: TenantDetailPageProps) {
  * dialog offers come from the platform's cells, by the region of the tenant's own cell; the four calls of the move each
  * address the cell they concern. An export that the global directory refuses because it already places the tenant in
  * another cell hands the dialog that cell, so the dialog offers the release of the copy the tenant's own cell holds.
+ * Closing the dialog after a completed move opens the same surface of the tenant in the cell it moved to.
  */
-function TenantMoveAction({ tenantId }: TenantTabProps) {
+function TenantMoveAction({ tenantId, surface, onNavigate }: TenantMoveActionProps) {
   const cell = useTenantCell();
   const [isOpen, setIsOpen] = useState(false);
   const caller = useGetCallerQuery();
@@ -153,6 +163,7 @@ function TenantMoveAction({ tenantId }: TenantTabProps) {
         isCellsFailed={Boolean(cells.error)}
         operations={operations}
         onClose={() => setIsOpen(false)}
+        onMoved={(targetCell) => onNavigate(tenantRoute(tenantId, surface, targetCell))}
       />
     </>
   );

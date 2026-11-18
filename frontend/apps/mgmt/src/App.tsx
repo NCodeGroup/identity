@@ -240,7 +240,11 @@ export function App() {
             ) : route.surface === 'grants' ? (
               <GrantsPage tenantId={route.tenantId} />
             ) : (
-              <TenantDetailPage tenantId={route.tenantId} surface={route.surface} />
+              <TenantDetailPage
+                tenantId={route.tenantId}
+                surface={route.surface}
+                onNavigate={navigateTo}
+              />
             )}
           </Suspense>
         </TenantCellProvider>

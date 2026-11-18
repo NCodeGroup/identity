@@ -5,7 +5,7 @@ import { createAppStore } from '@ncode/store';
 import type { CreatedSecretResource } from '@ncode/api';
 import type { BffRuntimeConfig } from '@ncode/config';
 import { TenantDetailPage } from './TenantDetailPage.js';
-import type { TenantOwnSurface } from '../routes.js';
+import { tenantRoute, type ConsoleRoute, type TenantOwnSurface } from '../routes.js';
 import { TenantCellProvider } from '../tenantCell.js';
 
 const runtime: BffRuntimeConfig = {
@@ -15,14 +15,18 @@ const runtime: BffRuntimeConfig = {
   features: {},
 };
 
-function renderPage(surface: TenantOwnSurface = 'secrets', cell?: string) {
+function renderPage(
+  surface: TenantOwnSurface = 'secrets',
+  cell?: string,
+  onNavigate: (route: ConsoleRoute) => void = vi.fn(),
+) {
   const store = createAppStore({
     config: { runtime },
   });
   return render(
     <Provider store={store}>
       <TenantCellProvider cell={cell}>
-        <TenantDetailPage tenantId="acme" surface={surface} />
+        <TenantDetailPage tenantId="acme" surface={surface} onNavigate={onNavigate} />
       </TenantCellProvider>
     </Provider>,
   );
@@ -513,6 +517,23 @@ describe('TenantDetailPage', () => {
         targetCell: 'eu-2',
       });
       expect(JSON.parse(posts[2]?.body ?? '{}')).toEqual({ kid: 'k-1', package: 'sealed' });
+    });
+
+    it('opens the same surface of the tenant in the cell it moved to when the dialog closes after the move', async () => {
+      installMoveFetch({});
+      const onNavigate = vi.fn();
+      renderPage('secrets', 'eu-1', onNavigate);
+
+      await waitFor(() => expect(screen.getByTestId('move-tenant')).toBeEnabled());
+      fireEvent.click(screen.getByTestId('move-tenant'));
+      await waitFor(() => expect(screen.getByTestId('move-target')).toBeEnabled());
+      fireEvent.change(screen.getByTestId('move-target'), { target: { value: 'eu-2' } });
+      fireEvent.click(screen.getByTestId('move-confirm'));
+      await screen.findByTestId('move-done');
+      fireEvent.click(screen.getByTestId('move-close'));
+
+      expect(onNavigate).toHaveBeenCalledTimes(1);
+      expect(onNavigate).toHaveBeenCalledWith(tenantRoute('acme', 'secrets', 'eu-2'));
     });
 
     it('offers the other cells of the tenant region', async () => {
