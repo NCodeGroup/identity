@@ -145,7 +145,8 @@ helm install identity charts/ncode-identity-host \
 `cell.name` and `cell.region` (see [The cell](#the-cell)).
 
 `ci/high-availability-values.yaml` shows a rolling three-replica release with Valkey, an ingress, and a retired local
-root key. `ci/cell-values.yaml` shows a cell that is not the control plane.
+root key. `ci/cell-values.yaml` shows a cell that is not the control plane, and `ci/directory-values.yaml` the
+control-plane cell that runs the directory and reaches it as its own machine client.
 
 ## The cell
 
@@ -186,10 +187,12 @@ rendered as `KeyRings__<directory.keyRing>__…`:
 The key ring needs at least one key, and rendering fails when it has none, when a remote key's `keyId` does not fit its
 provider, or when two keys share an id, compared without case.
 
-The cell's `directory` values say the same as the platform's bootstrap runbook: the platform's operator registers the
-machine client `cell-<cell.name>` in the control-plane cell's root tenant with its key ring's public keys, and
-`directory.url`, `directory.clientId`, `directory.keyRing` and `directory.keys.*` give the cell the client and its
-private keys. [Run the cells of a platform](../../docs/platform-bootstrap.md#9-run-the-cells-of-a-platform) lists the
+The cell's `directory` values say the same as the platform's bootstrap runbook: for every cell that sets
+`directory.url`, the control-plane cell included, the platform's operator registers the machine client
+`cell-<cell.name>` in the control-plane cell's root tenant with its key ring's public keys, and `directory.url`,
+`directory.clientId`, `directory.keyRing` and `directory.keys.*` give the cell the client and its private keys. A
+control-plane cell without `directory.url` keeps the local adapters, so its teams and platform changes never reach the
+directory. [Run the cells of a platform](../../docs/platform-bootstrap.md#9-run-the-cells-of-a-platform) lists the
 steps.
 
 `directory.enabled` (default `false`) runs the directory host from the same release, which suits the release of the
@@ -374,7 +377,8 @@ console, the step says so and takes a pasted set.
 
 To create the root administrator without a browser, enable `setup.job`. It renders a Job per release revision that runs
 the host image's `setup` command, creates the root administrator from the Secret named in `setup.job.existingSecret`, and
-exits 0 on an instance that is already initialized. The setup values:
+exits 0 on an instance that is already initialized. Setup runs in the control-plane cell only, so the chart refuses
+`setup.job.enabled` unless `cell.isControlPlane` is `true`. The setup values:
 
 | Value                                    | Meaning                                                                                     |
 |------------------------------------------|---------------------------------------------------------------------------------------------|

@@ -390,7 +390,8 @@ setup:
     # The key of the setup token in existingSecret. Required when existingSecret is set.
     key: token
   # A Job from the host image that runs the 'setup' command, which creates the root administrator once and exits 0 on an
-  # instance that is already initialized, so it can run on every release. It needs no setup token.
+  # instance that is already initialized, so it can run on every release. It needs no setup token. Setup runs in the
+  # control-plane cell only, so enabled is refused unless cell.isControlPlane is true.
   job:
     enabled: false
     # Secret holding the root administrator's user name, email and password under the keys below. Required when the Job is

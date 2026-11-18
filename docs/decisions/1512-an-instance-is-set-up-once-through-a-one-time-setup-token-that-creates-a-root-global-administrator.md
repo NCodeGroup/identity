@@ -143,12 +143,14 @@ setup creates a root global administrator.**
     - The setup gate answers false on a cell that is not the control plane, and that cell's hosted service issues no
       token and stores no `InstanceSetup` mark.
     - The `setup` command exits non-zero on such a cell and says that setup belongs to the control-plane cell.
+    - The chart refuses `setup.job.enabled` unless `cell.isControlPlane` is `true`, so no release runs a setup Job in a
+      cell whose `setup` command would refuse.
     - The root administrator's role assignment is a platform-node assignment in the control-plane cell. Other cells
       learn of it through the control plane, never through setup of their own
       ([ADR-1417](1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md),
       [ADR-1191](1191-a-management-request-is-authenticated-by-the-control-plane-tenant-and-scoped-by-its-routes-tenant.md)).
-    - Each other cell is registered with the directory and given its machine client by the operator, through the
-      management API of the control-plane cell.
+    - Every cell that reaches the directory, the control-plane cell included, is registered with the directory and
+      given its machine client by the operator, through the management API of the control-plane cell.
 
 The setup packages follow the package shape of
 [ADR-1500](1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md):
