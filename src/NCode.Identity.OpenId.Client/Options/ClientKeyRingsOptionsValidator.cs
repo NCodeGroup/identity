@@ -133,7 +133,8 @@ internal sealed class ClientKeyRingsOptionsValidator(IHostEnvironment environmen
                 if (!ids.Add(id))
                     duplicateIds.Add(id);
 
-                if (!File.Exists(Path.GetFullPath(path, Environment.ContentRootPath)))
+                var fullPath = Path.GetFullPath(path, Environment.ContentRootPath);
+                if (!File.Exists(fullPath))
                 {
                     failures.Add(
                         $"{keyRingKey}:PemFiles:{i} names '{path}', which does not exist."

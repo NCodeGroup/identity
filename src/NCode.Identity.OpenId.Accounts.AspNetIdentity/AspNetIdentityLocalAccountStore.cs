@@ -95,10 +95,11 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
     {
         if (userManager.SupportsUserLockout)
         {
-            ThrowIfFailed(
-                await userManager.SetLockoutEndDateAsync(user, lockoutEnd: null),
-                "enable the local account"
+            var lockoutEndCleared = await userManager.SetLockoutEndDateAsync(
+                user,
+                lockoutEnd: null
             );
+            ThrowIfFailed(lockoutEndCleared, "enable the local account");
         }
     }
 
@@ -110,14 +111,11 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
     {
         ThrowIfLockoutUnsupported(userManager);
 
-        ThrowIfFailed(
-            await userManager.SetLockoutEnabledAsync(user, enabled: true),
-            "enable lockout for the local account"
-        );
-        ThrowIfFailed(
-            await userManager.SetLockoutEndDateAsync(user, DateTimeOffset.MaxValue),
-            "disable the local account"
-        );
+        var lockoutEnabled = await userManager.SetLockoutEnabledAsync(user, enabled: true);
+        ThrowIfFailed(lockoutEnabled, "enable lockout for the local account");
+
+        var lockoutEndSet = await userManager.SetLockoutEndDateAsync(user, DateTimeOffset.MaxValue);
+        ThrowIfFailed(lockoutEndSet, "disable the local account");
     }
 
     /// <summary>
@@ -237,7 +235,8 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             return;
         }
 
-        var errors = string.Join("; ", result.Errors.Select(error => error.Description));
+        var descriptions = result.Errors.Select(error => error.Description);
+        var errors = string.Join("; ", descriptions);
         throw new InvalidOperationException($"Failed to {action}: {errors}");
     }
 
@@ -334,14 +333,14 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             );
         }
 
-        ThrowIfFailed(await userManager.CreateAsync(user), "create the local account");
+        var created = await userManager.CreateAsync(user);
+        ThrowIfFailed(created, "create the local account");
 
         foreach (var claim in account.Claims)
         {
-            ThrowIfFailed(
-                await userManager.AddClaimAsync(user, new Claim(claim.Type, claim.Value)),
-                "add a local-account claim"
-            );
+            var identityClaim = new Claim(claim.Type, claim.Value);
+            var claimAdded = await userManager.AddClaimAsync(user, identityClaim);
+            ThrowIfFailed(claimAdded, "add a local-account claim");
         }
 
         if (!account.IsEnabled)
@@ -367,11 +366,10 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
 
         // SetUserNameAsync/SetEmailAsync also refresh the normalized lookup columns; setting the properties directly
         // would leave those stale. SetEmailAsync resets the confirmed flag, so the confirmation is applied after it.
-        ThrowIfFailed(
-            await userManager.SetUserNameAsync(user, account.UserName),
-            "update the username"
-        );
-        ThrowIfFailed(await userManager.SetEmailAsync(user, account.Email), "update the email");
+        var userNameSet = await userManager.SetUserNameAsync(user, account.UserName);
+        ThrowIfFailed(userNameSet, "update the username");
+        var emailSet = await userManager.SetEmailAsync(user, account.Email);
+        ThrowIfFailed(emailSet, "update the email");
         user.EmailConfirmed = account.EmailVerified;
 
         if (account.IsEnabled)
@@ -383,7 +381,8 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             await DisableAsync(userManager, user, cancellationToken);
         }
 
-        ThrowIfFailed(await userManager.UpdateAsync(user), "update the local account");
+        var updated = await userManager.UpdateAsync(user);
+        ThrowIfFailed(updated, "update the local account");
     }
 
     /// <inheritdoc />
@@ -411,10 +410,8 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
 
         // Rotating the security stamp, which also saves the user, invalidates the sessions and tokens issued before the
         // reset.
-        ThrowIfFailed(
-            await userManager.UpdateSecurityStampAsync(user),
-            "reset the local-account password"
-        );
+        var securityStampUpdated = await userManager.UpdateSecurityStampAsync(user);
+        ThrowIfFailed(securityStampUpdated, "reset the local-account password");
     }
 
     /// <inheritdoc />
@@ -535,16 +532,16 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         var limit = page.Limit;
 
         // Fetch one extra row to determine whether a further page exists.
-        var users = await ToListAsync(
-            query.OrderBy(user => user.Id).Take(limit + 1),
-            cancellationToken
-        );
+        var pageQuery = query.OrderBy(user => user.Id).Take(limit + 1);
+        var users = await ToListAsync(pageQuery, cancellationToken);
 
         var hasMore = users.Count > limit;
-        var items = new List<PersistedLocalAccount>(Math.Min(users.Count, limit));
+        var capacity = Math.Min(users.Count, limit);
+        var items = new List<PersistedLocalAccount>(capacity);
         for (var index = 0; index < users.Count && index < limit; index++)
         {
-            items.Add(await MapAsync(userManager, users[index], cancellationToken));
+            var account = await MapAsync(userManager, users[index], cancellationToken);
+            items.Add(account);
         }
 
         var nextCursor = hasMore ? items[^1].LocalAccountId : null;
@@ -563,7 +560,8 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             return;
         }
 
-        ThrowIfFailed(await userManager.DeleteAsync(user), "delete the local account");
+        var deleted = await userManager.DeleteAsync(user);
+        ThrowIfFailed(deleted, "delete the local account");
     }
 
     /// <inheritdoc />
@@ -581,21 +579,15 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         var existing = await userManager.GetClaimsAsync(user);
         if (existing.Count > 0)
         {
-            ThrowIfFailed(
-                await userManager.RemoveClaimsAsync(user, existing),
-                "remove the existing local-account claims"
-            );
+            var removed = await userManager.RemoveClaimsAsync(user, existing);
+            ThrowIfFailed(removed, "remove the existing local-account claims");
         }
 
         if (claims.Count > 0)
         {
-            ThrowIfFailed(
-                await userManager.AddClaimsAsync(
-                    user,
-                    claims.Select(claim => new Claim(claim.Type, claim.Value))
-                ),
-                "add the local-account claims"
-            );
+            var newClaims = claims.Select(claim => new Claim(claim.Type, claim.Value));
+            var added = await userManager.AddClaimsAsync(user, newClaims);
+            ThrowIfFailed(added, "add the local-account claims");
         }
     }
 
@@ -617,10 +609,8 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
         var passwordStore = GetPasswordStore(scope.ServiceProvider);
 
-        var users = await ToListAsync(
-            GetTenantUsers(userManager).OrderBy(user => user.Id),
-            cancellationToken
-        );
+        var orderedUsers = GetTenantUsers(userManager).OrderBy(user => user.Id);
+        var users = await ToListAsync(orderedUsers, cancellationToken);
 
         var records = new List<LocalAccountTransferRecord>(users.Count);
         foreach (var user in users)
@@ -641,30 +631,29 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             var isEnabled =
                 !userManager.SupportsUserLockout || !await userManager.IsLockedOutAsync(user);
 
-            records.Add(
-                new LocalAccountTransferRecord
-                {
-                    LocalAccountId = user.Id,
-                    UserName = userName,
-                    NormalizedUserName = normalizedUserName,
-                    Email = user.Email,
-                    NormalizedEmail = user.NormalizedEmail,
-                    EmailVerified = user.EmailConfirmed,
-                    PasswordHash = passwordHash,
-                    SecurityStamp = securityStamp,
-                    IsEnabled = isEnabled,
-                    LockoutEnabled = user.LockoutEnabled,
-                    LockoutEnd = user.LockoutEnd,
-                    AccessFailedCount = user.AccessFailedCount,
-                    Claims = claims
-                        .Select(claim => new PersistedLocalAccountClaim
-                        {
-                            Type = claim.Type,
-                            Value = claim.Value,
-                        })
-                        .ToList(),
-                }
-            );
+            var record = new LocalAccountTransferRecord
+            {
+                LocalAccountId = user.Id,
+                UserName = userName,
+                NormalizedUserName = normalizedUserName,
+                Email = user.Email,
+                NormalizedEmail = user.NormalizedEmail,
+                EmailVerified = user.EmailConfirmed,
+                PasswordHash = passwordHash,
+                SecurityStamp = securityStamp,
+                IsEnabled = isEnabled,
+                LockoutEnabled = user.LockoutEnabled,
+                LockoutEnd = user.LockoutEnd,
+                AccessFailedCount = user.AccessFailedCount,
+                Claims = claims
+                    .Select(claim => new PersistedLocalAccountClaim
+                    {
+                        Type = claim.Type,
+                        Value = claim.Value,
+                    })
+                    .ToList(),
+            };
+            records.Add(record);
         }
 
         return records;
@@ -716,7 +705,8 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
                 );
             }
 
-            ThrowIfFailed(await userManager.CreateAsync(user), "import the local account");
+            var created = await userManager.CreateAsync(user);
+            ThrowIfFailed(created, "import the local account");
 
             // Creating a user issues a new security stamp, so the stamp and the lockout state of the record are
             // applied after it, together with the claims, which the claim store stages on the context the user
@@ -732,15 +722,16 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             if (record.Claims.Count > 0)
             {
                 claimStore ??= GetClaimStore(scope.ServiceProvider);
-                await claimStore.AddClaimsAsync(
-                    user,
-                    record.Claims.Select(claim => new Claim(claim.Type, claim.Value)),
-                    cancellationToken
-                );
+                var importedClaims = record.Claims.Select(claim => new Claim(
+                    claim.Type,
+                    claim.Value
+                ));
+                await claimStore.AddClaimsAsync(user, importedClaims, cancellationToken);
             }
 
+            var updated = await userManager.UpdateAsync(user);
             ThrowIfFailed(
-                await userManager.UpdateAsync(user),
+                updated,
                 "import the security stamp, lockout state and claims of the local account"
             );
         }
@@ -752,10 +743,12 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         await using var scope = ServiceScopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
 
-        var users = await ToListAsync(GetTenantUsers(userManager), cancellationToken);
+        var tenantUsers = GetTenantUsers(userManager);
+        var users = await ToListAsync(tenantUsers, cancellationToken);
         foreach (var user in users)
         {
-            ThrowIfFailed(await userManager.DeleteAsync(user), "delete the local account");
+            var deleted = await userManager.DeleteAsync(user);
+            ThrowIfFailed(deleted, "delete the local account");
         }
     }
 
@@ -837,11 +830,11 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         UserManager<TUser> userManager,
         string localAccountId,
         CancellationToken cancellationToken
-    ) =>
-        FirstOrDefaultAsync(
-            GetTenantUsers(userManager).Where(user => user.Id == localAccountId),
-            cancellationToken
-        );
+    )
+    {
+        var matchingUsers = GetTenantUsers(userManager).Where(user => user.Id == localAccountId);
+        return FirstOrDefaultAsync(matchingUsers, cancellationToken);
+    }
 
     /// <summary>
     /// Finds a user by user name inside the ambient tenant scope. A user name is unique only within a tenant, so an
