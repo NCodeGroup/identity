@@ -316,7 +316,11 @@ other service.
 
 Each cell that sets `directory.url` authenticates to the directory and to the control-plane cell as the
 machine client `cell-{name}` of the control-plane cell's root tenant, where `{name}` is the cell's `cell.name`. The
-client uses `private_key_jwt`, and the cell holds its private keys as a named key ring.
+client uses `private_key_jwt`, and the cell holds its private keys as a named key ring. Every cell of a platform with
+a directory sets it, the control-plane cell included: a control-plane cell without `directory.url` keeps the local
+adapters, so its teams and platform changes never reach the directory and no other cell mirrors them. Steps 3 to 5
+give one cell its directory client: run them for the control-plane cell once the directory runs, and then for each
+other cell.
 
 1. **Set up the control-plane cell.** Deploy the cell with `cell.isControlPlane=true` and set the platform up once, as
    [first use of a deployed instance](first-deployed-instance.md) describes. Setup runs in the control-plane cell only.
@@ -334,13 +338,14 @@ client uses `private_key_jwt`, and the cell holds its private keys as a named ke
    [The cell](../charts/ncode-identity-host/README.md#the-cell) section lists. The directory accepts bearer tokens of
    the control-plane cell's issuer for audience `urn:ncode:directory` and scope `directory`. It runs as one replica,
    and its database is its own, never a cell's.
-3. **For each other cell, create the cell's key ring.** Generate a signing key for the cell, either a PEM file or a key
-   in a key management service, and keep its private half with the cell. The key ring has the name you choose for
-   `directory.keyRing`, and at least one key.
+3. **Create the cell's key ring.** Generate a signing key for the cell, either a PEM file or a key in a key management
+   service, and keep its private half with the cell. The key ring has the name you choose for `directory.keyRing`, and
+   at least one key.
 4. **Register the cell's machine client** in the control-plane cell's root tenant with `POST /api/platform/clients`, as a
    caller with platform authority, such as the
    [automation client](first-deployed-instance.md#the-automation-client). Only the control-plane cell maps the route.
-   The body names:
+   The control-plane cell's own client is `cell-{name}` under its own `cell.name`, in that same root tenant. The body
+   names:
 
    | Member       | Value                                                                                          |
    | ------------ | ---------------------------------------------------------------------------------------------- |
@@ -352,21 +357,23 @@ client uses `private_key_jwt`, and the cell holds its private keys as a named ke
    The response is `201`, and `409` when a client of that identifier exists. The client carries no scope setting: the
    cell requests the scopes `directory` and `control-plane` in its token requests, and the system resource servers of
    step 1 are available to every client of the tenant.
-5. **Deploy the cell** with the directory client's values: `directory.url`, `directory.clientId` (`cell-{name}`),
-   `directory.keyRing` and `directory.keys` (`directory.keys.pemSecret` or `directory.keys.remoteKeys`),
-   `cell.controlPlaneIssuer` set to the control-plane cell's issuer, and `cell.managementUrl` set to the URL of the
-   cell's management API, which the cell registers with the directory. The host reads them as `Directory:Url`,
-   `Directory:ClientId`, `Directory:KeyRing`, `Cell:ManagementUrl` and `KeyRings:{name}`, where `{name}` is the key
-   ring's name, and the key ring signs the client's assertions. The host refuses to start when `Directory:ClientId` is
-   not `cell-` followed by `Cell:Name` or `Cell:ManagementUrl` is empty. Values of the chart are in its
-   [The cell](../charts/ncode-identity-host/README.md#the-cell) section; its `database` and `migrations.database`
-   values are the cell's own two roles and are never the directory's.
+5. **Deploy the cell with the directory client's values**, or redeploy the control-plane cell with them:
+   `directory.url`, `directory.clientId` (`cell-{name}`), `directory.keyRing` and `directory.keys`
+   (`directory.keys.pemSecret` or `directory.keys.remoteKeys`), `cell.controlPlaneIssuer` set to the control-plane
+   cell's issuer, which is the control-plane cell's own issuer when you redeploy it, and `cell.managementUrl` set to
+   the URL of the cell's management API, which the cell registers with the directory. The host reads them as
+   `Directory:Url`, `Directory:ClientId`, `Directory:KeyRing`, `Cell:ManagementUrl` and `KeyRings:{name}`, where
+   `{name}` is the key ring's name, and the key ring signs the client's assertions. The host refuses to start when
+   `Directory:ClientId` is not `cell-` followed by `Cell:Name` or `Cell:ManagementUrl` is empty. Values of the chart
+   are in its [The cell](../charts/ncode-identity-host/README.md#the-cell) section; its `database` and
+   `migrations.database` values are the cell's own two roles and are never the directory's.
 
 **Verify:** the cell starts and reports ready. A client-credentials token request for the client `cell-{name}`,
 signed with the key ring, at the control-plane cell's root issuer returns a token for the audience
 `urn:ncode:directory` with the scope `directory`. Creating a tenant in the cell reserves its identifier in the directory
 and places it in the cell, and fails with `503` while the directory is unreachable. A tenant that is already created
-keeps serving whether or not the directory is reachable.
+keeps serving whether or not the directory is reachable. Once the control-plane cell runs with its client, a team
+created in it reaches the directory, and the other cells mirror it.
 
 ## 10. Close out
 
