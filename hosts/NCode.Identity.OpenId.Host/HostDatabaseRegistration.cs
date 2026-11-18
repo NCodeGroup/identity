@@ -33,13 +33,9 @@ internal static class HostDatabaseRegistration
         /// replica out of rotation while it cannot reach the database. Without a connection, the OpenID context factory
         /// uses an in-memory database and nothing else is registered.
         /// </summary>
-        /// <param name="configuration">
-        /// The configuration that holds the connection and the <c>LocalDevelopment</c> section.
-        /// </param>
+        /// <param name="configuration">The configuration that holds the connection.</param>
         /// <returns>The same <see cref="IServiceCollection"/> instance for method chaining.</returns>
-        /// <exception cref="InvalidOperationException">
-        /// The connection's configuration or the <c>LocalDevelopment</c> section is invalid.
-        /// </exception>
+        /// <exception cref="InvalidOperationException">The connection's configuration is invalid.</exception>
         public IServiceCollection AddHostDatabase(IConfiguration configuration)
         {
             ArgumentNullException.ThrowIfNull(serviceCollection);
