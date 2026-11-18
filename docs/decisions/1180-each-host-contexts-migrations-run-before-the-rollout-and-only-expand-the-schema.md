@@ -126,7 +126,7 @@ A reviewer checks these by hand:
 ### The migration runs in the chart as a hook Job
 
 - The host image carries the worker at `/app/migrations`
-  ([ADR-1248](1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)), so a release always
+  ([ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)), so a release always
   migrates to the schema its host reads and a separate migration image could never fall out of step.
 - The chart runs the worker as a `pre-install` and `pre-upgrade` hook Job. Helm waits for it before it changes anything
   else, so a failed migration fails the release while the previous version serves and no pod is replaced.
@@ -202,7 +202,7 @@ rule for every migration author.
 - [project-template ADR-0143](project-template/0143-migrations-run-before-the-rollout-and-only-expand.md)
 - [ADR-1073](1073-one-postgresql-database-holds-the-hosts-schema-and-key-ring-migrated-by-a-worker-and-drift-checked.md),
   [ADR-1139](1139-setting-names-are-a-closed-vocabulary-changed-outright-and-settings-the-server-cannot-honor-fail-loudly.md),
-  [ADR-1248](1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md),
+  [ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md),
   [ADR-1458](1458-the-host-chart-deploys-the-server-and-an-opt-in-management-console-and-refuses-unsafe-releases.md),
   [ADR-1245](1245-management-requests-list-incoherent-clients-name-unreadable-stored-settings-and-let-a-write-repair-them.md),
   [ADR-1018](1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)

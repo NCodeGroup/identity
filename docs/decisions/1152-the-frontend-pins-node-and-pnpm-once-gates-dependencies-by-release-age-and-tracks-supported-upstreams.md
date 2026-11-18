@@ -56,7 +56,7 @@ newest major its upstream supports.
    - The `@types/node` range, in the root and in `apps/conformance-runner`.
    - The `node:<major>` image of the OP host and console host Dockerfiles, whose major the `Host image` and
      `Console image` workflows check
-     ([ADR-1248](1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)).
+     ([ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)).
 3. **`@types/node` tracks the runtime major.** The `pnpm-workspace.yaml` override `'@types/node': '$@types/node'` forces
    every transitive and auto-installed copy to the root range, and Dependabot ignores its majors, so a runtime move is
    its own deliberate change.
@@ -146,7 +146,7 @@ newest major its upstream supports.
   [#153](https://github.com/NCodeGroup/identity/issues/153)
 - [ADR-1064](1064-one-frontend-platform-of-shared-packages-and-thin-app-shells-serves-every-web-surface.md) (the
   frontend platform), [ADR-1071](1071-the-aspire-apphost-runs-the-local-stack-in-health-gated-order-after-checking-the-frontend-toolchain.md),
-  [ADR-1248](1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md),
+  [ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md),
   [project-template ADR-0009](project-template/0009-new-dependency-versions-wait-a-cooldown.md)
 - Node.js: [release schedule](https://github.com/nodejs/Release#release-schedule);
   [`build: stop distributing Corepack`](https://github.com/nodejs/node/pull/57617)

@@ -335,7 +335,7 @@ when `LocalDevelopment:Enabled` is set
 
 The `Dockerfile` builds the production image from the repository root. Its base images are pinned by tag and digest, and
 Dependabot moves the digests
-([ADR-1248](../../docs/decisions/1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)); the
+([ADR-1248](../../docs/decisions/1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)); the
 Node image's major matches the single pin in `frontend/.node-version`, which the `Host image` workflow checks:
 
 ```bash
@@ -352,7 +352,7 @@ a proxy in front of it connects over HTTPS. Probe `/health/live` for liveness an
 image writes one JSON object per line to standard output, with a UTC timestamp, so a log collector keeps an entry and
 its exception in one record; set `Logging__Console__FormatterName=simple` to write text. CI builds it for `linux/amd64` and
 `linux/arm64`
-([ADR-1248](../../docs/decisions/1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)).
+([ADR-1248](../../docs/decisions/1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)).
 
 The `ProxyClientCertificate` section makes the host require the reverse proxy's client certificate. With
 `ProxyClientCertificate__Required=true`, the host answers `403` to every request whose connection carries no certificate

@@ -429,13 +429,13 @@ Until the first stable release, the [Unreleased] section describes the product a
   so the image builds for `linux/amd64` and `linux/arm64` without emulation in one multi-architecture build, whose NuGet
   cache mount is locked so the two publishes take turns rather than reading packages the other is still extracting; the
   `Host image` CI workflow builds both. The build context is an allow-list
-  ([ADR-1248](docs/decisions/1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)).
+  ([ADR-1248](docs/decisions/1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)).
 
 - **The host image writes one-line JSON logs.** The image sets `Logging__Console__FormatterName=json`,
   `Logging__Console__FormatterOptions__UseUtcTimestamp=true` and
   `Logging__Console__FormatterOptions__TimestampFormat=O`, so every entry, the migration worker's included, is one JSON
   object on one line with a UTC timestamp; `Logging__Console__FormatterName=simple` selects text
-  ([ADR-1248](docs/decisions/1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md), issue
+  ([ADR-1248](docs/decisions/1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md), issue
   [#265](https://github.com/NCodeGroup/identity/issues/265)).
 
 - **The management console host ships a production container image.**
@@ -443,7 +443,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   base images: no shell, the non-root `app` user, HTTPS only on port 8443 from the certificate and key mounted at
   `/etc/ncode-identity/tls`, the `apps/mgmt` bundle served from `/app/mgmt`, and one-line JSON logs; the `Console image`
   CI workflow builds it for `linux/amd64` and `linux/arm64`
-  ([ADR-1248](docs/decisions/1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md),
+  ([ADR-1248](docs/decisions/1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md),
   issue [#610](https://github.com/NCodeGroup/identity/issues/610)).
 
 - **The host has a Helm chart.** `charts/ncode-identity-host` deploys `NCode.Identity.OpenId.Host` on Kubernetes 1.30 or
@@ -4499,7 +4499,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   client generator reads the management API description without a deployment serving it
   ([#773](https://github.com/NCodeGroup/identity/issues/773),
   [#809](https://github.com/NCodeGroup/identity/issues/809),
-  [ADR-1505](docs/decisions/1505-every-merge-to-main-publishes-the-host-image-the-console-image-the-chart-and-the-openapi-document-at-one-prerelease-version.md)).
+  [ADR-1505](docs/decisions/1505-every-merge-to-main-publishes-the-host-console-and-directory-images-the-chart-and-the-openapi-document-at-one-prerelease-version.md)).
 
 - **`LocalDevelopmentOptions` is the one switch for a local inner-loop host.** `NCode.Identity.AspNetCore` binds the
   `LocalDevelopment` section (`Enabled`, `false` when absent) strictly into `LocalDevelopmentOptions` through
@@ -4825,7 +4825,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   .NET version, and the host's and the console's their Node version, from those lines alone, with no version build
   argument; a weekly `docker` Dependabot stream moves the digests of every image in one pull request, and the `Host
   image` workflow checks the Node major against `.node-version`
-  ([ADR-1248](docs/decisions/1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md), issue
+  ([ADR-1248](docs/decisions/1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md), issue
   [#226](https://github.com/NCodeGroup/identity/issues/226)).
 
 - **Dependencies are pinned to releases without known advisories.** Every `Microsoft.AspNetCore.*`,

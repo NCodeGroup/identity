@@ -170,7 +170,7 @@ the document when each problem occurs.
   document and its theory fails.
 - The Publish artifacts workflow publishes the same document as an OCI artifact whatever these switches say, so client
   generators read it without a deployment serving it
-  ([ADR-1505](1505-every-merge-to-main-publishes-the-host-image-the-console-image-the-chart-and-the-openapi-document-at-one-prerelease-version.md)).
+  ([ADR-1505](1505-every-merge-to-main-publishes-the-host-console-and-directory-images-the-chart-and-the-openapi-document-at-one-prerelease-version.md)).
 
 ## References
 

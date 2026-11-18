@@ -88,7 +88,7 @@ Secrets `ExternalSecret` that writes the same Secret with the same keys works th
 ## Published artifacts
 
 Every merge to `main` and every release tag `v*.*.*` publishes five artifacts to GHCR at one version
-(`0.0.1-alpha.<n>` for a merge to `main`, the tag's version for a release tag), through the Publish artifacts workflow ([ADR-1505](../../docs/decisions/1505-every-merge-to-main-publishes-the-host-image-the-console-image-the-chart-and-the-openapi-document-at-one-prerelease-version.md)):
+(`0.0.1-alpha.<n>` for a merge to `main`, the tag's version for a release tag), through the Publish artifacts workflow ([ADR-1505](../../docs/decisions/1505-every-merge-to-main-publishes-the-host-console-and-directory-images-the-chart-and-the-openapi-document-at-one-prerelease-version.md)):
 
 - `ghcr.io/ncodegroup/ncode-identity-host:<version>`, the host image.
 - `ghcr.io/ncodegroup/ncode-identity-management-console:<version>`, the management console image.
@@ -1623,5 +1623,5 @@ more
 
 The image writes one JSON object per line to standard output, with a UTC timestamp, so a log collector keeps an entry
 and its exception in one record
-([ADR-1248](../../docs/decisions/1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)). Set
+([ADR-1248](../../docs/decisions/1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)). Set
 `Logging__Console__FormatterName=simple` in `extraEnv` to write text instead.

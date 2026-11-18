@@ -877,14 +877,14 @@ speed-test endpoint from the network the traffic comes from.
   wildcard `AllowedHosts`,
   developer CORS, seeders). Its image is chiseled, runs non-root, serves HTTPS only on port 8443, is built for amd64 and
   arm64, and carries the login bundle
-  ([ADR-1248](decisions/1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)). Its Helm
+  ([ADR-1248](decisions/1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)). Its Helm
   chart runs restricted pods that probe `/health/live` and `/health/ready` over HTTPS, drain before stopping, and
   require Valkey for more than one replica
   ([ADR-1458](decisions/1458-the-host-chart-deploys-the-server-and-an-opt-in-management-console-and-refuses-unsafe-releases.md)). Before
   each rollout it migrates the database in a Job from the same image, and every migration keeps the previous release
   working ([ADR-1180](decisions/1180-each-host-contexts-migrations-run-before-the-rollout-and-only-expand-the-schema.md)). Every
   merge to `main` publishes the image, the chart and the OpenAPI document
-  ([ADR-1505](decisions/1505-every-merge-to-main-publishes-the-host-image-the-console-image-the-chart-and-the-openapi-document-at-one-prerelease-version.md)).
+  ([ADR-1505](decisions/1505-every-merge-to-main-publishes-the-host-console-and-directory-images-the-chart-and-the-openapi-document-at-one-prerelease-version.md)).
 - **Per-tenant rate limits and quotas** — issues [#84](https://github.com/NCodeGroup/identity/issues/84) and [#118](https://github.com/NCodeGroup/identity/issues/118), done
   ([ADR-1246](decisions/1246-rate-limits-are-registered-descriptors-counted-in-a-shared-expiring-counter-set.md),
   [ADR-1198](decisions/1198-a-daily-quota-counts-a-utc-day-and-a-tier-may-admit-a-bounded-billed-overage.md)); the mTLS work ([#82](https://github.com/NCodeGroup/identity/issues/82), [#83](https://github.com/NCodeGroup/identity/issues/83),
@@ -1000,7 +1000,7 @@ the AWS pricing pages)_:
 That is about 1.5× Akamai's $155 with its HA control plane, before traffic. Traffic widens it: internet egress is
 $0.09/GB past 100 GB a month, against Akamai's pooled terabytes, and traffic between zones costs $0.01/GB each way.
 One-year Savings Plans and RDS reservations take about 30% off compute and the database. The images are already built
-for arm64 ([ADR-1248](decisions/1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)),
+for arm64 ([ADR-1248](decisions/1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)),
 so the cheaper Graviton instances need no work. Startup programs such as AWS Activate offer credits _(verify the
 current amounts)_.
 

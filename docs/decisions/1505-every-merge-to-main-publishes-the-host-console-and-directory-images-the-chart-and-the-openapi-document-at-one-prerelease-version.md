@@ -1,4 +1,4 @@
-# 1505. Every merge to main publishes the host image, the console image, the chart and the OpenAPI document at one prerelease version
+# 1505. Every merge to main publishes the host, console and directory images, the chart and the OpenAPI document at one prerelease version
 
 - **Status:** Accepted
 - **Date:** 2026-11-12
@@ -47,7 +47,7 @@ chart and the OpenAPI document at one version.**
 6. **No approval gate guards the publish.** There is no environment approval.
 7. **The images report the version they were published at.** Each Dockerfile takes the optional build argument
    `VERSION`, which builds no `FROM`
-   ([ADR-1248](1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)),
+   ([ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)),
    and runs `build/stamp-version.ps1` to write it over the version in `version.json` inside the build stage, because
    the git engine is disabled there and `version.json` is the only input; the assemblies' informational version then
    carries it. The script refuses a version with a character outside `[0-9A-Za-z.-]` and fails unless `version.json`
@@ -92,7 +92,7 @@ chart and the OpenAPI document at one version.**
 - [ADR-1133](1133-the-hosted-platform-runs-only-the-published-artifacts-it-offers-self-hosters.md),
   [ADR-1143](1143-ci-presents-test-results-and-hand-written-code-coverage-through-job-summaries-annotations-and-codecov.md),
   [ADR-1180](1180-each-host-contexts-migrations-run-before-the-rollout-and-only-expand-the-schema.md),
-  [ADR-1248](1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md),
+  [ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md),
   [ADR-1458](1458-the-host-chart-deploys-the-server-and-an-opt-in-management-console-and-refuses-unsafe-releases.md),
   [ADR-1481](1481-the-composition-layer-serves-the-api-reference-only-where-a-host-enables-it-and-each-management-problem-says-when-it-occurs.md)
 - `.github/workflows/publish-artifacts.yml`, `build/artifact-version.ps1`, `build/stamp-version.ps1`,
