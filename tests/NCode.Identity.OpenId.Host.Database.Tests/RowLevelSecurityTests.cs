@@ -236,6 +236,49 @@ public sealed class RowLevelSecurityTests
         Assert.Throws<ArgumentNullException>(() => RowLevelSecurity.CreateStatements(model, null!));
     }
 
+    [Fact]
+    public void CreateStatements_WhenTheTenantPropertyIsNotMapped_Throws()
+    {
+        var builder = new ModelBuilder();
+        builder.Entity<TenantRow>(entity =>
+        {
+            entity.ToTable("Rows", "app");
+            entity.HasKey(x => x.Id);
+            entity.Ignore(x => x.NormalizedTenantId);
+        });
+        var model = builder.FinalizeModel();
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            RowLevelSecurity.CreateStatements(model, Role)
+        );
+
+        Assert.EndsWith("TenantRow' has no mapped NormalizedTenantId property.", exception.Message);
+    }
+
+    [Fact]
+    public void CreateStatements_WhenTheTenantPropertyHasNoColumnInTheTable_Throws()
+    {
+        var builder = new ModelBuilder();
+        builder.Entity<SplitTenantRow>(entity =>
+        {
+            entity.ToTable("Rows", "app");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Name);
+            entity.SplitToTable(
+                "RowTenants",
+                "app",
+                table => table.Property(x => x.NormalizedTenantId)
+            );
+        });
+        var model = builder.FinalizeModel();
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            RowLevelSecurity.CreateStatements(model, Role)
+        );
+
+        Assert.EndsWith("SplitTenantRow' has no column in table 'Rows'.", exception.Message);
+    }
+
     #endregion
 
     #region CreateGrantStatements Tests
@@ -343,6 +386,15 @@ public sealed class RowLevelSecurityTests
     private sealed class TenantViewRow : ISupportTenantEntity
     {
         public long Id { get; set; }
+
+        public string NormalizedTenantId { get; set; } = string.Empty;
+    }
+
+    private sealed class SplitTenantRow : ISupportTenantEntity
+    {
+        public long Id { get; set; }
+
+        public string Name { get; set; } = string.Empty;
 
         public string NormalizedTenantId { get; set; } = string.Empty;
     }
