@@ -1,4 +1,4 @@
-# 1492. The family's {id} logo is drawn by one script, and every web app shows its icon
+# 1492. The family's {id} logo is vendored from an NCodeGroup/brand release, and every web app shows its icon
 
 - **Status:** Accepted
 - **Date:** 2026-11-10

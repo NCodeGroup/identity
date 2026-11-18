@@ -159,7 +159,7 @@ compiles it and no gate tests it
 - **Logo** — `brand/`, the family's logo kit: the `{id}` mark as SVG masters and as the PNG and ICO files each platform
   takes, which every package, the host chart and the README show. `brand/build.py` draws every file there, so change
   the script and run it, never a file it writes
-  ([ADR-1492](docs/decisions/1492-the-familys-id-logo-is-drawn-by-one-script-and-every-web-app-shows-its-icon.md))
+  ([ADR-1492](docs/decisions/1492-the-familys-id-logo-is-vendored-from-an-ncodegroup-brand-release-and-every-web-app-shows-its-icon.md))
 
 The central extensibility model — **service** vs **strategy collection** vs **mediator** — is captured in
 [ADR-1001](docs/decisions/1001-behavior-is-a-service-a-strategy-collection-or-a-mediator-seam-chosen-by-one-ladder.md). Extensibility is the family's goal: a
