@@ -55,6 +55,7 @@ export {
   type TenantMoveDialogProps,
   type TenantMoveDialogTransferKey,
 } from './components/TenantMoveDialog.js';
+export { TenantPlacedElsewhereError } from './components/tenantMove.js';
 export {
   TenantPromotionDialog,
   type TenantPromotionDialogChange,

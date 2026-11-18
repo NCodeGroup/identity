@@ -7,6 +7,22 @@ export type TenantMoveTransferKey = {
 };
 
 /**
+ * The error a call of a move rejects with when the global directory already places the tenant in another cell: the
+ * tenant has moved, and its own cell still holds a copy to release.
+ */
+export class TenantPlacedElsewhereError extends Error {
+  constructor(
+    message: string,
+    /** The cell the global directory places the tenant in. */
+    readonly placedCell: string,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = 'TenantPlacedElsewhereError';
+  }
+}
+
+/**
  * The four calls of a move, each addressed to the cell it concerns (decoupled from the API contract). Each rejects with
  * an `Error` whose message says why it failed.
  */
@@ -15,7 +31,8 @@ export type TenantMoveOperations = {
   readonly createTransferKey: (cell: string) => Promise<TenantMoveTransferKey>;
   /**
    * Exports the disabled tenant from `cell`, the tenant's own cell, sealed to `jwk` and offered to `targetCell`, the
-   * receiving cell, which alone imports the package; resolves with the package.
+   * receiving cell, which alone imports the package; resolves with the package. Rejects with a
+   * {@link TenantPlacedElsewhereError} when the global directory already places the tenant in another cell.
    */
   readonly exportTenant: (
     cell: string,
@@ -43,11 +60,16 @@ export type TenantMoveFailure = {
   /** The index of the stage that failed. */
   readonly stage: number;
   /**
-   * The stage a retry runs from: 0 when the import failed, because the import spends the transfer key, and the failed
-   * stage otherwise.
+   * The stage a retry runs from: 0 when the import failed, because the import spends the transfer key, the release when
+   * the export found the tenant placed in another cell, and the failed stage otherwise.
    */
   readonly resumeStage: number;
   readonly message: string;
+  /**
+   * The cell the global directory already places the tenant in, when the export found it there, so only the release of
+   * the copy its own cell holds remains; absent for every other failure.
+   */
+  readonly placedCell?: string;
 };
 
 /** A move: runs its stages from a given stage and keeps what one stage hands the next. */
@@ -126,6 +148,15 @@ export function createTenantMove(
         }
         return undefined;
       } catch (error) {
+        if (stage === tenantMoveStages.export && error instanceof TenantPlacedElsewhereError) {
+          // The tenant has moved already, so only the copy its own cell holds remains to release.
+          return {
+            stage,
+            resumeStage: tenantMoveStages.release,
+            message: `The global directory already places the tenant in ${error.placedCell}; release this copy at ${sourceCell}.`,
+            placedCell: error.placedCell,
+          };
+        }
         if (stage === tenantMoveStages.import) {
           // The import spends the transfer key, so a retry asks the receiving cell for another one.
           transferKey = undefined;

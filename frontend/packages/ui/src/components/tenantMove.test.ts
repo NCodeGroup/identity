@@ -3,6 +3,7 @@ import {
   createTenantMove,
   tenantMoveStageCount,
   tenantMoveStages,
+  TenantPlacedElsewhereError,
   type TenantMoveOperations,
 } from './tenantMove.js';
 
@@ -179,6 +180,46 @@ describe('createTenantMove', () => {
     const failure = await move.run(3);
 
     expect(failure).toEqual({ stage: 3, resumeStage: 3, message: 'Still unavailable.' });
+  });
+
+  it('fails the export with the placed cell and resumes at the release when the directory places the tenant in another cell', async () => {
+    const calls: string[] = [];
+    const operations: TenantMoveOperations = {
+      ...createOperations(calls),
+      exportTenant: vi.fn(async () => {
+        throw new TenantPlacedElsewhereError('The tenant is placed in eu-3.', 'eu-3');
+      }),
+    };
+    const move = createTenantMove(operations, target);
+    const first = await move.run(0);
+    calls.length = 0;
+
+    const second = await move.run(first?.resumeStage ?? -1);
+
+    expect(first).toEqual({
+      stage: 1,
+      resumeStage: 3,
+      message: 'The global directory already places the tenant in eu-3; release this copy at eu-1.',
+      placedCell: 'eu-3',
+    });
+    expect(second).toBeUndefined();
+    expect(calls).toEqual(['release eu-1 acme']);
+    expect(operations.importTenant).not.toHaveBeenCalled();
+  });
+
+  it('reports a placement refused at a stage other than the export as an ordinary failure', async () => {
+    const operations: TenantMoveOperations = {
+      ...createOperations(),
+      releaseMovedTenant: vi.fn(async () => {
+        throw new TenantPlacedElsewhereError('Placed.', 'eu-3');
+      }),
+    };
+
+    expect(await createTenantMove(operations, target).run(0)).toStrictEqual({
+      stage: 3,
+      resumeStage: 3,
+      message: 'Placed.',
+    });
   });
 
   it('fails the stage that needs a transfer key when the run starts after it', async () => {
