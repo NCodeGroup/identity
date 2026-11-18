@@ -4490,12 +4490,13 @@ Until the first stable release, the [Unreleased] section describes the product a
   ([#573](https://github.com/NCodeGroup/identity/issues/573),
   [ADR-1428](docs/decisions/1428-a-package-translates-the-exceptions-it-owns-into-protocol-errors-through-registered-translators.md)).
 
-- **Every merge to `main` and every release tag publishes the host image, the management console image, the chart and
-  the host's OpenAPI document.** The four artifacts share one version on GHCR, are signed and carry build provenance,
-  and a verification job pulls them anonymously; a stable version also tags both images `latest`, and the images'
-  assemblies and the document's `info.version` report the version they were published at. `build/openapi.ps1`
-  generates the document (`v1.json`) at build time, the full Definition of Done runs it and CI uploads it as the
-  `openapi` artifact, so a client generator reads the management API description without a deployment serving it
+- **Every merge to `main` and every release tag publishes the host image, the management console image, the directory
+  image, the chart and the host's OpenAPI document.** The five artifacts share one version on GHCR, are signed and
+  carry build provenance, and a verification job pulls them anonymously; a stable version also tags every image
+  `latest`, and the images' assemblies and the document's `info.version` report the version they were published at.
+  `build/openapi.ps1` generates the document (`v1.json`) at build time from a host that runs as a control-plane cell,
+  so it describes every route, the full Definition of Done runs it and CI uploads it as the `openapi` artifact, so a
+  client generator reads the management API description without a deployment serving it
   ([#773](https://github.com/NCodeGroup/identity/issues/773),
   [#809](https://github.com/NCodeGroup/identity/issues/809),
   [ADR-1505](docs/decisions/1505-every-merge-to-main-publishes-the-host-image-the-console-image-the-chart-and-the-openapi-document-at-one-prerelease-version.md)).
@@ -4819,10 +4820,10 @@ Until the first stable release, the [Unreleased] section describes the product a
   stored secrets unreadable after the next restart, recoverable only with the recovery key
   ([ADR-1235](docs/decisions/1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md)).
 
-- **The host image's base images are pinned by digest and tracked by Dependabot.** Every `FROM` of the host and console
-  Dockerfiles names its tag and the digest of its multi-architecture index, and each Dockerfile takes its .NET and Node
-  versions from those lines alone, with no version build argument; a weekly `docker` Dependabot stream moves the digests
-  of both images in one pull request, and the `Host
+- **The host image's base images are pinned by digest and tracked by Dependabot.** Every `FROM` of the host, console
+  and directory Dockerfiles names its tag and the digest of its multi-architecture index, and each Dockerfile takes its
+  .NET version, and the host's and the console's their Node version, from those lines alone, with no version build
+  argument; a weekly `docker` Dependabot stream moves the digests of every image in one pull request, and the `Host
   image` workflow checks the Node major against `.node-version`
   ([ADR-1248](docs/decisions/1248-the-host-and-console-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md), issue
   [#226](https://github.com/NCodeGroup/identity/issues/226)).
