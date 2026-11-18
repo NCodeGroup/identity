@@ -22,6 +22,9 @@
     generates the host's OpenAPI document at artifacts/openapi/v1.json from the build output, which CI uploads
     (ADR-1505).
 
+    The build guards stage checks the guards of Directory.Build.targets (ADR-1197, ADR-1385, ADR-1501) against fixture
+    projects.
+
 .PARAMETER Configuration
     The build configuration. Defaults to Release.
 
@@ -249,6 +252,13 @@ try {
     # The OpenAPI document script's fixture test is build-free as well, so it runs before the slow stages.
     Invoke-Step 'openapi script' {
         & (Join-Path $PSScriptRoot 'tests\openapi.tests.ps1')
+        $global:LASTEXITCODE = 0
+    }
+
+    # The build's guards in Directory.Build.targets are checked against fixture projects that import the file alone,
+    # with no restore, so the stage is build-free and runs before the slow stages.
+    Invoke-Step 'build guards' {
+        & (Join-Path $PSScriptRoot 'tests\build-guards.tests.ps1')
         $global:LASTEXITCODE = 0
     }
 
