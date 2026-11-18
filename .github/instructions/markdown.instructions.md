@@ -12,7 +12,7 @@ applyTo: "**/*.md"
   heading, a table row, a fenced code block, the front matter and a hard break (two trailing spaces) keep their lines;
   outside them, only a line that holds such a link alone runs past 120 columns.
   [ADR-1515](../../docs/decisions/1515-doc-comments-fill-their-lines-to-120-columns-and-the-definition-of-done-checks-the-paragraphs-a-change-touches.md)
-  decides this rule, which `./build/doc-comment-fill.ps1` checks in doc comments; no gate checks Markdown.
+  decides this rule, which `./build/doc-comment-fill.ps1` checks in doc comments; no gate checks it in Markdown.
 - 👁 **A change refills each paragraph it edits, and only those.** A name or a sentence that lengthens or shortens a
   line refills its whole paragraph, so no line keeps room for the next line's first word; a paragraph the change does
   not edit keeps its lines. The files the project template owns, which `AGENTS.md` lists, keep the template's layout.
