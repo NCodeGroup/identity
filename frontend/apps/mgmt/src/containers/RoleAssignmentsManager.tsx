@@ -4,15 +4,15 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import { ConfirmDialog, DataStateBoundary, RoleAssignmentTable } from '@ncode/ui';
-import type { RoleList } from '@ncode/api';
+import { ConfirmDialog, DataStateBoundary, RoleAssignmentTable } from '@ncodegroup/identity-ui';
+import type { RoleList } from '@ncodegroup/identity-api';
 import {
   apiErrorMessage,
   useAddRoleAssignmentMutation,
   useListRoleAssignmentsQuery,
   useRemoveRoleAssignmentMutation,
   type ApiError,
-} from '@ncode/store';
+} from '@ncodegroup/identity-store';
 import { useTenantCell } from '../tenantCell.js';
 
 export type RoleAssignmentsManagerProps = {

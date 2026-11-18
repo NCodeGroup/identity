@@ -1,5 +1,5 @@
 import { createTheme, type Theme } from '@mui/material/styles';
-import type { BrandingConfig } from '@ncode/config';
+import type { BrandingConfig } from '@ncodegroup/identity-config';
 
 /**
  * Builds the application theme from optional runtime {@link BrandingConfig}. Branding is injected at

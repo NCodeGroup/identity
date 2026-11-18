@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, waitFor } from '@testing-library/react';
-import { AppThemeProvider } from '@ncode/ui';
+import { AppThemeProvider } from '@ncodegroup/identity-ui';
 import { AccountPage, type AccountSession } from './AccountPage.js';
 
 function renderPage(props: Parameters<typeof AccountPage>[0]) {

@@ -1,4 +1,4 @@
-import type { BffRuntimeConfig } from '@ncode/config';
+import type { BffRuntimeConfig } from '@ncodegroup/identity-config';
 import type { BffUser } from './sessionSlice.js';
 
 const MALFORMED_USER = 'The session probe answered with a malformed user.';

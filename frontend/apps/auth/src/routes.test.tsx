@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { AppThemeProvider } from '@ncode/ui';
+import { AppThemeProvider } from '@ncodegroup/identity-ui';
 import { resolveRoute, type RouteContext } from './routes.js';
 import { EMPTY_SERVER_PAGE } from './serverPage.js';
 import { en } from './i18n/en.js';

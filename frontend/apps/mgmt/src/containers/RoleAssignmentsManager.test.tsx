@@ -1,9 +1,9 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
-import { createAppStore } from '@ncode/store';
-import type { RoleList } from '@ncode/api';
-import type { BffRuntimeConfig } from '@ncode/config';
+import { createAppStore } from '@ncodegroup/identity-store';
+import type { RoleList } from '@ncodegroup/identity-api';
+import type { BffRuntimeConfig } from '@ncodegroup/identity-config';
 import { RoleAssignmentsManager } from './RoleAssignmentsManager.js';
 import { OwnerAccessTab } from './OwnerAccessTab.js';
 

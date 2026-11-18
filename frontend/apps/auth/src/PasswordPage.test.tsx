@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { AppThemeProvider } from '@ncode/ui';
+import { AppThemeProvider } from '@ncodegroup/identity-ui';
 import { PasswordPage } from './PasswordPage.js';
 
 function renderPage(props: Parameters<typeof PasswordPage>[0]) {

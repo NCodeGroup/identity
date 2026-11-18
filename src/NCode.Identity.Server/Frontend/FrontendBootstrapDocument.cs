@@ -8,7 +8,8 @@ namespace NCode.Identity.Server.Frontend;
 
 /// <summary>
 /// The serializable runtime bootstrap document published to the frontend bundles. Property names serialize to the
-/// camelCase shape <c>@ncode/config</c> parses; optional members are omitted when absent so the document stays minimal.
+/// camelCase shape <c>@ncodegroup/identity-config</c> parses; optional members are omitted when absent so the document
+/// stays minimal.
 /// </summary>
 internal sealed record FrontendBootstrapDocument
 {

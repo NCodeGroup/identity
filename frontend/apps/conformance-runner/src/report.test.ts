@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ProbeReport } from '@ncode/conformance-core';
+import type { ProbeReport } from '@ncodegroup/identity-conformance-core';
 import { exitCode, formatReport, toJson } from './report.js';
 
 const report: ProbeReport = {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { generateKeyPairSync, verify, type KeyObject } from 'node:crypto';
-import type { ProbeFetch, ProbeResponse } from '@ncode/conformance-core';
+import type { ProbeFetch, ProbeResponse } from '@ncodegroup/identity-conformance-core';
 import { runCli, type CliIo } from './cli.js';
 import { USAGE } from './config.js';
 

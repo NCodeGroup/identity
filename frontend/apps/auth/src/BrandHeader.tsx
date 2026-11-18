@@ -1,5 +1,5 @@
 import Box from '@mui/material/Box';
-import type { BrandingConfig } from '@ncode/config';
+import type { BrandingConfig } from '@ncodegroup/identity-config';
 
 export type BrandHeaderProps = {
   /** The tenant's branding; only its logo is drawn here, since each surface titles itself with the display name. */

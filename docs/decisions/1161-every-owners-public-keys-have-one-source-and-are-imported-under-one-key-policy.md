@@ -81,8 +81,8 @@ key enters.**
    tenant remote secrets included. Every owner's update calls `ISecretValidator.ValidateUpdate`, which checks `use`
    and `alg` against the stored key's type and size with `ValidateKeyAlgorithm`, and keeps the `KeyId`.
 10. **Every key reports its `kid`.** `SecretResource` and `CreatedSecretResource` carry a required `KeyId`, the key's
-    `kid`, or its secret identifier when it has none, mirrored in
-    the `@ncode/api` contract and shown in the console's **Key ID** column.
+    `kid`, or its secret identifier when it has none, mirrored in the `@ncodegroup/identity-api` contract and shown in
+    the console's **Key ID** column.
 
 ## Options considered
 

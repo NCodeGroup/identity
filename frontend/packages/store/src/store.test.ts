@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RuntimeConfig } from '@ncode/config';
+import type { RuntimeConfig } from '@ncodegroup/identity-config';
 import { runtimeConfigLoaded } from './configSlice.js';
 import { managementApi } from './managementApi.js';
 import { sessionEnded, sessionStarted, type BffUser } from './sessionSlice.js';

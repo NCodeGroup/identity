@@ -12,15 +12,15 @@ import {
   ScopeTable,
   emptyScopeFormValues,
   type ScopeFormValues,
-} from '@ncode/ui';
-import type { ResourceServerResource, ScopeResource } from '@ncode/api';
+} from '@ncodegroup/identity-ui';
+import type { ResourceServerResource, ScopeResource } from '@ncodegroup/identity-api';
 import {
   apiErrorMessage,
   useCreateScopeMutation,
   useDeleteScopeMutation,
   useUpdateScopeMutation,
   type ApiError,
-} from '@ncode/store';
+} from '@ncodegroup/identity-store';
 import { useTenantCell } from '../tenantCell.js';
 
 export type ResourceServerScopesPageProps = {

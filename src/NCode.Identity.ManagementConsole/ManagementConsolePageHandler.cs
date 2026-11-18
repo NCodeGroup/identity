@@ -40,7 +40,7 @@ internal sealed class ManagementConsolePageHandler(
             return TypedResults.Problem(
                 statusCode: StatusCodes.Status503ServiceUnavailable,
                 title: "The management console is not built.",
-                detail: "Build apps/mgmt (pnpm --filter @ncode/app-mgmt build) and set ManagementConsole:BundleRootPath to its dist directory."
+                detail: "Build apps/mgmt (pnpm --filter @ncodegroup/identity-app-mgmt build) and set ManagementConsole:BundleRootPath to its dist directory."
             );
         }
 

@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ProbeFetch, ProbeResponse, RawDiscovery } from '@ncode/conformance-core';
+import type {
+  ProbeFetch,
+  ProbeResponse,
+  RawDiscovery,
+} from '@ncodegroup/identity-conformance-core';
 import {
   probeBackChannelLogout,
   probeCiba,

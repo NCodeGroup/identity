@@ -1,5 +1,5 @@
-import type { BffRuntimeConfig } from '@ncode/config';
-import type { BffUser } from '@ncode/store';
+import type { BffRuntimeConfig } from '@ncodegroup/identity-config';
+import type { BffUser } from '@ncodegroup/identity-store';
 
 /**
  * The console's BFF session helpers (ADR-1434, ADR-1438): the sign-in and sign-out navigations, the sign-in error the

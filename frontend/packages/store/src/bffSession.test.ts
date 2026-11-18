@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { BffRuntimeConfig } from '@ncode/config';
+import type { BffRuntimeConfig } from '@ncodegroup/identity-config';
 import { fetchBffUser, parseBffUser } from './bffSession.js';
 
 const runtime: BffRuntimeConfig = {

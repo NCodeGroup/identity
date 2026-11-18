@@ -1,9 +1,9 @@
 import { render } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { describe, expect, it } from 'vitest';
-import { AppThemeProvider } from '@ncode/ui';
-import { createAppStore, runtimeConfigLoaded, type AppStore } from '@ncode/store';
-import type { BffRuntimeConfig, OpenIdRuntimeConfig } from '@ncode/config';
+import { AppThemeProvider } from '@ncodegroup/identity-ui';
+import { createAppStore, runtimeConfigLoaded, type AppStore } from '@ncodegroup/identity-store';
+import type { BffRuntimeConfig, OpenIdRuntimeConfig } from '@ncodegroup/identity-config';
 import { App } from './App.js';
 // The explorer is a lazily loaded chunk. Loading its module first lets the lazy component resolve from the module
 // cache, so the test waits for the explorer's render rather than a cold transform of its chunk.

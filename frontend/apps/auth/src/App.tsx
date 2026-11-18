@@ -1,4 +1,4 @@
-import type { BrandingConfig } from '@ncode/config';
+import type { BrandingConfig } from '@ncodegroup/identity-config';
 import { BrandHeader } from './BrandHeader.js';
 import { EnvironmentBanner } from './EnvironmentBanner.js';
 import { useMessages } from './i18n/LocaleContext.js';

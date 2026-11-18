@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import type { CreatedSecretResource, ManagementOwner } from '@ncode/api';
+import type { CreatedSecretResource, ManagementOwner } from '@ncodegroup/identity-api';
 import {
   useGetEffectiveSettingsQuery,
   useGetSettingLimitsQuery,
   useGetSettingsQuery,
   useUpdateSettingsMutation,
-} from '@ncode/store';
-import { RevealSecretDialog } from '@ncode/ui';
+} from '@ncodegroup/identity-store';
+import { RevealSecretDialog } from '@ncodegroup/identity-ui';
 import { useTenantCell } from '../tenantCell.js';
 import { SettingsManager } from './SettingsManager.js';
 

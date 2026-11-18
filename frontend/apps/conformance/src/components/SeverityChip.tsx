@@ -1,5 +1,5 @@
 import Chip from '@mui/material/Chip';
-import type { Severity } from '@ncode/conformance-core';
+import type { Severity } from '@ncodegroup/identity-conformance-core';
 
 export type SeverityChipProps = {
   readonly severity: Severity;

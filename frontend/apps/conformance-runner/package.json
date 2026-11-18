@@ -1,5 +1,5 @@
 {
-  "name": "@ncode/app-conformance-runner",
+  "name": "@ncodegroup/identity-app-conformance-runner",
   "version": "0.0.0",
   "private": true,
   "description": "Headless OAuth 2.x / OIDC conformance probe runner (Phase 3): exercises the confidential and server-initiated legs a browser cannot drive — client_credentials, introspection/revocation with client auth, private_key_jwt, device-code polling, CIBA, DPoP/mTLS, and back-channel logout.",
@@ -12,11 +12,11 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@ncode/conformance-core": "workspace:*"
+    "@ncodegroup/identity-conformance-core": "workspace:*"
   },
   "devDependencies": {
-    "@ncode/test-support": "workspace:*",
-    "@ncode/vite-config": "workspace:*",
+    "@ncodegroup/identity-test-support": "workspace:*",
+    "@ncodegroup/identity-vite-config": "workspace:*",
     "@types/node": "^26.6.5",
     "@vitest/coverage-v8": "^5.0.5",
     "typescript": "^6.0.3",

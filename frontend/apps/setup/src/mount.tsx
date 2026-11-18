@@ -2,7 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import createCache from '@emotion/cache';
 import { CacheProvider } from '@emotion/react';
-import { AppThemeProvider, readCspNonce } from '@ncode/ui';
+import { AppThemeProvider, readCspNonce } from '@ncodegroup/identity-ui';
 import { App } from './App.js';
 
 /**

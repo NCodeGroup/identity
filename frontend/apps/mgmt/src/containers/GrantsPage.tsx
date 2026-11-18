@@ -12,8 +12,8 @@ import {
   InitialAccessTokenFormDialog,
   RevealInitialAccessTokenDialog,
   type InitialAccessTokenFormValues,
-} from '@ncode/ui';
-import type { CreatedInitialAccessTokenResource, GrantResource } from '@ncode/api';
+} from '@ncodegroup/identity-ui';
+import type { CreatedInitialAccessTokenResource, GrantResource } from '@ncodegroup/identity-api';
 import {
   apiErrorMessage,
   useCreateInitialAccessTokenMutation,
@@ -22,7 +22,7 @@ import {
   useRevokeGrantMutation,
   useRevokeGrantsMutation,
   type ApiError,
-} from '@ncode/store';
+} from '@ncodegroup/identity-store';
 import { useTenantCell } from '../tenantCell.js';
 
 export type GrantsPageProps = {

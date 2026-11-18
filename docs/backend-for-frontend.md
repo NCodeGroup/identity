@@ -1368,10 +1368,10 @@ deployment on a private network.
 **The browser side.** The bundle holds no token
 ([ADR-1438](decisions/1438-the-management-console-holds-no-token-and-reads-its-session-from-its-bff.md)).
 
-- The bundle reads `/config/bootstrap.json` at boot. `@ncode/config` models the runtime configuration as either an
-  OpenID document (`kind: 'openid'`) or a BFF document (`kind: 'bff'`), and a BFF document needs no discovery.
-- `@ncode/store` keeps a `session` slice (`unknown`, `signed-in` or `signed-out`, with the `BffUser`) fed by
-  `GET /bff/user`. The management API client sends the anti-forgery header with same-origin credentials, never an
+- The bundle reads `/config/bootstrap.json` at boot. `@ncodegroup/identity-config` models the runtime configuration as
+  either an OpenID document (`kind: 'openid'`) or a BFF document (`kind: 'bff'`), and a BFF document needs no discovery.
+- `@ncodegroup/identity-store` keeps a `session` slice (`unknown`, `signed-in` or `signed-out`, with the `BffUser`) fed
+  by `GET /bff/user`. The management API client sends the anti-forgery header with same-origin credentials, never an
   `Authorization` header, and a `401` ends the session.
 - `SessionGate` probes `/bff/user`, polls every 60 seconds, probes again one second after the session's idle or absolute
   expiry, probes again when a hidden tab becomes visible, and tells the other tabs through the `BroadcastChannel`
@@ -1380,7 +1380,7 @@ deployment on a private network.
   `/bff/login?returnUrl=<path>`, so a logout in one tab never races a login in another. Sign-out posts the logout form.
 - Emotion takes the page's nonce from `<meta property="csp-nonce">`.
 
-The Playground stays a public client on purpose: it keeps the `@ncode/auth` protocol helpers.
+The Playground stays a public client on purpose: it keeps the `@ncodegroup/identity-auth` protocol helpers.
 
 ---
 

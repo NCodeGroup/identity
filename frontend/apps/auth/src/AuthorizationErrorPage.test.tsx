@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render } from '@testing-library/react';
-import { AppThemeProvider } from '@ncode/ui';
+import { AppThemeProvider } from '@ncodegroup/identity-ui';
 import { AuthorizationErrorPage } from './AuthorizationErrorPage.js';
 
 function renderPage(props: Parameters<typeof AuthorizationErrorPage>[0]) {

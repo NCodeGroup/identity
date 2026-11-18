@@ -1,14 +1,14 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { Provider } from 'react-redux';
-import { createAppStore } from '@ncode/store';
+import { createAppStore } from '@ncodegroup/identity-store';
 import type {
   CellResource,
   EncryptionRootKeyResource,
   TeamRootKeyResource,
   TeamRootKeysResource,
-} from '@ncode/api';
-import type { BffRuntimeConfig } from '@ncode/config';
+} from '@ncodegroup/identity-api';
+import type { BffRuntimeConfig } from '@ncodegroup/identity-config';
 import { TeamEncryptionKeysTab } from './TeamEncryptionKeysTab.js';
 
 const runtime: BffRuntimeConfig = {

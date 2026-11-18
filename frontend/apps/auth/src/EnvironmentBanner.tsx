@@ -1,5 +1,5 @@
 import Alert from '@mui/material/Alert';
-import type { EnvironmentConfig } from '@ncode/config';
+import type { EnvironmentConfig } from '@ncodegroup/identity-config';
 import { useMessages } from './i18n/LocaleContext.js';
 
 export type EnvironmentBannerProps = {

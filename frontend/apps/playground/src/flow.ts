@@ -12,8 +12,8 @@ import {
   type FetchLike,
   type RandomBytes,
   type TokenSet,
-} from '@ncode/auth';
-import type { OpenIdRuntimeConfig } from '@ncode/config';
+} from '@ncodegroup/identity-auth';
+import type { OpenIdRuntimeConfig } from '@ncodegroup/identity-config';
 
 /** Path, relative to the app origin, the OpenID Provider redirects back to after authorization. */
 export const CALLBACK_PATH = '/callback';

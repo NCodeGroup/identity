@@ -28,16 +28,17 @@ console to its sign-in screen, and the user's click starts the login.**
 1. **The bootstrap document.** The console host publishes `/config/bootstrap.json` as
    `{ "apiBaseUrl": "/management", "bff": { "basePath": "/bff", "antiforgeryHeader": { "name": "X-CSRF", "value": "1" } },
    "features": {…}, "branding": {…} }`.
-2. **The runtime configuration.** `@ncode/config` models `RuntimeConfig` as the union of `OpenIdRuntimeConfig`
-   (`kind: 'openid'`) and `BffRuntimeConfig` (`kind: 'bff'`). `loadBffRuntimeConfig` fetches the bootstrap document and
-   fetches no OpenID discovery document.
-3. **The session slice.** `@ncode/store` holds no token slice. Its `session` slice is `unknown`, `signed-in` or
-   `signed-out`, and a signed-in session carries the `BffUser`. `fetchBffUser` reads `GET /bff/user` and feeds the slice.
+2. **The runtime configuration.** `@ncodegroup/identity-config` models `RuntimeConfig` as the union of
+   `OpenIdRuntimeConfig` (`kind: 'openid'`) and `BffRuntimeConfig` (`kind: 'bff'`). `loadBffRuntimeConfig` fetches the
+   bootstrap document and fetches no OpenID discovery document.
+3. **The session slice.** `@ncodegroup/identity-store` holds no token slice. Its `session` slice is `unknown`,
+   `signed-in` or `signed-out`, and a signed-in session carries the `BffUser`. `fetchBffUser` reads `GET /bff/user` and
+   feeds the slice.
 4. **The management calls.** The management base query sends the anti-forgery header with same-origin credentials and
    never an `Authorization` header. A `401` dispatches `sessionEnded()`.
-5. **`@ncode/auth`.** The package holds the Playground's public-client protocol helpers: PKCE, the authorization and
-   end-session URLs, the authorization-code and refresh-token requests, callback parsing and JWT claim decoding. It
-   holds no custody of a token for the console.
+5. **`@ncodegroup/identity-auth`.** The package holds the Playground's public-client protocol helpers: PKCE, the
+   authorization and end-session URLs, the authorization-code and refresh-token requests, callback parsing and JWT claim
+   decoding. It holds no custody of a token for the console.
 6. **`SessionGate`.** The gate probes `GET /bff/user`, polls it every 60 seconds, probes one second after
    `min(idleExpiresAt, expiresAt)`, probes again when a hidden tab becomes visible, and shares an end through the
    `BroadcastChannel` named `ncode.mgmt.session`.
@@ -52,13 +53,14 @@ console to its sign-in screen, and the user's click starts the login.**
    `connect-src 'self'; form-action 'self' <authority origin>; base-uri 'none'; frame-ancestors 'none'`. `/assets/*` is
    immutable. A missing bundle answers `503` and never stops startup.
 10. **The bundle's build.** The bundle builds with `defineBffServedSurfaceConfig`: base `/` and the nonce placeholder.
-    Emotion takes the nonce from `<meta property="csp-nonce">` through `readCspNonce`, which `@ncode/ui` provides.
+    Emotion takes the nonce from `<meta property="csp-nonce">` through `readCspNonce`, which `@ncodegroup/identity-ui`
+    provides.
 
 ## Options considered
 
 - **Navigating to `/bff/login` on every end.** Rejected: a logout in one tab races a login in another, and a failing
   login loops.
-- **Keeping `@ncode/auth`'s custody with a token-mediating backend.** Rejected: tokens stay in the browser
+- **Keeping `@ncodegroup/identity-auth`'s custody with a token-mediating backend.** Rejected: tokens stay in the browser
   ([RFC 10017](https://datatracker.ietf.org/doc/html/rfc10017) §6.2).
 - **One `RuntimeConfig` with optional OpenID and BFF members.** Rejected: every consumer would test for members its
   surface always has.

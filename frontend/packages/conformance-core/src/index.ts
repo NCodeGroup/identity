@@ -1,5 +1,5 @@
 /**
- * `@ncode/conformance-core` — framework-free OAuth 2.x / OpenID Connect conformance core.
+ * `@ncodegroup/identity-conformance-core` — framework-free OAuth 2.x / OpenID Connect conformance core.
  *
  * Holds the UI-free, injectable-fetch logic shared by every conformance surface: the discovery fetch, the
  * discovery-metadata security audit, the full published spec-coverage catalog, and the browser-drivable active probes.

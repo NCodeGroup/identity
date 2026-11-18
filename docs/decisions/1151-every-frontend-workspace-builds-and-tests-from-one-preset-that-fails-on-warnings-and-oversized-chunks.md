@@ -31,9 +31,9 @@ A green run has to claim what it appears to:
 
 ## Decision
 
-**One workspace package, `@ncode/vite-config`, owns every Vite and Vitest configuration, and each workspace's
-configuration file is a single call to it with that workspace's coverage floors. The test gates fail on any warning,
-and the build fails on any oversized chunk.**
+**One workspace package, `@ncodegroup/identity-vite-config`, owns every Vite and Vitest configuration, and each
+workspace's configuration file is a single call to it with that workspace's coverage floors. The test gates fail on any
+warning, and the build fails on any oversized chunk.**
 
 ### The preset
 
@@ -44,8 +44,10 @@ and the build fails on any oversized chunk.**
    - `defineStandaloneSurfaceConfig({ port, bootstrapHost, coverage })` serves a surface from its own dev server. The
      port is pinned with `strictPort` (Playground 5174, conformance 5175), and only `/config/bootstrap.json` is proxied,
      to the Aspire service the `bootstrapHost` names, falling back to a fixed origin outside Aspire. The dev server
-     serves over HTTPS as [ADR-1071](1071-the-aspire-apphost-runs-the-local-stack-in-health-gated-order-after-checking-the-frontend-toolchain.md)
-     describes. `@ncode/config`'s tests check that the proxied path is the one `loadRuntimeConfig` fetches.
+     serves over HTTPS as
+     [ADR-1071](1071-the-aspire-apphost-runs-the-local-stack-in-health-gated-order-after-checking-the-frontend-toolchain.md)
+     describes. `@ncodegroup/identity-config`'s tests check that the proxied path is the one `loadRuntimeConfig`
+     fetches.
    - `defineBackendServedSurfaceConfig({ coverage })` builds a bundle the OpenID Provider host serves, with base `./`;
      the host sets the document's `<base href>` to where it serves the bundle
      ([ADR-1193](1193-the-interactive-surface-uses-the-tenant-route-host-only-cookies-and-one-shared-single-page-bundle-helper.md)).
@@ -58,21 +60,21 @@ and the build fails on any oversized chunk.**
    imports (they would need `.ts` specifiers) and no runtime imports of other workspace packages (their `.js`
    specifiers Node cannot map). The preset validates its own options (coverage floors, port and bootstrap host),
    because the files that call it are not type-checked.
-3. **`@ncode/test-support` keeps its own configuration**, because turbo refuses a cyclic workspace graph and the preset
-   needs the console guard for its own tests. Every workspace keeps its own `vitest.setup.ts`, so the console guard
-   registers its hooks on the Vitest copy that runs the suite. The setup passes Vitest's `beforeEach` and `afterEach`
-   to `failOnConsole`, so `@ncode/test-support` has no runtime dependency on `vitest`, and its message formatter has
-   no dependency, so a browser-typed workspace without Node's `util` type-checks the setup.
+3. **`@ncodegroup/identity-test-support` keeps its own configuration**, because turbo refuses a cyclic workspace graph
+   and the preset needs the console guard for its own tests. Every workspace keeps its own `vitest.setup.ts`, so the
+   console guard registers its hooks on the Vitest copy that runs the suite. The setup passes Vitest's `beforeEach` and
+   `afterEach` to `failOnConsole`, so `@ncodegroup/identity-test-support` has no runtime dependency on `vitest`, and its
+   message formatter has no dependency, so a browser-typed workspace without Node's `util` type-checks the setup.
 
 ### Test and lint gates
 
-4. **A test that logs `console.error` or `console.warn` fails.** `failOnConsole` from `@ncode/test-support`, which every
-   workspace registers from its `vitest.setup.ts`, records the guarded methods during each test, still forwards the
-   output, and throws from `afterEach` with every recorded message. The only exemption is Redux Toolkit's
-   development-mode timing notice on `console.warn` (its immutability or serializability check took longer than 32 ms),
-   which depends on machine load, not on the code; the checks' actual findings are `console.error` and still fail. The
-   exemption list is for timing diagnostics only. A test whose behavior is logging mocks the method
-   (`vi.spyOn(console, 'error').mockImplementation(...)`) and asserts on the spy.
+4. **A test that logs `console.error` or `console.warn` fails.** `failOnConsole` from
+   `@ncodegroup/identity-test-support`, which every workspace registers from its `vitest.setup.ts`, records the guarded
+   methods during each test, still forwards the output, and throws from `afterEach` with every recorded message. The
+   only exemption is Redux Toolkit's development-mode timing notice on `console.warn` (its immutability or
+   serializability check took longer than 32 ms), which depends on machine load, not on the code; the checks' actual
+   findings are `console.error` and still fail. The exemption list is for timing diagnostics only. A test whose behavior
+   is logging mocks the method (`vi.spyOn(console, 'error').mockImplementation(...)`) and asserts on the spy.
 5. **Lint warnings are errors.** Every `lint` script passes `--max-warnings 0`, and the root `eslint.config.js` reports
    unused disable directives and unused inline configs as errors.
 6. **A test that makes no assertion fails.** Every Vitest config sets `expect.requireAssertions`.
@@ -112,7 +114,7 @@ and the build fails on any oversized chunk.**
 
 ### Adding a workspace
 
-13. Adding a workspace means `@ncode/test-support` as a `devDependency`, a `vitest.setup.ts` that calls
+13. Adding a workspace means `@ncodegroup/identity-test-support` as a `devDependency`, a `vitest.setup.ts` that calls
     `failOnConsole`, `--max-warnings 0` on its `lint` script, and a preset factory call with its coverage floors.
 
 ## Options considered

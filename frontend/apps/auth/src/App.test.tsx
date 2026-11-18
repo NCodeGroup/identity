@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/react';
-import { AppThemeProvider } from '@ncode/ui';
+import { AppThemeProvider } from '@ncodegroup/identity-ui';
 import { App } from './App.js';
 import { EMPTY_SERVER_PAGE } from './serverPage.js';
 

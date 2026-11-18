@@ -4,7 +4,7 @@ import AutorenewIcon from '@mui/icons-material/Autorenew';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import type { EncryptionKeyOwner, EncryptionRootKeyResource } from '@ncode/api';
+import type { EncryptionKeyOwner, EncryptionRootKeyResource } from '@ncodegroup/identity-api';
 import {
   apiErrorMessage,
   useListEncryptionKeysQuery,
@@ -13,8 +13,8 @@ import {
   useSetTenantRootKeyMutation,
   useValidateTenantRootKeyMutation,
   type ApiError,
-} from '@ncode/store';
-import { ConfirmDialog, DataStateBoundary, EncryptionKeyTable } from '@ncode/ui';
+} from '@ncodegroup/identity-store';
+import { ConfirmDialog, DataStateBoundary, EncryptionKeyTable } from '@ncodegroup/identity-ui';
 import { useTenantCell } from '../tenantCell.js';
 import { RootKeySection } from './RootKeySection.js';
 

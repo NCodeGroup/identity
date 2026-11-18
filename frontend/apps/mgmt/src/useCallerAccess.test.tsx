@@ -2,8 +2,8 @@ import type { ReactNode } from 'react';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
-import { createAppStore } from '@ncode/store';
-import type { BffRuntimeConfig } from '@ncode/config';
+import { createAppStore } from '@ncodegroup/identity-store';
+import type { BffRuntimeConfig } from '@ncodegroup/identity-config';
 import { useCallerAccess } from './useCallerAccess.js';
 
 const runtime: BffRuntimeConfig = {

@@ -21,7 +21,7 @@ COPY frontend/ ./
 RUN npm install --global --no-fund --no-audit "$(node --print "require('./package.json').packageManager")"
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile
-RUN pnpm exec turbo run build --filter=@ncode/app-mgmt
+RUN pnpm exec turbo run build --filter=@ncodegroup/identity-app-mgmt
 
 # The host, published framework-dependent for the target architecture.
 FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0-noble@sha256:fe0fd4e93bd2fbb47c883b7a6369e5c8d3db8bf01cdc5981f6ee35fbdf3ff4fb AS build

@@ -1,5 +1,5 @@
 {
-  "name": "@ncode/config",
+  "name": "@ncodegroup/identity-config",
   "version": "0.0.0",
   "private": true,
   "description": "Tier-agnostic runtime configuration discovery for NCode.Identity frontends.",
@@ -18,8 +18,8 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@ncode/test-support": "workspace:*",
-    "@ncode/vite-config": "workspace:*",
+    "@ncodegroup/identity-test-support": "workspace:*",
+    "@ncodegroup/identity-vite-config": "workspace:*",
     "@vitest/coverage-v8": "^5.0.5",
     "typescript": "^6.0.3",
     "vitest": "^5.0.5"

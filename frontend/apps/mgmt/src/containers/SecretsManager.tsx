@@ -18,7 +18,7 @@ import {
   type PublicKeyMaterial,
   type RemoteSecretBindValues,
   type SecretFormValues,
-} from '@ncode/ui';
+} from '@ncodegroup/identity-ui';
 import type {
   CreateRemoteSecretRequest,
   CreateSecretRequest,
@@ -27,8 +27,12 @@ import type {
   PublicKeyResource,
   RotateSecretRequest,
   SecretResource,
-} from '@ncode/api';
-import { apiErrorMessage, useGetCapabilitiesQuery, type ApiError } from '@ncode/store';
+} from '@ncodegroup/identity-api';
+import {
+  apiErrorMessage,
+  useGetCapabilitiesQuery,
+  type ApiError,
+} from '@ncodegroup/identity-store';
 
 export type SecretsManagerProps = {
   /** The owner noun used in headings and empty/warning copy (e.g. "client", "tenant", "resource server"). */

@@ -6,8 +6,8 @@ import type {
   ManagementOwner,
   RoleList,
   SecretOwner,
-} from '@ncode/api';
-import type { BffRuntimeConfig, OpenIdRuntimeConfig } from '@ncode/config';
+} from '@ncodegroup/identity-api';
+import type { BffRuntimeConfig, OpenIdRuntimeConfig } from '@ncodegroup/identity-config';
 import { createAppStore, type AppStore } from './store.js';
 import { managementApi } from './managementApi.js';
 

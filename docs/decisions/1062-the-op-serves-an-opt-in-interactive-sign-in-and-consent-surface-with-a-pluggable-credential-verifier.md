@@ -42,8 +42,10 @@ existing challenge and authenticate seam; it is never wired by default and it ad
 ### The surface
 
 - It covers login, consent, logout and its confirmation, and the account, sessions, applications and password pages.
-- The host renders no-JavaScript pages, and the `apps/auth` bundle (React and MUI on `@ncode/ui`, from the frontend
-  platform of [ADR-1064](1064-one-frontend-platform-of-shared-packages-and-thin-app-shells-serves-every-web-surface.md)) mounts over them.
+- The host renders no-JavaScript pages, and the `apps/auth` bundle (React and MUI on `@ncodegroup/identity-ui`, from the
+  frontend platform of
+  [ADR-1064](1064-one-frontend-platform-of-shared-packages-and-thin-app-shells-serves-every-web-surface.md)) mounts over
+  them.
 - Everything is same-origin with the OP, so the cookie, antiforgery token and `ReturnUrl` round-trip work. Forms post
   as native HTML POSTs, not `fetch` calls.
 - The challenge seam is unchanged. `DefaultChallengeHandler` challenges into login. The login POST verifies the

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { BffRuntimeConfig, OpenIdRuntimeConfig } from '@ncode/config';
+import type { BffRuntimeConfig, OpenIdRuntimeConfig } from '@ncodegroup/identity-config';
 import { runtimeConfigLoaded } from './configSlice.js';
 import { managementApi } from './managementApi.js';
 import { sessionStarted, type BffUser } from './sessionSlice.js';

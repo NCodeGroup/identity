@@ -1,8 +1,8 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { Provider } from 'react-redux';
-import { createAppStore } from '@ncode/store';
-import type { BffRuntimeConfig } from '@ncode/config';
+import { createAppStore } from '@ncodegroup/identity-store';
+import type { BffRuntimeConfig } from '@ncodegroup/identity-config';
 import { ClientsPage } from './ClientsPage.js';
 
 const runtime: BffRuntimeConfig = {

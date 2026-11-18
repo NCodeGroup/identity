@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import type { EffectiveSettingsResource, SettingsResource } from '@ncode/api';
+import type { EffectiveSettingsResource, SettingsResource } from '@ncodegroup/identity-api';
 import { SettingsManager, type SettingsManagerProps } from './SettingsManager.js';
 
 const settings: SettingsResource = { concurrencyToken: 'st1', settings: { a: 1 } };

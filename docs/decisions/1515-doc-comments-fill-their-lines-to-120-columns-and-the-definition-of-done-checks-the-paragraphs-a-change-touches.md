@@ -33,6 +33,12 @@ edits.**
 3. **The Definition of Done runs it as a build-free stage.** The `doc comment fill` stage of `build/dod.ps1` runs the
    script after its own fixture tests.
 4. **`/audit-conventions` runs `-All`,** so the paragraphs no change has touched surface in an audit, not in review.
+5. **Markdown prose fills by the same rule, and review checks it.** A paragraph, list item or blockquote in a `.md` file
+   fills its lines to 120 columns, with a link or a code span as one word, and a link longer than the room a line has
+   sits alone on its line. A heading, a table row, a fenced code block, the front matter and a hard break keep their
+   lines, and a file the project template owns keeps the template's layout. No gate checks the fill of Markdown:
+   Prettier, which the frontend gate runs over `frontend`'s Markdown, keeps prose line breaks as written, and the tree
+   holds paragraphs that no change has refilled. `.github/instructions/markdown.instructions.md` holds the rule.
 
 ## Options considered
 
@@ -58,3 +64,4 @@ edits.**
 - `build/dod.ps1`
 - `.github/instructions/csharp-production.instructions.md` §10
 - `.github/instructions/frontend.instructions.md`
+- `.github/instructions/markdown.instructions.md`

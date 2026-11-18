@@ -5,7 +5,7 @@ import Stack from '@mui/material/Stack';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
-import type { SecretOwner, ResourceServerResource } from '@ncode/api';
+import type { SecretOwner, ResourceServerResource } from '@ncodegroup/identity-api';
 import { ClientsPage } from './ClientsPage.js';
 import { OwnerAccessTab } from './OwnerAccessTab.js';
 import { OwnerSecretsTab } from './OwnerSecretsTab.js';

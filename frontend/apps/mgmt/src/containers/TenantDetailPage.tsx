@@ -17,7 +17,7 @@ import {
   useImportTenantMutation,
   useListCellsQuery,
   useReleaseMovedTenantMutation,
-} from '@ncode/store';
+} from '@ncodegroup/identity-store';
 import {
   DataStateBoundary,
   TenantMoveDialog,
@@ -25,7 +25,7 @@ import {
   TenantPlacedElsewhereError,
   TenantUsageTable,
   type TenantMoveDialogOperations,
-} from '@ncode/ui';
+} from '@ncodegroup/identity-ui';
 import { tenantRoute, type ConsoleRoute, type TenantOwnSurface } from '../routes.js';
 import { useTenantCell } from '../tenantCell.js';
 import { OwnerAccessTab } from './OwnerAccessTab.js';

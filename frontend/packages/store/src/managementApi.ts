@@ -75,7 +75,7 @@ import {
   type UpdateScopeRequest,
   type UpdateTeamFields,
   type UpdateTenantFields,
-} from '@ncode/api';
+} from '@ncodegroup/identity-api';
 import { dynamicBaseQuery, type ApiRootState, type CellFetchArgs } from './baseQuery.js';
 
 /** The cell a tenant-scoped call addresses; `undefined` addresses the control plane. */

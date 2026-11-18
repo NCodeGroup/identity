@@ -138,7 +138,7 @@ The product spans the repositories below, and code is public when a self-hoster 
 The decisions and issues of `identity-platform` live here, and `identity-cloud` keeps its private ones itself.
 
 Repositories, packages (`NCode.Identity.*`), the chart and images (`ncode-identity-*`), the npm workspace packages
-(`@ncode/*`, all private) and the domains (`ncodeid.*`) follow one naming scheme
+(`@ncodegroup/identity-*`, all private) and the domains (`ncodeid.*`) follow one naming scheme
 ([ADR-1502](docs/decisions/1502-code-a-self-hoster-could-use-is-public-and-identity-holds-the-products-and-platforms-decisions.md),
 [GOVERNANCE.md](GOVERNANCE.md#repositories-and-naming)).
 

@@ -3,7 +3,7 @@ import type {
   ImportRemoteSecretRequest,
   SecretOwner,
   RotateSecretRequest,
-} from '@ncode/api';
+} from '@ncodegroup/identity-api';
 import {
   useCreateRemoteSecretMutation,
   useCreateSecretMutation,
@@ -12,7 +12,7 @@ import {
   useLazyGetSecretPublicKeyQuery,
   useListSecretsQuery,
   useRotateSecretMutation,
-} from '@ncode/store';
+} from '@ncodegroup/identity-store';
 import { useTenantCell } from '../tenantCell.js';
 import { SecretsManager } from './SecretsManager.js';
 

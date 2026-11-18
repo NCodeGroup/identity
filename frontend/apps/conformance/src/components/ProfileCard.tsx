@@ -2,7 +2,7 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import type { ProfileReadiness } from '@ncode/conformance-core';
+import type { ProfileReadiness } from '@ncodegroup/identity-conformance-core';
 import { SeverityChip } from './SeverityChip.js';
 
 export type ProfileCardProps = {

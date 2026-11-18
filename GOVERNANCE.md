@@ -41,8 +41,10 @@ The product spans the repositories below.
   - The chart and the images: `ncode-identity-*`: the chart `ncode-identity-host`, the images
     `ghcr.io/ncodegroup/ncode-identity-host`, `ghcr.io/ncodegroup/ncode-identity-management-console` and
     `ghcr.io/ncodegroup/ncode-identity-directory`.
-  - npm workspace packages: `@ncode/*`, every one `"private": true` and none published: the workspace root
-    `@ncode/frontend`, the packages such as `@ncode/ui` and `@ncode/api`, and the apps `@ncode/app-*`.
+  - npm workspace packages: under the `@ncodegroup` scope the NCode Group holds, product first, every one
+    `"private": true` and none published: the workspace root `@ncodegroup/identity-frontend`, the packages
+    `@ncodegroup/identity-<package>` such as `@ncodegroup/identity-ui` and `@ncodegroup/identity-api`, and the apps
+    `@ncodegroup/identity-app-<app>`.
   - Domains: `ncodeid.*`
     ([ADR-1495](docs/decisions/1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md)):
     `ncodeid.net` is the platform domain that carries every issuer, `ncodeid.com` the brand domain; the redirect-only

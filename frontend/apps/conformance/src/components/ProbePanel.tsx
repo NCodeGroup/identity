@@ -14,7 +14,7 @@ import {
   type ProbeReport,
   type ProbeRunOptions,
   type RawDiscovery,
-} from '@ncode/conformance-core';
+} from '@ncodegroup/identity-conformance-core';
 
 export type ProbePanelProps = {
   readonly raw: RawDiscovery;

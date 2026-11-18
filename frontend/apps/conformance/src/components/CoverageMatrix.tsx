@@ -8,7 +8,11 @@ import ListItem from '@mui/material/ListItem';
 import ListItemText from '@mui/material/ListItemText';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import type { CoverageChannel, CoverageReport, CoverageStatus } from '@ncode/conformance-core';
+import type {
+  CoverageChannel,
+  CoverageReport,
+  CoverageStatus,
+} from '@ncodegroup/identity-conformance-core';
 import { CoverageStatusChip } from './CoverageStatusChip.js';
 
 const ISSUE_URL = 'https://github.com/NCodeGroup/identity/issues/';

@@ -2,9 +2,17 @@ import AddIcon from '@mui/icons-material/Add';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
-import { ClientFormDialog, ClientTable, ConfirmDialog, DataStateBoundary } from '@ncode/ui';
-import type { MachineClientOwner } from '@ncode/api';
-import { useCreateMachineClientMutation, useListMachineClientsQuery } from '@ncode/store';
+import {
+  ClientFormDialog,
+  ClientTable,
+  ConfirmDialog,
+  DataStateBoundary,
+} from '@ncodegroup/identity-ui';
+import type { MachineClientOwner } from '@ncodegroup/identity-api';
+import {
+  useCreateMachineClientMutation,
+  useListMachineClientsQuery,
+} from '@ncodegroup/identity-store';
 import { ClientDetailPage } from './ClientDetailPage.js';
 import { useClientAdministration } from './useClientAdministration.js';
 

@@ -1,4 +1,4 @@
-# @ncode/app-conformance-runner
+# @ncodegroup/identity-app-conformance-runner
 
 Headless OAuth 2.x / OpenID Connect **conformance probe runner** — the `probe-runner` actor of the spec-coverage harness
 ([ADR-1084](../../../docs/decisions/1084-the-playground-explores-the-recommended-flow-and-the-conformance-harness-measures-the-published-spec-surface.md)).
@@ -23,14 +23,14 @@ usable CI pre-flight for the external OpenID Foundation Conformance Suite ([#124
 
 ```sh
 # from frontend
-pnpm --filter @ncode/app-conformance-runner start -- --issuer https://localhost:5001
+pnpm --filter @ncodegroup/identity-app-conformance-runner start -- --issuer https://localhost:5001
 
 # with a confidential client (credentials from the environment, never the command line)
 CONFORMANCE_CLIENT_ID=svc CONFORMANCE_CLIENT_SECRET=… \
-  pnpm --filter @ncode/app-conformance-runner start -- --issuer https://localhost:5001 --json
+  pnpm --filter @ncodegroup/identity-app-conformance-runner start -- --issuer https://localhost:5001 --json
 
 # with asymmetric client keys for the private_key_jwt and DPoP legs (PEM or JWK)
-pnpm --filter @ncode/app-conformance-runner start -- --issuer https://localhost:5001 \
+pnpm --filter @ncodegroup/identity-app-conformance-runner start -- --issuer https://localhost:5001 \
   --public-client-id app --private-key ./client.pem --dpop-key ./dpop.pem
 ```
 

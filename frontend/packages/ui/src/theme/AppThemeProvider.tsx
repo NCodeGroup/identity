@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import CssBaseline from '@mui/material/CssBaseline';
 import { ThemeProvider } from '@mui/material/styles';
-import type { BrandingConfig } from '@ncode/config';
+import type { BrandingConfig } from '@ncodegroup/identity-config';
 import { createAppTheme } from './createAppTheme.js';
 
 export type AppThemeProviderProps = {

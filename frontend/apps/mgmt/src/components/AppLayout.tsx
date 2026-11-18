@@ -8,7 +8,7 @@ import Typography from '@mui/material/Typography';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import HomeIcon from '@mui/icons-material/Home';
 import LogoutIcon from '@mui/icons-material/Logout';
-import { ScopeBadge, type ScopeKind } from '@ncode/ui';
+import { ScopeBadge, type ScopeKind } from '@ncodegroup/identity-ui';
 
 export type AppLayoutProps = {
   readonly title: string;

@@ -1,5 +1,5 @@
 {
-  "name": "@ncode/conformance-core",
+  "name": "@ncodegroup/identity-conformance-core",
   "version": "0.0.0",
   "private": true,
   "description": "Framework-free OAuth 2.x / OIDC conformance core for NCode.Identity: discovery fetch, the security audit, the spec-coverage catalog, and browser-drivable active probes. Shared by the conformance dashboard and the headless probe runner.",
@@ -18,11 +18,11 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@ncode/config": "workspace:*"
+    "@ncodegroup/identity-config": "workspace:*"
   },
   "devDependencies": {
-    "@ncode/test-support": "workspace:*",
-    "@ncode/vite-config": "workspace:*",
+    "@ncodegroup/identity-test-support": "workspace:*",
+    "@ncodegroup/identity-vite-config": "workspace:*",
     "@vitest/coverage-v8": "^5.0.5",
     "typescript": "^6.0.3",
     "vitest": "^5.0.5"

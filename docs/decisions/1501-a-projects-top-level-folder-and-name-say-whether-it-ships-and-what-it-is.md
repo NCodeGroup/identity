@@ -48,8 +48,8 @@ has a folder of its own, and the build fails a project whose folder and packing 
    appears only as Aspire's vocabulary, such as in `Aspire.Hosting.AppHost`.
 10. **A deployable's name never suggests a toy.** A "playground" name invites unsafe defaults in something
     internet-facing.
-11. **The frontend flow explorer `apps/playground` (`@ncode/app-playground`) keeps its name,** with its `playground-spa`
-    client and `playground` bootstrap surface, because it is a genuine playground
+11. **The frontend flow explorer `apps/playground` (`@ncodegroup/identity-app-playground`) keeps its name,** with its
+    `playground-spa` client and `playground` bootstrap surface, because it is a genuine playground
     ([ADR-1084](1084-the-playground-explores-the-recommended-flow-and-the-conformance-harness-measures-the-published-spec-surface.md)).
 
 ## Options considered

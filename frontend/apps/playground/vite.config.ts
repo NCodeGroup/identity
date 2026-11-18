@@ -1,4 +1,4 @@
-import { defineStandaloneSurfaceConfig } from '@ncode/vite-config';
+import { defineStandaloneSurfaceConfig } from '@ncodegroup/identity-vite-config';
 
 // The flow explorer. Port 5174 is the one the seeded `playground-spa` redirect URI, the developer CORS allowlist, and
 // the AppHost endpoint assume; the bootstrap document comes from the Playground OP host (`api`).

@@ -55,7 +55,7 @@ with per-surface overrides from `Frontend:Surfaces`.
   contributes nothing. A same-origin link may stay relative
   ([project-template ADR-0126](project-template/0126-published-urls-come-from-a-configured-origin.md) decision 2).
 - `Frontend:ApiBaseUrl`, when set, is an absolute override for a split deployment.
-- `@ncode/config` strips the trailing slash, so `/` becomes the empty string and calls join to `/api/...`.
+- `@ncodegroup/identity-config` strips the trailing slash, so `/` becomes the empty string and calls join to `/api/...`.
 
 ### Caching and local development
 

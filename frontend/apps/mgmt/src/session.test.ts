@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { BffRuntimeConfig } from '@ncode/config';
-import type { BffUser } from '@ncode/store';
+import type { BffRuntimeConfig } from '@ncodegroup/identity-config';
+import type { BffUser } from '@ncodegroup/identity-store';
 import {
   SESSION_CHANNEL_NAME,
   SESSION_ENDED_MESSAGE,

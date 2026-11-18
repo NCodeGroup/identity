@@ -152,8 +152,9 @@ compiles it and no gate tests it
   ([ADR-1486](docs/decisions/1486-the-repositorys-own-analyzer-project-fails-the-build-on-a-field-an-auto-property-could-replace.md)),
   and `NCID0004` reports an `IgnoreQueryFilters()` call that no `// Cross-tenant: <why>` comment explains
   ([ADR-1018](docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md))
-- **Frontend (`frontend/`)** — the pnpm workspace of the web apps (`apps/auth`, `apps/mgmt`, `apps/playground`,
-  `apps/conformance`, `apps/conformance-runner`) and their shared `@ncode/*` packages, with a gate of its own
+- **Frontend (`frontend/`)** — the pnpm workspace of the web apps (`apps/auth`, `apps/conformance`,
+  `apps/conformance-runner`, `apps/mgmt`, `apps/playground`, `apps/setup`) and their shared `@ncodegroup/identity-*`
+  packages, with a gate of its own
   ([ADR-1064](docs/decisions/1064-one-frontend-platform-of-shared-packages-and-thin-app-shells-serves-every-web-surface.md))
 - **Logo** — `brand/`, the family's logo kit: the `{id}` mark as SVG masters and as the PNG and ICO files each platform
   takes, which every package, the host chart and the README show. `brand/build.py` draws every file there, so change
@@ -245,6 +246,9 @@ The build scripts' PowerShell conventions are in
 The frontend's conventions are in [`frontend.instructions.md`](.github/instructions/frontend.instructions.md), which
 applies to every `.ts` and `.tsx` file under `frontend/`; [`.claude/rules/frontend.md`](.claude/rules/frontend.md)
 points Claude Code at it.
+
+The Markdown conventions are in [`markdown.instructions.md`](.github/instructions/markdown.instructions.md), which
+applies to every `.md` file; [`.claude/rules/markdown.md`](.claude/rules/markdown.md) points Claude Code at it.
 
 ## Known pending work
 

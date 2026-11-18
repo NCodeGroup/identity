@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { AppThemeProvider } from '@ncode/ui';
+import { AppThemeProvider } from '@ncodegroup/identity-ui';
 import { TokenStep, type TokenStepProps } from './TokenStep.js';
 
 function renderStep(props: Partial<TokenStepProps> = {}) {

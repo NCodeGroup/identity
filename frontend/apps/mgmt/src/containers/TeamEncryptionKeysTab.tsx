@@ -1,15 +1,15 @@
 import { useMemo } from 'react';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import type { TeamRootKeyResource } from '@ncode/api';
+import type { TeamRootKeyResource } from '@ncodegroup/identity-api';
 import {
   useListCellsQuery,
   useListTeamRootKeysQuery,
   useRemoveTeamRootKeyMutation,
   useSetTeamRootKeyMutation,
   useValidateTeamRootKeyMutation,
-} from '@ncode/store';
-import { DataStateBoundary } from '@ncode/ui';
+} from '@ncodegroup/identity-store';
+import { DataStateBoundary } from '@ncodegroup/identity-ui';
 import { RootKeySection } from './RootKeySection.js';
 
 export type TeamEncryptionKeysTabProps = {

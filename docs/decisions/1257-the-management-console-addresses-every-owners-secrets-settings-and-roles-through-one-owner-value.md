@@ -30,12 +30,12 @@ A console address that carries a platform or team scope for a client therefore n
 operation, each of which takes a `ManagementOwner`, and renders them through one set of owner containers. A client and
 a resource server are tenant resources, addressed by their tenant alone.**
 
-1. **A `ManagementOwner` names the owner.** `@ncode/api` defines it in `src/owner.ts` as one of five readonly shapes:
-   `{ kind: 'platform' }`, `{ kind: 'team'; teamId }`, `{ kind: 'tenant'; tenantId }`,
+1. **A `ManagementOwner` names the owner.** `@ncodegroup/identity-api` defines it in `src/owner.ts` as one of five
+   readonly shapes: `{ kind: 'platform' }`, `{ kind: 'team'; teamId }`, `{ kind: 'tenant'; tenantId }`,
    `{ kind: 'client'; tenantId; clientId }` and `{ kind: 'resource-server'; tenantId; resourceServerId }`. Types derived
    from it state which owners an operation accepts: `ClientOwner`; `SecretOwner`, every owner but the platform and a
-   team, which hold settings only; `EncryptionKeyOwner`, the platform or a tenant; `MachineClientOwner`, the platform
-   or a team ([ADR-1466](1466-a-client-is-its-own-principal-and-a-machine-client-acts-only-within-its-owning-node.md));
+   team, which hold settings only; `EncryptionKeyOwner`, the platform or a tenant; `MachineClientOwner`, the platform or
+   a team ([ADR-1466](1466-a-client-is-its-own-principal-and-a-machine-client-acts-only-within-its-owning-node.md));
    `RoleOwner`; `AdministeredOwner`, a team or a tenant; and `RoleList`.
 2. **The owner builds its path and scope.** `ownerApiPath(owner)` builds `api/platform`, `api/teams/{teamId}`,
    `api/tenants/{tenantId}`, and the client and resource-server paths under `api/tenants/{tenantId}`, with every id
@@ -47,8 +47,8 @@ a resource server are tenant resources, addressed by their tenant alone.**
    build their path with `ownerApiPath`. `ClientsPage`, `ResourceServersPage`, `ResourceServerDetailPage` and
    `ResourceServerScopesPage` take `tenantId`; `ClientDetailPage` takes the client and addresses it through
    `client.tenantId`, which for a machine client is the control-plane tenant.
-4. **`managementApi` in `@ncode/store` has one endpoint per operation across all owners,** with matching hooks:
-   `listSecrets`, `createSecret`, `deleteSecret`, `rotateSecret`, `getSecretPublicKey`, `getSettings`,
+4. **`managementApi` in `@ncodegroup/identity-store` has one endpoint per operation across all owners,** with matching
+   hooks: `listSecrets`, `createSecret`, `deleteSecret`, `rotateSecret`, `getSecretPublicKey`, `getSettings`,
    `getEffectiveSettings`, `getSettingLimits`, `updateSettings`, `listEncryptionKeys`, `rekeyEncryptionKeys` and
    `listRoleAssignments`. `rotateSecret` takes only a `ClientOwner`, so the type checker refuses a rotation for any
    other owner.
@@ -85,7 +85,8 @@ a resource server are tenant resources, addressed by their tenant alone.**
   cannot be rendered without the tenant it belongs to.
 - Rotation stays a client operation, selected by type: `rotateSecret` accepts only a `ClientOwner`.
 - Tag ids carry the URI-encoded owner key, so one owner's caches never invalidate another's.
-- A consumer of `@ncode/store` calls the owner-generic hooks with a `ManagementOwner`; there is no hook per owner type.
+- A consumer of `@ncodegroup/identity-store` calls the owner-generic hooks with a `ManagementOwner`; there is no hook
+  per owner type.
 
 ## References
 

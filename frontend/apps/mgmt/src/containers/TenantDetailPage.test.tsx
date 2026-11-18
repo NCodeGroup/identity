@@ -1,9 +1,9 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
-import { createAppStore } from '@ncode/store';
-import type { CreatedSecretResource } from '@ncode/api';
-import type { BffRuntimeConfig } from '@ncode/config';
+import { createAppStore } from '@ncodegroup/identity-store';
+import type { CreatedSecretResource } from '@ncodegroup/identity-api';
+import type { BffRuntimeConfig } from '@ncodegroup/identity-config';
 import { TenantDetailPage } from './TenantDetailPage.js';
 import { tenantRoute, type ConsoleRoute, type TenantOwnSurface } from '../routes.js';
 import { TenantCellProvider } from '../tenantCell.js';
