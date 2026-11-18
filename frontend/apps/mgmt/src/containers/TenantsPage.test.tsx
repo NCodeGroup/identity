@@ -140,7 +140,7 @@ describe('TenantsPage (list states)', () => {
     const onOpenTenant = renderPage();
     fireEvent.click(await screen.findByTestId('tenant-row-acme-dev'));
 
-    expect(onOpenTenant).toHaveBeenCalledWith('acme-dev');
+    expect(onOpenTenant).toHaveBeenCalledWith('acme-dev', undefined);
   });
 
   it("opens a tenant in the tenant's cell when the list names one", async () => {

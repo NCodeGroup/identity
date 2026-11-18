@@ -419,15 +419,10 @@ export function TenantsPage({
         <TenantTable
           tenants={visibleTenants}
           showCell={cellNames.length > 0}
-          onSelect={(tenantId, cell) => {
-            // The tenant opens in the cell of its row; a tenant without one opens in the control
-            // plane.
-            if (cell === undefined) {
-              onOpenTenant(tenantId);
-            } else {
-              onOpenTenant(tenantId, cell);
-            }
-          }}
+          onSelect={(tenantId, cell) =>
+            // The tenant opens in the cell of its row; a tenant without one opens in the control plane.
+            onOpenTenant(tenantId, cell)
+          }
           onEdit={openEdit}
           onDelete={openDelete}
         />
