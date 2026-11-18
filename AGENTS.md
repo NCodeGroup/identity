@@ -247,6 +247,9 @@ The frontend's conventions are in [`frontend.instructions.md`](.github/instructi
 applies to every `.ts` and `.tsx` file under `frontend/`; [`.claude/rules/frontend.md`](.claude/rules/frontend.md)
 points Claude Code at it.
 
+The Markdown conventions are in [`markdown.instructions.md`](.github/instructions/markdown.instructions.md), which
+applies to every `.md` file; [`.claude/rules/markdown.md`](.claude/rules/markdown.md) points Claude Code at it.
+
 ## Known pending work
 
 Pending work — deferred decisions, feature gaps, follow-ups and review findings — is tracked as
