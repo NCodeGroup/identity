@@ -5,6 +5,7 @@ import {
   type TenantMoveDialogCell,
   type TenantMoveDialogOperations,
 } from './TenantMoveDialog.js';
+import { TenantPlacedElsewhereError } from './tenantMove.js';
 
 const cells: readonly TenantMoveDialogCell[] = [
   { name: 'eu-1', region: 'eu' },
@@ -31,8 +32,11 @@ const meta: Meta<typeof TenantMoveDialog> = {
     isDisabled: true,
     sourceCell: 'eu-1',
     cells,
+    isCellsLoading: false,
+    isCellsFailed: false,
     operations: succeeding,
     onClose: () => undefined,
+    onMoved: () => undefined,
   },
 };
 export default meta;
@@ -54,6 +58,14 @@ export const EnabledTenant: Story = {
 
 export const NoOtherCell: Story = {
   args: { sourceCell: 'us-1' },
+};
+
+export const CellsLoading: Story = {
+  args: { cells: [], isCellsLoading: true },
+};
+
+export const CellsFailed: Story = {
+  args: { cells: [], isCellsFailed: true },
 };
 
 export const Running: Story = {
@@ -98,5 +110,19 @@ export const FailedRelease: Story = {
   play: async () => {
     await startMove();
     await screen.findByTestId('move-failure');
+  },
+};
+
+export const PlacedElsewhere: Story = {
+  args: {
+    operations: {
+      ...succeeding,
+      exportTenant: () =>
+        Promise.reject(new TenantPlacedElsewhereError('The tenant is placed in eu-2.', 'eu-2')),
+    },
+  },
+  play: async () => {
+    await startMove();
+    await screen.findByTestId('move-release');
   },
 };
