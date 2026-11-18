@@ -14,6 +14,7 @@ import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import { isSameRegion } from './cellRegion.js';
 
 /** The environment-bound values a promotion writes for one resource (decoupled from the API contract). */
 export type TenantPromotionDialogEnvironmentSettings = {
@@ -127,10 +128,7 @@ function sharesRegion(
   if (tenant.cell === undefined) {
     return false;
   }
-  if (target.region === null || target.region === undefined) {
-    return false;
-  }
-  return tenant.region === target.region;
+  return isSameRegion(target.region, tenant.region);
 }
 
 /** The label of a tenant option: its id, with its cell when it has one. */

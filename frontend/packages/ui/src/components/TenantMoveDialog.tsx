@@ -12,6 +12,7 @@ import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import { isSameRegion } from './cellRegion.js';
 import {
   createTenantMove,
   tenantMoveStages,
@@ -133,7 +134,9 @@ export function TenantMoveDialog({
   const targets =
     source === undefined
       ? []
-      : cells.filter((cell) => cell.name !== sourceCell && cell.region === source.region);
+      : cells.filter(
+          (cell) => cell.name !== sourceCell && isSameRegion(cell.region, source.region),
+        );
   const target = targets.find((cell) => cell.name === targetCell);
   // The cell the tenant ends up in: the chosen cell, or the cell the global directory already
   // places it in.
