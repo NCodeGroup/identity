@@ -1,9 +1,12 @@
 # A production release of the control-plane cell that also runs the global directory: the directory's Deployment, its
-# Service and the Job that migrates its own database.
+# Service and the Job that migrates its own database. The cell reaches the directory like every other cell, as its own
+# machine client cell-ci-directory, so its teams and platform changes reach the directory.
 cell:
   name: ci-directory
   region: ci
   isControlPlane: true
+  managementUrl: https://id.example.com
+  controlPlaneIssuer: https://id.example.com
 allowedHosts:
   - id.example.com
 tenantResolution:
@@ -16,6 +19,11 @@ migrations:
   database:
     existingSecret: identity-database-owner
 directory:
+  url: https://directory.example.com
+  clientId: cell-ci-directory
+  keyRing: cell-client
+  keys:
+    pemSecret: cell-client-key
   enabled: true
   issuer: https://id.example.com
   controlPlaneCell: ci-directory

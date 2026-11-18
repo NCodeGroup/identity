@@ -421,6 +421,11 @@ jobs:
           }
           cell=$(helm template release "$CHART" --values "$CHART/ci/cell-values.yaml" --show-only templates/deployment.yaml)
           expect "$cell" 'Cell__ControlPlane__Issuer' 'Cell__CloudRegions__1' 'KeyRings__cell-client__PemFiles__0' 'directory-key'
+          # The control-plane cell reaches the directory as its own machine client, like every other cell.
+          controlPlane=$(helm template release "$CHART" --values "$CHART/ci/directory-values.yaml" \
+            --show-only templates/deployment.yaml)
+          expect "$controlPlane" 'Directory__Url' 'Directory__ClientId' 'KeyRings__cell-client__PemFiles__0' \
+            'Cell__ManagementUrl' 'Cell__ControlPlane__Issuer'
 
       - name: Give the migration Job the host's extra settings and a valid name
         run: |
