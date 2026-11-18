@@ -20,8 +20,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 /// the team is disabled: a disabled team keeps the owner root key it has, and the document that enables it again
 /// mirrors its key. A team that has no row has its owner root key removed, and a team disabled because something names
 /// it keeps its key. The mirror follows the committed row, so it runs in a step of its own on a token bounded by
-/// <see cref="PostCommitWork.Timeout"/>, so the caller's cancellation drops nothing, and a key that fails or that the
-/// bound cuts is logged and never thrown; the next document for the team, or the next reconcile, retries it.
+/// <see cref="PostCommitWork.Timeout"/>, which the caller's cancellation never reaches. A key that fails, or that the
+/// bound cuts, is logged and never thrown, and the next document for the team or the next reconcile retries it.
 /// Reconciling brings the owner root key of every enabled mirrored team to the reference its row holds for the region,
 /// which applies a key that failed its probe or its rotation cooldown once it can be, and removes the owner root key of
 /// a team that has no row. A cancellation of the caller's own token propagates from both.
