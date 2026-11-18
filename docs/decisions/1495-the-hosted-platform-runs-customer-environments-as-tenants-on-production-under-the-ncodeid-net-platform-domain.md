@@ -82,7 +82,9 @@ carries nothing else; a brand domain carries the site, docs, status page and ope
      Every **subprocessor** that processes a cell's data runs in that cell's region, and the customer-visible
      subprocessor list names each one per region.
    - **Explicit records.** A tenant of a dedicated cell, and a tenant that changes cell within its region, keep their
-     issuer through an explicit DNS record for its hostname (#755). Custom domains are a separate decision (#756).
+     issuer through an explicit DNS record for its hostname
+     ([#755](https://github.com/NCodeGroup/identity/issues/755)). Custom domains are a separate decision
+     ([#756](https://github.com/NCodeGroup/identity/issues/756)).
 3. **The brand domain is `ncodeid.com`.** It carries the site and docs (apex and `www.`), `status.ncodeid.com`
    (UptimeRobot), the Email Routing addresses (`security@`, `platform@`, `postmaster@`, `abuse@` and per-vendor
    aliases) and the `security.txt` contact.
