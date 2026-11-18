@@ -92,6 +92,7 @@ export function App() {
     }
   }, [route, access]);
 
+  // A tenant opens in the cell of its row; a tenant without one opens in the control plane.
   const openTenant = (tenantId: string, cell?: string) =>
     navigateTo(tenantRoute(tenantId, undefined, cell));
   const openTeam = (teamId: string) => navigateTo(teamRoute(teamId));
