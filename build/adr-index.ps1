@@ -25,8 +25,8 @@
     - a tracked file that points a docs/decisions/0NNN path at docs/decisions/, because the family's records are
       numbered from 1000 and the project template's records live in docs/decisions/project-template/;
     - a tracked file that cites an ADR number (written ADR- and four digits from 1000) that names no record in
-      docs/decisions/, template-owned files excepted; a citation qualified with another repository,
-      <owner>/<repo> ADR-NNNN, names that repository's record and is not checked;
+      docs/decisions/, template-owned files excepted; a citation written <owner>/<repo> ADR-NNNN whose line links
+      into that repository names that repository's record and is not checked;
     - a family record whose Status line is not exactly Accepted or Proposed;
     - a family record whose Refines, Supersedes or Conflicts with line does not name only project template records;
     - a family record whose header carries a metadata label other than Status, Date, Deciders, Refines, Supersedes and
@@ -41,8 +41,8 @@
 
 .PARAMETER Repository
     The GitHub repository, as owner/name, that holds these records. A URL into another repository, or a citation
-    qualified with another repository, names that repository's record, so it is not checked. Defaults to
-    NCodeGroup/identity.
+    written <owner>/<repo> ADR-NNNN whose line links into that repository, names that repository's record, so it is
+    not checked. Defaults to NCodeGroup/identity.
 
 .EXAMPLE
     ./build/adr-index.ps1
@@ -163,13 +163,23 @@ foreach ($match in Find-TrackedText 'docs/decisions/0[0-9]{3}[a-z0-9.-]*') {
 
 # A citation of a record that does not exist is otherwise found only by a reader who looks the number up. Files that
 # the project template owns cite sample numbers, so they are not searched. A citation qualified with another
-# repository, <owner>/<repo> ADR-NNNN, names that repository's record, which this repository cannot check.
+# repository, <owner>/<repo> ADR-NNNN, names that repository's record, which this repository cannot check, when its
+# line links into that repository; any other prefix (and/or ADR-1003) is not a repository, so the number is checked.
 $familyNumbers = @($onDisk | ForEach-Object { $_.Substring(0, 4) })
+$fileLines = @{}
 $templateOwned = ':(exclude).claude/agents/*', ':(exclude).claude/commands/*', ':(exclude).github/agents/*', ':(exclude).github/prompts/*', ':(exclude).github/skills/*', ':(exclude).template/*', ':(exclude)docs/decisions/project-template/*'
 foreach ($match in Find-TrackedText '([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+ )?ADR-1[0-9]{3}' $templateOwned) {
     $space = $match.Text.IndexOf(' ')
-    if ($space -ge 0 -and -not $match.Text.Substring(0, $space).Equals($Repository, [StringComparison]::OrdinalIgnoreCase)) {
-        continue
+    if ($space -ge 0) {
+        $prefix = $match.Text.Substring(0, $space)
+        if (-not $prefix.Equals($Repository, [StringComparison]::OrdinalIgnoreCase)) {
+            if (-not $fileLines.ContainsKey($match.Path)) {
+                $fileLines[$match.Path] = @(Get-Content -LiteralPath (Join-Path $Root $match.Path))
+            }
+            if ($fileLines[$match.Path][[int]$match.Line - 1].Contains("https://github.com/$prefix/", [StringComparison]::OrdinalIgnoreCase)) {
+                continue
+            }
+        }
     }
     $number = $match.Text.Substring($match.Text.Length - 4)
     if ($number -notin $familyNumbers) {

@@ -128,6 +128,10 @@ try {
     Add-FixtureFile $fixture 'notes.md' "See NCodeGroup/identity ADR-1003.`n"
     Assert-Problems 'a citation qualified with this repository is checked' $fixture @('notes.md(1) cites ADR-1003')
 
+    $fixture = New-Fixture 'cite-unlinked-qualified' @('1001-a.md') @('1001|1001-a.md')
+    Add-FixtureFile $fixture 'notes.md' "Use one and/or ADR-1003.`n"
+    Assert-Problems 'a qualified citation without a link to its repository is checked' $fixture @('notes.md(1) cites ADR-1003')
+
     $shapeHeader = "# 1002. b`n`n- **Status:** Accepted`n- **Date:** 2026-01-01`n- **Deciders:** NCode Group`n"
     $templateRecord = "# 0012-t.md`n"
 

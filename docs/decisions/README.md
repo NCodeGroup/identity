@@ -67,9 +67,9 @@ the two into line; until then the record describes what the code does. These thr
 record here carries. To decide otherwise for good, write a record
 that says `- **Supersedes:** project-template ADR-NNNN` and list the override in [`AGENTS.md`](../../AGENTS.md).
 
-A record of another NCode repository is cited as `<owner>/<repo> ADR-NNNN`, such as `NCodeGroup/brand ADR-1007`, and
-linked at a release tag, so the citation names one record and the link one version of it. `build/adr-index.ps1` checks
-only this repository's records.
+A record of another NCode repository is cited as `<owner>/<repo> ADR-NNNN` and linked at a release tag on the same line,
+so the citation names one record and the link one version of it. `build/adr-index.ps1` checks only this repository's
+records, and reads a citation with no such link as one of them.
 
 ## Index
 
