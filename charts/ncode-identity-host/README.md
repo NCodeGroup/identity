@@ -96,8 +96,9 @@ Every merge to `main` and every release tag `v*.*.*` publishes five artifacts to
 - `oci://ghcr.io/ncodegroup/charts/ncode-identity-host`, this chart, at version `<version>`.
 - `oci://ghcr.io/ncodegroup/openapi/ncode-identity-host` at version `<version>`, the host's OpenAPI document (`v1.json`), which `oras pull` fetches.
 
-The chart pins its image tags to its own `appVersion`, so following the chart follows the images. A stable version also tags every image `latest`. A Flux `HelmRelease`
-or `helm install` takes a semver range that includes prereleases, such as `>=0.0.1-alpha`, to follow them.
+The chart pins its image tags to its own `appVersion`, so following the chart follows the images. A stable version also
+tags every image `latest`. A Flux `HelmRelease` or `helm install` takes a semver range that includes prereleases, such
+as `>=0.0.1-alpha`, to follow them.
 
 Verify the chart signature, then the host image provenance:
 

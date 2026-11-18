@@ -118,7 +118,9 @@ A project's top-level folder says whether it ships ([ADR-1501](docs/decisions/15
 | Backend for frontend | `NCode.Identity.Bff(.Abstractions)`, `.Bff.Protocol.Abstractions`, `.Bff.Server` (the turnkey `AddIdentityBff`), `.Bff.Blazor`, `.Bff.Blazor.Client` |
 | Composition | `NCode.Identity.Registration(.AspNetCore)`, `NCode.Identity.Server`, `NCode.Identity.ManagementConsole`, `NCode.Identity.AspNetCore.OpenTelemetry` |
 
-The deployables under `hosts/` are `NCode.Identity.OpenId.Host` with its `.Host.Database` and `.Host.MigrationService`, `NCode.Identity.ManagementConsole.Host`, `NCode.Identity.OpenId.GlobalDirectory.Host` (the directory host, with a `migrate` command) and `NCode.Identity.OpenId.LocalDev`.
+The deployables under `hosts/` are `NCode.Identity.OpenId.Host` with its `.Host.Database` and `.Host.MigrationService`,
+`NCode.Identity.ManagementConsole.Host`, `NCode.Identity.OpenId.GlobalDirectory.Host` (the directory host, with a
+`migrate` command) and `NCode.Identity.OpenId.LocalDev`.
 
 The extensibility model — **service** vs **strategy collection** vs **mediator** — is
 [ADR-1001](docs/decisions/1001-behavior-is-a-service-a-strategy-collection-or-a-mediator-seam-chosen-by-one-ladder.md).
