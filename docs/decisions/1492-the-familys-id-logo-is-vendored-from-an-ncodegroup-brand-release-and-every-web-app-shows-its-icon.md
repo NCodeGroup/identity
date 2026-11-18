@@ -74,12 +74,12 @@ against the SHA-256 its lock pins. Each web app carries copies of the kit's brow
 4. **`brand/` is one release's kit, checked against its lock.** Every file of the release's `logo/identity/` is in
    `brand/` at the same path, beside `brand/README.md`, this repository's guide to them. `brand/brand.lock.json` names
    each file with its path in the release and its SHA-256, and names `brand/vendor-brand.mjs`, the release's
-   `vendoring/vendor-brand.mjs`, the same way. `node brand/vendor-brand.mjs --update <version> --lock
-   brand/brand.lock.json` takes another release once `gh attestation verify` proves that NCodeGroup/brand's publish
-   workflow built its archive for the release's tag, and no file under `brand/` is edited by hand.
-   `build/brand-kit.ps1`, which the `brand kit` stage of `./build/dod.ps1` runs through its fixture tests, runs `node
-   brand/vendor-brand.mjs --check --lock brand/brand.lock.json` offline and fails on a file the lock names that is
-   missing or differs, and on a file under `brand/` that the lock does not name.
+   `vendoring/vendor-brand.mjs`, the same way.
+   `node brand/vendor-brand.mjs --update <version> --lock brand/brand.lock.json` takes another release once
+   `gh attestation verify` proves that NCodeGroup/brand's publish workflow built its archive for the release's tag, and
+   no file under `brand/` is edited by hand. `build/brand-kit.ps1`, which the `brand kit` stage of `./build/dod.ps1`
+   runs through its fixture tests, runs `node brand/vendor-brand.mjs --check --lock brand/brand.lock.json` offline and
+   fails on a file the lock names that is missing or differs, and on a file under `brand/` that the lock does not name.
 5. **The repository takes the logo from the kit wherever it shows it.** `Directory.Build.targets` packs
    `brand/nuget/ncode-identity-nuget-tile-blue.png` into every package as its icon. The host chart's `icon` is the
    address of `brand/tile/ncode-identity-tile-blue-256.png` on `main`, so that path is kept. The README opens with the
