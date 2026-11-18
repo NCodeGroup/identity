@@ -14,7 +14,13 @@ public class DirectoryServerOptionsValidatorTests
         "DirectoryServer:Issuer must be an absolute https URL (or http on a loopback host) of at most 1000 characters with no user information, query or fragment.";
 
     public static TheoryData<string> NonLabelControlPlaneCells =>
-        ["Control-Plane", "1cell", "cell-", new string('a', CellLabelRules.MaxLabelLength + 1)];
+        [
+            "Control-Plane",
+            "1cell",
+            "cell-",
+            "control--plane",
+            new string('a', CellLabelRules.MaxLabelLength + 1),
+        ];
 
     private static DirectoryServerOptionsValidator CreateValidator() => new();
 
@@ -251,7 +257,7 @@ public class DirectoryServerOptionsValidatorTests
         Assert.True(result.Failed);
         var failure = Assert.Single(result.Failures);
         Assert.Equal(
-            $"DirectoryServer:ControlPlaneCell must be a cell name: 1 to {CellLabelRules.MaxLabelLength} lowercase letters, digits or hyphens that start with a letter and end with a letter or digit.",
+            $"DirectoryServer:ControlPlaneCell must be a cell name: {CellLabelRules.Description}.",
             failure
         );
     }

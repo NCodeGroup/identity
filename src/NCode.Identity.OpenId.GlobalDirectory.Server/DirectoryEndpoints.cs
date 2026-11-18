@@ -89,8 +89,7 @@ public static class DirectoryEndpoints
         + $"{DirectoryLimits.MaxManagementUrlLength}.";
 
     private static string InvalidCellLabelDetail =>
-        $"A cell and its region are each 1 to {CellLabelRules.MaxLabelLength} lowercase letters, digits or hyphens that "
-        + "start with a letter and end with a letter or digit.";
+        $"A cell and its region are each {CellLabelRules.Description}.";
 
     /// <summary>
     /// Gets the problem detail that a tenant route answers with when a tenant identifier is not one that

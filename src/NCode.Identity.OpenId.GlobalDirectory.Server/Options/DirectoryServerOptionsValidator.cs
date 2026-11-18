@@ -47,7 +47,7 @@ internal sealed class DirectoryServerOptionsValidator : IValidateOptions<Directo
         else if (!CellLabelRules.IsValidLabel(controlPlaneCell))
         {
             failures.Add(
-                $"{ControlPlaneCellKey} must be a cell name: 1 to {CellLabelRules.MaxLabelLength} lowercase letters, digits or hyphens that start with a letter and end with a letter or digit."
+                $"{ControlPlaneCellKey} must be a cell name: {CellLabelRules.Description}."
             );
         }
 
