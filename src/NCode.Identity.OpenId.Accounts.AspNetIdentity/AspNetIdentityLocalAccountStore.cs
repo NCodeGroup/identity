@@ -46,9 +46,23 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
 ) : ILocalAccountStore, ILocalAccountTransferStore
     where TUser : IdentityUser, ITenantBoundUser, new()
 {
+    /// <summary>
+    /// The message of the <see cref="NotSupportedException"/> that <see cref="ThrowIfLockoutUnsupported"/> throws when
+    /// the ASP.NET Core Identity store has no lockout support, which a disabled local account needs.
+    /// </summary>
     private const string LockoutUnsupportedMessage =
         "The configured ASP.NET Core Identity store does not support lockout, which is required to disable a local account.";
 
+    /// <summary>
+    /// Maps an ASP.NET Core Identity user to a <see cref="PersistedLocalAccount"/>. The account is enabled unless the
+    /// store supports lockout and the user is locked out, its claims are read through the user manager, and its tenant
+    /// is empty because the store has already restricted the user to the ambient tenant.
+    /// </summary>
+    /// <param name="userManager">The <see cref="UserManager{TUser}"/> that reads the claims and lockout.</param>
+    /// <param name="user">The stored user to map.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> of the operation, which none of the user manager's calls take.</param>
+    /// <returns>The local account that the user maps to.</returns>
+    /// <exception cref="InvalidOperationException">The user has no user name or no security stamp.</exception>
     private static async ValueTask<PersistedLocalAccount> MapAsync(
         UserManager<TUser> userManager,
         TUser user,
@@ -87,6 +101,14 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         };
     }
 
+    /// <summary>
+    /// Enables a user by clearing its lockout end date through the user manager when the store supports lockout. A
+    /// store without lockout support has no disabled users, so it leaves the user as it is.
+    /// </summary>
+    /// <param name="userManager">The <see cref="UserManager{TUser}"/> that clears the lockout end date.</param>
+    /// <param name="user">The stored user to enable.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> of the operation, which none of the user manager's calls take.</param>
+    /// <exception cref="InvalidOperationException">The user manager fails to clear the lockout end date.</exception>
     private static async ValueTask EnableAsync(
         UserManager<TUser> userManager,
         TUser user,
@@ -103,6 +125,15 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         }
     }
 
+    /// <summary>
+    /// Disables a user by enabling lockout for it and setting its lockout end date to
+    /// <see cref="DateTimeOffset.MaxValue"/> through the user manager, which is how a disabled local account is stored.
+    /// </summary>
+    /// <param name="userManager">The <see cref="UserManager{TUser}"/> that locks the user out.</param>
+    /// <param name="user">The stored user to disable.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> of the operation, which none of the user manager's calls take.</param>
+    /// <exception cref="NotSupportedException">The ASP.NET Core Identity store has no lockout support.</exception>
+    /// <exception cref="InvalidOperationException">The user manager fails to update the user.</exception>
     private static async ValueTask DisableAsync(
         UserManager<TUser> userManager,
         TUser user,
@@ -170,18 +201,39 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         return users;
     }
 
+    /// <summary>
+    /// Gets the password store of the configured ASP.NET Core Identity user store, which holds a local account's
+    /// password hash.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider of the scope that resolves the user store.</param>
+    /// <returns>The user store as an <see cref="IUserPasswordStore{TUser}"/>.</returns>
+    /// <exception cref="NotSupportedException">The configured store does not store passwords.</exception>
     private static IUserPasswordStore<TUser> GetPasswordStore(IServiceProvider serviceProvider) =>
         serviceProvider.GetRequiredService<IUserStore<TUser>>() as IUserPasswordStore<TUser>
         ?? throw new NotSupportedException(
             "The configured ASP.NET Core Identity store does not store passwords, which a local account's password requires."
         );
 
+    /// <summary>
+    /// Gets the claim store of the configured ASP.NET Core Identity user store, which holds a local account's claims.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider of the scope that resolves the user store.</param>
+    /// <returns>The user store as an <see cref="IUserClaimStore{TUser}"/>.</returns>
+    /// <exception cref="NotSupportedException">The configured store does not store claims.</exception>
     private static IUserClaimStore<TUser> GetClaimStore(IServiceProvider serviceProvider) =>
         serviceProvider.GetRequiredService<IUserStore<TUser>>() as IUserClaimStore<TUser>
         ?? throw new NotSupportedException(
             "The configured ASP.NET Core Identity store does not store claims, which a local account's claims require."
         );
 
+    /// <summary>
+    /// Gets the password hasher of a user manager as the <see cref="NormalizingPasswordHasher{TUser}"/> that hashes and
+    /// verifies the NFC form of a password.
+    /// </summary>
+    /// <param name="userManager">The <see cref="UserManager{TUser}"/> whose password hasher is read.</param>
+    /// <returns>The user manager's password hasher.</returns>
+    /// <exception cref="InvalidOperationException">The hasher is not a
+    /// <see cref="NormalizingPasswordHasher{TUser}"/>.</exception>
     private static NormalizingPasswordHasher<TUser> GetPasswordHasher(
         UserManager<TUser> userManager
     ) =>
@@ -190,6 +242,16 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
             $"The password hasher of UserManager<{typeof(TUser).Name}> is not a NormalizingPasswordHasher, so it would not hash and verify the NFC form of a password. Register the host's IPasswordHasher<TUser> before AddAspNetIdentityLocalAccountStore, or wrap it in NormalizingPasswordHasher<TUser>."
         );
 
+    /// <summary>
+    /// Hashes a password with the user manager's normalizing hasher and sets the hash on the user through the password
+    /// store, so no password validator of ASP.NET Core Identity judges the password. It does not update the user, which
+    /// the caller does.
+    /// </summary>
+    /// <param name="passwordHasher">The hasher that hashes the NFC form of the password.</param>
+    /// <param name="passwordStore">The password store that sets the hash on the user.</param>
+    /// <param name="user">The stored user whose password hash is set.</param>
+    /// <param name="password">The password to hash.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     private static async ValueTask SetPasswordHashAsync(
         NormalizingPasswordHasher<TUser> passwordHasher,
         IUserPasswordStore<TUser> passwordStore,
@@ -204,6 +266,15 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         await passwordStore.SetPasswordHashAsync(user, passwordHash, cancellationToken);
     }
 
+    /// <summary>
+    /// Gets the password hash of a user when it may be verified. A locked-out user has none, so a correct password is
+    /// not told apart from a wrong one, and a user whose stored hash is <c>null</c> or empty has none either.
+    /// </summary>
+    /// <param name="userManager">The <see cref="UserManager{TUser}"/> that reads the lockout state.</param>
+    /// <param name="passwordStore">The password store that reads the hash.</param>
+    /// <param name="user">The stored user whose password hash is read.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
+    /// <returns>The stored password hash, or <c>null</c> when the user is locked out or has no hash.</returns>
     private static async ValueTask<string?> GetVerifiablePasswordHashAsync(
         UserManager<TUser> userManager,
         IUserPasswordStore<TUser> passwordStore,
@@ -224,10 +295,22 @@ internal sealed class AspNetIdentityLocalAccountStore<TUser>(
         return string.IsNullOrEmpty(passwordHash) ? null : passwordHash;
     }
 
+    /// <summary>
+    /// Decodes a password from its UTF-8 bytes to the string that ASP.NET Core Identity's credential API takes.
+    /// </summary>
+    /// <param name="password">The UTF-8 bytes of the password.</param>
+    /// <returns>The password as a string.</returns>
     // ASP.NET Core Identity's credential API is string-based, so the credential is decoded to a string only here.
     private static string DecodePassword(ReadOnlyMemory<byte> password) =>
         SecureEncoding.UTF8.GetString(password.Span);
 
+    /// <summary>
+    /// Requires that an ASP.NET Core Identity operation succeeded, and reports the errors of its result when it did
+    /// not.
+    /// </summary>
+    /// <param name="result">The result of the user manager's operation.</param>
+    /// <param name="action">The action that was attempted, as the verb phrase that completes <c>Failed to</c>.</param>
+    /// <exception cref="InvalidOperationException">The result did not succeed.</exception>
     private static void ThrowIfFailed(IdentityResult result, string action)
     {
         if (result.Succeeded)
