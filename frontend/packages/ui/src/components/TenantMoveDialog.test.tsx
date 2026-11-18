@@ -6,6 +6,7 @@ import {
   type TenantMoveDialogOperations,
   type TenantMoveDialogProps,
 } from './TenantMoveDialog.js';
+import { TenantPlacedElsewhereError } from './tenantMove.js';
 
 const cells: readonly TenantMoveDialogCell[] = [
   { name: 'eu-1', region: 'eu' },
@@ -391,19 +392,25 @@ describe('TenantMoveDialog', () => {
     expect(screen.getByTestId('move-target')).toHaveValue('');
   });
 
-  it('forgets a failed move and its Retry when it opens again', async () => {
+  it('keeps a failed move and its Retry when it opens again, and retries from the failed stage', async () => {
+    let keys = 0;
+    const operations: TenantMoveDialogOperations = {
+      ...createOperations(),
+      createTransferKey: vi.fn(async () => {
+        keys += 1;
+        if (keys === 1) {
+          throw new Error('Unavailable.');
+        }
+        return { kid: 'k-1', jwk };
+      }),
+    };
     const props: TenantMoveDialogProps = {
       open: true,
       tenantId: 'acme',
       isDisabled: true,
       sourceCell: 'eu-1',
       cells,
-      operations: {
-        ...createOperations(),
-        createTransferKey: vi.fn(async () => {
-          throw new Error('Unavailable.');
-        }),
-      },
+      operations,
       onClose: vi.fn(),
     };
     const { rerender } = render(<TenantMoveDialog {...props} />);
@@ -414,9 +421,46 @@ describe('TenantMoveDialog', () => {
     rerender(<TenantMoveDialog {...props} open={false} />);
     rerender(<TenantMoveDialog {...props} open />);
 
-    expect(screen.queryByTestId('move-failure')).not.toBeInTheDocument();
+    expect(screen.getByTestId('move-failure')).toHaveTextContent(
+      'Issue a transfer key at eu-2 failed: Unavailable.',
+    );
+    expect(screen.getByTestId('move-target')).toHaveValue('eu-2');
+    expect(screen.getByTestId('move-cancel')).toHaveTextContent('Close');
+
+    fireEvent.click(screen.getByTestId('move-retry'));
+
+    expect(await screen.findByTestId('move-done')).toHaveTextContent('Moved to eu-2.');
+    expect(operations.createTransferKey).toHaveBeenCalledTimes(2);
+  });
+
+  it('offers Release, which runs only the release, when the export finds the tenant placed in another cell', async () => {
+    const calls: string[] = [];
+    const operations: TenantMoveDialogOperations = {
+      ...createOperations(calls),
+      exportTenant: vi.fn(async () => {
+        throw new TenantPlacedElsewhereError('The tenant is placed in eu-2.', 'eu-2');
+      }),
+    };
+    renderDialog({ operations });
+    choose('eu-3');
+    fireEvent.click(screen.getByTestId('move-confirm'));
+
+    const failure = await screen.findByTestId('move-failure');
+    expect(failure).toHaveTextContent(
+      'Export the tenant from eu-1 failed: The global directory already places the tenant in eu-2; release this copy at eu-1.',
+    );
+    expect(failure).not.toHaveTextContent('The tenant has not moved');
+    expect(screen.getByTestId('move-remaining')).toHaveTextContent(
+      'Remaining: Release the tenant at eu-1.',
+    );
     expect(screen.queryByTestId('move-retry')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('move-stages')).not.toBeInTheDocument();
-    expect(screen.getByTestId('move-cancel')).toHaveTextContent('Cancel');
+    calls.length = 0;
+
+    fireEvent.click(screen.getByTestId('move-release'));
+
+    expect(await screen.findByTestId('move-done')).toHaveTextContent('Moved to eu-2.');
+    expect(calls).toEqual(['release eu-1 acme']);
+    expect(operations.createTransferKey).toHaveBeenCalledTimes(1);
+    expect(operations.importTenant).not.toHaveBeenCalled();
   });
 });

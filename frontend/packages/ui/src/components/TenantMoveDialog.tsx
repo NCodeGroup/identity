@@ -79,10 +79,12 @@ function stagesOf(sourceCell: string, targetCell: string): readonly Stage[] {
  * order (a transfer key from the receiving cell, the export from the tenant's cell, the import into the receiving cell
  * and the release at the tenant's cell), showing each stage. An enabled tenant starts no move: the dialog says to
  * disable it first, while Retry of a move under way is not gated. A failure stops the run and names the failed stage
- * and what remains; Retry resumes from the failed stage, so the stages that finished do not run again, except after a
- * failed import, which spends the transfer key, so Retry then runs from the transfer key. The chosen cell and the
- * progress are local because the dialog runs the sequence itself; the calls are the container's to supply, so this
- * package holds no store.
+ * and what remains, and it outlasts closing the dialog, so opening it again shows the failure and its Retry. Retry
+ * resumes from the failed stage, so the stages that finished do not run again, except after a failed import, which
+ * spends the transfer key, so Retry then runs from the transfer key. An export that finds the tenant already placed in
+ * another cell offers Release instead, which runs only the release of the copy the tenant's own cell holds. The chosen
+ * cell and the progress are local because the dialog runs the sequence itself; the calls are the container's to supply,
+ * so this package holds no store.
  */
 export function TenantMoveDialog({
   open,
@@ -97,18 +99,20 @@ export function TenantMoveDialog({
   const [completed, setCompleted] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
   const [failedMove, setFailedMove] = useState<FailedMove>();
+  const [placedCell, setPlacedCell] = useState<string>();
   const wasOpenRef = useRef(open);
 
-  // Reset only on the rising edge of `open`, so a re-render while open never discards the progress.
+  // Reset only on the rising edge of `open`, so a re-render while open never discards the progress, and
+  // only when no move failed, so a failed move and its Retry or Release outlast closing the dialog.
   useEffect(() => {
-    if (open && !wasOpenRef.current) {
+    if (open && !wasOpenRef.current && failedMove === undefined) {
       setTargetCell('');
       setCompleted(0);
       setIsRunning(false);
-      setFailedMove(undefined);
+      setPlacedCell(undefined);
     }
     wasOpenRef.current = open;
-  }, [open]);
+  }, [open, failedMove]);
 
   // A tenant moves only within its region, so the targets are the cells of the region of its own
   // cell, its own excluded.
@@ -118,6 +122,8 @@ export function TenantMoveDialog({
       ? []
       : cells.filter((cell) => cell.name !== sourceCell && cell.region === source.region);
   const target = targets.find((cell) => cell.name === targetCell);
+  // The cell the tenant ends up in: the chosen cell, or the cell the global directory already places it in.
+  const receivingCell = placedCell ?? targetCell;
 
   const stages = target === undefined ? [] : stagesOf(sourceCell, target.name);
   const failure = failedMove?.failure;
@@ -132,6 +138,9 @@ export function TenantMoveDialog({
     setFailedMove(undefined);
     try {
       const runFailure = await move.run(fromStage, setCompleted);
+      if (runFailure?.placedCell !== undefined) {
+        setPlacedCell(runFailure.placedCell);
+      }
       setFailedMove(runFailure === undefined ? undefined : { move, failure: runFailure });
     } finally {
       setIsRunning(false);
@@ -139,11 +148,11 @@ export function TenantMoveDialog({
   };
 
   // The buttons hand each handler its cell or failed move, so neither runs without one.
-  const handleMove = async (receivingCell: TenantMoveDialogCell) => {
+  const handleMove = async (chosen: TenantMoveDialogCell) => {
     const move = createTenantMove(operations, {
       tenantId,
       sourceCell,
-      targetCell: receivingCell.name,
+      targetCell: chosen.name,
     });
     setCompleted(0);
     await runFrom(move, tenantMoveStages.transferKey);
@@ -155,7 +164,10 @@ export function TenantMoveDialog({
   };
 
   const failedStage = failure === undefined ? undefined : stages[failure.stage];
-  const remaining = failure === undefined ? [] : stages.slice(failure.stage);
+  const remaining =
+    failure === undefined
+      ? []
+      : stages.slice(failure.placedCell === undefined ? failure.stage : failure.resumeStage);
 
   return (
     <Dialog open={open} onClose={isRunning ? undefined : onClose} fullWidth maxWidth="sm">
@@ -219,16 +231,18 @@ export function TenantMoveDialog({
               <Typography variant="body2" data-testid="move-remaining">
                 Remaining: {remaining.map((stage) => stage.label).join('; ')}.
               </Typography>
-              <Typography variant="body2">
-                {failure.stage < tenantMoveStages.release
-                  ? `The tenant has not moved and is still at ${sourceCell}.`
-                  : `The tenant is imported into ${targetCell}; ${sourceCell} still holds it until it is released.`}
-              </Typography>
+              {failure.placedCell === undefined && (
+                <Typography variant="body2">
+                  {failure.stage < tenantMoveStages.release
+                    ? `The tenant has not moved and is still at ${sourceCell}.`
+                    : `The tenant is imported into ${receivingCell}; ${sourceCell} still holds it until it is released.`}
+                </Typography>
+              )}
             </Alert>
           )}
           {isMoved && (
             <Alert severity="success" data-testid="move-done">
-              Moved to {targetCell}.
+              Moved to {receivingCell}.
             </Alert>
           )}
         </Stack>
@@ -250,9 +264,11 @@ export function TenantMoveDialog({
                   void handleRetry(failedMove);
                 }}
                 disabled={isRunning}
-                data-testid="move-retry"
+                data-testid={
+                  failedMove.failure.placedCell === undefined ? 'move-retry' : 'move-release'
+                }
               >
-                Retry
+                {failedMove.failure.placedCell === undefined ? 'Retry' : 'Release'}
               </Button>
             )}
             <Button
