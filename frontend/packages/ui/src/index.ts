@@ -3,6 +3,10 @@ export { createAppTheme } from './theme/createAppTheme.js';
 export { AppThemeProvider, type AppThemeProviderProps } from './theme/AppThemeProvider.js';
 export { ScopeBadge, type ScopeBadgeProps, type ScopeKind } from './components/ScopeBadge.js';
 export { DataStateBoundary, type DataStateBoundaryProps } from './components/DataStateBoundary.js';
+export {
+  UnavailableCellsAlert,
+  type UnavailableCellsAlertProps,
+} from './components/UnavailableCellsAlert.js';
 export { BootstrapScreen, type BootstrapScreenProps } from './components/BootstrapScreen.js';
 export {
   TenantTable,
