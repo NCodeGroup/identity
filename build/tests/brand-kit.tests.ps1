@@ -28,11 +28,22 @@ function Get-Sha256([byte[]]$Bytes) {
     return [System.Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($Bytes)).ToLowerInvariant()
 }
 
-# Builds a kit folder under a named fixture and returns its path. $Files maps a relative path to the file's bytes and
-# $Hashes maps a relative path to the SHA-256 that the lock holds for it. The kit holds the repository's
-# vendor-brand.mjs, which the lock names, unless $Script gives the text of another script to hold in its place.
-function New-Fixture([string]$Name, [hashtable]$Files, [hashtable]$Hashes, [string]$Script = '') {
-    $kit = Join-Path $fixtureRoot $Name 'brand'
+# Builds a repository root under a named fixture, with a brand kit and a theme kit, and returns its path. $Files maps a
+# relative path to the file's bytes and $Hashes maps a relative path to the SHA-256 that the lock holds for it. The kit
+# holds the repository's vendor-brand.mjs, which the lock names, unless $Script gives the text of another script to
+# hold in its place. $ThemeFiles and $ThemeHashes do the same for frontend/packages/brand, whose lock names each path
+# as it is and takes its source without the leading vendor/, and $ThemeVersion is the release that lock names.
+function New-Fixture(
+    [string]$Name,
+    [hashtable]$Files,
+    [hashtable]$Hashes,
+    [string]$Script = '',
+    [hashtable]$ThemeFiles = @{},
+    [hashtable]$ThemeHashes = @{},
+    [string]$ThemeVersion = '0.11.0'
+) {
+    $root = Join-Path $fixtureRoot $Name
+    $kit = Join-Path $root 'brand'
     $null = [System.IO.Directory]::CreateDirectory($kit)
     foreach ($relative in $Files.Keys) {
         Write-FixtureFile (Join-Path $kit $relative) $Files[$relative]
@@ -61,11 +72,28 @@ function New-Fixture([string]$Name, [hashtable]$Files, [hashtable]$Hashes, [stri
     $lock = [ordered]@{ version = '0.11.0'; files = $entries }
     $json = ($lock | ConvertTo-Json -Depth 5) + "`n"
     Write-FixtureFile (Join-Path $kit 'brand.lock.json') ([System.Text.UTF8Encoding]::new($false).GetBytes($json))
-    return $kit
+
+    $themeKit = Join-Path $root 'frontend' 'packages' 'brand'
+    Write-FixtureFile (Join-Path $themeKit 'package.json') ([System.Text.UTF8Encoding]::new($false).GetBytes("{}`n"))
+    foreach ($relative in $ThemeFiles.Keys) {
+        Write-FixtureFile (Join-Path $themeKit $relative) $ThemeFiles[$relative]
+    }
+
+    $themeEntries = [ordered]@{}
+    foreach ($relative in $ThemeHashes.Keys) {
+        $themeEntries[$relative] = [ordered]@{
+            source = $relative -replace '^vendor/', ''
+            sha256 = $ThemeHashes[$relative]
+        }
+    }
+    $themeLock = [ordered]@{ version = $ThemeVersion; files = $themeEntries }
+    $themeJson = ($themeLock | ConvertTo-Json -Depth 5) + "`n"
+    Write-FixtureFile (Join-Path $themeKit 'brand.lock.json') ([System.Text.UTF8Encoding]::new($false).GetBytes($themeJson))
+    return $root
 }
 
-function Assert-Problems([string]$Name, [string]$Kit, [string[]]$ExpectedFragments) {
-    $problems = @(& $checker -Kit $Kit)
+function Assert-Problems([string]$Name, [string]$Root, [string[]]$ExpectedFragments) {
+    $problems = @(& $checker -Kit (Join-Path $Root 'brand') -ThemeKit (Join-Path $Root 'frontend' 'packages' 'brand'))
     if ($problems.Count -ne $ExpectedFragments.Count) {
         throw "Test '$Name' expected $($ExpectedFragments.Count) problem(s), got $($problems.Count): $($problems -join ' | ')"
     }
@@ -143,10 +171,35 @@ try {
         'mark/a.svg' = $hash
     } -Script "process.exit(3);`n"
     Assert-Problems 'a failed check that names no file is reported' $kit @(
-        'brand/brand.lock.json: node brand/vendor-brand.mjs --check exited 3 and named no file.'
+        'brand/brand.lock.json: node brand/vendor-brand.mjs --check exited 3 and named no file.',
+        'frontend/packages/brand/brand.lock.json: node brand/vendor-brand.mjs --check exited 3 and named no file.'
     )
 
-    Assert-Problems 'the repository kit has no problems' (Join-Path $PSScriptRoot '..' '..' 'brand') @()
+    $kit = New-Fixture 'theme-differs' @{} @{} -ThemeFiles @{
+        'vendor/mui/a.json' = $other
+    } -ThemeHashes @{
+        'vendor/mui/a.json' = $hash
+    }
+    Assert-Problems 'a theme file with other bytes is reported' $kit @(
+        'frontend/packages/brand/vendor/mui/a.json: differs from mui/a.json'
+    )
+
+    $kit = New-Fixture 'theme-unnamed' @{} @{} -ThemeFiles @{
+        'vendor/mui/a.json' = $svg
+        'vendor/extra.json' = $svg
+    } -ThemeHashes @{
+        'vendor/mui/a.json' = $hash
+    }
+    Assert-Problems 'a theme file the lock does not name is reported' $kit @(
+        'frontend/packages/brand/vendor/extra.json: frontend/packages/brand/brand.lock.json does not name it'
+    )
+
+    $kit = New-Fixture 'theme-release' @{} @{} -ThemeVersion '0.10.0'
+    Assert-Problems 'locks naming different releases are reported' $kit @(
+        'names NCodeGroup/brand 0.10.0, but brand/brand.lock.json names 0.11.0'
+    )
+
+    Assert-Problems 'the repository kits have no problems' (Join-Path $PSScriptRoot '..' '..') @()
 
     Write-Host "$testCount brand-kit checks passed."
 }
