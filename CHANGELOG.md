@@ -3075,18 +3075,22 @@ Until the first stable release, the [Unreleased] section describes the product a
   its session from `/bff/user`
   ([ADR-1438](docs/decisions/1438-the-management-console-holds-no-token-and-reads-its-session-from-its-bff.md)).
 
-- **The BFF is proven in real browsers and against a second OpenID Provider.** The `End-to-end` check runs
-  `./build/e2e.ps1`, which drives the BFF with Playwright in Chromium, Firefox and WebKit against Keycloak in a
-  container. The session cookie is host-only, `HttpOnly`, `Secure` and `SameSite=Strict` (or `Lax` when chosen). A
-  cross-site navigation carries it only under `Lax`, a cross-origin `fetch` stops at its CORS preflight, and Fetch
-  Metadata refuses a cross-site or untrusted same-site request even when CORS admits it. Login with PAR, PKCE,
-  `private_key_jwt` through `/bff/jwks`, DPoP, RFC 9207 and PS256 ID tokens works, and so do refresh-token
-  rotation, RP-initiated logout and back-channel logout, all from Keycloak's discovery metadata alone. A Blazor Web App
-  host (interactive server and WebAssembly) shows that a circuit signs out after back-channel logout, an idle hub
-  connection closes once its session ends, a `WebSocket` from another origin is refused and a WebAssembly component's
-  traffic carries no token. `./build/dod.ps1` never runs these `*.EndToEnd.Tests` suites
+- **The BFF and the hosts' pages are proven in real browsers, and the BFF against a second OpenID Provider.** The
+  `End-to-end` check runs `./build/e2e.ps1`, which drives the BFF with Playwright in Chromium, Firefox and WebKit
+  against Keycloak in a container. The session cookie is host-only, `HttpOnly`, `Secure` and `SameSite=Strict` (or `Lax`
+  when chosen). A cross-site navigation carries it only under `Lax`, a cross-origin `fetch` stops at its CORS preflight,
+  and Fetch Metadata refuses a cross-site or untrusted same-site request even when CORS admits it. Login with PAR, PKCE,
+  `private_key_jwt` through `/bff/jwks`, DPoP, RFC 9207 and PS256 ID tokens works, and so do refresh-token rotation,
+  RP-initiated logout and back-channel logout, all from Keycloak's discovery metadata alone. A Blazor Web App host
+  (interactive server and WebAssembly) shows that a circuit signs out after back-channel logout, an idle hub connection
+  closes once its session ends, a `WebSocket` from another origin is refused and a WebAssembly component's traffic
+  carries no token. The login, setup and management console pages, served by their hosts from the built bundles, load
+  Instrument Sans and Martian Mono from their own assets as `font/woff2` with no Content-Security-Policy violation;
+  `./build/e2e.ps1` builds those bundles first, `-Suite` runs one suite, and a change under `frontend/` runs that
+  suite. `./build/dod.ps1` never runs these `*.EndToEnd.Tests` suites
   ([#418](https://github.com/NCodeGroup/identity/issues/418), [#419](https://github.com/NCodeGroup/identity/issues/419),
   [#603](https://github.com/NCodeGroup/identity/issues/603),
+  [#862](https://github.com/NCodeGroup/identity/issues/862),
   [ADR-1430](docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md),
   [ADR-1441](docs/decisions/1441-a-bff-connection-ends-with-its-session-even-when-idle-and-every-watcher-learns-at-once.md)).
 
