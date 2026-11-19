@@ -503,6 +503,8 @@ describe('createAppTheme', () => {
     expect(entry?.style).toMatchObject({
       backgroundColor: colors[`${role}-subtle`],
       border: `1px solid ${colors[`${role}-border`]}`,
+      paddingInlineStart: 18,
+      '& .MuiAlertTitle-root': { color: colors[`${role}-text`] },
       '&::before': { background: colors[`${role}-mark`] },
     });
   });

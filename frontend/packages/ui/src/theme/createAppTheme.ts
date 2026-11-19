@@ -7,6 +7,7 @@ import {
   type ThemeOptions,
 } from '@mui/material/styles';
 import { alertClasses } from '@mui/material/Alert';
+import { alertTitleClasses } from '@mui/material/AlertTitle';
 import { outlinedInputClasses } from '@mui/material/OutlinedInput';
 import { deriveBrand, type DerivedColors } from '@ncodegroup/identity-brand/derive';
 import instrument from '@ncodegroup/identity-brand/instrument.json';
@@ -443,6 +444,8 @@ function componentsOf(
                 backgroundColor: colors[`${role}-subtle`],
                 color: colors.text,
                 border: `1px solid ${colors[`${role}-border`]}`,
+                paddingInlineStart: 18,
+                [`& .${alertTitleClasses.root}`]: { color: colors[`${role}-text`] },
                 [`& .${alertClasses.icon}`]: { color: colors[`${role}-mark`] },
                 '&::before': {
                   content: '""',
