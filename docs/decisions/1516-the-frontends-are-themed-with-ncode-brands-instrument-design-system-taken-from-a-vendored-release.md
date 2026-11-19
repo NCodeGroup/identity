@@ -98,6 +98,9 @@ by SHA-256, and `createAppTheme` builds each surface's theme from them.**
     `OFL-Martian-Mono-<hash>.txt` beside them, resolved from the app's own dependency on the brand package, so a build
     of an app without it fails. The interactive, setup and management console pages list `font-src 'self'`, and their
     hosts serve the fonts as `font/woff2` and the licenses as `text/plain` from the bundle's assets route.
+    `NCode.Identity.Frontend.EndToEnd.Tests` opens the login, setup and management console pages in Chromium, Firefox
+    and WebKit and fails when a typeface does not load from the page's own assets or the page reports a policy violation
+    ([ADR-1430](1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 
 ## Options considered
 
@@ -155,6 +158,7 @@ by SHA-256, and `createAppTheme` builds each surface's theme from them.**
 - [ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)
 - [ADR-1253](1253-a-tenant-brands-its-sign-in-pages-through-settings-and-the-bundle-mounts-over-the-hosts-page.md)
 - [ADR-1256](1256-every-page-the-server-writes-has-a-strict-content-security-policy-and-is-framed-only-by-design.md)
+- [ADR-1430](1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)
 - [ADR-1492](1492-the-familys-id-logo-is-vendored-from-an-ncodegroup-brand-release-and-every-web-app-shows-its-icon.md)
 - [project-template ADR-0008](project-template/0008-external-inputs-are-pinned-and-kept-current.md)
 - [project-template ADR-0009](project-template/0009-new-dependency-versions-wait-a-cooldown.md)

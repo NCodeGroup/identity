@@ -226,7 +226,10 @@ between two runs of hazard tape. Set code in `typography.code` (`variant="code"`
 color by its Instrument role under `palette.instrument`, never a font family or a color literal. Each app imports
 `@ncodegroup/identity-brand/fonts.css` once, first in `src/main.tsx`: the build emits the four font files into `assets/`
 and, through the preset's `emitFontLicenses()`, each typeface's license beside them, and the hosts serve them under the
-pages' `font-src 'self'`. Storybook's toolbar switches the mode and a tenant's colors
+pages' `font-src 'self'`. The `End-to-end` check's `NCode.Identity.Frontend.EndToEnd.Tests` opens the login, setup and
+console pages, served by their hosts from these builds, in Chromium, Firefox and WebKit, and fails when a typeface does
+not load or a page reports a Content-Security-Policy violation; a change under `frontend/` runs it. Storybook's toolbar
+switches the mode and a tenant's colors
 ([ADR-1516](../docs/decisions/1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md)).
 
 ## Runtime configuration

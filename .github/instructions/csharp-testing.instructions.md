@@ -451,14 +451,31 @@ seams, facades, and `InternalsVisibleTo` wiring that make code mockable — live
   then call `StartServer()`.** The factory locates the app's static web assets, which a `WebApplication.CreateBuilder`
   in the test process does not
   ([ADR-1441](../../docs/decisions/1441-a-bff-connection-ends-with-its-session-even-when-idle-and-every-watcher-learns-at-once.md)).
+- 👁 **Host an NCode host through `WebApplicationFactory<TEntryPoint>.UseKestrel()` in its local-development posture
+  with no database, and set its keys with `UseSetting`.** The host reads them while it registers its services. Without a
+  connection the OP keeps its data in one in-memory database per process, so a suite starts one OP host per run
+  (`OpenIdHostApplication`)
+  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
+- 👁 **A suite that serves built frontend bundles names their packages in its project file's
+  `EndToEndFrontendPackages`.** `./build/e2e.ps1` builds them with the workspace's pnpm before it builds the suite,
+  `build/affected-tests.ps1` selects the suite for every change under `frontend/`, and the suite reads each bundle at
+  `frontend/apps/<app>/dist` and fails, never skips, when one is not built (`FrontendBundles`)
+  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
+- 👁 **Prove a page's policy in the browser.** An init script records every `securitypolicyviolation` event before the
+  page's own scripts run, and a test asserts none, no Content-Security-Policy console message, and the status and type
+  of what the page fetched (`TypefaceProbe`). Open a page with `WaitUntilState.Load` and wait for the bundle to render:
+  a page that polls never reaches `NetworkIdle`
+  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 - 👁 **An end-to-end suite is not hermetic by design.** Every host stays on loopback over the run's throwaway
   certificate, the container reaches the host only through `TestcontainersSettings.ExposeHostPortsAsync`, and
   credentials are generated per run
   ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
-- 👁 **One collection fixture serves all tests, and each test gets a fresh browser context**
+- 👁 **One collection fixture serves all of a suite's tests, and each test gets a fresh browser context from the suite's
+  `BrowserPool`**
   ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
-- 👁 **Browser theories run over `BrowserNames.All`:** Chromium and Firefox on every OS, and WebKit except on Windows,
-  because Playwright's Windows WebKit port does not use Safari's cookie stack and mishandles `SameSite` and `Secure`
+- 👁 **Browser theories run over `BrowserNames.All` (in `NCode.Identity.EndToEnd.TestSupport`, which the browser suites
+  reference):** Chromium and Firefox on every OS, and WebKit except on Windows, because Playwright's Windows WebKit port
+  does not use Safari's cookie stack and mishandles `SameSite` and `Secure`
   ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 - 👁 **Assert server-side counters as well as browser outcomes, and read an API response through `fetch` in the
   page.** Firefox shows a JSON response in a viewer, so a navigation to it reads nothing
