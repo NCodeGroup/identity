@@ -125,10 +125,8 @@ describe('BootstrapGate', () => {
 
       const probe = await screen.findByTestId('theme-probe');
       expect(probe).toHaveAttribute('data-mode', 'dark');
-      expect(probe).toHaveAttribute(
-        'data-primary',
-        createAppTheme({ primaryColor: '#123456', mode: 'dark' }).palette.primary.main,
-      );
+      // The dark primary NCode Brand derives from #123456.
+      expect(probe).toHaveAttribute('data-primary', '#87A7D2');
     });
 
     it('applies the default theme when the config carries no branding', async () => {
