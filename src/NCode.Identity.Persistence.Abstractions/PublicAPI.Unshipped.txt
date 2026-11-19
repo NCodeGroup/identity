@@ -40,6 +40,9 @@ static NCode.Identity.Persistence.PostgresIdentifiers.Quote(string! identifier) 
 static NCode.Identity.Persistence.RuntimeRoleGrants.CreateStatements(string! runtimeRole, System.Collections.Generic.IEnumerable<NCode.Identity.Persistence.DatabaseObjectName>! tables, System.Collections.Generic.IEnumerable<NCode.Identity.Persistence.DatabaseObjectName>! sequences) -> System.Collections.Generic.IReadOnlyList<string!>!
 NCode.Identity.Persistence.StoreManagerLibrary
 NCode.Identity.Persistence.StoreManagerLibrary.StoreManagerLibrary() -> void
+NCode.Identity.Persistence.Stores.IPageCursorProtector
+NCode.Identity.Persistence.Stores.IPageCursorProtector.Protect(string! collection, System.ReadOnlySpan<byte> position) -> string!
+NCode.Identity.Persistence.Stores.IPageCursorProtector.TryUnprotect(string! collection, string! cursor, out byte[]? position) -> bool
 NCode.Identity.Persistence.Stores.IStore
 NCode.Identity.Persistence.Stores.IStore<T>
 NCode.Identity.Persistence.Stores.IStore<T>.AddAsync(T item, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
@@ -50,6 +53,10 @@ NCode.Identity.Persistence.Stores.IStoreManagerFactory
 NCode.Identity.Persistence.Stores.IStoreManagerFactory.CreateAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.Persistence.Stores.IStoreManager!>
 NCode.Identity.Persistence.Stores.IStoreProvider
 NCode.Identity.Persistence.Stores.IStoreProvider.GetStore<TStore>() -> TStore
+NCode.Identity.Persistence.Stores.PageCursorProtectorExtensions
+NCode.Identity.Persistence.Stores.PageCursorProtectorExtensions.extension(NCode.Identity.Persistence.Stores.IPageCursorProtector!)
+NCode.Identity.Persistence.Stores.PageCursorProtectorExtensions.extension(NCode.Identity.Persistence.Stores.IPageCursorProtector!).ProtectKey(string! collection, System.Guid key) -> string!
+NCode.Identity.Persistence.Stores.PageCursorProtectorExtensions.extension(NCode.Identity.Persistence.Stores.IPageCursorProtector!).UnprotectKey(string! collection, string? cursor) -> System.Guid?
 NCode.Identity.Persistence.Stores.PageRequest
 NCode.Identity.Persistence.Stores.PageRequest.Cursor.get -> string?
 NCode.Identity.Persistence.Stores.PageRequest.Cursor.init -> void
