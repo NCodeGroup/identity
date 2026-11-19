@@ -1,10 +1,10 @@
 # Frontend continuous integration (issue #137).
 #
-# The frontend's pnpm workspace (install, brand check, format, lint, typecheck, test and build) is deliberately
-# OUTSIDE build/dod.ps1: that gate is the .NET Definition of Done, and making it install and run the workspace would
-# couple a .NET contributor's inner loop to a pnpm install. The gate's Node runs the brand kit stage, which checks
-# brand/ and frontend/packages/brand with node brand/vendor-brand.mjs --check (ADR-1492, ADR-1516) and needs the Node
-# major frontend/.node-version pins and no pnpm. This workflow gates the frontend tier independently instead.
+# The frontend's pnpm workspace (install, brand check, format, lint, typecheck, test and build) is deliberately OUTSIDE
+# build/dod.ps1: that gate is the .NET Definition of Done, and making it install and run the workspace would couple a
+# .NET contributor's inner loop to a pnpm install. The gate's Node runs the brand kit stage, which checks brand/ and
+# frontend/packages/brand with node brand/vendor-brand.mjs --check (ADR-1492, ADR-1516) and needs the Node major
+# frontend/.node-version pins and no pnpm. This workflow gates the frontend tier independently instead.
 #
 # A push to main or a release line is path-filtered, so a C#-only push does not pay for a pnpm install. A pull request
 # and the merge queue always run the workflow, and the `changes` job decides whether the frontend job runs. A skipped
