@@ -295,8 +295,8 @@ function componentsOf(
           transition: `transform ${String(duration.press)}ms ${easing.out}, box-shadow ${String(duration.press)}ms ${easing.out}, background-color ${String(duration.quick)}ms ${easing.out}`,
           '&:active': { transform: travel },
           '&.Mui-disabled': { boxShadow: 'none', transform: 'none' },
-          // A key stands on a lip and travels down when pressed; a ghost key, the text variant, has no face until it
-          // is touched.
+          // A key stands on a lip and travels down when pressed; a ghost key, the text variant, has no face until it is
+          // touched.
           variants: [
             // A disabled key is sunken and unlit, on a hairline edge.
             {

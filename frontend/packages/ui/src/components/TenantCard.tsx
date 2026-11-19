@@ -7,7 +7,12 @@ import { Brace } from './Brace.js';
 
 const GAP = instrument.space['3'];
 
-const LEFT = { position: 'absolute', top: 0, bottom: 0, lineHeight: 0 } as const;
+// A brace's box spans the card's height, outside its edge.
+const BRACE_BOX = { position: 'absolute', top: 0, bottom: 0, lineHeight: 0 } as const;
+
+// brace-lg beside a card, brace-md beside a card on a phone (NCode Brand's guidelines/04-shape-and-depth.md).
+const LARGE = { xs: 'none', sm: 'block' } as const;
+const MEDIUM = { xs: 'block', sm: 'none' } as const;
 
 export type TenantCardProps = {
   /** The widest the card grows, in pixels, between its braces. */
@@ -22,8 +27,6 @@ export type TenantCardProps = {
  * guidelines/04-shape-and-depth.md).
  */
 export function TenantCard({ maxWidth, children }: TenantCardProps) {
-  const lg = { xs: 'none', sm: 'block' };
-  const md = { xs: 'block', sm: 'none' };
   return (
     <Box
       sx={(theme) => ({
@@ -36,28 +39,28 @@ export function TenantCard({ maxWidth, children }: TenantCardProps) {
         color: theme.palette.instrument['scope-tenant'],
       })}
     >
-      <Box sx={{ ...LEFT, right: `calc(100% + ${String(GAP)}px)`, display: lg }}>
+      <Box sx={{ ...BRACE_BOX, right: `calc(100% + ${String(GAP)}px)`, display: LARGE }}>
         <Brace size="lg" />
       </Box>
-      <Box sx={{ ...LEFT, right: `calc(100% + ${String(GAP)}px)`, display: md }}>
+      <Box sx={{ ...BRACE_BOX, right: `calc(100% + ${String(GAP)}px)`, display: MEDIUM }}>
         <Brace size="md" />
       </Box>
       <Box
         sx={{
-          ...LEFT,
+          ...BRACE_BOX,
           left: `calc(100% + ${String(GAP)}px)`,
           transform: 'scaleX(-1)',
-          display: lg,
+          display: LARGE,
         }}
       >
         <Brace size="lg" />
       </Box>
       <Box
         sx={{
-          ...LEFT,
+          ...BRACE_BOX,
           left: `calc(100% + ${String(GAP)}px)`,
           transform: 'scaleX(-1)',
-          display: md,
+          display: MEDIUM,
         }}
       >
         <Brace size="md" />
