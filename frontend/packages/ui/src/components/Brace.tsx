@@ -1,6 +1,9 @@
 import { useId } from 'react';
 import brace from '@ncodegroup/identity-brand/brace.json';
 
+// The height of the clip rectangle that keeps the top stem below its hook; it only has to outrun any card's height.
+const CLIP_HEIGHT = 100000;
+
 /**
  * A stretching brace's size in NCode Brand's brace data: `sm` for a listing, `md` for a card on a phone, `lg` for a
  * card or a workspace.
@@ -26,7 +29,7 @@ export function Brace({ size }: BraceProps) {
     <svg width={width} height="100%" fill="currentColor" aria-hidden="true" focusable="false">
       <defs>
         <clipPath id={`${id}-a`}>
-          <rect x="0" y={hook} width={width} height="100000" />
+          <rect x="0" y={hook} width={width} height={CLIP_HEIGHT} />
         </clipPath>
         <clipPath id={`${id}-b`}>
           <rect

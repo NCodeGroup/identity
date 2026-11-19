@@ -127,6 +127,7 @@ const BREAKPOINTS = {
     sm: instrument.breakpoints.phone + 1,
     md: instrument.breakpoints.tablet + 1,
     lg: instrument.breakpoints.desk + 1,
+    // Instrument names no wider layout than lg, so xl keeps Material UI's own value.
     xl: 1536,
   },
 };
@@ -141,6 +142,15 @@ const ALERTS = [
   ['warning', 'warning'],
   ['error', 'danger'],
 ] as const;
+
+// The width of an alert's signal bar, in pixels.
+const SIGNAL_BAR = 5;
+
+// The width of a caution's hazard bar, in pixels.
+const HAZARD_BAR = 9;
+
+// The gap between an alert's bar and its text, in pixels.
+const BAR_GAP = 13;
 
 const MEASURES: InstrumentMeasures = {
   radius: instrument.radius,
@@ -471,7 +481,7 @@ function componentsOf(
                 backgroundColor: colors[`${role}-subtle`],
                 color: colors.text,
                 border: `1px solid ${colors[`${role}-border`]}`,
-                paddingInlineStart: 18,
+                paddingInlineStart: SIGNAL_BAR + BAR_GAP,
                 [`& .${alertTitleClasses.root}`]: { color: colors[`${role}-text`] },
                 [`& .${alertClasses.icon}`]: { color: colors[`${role}-mark`] },
                 '&::before': {
@@ -479,7 +489,7 @@ function componentsOf(
                   position: 'absolute',
                   insetBlock: -1,
                   insetInlineStart: -1,
-                  width: 5,
+                  width: SIGNAL_BAR,
                   borderRadius: `${String(radius.control)}px 0 0 ${String(radius.control)}px`,
                   background: colors[`${role}-mark`],
                 },
@@ -489,9 +499,9 @@ function componentsOf(
             {
               props: { variant: 'standard' as const, severity: 'warning' as const },
               style: {
-                paddingInlineStart: 22,
+                paddingInlineStart: HAZARD_BAR + BAR_GAP,
                 '&::before': {
-                  width: 9,
+                  width: HAZARD_BAR,
                   background: `repeating-linear-gradient(-45deg, ${colors.hazard} 0 4px, ${colors['on-hazard']} 4px 8px)`,
                 },
               },
