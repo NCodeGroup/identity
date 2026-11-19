@@ -209,9 +209,9 @@ enables auto-merge, because the user self-reviews the draft and that step is the
    `Console image` checks on the pull request find it.
     - **The frontend has its own gate.** `./build/dod.ps1` never runs the frontend's checks. A change under
       `frontend` also runs CI's frontend job locally from `frontend`, with the pnpm version its `package.json`
-      names: `pnpm install --frozen-lockfile`, then `pnpm run format:check`, `lint`, `typecheck`, `build` and
-      `test:report`. `test:report` runs every package's tests with coverage, and a package under its coverage threshold
-      fails the job.
+      names: `pnpm install --frozen-lockfile`, then `pnpm run check:brand`, `format:check`, `lint`, `typecheck`,
+      `build` and `test:report`. `test:report` runs every package's tests with coverage, and a package under its
+      coverage threshold fails the job.
     - **The end-to-end tier runs in CI.** `./build/dod.ps1` never runs the `*.EndToEnd.Tests` suites. The `End-to-end`
       check runs `./build/e2e.ps1`, which needs a running Docker engine. Run it locally to reproduce that check, as
       `./build/e2e.ps1 -Affected`.
