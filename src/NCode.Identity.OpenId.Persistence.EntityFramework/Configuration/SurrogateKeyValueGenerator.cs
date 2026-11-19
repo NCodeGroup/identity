@@ -18,6 +18,9 @@ internal sealed class SurrogateKeyValueGenerator : ValueGenerator<Guid>
     public override bool GeneratesTemporaryValues => false;
 
     /// <inheritdoc />
-    public override Guid Next(EntityEntry entry) =>
-        entry.Context.GetService<ISurrogateKeyGenerator>().CreateKey();
+    public override Guid Next(EntityEntry entry)
+    {
+        var generator = entry.Context.GetService<ISurrogateKeyGenerator>();
+        return generator.CreateKey();
+    }
 }

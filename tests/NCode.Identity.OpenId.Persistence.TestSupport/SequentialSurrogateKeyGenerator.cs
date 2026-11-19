@@ -16,6 +16,10 @@ public sealed class SequentialSurrogateKeyGenerator : ISurrogateKeyGenerator
     private long _count;
 
     /// <inheritdoc />
-    public Guid CreateKey() =>
-        Guid.CreateVersion7(Start.AddMilliseconds(Interlocked.Increment(ref _count)));
+    public Guid CreateKey()
+    {
+        var count = Interlocked.Increment(ref _count);
+        var timestamp = Start.AddMilliseconds(count);
+        return Guid.CreateVersion7(timestamp);
+    }
 }

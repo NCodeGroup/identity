@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers.Text;
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.DataProtection;
 using NCode.Identity.Persistence.Stores;
@@ -23,11 +24,27 @@ public sealed class TestPageCursorProtector : IPageCursorProtector
 
     private IDataProtectionProvider Provider { get; } = new EphemeralDataProtectionProvider();
 
-    /// <inheritdoc />
-    public string Protect(string collection, ReadOnlySpan<byte> position) =>
-        Base64Url.EncodeToString(
-            Provider.CreateProtector(Purpose, collection).Protect(position.ToArray())
+    private ConcurrentDictionary<string, IDataProtector> Protectors { get; } =
+        new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Gets the protector for a collection, creating it on first use.
+    /// </summary>
+    private IDataProtector GetProtector(string collection) =>
+        Protectors.GetOrAdd(
+            collection,
+            static (name, provider) => provider.CreateProtector(Purpose, name),
+            Provider
         );
+
+    /// <inheritdoc />
+    public string Protect(string collection, ReadOnlySpan<byte> position)
+    {
+        var protector = GetProtector(collection);
+        var plaintext = position.ToArray();
+        var protectedBytes = protector.Protect(plaintext);
+        return Base64Url.EncodeToString(protectedBytes);
+    }
 
     /// <inheritdoc />
     public bool TryUnprotect(
@@ -42,11 +59,12 @@ public sealed class TestPageCursorProtector : IPageCursorProtector
         if (!Base64Url.IsValid(cursor))
             return false;
 
+        var protector = GetProtector(collection);
         var protectedBytes = Base64Url.DecodeFromChars(cursor);
 
         try
         {
-            var position = Provider.CreateProtector(Purpose, collection).Unprotect(protectedBytes);
+            var position = protector.Unprotect(protectedBytes);
 
             if (position.Length > destination.Length)
                 return false;
