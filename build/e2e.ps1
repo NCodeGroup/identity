@@ -132,7 +132,8 @@ try {
             throw "Installing the frontend workspace failed with exit code $LASTEXITCODE."
         }
 
-        pnpm --dir $frontend exec turbo run build @(foreach ($package in $frontendPackages) { "--filter=$package" })
+        $filters = @(foreach ($package in $frontendPackages) { "--filter=$package" })
+        pnpm --dir $frontend exec turbo run build @filters
         if ($LASTEXITCODE -ne 0) {
             throw "Building the frontend packages $($frontendPackages -join ', ') failed with exit code $LASTEXITCODE."
         }

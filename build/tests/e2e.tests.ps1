@@ -66,11 +66,20 @@ function Invoke-EndToEnd([string]$Root, [string[]]$Arguments, [string]$Stubs) {
     }
 }
 
-# A folder holding one stub command per entry of Commands, whose values hold the Windows and Posix text of the stub.
+# A folder holding one stub command per entry of Commands. An entry with a PowerShell key becomes <command>.ps1 with
+# that text on every platform, as the pnpm that nvs and Corepack install is; any other entry becomes a .cmd stub from
+# its Windows text, or a Posix stub from its Posix text.
 function New-Stubs([string]$Name, [hashtable]$Commands) {
     $folder = Join-Path $fixtureRoot "stubs-$Name"
     foreach ($command in $Commands.Keys) {
-        if ($IsWindows) {
+        if ($Commands[$command].ContainsKey('PowerShell')) {
+            $stub = Join-Path $folder "$command.ps1"
+            Write-FixtureFile $stub $Commands[$command].PowerShell
+            if (-not $IsWindows) {
+                & chmod +x $stub
+            }
+        }
+        elseif ($IsWindows) {
             Write-FixtureFile (Join-Path $folder "$command.cmd") $Commands[$command].Windows
         }
         else {
@@ -88,6 +97,9 @@ $recordingPnpm = @{
     Windows = "@echo pnpm %*`r`n@echo %* | findstr /c:`"turbo`" >nul && exit /b 1`r`n@exit /b 0`r`n"
     Posix   = "#!/bin/sh`necho `"pnpm `$*`"`ncase `"`$*`" in *turbo*) exit 1;; esac`nexit 0`n"
 }
+
+# A PowerShell pnpm that prints each argument it receives on its own line, inside angle brackets, and fails the turbo call.
+$recordingPnpmScript = @{ PowerShell = "foreach (`$argument in `$args) { Write-Output `"pnpm-argument: <`$argument>`" }`nif (`$args -contains 'turbo') { exit 1 }`nexit 0`n" }
 
 # A folder holding a docker command that always fails, as an engine that is not running does.
 function New-FailingDocker {
@@ -166,6 +178,13 @@ try {
         'install --frozen-lockfile',
         'turbo run build --filter=@x/app --filter=@x/other',
         'Building the frontend packages @x/app, @x/other failed'
+    )
+
+    $stubs = New-Stubs 'script-pnpm' @{ docker = $workingStub; pnpm = $recordingPnpmScript }
+    $run = Invoke-EndToEnd $fixture @('-Suite', 'F.EndToEnd.Tests') $stubs
+    Assert-Run 'a suite that serves built bundles passes each filter to a PowerShell pnpm as its own argument' $run $false @(
+        'pnpm-argument: <--filter=@x/app>',
+        'pnpm-argument: <--filter=@x/other>'
     )
 
     $fixture = New-Fixture 'both' $true $true
