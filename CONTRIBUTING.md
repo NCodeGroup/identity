@@ -117,8 +117,9 @@ and the console's page in the same browsers. Each page must load NCode Brand's t
 `font/woff2`, with no Content-Security-Policy violation. It starts no container, so it runs without Docker. The suite's
 project file names those frontend packages in `EndToEndFrontendPackages`, so `./build/e2e.ps1` installs the pnpm
 workspace and builds them first, which needs pnpm on `PATH` (`./build/frontend-install.ps1` installs it), and a change
-under `frontend/` runs the suite. The suites share `BrowserNames`, `BrowserPool`, `LoopbackPort`, `StartFailure` and
-`TestCertificate` from the support project `NCode.Identity.EndToEnd.TestSupport`.
+under `frontend/` runs the suite. The suites share `BrowserNames`, `BrowserPool`, `LoopbackPort`, `Teardown` and
+`TestCertificate` from the support project `NCode.Identity.EndToEnd.TestSupport`; `Teardown` stops what a suite started,
+every stop even when one throws.
 
 ```pwsh
 # Run every end-to-end suite (installs the Playwright browsers and pulls the Keycloak image on the first run):

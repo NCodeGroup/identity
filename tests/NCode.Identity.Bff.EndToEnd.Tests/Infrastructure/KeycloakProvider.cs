@@ -149,7 +149,7 @@ public sealed class KeycloakProvider : IAsyncDisposable
         }
         catch (Exception startFailure)
         {
-            await StartFailure.StopStartedAsync(
+            await Teardown.StopStartedAsync(
                 startFailure,
                 container.DisposeAsync,
                 image.DisposeAsync

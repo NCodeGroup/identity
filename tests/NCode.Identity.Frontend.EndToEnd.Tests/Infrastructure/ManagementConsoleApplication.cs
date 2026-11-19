@@ -70,7 +70,7 @@ public sealed class ManagementConsoleApplication
         }
         catch (Exception startFailure)
         {
-            await StartFailure.StopStartedAsync(startFailure, application.DisposeAsync);
+            await Teardown.StopStartedAsync(startFailure, application.DisposeAsync);
             throw;
         }
     }

@@ -53,7 +53,7 @@ public sealed class FrontendEnvironment : IAsyncLifetime
         // A failed start stops what it already started, then fails the run.
         catch (Exception startFailure)
         {
-            await StartFailure.StopStartedAsync(startFailure, () => new ValueTask(DisposeAsync()));
+            await Teardown.StopStartedAsync(startFailure, () => new ValueTask(DisposeAsync()));
             throw;
         }
     }
@@ -75,27 +75,44 @@ public sealed class FrontendEnvironment : IAsyncLifetime
     /// <inheritdoc />
     public async Task DisposeAsync()
     {
-        // Each property is cleared once disposed, so a second call disposes nothing twice.
-        if (BrowserPoolOrNull is not null)
-        {
-            await BrowserPoolOrNull.DisposeAsync();
-            BrowserPoolOrNull = null;
-        }
-
-        if (ManagementConsoleOrNull is not null)
-        {
-            await ManagementConsoleOrNull.DisposeAsync();
-            ManagementConsoleOrNull = null;
-        }
-
-        if (OpenIdHostOrNull is not null)
-        {
-            await OpenIdHostOrNull.DisposeAsync();
-            OpenIdHostOrNull = null;
-        }
-
-        Certificate?.Dispose();
-        Certificate = null;
+        // Every stop runs even when an earlier one throws, and each clears its property first, so a second call stops
+        // nothing twice.
+        await Teardown.StopAllAsync(
+            async () =>
+            {
+                var pool = BrowserPoolOrNull;
+                BrowserPoolOrNull = null;
+                if (pool is not null)
+                {
+                    await pool.DisposeAsync();
+                }
+            },
+            async () =>
+            {
+                var managementConsole = ManagementConsoleOrNull;
+                ManagementConsoleOrNull = null;
+                if (managementConsole is not null)
+                {
+                    await managementConsole.DisposeAsync();
+                }
+            },
+            async () =>
+            {
+                var openIdHost = OpenIdHostOrNull;
+                OpenIdHostOrNull = null;
+                if (openIdHost is not null)
+                {
+                    await openIdHost.DisposeAsync();
+                }
+            },
+            () =>
+            {
+                var certificate = Certificate;
+                Certificate = null;
+                certificate?.Dispose();
+                return ValueTask.CompletedTask;
+            }
+        );
     }
 
     private static InvalidOperationException NotInitialized() =>

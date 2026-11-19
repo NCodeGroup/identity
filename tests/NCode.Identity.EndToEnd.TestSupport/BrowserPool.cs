@@ -58,19 +58,33 @@ public sealed class BrowserPool : IAsyncDisposable
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        foreach (var launch in Browsers.Values.Where(launch => launch.IsValueCreated))
+        var browserStops = Browsers
+            .Values.Where(launch => launch.IsValueCreated)
+            .Select(launch =>
+                (Func<ValueTask>)(
+                    async () =>
+                    {
+                        await ((Task)launch.Value).ConfigureAwait(
+                            ConfigureAwaitOptions.SuppressThrowing
+                        );
+
+                        // A launch that failed holds no browser.
+                        if (launch.Value.IsCompletedSuccessfully)
+                        {
+                            await (await launch.Value).DisposeAsync();
+                        }
+                    }
+                )
+            )
+            .ToArray();
+
+        Func<ValueTask> stopPlaywright = () =>
         {
-            await ((Task)launch.Value).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            Browsers.Clear();
+            Playwright.Dispose();
+            return ValueTask.CompletedTask;
+        };
 
-            // A launch that failed holds no browser.
-            if (launch.Value.IsCompletedSuccessfully)
-            {
-                await (await launch.Value).DisposeAsync();
-            }
-        }
-
-        Browsers.Clear();
-
-        Playwright.Dispose();
+        await Teardown.StopAllAsync([.. browserStops, stopPlaywright]);
     }
 }

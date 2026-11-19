@@ -58,7 +58,7 @@ public sealed class OpenIdHostApplication : WebApplicationFactory<HostApiMarker>
         }
         catch (Exception startFailure)
         {
-            await StartFailure.StopStartedAsync(startFailure, application.DisposeAsync);
+            await Teardown.StopStartedAsync(startFailure, application.DisposeAsync);
             throw;
         }
     }

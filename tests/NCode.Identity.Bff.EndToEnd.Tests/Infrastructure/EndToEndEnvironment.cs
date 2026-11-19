@@ -150,7 +150,7 @@ public sealed class EndToEndEnvironment : IAsyncLifetime
         // A failed start stops what it already started, then fails the run.
         catch (Exception startFailure)
         {
-            await StartFailure.StopStartedAsync(startFailure, () => new ValueTask(DisposeAsync()));
+            await Teardown.StopStartedAsync(startFailure, () => new ValueTask(DisposeAsync()));
             throw;
         }
     }
@@ -172,45 +172,71 @@ public sealed class EndToEndEnvironment : IAsyncLifetime
     /// <inheritdoc />
     public async Task DisposeAsync()
     {
-        // Each property is cleared once disposed, so a second call disposes nothing twice.
-        if (BrowserPoolOrNull is not null)
-        {
-            await BrowserPoolOrNull.DisposeAsync();
-            BrowserPoolOrNull = null;
-        }
-
-        if (OriginServer is not null)
-        {
-            await OriginServer.DisposeAsync();
-            OriginServer = null;
-        }
-
-        if (BlazorBffOrNull is not null)
-        {
-            await BlazorBffOrNull.DisposeAsync();
-            BlazorBffOrNull = null;
-        }
-
-        if (LaxBffOrNull is not null)
-        {
-            await LaxBffOrNull.DisposeAsync();
-            LaxBffOrNull = null;
-        }
-
-        if (StrictBffOrNull is not null)
-        {
-            await StrictBffOrNull.DisposeAsync();
-            StrictBffOrNull = null;
-        }
-
-        if (KeycloakOrNull is not null)
-        {
-            await KeycloakOrNull.DisposeAsync();
-            KeycloakOrNull = null;
-        }
-
-        Certificate?.Dispose();
-        Certificate = null;
+        // Every stop runs even when an earlier one throws, and each clears its property first, so a second call stops
+        // nothing twice.
+        await Teardown.StopAllAsync(
+            async () =>
+            {
+                var pool = BrowserPoolOrNull;
+                BrowserPoolOrNull = null;
+                if (pool is not null)
+                {
+                    await pool.DisposeAsync();
+                }
+            },
+            async () =>
+            {
+                var originServer = OriginServer;
+                OriginServer = null;
+                if (originServer is not null)
+                {
+                    await originServer.DisposeAsync();
+                }
+            },
+            async () =>
+            {
+                var blazorBff = BlazorBffOrNull;
+                BlazorBffOrNull = null;
+                if (blazorBff is not null)
+                {
+                    await blazorBff.DisposeAsync();
+                }
+            },
+            async () =>
+            {
+                var laxBff = LaxBffOrNull;
+                LaxBffOrNull = null;
+                if (laxBff is not null)
+                {
+                    await laxBff.DisposeAsync();
+                }
+            },
+            async () =>
+            {
+                var strictBff = StrictBffOrNull;
+                StrictBffOrNull = null;
+                if (strictBff is not null)
+                {
+                    await strictBff.DisposeAsync();
+                }
+            },
+            async () =>
+            {
+                var keycloak = KeycloakOrNull;
+                KeycloakOrNull = null;
+                if (keycloak is not null)
+                {
+                    await keycloak.DisposeAsync();
+                }
+            },
+            () =>
+            {
+                var certificate = Certificate;
+                Certificate = null;
+                certificate?.Dispose();
+                return ValueTask.CompletedTask;
+            }
+        );
     }
 
     private BffApplicationSettings CreateSettings(

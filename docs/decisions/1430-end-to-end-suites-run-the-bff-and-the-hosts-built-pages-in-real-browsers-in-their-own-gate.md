@@ -131,8 +131,7 @@ built frontend bundles in the same browsers.**
 
 17. **The suites share their plumbing.** `NCode.Identity.EndToEnd.TestSupport` holds `BrowserNames`, `BrowserPool` (one
     headless browser per engine per run, and a fresh context per test that ignores certificate errors), `LoopbackPort`,
-    `TestCertificate` and `StartFailure` (which stops what a failed start already started and reports the start failure
-    even when a stop also fails).
+    `TestCertificate` and `Teardown` (which stops what a suite started, every stop even when one throws).
 
 ## Options considered
 
