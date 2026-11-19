@@ -33,15 +33,19 @@ over shared, scoped `@ncodegroup/identity-*` packages, and a layering rule keeps
   repository holds it ([ADR-1501](1501-a-projects-top-level-folder-and-name-say-whether-it-ships-and-what-it-is.md),
   [ADR-1502](1502-code-a-self-hoster-could-use-is-public-and-identity-holds-the-products-and-platforms-decisions.md)).
 - **A gate of its own.** The .NET build never sees the workspace. The frontend has its own gate and CI job:
-  `pnpm install --frozen-lockfile`, `format:check`, `lint`, `typecheck`, `build` and `test:report`. `node_modules/`,
-  `dist/`, `.turbo/` and coverage output are git-ignored.
+  `pnpm install --frozen-lockfile`, `check:brand`, `format:check`, `lint`, `typecheck`, `build` and `test:report`.
+  `node_modules/`, `dist/`, `.turbo/` and coverage output are git-ignored.
 - **Shared packages.** Each is used only through its public entry point:
   - `@ncodegroup/identity-config` discovers the runtime configuration.
   - `@ncodegroup/identity-store` holds the store, the typed hooks, the session slice and the RTK Query `managementApi`
     with its base query and cache tags.
   - `@ncodegroup/identity-api` holds the management wire contracts and the platform, team and tenant scope model, free
     of UI and Redux.
-  - `@ncodegroup/identity-ui` is the stateless design system and its theme.
+  - `@ncodegroup/identity-ui` is the stateless design system and its theme, which `createAppTheme` builds from NCode
+    Brand's Instrument.
+  - `@ncodegroup/identity-brand` holds the files of the NCode Brand release that the theme reads: Instrument's Material
+    UI data and the tenant color derivation. It has no code of its own
+    ([ADR-1516](1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md)).
   - `@ncodegroup/identity-shell` holds the shared stateful containers.
   - `@ncodegroup/identity-auth` holds the public-client protocol helpers.
   - `@ncodegroup/identity-conformance-core`, `@ncodegroup/identity-test-support` and `@ncodegroup/identity-vite-config`
@@ -85,10 +89,13 @@ over shared, scoped `@ncodegroup/identity-*` packages, and a layering rule keeps
 - **Scopes are distinct contexts.** The management surface models platform, team and tenant scopes as distinct browsing
   contexts with their own navigation, cache tags and authorization gating, never one filtered list
   ([ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)).
-- **Branding through a provider.** Theme tokens sit behind a provider in `@ncodegroup/identity-ui`. A bundle's
-  deployment branding arrives in its bootstrap document, and the host embeds a tenant's sign-in branding in the page the
-  `apps/auth` bundle mounts over
-  ([ADR-1253](1253-a-tenant-brands-its-sign-in-pages-through-settings-and-the-bundle-mounts-over-the-hosts-page.md)).
+- **Branding through a provider, over Instrument.** `AppThemeProvider` in `@ncodegroup/identity-ui` themes every surface
+  with NCode Brand's Instrument, and a branding without a color mode follows the reader's system setting
+  ([ADR-1516](1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md)).
+  A bundle's deployment branding arrives in its bootstrap document, and the host embeds a tenant's sign-in branding in
+  the page the `apps/auth` bundle mounts over
+  ([ADR-1253](1253-a-tenant-brands-its-sign-in-pages-through-settings-and-the-bundle-mounts-over-the-hosts-page.md));
+  a tenant's colors pass through Instrument's tenant derivation.
 
 ## Options considered
 

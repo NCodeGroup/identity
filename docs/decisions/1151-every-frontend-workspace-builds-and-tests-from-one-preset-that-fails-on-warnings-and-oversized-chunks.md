@@ -99,8 +99,10 @@ warning, and the build fails on any oversized chunk.**
 
 10. **Vendor code splits into fixed chunks.** `VENDOR_CHUNKS` lists the groups, highest priority first: `react`
     (`react`, `react-dom`, `scheduler`), `mui` (`@mui/*`, `@emotion/*`), `redux` (`@reduxjs/toolkit`, `redux`,
-    `react-redux` and their helpers) and `vendor` (every other package). The preset passes them to Rolldown's
-    `output.codeSplitting.groups`. A vendor chunk changes only when its packages are upgraded, so it stays cached across
+    `react-redux` and their helpers), `brand` (the vendored NCode Brand files under `packages/brand/vendor/`,
+    [ADR-1516](1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md))
+    and `vendor` (every other package). The preset passes them to Rolldown's `output.codeSplitting.groups`. A vendor
+    chunk changes only when its packages are upgraded or another brand release is taken, so it stays cached across
     application releases.
 11. **Surface containers load lazily.** `apps/mgmt`, `apps/playground` and `apps/conformance` import their route-level
     containers through `React.lazy` inside a `Suspense` boundary: one chunk per surface in the management console, and
