@@ -36,7 +36,7 @@ function New-Fixture([string]$Name, [bool]$WithEndToEnd, [bool]$WithFrontendSuit
     Write-Project $root 'src/A/A.csproj' @()
     Write-Project $root 'tests/A.Tests/A.Tests.csproj' @('..\..\src\A\A.csproj')
     if ($WithEndToEnd) {
-        Write-Project $root 'tests/A.EndToEnd.Tests/A.EndToEnd.Tests.csproj' @('..\..\src\A\A.csproj')
+        Write-FixtureFile (Join-Path $root 'tests/A.EndToEnd.Tests/A.EndToEnd.Tests.csproj') "<Project Sdk=`"Microsoft.NET.Sdk`"><PropertyGroup><EndToEndContainers>true</EndToEndContainers></PropertyGroup><ItemGroup><ProjectReference Include=`"..\..\src\A\A.csproj`" /></ItemGroup></Project>`n"
     }
     if ($WithFrontendSuite) {
         Write-FixtureFile (Join-Path $root 'tests/F.EndToEnd.Tests/F.EndToEnd.Tests.csproj') "<Project Sdk=`"Microsoft.NET.Sdk`"><PropertyGroup><EndToEndFrontendPackages>@x/app;@x/other</EndToEndFrontendPackages></PropertyGroup><ItemGroup><ProjectReference Include=`"..\..\src\A\A.csproj`" /></ItemGroup></Project>`n"
@@ -139,7 +139,7 @@ try {
     )
 
     $docker = New-FailingDocker
-    $dockerMissing = 'The end-to-end suites need a running Docker engine'
+    $dockerMissing = 'The end-to-end suites that start containers need a running Docker engine'
 
     $fixture = New-Fixture 'selected' $true $false
     Write-FixtureFile (Join-Path $fixture 'src/A/X.cs') "class X { }`n"
@@ -166,13 +166,13 @@ try {
     )
 
     $fixture = New-Fixture 'frontend' $false $true
-    $stubs = New-Stubs 'no-pnpm' @{ docker = $workingStub; pnpm = $failingStub }
+    $stubs = New-Stubs 'no-pnpm' @{ pnpm = $failingStub }
     $run = Invoke-EndToEnd $fixture @('-Suite', 'F.EndToEnd.Tests') $stubs
     Assert-Run 'a suite that serves built bundles needs pnpm' $run $false @(
         'need pnpm on PATH'
     )
 
-    $stubs = New-Stubs 'recording-pnpm' @{ docker = $workingStub; pnpm = $recordingPnpm }
+    $stubs = New-Stubs 'recording-pnpm' @{ pnpm = $recordingPnpm }
     $run = Invoke-EndToEnd $fixture @('-Suite', 'F.EndToEnd.Tests') $stubs
     Assert-Run 'a suite that serves built bundles builds them first' $run $false @(
         'install --frozen-lockfile',
@@ -180,12 +180,21 @@ try {
         'Building the frontend packages @x/app, @x/other failed'
     )
 
-    $stubs = New-Stubs 'script-pnpm' @{ docker = $workingStub; pnpm = $recordingPnpmScript }
+    $stubs = New-Stubs 'script-pnpm' @{ pnpm = $recordingPnpmScript }
     $run = Invoke-EndToEnd $fixture @('-Suite', 'F.EndToEnd.Tests') $stubs
     Assert-Run 'a suite that serves built bundles passes each filter to a PowerShell pnpm as its own argument' $run $false @(
         'pnpm-argument: <--filter=@x/app>',
         'pnpm-argument: <--filter=@x/other>'
     )
+
+    $noDocker = New-Stubs 'no-docker' @{ docker = $failingStub; pnpm = $recordingPnpm }
+    $run = Invoke-EndToEnd $fixture @('-Suite', 'F.EndToEnd.Tests') $noDocker
+    Assert-Run 'a suite that starts no container runs without Docker' $run $false @(
+        'Building the frontend packages @x/app, @x/other failed'
+    )
+    if ($run.Output.Contains($dockerMissing)) {
+        throw "Test 'a suite that starts no container runs without Docker' expected no Docker message, got:$([Environment]::NewLine)$($run.Output)"
+    }
 
     $fixture = New-Fixture 'both' $true $true
     $stubs = New-Stubs 'no-dotnet' @{ docker = $workingStub; pnpm = $recordingPnpm; dotnet = $failingStub }
@@ -197,15 +206,28 @@ try {
         throw "Test 'a named suite that serves no bundles builds no frontend' expected no pnpm call, got:$([Environment]::NewLine)$($run.Output)"
     }
 
+    $run = Invoke-EndToEnd $fixture @() $noDocker
+    Assert-Run 'a run with a suite that starts containers checks Docker before it builds the frontend' $run $false @(
+        $dockerMissing,
+        'tests/A.EndToEnd.Tests/A.EndToEnd.Tests.csproj.'
+    )
+    foreach ($text in 'pnpm ', 'F.EndToEnd.Tests') {
+        if ($run.Output.Contains($text)) {
+            throw "Test 'a run with a suite that starts containers checks Docker before it builds the frontend' expected no '$text', got:$([Environment]::NewLine)$($run.Output)"
+        }
+    }
+
     $fixture = New-Fixture 'narrowed' $true $true
-    Write-FixtureFile (Join-Path $fixture 'tests/F.EndToEnd.Tests/X.cs') "class X { }`n"
-    $run = Invoke-EndToEnd $fixture @('-Affected', '-Base', 'HEAD', '-Suite', 'A.EndToEnd.Tests') $docker
+    # A file under the container suite's folder, which only that suite owns, so the change reaches A.EndToEnd.Tests and
+    # not F.EndToEnd.Tests.
+    Write-FixtureFile (Join-Path $fixture 'tests/A.EndToEnd.Tests/X.cs') "class X { }`n"
+    $run = Invoke-EndToEnd $fixture @('-Affected', '-Base', 'HEAD', '-Suite', 'F.EndToEnd.Tests') $docker
     Assert-Run 'a named suite that the changes do not reach is skipped' $run $true @(
         'No end-to-end suite is affected; skipping.',
         'End-to-end: PASSED'
     )
 
-    $run = Invoke-EndToEnd $fixture @('-Affected', '-Base', 'HEAD', '-Suite', 'F.EndToEnd.Tests') $docker
+    $run = Invoke-EndToEnd $fixture @('-Affected', '-Base', 'HEAD', '-Suite', 'A.EndToEnd.Tests') $docker
     Assert-Run 'a named suite that the changes reach requires Docker' $run $false @(
         $dockerMissing
     )

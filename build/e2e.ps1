@@ -9,8 +9,9 @@
     Builds each end-to-end suite, installs the Playwright browsers it drives (Chromium, Firefox and WebKit) and runs
     its tests. Before it builds a suite whose project file sets EndToEndFrontendPackages, it installs the pnpm
     workspace and builds those frontend packages with turbo, so the suite serves bundles built from the tree; that
-    needs pnpm on PATH (./build/frontend-install.ps1 installs it). The suites start containers, so a running Docker
-    engine is required (Docker Desktop on Windows and macOS). The first run downloads the browsers and the container
+    needs pnpm on PATH (./build/frontend-install.ps1 installs it). A suite whose project file sets EndToEndContainers
+    to true starts containers, so a run that includes one needs a running Docker engine (Docker Desktop on Windows and
+    macOS), and a run of suites that start none needs no Docker. The first run downloads the browsers and the container
     images, so it can take several minutes. On Linux in GitHub Actions the browsers are installed with their
     operating-system dependencies.
 
@@ -98,17 +99,20 @@ try {
         return
     }
 
-    # 2. The suites start containers.
-    $dockerAvailable = $false
-    try {
-        docker info --format '{{.ServerVersion}}' *> $null
-        $dockerAvailable = $LASTEXITCODE -eq 0
-    }
-    catch {
+    # 2. The suites that start containers need Docker.
+    $containerSuites = @($projects | Where-Object { $tiers.ContainerSuites -contains $_ })
+    if ($containerSuites.Count -gt 0) {
         $dockerAvailable = $false
-    }
-    if (-not $dockerAvailable) {
-        throw 'The end-to-end suites need a running Docker engine (Docker Desktop on Windows and macOS).'
+        try {
+            docker info --format '{{.ServerVersion}}' *> $null
+            $dockerAvailable = $LASTEXITCODE -eq 0
+        }
+        catch {
+            $dockerAvailable = $false
+        }
+        if (-not $dockerAvailable) {
+            throw "The end-to-end suites that start containers need a running Docker engine (Docker Desktop on Windows and macOS): $($containerSuites -join ', ')."
+        }
     }
 
     # 3. Build the frontend packages the suites serve.

@@ -5,6 +5,11 @@
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <RootNamespace>NCode.Identity.Bff.EndToEnd.Tests</RootNamespace>
+        <!--
+            The suite starts Keycloak in a container, so ./build/e2e.ps1 checks for a running Docker engine before it
+            runs the suite (ADR-1430).
+        -->
+        <EndToEndContainers>true</EndToEndContainers>
     </PropertyGroup>
 
     <ItemGroup>
