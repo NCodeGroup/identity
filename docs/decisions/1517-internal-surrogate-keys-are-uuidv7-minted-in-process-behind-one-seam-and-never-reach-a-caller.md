@@ -91,3 +91,48 @@ identifiers only.**
 8. **Public identifiers are unchanged.** `ICryptoService.GenerateResourceId()` mints every public resource identifier
    ([ADR-1014](1014-management-resources-carry-opaque-server-identifiers-and-list-one-keyset-page-at-a-time.md)). A
    client-minted identifier is never trusted as a resource identifier; offline minting applies to internal keys only.
+
+## Options considered
+
+- **A snowflake with assigned node identifiers.** It needs a node registry or a lease, caps the minters at 1024, mints
+  silent duplicates when a node identifier is wrong, and leaks the millisecond, the node and the sequence, which make
+  neighbouring keys guessable. Rejected.
+- **UUIDv4.** Random inserts fragment the B-tree. Rejected.
+- **UUIDv4 for person-linked tables only.** Two policies for one concern; a creation time is usually already in audit
+  records and created-at columns, and the key never leaves the persistence layer. Rejected.
+- **Database-generated keys, an identity column or PostgreSQL 18's `uuidv7()`.** No offline minting. Rejected.
+- **A cursor that carries the key in clear, or signed only.** It discloses the key and its time. Rejected.
+- **An architecture test instead of an analyzer.** It runs only in the test stage and only over the assemblies its
+  project references, where the analyzer fails every build and shows in the IDE. Rejected.
+- **The chosen design.** UUIDv7 minted in-process behind one seam, with the exposure guards.
+
+## Consequences
+
+- Any process mints keys offline, without a registry, a lease or a database round trip.
+- A key is 16 bytes.
+- A cursor is opaque, about 130 characters, bound to its collection and readable only under the host's key ring. A
+  cursor whose ring key was revoked restarts the list.
+- Every Entity Framework store that pages needs Data Protection registered, which a server's secret protection does.
+- A replacement generator must keep keys time-ordered UUIDv7.
+- Smells: a `long` key, a `Guid` on a contract without a justified suppression, a surrogate key in a log or exception
+  message.
+
+## References
+
+- [project-template ADR-0123](project-template/0123-resource-ids-are-server-generated-and-opaque.md) — server-generated
+  opaque resource identifiers
+- [project-template ADR-0124](project-template/0124-collection-endpoints-use-keyset-pagination.md) — keyset pagination
+- Issue [#843](https://github.com/NCodeGroup/identity/issues/843)
+- [ADR-1014](1014-management-resources-carry-opaque-server-identifiers-and-list-one-keyset-page-at-a-time.md) — public
+  identifiers and pages
+- [ADR-1052](1052-entity-framework-persistence-is-a-reusable-framework-that-domain-slices-plug-into.md) — the Entity
+  Framework persistence framework
+- [ADR-1247](1247-the-platform-master-key-protects-the-data-protection-ring-and-an-unreadable-key-stops-the-host.md) —
+  the key ring that protects cursors
+- [ADR-1417](1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md) —
+  an identifier is never a capability
+- [ADR-1500](1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md)
+  — the abstractions and implementation pair
+- [RFC 9562](https://www.rfc-editor.org/rfc/rfc9562) — UUID version 7
+- `ISurrogateKeyGenerator`, `AddSurrogateKeyGenerator()`, `SurrogateKeyAttribute`, `SurrogateKeyConvention`,
+  `IPageCursorProtector`, `DefaultPageCursorProtector`, `SurrogateKeyExposureAnalyzer` (`NCID0005`)
