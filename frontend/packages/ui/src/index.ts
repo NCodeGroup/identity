@@ -7,6 +7,8 @@ export {
   type InstrumentMeasures,
 } from './theme/createAppTheme.js';
 export { AppThemeProvider, type AppThemeProviderProps } from './theme/AppThemeProvider.js';
+export { Brace, type BraceProps, type BraceSize } from './components/Brace.js';
+export { TenantCard, type TenantCardProps } from './components/TenantCard.js';
 export { ScopeBadge, type ScopeBadgeProps, type ScopeKind } from './components/ScopeBadge.js';
 export { DataStateBoundary, type DataStateBoundaryProps } from './components/DataStateBoundary.js';
 export {
