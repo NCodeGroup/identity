@@ -23,12 +23,15 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
 internal class OwnerRootKeyStore(
     IStoreProvider storeProvider,
     ISurrogateKeyGenerator keyGenerator,
+    IPageCursorProtector cursorProtector,
     OpenIdDbContext openIdDbContext
 ) : IOwnerRootKeyStore
 {
     private IStoreProvider StoreProvider { get; } = storeProvider;
 
     private ISurrogateKeyGenerator KeyGenerator { get; } = keyGenerator;
+
+    private IPageCursorProtector CursorProtector { get; } = cursorProtector;
 
     private OpenIdDbContext DbContext { get; } = openIdDbContext;
 
@@ -187,7 +190,7 @@ internal class OwnerRootKeyStore(
                 )
             );
 
-        var afterId = KeysetCursor.Decode(page.Cursor);
+        var afterId = CursorProtector.UnprotectKey(nameof(OwnerRootKeyEntity), page.Cursor);
         if (afterId is not null)
             query = query.Where(entity => entity.Id > afterId.Value);
 
@@ -202,7 +205,9 @@ internal class OwnerRootKeyStore(
         return new PagedResult<PersistedOwnerRootKey>
         {
             Items = entities.Take(count).Select(MapToPersistedOwnerRootKey).ToList(),
-            NextCursor = hasMore ? KeysetCursor.Encode(entities[count - 1].Id) : null,
+            NextCursor = hasMore
+                ? CursorProtector.ProtectKey(nameof(OwnerRootKeyEntity), entities[count - 1].Id)
+                : null,
         };
     }
 
@@ -219,7 +224,7 @@ internal class OwnerRootKeyStore(
             .OwnerRootKeys.AsNoTracking()
             .Where(entity => entity.OwnerType == normalizedOwnerType);
 
-        var afterId = KeysetCursor.Decode(page.Cursor);
+        var afterId = CursorProtector.UnprotectKey(nameof(OwnerRootKeyEntity), page.Cursor);
         if (afterId is not null)
             query = query.Where(entity => entity.Id > afterId.Value);
 
@@ -234,7 +239,9 @@ internal class OwnerRootKeyStore(
         return new PagedResult<PersistedOwnerRootKey>
         {
             Items = entities.Take(count).Select(MapToPersistedOwnerRootKey).ToList(),
-            NextCursor = hasMore ? KeysetCursor.Encode(entities[count - 1].Id) : null,
+            NextCursor = hasMore
+                ? CursorProtector.ProtectKey(nameof(OwnerRootKeyEntity), entities[count - 1].Id)
+                : null,
         };
     }
 

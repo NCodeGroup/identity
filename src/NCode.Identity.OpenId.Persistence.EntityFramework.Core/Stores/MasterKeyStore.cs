@@ -23,12 +23,15 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
 internal class MasterKeyStore(
     IStoreProvider storeProvider,
     ISurrogateKeyGenerator keyGenerator,
+    IPageCursorProtector cursorProtector,
     OpenIdDbContext openIdDbContext
 ) : IMasterKeyStore
 {
     private IStoreProvider StoreProvider { get; } = storeProvider;
 
     private ISurrogateKeyGenerator KeyGenerator { get; } = keyGenerator;
+
+    private IPageCursorProtector CursorProtector { get; } = cursorProtector;
 
     private OpenIdDbContext DbContext { get; } = openIdDbContext;
 
@@ -225,7 +228,7 @@ internal class MasterKeyStore(
     {
         var query = DbContext.MasterKeys.AsNoTracking().Where(entity => entity.RetiredWhen != null);
 
-        var afterId = KeysetCursor.Decode(page.Cursor);
+        var afterId = CursorProtector.UnprotectKey(nameof(MasterKeyEntity), page.Cursor);
         if (afterId is not null)
             query = query.Where(entity => entity.Id > afterId.Value);
 
@@ -250,7 +253,9 @@ internal class MasterKeyStore(
                 .Select(row => new SecretOwner(row.OwnerType, row.OwnerId))
                 .Distinct()
                 .ToList(),
-            NextCursor = hasMore ? KeysetCursor.Encode(rows[count - 1].Id) : null,
+            NextCursor = hasMore
+                ? CursorProtector.ProtectKey(nameof(MasterKeyEntity), rows[count - 1].Id)
+                : null,
         };
     }
 
@@ -303,13 +308,13 @@ internal class MasterKeyStore(
 
     // Reads one keyset page of the rows, ordered by row identifier. A full page fetches one extra row to signal that
     // another page exists, and a malformed cursor starts at the beginning.
-    private static async ValueTask<PagedResult<PersistedMasterKey>> GetPageAsync(
+    private async ValueTask<PagedResult<PersistedMasterKey>> GetPageAsync(
         IQueryable<MasterKeyEntity> query,
         PageRequest page,
         CancellationToken cancellationToken
     )
     {
-        var afterId = KeysetCursor.Decode(page.Cursor);
+        var afterId = CursorProtector.UnprotectKey(nameof(MasterKeyEntity), page.Cursor);
         if (afterId is not null)
             query = query.Where(entity => entity.Id > afterId.Value);
 
@@ -324,7 +329,9 @@ internal class MasterKeyStore(
         return new PagedResult<PersistedMasterKey>
         {
             Items = entities.Take(count).Select(MapToPersistedMasterKey).ToList(),
-            NextCursor = hasMore ? KeysetCursor.Encode(entities[count - 1].Id) : null,
+            NextCursor = hasMore
+                ? CursorProtector.ProtectKey(nameof(MasterKeyEntity), entities[count - 1].Id)
+                : null,
         };
     }
 
