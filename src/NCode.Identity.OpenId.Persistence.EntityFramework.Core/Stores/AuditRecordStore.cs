@@ -25,8 +25,20 @@ internal sealed class AuditRecordStore(
     OpenIdDbContext openIdDbContext
 ) : IAuditRecordStore
 {
+    /// <summary>
+    /// The length in bytes of the big-endian UTC ticks of an event time.
+    /// </summary>
     private const int TicksLength = sizeof(long);
-    private const int PositionLength = TicksLength + 16;
+
+    /// <summary>
+    /// The length in bytes of a surrogate key.
+    /// </summary>
+    private const int KeyLength = 16;
+
+    /// <summary>
+    /// The length in bytes of a cursor position.
+    /// </summary>
+    private const int PositionLength = TicksLength + KeyLength;
 
     private IStoreProvider StoreProvider { get; } = storeProvider;
 
@@ -239,8 +251,16 @@ internal sealed class AuditRecordStore(
             Record = entity.Record,
         };
 
-    // The cursor position (the big-endian UTC ticks of the event time, then the big-endian surrogate key) is protected
-    // by IPageCursorProtector, so a caller never sees the key.
+    /// <summary>
+    /// Encodes the position of a record as a cursor. The position is the big-endian UTC ticks of the event time
+    /// followed by the big-endian surrogate key, and <see cref="IPageCursorProtector"/> protects it, so a caller never
+    /// sees the key.
+    /// </summary>
+    /// <param name="eventTime">The event time of the last record of a page.</param>
+    /// <param name="id">The surrogate key of the last record of a page.</param>
+    /// <returns>
+    /// The protected cursor that resumes the list after the record.
+    /// </returns>
     private string EncodeCursor(DateTimeOffset eventTime, Guid id)
     {
         Span<byte> position = stackalloc byte[PositionLength];
@@ -249,6 +269,16 @@ internal sealed class AuditRecordStore(
         return CursorProtector.Protect(nameof(AuditRecordEntity), position);
     }
 
+    /// <summary>
+    /// Decodes a cursor into the position of a record.
+    /// </summary>
+    /// <param name="cursor">The cursor that an earlier page returned, or <see langword="null"/> for the first
+    /// page.</param>
+    /// <returns>
+    /// The event time and surrogate key of the record to resume after, or <see langword="null"/> when the cursor is
+    /// null or empty, does not unprotect, has a position of another length, or holds ticks out of range, so the list
+    /// restarts.
+    /// </returns>
     private (DateTimeOffset EventTime, Guid Id)? DecodeCursor(string? cursor)
     {
         if (string.IsNullOrEmpty(cursor))
