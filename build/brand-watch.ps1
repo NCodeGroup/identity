@@ -60,9 +60,10 @@ function Invoke-Gh {
 function Get-LockVersion([string]$RelativePath) {
     $file = Join-Path $Root $RelativePath
     if (-not (Test-Path -LiteralPath $file)) { throw "$RelativePath does not exist under $Root." }
-    $version = (Get-Content -LiteralPath $file -Raw | ConvertFrom-Json).version
-    if (-not $version) { throw "$RelativePath names no version." }
-    "$version"
+    $lock = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json
+    $version = $lock.PSObject.Properties['version']
+    if (-not $version -or -not $version.Value) { throw "$RelativePath names no version." }
+    "$($version.Value)"
 }
 
 $brandVersion = Get-LockVersion $brandLock

@@ -58,7 +58,10 @@ function global:gh {
         $global:BrandWatchBodies.Add([System.IO.File]::ReadAllText("$($args[$file + 1])"))
     }
     switch ("$($args[0]) $($args[1])") {
-        'release list' { ConvertTo-Answer $global:BrandWatchReleases }
+        'release list' {
+            if ($global:BrandWatchFailRelease) { $global:LASTEXITCODE = 1; return }
+            ConvertTo-Answer $global:BrandWatchReleases
+        }
         'issue list' { ConvertTo-Answer $global:BrandWatchIssues }
         'label list' { ConvertTo-Answer $global:BrandWatchLabels }
         'issue create' { $global:BrandWatchUrl }
@@ -71,8 +74,10 @@ function Invoke-Watch(
     [object[]]$Releases = @(),
     [object[]]$Issues = @(),
     [object[]]$Labels = @(),
-    [switch]$DryRun
+    [switch]$DryRun,
+    [switch]$FailReleaseList
 ) {
+    $global:BrandWatchFailRelease = $FailReleaseList.IsPresent
     $global:BrandWatchCalls = [System.Collections.Generic.List[string]]::new()
     $global:BrandWatchBodies = [System.Collections.Generic.List[string]]::new()
     $global:BrandWatchReleases = $Releases
@@ -86,6 +91,13 @@ function Invoke-Watch(
         Bodies = @($global:BrandWatchBodies)
         Writes = @($global:BrandWatchCalls | Where-Object { $_ -match '^(issue (create|edit|close)|label create) ' })
     }
+}
+
+# Runs the script block, which must throw, and returns the message it threw.
+function Get-Failure([string]$Name, [scriptblock]$Run) {
+    try { & $Run | Out-Null }
+    catch { return $_.Exception.Message }
+    throw "Test '$Name' failed: the watcher did not throw."
 }
 
 function Assert-True([string]$Name, $Condition, [string]$Detail) {
@@ -243,12 +255,34 @@ try {
     Assert-True $name $said.Contains('name different releases') "it said: $said"
     Pass $name
 
+    $name = 'fails when gh fails, and writes nothing'
+    $said = Get-Failure $name { Invoke-Watch $root -FailReleaseList }
+    Assert-True $name $said.Contains('gh release list exited with code') "it said: $said"
+    $writes = @($global:BrandWatchCalls | Where-Object { $_ -match '^(issue (create|edit|close)|label create) ' })
+    Assert-True $name ($writes.Count -eq 0) "writes were: $($writes -join ' | ')"
+    Pass $name
+
+    $name = 'fails when a lock is missing'
+    $missing = Join-Path $fixtureRoot 'missing'
+    Write-Lock (Join-Path $missing 'brand' 'brand.lock.json') '0.11.0'
+    $said = Get-Failure $name { Invoke-Watch $missing }
+    Assert-True $name $said.Contains('does not exist') "it said: $said"
+    Pass $name
+
+    $name = 'fails when a lock names no version'
+    $versionless = New-Root 'versionless' '0.11.0'
+    $lockPath = Join-Path $versionless 'frontend' 'packages' 'brand' 'brand.lock.json'
+    [System.IO.File]::WriteAllText($lockPath, "{ `"files`": {} }`n", [System.Text.UTF8Encoding]::new($false))
+    $said = Get-Failure $name { Invoke-Watch $versionless }
+    Assert-True $name $said.Contains('names no version') "it said: $said"
+    Pass $name
+
     Write-Host "$testCount brand-watch checks passed."
 }
 finally {
     Remove-Item Function:\global:gh -ErrorAction SilentlyContinue
     $variables = 'BrandWatchCalls', 'BrandWatchBodies', 'BrandWatchReleases', 'BrandWatchIssues', 'BrandWatchLabels'
-    foreach ($variable in $variables + 'BrandWatchUrl') {
+    foreach ($variable in $variables + 'BrandWatchUrl' + 'BrandWatchFailRelease') {
         Remove-Variable -Name $variable -Scope Global -ErrorAction SilentlyContinue
     }
     if (Test-Path -LiteralPath $fixtureRoot) {
