@@ -9,6 +9,8 @@ abstract NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TIte
 abstract NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStoreWithResourceId<TItem, TEntity>.AddAsync(TItem! item, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 abstract NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStoreWithResourceId<TItem, TEntity>.GetEntityOrDefaultAsync(string! resourceId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<TEntity?>
 abstract NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStoreWithResourceId<TItem, TEntity>.UpdateAsync(TItem! item, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.OpenId.Persistence.EntityFramework.Configuration.SurrogateKeyAttribute
+NCode.Identity.OpenId.Persistence.EntityFramework.Configuration.SurrogateKeyAttribute.SurrogateKeyAttribute() -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.Configuration.UseIdGeneratorAttribute
 NCode.Identity.OpenId.Persistence.EntityFramework.Configuration.UseIdGeneratorAttribute.UseIdGeneratorAttribute() -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.DefaultRegistration
