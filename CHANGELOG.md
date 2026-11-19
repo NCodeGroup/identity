@@ -18,18 +18,18 @@ Until the first stable release, the [Unreleased] section describes the product a
   (`brace/brace.json`) and its tenant color derivation (`tokens/derive.mjs`, with its types and test vectors) from the
   release `brand/` takes, pinned by SHA-256 in `frontend/packages/brand/brand.lock.json` and held by
   `pnpm run check:brand`, the frontend job and the `brand kit` stage of `./build/dod.ps1`, and every bundle loads them
-  as a `brand` chunk of their own.
-  `createAppTheme` in `@ncodegroup/identity-ui` builds the Material UI theme from them: every color role of both themes
-  under `palette.instrument`, each typography variant in its Instrument type role with the code style as
-  `typography.code` and its family as `typography.fontFamilyMono`, a 6-pixel radius, the 8-pixel spacing unit, four
-  depths, Instrument's durations, easings and breakpoints, keys that stand on a lip and travel down when pressed,
-  without a ripple, wells cut into the surface, cards as plates, dialogs that are sheets on a phone, tooltips as small
-  screens, engraved table heads, alerts with a signal bar and hazard tape on a caution, and a focus ring of the `focus`
-  color, 2 pixels wide and 2 pixels off the control. A branding without a color mode follows the reader's system
-  setting, a reader who asks for reduced motion sees no animation or transition, and Storybook's toolbar shows every
-  story in both modes and in a tenant's colors. The sign-in, consent and authorization error cards stand between two
-  braces in the tenant's scope color (`TenantCard`). The weekly `brand-watch` workflow keeps one `brand-update` issue
-  open while NCodeGroup/brand has a release at least three days old that the locks do not pin
+  as a `brand` chunk of their own. `createAppTheme` in `@ncodegroup/identity-ui` builds the Material UI theme from them:
+  every color role of both themes under `palette.instrument`, each typography variant in its Instrument type role with
+  the code style as `typography.code` and its family as `typography.fontFamilyMono`, a 6-pixel radius, the 8-pixel
+  spacing unit, four depths, Instrument's durations, easings and breakpoints, keys that stand on a lip and travel down
+  when pressed, without a ripple, and sink unlit when disabled, wells cut into the surface, cards as plates, dialogs
+  that are sheets on a phone, tooltips as small screens, engraved table heads, alerts with a signal bar, a title in
+  their role's color and hazard tape on a caution, and a focus ring of the `focus` color, 2 pixels wide and 2 pixels off
+  the control. A branding without a color mode follows the reader's system setting, a reader who asks for reduced
+  motion sees no animation or transition, and Storybook's toolbar shows every story in both modes and in a tenant's
+  colors. The sign-in, consent and authorization error cards stand between two braces in the tenant's scope color
+  (`TenantCard`). The weekly `brand-watch` workflow keeps one `brand-update` issue open while NCodeGroup/brand has a
+  release at least three days old that the locks do not pin
   ([#861](https://github.com/NCodeGroup/identity/issues/861),
   [ADR-1516](docs/decisions/1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md)).
 
@@ -2255,11 +2255,11 @@ Until the first stable release, the [Unreleased] section describes the product a
   the tenant's branding, in the bootstrap document's `branding` shape, in a
   `<script type="application/json" id="branding">` block after its `<base>`, and the bundle themes itself from it
   without a request: it themes the surface with the colors, through NCode Brand's tenant derivation, and the mode,
-  draws the logo, and titles the login and account pages with the display name; a page without branding
-  gets NCode's own Instrument theme in the reader's system color mode. `@ncodegroup/identity-config` exports
-  `parseBrandingConfig`, which the bootstrap parser uses too, so a malformed branding token is dropped, never trusted. A
-  tenant that sets `branding_favicon_uri` shows that icon in its pages' tabs instead of the family's: the host links it,
-  drops the bundle's family icon links, and admits its origin in the page's `img-src`
+  draws the logo, and titles the login and account pages with the display name; a page without branding gets NCode's own
+  Instrument theme in the reader's system color mode. `@ncodegroup/identity-config` exports `parseBrandingConfig`, which
+  the bootstrap parser uses too, so a malformed branding token is dropped, never trusted. A tenant that sets
+  `branding_favicon_uri` shows that icon in its pages' tabs instead of the family's: the host links it, drops the
+  bundle's family icon links, and admits its origin in the page's `img-src`
   ([ADR-1253](docs/decisions/1253-a-tenant-brands-its-sign-in-pages-through-settings-and-the-bundle-mounts-over-the-hosts-page.md),
   issues [#211](https://github.com/NCodeGroup/identity/issues/211),
   [#745](https://github.com/NCodeGroup/identity/issues/745),
@@ -4611,7 +4611,9 @@ Until the first stable release, the [Unreleased] section describes the product a
 - **A tenant's colors keep every text, key and focus ring readable.** `createAppTheme` passes
   `branding_primary_color` and `branding_secondary_color` through NCode Brand's `deriveBrand`, which holds each pairing
   they touch at WCAG 2.2 AA in the light and the dark theme (4.5 to 1 for text, 3 to 1 for a part and the focus ring)
-  and reads a color it cannot parse as NCode Blue, so no stored branding renders an unreadable sign-in page
+  and reads a color it cannot parse as NCode Blue, so no stored branding renders an unreadable sign-in page, and a key
+  whose ink is the tenant's color is tinted with `primary-subtle` when touched, so its label holds 4.5 to 1 while it is
+  hovered or pressed
   ([#861](https://github.com/NCodeGroup/identity/issues/861),
   [ADR-1516](docs/decisions/1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md),
   [ADR-1253](docs/decisions/1253-a-tenant-brands-its-sign-in-pages-through-settings-and-the-bundle-mounts-over-the-hosts-page.md)).

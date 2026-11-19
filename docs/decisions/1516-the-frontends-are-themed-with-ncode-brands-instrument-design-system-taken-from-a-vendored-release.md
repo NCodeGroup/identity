@@ -65,11 +65,13 @@ from the NCodeGroup/brand release the logo kit pins, vendored into `frontend/pac
 11. **Breakpoints.** `xs` is 0, `sm` 641, `md` 1089, `lg` 1281 and `xl` 1536, so `down('sm')` ends at 640 px.
 12. **The parts.** The theme draws Instrument's parts with Material UI's components: a key stands on a lip of its edge
     color and travels down 2 px when pressed (a contained key, a plain outlined key on the control face, a ghost key as
-    the text variant), with no ripple; a well is cut in with a shade under its top edge; a card is a plate with the
-    module's radius, and a sheet takes no elevation overlay; a dialog dims the page with the scrim and is a sheet on a
-    phone; a tooltip is a small screen; a table's head is engraved on a sunken ground; an alert has a signal bar in its
-    role's mark, and a caution's is hazard tape. The focus ring is 2 px of `focus`, 2 px off the part, and the brand as
-    text is `primary-text` (links, and text and outlined primary keys, with `primary-edge` as the outlined border).
+    the text variant), with no ripple; a disabled key is sunken and unlit; a well is cut in with a shade under its top
+    edge; a card is a plate with the module's radius, and a sheet takes no elevation overlay; a dialog dims the page
+    with the scrim and is a sheet on a phone; a tooltip is a small screen; a table's head is engraved on a sunken
+    ground; an alert has a signal bar in its role's mark and its title in the role's text color, and a caution's bar is
+    hazard tape. The focus ring is 2 px of `focus`, 2 px off the part, and the brand as text is `primary-text` (links,
+    and text and outlined primary keys, with `primary-edge` as the outlined border); a key whose ink is `primary-text`
+    is tinted with `primary-subtle` when touched, because `deriveBrand` holds `primary-text` at 4.5 to 1 on it.
 13. **Storybook.** The toolbar has the globals `mode` and `tenant`.
 
 ### The brace, the watch and the fonts
