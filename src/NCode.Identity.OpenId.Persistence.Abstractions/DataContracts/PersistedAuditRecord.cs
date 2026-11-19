@@ -23,6 +23,11 @@ public sealed class PersistedAuditRecord
     /// <summary>
     /// Gets the unique, time-ordered identifier of the audit event, a UUIDv7.
     /// </summary>
+    [SuppressMessage(
+        "Design",
+        "NCID0005",
+        Justification = "The audit event's public identifier, which its event time already dates; it is not a surrogate key."
+    )]
     public required Guid EventId { get; init; }
 
     /// <summary>

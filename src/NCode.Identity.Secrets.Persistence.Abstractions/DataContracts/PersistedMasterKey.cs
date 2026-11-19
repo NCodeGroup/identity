@@ -26,6 +26,11 @@ public sealed class PersistedMasterKey : ISupportConcurrencyToken
     /// <summary>
     /// Gets the identifier of the master key, which is written into every value that the master key protects.
     /// </summary>
+    [SuppressMessage(
+        "Design",
+        "NCID0005",
+        Justification = "The master key's public identifier, which the management API lists by design; it is not a surrogate key."
+    )]
     public required Guid KeyId { get; init; }
 
     /// <summary>
