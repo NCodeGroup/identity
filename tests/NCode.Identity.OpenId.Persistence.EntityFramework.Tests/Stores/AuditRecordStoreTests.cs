@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Binary;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -368,6 +369,63 @@ public sealed class AuditRecordStoreTests : IDisposable
         Assert.NotNull(first.NextCursor);
         Assert.Equal(oldest.EventId, Assert.Single(second.Items).EventId);
         Assert.Null(second.NextCursor);
+    }
+
+    private async ValueTask AssertCursorStartsFromBeginningAsync(
+        string cursor,
+        CancellationToken cancellationToken
+    )
+    {
+        await using var provider = CreateInMemoryProvider();
+        foreach (var record in Enumerable.Range(0, 3).Select(_ => Record()))
+            await AddAsync(provider, [record], cancellationToken);
+        var filter = new AuditRecordFilter { TenantId = "tenant-1" };
+        var first = await GetPageAsync(provider, filter, null, 2, cancellationToken);
+
+        var page = await GetPageAsync(provider, filter, cursor, 2, cancellationToken);
+
+        Assert.Equal(2, first.Items.Count);
+        Assert.Equal(
+            first.Items.Select(item => item.EventId),
+            page.Items.Select(item => item.EventId)
+        );
+    }
+
+    private static string ProtectPosition(string collection, int length, long ticks)
+    {
+        var position = new byte[length];
+        BinaryPrimitives.WriteInt64BigEndian(position, ticks);
+        return TestPageCursorProtector.Instance.Protect(collection, position);
+    }
+
+    [Fact]
+    public async Task GetPageAsync_WhenCursorIsNotProtected_StartsFromBeginning()
+    {
+        await AssertCursorStartsFromBeginningAsync("not-a-cursor", CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task GetPageAsync_WhenCursorIsForAnotherCollection_StartsFromBeginning()
+    {
+        var cursor = ProtectPosition("ClientEntity", length: 24, Now.UtcTicks);
+
+        await AssertCursorStartsFromBeginningAsync(cursor, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task GetPageAsync_WhenCursorPositionHasAnotherLength_StartsFromBeginning()
+    {
+        var cursor = ProtectPosition(nameof(AuditRecordEntity), length: 16, Now.UtcTicks);
+
+        await AssertCursorStartsFromBeginningAsync(cursor, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task GetPageAsync_WhenCursorTicksAreOutOfRange_StartsFromBeginning()
+    {
+        var cursor = ProtectPosition(nameof(AuditRecordEntity), length: 24, long.MaxValue);
+
+        await AssertCursorStartsFromBeginningAsync(cursor, CancellationToken.None);
     }
 
     #endregion
