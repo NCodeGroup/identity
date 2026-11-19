@@ -29,8 +29,8 @@
     checks brand/ and frontend/packages/brand against their locks and that both name one release, so it needs Node.js
     on PATH, the major frontend/.node-version pins (ADR-1492, ADR-1516).
 
-   The brand watch stage runs the fixture tests of ./build/brand-watch.ps1, the weekly watch's script, with GitHub's
-   command line stubbed, so it is build-free and offline (ADR-1516).
+    The brand watch stage runs the fixture tests of ./build/brand-watch.ps1, the weekly watch's script, with GitHub's
+    command line stubbed, so it is build-free and offline (ADR-1516).
 
 .PARAMETER Configuration
     The build configuration. Defaults to Release.
