@@ -191,10 +191,26 @@ function transitionsOf(reducedMotion: boolean): ThemeOptions['transitions'] {
   };
 }
 
+/**
+ * A raised key's shadows: its edge as an inset ring, so the key keeps its size, and its lip below it, travel deep.
+ */
+function key(edge: string, lip: string, travel: string): MuiCSSProperties {
+  const rest = `inset 0 0 0 1px ${edge}, 0 ${String(instrument.size.travel)}px 0 ${lip}`;
+  return {
+    boxShadow: rest,
+    '&:hover': { boxShadow: rest },
+    '&.Mui-focusVisible': { boxShadow: rest },
+    '&:active': { transform: travel, boxShadow: `inset 0 0 0 1px ${edge}` },
+  };
+}
+
 function componentsOf(
   colors: InstrumentColors,
   reducedMotion: boolean,
 ): ThemeOptions['components'] {
+  const { radius, size } = instrument;
+  const { duration, easing } = instrument.transitions;
+  const travel = `translateY(${String(size.travel)}px)`;
   const ring = {
     outline: `${String(instrument.focus.width)}px solid ${colors.focus}`,
     outlineOffset: `${String(instrument.focus.offset)}px`,
@@ -227,6 +243,25 @@ function componentsOf(
             borderColor: colors.focus,
             borderWidth: instrument.focus.width,
           },
+          // A well is cut in: a shade under its top edge, and an edge of border-strong, 3 to 1 against every surface.
+          backgroundColor: colors.well,
+          boxShadow: `inset 0 ${String(size.travel)}px 0 ${colors.shade}`,
+          [`& .${outlinedInputClasses.notchedOutline}`]: { borderColor: colors['border-strong'] },
+          [`&:hover:not(.Mui-disabled):not(.Mui-focused):not(.Mui-error) .${outlinedInputClasses.notchedOutline}`]:
+            { borderColor: colors['text-secondary'] },
+          '&.Mui-disabled': { backgroundColor: colors['surface-sunken'], boxShadow: 'none' },
+          [`&.Mui-disabled .${outlinedInputClasses.notchedOutline}`]: {
+            borderColor: colors.border,
+          },
+        },
+      },
+    },
+    MuiIconButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: radius.control,
+          '&:hover': { backgroundColor: colors['ghost-hover'] },
+          '&:active': { transform: travel, backgroundColor: colors['ghost-pressed'] },
         },
       },
     },
@@ -239,9 +274,63 @@ function componentsOf(
       },
     },
     MuiButton: {
+      defaultProps: { disableElevation: true },
       styleOverrides: {
         root: {
+          borderRadius: radius.control,
+          transition: `transform ${String(duration.press)}ms ${easing.out}, box-shadow ${String(duration.press)}ms ${easing.out}, background-color ${String(duration.quick)}ms ${easing.out}`,
+          '&:active': { transform: travel },
+          '&.Mui-disabled': { boxShadow: 'none', transform: 'none' },
+          // A key stands on a lip and travels down when pressed; a ghost key, the text variant, has no face until it
+          // is touched.
           variants: [
+            {
+              props: { variant: 'contained' },
+              style: key(colors['border-strong'], colors.lip, travel),
+            },
+            {
+              props: { variant: 'contained', color: 'primary' },
+              style: {
+                ...key(colors['primary-edge'], colors['primary-lip'], travel),
+                '&:active': {
+                  transform: travel,
+                  boxShadow: `inset 0 0 0 1px ${colors['primary-edge']}`,
+                  backgroundColor: colors['primary-pressed'],
+                },
+              },
+            },
+            {
+              props: { variant: 'contained', color: 'error' },
+              style: {
+                ...key(colors['danger-hover'], colors['danger-lip'], travel),
+                '&:active': {
+                  transform: travel,
+                  boxShadow: `inset 0 0 0 1px ${colors['danger-hover']}`,
+                  backgroundColor: colors['danger-hover'],
+                },
+              },
+            },
+            {
+              props: { variant: 'outlined' },
+              style: {
+                backgroundColor: colors.control,
+                borderColor: colors['border-strong'],
+                boxShadow: `inset 0 1px 0 ${colors.glint}, 0 ${String(size.travel)}px 0 ${colors.lip}`,
+                '&:hover': { backgroundColor: colors['control-hover'] },
+                '&:active': {
+                  transform: travel,
+                  backgroundColor: colors['control-pressed'],
+                  boxShadow: 'none',
+                },
+              },
+            },
+            {
+              props: { variant: 'text' },
+              style: {
+                '&:hover': { backgroundColor: colors['ghost-hover'] },
+                '&:active': { transform: travel, backgroundColor: colors['ghost-pressed'] },
+              },
+            },
             {
               props: { variant: 'text', color: 'primary' },
               style: { color: colors['primary-text'] },

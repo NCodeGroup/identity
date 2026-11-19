@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createTheme } from '@mui/material/styles';
+import { createTheme, type Theme } from '@mui/material/styles';
 import { deriveBrand } from '@ncodegroup/identity-brand/derive';
 import instrument from '@ncodegroup/identity-brand/instrument.json';
 import vectors from '@ncodegroup/identity-brand/derive.vectors.json';
@@ -13,6 +13,13 @@ const TEAL = { primaryColor: '#0F766E', secondaryColor: '#7C2D12', mode: 'light'
 function overrides(component: { styleOverrides?: unknown } | undefined): unknown {
   const styleOverrides = component?.styleOverrides as Record<string, unknown> | undefined;
   return 'root' in (styleOverrides ?? {}) ? styleOverrides?.root : styleOverrides;
+}
+
+type ButtonVariant = { props: { variant?: string; color?: string }; style: unknown };
+
+/** The `variants` of the MuiButton `root` style of a theme. */
+function buttonVariants(theme: Theme): ButtonVariant[] {
+  return (overrides(theme.components?.MuiButton) as { variants: ButtonVariant[] }).variants;
 }
 
 describe('createAppTheme', () => {
@@ -202,13 +209,80 @@ describe('createAppTheme', () => {
       variants: [{ props: { color: 'primary' }, style: { color: '#006D65' } }],
     });
     expect(overrides(components?.MuiButton)).toMatchObject({
-      variants: [
+      variants: expect.arrayContaining([
         { props: { variant: 'text', color: 'primary' }, style: { color: '#006D65' } },
         {
           props: { variant: 'outlined', color: 'primary' },
           style: { color: '#006D65', borderColor: '#07534D' },
         },
-      ],
+      ]),
+    });
+  });
+
+  it('raises a contained key on its lip and presses it down', () => {
+    const { light } = deriveBrand('#0F766E', '#7C2D12');
+    const variants = buttonVariants(createAppTheme(TEAL));
+    const primary = variants.find(
+      (v) => v.props.variant === 'contained' && v.props.color === 'primary',
+    );
+
+    expect(primary?.style).toMatchObject({
+      boxShadow: `inset 0 0 0 1px #07534D, 0 2px 0 ${light['primary-lip']}`,
+      '&:active': {
+        transform: 'translateY(2px)',
+        backgroundColor: light['primary-pressed'],
+      },
+    });
+  });
+
+  it('draws a plain key on the control face', () => {
+    const { control, 'control-pressed': pressed } = instrument.palette.light.instrument;
+    const plain = buttonVariants(createAppTheme({ mode: 'light' })).find(
+      (v) => v.props.variant === 'outlined' && v.props.color === undefined,
+    );
+
+    expect(plain?.style).toMatchObject({
+      backgroundColor: control,
+      '&:active': { backgroundColor: pressed },
+    });
+  });
+
+  it('draws a ghost key as the text variant', () => {
+    const { 'ghost-hover': hover, 'ghost-pressed': pressed } = instrument.palette.light.instrument;
+    const ghost = buttonVariants(createAppTheme({ mode: 'light' })).find(
+      (v) => v.props.variant === 'text' && v.props.color === undefined,
+    );
+
+    expect(ghost?.style).toMatchObject({
+      '&:hover': { backgroundColor: hover },
+      '&:active': { backgroundColor: pressed },
+    });
+  });
+
+  it("times a key's travel with Instrument's press and quick durations", () => {
+    const root = overrides(createAppTheme().components?.MuiButton) as { transition: string };
+
+    expect(root.transition).toContain('transform 70ms');
+    expect(root.transition).toContain('background-color 120ms');
+  });
+
+  it('cuts a well into the surface', () => {
+    const { shade, well } = instrument.palette.light.instrument;
+
+    expect(overrides(createAppTheme({ mode: 'light' }).components?.MuiOutlinedInput)).toMatchObject(
+      {
+        backgroundColor: well,
+        boxShadow: `inset 0 2px 0 ${shade}`,
+        '& .MuiOutlinedInput-notchedOutline': {
+          borderColor: instrument.palette.light.instrument['border-strong'],
+        },
+      },
+    );
+  });
+
+  it('squares the icon key to the control radius', () => {
+    expect(overrides(createAppTheme().components?.MuiIconButton)).toMatchObject({
+      borderRadius: 6,
     });
   });
 
