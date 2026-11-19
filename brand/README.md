@@ -158,7 +158,7 @@ node brand/vendor-brand.mjs --update <version> --lock frontend/packages/brand/br
 
 Run each from the repository root. `brand.lock.json` pins the release and, for each file, its path in the release and
 its SHA-256. It also names `vendor-brand.mjs`, the release's own script. Both locks name one release, because
-`frontend/packages/brand` holds the same release's theme files
+`frontend/packages/brand` holds the same release's theme files and typefaces
 ([ADR-1516](../docs/decisions/1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md)).
 `build/brand-kit.ps1` checks both and fails when their releases differ. The weekly brand watch
 (`.github/workflows/brand-watch.yml`) keeps a `brand-update` issue open while a release at least three days old is newer

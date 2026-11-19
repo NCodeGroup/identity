@@ -146,3 +146,36 @@ DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
 ```
+
+## Instrument Sans
+
+The interface typeface of the frontends, `frontend/packages/brand/vendor/fonts/instrument-sans-latin-wdth-normal.woff2`
+and `instrument-sans-latin-ext-wdth-normal.woff2`, which every app's build ships in `assets/`, is Instrument Sans
+(<https://github.com/Instrument/instrument-sans>), from `@fontsource-variable/instrument-sans` 5.3.0 as NCode Brand
+0.11.0 (<https://github.com/NCodeGroup/brand>) ships it. NCode Brand's stylesheet that declares it, `css/fonts.css`, is
+under the Apache License 2.0, as this repository is.
+
+```text
+Copyright 2022 The Instrument Sans Project Authors (https://github.com/Instrument/instrument-sans)
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+```
+
+The full license is `frontend/packages/brand/vendor/fonts/OFL-Instrument-Sans.txt`, which every app's build ships as
+`assets/OFL-Instrument-Sans-<hash>.txt`.
+
+## Martian Mono
+
+The code typeface of the frontends, `frontend/packages/brand/vendor/fonts/martian-mono-latin-wdth-normal.woff2` and
+`martian-mono-latin-ext-wdth-normal.woff2`, which every app's build ships in `assets/`, is Martian Mono
+(<https://github.com/evilmartians/mono>), from `@fontsource-variable/martian-mono` 5.3.0 as NCode Brand 0.11.0
+(<https://github.com/NCodeGroup/brand>) ships it.
+
+```text
+Copyright 2020 The Martian Mono Project Authors (https://github.com/evilmartians/mono)
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+```
+
+The full license is `frontend/packages/brand/vendor/fonts/OFL-Martian-Mono.txt`, which every app's build ships as
+`assets/OFL-Martian-Mono-<hash>.txt`.
