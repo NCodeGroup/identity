@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using NCode.Buffers;
 using NCode.Identity.AspNetCore;
+// The project's global using of Moq also names a Match type.
+using RegexMatch = System.Text.RegularExpressions.Match;
 
 namespace NCode.Identity.OpenId.Setup;
 
@@ -150,7 +152,7 @@ public sealed class SetupPageTests
         var links = Regex.Matches(html, "<link rel=\"stylesheet\"[^>]*>");
         Assert.NotEmpty(links);
         var fonts = new HashSet<Uri>();
-        foreach (System.Text.RegularExpressions.Match link in links)
+        foreach (var link in links.Cast<RegexMatch>())
         {
             // Vite's html.cspNonce marks the stylesheet as it marks the scripts, so style-src admits it.
             Assert.Contains(
@@ -171,10 +173,9 @@ public sealed class SetupPageTests
             );
             var stylesheetUri = new Uri($"https://op.example{assetsPath}{asset}");
             foreach (
-                System.Text.RegularExpressions.Match match in Regex.Matches(
-                    css,
-                    "url\\((?<quote>[\"']?)(?<url>[^\"')]+)\\k<quote>\\)"
-                )
+                var match in Regex
+                    .Matches(css, "url\\((?<quote>[\"']?)(?<url>[^\"')]+)\\k<quote>\\)")
+                    .Cast<RegexMatch>()
             )
             {
                 fonts.Add(new Uri(stylesheetUri, match.Groups["url"].Value));
