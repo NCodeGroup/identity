@@ -24,7 +24,7 @@ public static class StartFailure
     [SuppressMessage(
         "Design",
         "NCID0003",
-        Justification = "Stopping what a failed start started is uncancellable: every disposal runs, and DisposeAsync takes no token."
+        Justification = "Stopping what a failed start started is uncancellable: every disposal runs, and DisposeAsync takes no token (ADR-1496)."
     )]
     public static async ValueTask StopStartedAsync(
         Exception startFailure,

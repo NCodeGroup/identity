@@ -112,8 +112,8 @@ built frontend bundles in the same browsers.**
     cannot observe a refusal in every browser.
 
 14. **The login requests `offline_access` only when the deployment lists it.** The interop suite runs the BFF as
-    [ADR-1291](1291-the-bff-refreshes-a-sessions-token-single-flight-under-a-lease-its-winner-releases-by-owner-token.md) describes, so Keycloak's
-    logout at the OP reaches the BFF as a back-channel logout token.
+    [ADR-1291](1291-the-bff-refreshes-a-sessions-token-single-flight-under-a-lease-its-winner-releases-by-owner-token.md)
+    describes, so Keycloak's logout at the OP reaches the BFF as a back-channel logout token.
 
 15. **The pages suite runs the hosts' own composition.** `NCode.Identity.Frontend.EndToEnd.Tests` starts
     `NCode.Identity.OpenId.Host` and `NCode.Identity.ManagementConsole.Host` through
@@ -129,9 +129,10 @@ built frontend bundles in the same browsers.**
     `securitypolicyviolation` event and no Content-Security-Policy console message. An init script records the events
     before the page's own scripts run.
 
-17. **The suites share their browser plumbing.** `NCode.Identity.EndToEnd.TestSupport` holds `BrowserNames`,
-    `BrowserPool` (one headless browser per engine per run, and a fresh context per test that ignores certificate
-    errors), `LoopbackPort` and `TestCertificate`.
+17. **The suites share their plumbing.** `NCode.Identity.EndToEnd.TestSupport` holds `BrowserNames`, `BrowserPool` (one
+    headless browser per engine per run, and a fresh context per test that ignores certificate errors), `LoopbackPort`,
+    `TestCertificate` and `StartFailure` (which stops what a failed start already started and reports the start failure
+    even when a stop also fails).
 
 ## Options considered
 
