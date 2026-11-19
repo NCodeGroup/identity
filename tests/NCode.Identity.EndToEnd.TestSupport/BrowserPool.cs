@@ -9,7 +9,8 @@ namespace NCode.Identity.EndToEnd.TestSupport;
 /// <summary>
 /// Launches one headless browser per engine for a test run and creates the browser contexts that tests use.
 /// </summary>
-public sealed class BrowserPool : IAsyncDisposable
+/// <param name="playwright">The Playwright that launches the browsers, which the pool disposes with them.</param>
+public sealed class BrowserPool(IPlaywright playwright) : IAsyncDisposable
 {
     /// <summary>
     /// Starts Playwright.
@@ -21,12 +22,7 @@ public sealed class BrowserPool : IAsyncDisposable
         return new BrowserPool(playwright);
     }
 
-    internal BrowserPool(IPlaywright playwright)
-    {
-        Playwright = playwright;
-    }
-
-    private IPlaywright Playwright { get; }
+    private IPlaywright Playwright { get; } = playwright;
 
     // GetOrAdd may run its factory more than once under contention, so each value is a Lazy and only the stored one
     // launches.
