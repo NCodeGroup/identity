@@ -16,7 +16,7 @@ public class InteractivePageSecurityTests
 
         var n = security.Nonce;
         Assert.Equal(
-            $"default-src 'none'; script-src 'nonce-{n}' 'strict-dynamic'; style-src 'nonce-{n}'; img-src 'self'; connect-src 'self'; base-uri 'self'; frame-ancestors 'none'",
+            $"default-src 'none'; script-src 'nonce-{n}' 'strict-dynamic'; style-src 'nonce-{n}'; font-src 'self'; img-src 'self'; connect-src 'self'; base-uri 'self'; frame-ancestors 'none'",
             security.Policy.ToContentSecurityPolicy()
         );
     }
@@ -38,6 +38,27 @@ public class InteractivePageSecurityTests
 
         Assert.Contains(
             "img-src 'self' https://cdn.example.com;",
+            security.Policy.ToContentSecurityPolicy()
+        );
+    }
+
+    [Fact]
+    public void Create_WhenTheBrandingHasALogo_LoadsFontsOnlyFromTheSurface()
+    {
+        var branding = new InteractiveBranding(
+            null,
+            "https://cdn.example.com/acme/logo.png",
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        var security = InteractivePageSecurity.Create(branding);
+
+        Assert.Contains(
+            "; font-src 'self'; img-src 'self' https://cdn.example.com;",
             security.Policy.ToContentSecurityPolicy()
         );
     }

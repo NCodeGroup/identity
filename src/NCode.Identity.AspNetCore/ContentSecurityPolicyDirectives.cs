@@ -28,6 +28,11 @@ public static class ContentSecurityPolicyDirectives
     public const string StyleSrc = "style-src";
 
     /// <summary>
+    /// The <c>font-src</c> directive, which restricts the fonts a page may load.
+    /// </summary>
+    public const string FontSrc = "font-src";
+
+    /// <summary>
     /// The <c>img-src</c> directive, which restricts the images a page may load.
     /// </summary>
     public const string ImgSrc = "img-src";

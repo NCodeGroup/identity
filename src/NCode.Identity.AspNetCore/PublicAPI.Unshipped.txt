@@ -21,6 +21,7 @@ NCode.Identity.AspNetCore.ContentSecurityPolicyDirectives
 const NCode.Identity.AspNetCore.ContentSecurityPolicyDirectives.BaseUri = "base-uri" -> string!
 const NCode.Identity.AspNetCore.ContentSecurityPolicyDirectives.ConnectSrc = "connect-src" -> string!
 const NCode.Identity.AspNetCore.ContentSecurityPolicyDirectives.DefaultSrc = "default-src" -> string!
+const NCode.Identity.AspNetCore.ContentSecurityPolicyDirectives.FontSrc = "font-src" -> string!
 const NCode.Identity.AspNetCore.ContentSecurityPolicyDirectives.FormAction = "form-action" -> string!
 const NCode.Identity.AspNetCore.ContentSecurityPolicyDirectives.FrameAncestors = "frame-ancestors" -> string!
 const NCode.Identity.AspNetCore.ContentSecurityPolicyDirectives.FrameSrc = "frame-src" -> string!
