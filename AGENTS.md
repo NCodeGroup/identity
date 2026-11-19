@@ -126,7 +126,8 @@ compiles it and no gate tests it
 - **Settings, claims and cryptography** — `NCode.Identity.Settings(.Abstractions)`,
   `NCode.Identity.Claims(.Abstractions)` and `NCode.Identity.Cryptography(.Abstractions)`, each registered by its own
   `Add…Library()` and composed under `AddOpenIdCoreLibrary`
-- **Persistence** — `NCode.Identity.Persistence.Abstractions` (every persistence contract)
+- **Persistence** — `NCode.Identity.Persistence.Abstractions` (every persistence contract, and the UUIDv7 default of the
+  surrogate key generator)
 - **Infrastructure ports** — `NCode.Identity.Dispatch(.Abstractions)` (background jobs),
   `NCode.Identity.Events(.Abstractions)`, `NCode.Identity.SharedState(.Abstractions)` (state every replica sees) and its
   opt-in `NCode.Identity.SharedState.Valkey` adapter
@@ -150,8 +151,11 @@ compiles it and no gate tests it
 - **Build analyzers** — `NCode.Identity.Analyzers`, under `analyzers/`, the repository's own Roslyn analyzers, which
   every project's build loads and no package ships: `NCID0001` reports a field that could be an auto-property
   ([ADR-1486](docs/decisions/1486-the-repositorys-own-analyzer-project-fails-the-build-on-a-field-an-auto-property-could-replace.md)),
-  and `NCID0004` reports an `IgnoreQueryFilters()` call that no `// Cross-tenant: <why>` comment explains
-  ([ADR-1018](docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md))
+  `NCID0004` reports an `IgnoreQueryFilters()` call that no `// Cross-tenant: <why>` comment explains
+  ([ADR-1018](docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)),
+  and `NCID0005` reports a `Guid` member of a public type in a `Contracts` or `DataContracts` namespace, where a
+  surrogate key would reach a caller
+  ([ADR-1517](docs/decisions/1517-internal-surrogate-keys-are-uuidv7-minted-in-process-behind-one-seam-and-never-reach-a-caller.md))
 - **Frontend (`frontend/`)** — the pnpm workspace of the web apps (`apps/auth`, `apps/conformance`,
   `apps/conformance-runner`, `apps/mgmt`, `apps/playground`, `apps/setup`) and their shared `@ncodegroup/identity-*`
   packages, themed with NCode Brand's Instrument, whose files `frontend/packages/brand` vendors from the release

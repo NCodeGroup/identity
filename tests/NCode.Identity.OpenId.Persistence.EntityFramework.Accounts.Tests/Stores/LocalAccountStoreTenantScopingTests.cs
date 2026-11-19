@@ -1,11 +1,11 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Accounts.Credentials;
 using NCode.Identity.OpenId.Accounts.DataContracts;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Accounts.Stores;
@@ -34,12 +34,13 @@ public sealed class LocalAccountStoreTenantScopingTests : IDisposable
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
         Accessor = Provider.GetRequiredService<TestAmbientTenantAccessor>();
-        var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        DbContext.SeedTenant(idGenerator, TenantA);
-        DbContext.SeedTenant(idGenerator, TenantB);
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        DbContext.SeedTenant(keyGenerator, TenantA);
+        DbContext.SeedTenant(keyGenerator, TenantB);
         Store = new LocalAccountStore(
             Mock.Of<IStoreProvider>(),
-            idGenerator,
+            keyGenerator,
+            TestPageCursorProtector.Instance,
             Mock.Of<IPasswordHasher>(),
             DbContext
         );

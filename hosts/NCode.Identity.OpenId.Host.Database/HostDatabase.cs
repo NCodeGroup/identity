@@ -75,10 +75,10 @@ public static class HostDatabase
     /// Creates an <see cref="OpenIdDbContext"/> outside a request, for the EF Core design-time tools and the migration
     /// runner. The context and its <see cref="TenantSessionInterceptor"/> share one
     /// <see cref="UnscopedAmbientTenantAccessor"/>, so its queries and its Postgres session reach every tenant's rows,
-    /// and it takes its id generator and model contributors from <paramref name="serviceProvider"/>.
+    /// and it takes its surrogate key generator and model contributors from <paramref name="serviceProvider"/>.
     /// </summary>
-    /// <param name="serviceProvider">A provider that has the OpenID persistence slice registered (id generator and
-    /// model contributors).</param>
+    /// <param name="serviceProvider">A provider that has the OpenID persistence slice registered (surrogate key
+    /// generator and model contributors).</param>
     /// <param name="connectionString">The Postgres connection string.</param>
     /// <returns>The context, which the caller disposes.</returns>
     internal static OpenIdDbContext CreateUnscopedOpenIdContext(

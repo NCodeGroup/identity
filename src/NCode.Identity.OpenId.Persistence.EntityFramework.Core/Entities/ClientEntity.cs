@@ -25,12 +25,12 @@ public sealed class ClientEntity : ISupportTenantEntity, ISupportConcurrencyToke
     /// Gets the surrogate identifier for this entity.
     /// </summary>
     [Key]
-    [UseIdGenerator]
-    public required long Id { get; init; }
+    [SurrogateKey]
+    public required Guid Id { get; init; }
 
     /// <inheritdoc />
     [ForeignKey(nameof(Tenant))]
-    public required long TenantId { get; init; }
+    public required Guid TenantId { get; init; }
 
     /// <summary>
     /// Gets the owning tenant's normalized identifier, denormalized onto this entity so the tenant-scoping global
@@ -135,7 +135,7 @@ public sealed class ClientEntity : ISupportTenantEntity, ISupportConcurrencyToke
     /// <c>null</c> for an ordinary client. The binding is set when the client is created and never changes.
     /// </summary>
     [ForeignKey(nameof(ResourceServer))]
-    public required long? ResourceServerId { get; init; }
+    public required Guid? ResourceServerId { get; init; }
 
     // navigational properties
 

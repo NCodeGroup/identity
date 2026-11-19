@@ -15,7 +15,7 @@ public interface ISupportSecretEntity
     /// <summary>
     /// Gets the foreign key for the associated secret.
     /// </summary>
-    long SecretId { get; }
+    Guid SecretId { get; }
 
     /// <summary>
     /// Gets the navigation property for the associated secret.

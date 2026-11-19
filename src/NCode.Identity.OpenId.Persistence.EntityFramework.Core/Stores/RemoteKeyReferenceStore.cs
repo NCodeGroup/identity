@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Microsoft.EntityFrameworkCore;
+using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets;
@@ -18,10 +19,13 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
 // See ADR-1478.
 internal class RemoteKeyReferenceStore(
     IStoreProvider storeProvider,
+    IPageCursorProtector cursorProtector,
     OpenIdDbContext openIdDbContext
 ) : IRemoteKeyReferenceStore
 {
     private IStoreProvider StoreProvider { get; } = storeProvider;
+
+    private IPageCursorProtector CursorProtector { get; } = cursorProtector;
 
     private OpenIdDbContext DbContext { get; } = openIdDbContext;
 
@@ -48,7 +52,7 @@ internal class RemoteKeyReferenceStore(
                 && entity.EncodedValue.StartsWith(prefix)
             );
 
-        var afterId = KeysetCursor.Decode(page.Cursor);
+        var afterId = CursorProtector.UnprotectKey(nameof(SecretEntity), page.Cursor);
         if (afterId is { } id)
             query = query.Where(entity => entity.Id > id);
 
@@ -68,7 +72,9 @@ internal class RemoteKeyReferenceStore(
                 .Take(count)
                 .Select(entity => entity.EncodedValue[prefix.Length..])
                 .ToList(),
-            NextCursor = hasMore ? KeysetCursor.Encode(entities[count - 1].Id) : null,
+            NextCursor = hasMore
+                ? CursorProtector.ProtectKey(nameof(SecretEntity), entities[count - 1].Id)
+                : null,
         };
     }
 }

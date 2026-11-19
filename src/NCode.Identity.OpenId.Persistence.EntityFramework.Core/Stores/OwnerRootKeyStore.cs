@@ -1,9 +1,9 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.Persistence.DataContracts;
 using NCode.Identity.Secrets.Persistence.Protection;
@@ -22,13 +22,16 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
 // See ADR-1414.
 internal class OwnerRootKeyStore(
     IStoreProvider storeProvider,
-    IIdGenerator<long> idGenerator,
+    ISurrogateKeyGenerator keyGenerator,
+    IPageCursorProtector cursorProtector,
     OpenIdDbContext openIdDbContext
 ) : IOwnerRootKeyStore
 {
     private IStoreProvider StoreProvider { get; } = storeProvider;
 
-    private IIdGenerator<long> IdGenerator { get; } = idGenerator;
+    private ISurrogateKeyGenerator KeyGenerator { get; } = keyGenerator;
+
+    private IPageCursorProtector CursorProtector { get; } = cursorProtector;
 
     private OpenIdDbContext DbContext { get; } = openIdDbContext;
 
@@ -46,7 +49,7 @@ internal class OwnerRootKeyStore(
 
         var entity = new OwnerRootKeyEntity
         {
-            Id = IdGenerator.CreateId(),
+            Id = KeyGenerator.CreateKey(),
             OwnerType = item.OwnerType.ToLowerInvariant(),
             OwnerId = item.OwnerId,
             NormalizedOwnerId = item.OwnerId.ToLowerInvariant(),
@@ -187,7 +190,7 @@ internal class OwnerRootKeyStore(
                 )
             );
 
-        var afterId = KeysetCursor.Decode(page.Cursor);
+        var afterId = CursorProtector.UnprotectKey(nameof(OwnerRootKeyEntity), page.Cursor);
         if (afterId is not null)
             query = query.Where(entity => entity.Id > afterId.Value);
 
@@ -202,7 +205,9 @@ internal class OwnerRootKeyStore(
         return new PagedResult<PersistedOwnerRootKey>
         {
             Items = entities.Take(count).Select(MapToPersistedOwnerRootKey).ToList(),
-            NextCursor = hasMore ? KeysetCursor.Encode(entities[count - 1].Id) : null,
+            NextCursor = hasMore
+                ? CursorProtector.ProtectKey(nameof(OwnerRootKeyEntity), entities[count - 1].Id)
+                : null,
         };
     }
 
@@ -219,7 +224,7 @@ internal class OwnerRootKeyStore(
             .OwnerRootKeys.AsNoTracking()
             .Where(entity => entity.OwnerType == normalizedOwnerType);
 
-        var afterId = KeysetCursor.Decode(page.Cursor);
+        var afterId = CursorProtector.UnprotectKey(nameof(OwnerRootKeyEntity), page.Cursor);
         if (afterId is not null)
             query = query.Where(entity => entity.Id > afterId.Value);
 
@@ -234,7 +239,9 @@ internal class OwnerRootKeyStore(
         return new PagedResult<PersistedOwnerRootKey>
         {
             Items = entities.Take(count).Select(MapToPersistedOwnerRootKey).ToList(),
-            NextCursor = hasMore ? KeysetCursor.Encode(entities[count - 1].Id) : null,
+            NextCursor = hasMore
+                ? CursorProtector.ProtectKey(nameof(OwnerRootKeyEntity), entities[count - 1].Id)
+                : null,
         };
     }
 

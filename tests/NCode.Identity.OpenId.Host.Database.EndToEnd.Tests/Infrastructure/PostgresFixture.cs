@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Security.Cryptography;
-using IdGen;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.EntityFramework;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Accounts;
@@ -65,7 +65,7 @@ public sealed class PostgresFixture : IAsyncLifetime
         );
 
         var serviceProvider = new ServiceCollection()
-            .AddSingleton<IIdGenerator<long>>(new IdGenerator(0))
+            .AddSingleton<IDataProtectionProvider>(new EphemeralDataProtectionProvider())
             .AddEntityFrameworkCorePersistence<OpenIdDbContext>()
             .AddLocalAccountEntityFramework()
             .ServiceCollection.BuildServiceProvider();

@@ -1,16 +1,17 @@
 #nullable enable
+abstract NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TItem, TEntity>.CursorProtector.get -> NCode.Identity.Persistence.Stores.IPageCursorProtector!
 abstract NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TItem, TEntity>.DbContext.get -> NCode.Identity.OpenId.Persistence.EntityFramework.OpenIdDbContext!
 abstract NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TItem, TEntity>.GetEntityOrDefaultAsync(System.Linq.Expressions.Expression<System.Func<TEntity!, bool>!>! predicate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<TEntity?>
-abstract NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TItem, TEntity>.GetEntityPageAsync(long? afterId, int take, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<TEntity!>!>
-abstract NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TItem, TEntity>.GetSortKey(TEntity! entity) -> long
-abstract NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TItem, TEntity>.IdGenerator.get -> IdGen.IIdGenerator<long>!
+abstract NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TItem, TEntity>.GetEntityPageAsync(System.Guid? afterId, int take, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<TEntity!>!>
+abstract NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TItem, TEntity>.GetSortKey(TEntity! entity) -> System.Guid
+abstract NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TItem, TEntity>.KeyGenerator.get -> NCode.Identity.Persistence.ISurrogateKeyGenerator!
 abstract NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TItem, TEntity>.MapFromEntityAsync(TEntity! entity, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<TItem!>
 abstract NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TItem, TEntity>.StoreProvider.get -> NCode.Identity.Persistence.Stores.IStoreProvider!
 abstract NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStoreWithResourceId<TItem, TEntity>.AddAsync(TItem! item, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 abstract NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStoreWithResourceId<TItem, TEntity>.GetEntityOrDefaultAsync(string! resourceId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<TEntity?>
 abstract NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStoreWithResourceId<TItem, TEntity>.UpdateAsync(TItem! item, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-NCode.Identity.OpenId.Persistence.EntityFramework.Configuration.UseIdGeneratorAttribute
-NCode.Identity.OpenId.Persistence.EntityFramework.Configuration.UseIdGeneratorAttribute.UseIdGeneratorAttribute() -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Configuration.SurrogateKeyAttribute
+NCode.Identity.OpenId.Persistence.EntityFramework.Configuration.SurrogateKeyAttribute.SurrogateKeyAttribute() -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.DefaultRegistration
 NCode.Identity.OpenId.Persistence.EntityFramework.DefaultRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!)
 NCode.Identity.OpenId.Persistence.EntityFramework.DefaultRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).AddEntityFrameworkPersistenceServices<TDbContext>() -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Persistence.StoreManagerLibrary>!
@@ -27,18 +28,18 @@ NCode.Identity.OpenId.Persistence.EntityFramework.OpenIdDbContext.OpenIdDbContex
 NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TItem, TEntity>
 NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TItem, TEntity>.BaseStore() -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TItem, TEntity>.BuildPageAsync(System.Collections.Generic.IReadOnlyList<TEntity!>! entities, int limit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.Persistence.Stores.PagedResult<TItem!>!>
+NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TItem, TEntity>.DecodeCursor(string? cursor) -> System.Guid?
+NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TItem, TEntity>.EncodeCursor(System.Guid key) -> string!
 NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TItem, TEntity>.GetLocalOrDefault(System.Linq.Expressions.Expression<System.Func<TEntity!, bool>!>! predicate) -> TEntity?
 NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TItem, TEntity>.GetPageAsync(NCode.Identity.Persistence.Stores.PageRequest page, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.Persistence.Stores.PagedResult<TItem!>!>
 NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TItem, TEntity>.GetService(System.Type! serviceType) -> object?
-NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TItem, TEntity>.NextId(long? value = null) -> long
+NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TItem, TEntity>.NextId() -> System.Guid
 NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStoreWithResourceId<TItem, TEntity>
 NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStoreWithResourceId<TItem, TEntity>.BaseStoreWithResourceId() -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStoreWithResourceId<TItem, TEntity>.GetOrDefaultAsync(string! resourceId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<TItem?>
 override NCode.Identity.OpenId.Persistence.EntityFramework.OpenIdDbContext.ConfigureConventions(Microsoft.EntityFrameworkCore.ModelConfigurationBuilder! configurationBuilder) -> void
 override NCode.Identity.OpenId.Persistence.EntityFramework.OpenIdDbContext.OnConfiguring(Microsoft.EntityFrameworkCore.DbContextOptionsBuilder! optionsBuilder) -> void
 override NCode.Identity.OpenId.Persistence.EntityFramework.OpenIdDbContext.OnModelCreating(Microsoft.EntityFrameworkCore.ModelBuilder! modelBuilder) -> void
-static NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TItem, TEntity>.DecodeCursor(string? cursor) -> long?
-static NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TItem, TEntity>.EncodeCursor(long key) -> string!
 static NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TItem, TEntity>.NextConcurrencyToken() -> string!
 static NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TItem, TEntity>.Normalize(string? value) -> string?
 virtual NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStore<TItem, TEntity>.GetOrDefaultAsync(System.Linq.Expressions.Expression<System.Func<TEntity!, bool>!>! predicate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<TItem?>

@@ -15,7 +15,7 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "AuditRecords",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
                     EventId = table.Column<Guid>(type: "uuid", nullable: false),
                     EventTime = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     EventName = table.Column<string>(type: "character varying(100)", unicode: false, maxLength: 100, nullable: false),
@@ -72,7 +72,7 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "MasterKeys",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
                     KeyId = table.Column<Guid>(type: "uuid", nullable: false),
                     OwnerType = table.Column<string>(type: "character varying(50)", unicode: false, maxLength: 50, nullable: false),
                     OwnerId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
@@ -100,7 +100,7 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "OwnerRootKeys",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
                     OwnerType = table.Column<string>(type: "character varying(50)", unicode: false, maxLength: 50, nullable: false),
                     OwnerId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     NormalizedOwnerId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
@@ -124,7 +124,7 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "Platform",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
                     Key = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     ConcurrencyToken = table.Column<string>(type: "character varying(50)", unicode: false, maxLength: 50, nullable: false),
                     SettingsConcurrencyToken = table.Column<string>(type: "character varying(50)", unicode: false, maxLength: 50, nullable: false),
@@ -140,7 +140,7 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "RetiredIssuers",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
                     Issuer = table.Column<string>(type: "character varying(1000)", unicode: false, maxLength: 1000, nullable: false),
                     NormalizedIssuer = table.Column<string>(type: "character varying(1000)", unicode: false, maxLength: 1000, nullable: false),
                     TenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false)
@@ -154,7 +154,7 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "RetiredTeams",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
                     TeamId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     NormalizedTeamId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false)
                 },
@@ -167,7 +167,7 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "RetiredTenants",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
                     TenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     NormalizedTenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false)
                 },
@@ -180,7 +180,7 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "Secrets",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
                     SecretId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     NormalizedSecretId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     KeyId = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: true),
@@ -208,10 +208,10 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "Teams",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
                     TeamId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     NormalizedTeamId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
-                    ParentTeamId = table.Column<long>(type: "bigint", nullable: true),
+                    ParentTeamId = table.Column<Guid>(type: "uuid", nullable: true),
                     Path = table.Column<string>(type: "character varying(513)", unicode: false, maxLength: 513, nullable: false),
                     ConcurrencyToken = table.Column<string>(type: "character varying(50)", unicode: false, maxLength: 50, nullable: false),
                     SettingsConcurrencyToken = table.Column<string>(type: "character varying(50)", unicode: false, maxLength: 50, nullable: false),
@@ -238,7 +238,7 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "TenantUsage",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
                     TenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     TeamPath = table.Column<string>(type: "character varying(513)", unicode: false, maxLength: 513, nullable: false),
                     Day = table.Column<DateOnly>(type: "date", nullable: false),
@@ -256,7 +256,7 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "TenantUsageCheckpoints",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
                     ReplicaId = table.Column<Guid>(type: "uuid", nullable: false),
                     LastBatchNumber = table.Column<long>(type: "bigint", nullable: false),
                     LastDay = table.Column<DateOnly>(type: "date", nullable: false),
@@ -271,8 +271,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "AuditRecordResources",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false),
-                    AuditRecordId = table.Column<long>(type: "bigint", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    AuditRecordId = table.Column<Guid>(type: "uuid", nullable: false),
                     Ordinal = table.Column<int>(type: "integer", nullable: false),
                     Type = table.Column<string>(type: "character varying(100)", unicode: false, maxLength: 100, nullable: false),
                     ResourceId = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: true)
@@ -292,7 +292,7 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "Tenants",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
                     TenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     NormalizedTenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     Issuer = table.Column<string>(type: "character varying(1000)", unicode: false, maxLength: 1000, nullable: true),
@@ -306,7 +306,7 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     IsDisabled = table.Column<bool>(type: "boolean", nullable: false),
                     DisplayName = table.Column<string>(type: "text", nullable: false),
                     SettingsJson = table.Column<string>(type: "text", nullable: false),
-                    TeamId = table.Column<long>(type: "bigint", nullable: false)
+                    TeamId = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -323,10 +323,10 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "FederatedPrincipals",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
                     PrincipalId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     NormalizedPrincipalId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
-                    TenantId = table.Column<long>(type: "bigint", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
                     NormalizedTenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     ProfileMetadataJson = table.Column<string>(type: "text", nullable: false),
                     SystemMetadataJson = table.Column<string>(type: "text", nullable: false),
@@ -348,8 +348,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "LocalAccounts",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false),
-                    TenantId = table.Column<long>(type: "bigint", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
                     NormalizedTenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     LocalAccountId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     NormalizedLocalAccountId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
@@ -378,8 +378,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "ResourceServers",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false),
-                    TenantId = table.Column<long>(type: "bigint", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
                     NormalizedTenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     ResourceServerId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     NormalizedResourceServerId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
@@ -409,8 +409,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "RoleAssignments",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false),
-                    TenantId = table.Column<long>(type: "bigint", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
                     NormalizedTenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     AssignmentId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     NormalizedAssignmentId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
@@ -438,10 +438,10 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "TenantSecrets",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false),
-                    TenantId = table.Column<long>(type: "bigint", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
                     NormalizedTenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
-                    SecretId = table.Column<long>(type: "bigint", nullable: false)
+                    SecretId = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -464,12 +464,12 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "FederatedIdentities",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
                     FederatedIdentityId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     NormalizedFederatedIdentityId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
-                    TenantId = table.Column<long>(type: "bigint", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
                     NormalizedTenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
-                    FederatedPrincipalId = table.Column<long>(type: "bigint", nullable: false),
+                    FederatedPrincipalId = table.Column<Guid>(type: "uuid", nullable: false),
                     Issuer = table.Column<string>(type: "character varying(1000)", unicode: false, maxLength: 1000, nullable: false),
                     NormalizedIssuer = table.Column<string>(type: "character varying(1000)", unicode: false, maxLength: 1000, nullable: false),
                     Subject = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
@@ -499,12 +499,12 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "LocalAccountClaims",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false),
-                    TenantId = table.Column<long>(type: "bigint", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
                     NormalizedTenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     Type = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     Value = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: false),
-                    LocalAccountEntityId = table.Column<long>(type: "bigint", nullable: true)
+                    LocalAccountEntityId = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -527,8 +527,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "Clients",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false),
-                    TenantId = table.Column<long>(type: "bigint", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
                     NormalizedTenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     ClientId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     NormalizedClientId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
@@ -542,7 +542,7 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     SecretsConcurrencyToken = table.Column<string>(type: "character varying(50)", unicode: false, maxLength: 50, nullable: false),
                     IsDisabled = table.Column<bool>(type: "boolean", nullable: false),
                     SettingsJson = table.Column<string>(type: "text", nullable: false),
-                    ResourceServerId = table.Column<long>(type: "bigint", nullable: true)
+                    ResourceServerId = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -565,11 +565,11 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "ResourceServerSecrets",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false),
-                    TenantId = table.Column<long>(type: "bigint", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
                     NormalizedTenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
-                    ResourceServerId = table.Column<long>(type: "bigint", nullable: false),
-                    SecretId = table.Column<long>(type: "bigint", nullable: false)
+                    ResourceServerId = table.Column<Guid>(type: "uuid", nullable: false),
+                    SecretId = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -598,10 +598,10 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "Scopes",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false),
-                    TenantId = table.Column<long>(type: "bigint", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
                     NormalizedTenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
-                    ResourceServerId = table.Column<long>(type: "bigint", nullable: false),
+                    ResourceServerId = table.Column<Guid>(type: "uuid", nullable: false),
                     Value = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     NormalizedValue = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     ConcurrencyToken = table.Column<string>(type: "character varying(50)", unicode: false, maxLength: 50, nullable: false),
@@ -629,11 +629,11 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "ClientGrants",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false),
-                    TenantId = table.Column<long>(type: "bigint", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
                     NormalizedTenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
-                    ClientId = table.Column<long>(type: "bigint", nullable: false),
-                    ResourceServerId = table.Column<long>(type: "bigint", nullable: false),
+                    ClientId = table.Column<Guid>(type: "uuid", nullable: false),
+                    ResourceServerId = table.Column<Guid>(type: "uuid", nullable: false),
                     ConcurrencyToken = table.Column<string>(type: "character varying(50)", unicode: false, maxLength: 50, nullable: false),
                     ScopesJson = table.Column<string>(type: "text", nullable: false)
                 },
@@ -664,11 +664,11 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "ClientSecrets",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false),
-                    TenantId = table.Column<long>(type: "bigint", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
                     NormalizedTenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
-                    ClientId = table.Column<long>(type: "bigint", nullable: false),
-                    SecretId = table.Column<long>(type: "bigint", nullable: false)
+                    ClientId = table.Column<Guid>(type: "uuid", nullable: false),
+                    SecretId = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -697,10 +697,10 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "Consents",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false),
-                    TenantId = table.Column<long>(type: "bigint", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
                     NormalizedTenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
-                    ClientId = table.Column<long>(type: "bigint", nullable: false),
+                    ClientId = table.Column<Guid>(type: "uuid", nullable: false),
                     SubjectId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     NormalizedSubjectId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     RequestedScopesJson = table.Column<string>(type: "text", nullable: false),
@@ -730,15 +730,15 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "Grants",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
                     GrantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     NormalizedGrantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
                     GrantType = table.Column<string>(type: "character varying(100)", unicode: false, maxLength: 100, nullable: false),
                     HashedKey = table.Column<string>(type: "character varying(1000)", unicode: false, maxLength: 1000, nullable: false),
                     ConcurrencyToken = table.Column<string>(type: "character varying(50)", unicode: false, maxLength: 50, nullable: false),
-                    TenantId = table.Column<long>(type: "bigint", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
                     NormalizedTenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
-                    ClientId = table.Column<long>(type: "bigint", nullable: true),
+                    ClientId = table.Column<Guid>(type: "uuid", nullable: true),
                     SubjectId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: true),
                     NormalizedSubjectId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: true),
                     SessionId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: true),

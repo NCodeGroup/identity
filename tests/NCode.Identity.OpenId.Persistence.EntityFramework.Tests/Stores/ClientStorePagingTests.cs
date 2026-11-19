@@ -1,11 +1,12 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
+using System.Buffers.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Tenants;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Stores;
@@ -30,11 +31,17 @@ public sealed class ClientStorePagingTests : IDisposable
 
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
-        var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        TenantStore = new TenantStore(Mock.Of<IStoreProvider>(), idGenerator, DbContext);
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        TenantStore = new TenantStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
         Store = new ClientStore(
             Mock.Of<IStoreProvider>(),
-            idGenerator,
+            keyGenerator,
+            TestPageCursorProtector.Instance,
             DbContext,
             TestCryptoServices.CreateResourceIdGenerator()
         );
@@ -62,7 +69,7 @@ public sealed class ClientStorePagingTests : IDisposable
 
     private async ValueTask SeedAsync(int count, CancellationToken cancellationToken)
     {
-        DbContext.SeedTeam(Provider.GetRequiredService<IIdGenerator<long>>(), "platform");
+        DbContext.SeedTeam(Provider.GetRequiredService<ISurrogateKeyGenerator>(), "platform");
         var tenant = new PersistedTenantBuilder { TenantId = TenantId }.Build();
         await TenantStore.AddAsync(tenant, cancellationToken);
         await DbContext.SaveChangesAsync(cancellationToken);
@@ -129,6 +136,54 @@ public sealed class ClientStorePagingTests : IDisposable
         );
 
         Assert.Equal(3, page.Items.Count);
+    }
+
+    [Fact]
+    public async Task GetPageAsync_Cursor_DoesNotCarryTheSortKey()
+    {
+        await SeedAsync(3, CancellationToken.None);
+
+        using var scope = Ambient.BeginScope(TenantId);
+
+        var page = await Store.GetPageAsync(new PageRequest { Limit = 1 }, CancellationToken.None);
+
+        var cursor = Assert.IsType<string>(page.NextCursor);
+        var key = DbContext.Set<ClientEntity>().OrderBy(client => client.Id).First().Id;
+        var keyText = key.ToString("N");
+        Assert.DoesNotContain(keyText, cursor, StringComparison.OrdinalIgnoreCase);
+        var decoded = Base64Url.DecodeFromChars(cursor);
+        var bigEndianBytes = key.ToByteArray(bigEndian: true);
+        var littleEndianBytes = key.ToByteArray(bigEndian: false);
+        var bigEndianIndex = decoded.AsSpan().IndexOf(bigEndianBytes);
+        var littleEndianIndex = decoded.AsSpan().IndexOf(littleEndianBytes);
+        Assert.Equal(-1, bigEndianIndex);
+        Assert.Equal(-1, littleEndianIndex);
+    }
+
+    [Fact]
+    public async Task GetPageAsync_WhenCursorIsTampered_StartsFromBeginning()
+    {
+        await SeedAsync(3, CancellationToken.None);
+
+        using var scope = Ambient.BeginScope(TenantId);
+
+        var firstPage = await Store.GetPageAsync(
+            new PageRequest { Limit = 1 },
+            CancellationToken.None
+        );
+        var cursor = Assert.IsType<string>(firstPage.NextCursor);
+        var tampered = cursor.ToCharArray();
+        tampered[20] = tampered[20] == 'A' ? 'B' : 'A';
+        var tamperedCursor = new string(tampered);
+
+        var page = await Store.GetPageAsync(
+            new PageRequest { Cursor = tamperedCursor, Limit = 1 },
+            CancellationToken.None
+        );
+
+        var expectedClientIds = firstPage.Items.Select(client => client.ClientId).ToList();
+        var actualClientIds = page.Items.Select(client => client.ClientId).ToList();
+        Assert.Equal(expectedClientIds, actualClientIds);
     }
 
     [Fact]
@@ -252,8 +307,8 @@ public sealed class ClientStorePagingTests : IDisposable
     public async Task GetByPrincipalOrDefaultAsync_WhenUnscoped_FindsTheClientInAnyTenant()
     {
         await SeedAsync(1, CancellationToken.None);
-        var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        DbContext.SeedTenant(idGenerator, "tenant-2");
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        DbContext.SeedTenant(keyGenerator, "tenant-2");
         var otherClient = CreateClient("other-client", tenantId: "tenant-2");
         await Store.AddAsync(otherClient, CancellationToken.None);
         await DbContext.SaveChangesAsync();

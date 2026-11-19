@@ -1,9 +1,9 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.KeyWrapping;
 using NCode.Identity.Secrets.Persistence.DataContracts;
@@ -65,7 +65,8 @@ public sealed class MasterKeyStoreActivePageTests : IDisposable
         var context = scope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
         var store = new MasterKeyStore(
             Mock.Of<IStoreProvider>(),
-            Provider.GetRequiredService<IIdGenerator<long>>(),
+            Provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TestPageCursorProtector.Instance,
             context
         );
         foreach (var key in new[] { retired, old, recent })

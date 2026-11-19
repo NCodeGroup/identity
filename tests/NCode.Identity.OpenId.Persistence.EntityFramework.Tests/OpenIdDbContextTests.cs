@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -9,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework;
@@ -48,17 +48,23 @@ public sealed class OpenIdDbContextTests : IDisposable
 
         ScopeProvider = serviceCollection.BuildServiceProvider();
         var dbContext = ScopeProvider.GetRequiredService<OpenIdDbContext>();
-        var idGenerator = ScopeProvider.GetRequiredService<IIdGenerator<long>>();
-        var tenantStore = new TenantStore(Mock.Of<IStoreProvider>(), idGenerator, dbContext);
+        var keyGenerator = ScopeProvider.GetRequiredService<ISurrogateKeyGenerator>();
+        var tenantStore = new TenantStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            dbContext
+        );
         var clientStore = new ClientStore(
             Mock.Of<IStoreProvider>(),
-            idGenerator,
+            keyGenerator,
+            TestPageCursorProtector.Instance,
             dbContext,
             TestCryptoServices.CreateResourceIdGenerator()
         );
 
         AmbientIsUnscoped = true;
-        dbContext.SeedTeam(idGenerator, "platform");
+        dbContext.SeedTeam(keyGenerator, "platform");
         foreach (var tenantId in new[] { "tenant-1", "tenant-2" })
         {
             await tenantStore.AddAsync(

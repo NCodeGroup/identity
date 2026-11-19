@@ -1,11 +1,10 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using NCode.Identity.OpenId.Persistence.EntityFramework.Configuration;
 using NCode.Identity.OpenId.Persistence.Tenants;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Stores;
@@ -24,9 +23,10 @@ public sealed class BaseStoreLocalLookupTests : IDisposable
     public BaseStoreLocalLookupTests()
     {
         var serviceCollection = new ServiceCollection();
-        serviceCollection.AddSingleton<IIdGenerator<long>>(new IdGenerator(0));
-        serviceCollection.AddSingleton<IdValueGenerator>();
-        serviceCollection.AddSingleton<UseIdGeneratorConvention>();
+        serviceCollection.AddSingleton<ISurrogateKeyGenerator>(
+            new SequentialSurrogateKeyGenerator()
+        );
+        serviceCollection.AddSingleton<IPageCursorProtector>(TestPageCursorProtector.Instance);
 
         Provider = serviceCollection.BuildServiceProvider();
 
@@ -42,7 +42,8 @@ public sealed class BaseStoreLocalLookupTests : IDisposable
         );
         Store = new ClientStore(
             Mock.Of<IStoreProvider>(),
-            Provider.GetRequiredService<IIdGenerator<long>>(),
+            Provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TestPageCursorProtector.Instance,
             DbContext,
             TestCryptoServices.CreateResourceIdGenerator()
         );
@@ -60,15 +61,15 @@ public sealed class BaseStoreLocalLookupTests : IDisposable
     // tracked (local) entities and never through the database.
     private void TrackClientOfTenantA()
     {
-        var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
         using (AmbientTenantAccessor.BeginUnscoped("test"))
         {
-            var tenant = DbContext.SeedTenant(idGenerator, TenantA);
+            var tenant = DbContext.SeedTenant(keyGenerator, TenantA);
 
             DbContext.Clients.Add(
                 new ClientEntity
                 {
-                    Id = idGenerator.CreateId(),
+                    Id = keyGenerator.CreateKey(),
                     TenantId = tenant.Id,
                     NormalizedTenantId = tenant.NormalizedTenantId,
                     Tenant = tenant,

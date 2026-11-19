@@ -2404,9 +2404,12 @@ Until the first stable release, the [Unreleased] section describes the product a
 - **Collection endpoints page through management resources by keyset.** A collection `GET`, such as `GET api/teams`,
   `GET api/tenants` or `GET api/tenants/{tenantId}/clients`, returns a page of resources (`CollectionResource<T>`, with
   `items` and `continuationToken`) using keyset (cursor) pagination (`?limit=` clamped to 100, `?cursor=` an opaque
-  continuation token). Keyset pagination lives in `BaseStore`, so a store not keyed by a resource id, such as the grant
-  store, paginates on its chronological surrogate id. There is deliberately no query protocol (no OData); see
-  [ADR-1014](docs/decisions/1014-management-resources-carry-opaque-server-identifiers-and-list-one-keyset-page-at-a-time.md).
+  continuation token that the persistence layer encrypts and authenticates). Keyset pagination lives in `BaseStore`, so
+  a store not keyed by a resource id, such as the grant store, paginates on its time-ordered surrogate key. There is
+  deliberately no query protocol (no OData); see
+  [ADR-1014](docs/decisions/1014-management-resources-carry-opaque-server-identifiers-and-list-one-keyset-page-at-a-time.md)
+  ([#843](https://github.com/NCodeGroup/identity/issues/843),
+  [ADR-1517](docs/decisions/1517-internal-surrogate-keys-are-uuidv7-minted-in-process-behind-one-seam-and-never-reach-a-caller.md)).
 
 - **Every management write honors optimistic concurrency.** A resource carries its `concurrencyToken`, and every
   response that returns it sends the RFC 9110 strong entity tag `ETag: "<concurrencyToken>"`. A write sends `If-Match`
@@ -3092,7 +3095,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   `NCode.Identity.OpenId.Persistence.EntityFramework.Core` slice and the local-account schema the
   `NCode.Identity.OpenId.Persistence.EntityFramework.Accounts` slice, each slice's root namespace matching its package
   id. The framework's store bases (`BaseStore`, `BaseStoreWithResourceId`), the `AddStore` registration helper and the
-  `UseIdGenerator` attribute are public so a slice reuses them. Hosts register the framework plus each slice
+  `SurrogateKey` attribute are public so a slice reuses them. Hosts register the framework plus each slice
   (`AddEntityFrameworkCorePersistence<TDbContext>()`), and a slice may expose typed `DbSet` accessors for its own
   entities as extension members. `EntityStoreManager` has a `DbContext`-less store-factory fallback, so a store that is
   not built on Entity Framework resolves without referencing `OpenIdDbContext`. On a relational provider,
@@ -3100,7 +3103,18 @@ Until the first stable release, the [Unreleased] section describes the product a
   chose a query splitting behavior. Split queries read one snapshot only inside a transaction, so a host chooses
   `UseQuerySplittingBehavior(QuerySplittingBehavior.SingleQuery)` or a query calls `AsSingleQuery()` where it needs one
   ([ADR-1052](docs/decisions/1052-entity-framework-persistence-is-a-reusable-framework-that-domain-slices-plug-into.md),
-  [ADR-1051](docs/decisions/1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md)).
+  [ADR-1051](docs/decisions/1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md),
+  [ADR-1517](docs/decisions/1517-internal-surrogate-keys-are-uuidv7-minted-in-process-behind-one-seam-and-never-reach-a-caller.md),
+  [#843](https://github.com/NCodeGroup/identity/issues/843)).
+
+- **Every stored row is keyed by a UUIDv7 that any process mints offline.** Every Entity Framework entity of a cell
+  and every record of the global directory is keyed by a `Guid` holding a UUIDv7, and every foreign key by the same
+  type, which Npgsql stores as `uuid`. `ISurrogateKeyGenerator` (`NCode.Identity.Persistence.Abstractions`) mints
+  them in-process with `Guid.CreateVersion7()`, with no node identifier, coordination or database round trip;
+  `AddSurrogateKeyGenerator()` registers it, and a host or test replaces it in one registration. An entity marks its
+  key `[SurrogateKey]`, whose convention mints a key for an entity added without one
+  ([#843](https://github.com/NCodeGroup/identity/issues/843),
+  [ADR-1517](docs/decisions/1517-internal-surrogate-keys-are-uuidv7-minted-in-process-behind-one-seam-and-never-reach-a-caller.md)).
 
 - **Store queries take extensible parameter records.** Every store's `GetPageAsync` pages with a shared `PageRequest {
   Cursor, Limit }` init-only record struct (in `NCode.Identity.Persistence.Stores`, beside `PagedResult<T>`) across
@@ -6264,6 +6278,15 @@ Until the first stable release, the [Unreleased] section describes the product a
   in a fluent chain), so every deliberate bypass of the tenant filter explains itself; it skips assemblies whose names
   end in `.Tests` or `.TestSupport`
   ([ADR-1018](docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)).
+
+- **A surrogate key never reaches a caller.** Every keyset continuation cursor is encrypted and authenticated by
+  `IPageCursorProtector`, whose default protects it under the host's Data Protection key ring and binds it to the
+  collection it pages, so a `continuationToken` reveals nothing about the row it ends at, and a malformed, tampered,
+  foreign or undecryptable one restarts the list. `NCID0005` (`SurrogateKeyExposureAnalyzer`, in
+  `NCode.Identity.Analyzers`) fails the build on a `Guid` member of a public type in a `Contracts` or
+  `DataContracts` namespace unless a `SuppressMessage` names it a public identifier, and log and exception messages
+  name public identifiers only ([#843](https://github.com/NCodeGroup/identity/issues/843),
+  [ADR-1517](docs/decisions/1517-internal-surrogate-keys-are-uuidv7-minted-in-process-behind-one-seam-and-never-reach-a-caller.md)).
 
 - **A store method that reads or writes across tenants runs only in an unscoped scope.**
   `OpenIdDbContext.EnsureUnscoped` throws unless the ambient scope is unscoped, and every store method that ignores the

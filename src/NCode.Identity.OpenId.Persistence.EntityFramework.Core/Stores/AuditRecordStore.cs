@@ -2,12 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers.Binary;
-using System.Buffers.Text;
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
@@ -21,13 +20,31 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
 // See ADR-1303.
 internal sealed class AuditRecordStore(
     IStoreProvider storeProvider,
-    IIdGenerator<long> idGenerator,
+    ISurrogateKeyGenerator keyGenerator,
+    IPageCursorProtector cursorProtector,
     OpenIdDbContext openIdDbContext
 ) : IAuditRecordStore
 {
+    /// <summary>
+    /// The length in bytes of the big-endian UTC ticks of an event time.
+    /// </summary>
+    private const int TicksLength = sizeof(long);
+
+    /// <summary>
+    /// The length in bytes of a surrogate key.
+    /// </summary>
+    private const int KeyLength = 16;
+
+    /// <summary>
+    /// The length in bytes of a cursor position.
+    /// </summary>
+    private const int PositionLength = TicksLength + KeyLength;
+
     private IStoreProvider StoreProvider { get; } = storeProvider;
 
-    private IIdGenerator<long> IdGenerator { get; } = idGenerator;
+    private ISurrogateKeyGenerator KeyGenerator { get; } = keyGenerator;
+
+    private IPageCursorProtector CursorProtector { get; } = cursorProtector;
 
     private OpenIdDbContext DbContext { get; } = openIdDbContext;
 
@@ -71,7 +88,7 @@ internal sealed class AuditRecordStore(
     {
         var entity = new AuditRecordEntity
         {
-            Id = IdGenerator.CreateId(),
+            Id = KeyGenerator.CreateKey(),
             EventId = record.EventId,
             EventTime = record.EventTime.ToUniversalTime(),
             EventName = record.EventName,
@@ -95,7 +112,7 @@ internal sealed class AuditRecordStore(
             entity.Resources.Add(
                 new AuditRecordResourceEntity
                 {
-                    Id = IdGenerator.CreateId(),
+                    Id = KeyGenerator.CreateKey(),
                     AuditRecord = entity,
                     Ordinal = ordinal++,
                     Type = resource.Type,
@@ -234,34 +251,57 @@ internal sealed class AuditRecordStore(
             Record = entity.Record,
         };
 
-    // The cursor encoding of the keyset-paginated stores: the base64url of the big-endian UTC ticks of the event time
-    // and then of the surrogate identifier.
-    private static string EncodeCursor(DateTimeOffset eventTime, long id)
+    /// <summary>
+    /// Encodes the position of a record as a cursor. The position is the big-endian UTC ticks of the event time
+    /// followed by the big-endian surrogate key, and <see cref="IPageCursorProtector"/> protects it, so a caller never
+    /// sees the key.
+    /// </summary>
+    /// <param name="eventTime">The event time of the last record of a page.</param>
+    /// <param name="id">The surrogate key of the last record of a page.</param>
+    /// <returns>
+    /// The protected cursor that resumes the list after the record.
+    /// </returns>
+    private string EncodeCursor(DateTimeOffset eventTime, Guid id)
     {
-        Span<byte> bytes = stackalloc byte[2 * sizeof(long)];
-        BinaryPrimitives.WriteInt64BigEndian(bytes, eventTime.UtcTicks);
-        BinaryPrimitives.WriteInt64BigEndian(bytes[sizeof(long)..], id);
-        return Base64Url.EncodeToString(bytes);
+        Span<byte> position = stackalloc byte[PositionLength];
+        BinaryPrimitives.WriteInt64BigEndian(position, eventTime.UtcTicks);
+        id.TryWriteBytes(position[TicksLength..], bigEndian: true, out _);
+        return CursorProtector.Protect(nameof(AuditRecordEntity), position);
     }
 
-    private static (DateTimeOffset EventTime, long Id)? DecodeCursor(string? cursor)
+    /// <summary>
+    /// Decodes a cursor into the position of a record.
+    /// </summary>
+    /// <param name="cursor">The cursor that an earlier page returned, or <see langword="null"/> for the first
+    /// page.</param>
+    /// <returns>
+    /// The event time and surrogate key of the record to resume after, or <see langword="null"/> when the cursor is
+    /// null or empty, does not unprotect, has a position of another length, or holds ticks out of range, so the list
+    /// restarts.
+    /// </returns>
+    private (DateTimeOffset EventTime, Guid Id)? DecodeCursor(string? cursor)
     {
         if (string.IsNullOrEmpty(cursor))
             return null;
 
         // A malformed cursor is treated as the start of the collection rather than a hard error.
-        Span<byte> bytes = stackalloc byte[2 * sizeof(long)];
+        Span<byte> position = stackalloc byte[PositionLength];
         if (
-            !Base64Url.TryDecodeFromChars(cursor, bytes, out var written)
-            || written != 2 * sizeof(long)
+            !CursorProtector.TryUnprotect(
+                nameof(AuditRecordEntity),
+                cursor,
+                position,
+                out var bytesWritten
+            )
+            || bytesWritten != PositionLength
         )
             return null;
 
-        var ticks = BinaryPrimitives.ReadInt64BigEndian(bytes);
+        var ticks = BinaryPrimitives.ReadInt64BigEndian(position);
         if (ticks < DateTime.MinValue.Ticks || ticks > DateTime.MaxValue.Ticks)
             return null;
 
-        var id = BinaryPrimitives.ReadInt64BigEndian(bytes[sizeof(long)..]);
+        var id = new Guid(position[TicksLength..], bigEndian: true);
         return (new DateTimeOffset(ticks, TimeSpan.Zero), id);
     }
 

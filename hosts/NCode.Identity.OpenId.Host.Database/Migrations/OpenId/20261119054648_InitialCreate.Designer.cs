@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 {
     [DbContext(typeof(OpenIdDbContext))]
-    [Migration("20261117235115_InitialCreate")]
+    [Migration("20261119054648_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -27,11 +27,11 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Accounts.Entities.LocalAccountClaimEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
-                    b.Property<long?>("LocalAccountEntityId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid?>("LocalAccountEntityId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("NormalizedTenantId")
                         .IsRequired()
@@ -39,8 +39,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnicode(false)
                         .HasColumnType("character varying(300)");
 
-                    b.Property<long>("TenantId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Type")
                         .IsRequired()
@@ -64,8 +64,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Accounts.Entities.LocalAccountEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ConcurrencyToken")
                         .IsConcurrencyToken()
@@ -124,8 +124,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnicode(false)
                         .HasColumnType("character varying(100)");
 
-                    b.Property<long>("TenantId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("UserName")
                         .IsRequired()
@@ -150,8 +150,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.AuditRecordEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ActorId")
                         .HasMaxLength(300)
@@ -253,11 +253,11 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.AuditRecordResourceEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
-                    b.Property<long>("AuditRecordId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("AuditRecordId")
+                        .HasColumnType("uuid");
 
                     b.Property<int>("Ordinal")
                         .HasColumnType("integer");
@@ -283,8 +283,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ClientEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ClientId")
                         .IsRequired()
@@ -341,8 +341,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnicode(false)
                         .HasColumnType("character varying(300)");
 
-                    b.Property<long?>("ResourceServerId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid?>("ResourceServerId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("SecretsConcurrencyToken")
                         .IsRequired()
@@ -360,8 +360,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<long>("TenantId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
@@ -380,11 +380,11 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ClientGrantEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
-                    b.Property<long>("ClientId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ConcurrencyToken")
                         .IsConcurrencyToken()
@@ -399,15 +399,15 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnicode(false)
                         .HasColumnType("character varying(300)");
 
-                    b.Property<long>("ResourceServerId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("ResourceServerId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ScopesJson")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<long>("TenantId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
@@ -423,11 +423,11 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ClientSecretEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
-                    b.Property<long>("ClientId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("NormalizedTenantId")
                         .IsRequired()
@@ -435,11 +435,11 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnicode(false)
                         .HasColumnType("character varying(300)");
 
-                    b.Property<long>("SecretId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("SecretId")
+                        .HasColumnType("uuid");
 
-                    b.Property<long>("TenantId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
@@ -455,11 +455,11 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ConsentEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
-                    b.Property<long>("ClientId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ConcurrencyToken")
                         .IsConcurrencyToken()
@@ -497,8 +497,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnicode(false)
                         .HasColumnType("character varying(300)");
 
-                    b.Property<long>("TenantId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("UpdatedWhen")
                         .HasColumnType("timestamp with time zone");
@@ -539,8 +539,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.FederatedIdentityEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ConcurrencyToken")
                         .IsConcurrencyToken()
@@ -555,8 +555,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnicode(false)
                         .HasColumnType("character varying(300)");
 
-                    b.Property<long>("FederatedPrincipalId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("FederatedPrincipalId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Issuer")
                         .IsRequired()
@@ -604,8 +604,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnicode(false)
                         .HasColumnType("character varying(300)");
 
-                    b.Property<long>("TenantId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
@@ -624,8 +624,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.FederatedPrincipalEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ConcurrencyToken")
                         .IsConcurrencyToken()
@@ -663,8 +663,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<long>("TenantId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
@@ -676,11 +676,11 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.GrantEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
-                    b.Property<long?>("ClientId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid?>("ClientId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ConcurrencyToken")
                         .IsConcurrencyToken()
@@ -756,8 +756,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnicode(false)
                         .HasColumnType("character varying(300)");
 
-                    b.Property<long>("TenantId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
@@ -828,8 +828,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.MasterKeyEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ConcurrencyToken")
                         .IsConcurrencyToken()
@@ -935,8 +935,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.OwnerRootKeyEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("AccessIdentity")
                         .HasMaxLength(1024)
@@ -1016,8 +1016,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.PlatformEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ConcurrencyToken")
                         .IsConcurrencyToken()
@@ -1055,8 +1055,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ResourceServerEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ConcurrencyToken")
                         .IsConcurrencyToken()
@@ -1128,8 +1128,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<long>("TenantId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
@@ -1144,8 +1144,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ResourceServerSecretEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("NormalizedTenantId")
                         .IsRequired()
@@ -1153,14 +1153,14 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnicode(false)
                         .HasColumnType("character varying(300)");
 
-                    b.Property<long>("ResourceServerId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("ResourceServerId")
+                        .HasColumnType("uuid");
 
-                    b.Property<long>("SecretId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("SecretId")
+                        .HasColumnType("uuid");
 
-                    b.Property<long>("TenantId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
@@ -1176,8 +1176,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.RetiredIssuerEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Issuer")
                         .IsRequired()
@@ -1207,8 +1207,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.RetiredTeamEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("NormalizedTeamId")
                         .IsRequired()
@@ -1232,8 +1232,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.RetiredTenantEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("NormalizedTenantId")
                         .IsRequired()
@@ -1257,8 +1257,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.RoleAssignmentEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("AssignmentId")
                         .IsRequired()
@@ -1327,8 +1327,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnicode(false)
                         .HasColumnType("character varying(100)");
 
-                    b.Property<long>("TenantId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
@@ -1345,8 +1345,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.ScopeEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ConcurrencyToken")
                         .IsConcurrencyToken()
@@ -1374,11 +1374,11 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnicode(false)
                         .HasColumnType("character varying(300)");
 
-                    b.Property<long>("ResourceServerId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("ResourceServerId")
+                        .HasColumnType("uuid");
 
-                    b.Property<long>("TenantId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Value")
                         .IsRequired()
@@ -1400,8 +1400,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.SecretEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("ActivatesWhen")
                         .HasColumnType("timestamp with time zone");
@@ -1495,8 +1495,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TeamEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ConcurrencyToken")
                         .IsConcurrencyToken()
@@ -1522,8 +1522,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnicode(false)
                         .HasColumnType("character varying(300)");
 
-                    b.Property<long?>("ParentTeamId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid?>("ParentTeamId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Path")
                         .IsRequired()
@@ -1573,8 +1573,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TenantEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ConcurrencyToken")
                         .IsConcurrencyToken()
@@ -1638,8 +1638,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<long>("TeamId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("TenantId")
                         .IsRequired()
@@ -1669,8 +1669,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TenantSecretEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("NormalizedTenantId")
                         .IsRequired()
@@ -1678,11 +1678,11 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         .IsUnicode(false)
                         .HasColumnType("character varying(300)");
 
-                    b.Property<long>("SecretId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("SecretId")
+                        .HasColumnType("uuid");
 
-                    b.Property<long>("TenantId")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
@@ -1696,8 +1696,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TenantUsageCheckpointEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ConcurrencyToken")
                         .IsConcurrencyToken()
@@ -1727,8 +1727,8 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             modelBuilder.Entity("NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.TenantUsageEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Cell")
                         .IsRequired()

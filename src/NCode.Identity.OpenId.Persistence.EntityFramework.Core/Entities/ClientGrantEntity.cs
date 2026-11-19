@@ -24,12 +24,12 @@ public sealed class ClientGrantEntity : ISupportTenantEntity, ISupportConcurrenc
     /// Gets the surrogate identifier for this entity.
     /// </summary>
     [Key]
-    [UseIdGenerator]
-    public required long Id { get; init; }
+    [SurrogateKey]
+    public required Guid Id { get; init; }
 
     /// <inheritdoc />
     [ForeignKey(nameof(Tenant))]
-    public required long TenantId { get; init; }
+    public required Guid TenantId { get; init; }
 
     /// <summary>
     /// Gets the owning tenant's normalized identifier, denormalized onto this entity so the tenant-scoping global
@@ -43,13 +43,13 @@ public sealed class ClientGrantEntity : ISupportTenantEntity, ISupportConcurrenc
     /// Gets the foreign key for the client that is authorized.
     /// </summary>
     [ForeignKey(nameof(Client))]
-    public required long ClientId { get; init; }
+    public required Guid ClientId { get; init; }
 
     /// <summary>
     /// Gets the foreign key for the resource server the client is authorized to.
     /// </summary>
     [ForeignKey(nameof(ResourceServer))]
-    public required long ResourceServerId { get; init; }
+    public required Guid ResourceServerId { get; init; }
 
     //
 

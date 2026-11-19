@@ -1,6 +1,5 @@
 using System;
 using Microsoft.EntityFrameworkCore.Migrations;
-using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
@@ -57,8 +56,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations.Directory
                 name: "RetiredIssuers",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
                     Issuer = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: false),
                     NormalizedIssuer = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: false),
                     TenantId = table.Column<string>(type: "character varying(63)", maxLength: 63, nullable: false)
@@ -84,8 +82,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations.Directory
                 name: "Teams",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
                     TeamId = table.Column<string>(type: "character varying(63)", maxLength: 63, nullable: false),
                     NormalizedTeamId = table.Column<string>(type: "character varying(63)", maxLength: 63, nullable: false),
                     NormalizedParentTeamId = table.Column<string>(type: "character varying(63)", maxLength: 63, nullable: true),
@@ -103,8 +100,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations.Directory
                 name: "TenantMoveOffers",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
                     NormalizedTenantId = table.Column<string>(type: "character varying(63)", maxLength: 63, nullable: false),
                     FromCell = table.Column<string>(type: "character varying(31)", maxLength: 31, nullable: false),
                     ToCell = table.Column<string>(type: "character varying(31)", maxLength: 31, nullable: false),
@@ -120,8 +116,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations.Directory
                 name: "Tenants",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
                     TenantId = table.Column<string>(type: "character varying(63)", maxLength: 63, nullable: false),
                     NormalizedTenantId = table.Column<string>(type: "character varying(63)", maxLength: 63, nullable: false),
                     Issuer = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),

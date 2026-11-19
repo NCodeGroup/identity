@@ -20,12 +20,12 @@ public sealed class ClientSecretEntity : ISupportTenantEntity, ISupportSecretEnt
     /// Gets the surrogate identifier for this entity.
     /// </summary>
     [Key]
-    [UseIdGenerator]
-    public required long Id { get; init; }
+    [SurrogateKey]
+    public required Guid Id { get; init; }
 
     /// <inheritdoc />
     [ForeignKey(nameof(Tenant))]
-    public required long TenantId { get; init; }
+    public required Guid TenantId { get; init; }
 
     /// <summary>
     /// Gets the owning tenant's normalized identifier, denormalized onto this entity so the tenant-scoping global
@@ -39,11 +39,11 @@ public sealed class ClientSecretEntity : ISupportTenantEntity, ISupportSecretEnt
     /// Gets the foreign key for the associated client.
     /// </summary>
     [ForeignKey(nameof(Client))]
-    public required long ClientId { get; init; }
+    public required Guid ClientId { get; init; }
 
     /// <inheritdoc />
     [ForeignKey(nameof(Secret))]
-    public required long SecretId { get; init; }
+    public required Guid SecretId { get; init; }
 
     //
 

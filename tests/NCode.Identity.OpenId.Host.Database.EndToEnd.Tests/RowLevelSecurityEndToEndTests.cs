@@ -93,7 +93,7 @@ public sealed class RowLevelSecurityEndToEndTests(PostgresFixture fixture)
         using var scope = accessor.BeginScope(tenantA.TenantId);
         await using var context = CreateContext(accessor);
 
-        var resourceServerId = Random.Shared.NextInt64(1, long.MaxValue);
+        var resourceServerId = Guid.CreateVersion7();
         var name = $"rls-{Guid.NewGuid():N}";
         const string settingsJson = "{}";
 
@@ -200,16 +200,16 @@ public sealed class RowLevelSecurityEndToEndTests(PostgresFixture fixture)
         );
     }
 
-    private async ValueTask<List<long>> QueryVisibleAsync(
+    private async ValueTask<List<Guid>> QueryVisibleAsync(
         IAmbientTenantAccessor accessor,
-        long[] resourceServerIds,
+        Guid[] resourceServerIds,
         CancellationToken cancellationToken
     )
     {
         await using var context = CreateContext(accessor);
 
         return await context
-            .Database.SqlQuery<long>(
+            .Database.SqlQuery<Guid>(
                 $"""SELECT "Id" AS "Value" FROM "ResourceServers" WHERE "Id" = ANY ({resourceServerIds})"""
             )
             .ToListAsync(cancellationToken);
@@ -222,14 +222,14 @@ public sealed class RowLevelSecurityEndToEndTests(PostgresFixture fixture)
     /// </summary>
     private async ValueTask<(
         string TenantId,
-        long TenantRowId,
-        long ResourceServerId
+        Guid TenantRowId,
+        Guid ResourceServerId
     )> SeedTenantAsync(CancellationToken cancellationToken)
     {
         var tenantId = $"rls-{Guid.NewGuid():N}";
-        var teamRowId = Random.Shared.NextInt64(1, long.MaxValue);
-        var tenantRowId = Random.Shared.NextInt64(1, long.MaxValue);
-        var resourceServerId = Random.Shared.NextInt64(1, long.MaxValue);
+        var teamRowId = Guid.CreateVersion7();
+        var tenantRowId = Guid.CreateVersion7();
+        var resourceServerId = Guid.CreateVersion7();
 
         await using var connection = new NpgsqlConnection(fixture.OwnerConnectionString);
         await connection.OpenAsync(cancellationToken);
@@ -276,12 +276,12 @@ public sealed class RowLevelSecurityEndToEndTests(PostgresFixture fixture)
     /// </summary>
     private async ValueTask SeedRoleAssignmentAsync(
         string tenantId,
-        long tenantRowId,
+        Guid tenantRowId,
         string principalId,
         CancellationToken cancellationToken
     )
     {
-        var roleAssignmentId = Random.Shared.NextInt64(1, long.MaxValue);
+        var roleAssignmentId = Guid.CreateVersion7();
         var assignmentId = $"rls-{Guid.NewGuid():N}";
 
         await using var connection = new NpgsqlConnection(fixture.OwnerConnectionString);

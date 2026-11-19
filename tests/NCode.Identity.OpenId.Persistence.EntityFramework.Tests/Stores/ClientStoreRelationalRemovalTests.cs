@@ -1,11 +1,11 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.DataContracts;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.Persistence.DataContracts;
 
@@ -42,24 +42,46 @@ public sealed class ClientStoreRelationalRemovalTests : IDisposable
 
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
         DbContext.Database.EnsureCreated();
-        DbContext.SeedTeam(Provider.GetRequiredService<IIdGenerator<long>>(), "platform");
+        DbContext.SeedTeam(Provider.GetRequiredService<ISurrogateKeyGenerator>(), "platform");
 
-        var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        TenantStore = new TenantStore(Mock.Of<IStoreProvider>(), idGenerator, DbContext);
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        TenantStore = new TenantStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
         ClientStore = new ClientStore(
             Mock.Of<IStoreProvider>(),
-            idGenerator,
+            keyGenerator,
+            TestPageCursorProtector.Instance,
             DbContext,
             TestCryptoServices.CreateResourceIdGenerator()
         );
         ResourceServerStore = new ResourceServerStore(
             Mock.Of<IStoreProvider>(),
-            idGenerator,
+            keyGenerator,
+            TestPageCursorProtector.Instance,
             DbContext
         );
-        ClientGrantStore = new ClientGrantStore(Mock.Of<IStoreProvider>(), idGenerator, DbContext);
-        ConsentStore = new ConsentStore(Mock.Of<IStoreProvider>(), idGenerator, DbContext);
-        GrantStore = new GrantStore(Mock.Of<IStoreProvider>(), idGenerator, DbContext);
+        ClientGrantStore = new ClientGrantStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
+        ConsentStore = new ConsentStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
+        GrantStore = new GrantStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
     }
 
     public void Dispose()

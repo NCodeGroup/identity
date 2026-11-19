@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.ComponentModel.DataAnnotations;
-using IdGen;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Entities;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Stores;
@@ -41,8 +41,13 @@ public sealed class TenantStoreContributedEntityRemovalTests : IDisposable
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
         DbContext.Database.EnsureCreated();
 
-        var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        Store = new TenantStore(Mock.Of<IStoreProvider>(), idGenerator, DbContext);
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        Store = new TenantStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
     }
 
     public void Dispose()
@@ -57,7 +62,7 @@ public sealed class TenantStoreContributedEntityRemovalTests : IDisposable
     private sealed class TestTenantNoteEntity : ISupportTenantEntity
     {
         [Key]
-        public required long Id { get; init; }
+        public required Guid Id { get; init; }
 
         public required string NormalizedTenantId { get; init; }
 
@@ -83,9 +88,9 @@ public sealed class TenantStoreContributedEntityRemovalTests : IDisposable
     [Fact]
     public async Task RemoveAsync_WhenAnotherPackageContributesATenantOwnedEntity_RemovesItsRows()
     {
-        var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        DbContext.SeedTenant(idGenerator, TenantOneId);
-        DbContext.SeedTenant(idGenerator, TenantTwoId);
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        DbContext.SeedTenant(keyGenerator, TenantOneId);
+        DbContext.SeedTenant(keyGenerator, TenantTwoId);
 
         foreach (var tenantId in new[] { TenantOneId, TenantTwoId })
         {
@@ -94,7 +99,7 @@ public sealed class TenantStoreContributedEntityRemovalTests : IDisposable
                 .Add(
                     new TestTenantNoteEntity
                     {
-                        Id = idGenerator.CreateId(),
+                        Id = keyGenerator.CreateKey(),
                         NormalizedTenantId = tenantId,
                         Text = $"{tenantId}-note",
                     }

@@ -1,10 +1,10 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.DataContracts;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.Persistence.DataContracts;
 
@@ -29,7 +29,8 @@ public sealed class TenantStoreSecretsTests : IDisposable
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
         Store = new TenantStore(
             Mock.Of<IStoreProvider>(),
-            Provider.GetRequiredService<IIdGenerator<long>>(),
+            Provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TestPageCursorProtector.Instance,
             DbContext
         );
     }
@@ -54,7 +55,7 @@ public sealed class TenantStoreSecretsTests : IDisposable
         CancellationToken cancellationToken
     )
     {
-        DbContext.SeedTeam(Provider.GetRequiredService<IIdGenerator<long>>(), "platform");
+        DbContext.SeedTeam(Provider.GetRequiredService<ISurrogateKeyGenerator>(), "platform");
         var tenant = new PersistedTenantBuilder
         {
             TenantId = TenantId,

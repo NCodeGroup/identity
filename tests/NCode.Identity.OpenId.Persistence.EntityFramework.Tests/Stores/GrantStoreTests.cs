@@ -1,11 +1,11 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Stores;
@@ -31,9 +31,19 @@ public sealed class GrantStoreTests : IAsyncLifetime, IDisposable
 
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
-        var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        Store = new GrantStore(Mock.Of<IStoreProvider>(), idGenerator, DbContext);
-        TenantStore = new TenantStore(Mock.Of<IStoreProvider>(), idGenerator, DbContext);
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        Store = new GrantStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
+        TenantStore = new TenantStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
     }
 
     public Task InitializeAsync() => SeedTenantAsync(CancellationToken.None).AsTask();
@@ -48,7 +58,7 @@ public sealed class GrantStoreTests : IAsyncLifetime, IDisposable
 
     private async ValueTask SeedTenantAsync(CancellationToken cancellationToken)
     {
-        DbContext.SeedTeam(Provider.GetRequiredService<IIdGenerator<long>>(), "platform");
+        DbContext.SeedTeam(Provider.GetRequiredService<ISurrogateKeyGenerator>(), "platform");
         var tenant = new PersistedTenantBuilder
         {
             TenantId = TenantId,
@@ -349,7 +359,7 @@ public sealed class GrantStoreTests : IAsyncLifetime, IDisposable
         const string disabledTeamId = "disabled-team";
         const string tenantId = "tenant-of-disabled-team";
         var team = DbContext.SeedTeam(
-            Provider.GetRequiredService<IIdGenerator<long>>(),
+            Provider.GetRequiredService<ISurrogateKeyGenerator>(),
             disabledTeamId
         );
         team.IsDisabled = true;
@@ -399,11 +409,11 @@ public sealed class GrantStoreTests : IAsyncLifetime, IDisposable
     {
         const string childTeamId = "disabled-parent-web";
         const string tenantId = "tenant-beneath-disabled-team";
-        var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        var parent = DbContext.SeedTeam(idGenerator, "disabled-parent");
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        var parent = DbContext.SeedTeam(keyGenerator, "disabled-parent");
         parent.IsDisabled = true;
         await DbContext.SaveChangesAsync();
-        DbContext.SeedChildTeam(idGenerator, parent, childTeamId);
+        DbContext.SeedChildTeam(keyGenerator, parent, childTeamId);
 
         var tenant = new PersistedTenantBuilder
         {
@@ -447,13 +457,13 @@ public sealed class GrantStoreTests : IAsyncLifetime, IDisposable
     [Fact]
     public async Task GetUnrevokedExpiredPageAsync_SkipsTheGrantsOfATenantBeneathADisabledGrandparentTeam()
     {
-        var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        var grandparent = DbContext.SeedTeam(idGenerator, "acme");
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        var grandparent = DbContext.SeedTeam(keyGenerator, "acme");
         grandparent.IsDisabled = true;
         await DbContext.SaveChangesAsync();
-        var parent = DbContext.SeedChildTeam(idGenerator, grandparent, "acme-web");
-        DbContext.SeedChildTeam(idGenerator, parent, "acme-web-eu");
-        DbContext.SeedTeam(idGenerator, "other");
+        var parent = DbContext.SeedChildTeam(keyGenerator, grandparent, "acme-web");
+        DbContext.SeedChildTeam(keyGenerator, parent, "acme-web-eu");
+        DbContext.SeedTeam(keyGenerator, "other");
         DbContext.ChangeTracker.Clear();
 
         await AddTenantAsync("tenant-beneath-grandparent", "acme-web-eu", CancellationToken.None);
@@ -482,11 +492,11 @@ public sealed class GrantStoreTests : IAsyncLifetime, IDisposable
     [Fact]
     public async Task GetUnrevokedExpiredPageAsync_ReturnsTheGrantsOfATeamWhoseIdentifierExtendsADisabledTeams()
     {
-        var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        var disabled = DbContext.SeedTeam(idGenerator, "acme");
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        var disabled = DbContext.SeedTeam(keyGenerator, "acme");
         disabled.IsDisabled = true;
         await DbContext.SaveChangesAsync();
-        DbContext.SeedTeam(idGenerator, "acme-x");
+        DbContext.SeedTeam(keyGenerator, "acme-x");
         DbContext.ChangeTracker.Clear();
 
         await AddTenantAsync("tenant-of-acme-x", "acme-x", CancellationToken.None);

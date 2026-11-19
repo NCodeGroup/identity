@@ -65,7 +65,7 @@ NCode.Identity.OpenId.GlobalDirectory.Server.Entities.PlatformRecord.PlatformRec
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.PlatformRecord.Sequence.get -> long
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.PlatformRecord.Sequence.set -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.RetiredIssuerRecord
-NCode.Identity.OpenId.GlobalDirectory.Server.Entities.RetiredIssuerRecord.Id.get -> long
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.RetiredIssuerRecord.Id.get -> System.Guid
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.RetiredIssuerRecord.Id.init -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.RetiredIssuerRecord.Issuer.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.RetiredIssuerRecord.Issuer.set -> void
@@ -77,7 +77,7 @@ NCode.Identity.OpenId.GlobalDirectory.Server.Entities.RetiredIssuerRecord.Tenant
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.DocumentJson.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.DocumentJson.set -> void
-NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.Id.get -> long
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.Id.get -> System.Guid
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.Id.init -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.NormalizedParentTeamId.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord.NormalizedParentTeamId.set -> void
@@ -99,7 +99,7 @@ NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.Expi
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.ExpiresWhen.set -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.FromCell.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.FromCell.set -> void
-NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.Id.get -> long
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.Id.get -> System.Guid
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.Id.init -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.NormalizedTenantId.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord.NormalizedTenantId.set -> void
@@ -111,7 +111,7 @@ NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.Cell.get -> s
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.Cell.set -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.CreatedWhen.get -> System.DateTimeOffset
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.CreatedWhen.set -> void
-NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.Id.get -> long
+NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.Id.get -> System.Guid
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.Id.init -> void
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.Issuer.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord.Issuer.set -> void

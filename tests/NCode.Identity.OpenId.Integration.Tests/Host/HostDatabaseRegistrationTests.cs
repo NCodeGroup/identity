@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
@@ -46,7 +45,6 @@ public class HostDatabaseRegistrationTests
         var serviceCollection = new ServiceCollection();
         serviceCollection.AddLogging();
         serviceCollection.AddSingleton<IAmbientTenantAccessor, StubAmbientTenantAccessor>();
-        serviceCollection.AddSingleton<IIdGenerator<long>>(new IdGenerator(0));
         serviceCollection
             .AddEntityFrameworkCorePersistence<OpenIdDbContext>()
             .AddLocalAccountEntityFramework();

@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Text.Json;
-using IdGen;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Tenants;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Stores;
@@ -18,7 +18,7 @@ public sealed class TeamStoreLifecycleTests : IDisposable
 
     private SqliteConnection Connection { get; }
     private ServiceProvider Provider { get; }
-    private IIdGenerator<long> IdGenerator { get; }
+    private ISurrogateKeyGenerator KeyGenerator { get; }
     private OpenIdDbContext DbContext { get; }
     private TeamStore Store { get; }
 
@@ -33,10 +33,11 @@ public sealed class TeamStoreLifecycleTests : IDisposable
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
         DbContext.Database.EnsureCreated();
-        IdGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
+        KeyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
         Store = new TeamStore(
             Mock.Of<IStoreProvider>(),
-            IdGenerator,
+            KeyGenerator,
+            TestPageCursorProtector.Instance,
             DbContext,
             TestPayloadSerializer.Instance
         );
@@ -86,13 +87,13 @@ public sealed class TeamStoreLifecycleTests : IDisposable
 
     private async ValueTask SeedTenantInTeamAsync(CancellationToken cancellationToken)
     {
-        var team = DbContext.SeedTeam(IdGenerator, TeamId);
+        var team = DbContext.SeedTeam(KeyGenerator, TeamId);
         DbContext
             .Set<TenantEntity>()
             .Add(
                 new TenantEntity
                 {
-                    Id = IdGenerator.CreateId(),
+                    Id = KeyGenerator.CreateKey(),
                     TeamId = team.Id,
                     Team = team,
                     TenantId = "tenant-in-team",
@@ -313,11 +314,11 @@ public sealed class TeamStoreLifecycleTests : IDisposable
     public async Task RemoveAsync_RemovesTheTeamAndItsNodesAssignmentsAndWritesNoRetiredRow()
     {
         await SeedTeamAsync(CancellationToken.None);
-        var tenant = DbContext.SeedTenant(IdGenerator, "tenant-1");
+        var tenant = DbContext.SeedTenant(KeyGenerator, "tenant-1");
         RoleAssignmentEntity CreateAssignment(string assignmentId, string resourceType) =>
             new()
             {
-                Id = IdGenerator.CreateId(),
+                Id = KeyGenerator.CreateKey(),
                 TenantId = tenant.Id,
                 Tenant = tenant,
                 NormalizedTenantId = tenant.NormalizedTenantId,
@@ -370,7 +371,8 @@ public sealed class TeamStoreLifecycleTests : IDisposable
         var dbContext = provider.GetRequiredService<OpenIdDbContext>();
         var store = new TeamStore(
             Mock.Of<IStoreProvider>(),
-            provider.GetRequiredService<IIdGenerator<long>>(),
+            provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TestPageCursorProtector.Instance,
             dbContext,
             TestPayloadSerializer.Instance
         );
@@ -405,7 +407,8 @@ public sealed class TeamStoreLifecycleTests : IDisposable
         var dbContext = provider.GetRequiredService<OpenIdDbContext>();
         var store = new TeamStore(
             Mock.Of<IStoreProvider>(),
-            provider.GetRequiredService<IIdGenerator<long>>(),
+            provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TestPageCursorProtector.Instance,
             dbContext,
             TestPayloadSerializer.Instance
         );
@@ -422,14 +425,14 @@ public sealed class TeamStoreLifecycleTests : IDisposable
     [Fact]
     public async Task HasDependentsAsync_WhenTheTeamOwnsAMachineClient_ReturnsTrue()
     {
-        var team = DbContext.SeedTeam(IdGenerator, TeamId);
-        var tenant = DbContext.SeedTenant(IdGenerator, "tenant-1");
+        var team = DbContext.SeedTeam(KeyGenerator, TeamId);
+        var tenant = DbContext.SeedTenant(KeyGenerator, "tenant-1");
         DbContext
             .Set<ClientEntity>()
             .Add(
                 new ClientEntity
                 {
-                    Id = IdGenerator.CreateId(),
+                    Id = KeyGenerator.CreateKey(),
                     TenantId = tenant.Id,
                     NormalizedTenantId = tenant.NormalizedTenantId,
                     ClientId = "machine-client",

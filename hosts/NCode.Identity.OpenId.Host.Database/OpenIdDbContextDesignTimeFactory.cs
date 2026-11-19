@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.EntityFramework;
@@ -24,18 +23,15 @@ internal sealed class OpenIdDbContextDesignTimeFactory
 
     /// <summary>
     /// Builds the service provider that an <see cref="OpenIdDbContext"/> constructed outside a request resolves its
-    /// id-generation convention and model contributors from: every slice of the OpenID persistence model, so a
-    /// generated migration and a test build the same model.
+    /// model contributors (and the surrogate key convention's generator) from: every slice of the OpenID persistence
+    /// model, so a generated migration and a test build the same model.
     /// </summary>
     /// <returns>The service provider, which lives as long as the contexts built over it.</returns>
-    // The context resolves its id-generation convention and model contributors from the application service
-    // provider; the same contributors must be registered so the generated migration includes every slice.
+    // The context resolves its model contributors (and the surrogate key convention's generator) from the application
+    // service provider; the same contributors must be registered so the generated migration includes every slice.
     internal static ServiceProvider CreateServiceProvider()
     {
-        var idGenerator = new IdGenerator(0);
-
         return new ServiceCollection()
-            .AddSingleton<IIdGenerator<long>>(idGenerator)
             .AddEntityFrameworkCorePersistence<OpenIdDbContext>()
             .AddLocalAccountEntityFramework()
             .ServiceCollection.BuildServiceProvider();

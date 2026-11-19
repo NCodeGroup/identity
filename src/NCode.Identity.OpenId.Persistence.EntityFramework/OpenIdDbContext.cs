@@ -186,6 +186,6 @@ public class OpenIdDbContext(
 
         configurationBuilder.Properties<JsonElement>().HaveConversion<JsonElementConverter>();
 
-        configurationBuilder.Conventions.Add(_ => this.GetService<UseIdGeneratorConvention>());
+        configurationBuilder.Conventions.Add(_ => new SurrogateKeyConvention());
     }
 }

@@ -19,17 +19,10 @@ internal sealed class LocalAccountModelContributor : IOpenIdModelContributor
         {
             entity.ToTable("LocalAccounts");
 
-            // The store assigns ids from the shared id generator, so the key value is never database-generated.
-            entity.Property(account => account.Id).ValueGeneratedNever();
-
             // One-to-many account → profile claims, keyed by a shadow foreign key.
             entity.HasMany(account => account.Claims).WithOne();
         });
 
-        modelBuilder
-            .Entity<LocalAccountClaimEntity>()
-            .ToTable("LocalAccountClaims")
-            .Property(claim => claim.Id)
-            .ValueGeneratedNever();
+        modelBuilder.Entity<LocalAccountClaimEntity>().ToTable("LocalAccountClaims");
     }
 }

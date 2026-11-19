@@ -1,10 +1,10 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.DataContracts;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Stores;
@@ -30,14 +30,20 @@ public sealed class FederatedIdentityStoreTests : IDisposable
 
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
-        var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
         PrincipalStore = new FederatedPrincipalStore(
             Mock.Of<IStoreProvider>(),
-            idGenerator,
+            keyGenerator,
+            TestPageCursorProtector.Instance,
             DbContext
         );
-        Store = new FederatedIdentityStore(Mock.Of<IStoreProvider>(), idGenerator, DbContext);
-        DbContext.SeedTenant(idGenerator, TenantId);
+        Store = new FederatedIdentityStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
+        DbContext.SeedTenant(keyGenerator, TenantId);
     }
 
     public void Dispose()

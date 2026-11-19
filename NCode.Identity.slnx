@@ -158,6 +158,7 @@
         <Project Path="tests/NCode.Identity.SharedState.Valkey.Tests/NCode.Identity.SharedState.Valkey.Tests.csproj" />
         <Project Path="tests/NCode.Identity.Json.Tests/NCode.Identity.Json.Tests.csproj" />
         <Project Path="tests/NCode.Identity.OpenId.Setup.Tests/NCode.Identity.OpenId.Setup.Tests.csproj" />
+        <Project Path="tests/NCode.Identity.Persistence.Abstractions.Tests/NCode.Identity.Persistence.Abstractions.Tests.csproj" />
         <Project Path="tests/NCode.Identity.Registration.Tests/NCode.Identity.Registration.Tests.csproj" />
         <Project Path="tests/NCode.Identity.Time.Tests/NCode.Identity.Time.Tests.csproj" />
     </Folder>

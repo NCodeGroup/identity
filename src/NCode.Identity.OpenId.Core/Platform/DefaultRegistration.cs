@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -26,10 +25,6 @@ internal static class DefaultRegistration
         public IServiceBuilder<OpenIdCoreLibrary> AddPlatformServices()
         {
             var serviceCollection = builder.ServiceCollection;
-
-            // DefaultOpenIdPlatformFactory and the persistence stores mint entity ids via IIdGenerator<long>. Register a
-            // single-node default (generator id 0); multi-node hosts override it with AddIdGen(nodeId) to keep ids unique.
-            serviceCollection.TryAddSingleton<IIdGenerator<long>>(new IdGenerator(0));
 
             serviceCollection.TryAddSingleton<
                 IOpenIdPlatformFactory,

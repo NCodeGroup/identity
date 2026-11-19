@@ -77,6 +77,7 @@ public sealed class DirectoryDbContext(DbContextOptions<DirectoryDbContext> opti
 
         modelBuilder.Entity<TenantRecord>(builder =>
         {
+            builder.Property(entity => entity.Id).ValueGeneratedNever();
             builder.HasIndex(entity => entity.NormalizedTenantId).IsUnique();
             builder.HasIndex(entity => entity.NormalizedIssuer).IsUnique();
             builder.HasIndex(entity => entity.NormalizedTeamId);
@@ -99,6 +100,7 @@ public sealed class DirectoryDbContext(DbContextOptions<DirectoryDbContext> opti
 
         modelBuilder.Entity<TenantMoveOfferRecord>(builder =>
         {
+            builder.Property(entity => entity.Id).ValueGeneratedNever();
             builder.HasIndex(entity => entity.NormalizedTenantId).IsUnique();
             builder
                 .Property(entity => entity.NormalizedTenantId)
@@ -109,6 +111,7 @@ public sealed class DirectoryDbContext(DbContextOptions<DirectoryDbContext> opti
 
         modelBuilder.Entity<TeamRecord>(builder =>
         {
+            builder.Property(entity => entity.Id).ValueGeneratedNever();
             builder.HasIndex(entity => entity.NormalizedTeamId).IsUnique();
             builder.HasIndex(entity => entity.NormalizedParentTeamId);
             builder.HasIndex(entity => entity.NormalizedPath);
@@ -134,6 +137,7 @@ public sealed class DirectoryDbContext(DbContextOptions<DirectoryDbContext> opti
 
         modelBuilder.Entity<RetiredIssuerRecord>(builder =>
         {
+            builder.Property(entity => entity.Id).ValueGeneratedNever();
             builder.HasIndex(entity => entity.NormalizedIssuer).IsUnique();
             builder.Property(entity => entity.Issuer).HasMaxLength(DirectoryLimits.MaxIssuerLength);
             builder

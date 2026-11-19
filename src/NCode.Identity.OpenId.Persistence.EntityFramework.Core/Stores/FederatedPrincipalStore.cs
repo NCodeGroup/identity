@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Linq.Expressions;
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using NCode.Identity.Json;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
@@ -18,7 +18,8 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
 /// </summary>
 internal class FederatedPrincipalStore(
     IStoreProvider storeProvider,
-    IIdGenerator<long> idGenerator,
+    ISurrogateKeyGenerator keyGenerator,
+    IPageCursorProtector cursorProtector,
     OpenIdDbContext openIdDbContext
 ) : CoreBaseStore<PersistedFederatedPrincipal, FederatedPrincipalEntity>, IFederatedPrincipalStore
 {
@@ -26,7 +27,10 @@ internal class FederatedPrincipalStore(
     protected override IStoreProvider StoreProvider { get; } = storeProvider;
 
     /// <inheritdoc />
-    protected override IIdGenerator<long> IdGenerator { get; } = idGenerator;
+    protected override ISurrogateKeyGenerator KeyGenerator { get; } = keyGenerator;
+
+    /// <inheritdoc />
+    protected override IPageCursorProtector CursorProtector { get; } = cursorProtector;
 
     /// <inheritdoc />
     protected override OpenIdDbContext DbContext { get; } = openIdDbContext;
@@ -64,7 +68,7 @@ internal class FederatedPrincipalStore(
 
     /// <inheritdoc />
     protected override async ValueTask<IReadOnlyList<FederatedPrincipalEntity>> GetEntityPageAsync(
-        long? afterId,
+        Guid? afterId,
         int take,
         CancellationToken cancellationToken
     )
@@ -80,7 +84,7 @@ internal class FederatedPrincipalStore(
     }
 
     /// <inheritdoc />
-    protected override long GetSortKey(FederatedPrincipalEntity entity) => entity.Id;
+    protected override Guid GetSortKey(FederatedPrincipalEntity entity) => entity.Id;
 
     /// <inheritdoc />
     public async ValueTask AddAsync(

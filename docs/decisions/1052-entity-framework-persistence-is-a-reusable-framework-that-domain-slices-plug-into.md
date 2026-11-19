@@ -16,8 +16,8 @@ A satellite that persists its own entities in the _same_ `OpenIdDbContext` share
 atomically with the core entities, as the local accounts of
 [ADR-1051](1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md) do. It needs the framework, not the core
 schema. If the two were fused in one package, every satellite would depend on the core stores it never uses, and the
-reusable pieces (`BaseStore`, the store-registration helper, the id-generator attribute) would have to stay internal,
-which forces each satellite to re-implement the store boilerplate: `IStore` delegation, normalization, id and
+reusable pieces (`BaseStore`, the store-registration helper, the surrogate key attribute) would have to stay internal,
+which forces each satellite to re-implement the store boilerplate: `IStore` delegation, normalization, surrogate key and
 concurrency-token generation, and the registration factory. With more than one slice, that duplication and the
 misdirected dependency compound.
 
@@ -34,10 +34,10 @@ slice depends only on the framework, never on another slice.**
 
 - `OpenIdDbContext`;
 - the public `BaseStore` and `BaseStoreWithResourceId`, the public `AddStore` registration helper and the public
-  `UseIdGeneratorAttribute`, so a slice reuses the store base, the registration helper and opaque-id generation instead
-  of re-implementing them;
+  `SurrogateKeyAttribute`, so a slice reuses the store base, the registration helper and surrogate key generation
+  instead of re-implementing them;
 - the `IOpenIdModelContributor` seam;
-- the store manager and the id generator;
+- the store manager, the surrogate key convention and the default page cursor protector;
 - the value converters;
 - the concurrency interceptor;
 - the tenant-scoping infrastructure.
@@ -87,9 +87,9 @@ packages it depends only on the framework.
 - A further slice follows the same `NCode.Identity.OpenId.Persistence.EntityFramework.<Slice>` shape.
 
 A slice's store inherits `BaseStore` and registers with `AddStore`, so it reuses `IStore` delegation, normalization and
-opaque-id and concurrency-token generation. A host registers the framework plumbing once and then each slice it wants.
-All slices share one `OpenIdDbContext`, so a cross-slice write, such as a local account and its self-issued federated
-identity, is one unit of work.
+surrogate key and concurrency-token generation. A host registers the framework plumbing once and then each slice it
+wants. All slices share one `OpenIdDbContext`, so a cross-slice write, such as a local account and its self-issued
+federated identity, is one unit of work.
 
 ### Naming
 
@@ -108,8 +108,8 @@ A non-Entity-Framework adapter is not a slice and keeps domain-first naming, as 
   that holds the core stores, so the dependency direction stays wrong and the split between framework and schema is
   cosmetic. It suffices for a single satellite, not once slices multiply.
 - **A generic, non-OpenID Entity Framework framework.** Rejected: the framework is OpenID-flavored, with the
-  tenant-scoped `OpenIdDbContext`, `UseIdGeneratorAttribute` and the OpenID model-contribution seam, and the family has
-  no goal to reuse it elsewhere, so a context-agnostic layer would be speculative generality.
+  tenant-scoped `OpenIdDbContext`, `SurrogateKeyAttribute` and the OpenID model-contribution seam, and the family has no
+  goal to reuse it elsewhere, so a context-agnostic layer would be speculative generality.
 - **Per-domain `DbContext`s, one in each package.** Rejected: separate contexts cannot share a unit of work, so a
   cross-slice write, such as a local account and its self-issued federated identity, could not be atomic.
 - **Typed `DbSet`s on `OpenIdDbContext`.** Rejected: a typed `DbSet<ClientEntity>` on the context type would re-couple
@@ -138,5 +138,7 @@ A non-Entity-Framework adapter is not a slice and keeps domain-first naming, as 
   to every slice's `ISupportTenantEntity`.
 - [ADR-1500](1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md): the dependency discipline that slices follow
   by depending on the framework and not on each other.
-- [ADR-1014](1014-management-resources-carry-opaque-server-identifiers-and-list-one-keyset-page-at-a-time.md): the opaque-id generation that `UseIdGeneratorAttribute`
-  provides to every slice.
+- [ADR-1014](1014-management-resources-carry-opaque-server-identifiers-and-list-one-keyset-page-at-a-time.md): the
+  keyset pages that `BaseStore` serves.
+- [ADR-1517](1517-internal-surrogate-keys-are-uuidv7-minted-in-process-behind-one-seam-and-never-reach-a-caller.md): the
+  surrogate keys that `SurrogateKeyAttribute` marks and `ISurrogateKeyGenerator` mints for every slice.

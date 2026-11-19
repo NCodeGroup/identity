@@ -25,8 +25,8 @@ public sealed class TeamEntity : ISupportConcurrencyToken
     /// Gets the surrogate identifier for this entity.
     /// </summary>
     [Key]
-    [UseIdGenerator]
-    public long Id { get; init; }
+    [SurrogateKey]
+    public Guid Id { get; init; }
 
     /// <summary>
     /// Gets the natural identifier for this entity.
@@ -48,7 +48,7 @@ public sealed class TeamEntity : ISupportConcurrencyToken
     /// top-level team. A team moves only when a mirrored team document names another parent.
     /// </summary>
     [ForeignKey(nameof(ParentTeam))]
-    public long? ParentTeamId { get; set; }
+    public Guid? ParentTeamId { get; set; }
 
     /// <summary>
     /// Gets or sets the team path: the identifiers of the teams from this team's top-level team down to this team, each

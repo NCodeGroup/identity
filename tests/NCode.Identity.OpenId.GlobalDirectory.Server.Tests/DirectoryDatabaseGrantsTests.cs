@@ -100,6 +100,6 @@ public class DirectoryDatabaseGrantsTests
 
     private sealed class SchemaRow
     {
-        public long Id { get; set; }
+        public Guid Id { get; set; }
     }
 }

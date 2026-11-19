@@ -1,13 +1,13 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Accounts.Credentials;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Accounts.Stores;
@@ -39,14 +39,15 @@ public sealed class LocalAccountTenantRemovalTests : IDisposable
         DbContext.Database.EnsureCreated();
         Accessor = Provider.GetRequiredService<TestAmbientTenantAccessor>();
 
-        var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        DbContext.SeedTenant(idGenerator, TenantOneId);
-        DbContext.SeedTenant(idGenerator, TenantTwoId);
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        DbContext.SeedTenant(keyGenerator, TenantOneId);
+        DbContext.SeedTenant(keyGenerator, TenantTwoId);
 
         var storeProvider = Mock.Of<IStoreProvider>();
         AccountStore = new LocalAccountStore(
             storeProvider,
-            idGenerator,
+            keyGenerator,
+            TestPageCursorProtector.Instance,
             Mock.Of<IPasswordHasher>(),
             DbContext
         );

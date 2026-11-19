@@ -1,9 +1,9 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.Persistence.DataContracts;
 using NCode.Identity.Secrets.Persistence.Protection;
@@ -22,13 +22,16 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
 // See ADR-1235.
 internal class MasterKeyStore(
     IStoreProvider storeProvider,
-    IIdGenerator<long> idGenerator,
+    ISurrogateKeyGenerator keyGenerator,
+    IPageCursorProtector cursorProtector,
     OpenIdDbContext openIdDbContext
 ) : IMasterKeyStore
 {
     private IStoreProvider StoreProvider { get; } = storeProvider;
 
-    private IIdGenerator<long> IdGenerator { get; } = idGenerator;
+    private ISurrogateKeyGenerator KeyGenerator { get; } = keyGenerator;
+
+    private IPageCursorProtector CursorProtector { get; } = cursorProtector;
 
     private OpenIdDbContext DbContext { get; } = openIdDbContext;
 
@@ -46,7 +49,7 @@ internal class MasterKeyStore(
 
         var entity = new MasterKeyEntity
         {
-            Id = IdGenerator.CreateId(),
+            Id = KeyGenerator.CreateKey(),
             KeyId = item.KeyId,
             OwnerType = item.OwnerType.ToLowerInvariant(),
             OwnerId = item.OwnerId,
@@ -225,7 +228,7 @@ internal class MasterKeyStore(
     {
         var query = DbContext.MasterKeys.AsNoTracking().Where(entity => entity.RetiredWhen != null);
 
-        var afterId = KeysetCursor.Decode(page.Cursor);
+        var afterId = CursorProtector.UnprotectKey(nameof(MasterKeyEntity), page.Cursor);
         if (afterId is not null)
             query = query.Where(entity => entity.Id > afterId.Value);
 
@@ -250,7 +253,9 @@ internal class MasterKeyStore(
                 .Select(row => new SecretOwner(row.OwnerType, row.OwnerId))
                 .Distinct()
                 .ToList(),
-            NextCursor = hasMore ? KeysetCursor.Encode(rows[count - 1].Id) : null,
+            NextCursor = hasMore
+                ? CursorProtector.ProtectKey(nameof(MasterKeyEntity), rows[count - 1].Id)
+                : null,
         };
     }
 
@@ -303,13 +308,13 @@ internal class MasterKeyStore(
 
     // Reads one keyset page of the rows, ordered by row identifier. A full page fetches one extra row to signal that
     // another page exists, and a malformed cursor starts at the beginning.
-    private static async ValueTask<PagedResult<PersistedMasterKey>> GetPageAsync(
+    private async ValueTask<PagedResult<PersistedMasterKey>> GetPageAsync(
         IQueryable<MasterKeyEntity> query,
         PageRequest page,
         CancellationToken cancellationToken
     )
     {
-        var afterId = KeysetCursor.Decode(page.Cursor);
+        var afterId = CursorProtector.UnprotectKey(nameof(MasterKeyEntity), page.Cursor);
         if (afterId is not null)
             query = query.Where(entity => entity.Id > afterId.Value);
 
@@ -324,7 +329,9 @@ internal class MasterKeyStore(
         return new PagedResult<PersistedMasterKey>
         {
             Items = entities.Take(count).Select(MapToPersistedMasterKey).ToList(),
-            NextCursor = hasMore ? KeysetCursor.Encode(entities[count - 1].Id) : null,
+            NextCursor = hasMore
+                ? CursorProtector.ProtectKey(nameof(MasterKeyEntity), entities[count - 1].Id)
+                : null,
         };
     }
 

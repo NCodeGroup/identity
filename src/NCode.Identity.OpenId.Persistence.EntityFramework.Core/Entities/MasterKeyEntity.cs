@@ -57,8 +57,8 @@ public sealed class MasterKeyEntity : ISupportConcurrencyToken
     /// Gets the surrogate identifier for this entity.
     /// </summary>
     [Key]
-    [UseIdGenerator]
-    public required long Id { get; init; }
+    [SurrogateKey]
+    public required Guid Id { get; init; }
 
     /// <summary>
     /// Gets the identifier of this master key, which is written into every envelope that it protects.

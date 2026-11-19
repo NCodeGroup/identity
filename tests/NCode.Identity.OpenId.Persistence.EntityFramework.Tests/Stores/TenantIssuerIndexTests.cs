@@ -1,11 +1,11 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.DataContracts;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Stores;
@@ -47,10 +47,15 @@ public sealed class TenantIssuerIndexTests : IDisposable
     {
         using var scope = Provider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
-        var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        var store = new TenantStore(Mock.Of<IStoreProvider>(), idGenerator, context);
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        var store = new TenantStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            context
+        );
 
-        context.SeedTeam(idGenerator, "platform");
+        context.SeedTeam(keyGenerator, "platform");
         await store.AddAsync(CreatePersistedTenant(tenantId, issuer), cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
     }

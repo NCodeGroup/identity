@@ -11,6 +11,7 @@ using NCode.Identity.Json;
 using NCode.Identity.OpenId.Client;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Options;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
+using NCode.Identity.Persistence;
 using NCode.Identity.Registration;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
@@ -64,6 +65,7 @@ public static class DefaultRegistration
 
             serviceCollection.TryAddSingleton(TimeProvider.System);
             serviceCollection.AddPersistedPayloadSerializer();
+            serviceCollection.AddSurrogateKeyGenerator();
             serviceCollection.TryAddSingleton<DefaultDirectoryStore>();
             serviceCollection.TryAddSingleton<ITenantDirectory>(serviceProvider =>
                 serviceProvider.GetRequiredService<DefaultDirectoryStore>()

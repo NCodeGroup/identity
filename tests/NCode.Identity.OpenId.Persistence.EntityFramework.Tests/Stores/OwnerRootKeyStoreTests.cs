@@ -1,10 +1,10 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.Persistence.DataContracts;
 using NCode.Identity.Secrets.Persistence.Protection;
@@ -42,7 +42,12 @@ public sealed class OwnerRootKeyStoreTests : IDisposable
     #region Helpers
 
     private OwnerRootKeyStore CreateStore(OpenIdDbContext context) =>
-        new(Mock.Of<IStoreProvider>(), Provider.GetRequiredService<IIdGenerator<long>>(), context);
+        new(
+            Mock.Of<IStoreProvider>(),
+            Provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TestPageCursorProtector.Instance,
+            context
+        );
 
     private static PersistedOwnerRootKey CreateRootKey(
         string ownerId,

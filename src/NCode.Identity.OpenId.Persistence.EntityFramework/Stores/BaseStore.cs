@@ -1,13 +1,11 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Buffers.Binary;
-using System.Buffers.Text;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
-using IdGen;
 using JetBrains.Annotations;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Entities;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Stores;
@@ -24,6 +22,8 @@ public abstract class BaseStore<TItem, TEntity> : IStore
     where TItem : class
     where TEntity : class
 {
+    private static string CursorCollection { get; } = typeof(TEntity).Name;
+
     /// <summary>
     /// Gets the <see cref="IStoreProvider"/> instance that provides access to other stores
     /// and dependency injection services.
@@ -31,9 +31,15 @@ public abstract class BaseStore<TItem, TEntity> : IStore
     protected abstract IStoreProvider StoreProvider { get; }
 
     /// <summary>
-    /// Gets the <see cref="IIdGenerator{T}"/> instance used to generate unique identifiers for entities.
+    /// Gets the <see cref="ISurrogateKeyGenerator"/> instance used to mint the surrogate keys of entities.
     /// </summary>
-    protected abstract IIdGenerator<long> IdGenerator { get; }
+    protected abstract ISurrogateKeyGenerator KeyGenerator { get; }
+
+    /// <summary>
+    /// Gets the <see cref="IPageCursorProtector"/> instance that encrypts and authenticates the continuation cursors of
+    /// this store.
+    /// </summary>
+    protected abstract IPageCursorProtector CursorProtector { get; }
 
     /// <summary>
     /// Gets the <see cref="OpenIdDbContext"/> instance used for database operations in this store.
@@ -41,17 +47,10 @@ public abstract class BaseStore<TItem, TEntity> : IStore
     protected abstract OpenIdDbContext DbContext { get; }
 
     /// <summary>
-    /// Gets the next unique identifier for an entity. If a value is already provided and non-zero,
-    /// returns that value; otherwise generates a new unique identifier using the <see cref="IdGenerator"/>.
+    /// Gets the next surrogate key for an entity, minted by the <see cref="KeyGenerator"/>.
     /// </summary>
-    /// <param name="value">The current value of the identifier, if any. When <c>null</c> or zero,
-    /// a new identifier will be generated.</param>
-    /// <returns>The provided identifier if non-zero; otherwise a newly generated unique identifier.</returns>
-    protected long NextId(long? value = null)
-    {
-        var valueOrDefault = value.GetValueOrDefault(0);
-        return valueOrDefault == 0 ? IdGenerator.CreateId() : valueOrDefault;
-    }
+    /// <returns>A newly minted surrogate key.</returns>
+    protected Guid NextId() => KeyGenerator.CreateKey();
 
     /// <summary>
     /// Generates a new unique concurrency token for optimistic concurrency control.
@@ -156,7 +155,7 @@ public abstract class BaseStore<TItem, TEntity> : IStore
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the page of entities.</returns>
     protected abstract ValueTask<IReadOnlyList<TEntity>> GetEntityPageAsync(
-        long? afterId,
+        Guid? afterId,
         int take,
         CancellationToken cancellationToken
     );
@@ -166,7 +165,7 @@ public abstract class BaseStore<TItem, TEntity> : IStore
     /// </summary>
     /// <param name="entity">The entity whose sort key is returned.</param>
     /// <returns>The sort key.</returns>
-    protected abstract long GetSortKey(TEntity entity);
+    protected abstract Guid GetSortKey(TEntity entity);
 
     /// <summary>
     /// Gets a single page of persisted items using keyset (cursor) pagination.
@@ -218,38 +217,21 @@ public abstract class BaseStore<TItem, TEntity> : IStore
     }
 
     /// <summary>
-    /// Encodes a keyset sort key into an opaque, base64url continuation cursor.
+    /// Encodes a keyset sort key into an opaque continuation cursor: the key protected by the
+    /// <see cref="CursorProtector"/>, so the cursor is encrypted and authenticated.
     /// </summary>
     /// <param name="key">The sort key of the last item on the page.</param>
     /// <returns>The opaque continuation cursor.</returns>
-    protected static string EncodeCursor(long key)
-    {
-        Span<byte> bytes = stackalloc byte[sizeof(long)];
-        BinaryPrimitives.WriteInt64BigEndian(bytes, key);
-        return Base64Url.EncodeToString(bytes);
-    }
+    protected string EncodeCursor(Guid key) => CursorProtector.ProtectKey(CursorCollection, key);
 
     /// <summary>
-    /// Decodes an opaque continuation cursor into its keyset sort key, treating a malformed cursor as the start of
-    /// the collection rather than a hard error.
+    /// Decodes an opaque continuation cursor into its keyset sort key. A malformed, tampered or undecryptable cursor
+    /// decodes to <c>null</c>, which starts the list rather than raising a hard error.
     /// </summary>
     /// <param name="cursor">The opaque cursor, or <c>null</c> to start at the beginning.</param>
     /// <returns>The exclusive lower-bound sort key, or <c>null</c> to start at the beginning.</returns>
-    protected static long? DecodeCursor(string? cursor)
-    {
-        if (string.IsNullOrEmpty(cursor))
-            return null;
-
-        // A malformed cursor is treated as the start of the collection rather than a hard error.
-        Span<byte> bytes = stackalloc byte[sizeof(long)];
-        if (
-            !Base64Url.TryDecodeFromChars(cursor, bytes, out var written)
-            || written != sizeof(long)
-        )
-            return null;
-
-        return BinaryPrimitives.ReadInt64BigEndian(bytes);
-    }
+    protected Guid? DecodeCursor(string? cursor) =>
+        CursorProtector.UnprotectKey(CursorCollection, cursor);
 
     #region IStoreProvider
 

@@ -224,8 +224,11 @@ than inlining the rationale.
 - 👁 **An `.Abstractions` package holds contracts, data and the pure form rules of the values its contracts carry**
   (`TenantIdentifierRules`, `CellLabelRules`, `AbsoluteUri`, `DatabaseRoleNameRules` with the Postgres identifier
   quoting and runtime-role grant statements built on it, `PostgresIdentifiers` and `RuntimeRoleGrants`, and
-  `ExpiringKeys`), so every implementation of a contract applies one rule; it holds no service logic and never logs. See
-  [ADR-1500](../../docs/decisions/1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md).
+  `ExpiringKeys`, and the UUIDv7 default of `ISurrogateKeyGenerator` with `AddSurrogateKeyGenerator()`, and
+  `PageCursorProtectorExtensions`, the big-endian cursor position of a surrogate key), so every implementation of a
+  contract applies one rule; it holds no service logic and never logs. See
+  [ADR-1500](../../docs/decisions/1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md) and
+  [ADR-1517](../../docs/decisions/1517-internal-surrogate-keys-are-uuidv7-minted-in-process-behind-one-seam-and-never-reach-a-caller.md).
 - 👁 **Mark infrastructure-public types** — template [Public API](csharp.instructions.md#public-api), with the summary
   _"This API supports the NCode.Identity infrastructure and is not intended to be used directly from your code."_
 - ⏳ The public surface is deliberate and tracked by `PublicApiAnalyzers` (`RS0016` / `RS0017` / `RS0024`): a public
@@ -569,10 +572,11 @@ than inlining the rationale.
 - 👁 **The package that owns a consumer registers that consumer's ambient dependencies** — template
   [DI Registration and Extension Methods](csharp.instructions.md#di-registration-and-extension-methods), so composing
   the server (`AddIdentityServer()`) is turnkey: the owning package registers routing, `IHttpClientFactory`,
-  `AddAuthentication()` and a default `IIdGenerator<long>` with `TryAdd*`. Only the database provider and connection
-  string and the production signing key stay host inputs
-  ([ADR-1370](../../docs/decisions/1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)); host wiring that works only by pulling in a
-  framework service by accident, such as `AddControllers` dragging in authentication, is a smell.
+  `AddAuthentication()` and the default `ISurrogateKeyGenerator` (`AddSurrogateKeyGenerator()`) with `TryAdd*`. Only the
+  database provider and connection string and the production signing key stay host inputs
+  ([ADR-1370](../../docs/decisions/1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md));
+  host wiring that works only by pulling in a framework service by accident, such as `AddControllers` dragging in
+  authentication, is a smell.
 - 👁 **A singleton service is stateless** — template
   [DI Registration and Extension Methods](csharp.instructions.md#di-registration-and-extension-methods); a
   client-authentication result memoized on a singleton let a later request reuse it whatever its credentials. Keep
@@ -773,6 +777,15 @@ than inlining the rationale.
   the build of every project on a call without that comment, and skips an assembly whose name ends in `.Tests` or
   `.TestSupport`
   ([ADR-1018](../../docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)).
+- ✅ **Every stored row is keyed by a UUIDv7 minted in-process, and the key never reaches a caller.** An entity's key
+  is a `Guid Id` marked `[Key, SurrogateKey]`, and every foreign key to it is a `Guid`, never a `long`, an `int` or a
+  database-generated key. A store mints a key with `BaseStore.NextId()`, a store outside `BaseStore` with its
+  injected `ISurrogateKeyGenerator`, and the `[SurrogateKey]` convention mints one for an entity added without it. A
+  keyset cursor carries a key only through `IPageCursorProtector` (`EncodeCursor` and `DecodeCursor` in `BaseStore`,
+  `ProtectKey` and `UnprotectKey` outside it). `NCID0005`, from `analyzers/NCode.Identity.Analyzers`, fails the build
+  on a `Guid` member of a public type in a `Contracts` or `DataContracts` namespace; a `Guid` that is a public
+  identifier by design carries a `[SuppressMessage("Design", "NCID0005", Justification = "...")]` that says so
+  ([ADR-1517](../../docs/decisions/1517-internal-surrogate-keys-are-uuidv7-minted-in-process-behind-one-seam-and-never-reach-a-caller.md)).
 - 👁 **Read a stored grant's payload through `IPersistedGrantService` or `IGrantPayloadProtector`, never from
   `ProtectedPayload` directly.** A grant's `ProtectedPayload` is an `nce1.` envelope over the schema-versioned document
   (`$ver`, `$payload`), so reading it as the payload yields no members and throws for a `required` one; a session
@@ -1298,6 +1311,9 @@ MethodImplOptions.AggressiveOptimization)]`, manual unrolling of tiny fixed-coun
   [ADR-1385](../../docs/decisions/1385-no-shipping-package-replaces-its-consumers-logging-generator-or-carries-microsoft-extensions-http-resilience.md).
 - 👁 **A message template is a constant with named placeholders** — template
   [Logging](csharp.instructions.md#logging); a value that also feeds an error or a response is defined once (§6).
+- 👁 **A log or exception message names a public identifier, never a surrogate key**: a `client_id`, a resource
+  identifier or a tenant identifier, never an entity's `Id` or a foreign key
+  ([ADR-1517](../../docs/decisions/1517-internal-surrogate-keys-are-uuidv7-minted-in-process-behind-one-seam-and-never-reach-a-caller.md)).
 - 👁 **Event IDs are named `const`s in a per-package `Logging/EventIds.cs`** — template
   [Logging](csharp.instructions.md#logging): an `internal static class EventIds` with a `private const int Base` set to
   the package's band (below) and one `public const int` per event, `Base + n`, named exactly as its `[LoggerMessage]`

@@ -1,14 +1,15 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Binary;
 using System.Text.Json;
-using IdGen;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.Json;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Stores;
@@ -43,7 +44,12 @@ public sealed class AuditRecordStoreTests : IDisposable
     }
 
     private AuditRecordStore CreateStore(OpenIdDbContext context) =>
-        new(Mock.Of<IStoreProvider>(), Provider.GetRequiredService<IIdGenerator<long>>(), context);
+        new(
+            Mock.Of<IStoreProvider>(),
+            Provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TestPageCursorProtector.Instance,
+            context
+        );
 
     private static PersistedAuditRecord Record(
         Guid? eventId = null,
@@ -213,7 +219,8 @@ public sealed class AuditRecordStoreTests : IDisposable
         var context = scope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
         var store = new AuditRecordStore(
             Mock.Of<IStoreProvider>(),
-            provider.GetRequiredService<IIdGenerator<long>>(),
+            provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TestPageCursorProtector.Instance,
             context
         );
         return await store.GetPageAsync(
@@ -315,9 +322,13 @@ public sealed class AuditRecordStoreTests : IDisposable
     public async Task GetPageAsync_PagesNewestFirst()
     {
         await using var provider = CreateInMemoryProvider();
-        var records = Enumerable.Range(0, 3).Select(_ => Record()).ToList();
-        foreach (var record in records)
+        var records = new List<PersistedAuditRecord>();
+        for (var i = 0; i < 3; i++)
+        {
+            var record = Record();
+            records.Add(record);
             await AddAsync(provider, [record], CancellationToken.None);
+        }
         var filter = new AuditRecordFilter { TenantId = "tenant-1" };
 
         var first = await GetPageAsync(provider, filter, null, 2, CancellationToken.None);
@@ -362,6 +373,65 @@ public sealed class AuditRecordStoreTests : IDisposable
         Assert.NotNull(first.NextCursor);
         Assert.Equal(oldest.EventId, Assert.Single(second.Items).EventId);
         Assert.Null(second.NextCursor);
+    }
+
+    private async ValueTask AssertCursorStartsFromBeginningAsync(
+        string cursor,
+        CancellationToken cancellationToken
+    )
+    {
+        await using var provider = CreateInMemoryProvider();
+        for (var i = 0; i < 3; i++)
+        {
+            var record = Record();
+            await AddAsync(provider, [record], cancellationToken);
+        }
+        var filter = new AuditRecordFilter { TenantId = "tenant-1" };
+        var first = await GetPageAsync(provider, filter, null, 2, cancellationToken);
+
+        var page = await GetPageAsync(provider, filter, cursor, 2, cancellationToken);
+        var expectedEventIds = first.Items.Select(item => item.EventId).ToList();
+        var actualEventIds = page.Items.Select(item => item.EventId).ToList();
+
+        Assert.Equal(2, first.Items.Count);
+        Assert.Equal(expectedEventIds, actualEventIds);
+    }
+
+    private static string ProtectPosition(string collection, int length, long ticks)
+    {
+        var position = new byte[length];
+        BinaryPrimitives.WriteInt64BigEndian(position, ticks);
+        return TestPageCursorProtector.Instance.Protect(collection, position);
+    }
+
+    [Fact]
+    public async Task GetPageAsync_WhenCursorIsNotProtected_StartsFromBeginning()
+    {
+        await AssertCursorStartsFromBeginningAsync("not-a-cursor", CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task GetPageAsync_WhenCursorIsForAnotherCollection_StartsFromBeginning()
+    {
+        var cursor = ProtectPosition("ClientEntity", length: 24, Now.UtcTicks);
+
+        await AssertCursorStartsFromBeginningAsync(cursor, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task GetPageAsync_WhenCursorPositionHasAnotherLength_StartsFromBeginning()
+    {
+        var cursor = ProtectPosition(nameof(AuditRecordEntity), length: 16, Now.UtcTicks);
+
+        await AssertCursorStartsFromBeginningAsync(cursor, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task GetPageAsync_WhenCursorTicksAreOutOfRange_StartsFromBeginning()
+    {
+        var cursor = ProtectPosition(nameof(AuditRecordEntity), length: 24, long.MaxValue);
+
+        await AssertCursorStartsFromBeginningAsync(cursor, CancellationToken.None);
     }
 
     #endregion

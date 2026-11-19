@@ -85,9 +85,15 @@ any package may reference.**
    carry no ASP.NET Core. The `Microsoft.AspNetCore.App` `FrameworkReference` sits only on abstractions whose contracts
    are HTTP types.
 10. **Persistence.** `NCode.Identity.Persistence.Abstractions` holds every persistence contract, in the namespaces
-    `NCode.Identity.Persistence` and `NCode.Identity.Persistence.Stores`, and `StoreManagerLibrary`. `ISupportClone`
-    lives in `NCode.Identity.OpenId.Abstractions`, namespace `NCode.Identity.OpenId.Messages`, beside `IOpenIdMessage`.
-    The serializer of the payloads stored at rest as JSON is the JSON foundation's (decision 6).
+    `NCode.Identity.Persistence` and `NCode.Identity.Persistence.Stores`, and `StoreManagerLibrary`. It also holds the
+    default of the surrogate key seam, `ISurrogateKeyGenerator`, and its registration `AddSurrogateKeyGenerator()`: the
+    default is the form rule of the keys the stores write, a UUIDv7 from `Guid.CreateVersion7()`, so the Entity
+    Framework framework and the directory server mint keys through one registration without referencing each other
+    ([ADR-1517](1517-internal-surrogate-keys-are-uuidv7-minted-in-process-behind-one-seam-and-never-reach-a-caller.md)).
+    `PageCursorProtectorExtensions` is the form rule of a surrogate key's cursor position, 16 big-endian bytes, so every
+    store and every `IPageCursorProtector` share it. `ISupportClone` lives in `NCode.Identity.OpenId.Abstractions`,
+    namespace `NCode.Identity.OpenId.Messages`, beside `IOpenIdMessage`. The serializer of the payloads stored at rest as
+    JSON is the JSON foundation's (decision 6).
 11. **Settings, claims and cryptography.** `NCode.Identity.Settings`, `NCode.Identity.Claims` and
     `NCode.Identity.Cryptography`, each with its `.Abstractions` package, are flat, single-purpose pairs with the markers
     `SettingsLibrary`, `ClaimsLibrary` and `CryptographyLibrary`. Each `Add…Library()` extends a bare

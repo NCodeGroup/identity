@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Linq.Expressions;
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
@@ -16,7 +16,8 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
 /// </summary>
 internal class GrantStore(
     IStoreProvider storeProvider,
-    IIdGenerator<long> idGenerator,
+    ISurrogateKeyGenerator keyGenerator,
+    IPageCursorProtector cursorProtector,
     OpenIdDbContext openIdDbContext
 ) : CoreBaseStore<PersistedGrant, GrantEntity>, IGrantStore
 {
@@ -24,7 +25,10 @@ internal class GrantStore(
     protected override IStoreProvider StoreProvider { get; } = storeProvider;
 
     /// <inheritdoc />
-    protected override IIdGenerator<long> IdGenerator { get; } = idGenerator;
+    protected override ISurrogateKeyGenerator KeyGenerator { get; } = keyGenerator;
+
+    /// <inheritdoc />
+    protected override IPageCursorProtector CursorProtector { get; } = cursorProtector;
 
     /// <inheritdoc />
     protected override OpenIdDbContext DbContext { get; } = openIdDbContext;
@@ -111,7 +115,7 @@ internal class GrantStore(
 
     /// <inheritdoc />
     protected override async ValueTask<IReadOnlyList<GrantEntity>> GetEntityPageAsync(
-        long? afterId,
+        Guid? afterId,
         int take,
         CancellationToken cancellationToken
     )
@@ -130,7 +134,7 @@ internal class GrantStore(
     }
 
     /// <inheritdoc />
-    protected override long GetSortKey(GrantEntity entity) => entity.Id;
+    protected override Guid GetSortKey(GrantEntity entity) => entity.Id;
 
     /// <inheritdoc />
     public async ValueTask<PagedResult<PersistedGrant>> GetPageAsync(
@@ -471,7 +475,7 @@ internal class GrantStore(
         var normalizedTenantId = Normalize(tenantId);
         var tenantKey = await DbContext
             .Tenants.Where(tenant => tenant.NormalizedTenantId == normalizedTenantId)
-            .Select(tenant => (long?)tenant.Id)
+            .Select(tenant => (Guid?)tenant.Id)
             .FirstOrDefaultAsync(cancellationToken);
         if (tenantKey is not { } tenantRowId)
             return new PagedResult<PersistedProtectedValue> { Items = [], NextCursor = null };

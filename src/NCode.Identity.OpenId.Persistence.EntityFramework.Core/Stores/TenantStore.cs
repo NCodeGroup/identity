@@ -3,12 +3,12 @@
 
 using System.Linq.Expressions;
 using System.Reflection;
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Entities;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.Persistence.DataContracts;
 using NCode.Identity.Secrets.Persistence.Protection;
@@ -20,7 +20,8 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
 /// </summary>
 internal class TenantStore(
     IStoreProvider storeProvider,
-    IIdGenerator<long> idGenerator,
+    ISurrogateKeyGenerator keyGenerator,
+    IPageCursorProtector cursorProtector,
     OpenIdDbContext openIdDbContext
 ) : CoreBaseStoreWithResourceId<PersistedTenant, TenantEntity>, ITenantStore
 {
@@ -40,7 +41,10 @@ internal class TenantStore(
     protected override IStoreProvider StoreProvider { get; } = storeProvider;
 
     /// <inheritdoc />
-    protected override IIdGenerator<long> IdGenerator { get; } = idGenerator;
+    protected override ISurrogateKeyGenerator KeyGenerator { get; } = keyGenerator;
+
+    /// <inheritdoc />
+    protected override IPageCursorProtector CursorProtector { get; } = cursorProtector;
 
     /// <inheritdoc />
     protected override OpenIdDbContext DbContext { get; } = openIdDbContext;
@@ -159,7 +163,7 @@ internal class TenantStore(
 
     /// <inheritdoc />
     protected override async ValueTask<IReadOnlyList<TenantEntity>> GetEntityPageAsync(
-        long? afterId,
+        Guid? afterId,
         int take,
         CancellationToken cancellationToken
     )
@@ -179,7 +183,7 @@ internal class TenantStore(
     }
 
     /// <inheritdoc />
-    protected override long GetSortKey(TenantEntity entity) => entity.Id;
+    protected override Guid GetSortKey(TenantEntity entity) => entity.Id;
 
     /// <inheritdoc />
     public async ValueTask<PagedResult<PersistedTenantSettings>> GetSettingsPageAsync(
@@ -898,7 +902,7 @@ internal class TenantStore(
             .Distinct()
             .ToList();
 
-        var secretIds = new List<long>();
+        var secretIds = new List<Guid>();
         foreach (var clrType in clrTypes)
         {
             if (

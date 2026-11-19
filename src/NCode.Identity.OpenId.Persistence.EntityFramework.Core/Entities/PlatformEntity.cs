@@ -21,8 +21,8 @@ public sealed class PlatformEntity : ISupportConcurrencyToken
     /// Gets the surrogate identifier for this entity.
     /// </summary>
     [Key]
-    [UseIdGenerator]
-    public long Id { get; init; }
+    [SurrogateKey]
+    public Guid Id { get; init; }
 
     /// <summary>
     /// Gets the natural key for this entity, always <see cref="OpenIdResourceIds.Platform"/>: the unique index on it

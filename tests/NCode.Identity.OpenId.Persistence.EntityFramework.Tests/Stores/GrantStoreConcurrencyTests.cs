@@ -1,11 +1,11 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.DataContracts;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Stores;
@@ -36,11 +36,12 @@ public sealed class GrantStoreConcurrencyTests : IAsyncLifetime, IDisposable
         using var scope = Provider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
         await context.Database.EnsureCreatedAsync();
-        context.SeedTeam(Provider.GetRequiredService<IIdGenerator<long>>(), "platform");
+        context.SeedTeam(Provider.GetRequiredService<ISurrogateKeyGenerator>(), "platform");
 
         var tenantStore = new TenantStore(
             Mock.Of<IStoreProvider>(),
-            Provider.GetRequiredService<IIdGenerator<long>>(),
+            Provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TestPageCursorProtector.Instance,
             context
         );
         await tenantStore.AddAsync(CreateTenant(), CancellationToken.None);
@@ -56,7 +57,12 @@ public sealed class GrantStoreConcurrencyTests : IAsyncLifetime, IDisposable
     }
 
     private GrantStore CreateStore(OpenIdDbContext context) =>
-        new(Mock.Of<IStoreProvider>(), Provider.GetRequiredService<IIdGenerator<long>>(), context);
+        new(
+            Mock.Of<IStoreProvider>(),
+            Provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TestPageCursorProtector.Instance,
+            context
+        );
 
     private static PersistedTenant CreateTenant() =>
         new PersistedTenantBuilder { TenantId = TenantId, DisplayName = "Tenant One" }.Build();

@@ -1,12 +1,11 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.DataContracts;
-using NCode.Identity.OpenId.Persistence.EntityFramework.Configuration;
 using NCode.Identity.OpenId.Persistence.Tenants;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.Persistence.DataContracts;
 
@@ -29,9 +28,10 @@ public sealed class ClientStoreTenantScopingTests : IDisposable
     public ClientStoreTenantScopingTests()
     {
         var serviceCollection = new ServiceCollection();
-        serviceCollection.AddSingleton<IIdGenerator<long>>(new IdGenerator(0));
-        serviceCollection.AddSingleton<IdValueGenerator>();
-        serviceCollection.AddSingleton<UseIdGeneratorConvention>();
+        serviceCollection.AddSingleton<ISurrogateKeyGenerator>(
+            new SequentialSurrogateKeyGenerator()
+        );
+        serviceCollection.AddSingleton<IPageCursorProtector>(TestPageCursorProtector.Instance);
 
         Provider = serviceCollection.BuildServiceProvider();
 
@@ -45,11 +45,17 @@ public sealed class ClientStoreTenantScopingTests : IDisposable
             AmbientTenantAccessor,
             [new CoreModelContributor()]
         );
-        var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        TenantStore = new TenantStore(Mock.Of<IStoreProvider>(), idGenerator, DbContext);
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        TenantStore = new TenantStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
         Store = new ClientStore(
             Mock.Of<IStoreProvider>(),
-            idGenerator,
+            keyGenerator,
+            TestPageCursorProtector.Instance,
             DbContext,
             TestCryptoServices.CreateResourceIdGenerator()
         );
@@ -86,7 +92,7 @@ public sealed class ClientStoreTenantScopingTests : IDisposable
 
     private async ValueTask SeedTenantAsync(string tenantId, CancellationToken cancellationToken)
     {
-        DbContext.SeedTeam(Provider.GetRequiredService<IIdGenerator<long>>(), "platform");
+        DbContext.SeedTeam(Provider.GetRequiredService<ISurrogateKeyGenerator>(), "platform");
 
         var tenant = new PersistedTenantBuilder { TenantId = tenantId }.Build();
 
