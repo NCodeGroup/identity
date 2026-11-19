@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Text.Json;
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.DataContracts;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Stores;
@@ -25,8 +25,8 @@ public sealed class TenantStorePagingTests : IDisposable
 
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
-        var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        Store = new TenantStore(Mock.Of<IStoreProvider>(), idGenerator, DbContext);
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        Store = new TenantStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
     }
 
     public void Dispose()
@@ -51,7 +51,7 @@ public sealed class TenantStorePagingTests : IDisposable
 
     private async ValueTask SeedAsync(int count, CancellationToken cancellationToken)
     {
-        DbContext.SeedTeam(Provider.GetRequiredService<IIdGenerator<long>>(), "platform");
+        DbContext.SeedTeam(Provider.GetRequiredService<ISurrogateKeyGenerator>(), "platform");
         for (var index = 1; index <= count; index++)
         {
             await Store.AddAsync(CreateTenant($"tenant-{index}", index), cancellationToken);
@@ -62,9 +62,9 @@ public sealed class TenantStorePagingTests : IDisposable
 
     private async ValueTask SeedTwoTeamsAsync(CancellationToken cancellationToken)
     {
-        var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        DbContext.SeedTeam(idGenerator, "team-a");
-        DbContext.SeedTeam(idGenerator, "team-b");
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        DbContext.SeedTeam(keyGenerator, "team-a");
+        DbContext.SeedTeam(keyGenerator, "team-b");
         for (var index = 1; index <= 3; index++)
         {
             await Store.AddAsync(
@@ -162,9 +162,9 @@ public sealed class TenantStorePagingTests : IDisposable
     [Fact]
     public async Task CountAsync_CountsTheTenantsOfEveryTeamBeneath()
     {
-        var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        var parent = DbContext.SeedTeam(idGenerator, "team-a");
-        DbContext.SeedChildTeam(idGenerator, parent, "team-a-web");
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        var parent = DbContext.SeedTeam(keyGenerator, "team-a");
+        DbContext.SeedChildTeam(keyGenerator, parent, "team-a-web");
         await Store.AddAsync(CreateTenant("a-tenant-1", 1, "team-a"), CancellationToken.None);
         for (var index = 1; index <= 2; index++)
         {

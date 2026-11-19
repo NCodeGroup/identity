@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Text.Json;
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.Tenants;
+using NCode.Identity.Persistence;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.GlobalDirectory;
 
@@ -27,7 +27,7 @@ public sealed class LocalTenantDirectoryTests : IDisposable
     private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
     private ServiceProvider Provider { get; }
     private OpenIdDbContext DbContext { get; }
-    private IIdGenerator<long> IdGenerator { get; }
+    private ISurrogateKeyGenerator keyGenerator { get; }
     private LocalTenantDirectory Directory { get; }
 
     public LocalTenantDirectoryTests()
@@ -42,10 +42,10 @@ public sealed class LocalTenantDirectoryTests : IDisposable
 
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
-        IdGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
+        keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
         Directory = new LocalTenantDirectory(
             Provider.GetRequiredService<IDbContextFactory<OpenIdDbContext>>(),
-            IdGenerator,
+            keyGenerator,
             MockAmbientTenantAccessor.Object,
             Options.Create(new CellOptions { Name = CellName, Region = CellRegion })
         );
@@ -68,7 +68,7 @@ public sealed class LocalTenantDirectoryTests : IDisposable
 
     private TeamEntity SeedTeamWithLimit(string teamId, int? maxTenants)
     {
-        var team = DbContext.SeedTeam(IdGenerator, teamId);
+        var team = DbContext.SeedTeam(keyGenerator, teamId);
         if (maxTenants is { } limit)
         {
             team.SettingsJson = JsonSerializer.SerializeToElement(
@@ -85,7 +85,7 @@ public sealed class LocalTenantDirectoryTests : IDisposable
         DbContext.Platforms.Add(
             new PlatformEntity
             {
-                Id = IdGenerator.CreateId(),
+                Id = keyGenerator.CreateKey(),
                 Key = OpenIdResourceIds.Platform,
                 ConcurrencyToken = string.Empty,
                 SettingsConcurrencyToken = string.Empty,
@@ -104,7 +104,7 @@ public sealed class LocalTenantDirectoryTests : IDisposable
             .Add(
                 new TenantEntity
                 {
-                    Id = IdGenerator.CreateId(),
+                    Id = keyGenerator.CreateKey(),
                     TeamId = team.Id,
                     Team = team,
                     TenantId = tenantId,
@@ -133,7 +133,7 @@ public sealed class LocalTenantDirectoryTests : IDisposable
         DbContext.RetiredTenants.Add(
             new RetiredTenantEntity
             {
-                Id = IdGenerator.CreateId(),
+                Id = keyGenerator.CreateKey(),
                 TenantId = tenantId,
                 NormalizedTenantId = tenantId.ToLowerInvariant(),
             }
@@ -146,7 +146,7 @@ public sealed class LocalTenantDirectoryTests : IDisposable
         DbContext.RetiredIssuers.Add(
             new RetiredIssuerEntity
             {
-                Id = IdGenerator.CreateId(),
+                Id = keyGenerator.CreateKey(),
                 Issuer = issuer,
                 NormalizedIssuer = issuer.ToLowerInvariant(),
                 TenantId = tenantId,
@@ -301,7 +301,7 @@ public sealed class LocalTenantDirectoryTests : IDisposable
     {
         SetupUnscoped();
         var parent = SeedTeamWithLimit(TeamId, maxTenants: 1);
-        var child = DbContext.SeedChildTeam(IdGenerator, parent, "platform-web");
+        var child = DbContext.SeedChildTeam(keyGenerator, parent, "platform-web");
         SeedTenantWithIssuer(child, OtherTenantId, OtherIssuer);
 
         var result = await Directory.ReserveAsync(

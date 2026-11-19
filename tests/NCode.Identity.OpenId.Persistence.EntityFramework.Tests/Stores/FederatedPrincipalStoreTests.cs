@@ -1,10 +1,10 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.DataContracts;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Stores;
@@ -26,9 +26,9 @@ public sealed class FederatedPrincipalStoreTests : IDisposable
 
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
-        var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        Store = new FederatedPrincipalStore(Mock.Of<IStoreProvider>(), idGenerator, DbContext);
-        DbContext.SeedTenant(idGenerator, TenantId);
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        Store = new FederatedPrincipalStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
+        DbContext.SeedTenant(keyGenerator, TenantId);
     }
 
     public void Dispose()
@@ -154,19 +154,19 @@ public sealed class FederatedPrincipalStoreTests : IDisposable
     [Fact]
     public async Task RemoveAsync_RemovesTheConsentsAndGrantsOfThePrincipal()
     {
-        var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
         const string clientId = "client-1";
         await Store.AddAsync(CreatePrincipal("principal-1"), CancellationToken.None);
         await Store.AddAsync(CreatePrincipal("principal-2"), CancellationToken.None);
         var clientStore = new ClientStore(
             Mock.Of<IStoreProvider>(),
-            idGenerator,
+            keyGenerator,
             DbContext,
             TestCryptoServices.CreateResourceIdGenerator()
         );
         await clientStore.AddAsync(CreateClient(clientId), CancellationToken.None);
         await DbContext.SaveChangesAsync();
-        var consentStore = new ConsentStore(Mock.Of<IStoreProvider>(), idGenerator, DbContext);
+        var consentStore = new ConsentStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
         await consentStore.SaveAsync(
             CreateConsent(clientId, "principal-1"),
             CancellationToken.None
@@ -175,7 +175,7 @@ public sealed class FederatedPrincipalStoreTests : IDisposable
             CreateConsent(clientId, "principal-2"),
             CancellationToken.None
         );
-        var grantStore = new GrantStore(Mock.Of<IStoreProvider>(), idGenerator, DbContext);
+        var grantStore = new GrantStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
         await grantStore.AddAsync(CreateGrant(clientId, "principal-1"), CancellationToken.None);
         await grantStore.AddAsync(CreateGrant(clientId, "principal-2"), CancellationToken.None);
         await DbContext.SaveChangesAsync();

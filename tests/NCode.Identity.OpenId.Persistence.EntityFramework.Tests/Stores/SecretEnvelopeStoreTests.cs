@@ -1,10 +1,10 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.DataContracts;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.Persistence.DataContracts;
 using NCode.Identity.Secrets.Persistence.Protection;
@@ -32,17 +32,17 @@ public sealed class SecretEnvelopeStoreTests : IDisposable
 
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
-        var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        TenantStore = new TenantStore(Mock.Of<IStoreProvider>(), idGenerator, DbContext);
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        TenantStore = new TenantStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
         ClientStore = new ClientStore(
             Mock.Of<IStoreProvider>(),
-            idGenerator,
+            keyGenerator,
             DbContext,
             TestCryptoServices.CreateResourceIdGenerator()
         );
         ResourceServerStore = new ResourceServerStore(
             Mock.Of<IStoreProvider>(),
-            idGenerator,
+            keyGenerator,
             DbContext
         );
         Store = new SecretEnvelopeStore(Mock.Of<IStoreProvider>(), DbContext);
@@ -69,7 +69,7 @@ public sealed class SecretEnvelopeStoreTests : IDisposable
         CancellationToken cancellationToken
     )
     {
-        DbContext.SeedTeam(Provider.GetRequiredService<IIdGenerator<long>>(), "platform");
+        DbContext.SeedTeam(Provider.GetRequiredService<ISurrogateKeyGenerator>(), "platform");
         var tenant = new PersistedTenantBuilder { TenantId = tenantId, Secrets = secrets }.Build();
         await TenantStore.AddAsync(tenant, cancellationToken);
         await DbContext.SaveChangesAsync(cancellationToken);

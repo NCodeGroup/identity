@@ -1,10 +1,10 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.DataContracts;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets;
 using NCode.Identity.Secrets.Persistence.DataContracts;
@@ -31,11 +31,11 @@ public sealed class RemoteKeyReferenceStoreTests : IDisposable
 
         ServiceProvider = serviceCollection.BuildServiceProvider();
         DbContext = ServiceProvider.GetRequiredService<OpenIdDbContext>();
-        var idGenerator = ServiceProvider.GetRequiredService<IIdGenerator<long>>();
-        TenantStore = new TenantStore(Mock.Of<IStoreProvider>(), idGenerator, DbContext);
+        var keyGenerator = ServiceProvider.GetRequiredService<ISurrogateKeyGenerator>();
+        TenantStore = new TenantStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
         ClientStore = new ClientStore(
             Mock.Of<IStoreProvider>(),
-            idGenerator,
+            keyGenerator,
             DbContext,
             TestCryptoServices.CreateResourceIdGenerator()
         );
@@ -68,7 +68,10 @@ public sealed class RemoteKeyReferenceStoreTests : IDisposable
         CancellationToken cancellationToken
     )
     {
-        DbContext.SeedTeam(ServiceProvider.GetRequiredService<IIdGenerator<long>>(), "platform");
+        DbContext.SeedTeam(
+            ServiceProvider.GetRequiredService<ISurrogateKeyGenerator>(),
+            "platform"
+        );
         var tenant = new PersistedTenantBuilder { TenantId = tenantId, Secrets = secrets }.Build();
         await TenantStore.AddAsync(tenant, cancellationToken);
         await DbContext.SaveChangesAsync(cancellationToken);

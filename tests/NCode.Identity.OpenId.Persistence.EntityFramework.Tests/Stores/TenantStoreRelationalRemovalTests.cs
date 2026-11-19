@@ -1,11 +1,11 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.DataContracts;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.Persistence.DataContracts;
 
@@ -36,18 +36,18 @@ public sealed class TenantStoreRelationalRemovalTests : IDisposable
 
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
         DbContext.Database.EnsureCreated();
-        DbContext.SeedTeam(Provider.GetRequiredService<IIdGenerator<long>>(), "platform");
+        DbContext.SeedTeam(Provider.GetRequiredService<ISurrogateKeyGenerator>(), "platform");
 
-        var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        Store = new TenantStore(Mock.Of<IStoreProvider>(), idGenerator, DbContext);
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        Store = new TenantStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
         ResourceServerStore = new ResourceServerStore(
             Mock.Of<IStoreProvider>(),
-            idGenerator,
+            keyGenerator,
             DbContext
         );
         RoleAssignmentStore = new RoleAssignmentStore(
             Mock.Of<IStoreProvider>(),
-            idGenerator,
+            keyGenerator,
             DbContext
         );
     }
@@ -176,16 +176,16 @@ public sealed class TenantStoreRelationalRemovalTests : IDisposable
         CancellationToken cancellationToken
     )
     {
-        var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        var grantStore = new GrantStore(Mock.Of<IStoreProvider>(), idGenerator, DbContext);
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        var grantStore = new GrantStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
         var principalStore = new FederatedPrincipalStore(
             Mock.Of<IStoreProvider>(),
-            idGenerator,
+            keyGenerator,
             DbContext
         );
         var identityStore = new FederatedIdentityStore(
             Mock.Of<IStoreProvider>(),
-            idGenerator,
+            keyGenerator,
             DbContext
         );
 
@@ -407,8 +407,8 @@ public sealed class TenantStoreRelationalRemovalTests : IDisposable
     {
         await SeedTenantWithSystemRowsAsync(TenantOneId, CancellationToken.None);
         var day = new DateOnly(2026, 10, 21);
-        var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        var usageStore = new TenantUsageStore(Mock.Of<IStoreProvider>(), idGenerator, DbContext);
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        var usageStore = new TenantUsageStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
         await usageStore.AddAsync(
             Guid.NewGuid(),
             1,

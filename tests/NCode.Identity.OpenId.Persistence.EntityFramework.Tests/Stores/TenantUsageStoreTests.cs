@@ -1,10 +1,10 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Stores;
@@ -42,7 +42,11 @@ public sealed class TenantUsageStoreTests : IDisposable
     }
 
     private TenantUsageStore CreateStore(OpenIdDbContext context) =>
-        new(Mock.Of<IStoreProvider>(), Provider.GetRequiredService<IIdGenerator<long>>(), context);
+        new(
+            Mock.Of<IStoreProvider>(),
+            Provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            context
+        );
 
     private static DataContracts.PersistedTenantUsage Usage(
         string tenantId,

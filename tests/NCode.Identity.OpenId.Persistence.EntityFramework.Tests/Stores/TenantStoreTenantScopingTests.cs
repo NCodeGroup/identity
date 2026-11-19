@@ -1,12 +1,11 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.DataContracts;
-using NCode.Identity.OpenId.Persistence.EntityFramework.Configuration;
 using NCode.Identity.OpenId.Persistence.Tenants;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.Persistence.DataContracts;
 
@@ -29,9 +28,10 @@ public sealed class TenantStoreTenantScopingTests : IDisposable
     public TenantStoreTenantScopingTests()
     {
         var serviceCollection = new ServiceCollection();
-        serviceCollection.AddSingleton<IIdGenerator<long>>(new IdGenerator(0));
-        serviceCollection.AddSingleton<IdValueGenerator>();
-        serviceCollection.AddSingleton<UseIdGeneratorConvention>();
+        serviceCollection.AddSingleton<ISurrogateKeyGenerator>(
+            new SequentialSurrogateKeyGenerator()
+        );
+        serviceCollection.AddSingleton<IPageCursorProtector>(TestPageCursorProtector.Instance);
 
         Provider = serviceCollection.BuildServiceProvider();
 
@@ -47,7 +47,7 @@ public sealed class TenantStoreTenantScopingTests : IDisposable
         );
         Store = new TenantStore(
             Mock.Of<IStoreProvider>(),
-            Provider.GetRequiredService<IIdGenerator<long>>(),
+            Provider.GetRequiredService<ISurrogateKeyGenerator>(),
             DbContext
         );
     }
@@ -73,7 +73,7 @@ public sealed class TenantStoreTenantScopingTests : IDisposable
         CancellationToken cancellationToken
     )
     {
-        DbContext.SeedTeam(Provider.GetRequiredService<IIdGenerator<long>>(), "platform");
+        DbContext.SeedTeam(Provider.GetRequiredService<ISurrogateKeyGenerator>(), "platform");
 
         var tenant = new PersistedTenantBuilder { TenantId = tenantId, Secrets = secrets }.Build();
 

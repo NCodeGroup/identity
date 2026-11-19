@@ -1,11 +1,11 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Tenants;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Stores;
@@ -31,9 +31,9 @@ public sealed class RoleAssignmentStoreTests : IDisposable
 
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
-        var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        TenantStore = new TenantStore(Mock.Of<IStoreProvider>(), idGenerator, DbContext);
-        Store = new RoleAssignmentStore(Mock.Of<IStoreProvider>(), idGenerator, DbContext);
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        TenantStore = new TenantStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
+        Store = new RoleAssignmentStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
     }
 
     public void Dispose()
@@ -62,7 +62,7 @@ public sealed class RoleAssignmentStoreTests : IDisposable
 
     private async ValueTask SeedTenantAsync(CancellationToken cancellationToken)
     {
-        DbContext.SeedTeam(Provider.GetRequiredService<IIdGenerator<long>>(), "platform");
+        DbContext.SeedTeam(Provider.GetRequiredService<ISurrogateKeyGenerator>(), "platform");
         var tenant = new PersistedTenantBuilder
         {
             TenantId = TenantId,
@@ -157,7 +157,7 @@ public sealed class RoleAssignmentStoreTests : IDisposable
     public async Task GetByPrincipalAsync_WhenUnscoped_ReadsAssignmentsOfEveryTenant()
     {
         await SeedTenantAsync(CancellationToken.None);
-        DbContext.SeedTenant(Provider.GetRequiredService<IIdGenerator<long>>(), "tenant-2");
+        DbContext.SeedTenant(Provider.GetRequiredService<ISurrogateKeyGenerator>(), "tenant-2");
 
         await Store.AddAsync(
             CreateAssignment("assign-1", Subject, "Owner", "client", "client-1"),
@@ -227,7 +227,7 @@ public sealed class RoleAssignmentStoreTests : IDisposable
     public async Task RemoveByPrincipalAsync_WhenUnscoped_RemovesTheAssignmentsOfThePrincipalInEveryTenant()
     {
         await SeedTenantAsync(CancellationToken.None);
-        DbContext.SeedTenant(Provider.GetRequiredService<IIdGenerator<long>>(), "tenant-2");
+        DbContext.SeedTenant(Provider.GetRequiredService<ISurrogateKeyGenerator>(), "tenant-2");
 
         using var scope = Ambient.BeginUnscoped("test");
 

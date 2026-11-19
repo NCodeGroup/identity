@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Collections.Immutable;
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using NCode.Identity.OpenId.Persistence.EntityFramework.Configuration;
 using NCode.Identity.OpenId.Persistence.Tenants;
+using NCode.Identity.Persistence;
+using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.Persistence.Protection;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework;
@@ -26,9 +26,10 @@ internal static class TestOpenIdDbContextSetup
         Action<DbContextOptionsBuilder> configureOptions
     )
     {
-        serviceCollection.AddSingleton<IIdGenerator<long>>(new IdGenerator(0));
-        serviceCollection.AddSingleton<IdValueGenerator>();
-        serviceCollection.AddSingleton<UseIdGeneratorConvention>();
+        serviceCollection.AddSingleton<ISurrogateKeyGenerator>(
+            new SequentialSurrogateKeyGenerator()
+        );
+        serviceCollection.AddSingleton<IPageCursorProtector>(TestPageCursorProtector.Instance);
         serviceCollection.TryAddEnumerable(
             ServiceDescriptor.Singleton<IOpenIdModelContributor, CoreModelContributor>()
         );
@@ -60,7 +61,7 @@ internal static class TestOpenIdDbContextSetup
     /// </summary>
     public static TeamEntity SeedTeam(
         this OpenIdDbContext dbContext,
-        IIdGenerator<long> idGenerator,
+        ISurrogateKeyGenerator keyGenerator,
         string teamId
     )
     {
@@ -77,7 +78,7 @@ internal static class TestOpenIdDbContextSetup
 
         var entity = new TeamEntity
         {
-            Id = idGenerator.CreateId(),
+            Id = keyGenerator.CreateKey(),
             TeamId = teamId,
             NormalizedTeamId = normalizedTeamId,
             Path = $"/{teamId}/",
@@ -104,14 +105,14 @@ internal static class TestOpenIdDbContextSetup
     /// </summary>
     public static TeamEntity SeedChildTeam(
         this OpenIdDbContext dbContext,
-        IIdGenerator<long> idGenerator,
+        ISurrogateKeyGenerator keyGenerator,
         TeamEntity parent,
         string teamId
     )
     {
         var entity = new TeamEntity
         {
-            Id = idGenerator.CreateId(),
+            Id = keyGenerator.CreateKey(),
             TeamId = teamId,
             NormalizedTeamId = teamId.ToLowerInvariant(),
             ParentTeamId = parent.Id,
@@ -141,14 +142,14 @@ internal static class TestOpenIdDbContextSetup
     /// </summary>
     public static TenantEntity SeedTenant(
         this OpenIdDbContext dbContext,
-        IIdGenerator<long> idGenerator,
+        ISurrogateKeyGenerator keyGenerator,
         string tenantId
     )
     {
-        var team = dbContext.SeedTeam(idGenerator, "platform");
+        var team = dbContext.SeedTeam(keyGenerator, "platform");
         var entity = new TenantEntity
         {
-            Id = idGenerator.CreateId(),
+            Id = keyGenerator.CreateKey(),
             TeamId = team.Id,
             Team = team,
             TenantId = tenantId,

@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Text.Json;
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.Tenants;
+using NCode.Identity.Persistence;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.GlobalDirectory;
 
@@ -17,7 +17,7 @@ public sealed class LocalPlatformDirectoryTests : IDisposable
     private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
     private ServiceProvider Provider { get; }
     private OpenIdDbContext DbContext { get; }
-    private IIdGenerator<long> IdGenerator { get; }
+    private ISurrogateKeyGenerator keyGenerator { get; }
     private LocalPlatformDirectory Directory { get; }
 
     public LocalPlatformDirectoryTests()
@@ -32,7 +32,7 @@ public sealed class LocalPlatformDirectoryTests : IDisposable
 
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
-        IdGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
+        keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
         Directory = new LocalPlatformDirectory(
             Provider.GetRequiredService<IDbContextFactory<OpenIdDbContext>>(),
             MockAmbientTenantAccessor.Object
@@ -61,7 +61,7 @@ public sealed class LocalPlatformDirectoryTests : IDisposable
             .Add(
                 new PlatformEntity
                 {
-                    Id = IdGenerator.CreateId(),
+                    Id = keyGenerator.CreateKey(),
                     Key = OpenIdResourceIds.Platform,
                     ConcurrencyToken = string.Empty,
                     SettingsConcurrencyToken = string.Empty,

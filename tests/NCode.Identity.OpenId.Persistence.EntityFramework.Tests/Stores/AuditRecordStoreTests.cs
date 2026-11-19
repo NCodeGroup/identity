@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Text.Json;
-using IdGen;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.Json;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Stores;
@@ -43,7 +43,11 @@ public sealed class AuditRecordStoreTests : IDisposable
     }
 
     private AuditRecordStore CreateStore(OpenIdDbContext context) =>
-        new(Mock.Of<IStoreProvider>(), Provider.GetRequiredService<IIdGenerator<long>>(), context);
+        new(
+            Mock.Of<IStoreProvider>(),
+            Provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            context
+        );
 
     private static PersistedAuditRecord Record(
         Guid? eventId = null,
@@ -213,7 +217,7 @@ public sealed class AuditRecordStoreTests : IDisposable
         var context = scope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
         var store = new AuditRecordStore(
             Mock.Of<IStoreProvider>(),
-            provider.GetRequiredService<IIdGenerator<long>>(),
+            provider.GetRequiredService<ISurrogateKeyGenerator>(),
             context
         );
         return await store.GetPageAsync(

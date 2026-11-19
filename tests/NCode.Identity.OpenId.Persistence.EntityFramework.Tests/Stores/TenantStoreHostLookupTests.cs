@@ -1,10 +1,10 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.DataContracts;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Stores;
@@ -24,9 +24,9 @@ public sealed class TenantStoreHostLookupTests : IDisposable
 
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
-        var idGenerator = Provider.GetRequiredService<IIdGenerator<long>>();
-        Store = new TenantStore(Mock.Of<IStoreProvider>(), idGenerator, DbContext);
-        DbContext.SeedTeam(Provider.GetRequiredService<IIdGenerator<long>>(), "platform");
+        var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        Store = new TenantStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
+        DbContext.SeedTeam(Provider.GetRequiredService<ISurrogateKeyGenerator>(), "platform");
     }
 
     public void Dispose()
