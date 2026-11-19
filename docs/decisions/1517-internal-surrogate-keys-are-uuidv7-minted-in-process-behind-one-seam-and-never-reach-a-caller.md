@@ -30,7 +30,7 @@ identifiers only.**
 
 1. **One key type and scope.** Every internal surrogate key is a `Guid` holding a UUIDv7, person-linked tables included
    (`LocalAccountEntity`, `FederatedIdentityEntity`, `FederatedPrincipalEntity`), with no UUIDv4 exception. The scope is
-   every Entity Framework entity of a cell that carries `[UseIdGenerator]`, `LocalAccountEntity`,
+   every Entity Framework entity of a cell that carries `[SurrogateKey]`, `LocalAccountEntity`,
    `LocalAccountClaimEntity`, every foreign key to them, and the directory's `TenantRecord`, `TeamRecord`,
    `TenantMoveOfferRecord` and `RetiredIssuerRecord`. These values are not surrogate keys and stay `long`:
    `PlatformRecord.Id` and `DirectorySequenceRecord.Id` (the constant `SingletonId` of a one-row table),
