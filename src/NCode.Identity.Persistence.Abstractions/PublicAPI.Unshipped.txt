@@ -12,6 +12,11 @@ NCode.Identity.Persistence.DatabaseObjectName.Name.init -> void
 NCode.Identity.Persistence.DatabaseObjectName.Schema.get -> string?
 NCode.Identity.Persistence.DatabaseObjectName.Schema.init -> void
 NCode.Identity.Persistence.DatabaseRoleNameRules
+NCode.Identity.Persistence.DefaultRegistration
+NCode.Identity.Persistence.DefaultRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!)
+NCode.Identity.Persistence.DefaultRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).AddSurrogateKeyGenerator() -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+NCode.Identity.Persistence.ISurrogateKeyGenerator
+NCode.Identity.Persistence.ISurrogateKeyGenerator.CreateKey() -> System.Guid
 NCode.Identity.Persistence.ISupportConcurrencyToken
 NCode.Identity.Persistence.ISupportConcurrencyToken.ConcurrencyToken.get -> string!
 NCode.Identity.Persistence.ISupportResource
