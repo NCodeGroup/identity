@@ -10,4 +10,5 @@ export {
   type GuardedConsole,
   type TestHooks,
 } from './consoleGuard.js';
+export { cssRgb } from './cssColor.js';
 export { FAMILY_ICON_FILE_NAMES, FAMILY_ICON_LINKS, type IconLink } from './familyIcons.js';

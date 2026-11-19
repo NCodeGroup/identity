@@ -1,15 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ThemeProvider } from '@mui/material/styles';
+import { cssRgb } from '@ncodegroup/identity-test-support';
 import { createAppTheme } from '../theme/createAppTheme.js';
 import { HazardBand } from './HazardBand.js';
 
 const MODES = ['light', 'dark'] as const;
-
-function rgb(hex: string): string {
-  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-  return `rgb(${String(r)}, ${String(g)}, ${String(b)})`;
-}
 
 describe('HazardBand', () => {
   it('shows its text on the hazard color', () => {
@@ -25,8 +21,8 @@ describe('HazardBand', () => {
     expect(band).not.toBeNull();
     if (!band) return;
     const style = getComputedStyle(band);
-    expect(style.backgroundColor).toBe(rgb(hazard));
-    expect(style.color).toBe(rgb(onHazard));
+    expect(style.backgroundColor).toBe(cssRgb(hazard));
+    expect(style.color).toBe(cssRgb(onHazard));
   });
 
   it.each(MODES)('runs hazard tape on both sides of its text in the %s theme', (mode) => {

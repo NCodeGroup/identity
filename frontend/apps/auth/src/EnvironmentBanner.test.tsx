@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { render } from '@testing-library/react';
-import { AppThemeProvider } from '@ncodegroup/identity-ui';
+import { AppThemeProvider, createAppTheme } from '@ncodegroup/identity-ui';
+import { cssRgb } from '@ncodegroup/identity-test-support';
 import { App } from './App.js';
 import { EnvironmentBanner } from './EnvironmentBanner.js';
 
@@ -35,7 +36,9 @@ describe('EnvironmentBanner', () => {
     const band = getByText('staging environment — not for production use').parentElement;
     expect(band).not.toBeNull();
     if (!band) return;
-    expect(getComputedStyle(band).backgroundColor).toBe('rgb(244, 173, 29)');
+    expect(getComputedStyle(band).backgroundColor).toBe(
+      cssRgb(createAppTheme().palette.instrument.hazard),
+    );
   });
 });
 

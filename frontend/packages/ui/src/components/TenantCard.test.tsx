@@ -2,13 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ThemeProvider } from '@mui/material/styles';
 import { deriveBrand } from '@ncodegroup/identity-brand/derive';
+import { cssRgb } from '@ncodegroup/identity-test-support';
 import { createAppTheme } from '../theme/createAppTheme.js';
 import { TenantCard } from './TenantCard.js';
-
-function rgb(hex: string): string {
-  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-  return `rgb(${String(r)}, ${String(g)}, ${String(b)})`;
-}
 
 describe('TenantCard', () => {
   it('shows its children on a raised card', () => {
@@ -50,7 +46,7 @@ describe('TenantCard', () => {
         <TenantCard maxWidth={400}>Sign in</TenantCard>
       </ThemeProvider>,
     );
-    const expected = rgb(deriveBrand('#0F766E', '#7C2D12').light['scope-tenant']);
+    const expected = cssRgb(deriveBrand('#0F766E', '#7C2D12').light['scope-tenant']);
 
     expect(getComputedStyle(container.firstElementChild as Element).color).toBe(expected);
   });
