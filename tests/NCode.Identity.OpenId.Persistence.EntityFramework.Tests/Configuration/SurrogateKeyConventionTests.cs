@@ -47,6 +47,21 @@ public class SurrogateKeyConventionTests
         return serviceCollection.BuildServiceProvider();
     }
 
+    private static TeamEntity CreateTeam() =>
+        new()
+        {
+            TeamId = "platform",
+            NormalizedTeamId = "platform",
+            Path = "/platform/",
+            ConcurrencyToken = string.Empty,
+            SettingsConcurrencyToken = string.Empty,
+            IsDisabled = false,
+            DisplayName = "Platform",
+            SettingsJson = JsonSerializer.SerializeToElement(new Dictionary<string, object>()),
+            RootKeysJson = JsonElement.Parse("""{"$ver":1,"$payload":{"rootKeys":{}}}"""),
+            Tenants = new List<TenantEntity>(),
+        };
+
     #region ProcessPropertyAdded Tests
 
     [Fact]
@@ -62,24 +77,47 @@ public class SurrogateKeyConventionTests
         using var scope = serviceProvider.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
 
-        var team = new TeamEntity
-        {
-            TeamId = "platform",
-            NormalizedTeamId = "platform",
-            Path = "/platform/",
-            ConcurrencyToken = string.Empty,
-            SettingsConcurrencyToken = string.Empty,
-            IsDisabled = false,
-            DisplayName = "Platform",
-            SettingsJson = JsonSerializer.SerializeToElement(new Dictionary<string, object>()),
-            RootKeysJson = JsonElement.Parse("""{"$ver":1,"$payload":{"rootKeys":{}}}"""),
-            Tenants = new List<TenantEntity>(),
-        };
+        var team = CreateTeam();
 
         dbContext.Set<TeamEntity>().Add(team);
 
         Assert.Equal(fixedKey, team.Id);
         mockGenerator.Verify();
+    }
+
+    [Fact]
+    public void Add_TwoProvidersWithDifferentGenerators_MintsEachKeyFromItsOwnProvider()
+    {
+        var firstKey = Guid.CreateVersion7();
+        var secondKey = Guid.CreateVersion7();
+
+        var mockFirstGenerator = new Mock<ISurrogateKeyGenerator>(MockBehavior.Strict);
+        mockFirstGenerator.Setup(x => x.CreateKey()).Returns(firstKey).Verifiable();
+
+        var mockSecondGenerator = new Mock<ISurrogateKeyGenerator>(MockBehavior.Strict);
+        mockSecondGenerator.Setup(x => x.CreateKey()).Returns(secondKey).Verifiable();
+
+        using var firstServiceProvider = CreateServiceProvider(serviceCollection =>
+            serviceCollection.Replace(ServiceDescriptor.Singleton(mockFirstGenerator.Object))
+        );
+        using var secondServiceProvider = CreateServiceProvider(serviceCollection =>
+            serviceCollection.Replace(ServiceDescriptor.Singleton(mockSecondGenerator.Object))
+        );
+        using var firstScope = firstServiceProvider.CreateScope();
+        using var secondScope = secondServiceProvider.CreateScope();
+        var firstDbContext = firstScope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
+        var secondDbContext = secondScope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
+
+        var firstTeam = CreateTeam();
+        var secondTeam = CreateTeam();
+
+        firstDbContext.Set<TeamEntity>().Add(firstTeam);
+        secondDbContext.Set<TeamEntity>().Add(secondTeam);
+
+        Assert.Equal(firstKey, firstTeam.Id);
+        Assert.Equal(secondKey, secondTeam.Id);
+        mockFirstGenerator.Verify();
+        mockSecondGenerator.Verify();
     }
 
     [Fact]
@@ -89,11 +127,15 @@ public class SurrogateKeyConventionTests
         using var scope = serviceProvider.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
 
-        var property = dbContext
-            .Model.FindEntityType(typeof(TeamEntity))!
-            .FindProperty(nameof(TeamEntity.Id))!;
+        var entityType = dbContext.Model.FindEntityType(typeof(TeamEntity));
+        Assert.NotNull(entityType);
 
-        Assert.Equal(ValueGenerated.Never, property.ValueGenerated);
+        var property = entityType.FindProperty(nameof(TeamEntity.Id));
+        Assert.NotNull(property);
+
+        var valueGenerated = property.ValueGenerated;
+
+        Assert.Equal(ValueGenerated.Never, valueGenerated);
     }
 
     [Fact]
@@ -104,7 +146,12 @@ public class SurrogateKeyConventionTests
             .Options;
         using var context = new NonGuidDbContext(options);
 
-        Assert.Throws<InvalidOperationException>(() => context.Model);
+        var exception = Assert.Throws<InvalidOperationException>(() => context.Model);
+
+        var message = exception.Message;
+
+        Assert.Contains("NonGuidRow.Id", message);
+        Assert.Contains("is not a Guid", message);
     }
 
     #endregion
