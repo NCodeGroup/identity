@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NCode.Identity.OpenId.Persistence.DataContracts;
@@ -135,6 +136,49 @@ public sealed class ClientStorePagingTests : IDisposable
         );
 
         Assert.Equal(3, page.Items.Count);
+    }
+
+    [Fact]
+    public async Task GetPageAsync_Cursor_DoesNotCarryTheSortKey()
+    {
+        await SeedAsync(3, CancellationToken.None);
+
+        using var scope = Ambient.BeginScope(TenantId);
+
+        var page = await Store.GetPageAsync(new PageRequest { Limit = 1 }, CancellationToken.None);
+
+        var cursor = Assert.IsType<string>(page.NextCursor);
+        var key = DbContext.Set<ClientEntity>().OrderBy(client => client.Id).First().Id;
+        Assert.DoesNotContain(key.ToString("N"), cursor, StringComparison.OrdinalIgnoreCase);
+        var decoded = Base64Url.DecodeFromChars(cursor);
+        Assert.Equal(-1, decoded.AsSpan().IndexOf(key.ToByteArray(bigEndian: true)));
+        Assert.Equal(-1, decoded.AsSpan().IndexOf(key.ToByteArray(bigEndian: false)));
+    }
+
+    [Fact]
+    public async Task GetPageAsync_WhenCursorIsTampered_StartsFromBeginning()
+    {
+        await SeedAsync(3, CancellationToken.None);
+
+        using var scope = Ambient.BeginScope(TenantId);
+
+        var firstPage = await Store.GetPageAsync(
+            new PageRequest { Limit = 1 },
+            CancellationToken.None
+        );
+        var cursor = Assert.IsType<string>(firstPage.NextCursor);
+        var tampered = cursor.ToCharArray();
+        tampered[20] = tampered[20] == 'A' ? 'B' : 'A';
+
+        var page = await Store.GetPageAsync(
+            new PageRequest { Cursor = new string(tampered), Limit = 1 },
+            CancellationToken.None
+        );
+
+        Assert.Equal(
+            firstPage.Items.Select(client => client.ClientId),
+            page.Items.Select(client => client.ClientId)
+        );
     }
 
     [Fact]
