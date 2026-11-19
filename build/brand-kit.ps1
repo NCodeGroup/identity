@@ -61,14 +61,17 @@ function Test-Kit([string]$Folder, [string]$Label, [string]$Scanned, [string[]]$
         }
 
         if (-not $lock.files.Contains($name)) {
-            $problems.Add("${Label}/${name}: ${Label}/brand.lock.json does not name it; every vendored file comes from an NCodeGroup/brand release.")
+            $message = "${Label}/${name}: ${Label}/brand.lock.json does not name it; " +
+                'every vendored file comes from an NCodeGroup/brand release.'
+            $problems.Add($message)
         }
     }
 
     $output = @(& node (Join-Path $Kit 'vendor-brand.mjs') --check --lock $lockPath 2>&1)
     $exitCode = $LASTEXITCODE
     if ($exitCode -ne 0) {
-        # A file problem reads `<path>: <problem>`, and so does the error the script throws (`vendor-brand.mjs: <error>`).
+        # A file problem reads `<path>: <problem>`, and so does the error the script throws
+        # (`vendor-brand.mjs: <error>`).
         # Every other line, such as the hint to restore the files, is dropped, so no sentence's wording matters.
         $kept = 0
         foreach ($line in $output) {
@@ -80,7 +83,9 @@ function Test-Kit([string]$Folder, [string]$Label, [string]$Scanned, [string[]]$
         }
 
         if ($kept -eq 0) {
-            $problems.Add("${Label}/brand.lock.json: node brand/vendor-brand.mjs --check exited $exitCode and named no file.")
+            $message = "${Label}/brand.lock.json: node brand/vendor-brand.mjs --check exited $exitCode " +
+                'and named no file.'
+            $problems.Add($message)
         }
     }
 

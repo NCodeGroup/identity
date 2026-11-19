@@ -88,14 +88,16 @@ function New-Fixture(
     }
     $themeLock = [ordered]@{ version = $ThemeVersion; files = $themeEntries }
     $themeJson = ($themeLock | ConvertTo-Json -Depth 5) + "`n"
-    Write-FixtureFile (Join-Path $themeKit 'brand.lock.json') ([System.Text.UTF8Encoding]::new($false).GetBytes($themeJson))
+    $themeBytes = [System.Text.UTF8Encoding]::new($false).GetBytes($themeJson)
+    Write-FixtureFile (Join-Path $themeKit 'brand.lock.json') $themeBytes
     return $root
 }
 
 function Assert-Problems([string]$Name, [string]$Root, [string[]]$ExpectedFragments) {
     $problems = @(& $checker -Kit (Join-Path $Root 'brand') -ThemeKit (Join-Path $Root 'frontend' 'packages' 'brand'))
     if ($problems.Count -ne $ExpectedFragments.Count) {
-        throw "Test '$Name' expected $($ExpectedFragments.Count) problem(s), got $($problems.Count): $($problems -join ' | ')"
+        throw "Test '$Name' expected $($ExpectedFragments.Count) problem(s), got $($problems.Count): " +
+            "$($problems -join ' | ')"
     }
     for ($i = 0; $i -lt $ExpectedFragments.Count; $i++) {
         if (-not $problems[$i].Contains($ExpectedFragments[$i], [StringComparison]::Ordinal)) {
