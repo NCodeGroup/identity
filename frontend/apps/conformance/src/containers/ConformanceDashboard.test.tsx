@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AppThemeProvider } from '@ncodegroup/identity-ui';
+import { AppThemeProvider, createAppTheme } from '@ncodegroup/identity-ui';
 import type { OpenIdRuntimeConfig } from '@ncodegroup/identity-config';
 import { ConformanceDashboard, type ConformanceDashboardProps } from './ConformanceDashboard.js';
 import type { RawDiscovery } from '@ncodegroup/identity-conformance-core';
@@ -93,6 +93,16 @@ describe('ConformanceDashboard', () => {
     await findByTestId('summary');
     expect(getByTestId('callback-url').textContent).toContain('/test/a/ncode/callback');
     expect(getByTestId('issuer').textContent).toBe('https://op.test');
+  });
+
+  it('shows the issuer and the callback url in the code font', async () => {
+    const loadDiscovery = vi.fn(() => Promise.resolve(secureDiscovery));
+    const { getByTestId, findByTestId } = renderDashboard(loadDiscovery);
+
+    await findByTestId('summary');
+    const { fontFamilyMono } = createAppTheme().typography;
+    expect(getByTestId('issuer')).toHaveStyle({ fontFamily: fontFamilyMono });
+    expect(getByTestId('callback-url')).toHaveStyle({ fontFamily: fontFamilyMono });
   });
 
   it('renders the spec-coverage matrix with missing gaps surfaced', async () => {
