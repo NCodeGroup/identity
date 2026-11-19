@@ -7,16 +7,35 @@ import { EnvironmentBanner } from './EnvironmentBanner.js';
 describe('EnvironmentBanner', () => {
   it('shows the environment name when present', () => {
     const { getByText } = render(
-      <EnvironmentBanner environment={{ type: 'staging', name: 'Pre-prod' }} />,
+      <AppThemeProvider>
+        <EnvironmentBanner environment={{ type: 'staging', name: 'Pre-prod' }} />
+      </AppThemeProvider>,
     );
 
     expect(getByText('Pre-prod environment — not for production use')).toBeInTheDocument();
   });
 
   it('falls back to the environment type without a name', () => {
-    const { getByText } = render(<EnvironmentBanner environment={{ type: 'staging' }} />);
+    const { getByText } = render(
+      <AppThemeProvider>
+        <EnvironmentBanner environment={{ type: 'staging' }} />
+      </AppThemeProvider>,
+    );
 
     expect(getByText('staging environment — not for production use')).toBeInTheDocument();
+  });
+
+  it('draws the banner as a hazard band', () => {
+    const { getByText } = render(
+      <AppThemeProvider>
+        <EnvironmentBanner environment={{ type: 'staging' }} />
+      </AppThemeProvider>,
+    );
+
+    const band = getByText('staging environment — not for production use').parentElement;
+    expect(band).not.toBeNull();
+    if (!band) return;
+    expect(getComputedStyle(band).backgroundColor).toBe('rgb(244, 173, 29)');
   });
 });
 
