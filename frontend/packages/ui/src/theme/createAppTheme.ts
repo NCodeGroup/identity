@@ -343,13 +343,27 @@ function componentsOf(
                 '&:active': { transform: travel, backgroundColor: colors['ghost-pressed'] },
               },
             },
+            // A key whose ink is primary-text is tinted with primary-subtle when touched: deriveBrand holds primary-text
+            // at 4.5 to 1 on it, and not on a ghost face over the page or on a pressed control face.
             {
               props: { variant: 'text', color: 'primary' },
-              style: { color: colors['primary-text'] },
+              style: {
+                color: colors['primary-text'],
+                '&:hover': { backgroundColor: colors['primary-subtle'] },
+                '&:active': { transform: travel, backgroundColor: colors['primary-subtle'] },
+              },
             },
             {
               props: { variant: 'outlined', color: 'primary' },
-              style: { color: colors['primary-text'], borderColor: colors['primary-edge'] },
+              style: {
+                color: colors['primary-text'],
+                borderColor: colors['primary-edge'],
+                '&:active': {
+                  transform: travel,
+                  backgroundColor: colors['primary-subtle'],
+                  boxShadow: 'none',
+                },
+              },
             },
           ],
         },

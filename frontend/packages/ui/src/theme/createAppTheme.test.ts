@@ -22,6 +22,49 @@ function buttonVariants(theme: Theme): ButtonVariant[] {
   return (overrides(theme.components?.MuiButton) as { variants: ButtonVariant[] }).variants;
 }
 
+/** The red, green, blue and alpha of a `#rgb`, `#rrggbb`, `rgb(r g b)` or `rgb(r g b / a)` color. */
+function parseColor(color: string): { rgb: [number, number, number]; alpha: number } {
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim());
+  if (hex) {
+    const digits = hex[1] ?? '';
+    const full = digits.length === 3 ? [...digits].map((d) => d + d).join('') : digits;
+    const n = Number.parseInt(full, 16);
+    return { rgb: [(n >> 16) & 255, (n >> 8) & 255, n & 255], alpha: 1 };
+  }
+  const fn =
+    /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)\s*(?:[/,]\s*([\d.]+)(%?))?\s*\)$/i.exec(
+      color.trim(),
+    );
+  if (!fn) {
+    throw new Error(`Unsupported color: ${color}`);
+  }
+  const alpha = fn[4] === undefined ? 1 : Number(fn[4]) / (fn[5] === '%' ? 100 : 1);
+  return { rgb: [Number(fn[1]), Number(fn[2]), Number(fn[3])], alpha };
+}
+
+/** The WCAG 2.2 relative luminance of an opaque color. */
+function luminance([r, g, b]: [number, number, number]): number {
+  const [lr, lg, lb] = [r, g, b].map((c) => {
+    const s = c / 255;
+    return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  }) as [number, number, number];
+  return 0.2126 * lr + 0.7152 * lg + 0.0722 * lb;
+}
+
+/** The WCAG 2.2 contrast ratio of `fg` on `bg`, where a translucent `bg` is composited over the opaque `under`. */
+function contrast(fg: string, bg: string, under: string): number {
+  const below = parseColor(under).rgb;
+  const { rgb, alpha } = parseColor(bg);
+  const face = rgb.map((c, i) => c * alpha + (below[i] ?? 0) * (1 - alpha)) as [
+    number,
+    number,
+    number,
+  ];
+  const ink = parseColor(fg).rgb;
+  const [hi, lo] = [luminance(ink), luminance(face)].sort((a, b) => b - a) as [number, number];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
 describe('createAppTheme', () => {
   it.each(MODES)("takes Instrument's %s palette for NCode's own brand", (mode) => {
     const theme = createAppTheme({ mode });
@@ -204,20 +247,77 @@ describe('createAppTheme', () => {
 
   it('sets the brand as text in primary-text', () => {
     const { components } = createAppTheme(TEAL);
+    const subtle = deriveBrand('#0F766E', '#7C2D12').light['primary-subtle'];
 
     expect(overrides(components?.MuiLink)).toMatchObject({
       variants: [{ props: { color: 'primary' }, style: { color: '#006D65' } }],
     });
     expect(overrides(components?.MuiButton)).toMatchObject({
       variants: expect.arrayContaining([
-        { props: { variant: 'text', color: 'primary' }, style: { color: '#006D65' } },
+        {
+          props: { variant: 'text', color: 'primary' },
+          style: {
+            color: '#006D65',
+            '&:hover': { backgroundColor: subtle },
+            '&:active': { transform: 'translateY(2px)', backgroundColor: subtle },
+          },
+        },
         {
           props: { variant: 'outlined', color: 'primary' },
-          style: { color: '#006D65', borderColor: '#07534D' },
+          style: {
+            color: '#006D65',
+            borderColor: '#07534D',
+            '&:active': {
+              transform: 'translateY(2px)',
+              backgroundColor: subtle,
+              boxShadow: 'none',
+            },
+          },
         },
       ]),
     });
   });
+
+  describe.each([{ name: "NCode's own", primary: null, secondary: null }, ...vectors.vectors])(
+    'for "$name"',
+    ({ primary, secondary }) => {
+      it.each(MODES)(
+        "keeps a primary text and outlined key's ink at 4.5 to 1 on every face in the %s theme",
+        (mode) => {
+          const theme = createAppTheme({
+            mode,
+            ...(primary === null ? {} : { primaryColor: primary }),
+            ...(secondary === null ? {} : { secondaryColor: secondary }),
+          });
+          const colors = theme.palette.instrument;
+          const variants = buttonVariants(theme);
+          const text = variants.find(
+            (v) => v.props.variant === 'text' && v.props.color === 'primary',
+          )?.style as Record<string, Record<string, string>>;
+          const outlined = variants.find(
+            (v) => v.props.variant === 'outlined' && v.props.color === 'primary',
+          )?.style as Record<string, Record<string, string>>;
+          const faces = [
+            colors.control,
+            colors['control-hover'],
+            text['&:hover']?.backgroundColor,
+            text['&:active']?.backgroundColor,
+            outlined['&:active']?.backgroundColor,
+            'rgb(0 0 0 / 0)',
+          ];
+
+          for (const under of [colors.page, colors.surface]) {
+            for (const face of faces) {
+              expect(face).toBeTypeOf('string');
+              expect(
+                contrast(colors['primary-text'], face as string, under),
+              ).toBeGreaterThanOrEqual(4.5);
+            }
+          }
+        },
+      );
+    },
+  );
 
   it('raises a contained key on its lip and presses it down', () => {
     const { light } = deriveBrand('#0F766E', '#7C2D12');
