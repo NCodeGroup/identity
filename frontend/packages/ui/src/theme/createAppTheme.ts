@@ -6,6 +6,7 @@ import {
   type Theme,
   type ThemeOptions,
 } from '@mui/material/styles';
+import { alertClasses } from '@mui/material/Alert';
 import { outlinedInputClasses } from '@mui/material/OutlinedInput';
 import { deriveBrand, type DerivedColors } from '@ncodegroup/identity-brand/derive';
 import instrument from '@ncodegroup/identity-brand/instrument.json';
@@ -128,6 +129,17 @@ const BREAKPOINTS = {
     xl: 1536,
   },
 };
+
+// The media query Material UI writes for breakpoints.down('sm'): a phone, Instrument's narrowest layout.
+const PHONE = `@media (max-width:${String(instrument.breakpoints.phone)}.95px)`;
+
+// Material UI's severities and the Instrument role each one takes.
+const ALERTS = [
+  ['success', 'success'],
+  ['info', 'info'],
+  ['warning', 'warning'],
+  ['error', 'danger'],
+] as const;
 
 const MEASURES: InstrumentMeasures = {
   radius: instrument.radius,
@@ -338,6 +350,98 @@ function componentsOf(
             {
               props: { variant: 'outlined', color: 'primary' },
               style: { color: colors['primary-text'], borderColor: colors['primary-edge'] },
+            },
+          ],
+        },
+      },
+    },
+    // Instrument draws depth with edges, never a gradient, so a dark sheet takes no elevation overlay.
+    MuiPaper: { styleOverrides: { root: { backgroundImage: 'none' } } },
+    MuiCard: {
+      styleOverrides: {
+        root: { borderRadius: radius.module, border: `1px solid ${colors.border}` },
+      },
+    },
+    MuiBackdrop: {
+      styleOverrides: {
+        root: {
+          variants: [{ props: { invisible: false }, style: { backgroundColor: colors.scrim } }],
+        },
+      },
+    },
+    MuiDialog: {
+      styleOverrides: {
+        paper: {
+          borderRadius: radius.module,
+          [PHONE]: {
+            margin: 0,
+            width: '100%',
+            maxWidth: '100%',
+            borderBottomLeftRadius: 0,
+            borderBottomRightRadius: 0,
+          },
+        },
+        // On a phone a dialog is a sheet that rises from the bottom edge.
+        container: { [PHONE]: { alignItems: 'flex-end' } },
+      },
+    },
+    // A tooltip is a small screen.
+    MuiTooltip: {
+      styleOverrides: {
+        tooltip: {
+          backgroundColor: colors.screen,
+          color: colors['on-screen'],
+          borderRadius: radius.plate,
+          boxShadow: `0 1px 0 ${colors.lip}, 0 10px 24px -8px ${colors.shadow}`,
+        },
+        arrow: { color: colors.screen },
+      },
+    },
+    MuiTableCell: {
+      styleOverrides: {
+        root: { borderBottomColor: colors.border },
+        // A table's head is engraved on a sunken ground.
+        head: {
+          ...style(instrument.typography.variants.label),
+          color: colors['text-secondary'],
+          backgroundColor: colors['surface-sunken'],
+        },
+      },
+    },
+    MuiAlert: {
+      styleOverrides: {
+        root: {
+          position: 'relative',
+          borderRadius: radius.control,
+          variants: [
+            ...ALERTS.map(([severity, role]) => ({
+              props: { variant: 'standard' as const, severity },
+              style: {
+                backgroundColor: colors[`${role}-subtle`],
+                color: colors.text,
+                border: `1px solid ${colors[`${role}-border`]}`,
+                [`& .${alertClasses.icon}`]: { color: colors[`${role}-mark`] },
+                '&::before': {
+                  content: '""',
+                  position: 'absolute',
+                  insetBlock: -1,
+                  insetInlineStart: -1,
+                  width: 5,
+                  borderRadius: `${String(radius.control)}px 0 0 ${String(radius.control)}px`,
+                  background: colors[`${role}-mark`],
+                },
+              },
+            })),
+            // A caution wears hazard tape in place of its signal bar.
+            {
+              props: { variant: 'standard' as const, severity: 'warning' as const },
+              style: {
+                paddingInlineStart: 22,
+                '&::before': {
+                  width: 9,
+                  background: `repeating-linear-gradient(-45deg, ${colors.hazard} 0 4px, ${colors['on-hazard']} 4px 8px)`,
+                },
+              },
             },
           ],
         },

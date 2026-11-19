@@ -292,6 +292,109 @@ describe('createAppTheme', () => {
     });
   });
 
+  it('takes no elevation overlay on a dark sheet', () => {
+    const { components } = createAppTheme({ mode: 'dark' });
+
+    expect(overrides(components?.MuiPaper)).toEqual({ backgroundImage: 'none' });
+  });
+
+  it('rounds a card to the module radius on a hairline edge', () => {
+    expect(overrides(createAppTheme({ mode: 'light' }).components?.MuiCard)).toEqual({
+      borderRadius: 14,
+      border: `1px solid ${instrument.palette.light.instrument.border}`,
+    });
+  });
+
+  it('dims the page under a dialog with the scrim', () => {
+    const { scrim } = instrument.palette.light.instrument;
+
+    expect(overrides(createAppTheme({ mode: 'light' }).components?.MuiBackdrop)).toEqual({
+      variants: [{ props: { invisible: false }, style: { backgroundColor: scrim } }],
+    });
+  });
+
+  it('makes a dialog a sheet on a phone', () => {
+    const theme = createAppTheme();
+    const phone = theme.breakpoints.down('sm');
+    const dialog = theme.components?.MuiDialog?.styleOverrides as Record<string, unknown>;
+
+    expect(dialog.paper).toMatchObject({
+      borderRadius: 14,
+      [phone]: {
+        margin: 0,
+        width: '100%',
+        maxWidth: '100%',
+        borderBottomLeftRadius: 0,
+        borderBottomRightRadius: 0,
+      },
+    });
+    expect(dialog.container).toEqual({ [phone]: { alignItems: 'flex-end' } });
+  });
+
+  it('draws a tooltip as a small screen', () => {
+    const { light } = deriveBrand('#0F766E', '#7C2D12');
+    const tooltip = createAppTheme(TEAL).components?.MuiTooltip?.styleOverrides as Record<
+      string,
+      unknown
+    >;
+
+    expect(tooltip.tooltip).toMatchObject({
+      backgroundColor: light.screen,
+      color: light['on-screen'],
+      borderRadius: 4,
+    });
+    expect(tooltip.arrow).toEqual({ color: light.screen });
+  });
+
+  it("engraves a table's head on a sunken ground", () => {
+    const { label } = instrument.typography.variants;
+    const cell = createAppTheme({ mode: 'light' }).components?.MuiTableCell?.styleOverrides as {
+      head: Record<string, unknown>;
+    };
+
+    expect(cell.head).toMatchObject({
+      textTransform: label.textTransform,
+      letterSpacing: label.letterSpacing,
+      backgroundColor: instrument.palette.light.instrument['surface-sunken'],
+    });
+    expect(cell.head.textTransform).toBe('uppercase');
+  });
+
+  it.each([
+    ['success', 'success'],
+    ['info', 'info'],
+    ['warning', 'warning'],
+    ['error', 'danger'],
+  ] as const)('marks each alert with its signal bar: %s', (severity, role) => {
+    const colors = instrument.palette.light.instrument;
+    const variants = (
+      overrides(createAppTheme({ mode: 'light' }).components?.MuiAlert) as {
+        variants: { props: { severity?: string }; style: Record<string, unknown> }[];
+      }
+    ).variants;
+    const entry = variants.find((v) => v.props.severity === severity);
+
+    expect(entry?.style).toMatchObject({
+      backgroundColor: colors[`${role}-subtle`],
+      border: `1px solid ${colors[`${role}-border`]}`,
+      '&::before': { background: colors[`${role}-mark`] },
+    });
+  });
+
+  it("tapes a caution's signal bar", () => {
+    const { hazard } = instrument.palette.light.instrument;
+    const variants = (
+      overrides(createAppTheme({ mode: 'light' }).components?.MuiAlert) as {
+        variants: { props: { severity?: string }; style: Record<string, unknown> }[];
+      }
+    ).variants;
+    const tape = variants.filter((v) => v.props.severity === 'warning').at(-1);
+    const bar = tape?.style['&::before'] as { background: string };
+
+    expect(bar.background).toMatch(/^repeating-linear-gradient\(-45deg, /);
+    expect(bar.background).toContain(hazard);
+  });
+
   it('maps the code, label, field, value and readout variants to their elements', () => {
     expect(createAppTheme().components?.MuiTypography?.defaultProps?.variantMapping).toEqual({
       code: 'code',
