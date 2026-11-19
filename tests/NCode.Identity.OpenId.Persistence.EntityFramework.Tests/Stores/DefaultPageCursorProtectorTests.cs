@@ -10,8 +10,13 @@ public sealed class DefaultPageCursorProtectorTests
 {
     private const string Collection = "ClientEntity";
 
-    private static byte[] CreatePosition() =>
-        Enumerable.Range(1, 16).Select(i => (byte)i).ToArray();
+    private static byte[] CreatePosition()
+    {
+        var position = new byte[16];
+        for (var i = 0; i < position.Length; i++)
+            position[i] = (byte)(i + 1);
+        return position;
+    }
 
     private static DefaultPageCursorProtector CreateProtector()
     {

@@ -322,9 +322,13 @@ public sealed class AuditRecordStoreTests : IDisposable
     public async Task GetPageAsync_PagesNewestFirst()
     {
         await using var provider = CreateInMemoryProvider();
-        var records = Enumerable.Range(0, 3).Select(_ => Record()).ToList();
-        foreach (var record in records)
+        var records = new List<PersistedAuditRecord>();
+        for (var i = 0; i < 3; i++)
+        {
+            var record = Record();
+            records.Add(record);
             await AddAsync(provider, [record], CancellationToken.None);
+        }
         var filter = new AuditRecordFilter { TenantId = "tenant-1" };
 
         var first = await GetPageAsync(provider, filter, null, 2, CancellationToken.None);
@@ -377,18 +381,20 @@ public sealed class AuditRecordStoreTests : IDisposable
     )
     {
         await using var provider = CreateInMemoryProvider();
-        foreach (var record in Enumerable.Range(0, 3).Select(_ => Record()))
+        for (var i = 0; i < 3; i++)
+        {
+            var record = Record();
             await AddAsync(provider, [record], cancellationToken);
+        }
         var filter = new AuditRecordFilter { TenantId = "tenant-1" };
         var first = await GetPageAsync(provider, filter, null, 2, cancellationToken);
 
         var page = await GetPageAsync(provider, filter, cursor, 2, cancellationToken);
+        var expectedEventIds = first.Items.Select(item => item.EventId).ToList();
+        var actualEventIds = page.Items.Select(item => item.EventId).ToList();
 
         Assert.Equal(2, first.Items.Count);
-        Assert.Equal(
-            first.Items.Select(item => item.EventId),
-            page.Items.Select(item => item.EventId)
-        );
+        Assert.Equal(expectedEventIds, actualEventIds);
     }
 
     private static string ProtectPosition(string collection, int length, long ticks)
