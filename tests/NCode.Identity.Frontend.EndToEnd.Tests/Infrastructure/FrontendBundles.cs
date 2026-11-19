@@ -1,6 +1,8 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using NCode.Identity.Frontend.TestSupport;
+
 namespace NCode.Identity.Frontend.EndToEnd.Tests.Infrastructure;
 
 /// <summary>
@@ -49,5 +51,39 @@ public static class FrontendBundles
         }
 
         return rootPath;
+    }
+
+    /// <summary>
+    /// Gets the address of each typeface license that a frontend app's built bundle ships, under the address that its
+    /// host serves the bundle's assets at.
+    /// </summary>
+    /// <param name="appName">The name of the frontend app, such as <c>auth</c>.</param>
+    /// <param name="assetsUri">The absolute address that the host serves the bundle's assets at, ending in a
+    /// slash.</param>
+    public static IReadOnlyList<Uri> GetLicenseUrls(string appName, Uri assetsUri)
+    {
+        ArgumentNullException.ThrowIfNull(assetsUri);
+
+        var rootPath = GetRootPath(appName);
+        var assetsPath = Path.Combine(rootPath, "assets");
+        List<Uri> urls = [];
+        foreach (var license in TypefaceLicenses.All)
+        {
+            // The build names each license by its content hash, so the bundle on disk says which name the host serves.
+            var searchPattern = $"{license.Name}-*.txt";
+            var files = Directory.GetFiles(assetsPath, searchPattern);
+            if (files.Length != 1)
+            {
+                throw new InvalidOperationException(
+                    $"The apps/{appName} bundle holds {files.Length} assets named '{searchPattern}', not one."
+                );
+            }
+
+            var fileName = Path.GetFileName(files[0]);
+            var url = new Uri(assetsUri, fileName);
+            urls.Add(url);
+        }
+
+        return urls;
     }
 }

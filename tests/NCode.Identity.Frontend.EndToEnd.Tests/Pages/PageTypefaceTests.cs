@@ -3,6 +3,7 @@
 
 using NCode.Identity.EndToEnd.TestSupport;
 using NCode.Identity.Frontend.EndToEnd.Tests.Infrastructure;
+using NCode.Identity.Frontend.TestSupport;
 using Xunit;
 
 namespace NCode.Identity.Frontend.EndToEnd.Tests.Pages;
@@ -55,6 +56,37 @@ public sealed class PageTypefaceTests(FrontendEnvironment environment)
         );
     }
 
+    private static void AssertServedAsLicenses(
+        IReadOnlyList<LicenseResponse> responses,
+        string origin,
+        string assetsPath
+    )
+    {
+        Assert.Equal(TypefaceLicenses.All.Count, responses.Count);
+
+        foreach (var license in TypefaceLicenses.All)
+        {
+            var namePrefix = $"/{license.Name}-";
+            Assert.Contains(
+                responses,
+                response =>
+                    response.Url.AbsolutePath.Contains(namePrefix, StringComparison.Ordinal)
+                    && response.Text.StartsWith(license.Copyright, StringComparison.Ordinal)
+            );
+        }
+
+        Assert.All(
+            responses,
+            response =>
+            {
+                Assert.Equal(origin, response.Url.GetLeftPart(UriPartial.Authority));
+                Assert.StartsWith(assetsPath, response.Url.AbsolutePath, StringComparison.Ordinal);
+                Assert.Equal(200, response.Status);
+                Assert.Equal("text/plain", response.ContentType);
+            }
+        );
+    }
+
     #endregion
 
     #region Login Page Tests
@@ -77,6 +109,28 @@ public sealed class PageTypefaceTests(FrontendEnvironment environment)
         );
 
         AssertLoadedUnderPolicy(result, origin, "/account/assets/");
+    }
+
+    [Theory, MemberData(nameof(BrowserNames.All), MemberType = typeof(BrowserNames))]
+    public async Task LoginPage_WhenItsTypefaceLicensesAreOpened_ServesEachAsTextFromItsAssets(
+        string browserName
+    )
+    {
+        var origin = environment.OpenIdHost.Origin;
+        var assetsUri = new Uri($"{origin}/account/assets/");
+        var licenseUrls = FrontendBundles.GetLicenseUrls("auth", assetsUri);
+        await using var context = await environment.NewContextAsync(
+            browserName,
+            CancellationToken.None
+        );
+
+        var responses = await TypefaceProbe.OpenLicensesAsync(
+            context,
+            licenseUrls,
+            CancellationToken.None
+        );
+
+        AssertServedAsLicenses(responses, origin, "/account/assets/");
     }
 
     #endregion
@@ -103,6 +157,28 @@ public sealed class PageTypefaceTests(FrontendEnvironment environment)
         AssertLoadedUnderPolicy(result, origin, "/setup/assets/");
     }
 
+    [Theory, MemberData(nameof(BrowserNames.All), MemberType = typeof(BrowserNames))]
+    public async Task SetupPage_WhenItsTypefaceLicensesAreOpened_ServesEachAsTextFromItsAssets(
+        string browserName
+    )
+    {
+        var origin = environment.OpenIdHost.Origin;
+        var assetsUri = new Uri($"{origin}/setup/assets/");
+        var licenseUrls = FrontendBundles.GetLicenseUrls("setup", assetsUri);
+        await using var context = await environment.NewContextAsync(
+            browserName,
+            CancellationToken.None
+        );
+
+        var responses = await TypefaceProbe.OpenLicensesAsync(
+            context,
+            licenseUrls,
+            CancellationToken.None
+        );
+
+        AssertServedAsLicenses(responses, origin, "/setup/assets/");
+    }
+
     #endregion
 
     #region Management Console Page Tests
@@ -121,6 +197,28 @@ public sealed class PageTypefaceTests(FrontendEnvironment environment)
         var result = await TypefaceProbe.OpenAsync(context, $"{origin}/", CancellationToken.None);
 
         AssertLoadedUnderPolicy(result, origin, "/assets/");
+    }
+
+    [Theory, MemberData(nameof(BrowserNames.All), MemberType = typeof(BrowserNames))]
+    public async Task ManagementConsolePage_WhenItsTypefaceLicensesAreOpened_ServesEachAsTextFromItsAssets(
+        string browserName
+    )
+    {
+        var origin = environment.ManagementConsole.Origin;
+        var assetsUri = new Uri($"{origin}/assets/");
+        var licenseUrls = FrontendBundles.GetLicenseUrls("mgmt", assetsUri);
+        await using var context = await environment.NewContextAsync(
+            browserName,
+            CancellationToken.None
+        );
+
+        var responses = await TypefaceProbe.OpenLicensesAsync(
+            context,
+            licenseUrls,
+            CancellationToken.None
+        );
+
+        AssertServedAsLicenses(responses, origin, "/assets/");
     }
 
     #endregion

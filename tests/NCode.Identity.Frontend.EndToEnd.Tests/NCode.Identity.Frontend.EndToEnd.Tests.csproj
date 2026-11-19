@@ -28,5 +28,6 @@
         <ProjectReference Include="..\..\hosts\NCode.Identity.OpenId.Host\NCode.Identity.OpenId.Host.csproj" />
         <ProjectReference Include="..\..\hosts\NCode.Identity.ManagementConsole.Host\NCode.Identity.ManagementConsole.Host.csproj" />
         <ProjectReference Include="..\NCode.Identity.EndToEnd.TestSupport\NCode.Identity.EndToEnd.TestSupport.csproj" />
+        <ProjectReference Include="..\NCode.Identity.Frontend.TestSupport\NCode.Identity.Frontend.TestSupport.csproj" />
     </ItemGroup>
 </Project>

@@ -110,4 +110,46 @@ public static class TypefaceProbe
             bothChecked
         );
     }
+
+    /// <summary>
+    /// Opens each typeface license in a page, one after another, and returns the browser's response to each.
+    /// </summary>
+    /// <param name="context">The browser context to open the page in.</param>
+    /// <param name="urls">The addresses of the licenses.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    public static async ValueTask<IReadOnlyList<LicenseResponse>> OpenLicensesAsync(
+        IBrowserContext context,
+        IReadOnlyList<Uri> urls,
+        CancellationToken cancellationToken
+    )
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(urls);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var page = await context.NewPageAsync();
+
+        List<LicenseResponse> responses = [];
+        foreach (var url in urls)
+        {
+            var address = url.AbsoluteUri;
+            var response =
+                await page.GotoAsync(address)
+                ?? throw new InvalidOperationException(
+                    $"Opening '{address}' returned no response."
+                );
+            var text = await response.TextAsync();
+            var contentType = response.Headers.GetValueOrDefault("content-type");
+            var responseUrl = new Uri(response.Url);
+            var licenseResponse = new LicenseResponse(
+                responseUrl,
+                response.Status,
+                contentType,
+                text
+            );
+            responses.Add(licenseResponse);
+        }
+
+        return responses;
+    }
 }

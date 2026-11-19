@@ -99,7 +99,8 @@ by SHA-256, and `createAppTheme` builds each surface's theme from them.**
     of an app without it fails. The interactive, setup and management console pages list `font-src 'self'`, and their
     hosts serve the fonts as `font/woff2` and the licenses as `text/plain` from the bundle's assets route.
     `NCode.Identity.Frontend.EndToEnd.Tests` opens the login, setup and management console pages in Chromium, Firefox
-    and WebKit and fails when a typeface does not load from the page's own assets or the page reports a policy violation
+    and WebKit and fails when a typeface does not load from the page's own assets, the page reports a policy violation,
+    or its host does not serve both licenses from those assets as `text/plain`
     ([ADR-1430](1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 
 ## Options considered
