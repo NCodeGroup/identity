@@ -223,7 +223,9 @@ describe('emitFontLicenses', () => {
 
     expect(() => {
       build(root);
-    }).toThrow(/@ncodegroup\/identity-brand/);
+    }).toThrow(
+      /must list @ncodegroup\/identity-brand in its package\.json dependencies: .*\(ADR-1516\)\.$/,
+    );
     expect(context.emitFile).not.toHaveBeenCalled();
   });
 
@@ -246,7 +248,9 @@ describe('emitFontLicenses', () => {
 
     expect(() => {
       build(root);
-    }).toThrow(/@ncodegroup\/identity-brand/);
+    }).toThrow(
+      /must list @ncodegroup\/identity-brand in its package\.json dependencies: .*\(ADR-1516\)\. Error: ENOENT/,
+    );
     expect(context.emitFile).not.toHaveBeenCalled();
   });
 });
