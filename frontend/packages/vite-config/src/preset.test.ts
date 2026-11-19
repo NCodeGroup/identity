@@ -76,6 +76,8 @@ describe('VENDOR_CHUNKS', () => {
     ['/w/node_modules/.pnpm/@reduxjs+toolkit@2/node_modules/@reduxjs/toolkit/dist/x.js', 'redux'],
     ['/w/node_modules/.pnpm/clsx@2/node_modules/clsx/dist/clsx.mjs', 'vendor'],
     ['C:\\w\\node_modules\\react\\index.js', 'react'],
+    ['/w/packages/brand/vendor/tokens/derive.mjs', 'brand'],
+    ['C:\\w\\packages\\brand\\vendor\\mui\\instrument.json', 'brand'],
     ['/w/packages/ui/src/index.ts', undefined],
   ])('puts %s in the %s chunk', (moduleId, expected) => {
     expect(vendorChunkOf(moduleId)).toBe(expected);
