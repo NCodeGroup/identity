@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
+import { AppThemeProvider } from '../theme/AppThemeProvider.js';
+import { createAppTheme } from '../theme/createAppTheme.js';
 import { RevealSecretDialog } from './RevealSecretDialog.js';
 
 describe('RevealSecretDialog', () => {
@@ -18,6 +20,18 @@ describe('RevealSecretDialog', () => {
       screen.getByText(/shown only once and can never be retrieved again/),
     ).toBeInTheDocument();
     expect(screen.queryByTestId('reveal-secret-asymmetric')).not.toBeInTheDocument();
+  });
+
+  it('shows the material in the code font', () => {
+    render(
+      <AppThemeProvider>
+        <RevealSecretDialog open secretId="s-1" secretMaterial="material-123" onClose={vi.fn()} />
+      </AppThemeProvider>,
+    );
+
+    expect(screen.getByTestId('reveal-secret-material').parentElement).toHaveStyle({
+      fontFamily: createAppTheme().typography.fontFamilyMono,
+    });
   });
 
   it('copies the material and confirms it in the copy tooltip', async () => {
