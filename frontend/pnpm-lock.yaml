@@ -232,6 +232,9 @@ importers:
       '@ncodegroup/identity-api':
         specifier: workspace:*
         version: link:../../packages/api
+      '@ncodegroup/identity-brand':
+        specifier: workspace:*
+        version: link:../../packages/brand
       '@ncodegroup/identity-config':
         specifier: workspace:*
         version: link:../../packages/config
