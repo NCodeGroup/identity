@@ -378,21 +378,21 @@ public sealed class RowLevelSecurityTests
 
     private sealed class TenantRow : ISupportTenantEntity
     {
-        public long Id { get; set; }
+        public Guid Id { get; set; }
 
         public string NormalizedTenantId { get; set; } = string.Empty;
     }
 
     private sealed class TenantViewRow : ISupportTenantEntity
     {
-        public long Id { get; set; }
+        public Guid Id { get; set; }
 
         public string NormalizedTenantId { get; set; } = string.Empty;
     }
 
     private sealed class SplitTenantRow : ISupportTenantEntity
     {
-        public long Id { get; set; }
+        public Guid Id { get; set; }
 
         public string Name { get; set; } = string.Empty;
 
