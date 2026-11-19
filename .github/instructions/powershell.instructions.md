@@ -20,7 +20,7 @@ The build scripts under `build/` are PowerShell 7 and run under `Set-StrictMode 
   early, build-free stage. A fixture is a temporary directory, and a git repository when the script reads git, that the
   test deletes in a `finally` block. Run a script whose `return` or `throw` the test asserts in a child
   `pwsh -NoProfile -File` process.
-- **A child's error message wraps at its console's width.** PowerShell's error view breaks a thrown message at spaces
-  to fit the console and starts each continuation line with a `|` gutter, so a fixture test compares a child run's
-  output with the gutters removed and each whitespace run collapsed to one space (`Get-ComparableText` in
+- **A child's error message wraps at its console's width.** PowerShell's error view breaks a thrown message at spaces to
+  fit the console and starts each continuation line with a `|` gutter, so a fixture test compares a child run's output
+  with the gutters removed and each whitespace run collapsed to one space (`Get-ComparableText` in
   `build/tests/e2e.tests.ps1`), never with `Contains` on the raw output.

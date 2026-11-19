@@ -120,6 +120,7 @@
         <Project Path="tests/NCode.Identity.EndToEnd.TestSupport/NCode.Identity.EndToEnd.TestSupport.csproj" />
         <Project Path="tests/NCode.Identity.Events.Tests/NCode.Identity.Events.Tests.csproj" />
         <Project Path="tests/NCode.Identity.Frontend.EndToEnd.Tests/NCode.Identity.Frontend.EndToEnd.Tests.csproj" />
+        <Project Path="tests/NCode.Identity.Frontend.TestSupport/NCode.Identity.Frontend.TestSupport.csproj" />
         <Project Path="tests/NCode.Identity.Jose.EdDsa.Tests/NCode.Identity.Jose.EdDsa.Tests.csproj" />
         <Project Path="tests/NCode.Identity.Jose.Secp256k1.Tests/NCode.Identity.Jose.Secp256k1.Tests.csproj" />
         <Project Path="tests/NCode.Identity.Jose.SdJwt.Tests/NCode.Identity.Jose.SdJwt.Tests.csproj" />

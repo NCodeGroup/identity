@@ -421,8 +421,11 @@ seams, facades, and `InternalsVisibleTo` wiring that make code mockable — live
 - 👁 **Test a contract with an artifact the .NET gate does not build through a fact the workflow that builds it runs** —
   template [Integration Tests](csharp-tests.instructions.md#integration-tests): `InteractiveBundleShellTests` reads the
   built `apps/auth` `index.html` under `[BuiltAuthBundleFact]`, which skips unless `NCODE_AUTH_BUNDLE_INDEX` names it.
-  Frontend CI sets the variable after `pnpm run build`; locally, run `pnpm exec vite build` in
-  `frontend/apps/auth` and set the variable to the absolute path of `dist/index.html`.
+  `ManagementConsolePageTests` and `SetupPageTests` read the built `apps/mgmt` and `apps/setup` bundles the same way,
+  under `[BuiltConsoleBundleFact]` and `[BuiltSetupBundleFact]`, and the three share the typeface checks of
+  `BuiltBundleTypefaces` and `TypefaceLicenses` in `NCode.Identity.Frontend.TestSupport`. Frontend CI sets the variable
+  after `pnpm run build`; locally, run `pnpm exec vite build` in `frontend/apps/auth` and set the variable to the
+  absolute path of `dist/index.html`.
 - 👁 **Validate new tests in Release before running `dod.ps1`** — template
   [Integration Tests](csharp-tests.instructions.md#integration-tests).
 - 👁 **Build a JWT with exact time claims through `IJoseSerializer`, not `IJwtEncoder`.** The JWT encoder

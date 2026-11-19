@@ -7,12 +7,29 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using NCode.Buffers;
 using NCode.Identity.AspNetCore;
+using NCode.Identity.Frontend.TestSupport;
 using Xunit;
 
 namespace NCode.Identity.OpenId.Authentication.Interactive.Tests;
 
 public class InteractiveBundleShellTests
 {
+    private static BuiltBundleTypefaces<InteractiveBundleShell> CreateBuiltBundleTypefaces()
+    {
+        var indexPath = BuiltAuthBundleFactAttribute.IndexPath ?? string.Empty;
+        var assetsUri = new Uri("https://op.example/acme/account/assets/");
+        var layout = new BuiltBundleLayout(
+            indexPath,
+            InteractiveBundleShell.NoncePlaceholder,
+            "./assets/",
+            assetsUri
+        );
+        return new BuiltBundleTypefaces<InteractiveBundleShell>(
+            layout,
+            InteractiveBundleShell.TryCreate
+        );
+    }
+
     #region TryCreate Tests
 
     [Fact]
@@ -218,94 +235,21 @@ public class InteractiveBundleShellTests
     [BuiltAuthBundleFact]
     public void TryCreate_WhenGivenTheBuiltBundlesIndex_NoncesEveryStylesheetAndServesEveryTypefaceItLoads()
     {
-        const string assetsPath = "/acme/account/assets/";
-        var indexPath = BuiltAuthBundleFactAttribute.IndexPath ?? string.Empty;
-        var html = File.ReadAllText(indexPath, SecureEncoding.UTF8);
-        var bundleRootPath = Path.GetDirectoryName(indexPath);
-        using var bundle = new SinglePageBundle<InteractiveBundleShell>(
-            bundleRootPath,
-            InteractiveBundleShell.TryCreate
-        );
-        var httpContext = new DefaultHttpContext();
+        using var typefaces = CreateBuiltBundleTypefaces();
 
-        var links = Regex.Matches(html, "<link rel=\"stylesheet\"[^>]*>");
-        Assert.NotEmpty(links);
-        var fonts = new HashSet<Uri>();
-        foreach (var link in links.Cast<Match>())
-        {
-            // Vite's html.cspNonce marks the stylesheet as it marks the scripts, so style-src admits it.
-            Assert.Contains(
-                $"nonce=\"{InteractiveBundleShell.NoncePlaceholder}\"",
-                link.Value,
-                StringComparison.Ordinal
-            );
-
-            var asset = Regex
-                .Match(link.Value, "href=\"\\./assets/(?<asset>[^\"/]+\\.css)\"")
-                .Groups["asset"]
-                .Value;
-            Assert.NotEmpty(asset);
-
-            var css = File.ReadAllText(
-                Path.Combine(bundleRootPath ?? string.Empty, "assets", asset),
-                SecureEncoding.UTF8
-            );
-            var stylesheetUri = new Uri($"https://op.example{assetsPath}{asset}");
-            foreach (
-                var match in Regex
-                    .Matches(css, "url\\((?<quote>[\"']?)(?<url>[^\"')]+)\\k<quote>\\)")
-                    .Cast<Match>()
-            )
-            {
-                fonts.Add(new Uri(stylesheetUri, match.Groups["url"].Value));
-            }
-        }
-
-        Assert.Equal(4, fonts.Count);
-        Assert.All(
-            fonts,
-            font =>
-            {
-                Assert.Equal("https://op.example", font.GetLeftPart(UriPartial.Authority));
-                Assert.StartsWith(assetsPath, font.AbsolutePath, StringComparison.Ordinal);
-                var result = bundle.ServeAsset(
-                    httpContext.Response,
-                    font.AbsolutePath[assetsPath.Length..]
-                );
-                var file = Assert.IsType<PhysicalFileHttpResult>(result);
-                Assert.Equal("font/woff2", file.ContentType);
-            }
-        );
+        typefaces.AssertNoncesEveryStylesheetAndServesEveryTypeface();
     }
 
     [BuiltAuthBundleTheory]
-    [InlineData("OFL-Instrument-Sans", "Copyright 2022 The Instrument Sans Project Authors")]
-    [InlineData("OFL-Martian-Mono", "Copyright 2020 The Martian Mono Project Authors")]
+    [MemberData(nameof(TypefaceLicenses.Theories), MemberType = typeof(TypefaceLicenses))]
     public void TryCreate_WhenGivenTheBuiltBundlesIndex_ShipsEachTypefacesLicenseBesideTheFonts(
         string licenseName,
         string copyright
     )
     {
-        var indexPath = BuiltAuthBundleFactAttribute.IndexPath ?? string.Empty;
-        var bundleRootPath = Path.GetDirectoryName(indexPath);
-        using var bundle = new SinglePageBundle<InteractiveBundleShell>(
-            bundleRootPath,
-            InteractiveBundleShell.TryCreate
-        );
-        var httpContext = new DefaultHttpContext();
+        using var typefaces = CreateBuiltBundleTypefaces();
 
-        var license = Assert.Single(
-            Directory.GetFiles(
-                Path.Combine(bundleRootPath ?? string.Empty, "assets"),
-                $"{licenseName}-*.txt"
-            )
-        );
-        var result = bundle.ServeAsset(httpContext.Response, Path.GetFileName(license));
-
-        var file = Assert.IsType<PhysicalFileHttpResult>(result);
-        Assert.Equal("text/plain", file.ContentType);
-        var text = File.ReadAllText(license, SecureEncoding.UTF8);
-        Assert.StartsWith(copyright, text, StringComparison.Ordinal);
+        typefaces.AssertShipsLicenseBesideTheFonts(licenseName, copyright);
     }
 
     [Fact]
