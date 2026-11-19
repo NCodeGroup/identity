@@ -48,8 +48,8 @@ function ConvertTo-Answer($Data) {
     if ($Data) { $Data | ConvertTo-Json -AsArray -Depth 5 } else { '[]' }
 }
 
-# Stands in for GitHub's command line: it records each call and the text of each --body-file, and answers the three
-# list commands from the global data and issue create with a URL.
+# Stands in for GitHub's command line: it records each call and the text of each --body-file, and answers the three list
+# commands from the global data and issue create with a URL.
 function global:gh {
     $global:BrandWatchCalls.Add(($args -join ' '))
     $global:LASTEXITCODE = 0
@@ -117,7 +117,7 @@ $old = '2026-11-01T00:00:00Z'
 $settled = '2026-11-20T00:00:00Z'
 $title = 'Update NCode Brand to 0.12.0'
 $labelCall = 'label create brand-update --description A newer NCodeGroup/brand release is out --color 0033CC'
-$pinnedText = 'The brand locks pin NCode Brand 0.11.0, the newest release at least three days old.'
+$pinnedText = 'The brand locks pin NCode Brand 0.11.0, and no release at least three days old is newer.'
 $vendorCall = 'node brand/vendor-brand.mjs --update 0.12.0 --lock'
 
 try {
@@ -200,8 +200,19 @@ try {
     $result = Invoke-Watch $pinnedRoot -Releases @((New-Release 'v0.12.0' $settled)) -Issues @(
         (New-Issue 5 $title 'text')
     )
-    Assert-Output $name $result 'Closed #5: the brand locks pin NCode Brand 0.12.0*' -Like
-    Assert-Call $name $result '^issue close 5 --comment The brand locks pin NCode Brand 0\.12\.0, '
+    Assert-Output $name $result 'Closed #5: the brand locks pin NCode Brand 0.12.0, and no release*' -Like
+    Assert-Call $name $result '^issue close 5 --comment The brand locks pin NCode Brand 0\.12\.0, and no release '
+    Pass $name
+
+    $name = 'does nothing when the locks pin a release younger than three days'
+    $youngRoot = New-Root 'young' '0.12.0'
+    $result = Invoke-Watch $youngRoot -Releases @(
+        (New-Release 'v0.11.0' $old),
+        (New-Release 'v0.12.0' '2026-11-30T00:00:00Z')
+    )
+    Assert-Output $name $result `
+        'The brand locks pin NCode Brand 0.12.0, and no release at least three days old is newer.'
+    Assert-NoWrites $name $result
     Pass $name
 
     $name = 'does nothing once the locks pin the newest release and no issue is open'

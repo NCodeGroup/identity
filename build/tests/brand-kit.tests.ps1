@@ -30,9 +30,9 @@ function Get-Sha256([byte[]]$Bytes) {
 
 # Builds a repository root under a named fixture, with a brand kit and a theme kit, and returns its path. $Files maps a
 # relative path to the file's bytes and $Hashes maps a relative path to the SHA-256 that the lock holds for it. The kit
-# holds the repository's vendor-brand.mjs, which the lock names, unless $Script gives the text of another script to
-# hold in its place. $ThemeFiles and $ThemeHashes do the same for frontend/packages/brand, whose lock names each path
-# as it is and takes its source without the leading vendor/, and $ThemeVersion is the release that lock names.
+# holds the repository's vendor-brand.mjs, which the lock names, unless $Script gives the text of another script to hold
+# in its place. $ThemeFiles and $ThemeHashes do the same for frontend/packages/brand, whose lock names each path as it
+# is and takes its source without the leading vendor/, and $ThemeVersion is the release that lock names.
 function New-Fixture(
     [string]$Name,
     [hashtable]$Files,

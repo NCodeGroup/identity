@@ -17,8 +17,8 @@
     edits the open one (the oldest, when there are several), retitling it to the newest release. It creates the label
     when the repository lacks it. A run that would change nothing leaves the issue alone.
 
-    When the locks pin the newest such release, it closes the open brand-update issue with a comment, and does nothing
-    when there is none.
+    When no such release is newer than the locks pin, it closes the open brand-update issue with a comment, and does
+    nothing when there is none.
 
     It talks to GitHub through gh, which needs GH_TOKEN (the workflow passes GITHUB_TOKEN, with issues: write) and
     reads the repository from GH_REPO or the clone's remote. Reading the releases needs no token for a public
@@ -90,12 +90,12 @@ $open = @(Invoke-Gh issue list --label $label --state open --json 'number,title,
 $issue = $open | Select-Object -First 1
 
 if ($newest -le $pinned) {
-    $said = "brand locks pin NCode Brand $pinned, the newest release at least three days old"
+    $said = "brand locks pin NCode Brand $pinned, and no release at least three days old is newer"
     if (-not $issue) { "The $said."; return }
     if ($DryRun) { "Would close #$($issue.number)."; return }
-    Invoke-Gh issue close $issue.number --comment ("The brand locks pin NCode Brand $pinned, the newest release at " +
-        'least three days old, so this issue is done. The brand-watch workflow opens a new one when a newer release ' +
-        'is three days old.') | Out-Null
+    Invoke-Gh issue close $issue.number --comment ("The brand locks pin NCode Brand $pinned, and no release at " +
+        'least three days old is newer, so this issue is done. The brand-watch workflow opens a new one when a newer ' +
+        'release is three days old.') | Out-Null
     "Closed #$($issue.number): the $said."
     return
 }
