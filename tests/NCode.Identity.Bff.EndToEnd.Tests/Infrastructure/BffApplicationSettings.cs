@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Microsoft.AspNetCore.Http;
+using NCode.Identity.EndToEnd.TestSupport;
 
 namespace NCode.Identity.Bff.EndToEnd.Tests.Infrastructure;
 

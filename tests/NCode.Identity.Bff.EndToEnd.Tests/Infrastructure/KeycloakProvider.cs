@@ -12,6 +12,7 @@ using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using DotNet.Testcontainers.Images;
 using NCode.Buffers;
+using NCode.Identity.EndToEnd.TestSupport;
 using NCode.Identity.OpenId;
 
 namespace NCode.Identity.Bff.EndToEnd.Tests.Infrastructure;
@@ -44,38 +45,6 @@ public sealed class KeycloakProvider : IAsyncDisposable
     /// The email address of the realm's test user.
     /// </summary>
     public const string UserEmail = "alice@example.com";
-
-    private TestCertificate Certificate { get; }
-    private IFutureDockerImage Image { get; }
-    private IContainer Container { get; }
-    private string AdminSecret { get; }
-    private int Port { get; }
-
-    private KeycloakProvider(
-        TestCertificate certificate,
-        IFutureDockerImage image,
-        IContainer container,
-        string adminSecret,
-        string userPassword
-    )
-    {
-        Certificate = certificate;
-        Image = image;
-        Container = container;
-        AdminSecret = adminSecret;
-        Port = container.GetMappedPublicPort(HttpsPort);
-        UserPassword = userPassword;
-    }
-
-    /// <summary>
-    /// Gets the issuer of the realm, which a browser and the host reach through the mapped port.
-    /// </summary>
-    public string Issuer => $"https://127.0.0.1:{Port}/realms/{RealmName}";
-
-    /// <summary>
-    /// Gets the password of the realm's test user, which is random for each run.
-    /// </summary>
-    public string UserPassword { get; }
 
     /// <summary>
     /// Builds the image and starts a container that imports the realm.
@@ -146,15 +115,82 @@ public sealed class KeycloakProvider : IAsyncDisposable
         {
             await container.StartAsync(cancellationToken);
         }
-        catch
+        catch (Exception startFailure)
         {
-            await container.DisposeAsync();
-            await image.DisposeAsync();
+            await Teardown.StopStartedAsync(
+                startFailure,
+                container.DisposeAsync,
+                image.DisposeAsync
+            );
             throw;
         }
 
         return new KeycloakProvider(certificate, image, container, adminSecret, userPassword);
     }
+
+    private static string DescribeToken(string? accessToken)
+    {
+        if (accessToken?.Split('.') is not [_, var payload, _])
+            return "none";
+
+        var claims = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(
+            Base64Url.DecodeFromChars(payload),
+            JsonSerializerOptions.Web
+        );
+        string[] names =
+        [
+            "iss",
+            "azp",
+            "sub",
+            "aud",
+            "scope",
+            "resource_access",
+            "typ",
+            "iat",
+            "exp",
+            "sid",
+        ];
+        return string.Join(
+            ", ",
+            names.Select(name =>
+                claims is not null && claims.TryGetValue(name, out var value)
+                    ? $"{name}={value}"
+                    : $"{name} absent"
+            )
+        );
+    }
+
+    private TestCertificate Certificate { get; }
+    private IFutureDockerImage Image { get; }
+    private IContainer Container { get; }
+    private string AdminSecret { get; }
+    private int Port { get; }
+
+    private KeycloakProvider(
+        TestCertificate certificate,
+        IFutureDockerImage image,
+        IContainer container,
+        string adminSecret,
+        string userPassword
+    )
+    {
+        Certificate = certificate;
+        Image = image;
+        Container = container;
+        AdminSecret = adminSecret;
+        Port = container.GetMappedPublicPort(HttpsPort);
+        UserPassword = userPassword;
+    }
+
+    /// <summary>
+    /// Gets the issuer of the realm, which a browser and the host reach through the mapped port.
+    /// </summary>
+    public string Issuer => $"https://127.0.0.1:{Port}/realms/{RealmName}";
+
+    /// <summary>
+    /// Gets the password of the realm's test user, which is random for each run.
+    /// </summary>
+    public string UserPassword { get; }
 
     /// <summary>
     /// Creates an <see cref="HttpClient"/> that trusts only the test certificate.
@@ -239,8 +275,8 @@ public sealed class KeycloakProvider : IAsyncDisposable
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        await Container.DisposeAsync();
-        await Image.DisposeAsync();
+        // The image is removed even when the container's disposal throws.
+        await Teardown.StopAllAsync(Container.DisposeAsync, Image.DisposeAsync);
     }
 
     // Keycloak's answer to a refused call names no reason, so the failure carries the token's claims and the end of
@@ -268,38 +304,6 @@ public sealed class KeycloakProvider : IAsyncDisposable
                 + $"\nKeycloak log:\n{log}",
             inner: null,
             response.StatusCode
-        );
-    }
-
-    private static string DescribeToken(string? accessToken)
-    {
-        if (accessToken?.Split('.') is not [_, var payload, _])
-            return "none";
-
-        var claims = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(
-            Base64Url.DecodeFromChars(payload),
-            JsonSerializerOptions.Web
-        );
-        string[] names =
-        [
-            "iss",
-            "azp",
-            "sub",
-            "aud",
-            "scope",
-            "resource_access",
-            "typ",
-            "iat",
-            "exp",
-            "sid",
-        ];
-        return string.Join(
-            ", ",
-            names.Select(name =>
-                claims is not null && claims.TryGetValue(name, out var value)
-                    ? $"{name}={value}"
-                    : $"{name} absent"
-            )
         );
     }
 

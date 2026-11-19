@@ -135,7 +135,7 @@ type KeySectionProps = {
   readonly onDownload: () => void;
 };
 
-/** A labelled, monospace block of key material with copy and download affordances. */
+/** A labelled block of key material in the theme's code style, with copy and download affordances. */
 function KeySection({ label, testPrefix, value, copied, onCopy, onDownload }: KeySectionProps) {
   return (
     <Box>
@@ -172,8 +172,7 @@ function KeySection({ label, testPrefix, value, copied, onCopy, onDownload }: Ke
           p: 1,
           borderRadius: 1,
           bgcolor: 'action.hover',
-          fontFamily: 'monospace',
-          fontSize: '0.8125rem',
+          typography: 'code',
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-all',
           maxHeight: 200,

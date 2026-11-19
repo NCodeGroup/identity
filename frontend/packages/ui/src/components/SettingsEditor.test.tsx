@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
+import { AppThemeProvider } from '../theme/AppThemeProvider.js';
+import { createAppTheme } from '../theme/createAppTheme.js';
 import { SettingsEditor } from './SettingsEditor.js';
 
 const initialJson = JSON.stringify({ accessTokenLifetime: 3600 }, null, 2);
@@ -19,6 +21,18 @@ describe('SettingsEditor', () => {
     expect(screen.getByTestId('settings-save')).toBeEnabled();
     fireEvent.change(screen.getByTestId('settings-json'), { target: { value: initialJson } });
     expect(screen.getByTestId('settings-save')).toBeDisabled();
+  });
+
+  it('shows the settings in the code font', () => {
+    render(
+      <AppThemeProvider>
+        <SettingsEditor initialJson={initialJson} effectiveJson={effectiveJson} onSave={vi.fn()} />
+      </AppThemeProvider>,
+    );
+
+    const expected = { fontFamily: createAppTheme().typography.fontFamilyMono };
+    expect(screen.getByTestId('settings-json')).toHaveStyle(expected);
+    expect(screen.getByTestId('effective-settings-json')).toHaveStyle(expected);
   });
 
   it('saves the parsed object after a valid edit', () => {

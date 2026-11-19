@@ -3,6 +3,7 @@ import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
+import { inputBaseClasses } from '@mui/material/InputBase';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 
@@ -104,11 +105,11 @@ export function SettingsEditor({
           multiline
           minRows={6}
           fullWidth
+          sx={{ [`& .${inputBaseClasses.input}`]: { typography: 'code' } }}
           slotProps={{
             htmlInput: {
               'data-testid': 'settings-json',
               spellCheck: false,
-              style: { fontFamily: 'monospace' },
             },
           }}
         />
@@ -146,12 +147,12 @@ export function SettingsEditor({
               multiline
               minRows={3}
               fullWidth
+              sx={{ [`& .${inputBaseClasses.input}`]: { typography: 'code' } }}
               slotProps={{
                 input: { readOnly: true },
                 htmlInput: {
                   'data-testid': 'locked-settings-json',
                   spellCheck: false,
-                  style: { fontFamily: 'monospace' },
                 },
               }}
             />
@@ -167,12 +168,12 @@ export function SettingsEditor({
           multiline
           minRows={6}
           fullWidth
+          sx={{ [`& .${inputBaseClasses.input}`]: { typography: 'code' } }}
           slotProps={{
             input: { readOnly: true },
             htmlInput: {
               'data-testid': 'effective-settings-json',
               spellCheck: false,
-              style: { fontFamily: 'monospace' },
             },
           }}
         />

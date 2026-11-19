@@ -79,7 +79,7 @@ export function RevealInitialAccessTokenDialog({
               p: 1,
               borderRadius: 1,
               bgcolor: 'action.hover',
-              fontFamily: 'monospace',
+              typography: 'code',
               wordBreak: 'break-all',
             }}
           >

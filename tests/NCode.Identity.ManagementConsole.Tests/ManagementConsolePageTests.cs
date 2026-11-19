@@ -6,12 +6,29 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using NCode.Buffers;
 using NCode.Identity.AspNetCore;
+using NCode.Identity.Frontend.TestSupport;
 using Xunit;
 
 namespace NCode.Identity.ManagementConsole.Tests;
 
 public class ManagementConsolePageTests : BaseTests
 {
+    private static BuiltBundleTypefaces<ManagementConsolePage> CreateBuiltBundleTypefaces()
+    {
+        var indexPath = BuiltConsoleBundleFactAttribute.IndexPath ?? string.Empty;
+        var assetsUri = new Uri("https://console.example/assets/");
+        var layout = new BuiltBundleLayout(
+            indexPath,
+            ManagementConsoleDefaults.NoncePlaceholder,
+            "/assets/",
+            assetsUri
+        );
+        return new BuiltBundleTypefaces<ManagementConsolePage>(
+            layout,
+            static html => new ManagementConsolePage(html)
+        );
+    }
+
     #region Render Tests
 
     [Fact]
@@ -152,6 +169,26 @@ public class ManagementConsolePageTests : BaseTests
         Assert.True(link.Success, linkPattern);
         var file = Assert.IsType<PhysicalFileHttpResult>(result);
         Assert.Equal(contentType, file.ContentType);
+    }
+
+    [BuiltConsoleBundleFact]
+    public void Render_WhenGivenTheBuiltBundlesIndex_NoncesEveryStylesheetAndServesEveryTypefaceItLoads()
+    {
+        using var typefaces = CreateBuiltBundleTypefaces();
+
+        typefaces.AssertNoncesEveryStylesheetAndServesEveryTypeface();
+    }
+
+    [BuiltConsoleBundleTheory]
+    [MemberData(nameof(TypefaceLicenses.Theories), MemberType = typeof(TypefaceLicenses))]
+    public void Render_WhenGivenTheBuiltBundlesIndex_ShipsEachTypefacesLicenseBesideTheFonts(
+        string licenseName,
+        string copyright
+    )
+    {
+        using var typefaces = CreateBuiltBundleTypefaces();
+
+        typefaces.AssertShipsLicenseBesideTheFonts(licenseName, copyright);
     }
 
     #endregion

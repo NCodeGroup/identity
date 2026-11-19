@@ -24,6 +24,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\NCode.Identity.OpenId.Authentication.Interactive\NCode.Identity.OpenId.Authentication.Interactive.csproj" />
+        <ProjectReference Include="..\NCode.Identity.Frontend.TestSupport\NCode.Identity.Frontend.TestSupport.csproj" />
     </ItemGroup>
 
     <ItemGroup>

@@ -421,8 +421,12 @@ seams, facades, and `InternalsVisibleTo` wiring that make code mockable — live
 - 👁 **Test a contract with an artifact the .NET gate does not build through a fact the workflow that builds it runs** —
   template [Integration Tests](csharp-tests.instructions.md#integration-tests): `InteractiveBundleShellTests` reads the
   built `apps/auth` `index.html` under `[BuiltAuthBundleFact]`, which skips unless `NCODE_AUTH_BUNDLE_INDEX` names it.
-  Frontend CI sets the variable after `pnpm run build`; locally, run `pnpm exec vite build` in
-  `frontend/apps/auth` and set the variable to the absolute path of `dist/index.html`.
+  `ManagementConsolePageTests` and `SetupPageTests` read the built `apps/mgmt` and `apps/setup` bundles the same way,
+  under `[BuiltConsoleBundleFact]` and `[BuiltSetupBundleFact]`, and the three share the typeface checks of
+  `BuiltBundleTypefaces` and `TypefaceLicenses` in `NCode.Identity.Frontend.TestSupport`. Frontend CI sets
+  `NCODE_AUTH_BUNDLE_INDEX`, `NCODE_MGMT_BUNDLE_INDEX` and `NCODE_SETUP_BUNDLE_INDEX` after `pnpm run build`; locally,
+  run `pnpm exec vite build` in `frontend/apps/<app>` and set that app's variable to the absolute path of its
+  `dist/index.html`.
 - 👁 **Validate new tests in Release before running `dod.ps1`** — template
   [Integration Tests](csharp-tests.instructions.md#integration-tests).
 - 👁 **Build a JWT with exact time claims through `IJoseSerializer`, not `IJwtEncoder`.** The JWT encoder
@@ -442,29 +446,50 @@ seams, facades, and `InternalsVisibleTo` wiring that make code mockable — live
 
 - 👁 **A suite is a `*.EndToEnd.Tests` project, which only `./build/e2e.ps1` and the `End-to-end` check run.**
   `./build/dod.ps1` never runs it
-  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-in-real-browsers-against-a-containerized-keycloak-in-their-own-gate.md)).
+  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 - 👁 **A project under `tests/` whose name does not end in `.Tests` is a support project.** The solution compiles it, no
   tier of `build/test-projects.ps1` lists it, and it is no test project and has no JUnit logger, so a suite references
-  it and no gate tests it
-  ([ADR-1441](../../docs/decisions/1441-a-bff-connection-ends-with-its-session-even-when-idle-and-every-watcher-learns-at-once.md)).
+  it and no gate runs it as tests. A `.Tests` project of its own unit-tests its logic, with what it drives mocked, and
+  the Definition of Done runs that project (`NCode.Identity.EndToEnd.TestSupport.Tests` mocks Playwright)
+  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 - 👁 **Host a Blazor Web App through `WebApplicationFactory<TEntryPoint>.UseKestrel()` over the suite's certificate,
   then call `StartServer()`.** The factory locates the app's static web assets, which a `WebApplication.CreateBuilder`
   in the test process does not
   ([ADR-1441](../../docs/decisions/1441-a-bff-connection-ends-with-its-session-even-when-idle-and-every-watcher-learns-at-once.md)).
+- 👁 **Host an NCode host through `WebApplicationFactory<TEntryPoint>.UseKestrel()` in its local-development posture
+  with no database, and set its keys with `UseSetting`.** The host reads them while it registers its services. Without a
+  connection the OP keeps its data in one in-memory database per process, so a suite starts one OP host per run
+  (`OpenIdHostApplication`)
+  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
+- 👁 **A suite that serves built frontend bundles names their packages in its project file's
+  `EndToEndFrontendPackages`.** `./build/e2e.ps1` builds them with the workspace's pnpm before it builds the suite,
+  `build/affected-tests.ps1` selects the suite for every change under `frontend/`, and the suite reads each bundle at
+  `frontend/apps/<app>/dist` and fails, never skips, when one is not built (`FrontendBundles`)
+  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
+- 👁 **A suite that starts containers sets `EndToEndContainers` to `true` in its project file.** `./build/e2e.ps1`
+  checks for a running Docker engine before it runs such a suite, and a run of suites that set none needs no Docker
+  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
+- 👁 **Prove a page's policy in the browser.** An init script records every `securitypolicyviolation` event before the
+  page's own scripts run, and a test asserts none, no Content-Security-Policy console message, and the status and type
+  of what the page fetched (`TypefaceProbe`). Open a page with `WaitUntilState.Load` and wait for the bundle to render:
+  a page that polls never reaches `NetworkIdle`
+  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 - 👁 **An end-to-end suite is not hermetic by design.** Every host stays on loopback over the run's throwaway
   certificate, the container reaches the host only through `TestcontainersSettings.ExposeHostPortsAsync`, and
   credentials are generated per run
-  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-in-real-browsers-against-a-containerized-keycloak-in-their-own-gate.md)).
-- 👁 **One collection fixture serves all tests, and each test gets a fresh browser context**
-  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-in-real-browsers-against-a-containerized-keycloak-in-their-own-gate.md)).
-- 👁 **Browser theories run over `BrowserNames.All`:** Chromium and Firefox on every OS, and WebKit except on Windows,
-  because Playwright's Windows WebKit port does not use Safari's cookie stack and mishandles `SameSite` and `Secure`
-  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-in-real-browsers-against-a-containerized-keycloak-in-their-own-gate.md)).
+  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
+- 👁 **One collection fixture serves all of a suite's tests, and each test gets a fresh browser context from the suite's
+  `BrowserPool`**
+  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
+- 👁 **Browser theories run over `BrowserNames.All` (in `NCode.Identity.EndToEnd.TestSupport`, which the browser suites
+  reference):** Chromium and Firefox on every OS, and WebKit except on Windows, because Playwright's Windows WebKit port
+  does not use Safari's cookie stack and mishandles `SameSite` and `Secure`
+  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 - 👁 **Assert server-side counters as well as browser outcomes, and read an API response through `fetch` in the
   page.** Firefox shows a JSON response in a viewer, so a navigation to it reads nothing
-  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-in-real-browsers-against-a-containerized-keycloak-in-their-own-gate.md)).
+  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 - 👁 **`localhost` and `127.0.0.1` are different sites;** a port never changes a site
-  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-in-real-browsers-against-a-containerized-keycloak-in-their-own-gate.md)).
+  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 - 👁 **A test reads its files, such as an image's build context, from the output directory.** Copy them there with
   `CopyToOutputDirectory` and resolve them from `AppContext.BaseDirectory`. A CI build (`CI=true`) is a
   `ContinuousIntegrationBuild` that maps source paths to `/_/`, so a path found from the source, such as

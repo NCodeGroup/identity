@@ -4,12 +4,24 @@
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using NCode.Buffers;
+using NCode.Identity.Frontend.TestSupport;
 
 namespace NCode.Identity.OpenId.Setup;
 
 public sealed class SetupPageTests
 {
-    private const string BundleIndexVariable = "NCODE_SETUP_BUNDLE_INDEX";
+    private static BuiltBundleTypefaces<SetupPage> CreateBuiltBundleTypefaces()
+    {
+        var indexPath = BuiltSetupBundleFactAttribute.IndexPath ?? string.Empty;
+        var assetsUri = new Uri("https://op.example/setup/assets/");
+        var layout = new BuiltBundleLayout(
+            indexPath,
+            SetupPage.NoncePlaceholder,
+            "./assets/",
+            assetsUri
+        );
+        return new BuiltBundleTypefaces<SetupPage>(layout, static html => new SetupPage(html));
+    }
 
     #region Render Tests
 
@@ -99,14 +111,10 @@ public sealed class SetupPageTests
         Assert.Equal("<body><script nonce=\"abc\"></script></body>", rendered);
     }
 
-    [Fact]
+    [BuiltSetupBundleFact]
     public async Task Render_WhenGivenTheBuiltBundlesIndex_LeavesNoPlaceholderAndNoncesEveryScript()
     {
-        var indexPath = Environment.GetEnvironmentVariable(BundleIndexVariable);
-        if (string.IsNullOrEmpty(indexPath))
-        {
-            return;
-        }
+        var indexPath = BuiltSetupBundleFactAttribute.IndexPath ?? string.Empty;
 
         var html = await File.ReadAllTextAsync(
             indexPath,
@@ -125,6 +133,26 @@ public sealed class SetupPageTests
             scriptTags,
             tag => Assert.Contains("nonce=\"n0nce\"", tag.Value, StringComparison.Ordinal)
         );
+    }
+
+    [BuiltSetupBundleFact]
+    public void Render_WhenGivenTheBuiltBundlesIndex_NoncesEveryStylesheetAndServesEveryTypefaceItLoads()
+    {
+        using var typefaces = CreateBuiltBundleTypefaces();
+
+        typefaces.AssertNoncesEveryStylesheetAndServesEveryTypeface();
+    }
+
+    [BuiltSetupBundleTheory]
+    [MemberData(nameof(TypefaceLicenses.Theories), MemberType = typeof(TypefaceLicenses))]
+    public void Render_WhenGivenTheBuiltBundlesIndex_ShipsEachTypefacesLicenseBesideTheFonts(
+        string licenseName,
+        string copyright
+    )
+    {
+        using var typefaces = CreateBuiltBundleTypefaces();
+
+        typefaces.AssertShipsLicenseBesideTheFonts(licenseName, copyright);
     }
 
     #endregion

@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
+import { AppThemeProvider } from '../theme/AppThemeProvider.js';
+import { createAppTheme } from '../theme/createAppTheme.js';
 import { RevealInitialAccessTokenDialog } from './RevealInitialAccessTokenDialog.js';
 
 describe('RevealInitialAccessTokenDialog', () => {
@@ -26,6 +28,24 @@ describe('RevealInitialAccessTokenDialog', () => {
     expect(
       screen.getByText(/shown only once and can never be retrieved again/),
     ).toBeInTheDocument();
+  });
+
+  it('shows the token in the code font', () => {
+    render(
+      <AppThemeProvider>
+        <RevealInitialAccessTokenDialog
+          open
+          token="iat-123"
+          grantId="g-1"
+          expiresWhen="2027-01-01T00:00:00Z"
+          onClose={vi.fn()}
+        />
+      </AppThemeProvider>,
+    );
+
+    expect(screen.getByTestId('reveal-iat-token').parentElement).toHaveStyle({
+      fontFamily: createAppTheme().typography.fontFamilyMono,
+    });
   });
 
   it('copies the token and confirms it in the copy tooltip', async () => {

@@ -1,3 +1,6 @@
+// NCode Brand's two typefaces, which the build emits into assets/ beside the bundle (ADR-1516).
+import '@ncodegroup/identity-brand/fonts.css';
+
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Provider } from 'react-redux';

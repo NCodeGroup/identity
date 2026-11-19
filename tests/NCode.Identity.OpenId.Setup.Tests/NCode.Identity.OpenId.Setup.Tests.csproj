@@ -32,5 +32,6 @@
         <ProjectReference Include="..\..\src\NCode.Identity.OpenId.Setup\NCode.Identity.OpenId.Setup.csproj" />
         <ProjectReference Include="..\NCode.Identity.OpenId.Management.TestSupport\NCode.Identity.OpenId.Management.TestSupport.csproj" />
         <ProjectReference Include="..\NCode.Identity.OpenId.Persistence.TestSupport\NCode.Identity.OpenId.Persistence.TestSupport.csproj" />
+        <ProjectReference Include="..\NCode.Identity.Frontend.TestSupport\NCode.Identity.Frontend.TestSupport.csproj" />
     </ItemGroup>
 </Project>

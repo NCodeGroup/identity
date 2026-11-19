@@ -3,6 +3,7 @@ export {
   configureAsyncUtilTimeout,
   type TestingLibraryConfigure,
 } from './asyncUtils.js';
+export { BRAND_FONTS_IMPORT, brandFontsLoading, type BrandFontsLoading } from './brandFonts.js';
 export {
   createConsoleGuard,
   failOnConsole,

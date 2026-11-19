@@ -28,7 +28,7 @@ function Invoke-Git([string]$Root, [string[]]$Arguments) {
 }
 
 # A committed repository holding the scripts e2e.ps1 runs, so the scripts themselves are not a change.
-function New-Fixture([string]$Name, [bool]$WithEndToEnd) {
+function New-Fixture([string]$Name, [bool]$WithEndToEnd, [bool]$WithFrontendSuite) {
     $root = Join-Path $fixtureRoot $Name
     foreach ($script in 'e2e.ps1', 'test-projects.ps1', 'affected-tests.ps1') {
         Write-FixtureFile (Join-Path $root 'build' $script) (Get-Content -LiteralPath (Join-Path $buildFolder $script) -Raw)
@@ -36,7 +36,10 @@ function New-Fixture([string]$Name, [bool]$WithEndToEnd) {
     Write-Project $root 'src/A/A.csproj' @()
     Write-Project $root 'tests/A.Tests/A.Tests.csproj' @('..\..\src\A\A.csproj')
     if ($WithEndToEnd) {
-        Write-Project $root 'tests/A.EndToEnd.Tests/A.EndToEnd.Tests.csproj' @('..\..\src\A\A.csproj')
+        Write-FixtureFile (Join-Path $root 'tests/A.EndToEnd.Tests/A.EndToEnd.Tests.csproj') "<Project Sdk=`"Microsoft.NET.Sdk`"><PropertyGroup><EndToEndContainers>true</EndToEndContainers></PropertyGroup><ItemGroup><ProjectReference Include=`"..\..\src\A\A.csproj`" /></ItemGroup></Project>`n"
+    }
+    if ($WithFrontendSuite) {
+        Write-FixtureFile (Join-Path $root 'tests/F.EndToEnd.Tests/F.EndToEnd.Tests.csproj') "<Project Sdk=`"Microsoft.NET.Sdk`"><PropertyGroup><EndToEndFrontendPackages>@x/app;@x/other</EndToEndFrontendPackages></PropertyGroup><ItemGroup><ProjectReference Include=`"..\..\src\A\A.csproj`" /></ItemGroup></Project>`n"
     }
     Invoke-Git $root @('init', '-q')
     Invoke-Git $root @('config', 'user.name', 'E2E Tests')
@@ -48,12 +51,12 @@ function New-Fixture([string]$Name, [bool]$WithEndToEnd) {
     return $root
 }
 
-# A child process, so the script's strict mode, return and throw stay in it. A -Docker folder goes first on its PATH.
-function Invoke-EndToEnd([string]$Root, [string[]]$Arguments, [string]$Docker) {
+# A child process, so the script's strict mode, return and throw stay in it. A -Stubs folder goes first on its PATH.
+function Invoke-EndToEnd([string]$Root, [string[]]$Arguments, [string]$Stubs) {
     $path = $env:PATH
     try {
-        if ($Docker) {
-            $env:PATH = "$Docker$([System.IO.Path]::PathSeparator)$path"
+        if ($Stubs) {
+            $env:PATH = "$Stubs$([System.IO.Path]::PathSeparator)$path"
         }
         $output = & pwsh -NoProfile -File (Join-Path $Root 'build' 'e2e.ps1') @Arguments 2>&1 | Out-String
         return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $output }
@@ -63,23 +66,73 @@ function Invoke-EndToEnd([string]$Root, [string[]]$Arguments, [string]$Docker) {
     }
 }
 
-# A folder holding a docker command that always fails, as an engine that is not running does.
-function New-FailingDocker {
-    $folder = Join-Path $fixtureRoot 'docker'
-    if ($IsWindows) {
-        Write-FixtureFile (Join-Path $folder 'docker.cmd') "@exit /b 1`r`n"
-    }
-    else {
-        $stub = Join-Path $folder 'docker'
-        Write-FixtureFile $stub "#!/bin/sh`nexit 1`n"
-        & chmod +x $stub
+# A folder holding one stub command per entry of Commands. An entry with a PowerShell key becomes <command>.ps1 with
+# that text on every platform, as the pnpm that nvs and Corepack install is; any other entry becomes a .cmd stub from
+# its Windows text, or a Posix stub from its Posix text.
+function New-Stubs([string]$Name, [hashtable]$Commands) {
+    $folder = Join-Path $fixtureRoot "stubs-$Name"
+    foreach ($command in $Commands.Keys) {
+        if ($Commands[$command].ContainsKey('PowerShell')) {
+            $stub = Join-Path $folder "$command.ps1"
+            Write-FixtureFile $stub $Commands[$command].PowerShell
+            if (-not $IsWindows) {
+                & chmod +x $stub
+            }
+        }
+        elseif ($IsWindows) {
+            Write-FixtureFile (Join-Path $folder "$command.cmd") $Commands[$command].Windows
+        }
+        else {
+            $stub = Join-Path $folder $command
+            Write-FixtureFile $stub $Commands[$command].Posix
+            & chmod +x $stub
+        }
     }
     return $folder
 }
 
+$workingStub = @{ Windows = "@exit /b 0`r`n"; Posix = "#!/bin/sh`nexit 0`n" }
+$failingStub = @{ Windows = "@exit /b 1`r`n"; Posix = "#!/bin/sh`nexit 1`n" }
+$recordingPnpm = @{
+    Windows = "@echo pnpm %*`r`n@echo %* | findstr /c:`"turbo`" >nul && exit /b 1`r`n@exit /b 0`r`n"
+    Posix   = "#!/bin/sh`necho `"pnpm `$*`"`ncase `"`$*`" in *turbo*) exit 1;; esac`nexit 0`n"
+}
+
+# A pnpm on PATH that cannot start, which says why on its error output and fails.
+$brokenPnpm = @{
+    Windows = "@echo corepack cannot start pnpm 1>&2`r`n@exit /b 1`r`n"
+    Posix   = "#!/bin/sh`necho 'corepack cannot start pnpm' >&2`nexit 1`n"
+}
+
+# A PowerShell pnpm that throws, as a broken PowerShell shim does.
+$throwingPnpmScript = @{ PowerShell = "throw 'corepack cannot start pnpm'`n" }
+
+# A PowerShell pnpm that prints each argument it receives on its own line, inside angle brackets, and fails the turbo call.
+$recordingPnpmScript = @{ PowerShell = "foreach (`$argument in `$args) { Write-Output `"pnpm-argument: <`$argument>`" }`nif (`$args -contains 'turbo') { exit 1 }`nexit 0`n" }
+
+# A folder holding a docker command that always fails, as an engine that is not running does.
+function New-FailingDocker {
+    return New-Stubs 'docker' @{ docker = $failingStub }
+}
+
+# PowerShell's error view breaks a long message at spaces to fit the console and starts each continuation line with a
+# '|' gutter, so a run's output and an expected text are compared with any color codes and gutters removed and each
+# whitespace run collapsed to one space: an expected message matches at any console width.
+function Get-ComparableText([string]$Text) {
+    $plain = $Text -replace '\x1b\[[0-9;?]*[A-Za-z]', ''
+    $joined = $plain -replace '(?m)^[ \t]*\|[ \t]?', ''
+    return $joined -replace '\s+', ' '
+}
+
+function Test-RunOutput([object]$Run, [string]$Text) {
+    $output = Get-ComparableText $Run.Output
+    $expected = Get-ComparableText $Text
+    return $output.Contains($expected)
+}
+
 function Assert-Run([string]$Name, [object]$Run, [bool]$Succeeds, [string[]]$Expected) {
     $succeeded = $Run.ExitCode -eq 0
-    $missing = @($Expected | Where-Object { -not $Run.Output.Contains($_) })
+    $missing = @($Expected | Where-Object { -not (Test-RunOutput $Run $_) })
     if ($succeeded -ne $Succeeds -or $missing.Count -gt 0) {
         throw "Test '$Name' expected success=$Succeeds and output containing '$($Expected -join "', '")', got exit code $($Run.ExitCode):$([Environment]::NewLine)$($Run.Output)"
     }
@@ -88,7 +141,17 @@ function Assert-Run([string]$Name, [object]$Run, [bool]$Succeeds, [string[]]$Exp
 }
 
 try {
-    $fixture = New-Fixture 'affected' $true
+    # The error view's rendering of a thrown message on an 80-column console.
+    $wrapped = [pscustomobject]@{
+        ExitCode = 1
+        Output   = "Exception: /tmp/fixture/build/e2e.ps1:130`nLine |`n 130 |      throw 'The end-to-end suites that serve built frontend bu ...`n     |      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`n     | The end-to-end suites that serve built frontend bundles need pnpm on`n     | PATH; ./build/frontend-install.ps1 installs the version`n     | frontend/package.json pins.`n"
+    }
+    Assert-Run "an expected text matches across the error view's line breaks" $wrapped $false @(
+        'need pnpm on PATH',
+        'installs the version frontend/package.json pins.'
+    )
+
+    $fixture = New-Fixture 'affected' $true $false
     $run = Invoke-EndToEnd $fixture @('-Affected', '-Base', 'HEAD')
     Assert-Run 'no change affects no suite and passes' $run $true @(
         'No end-to-end suite is affected; skipping.',
@@ -103,16 +166,16 @@ try {
         'End-to-end: PASSED'
     )
 
-    $fixture = New-Fixture 'none' $false
+    $fixture = New-Fixture 'none' $false $false
     $run = Invoke-EndToEnd $fixture @()
     Assert-Run 'a repository without a suite fails before it needs Docker' $run $false @(
         'No end-to-end suite exists under tests/.'
     )
 
     $docker = New-FailingDocker
-    $dockerMissing = 'The end-to-end suites need a running Docker engine'
+    $dockerMissing = 'The end-to-end suites that start containers need a running Docker engine'
 
-    $fixture = New-Fixture 'selected' $true
+    $fixture = New-Fixture 'selected' $true $false
     Write-FixtureFile (Join-Path $fixture 'src/A/X.cs') "class X { }`n"
     $run = Invoke-EndToEnd $fixture @('-Affected', '-Base', 'HEAD') $docker
     Assert-Run 'a change that reaches a suite requires Docker' $run $false @(
@@ -120,11 +183,98 @@ try {
         $dockerMissing
     )
 
-    $fixture = New-Fixture 'global' $true
+    $run = Invoke-EndToEnd $fixture @('-Suite', 'Missing.EndToEnd.Tests') $docker
+    Assert-Run 'an unknown suite name fails before it needs Docker' $run $false @(
+        "No end-to-end suite is named 'Missing.EndToEnd.Tests'."
+    )
+    if (Test-RunOutput $run $dockerMissing) {
+        throw "Test 'an unknown suite name fails before it needs Docker' expected no Docker message, got:$([Environment]::NewLine)$($run.Output)"
+    }
+
+    $fixture = New-Fixture 'global' $true $false
     Write-FixtureFile (Join-Path $fixture 'build/x.ps1') "exit 0`n"
     $run = Invoke-EndToEnd $fixture @('-Affected', '-Base', 'HEAD') $docker
     Assert-Run 'a global build input selects every suite and requires Docker' $run $false @(
         'build/x.ps1 -> all tests (global trigger)',
+        $dockerMissing
+    )
+
+    $fixture = New-Fixture 'frontend' $false $true
+    $stubs = New-Stubs 'broken-pnpm' @{ pnpm = $brokenPnpm }
+    $run = Invoke-EndToEnd $fixture @('-Suite', 'F.EndToEnd.Tests') $stubs
+    Assert-Run 'a suite that serves built bundles reports the error of a pnpm that fails' $run $false @(
+        "need a working pnpm, and 'pnpm --version' failed with exit code 1: corepack cannot start pnpm"
+    )
+
+    $stubs = New-Stubs 'silent-pnpm' @{ pnpm = $failingStub }
+    $run = Invoke-EndToEnd $fixture @('-Suite', 'F.EndToEnd.Tests') $stubs
+    Assert-Run 'a suite that serves built bundles reports a pnpm that fails without output' $run $false @(
+        "'pnpm --version' failed with exit code 1: it printed nothing"
+    )
+
+    $stubs = New-Stubs 'throwing-pnpm' @{ pnpm = $throwingPnpmScript }
+    $run = Invoke-EndToEnd $fixture @('-Suite', 'F.EndToEnd.Tests') $stubs
+    Assert-Run 'a suite that serves built bundles reports the error a PowerShell pnpm throws' $run $false @(
+        "'pnpm --version' failed with exit code 1: corepack cannot start pnpm"
+    )
+
+    $stubs = New-Stubs 'recording-pnpm' @{ pnpm = $recordingPnpm }
+    $run = Invoke-EndToEnd $fixture @('-Suite', 'F.EndToEnd.Tests') $stubs
+    Assert-Run 'a suite that serves built bundles builds them first' $run $false @(
+        'install --frozen-lockfile',
+        'turbo run build --filter=@x/app --filter=@x/other',
+        'Building the frontend packages @x/app, @x/other failed'
+    )
+
+    $stubs = New-Stubs 'script-pnpm' @{ pnpm = $recordingPnpmScript }
+    $run = Invoke-EndToEnd $fixture @('-Suite', 'F.EndToEnd.Tests') $stubs
+    Assert-Run 'a suite that serves built bundles passes each filter to a PowerShell pnpm as its own argument' $run $false @(
+        'pnpm-argument: <--filter=@x/app>',
+        'pnpm-argument: <--filter=@x/other>'
+    )
+
+    $noDocker = New-Stubs 'no-docker' @{ docker = $failingStub; pnpm = $recordingPnpm }
+    $run = Invoke-EndToEnd $fixture @('-Suite', 'F.EndToEnd.Tests') $noDocker
+    Assert-Run 'a suite that starts no container runs without Docker' $run $false @(
+        'Building the frontend packages @x/app, @x/other failed'
+    )
+    if (Test-RunOutput $run $dockerMissing) {
+        throw "Test 'a suite that starts no container runs without Docker' expected no Docker message, got:$([Environment]::NewLine)$($run.Output)"
+    }
+
+    $fixture = New-Fixture 'both' $true $true
+    $stubs = New-Stubs 'no-dotnet' @{ docker = $workingStub; pnpm = $recordingPnpm; dotnet = $failingStub }
+    $run = Invoke-EndToEnd $fixture @('-Suite', 'A.EndToEnd.Tests') $stubs
+    Assert-Run 'a named suite that serves no bundles builds no frontend' $run $false @(
+        'Building tests/A.EndToEnd.Tests/A.EndToEnd.Tests.csproj failed'
+    )
+    if (Test-RunOutput $run 'pnpm ') {
+        throw "Test 'a named suite that serves no bundles builds no frontend' expected no pnpm call, got:$([Environment]::NewLine)$($run.Output)"
+    }
+
+    $run = Invoke-EndToEnd $fixture @() $noDocker
+    Assert-Run 'a run with a suite that starts containers checks Docker before it builds the frontend' $run $false @(
+        $dockerMissing,
+        'tests/A.EndToEnd.Tests/A.EndToEnd.Tests.csproj.'
+    )
+    foreach ($text in 'pnpm ', 'F.EndToEnd.Tests') {
+        if (Test-RunOutput $run $text) {
+            throw "Test 'a run with a suite that starts containers checks Docker before it builds the frontend' expected no '$text', got:$([Environment]::NewLine)$($run.Output)"
+        }
+    }
+
+    $fixture = New-Fixture 'narrowed' $true $true
+    # A file under the container suite's folder, which only that suite owns, so the change reaches A.EndToEnd.Tests and
+    # not F.EndToEnd.Tests.
+    Write-FixtureFile (Join-Path $fixture 'tests/A.EndToEnd.Tests/X.cs') "class X { }`n"
+    $run = Invoke-EndToEnd $fixture @('-Affected', '-Base', 'HEAD', '-Suite', 'F.EndToEnd.Tests') $docker
+    Assert-Run 'a named suite that the changes do not reach is skipped' $run $true @(
+        'No end-to-end suite is affected; skipping.',
+        'End-to-end: PASSED'
+    )
+
+    $run = Invoke-EndToEnd $fixture @('-Affected', '-Base', 'HEAD', '-Suite', 'A.EndToEnd.Tests') $docker
+    Assert-Run 'a named suite that the changes reach requires Docker' $run $false @(
         $dockerMissing
     )
 

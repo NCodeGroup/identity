@@ -15,8 +15,8 @@ namespace NCode.Identity.OpenId.Authentication.Interactive;
 internal readonly record struct InteractivePageSecurity(string Nonce, HtmlPageSecurityPolicy Policy)
 {
     /// <summary>
-    /// Creates the security of one interactive page response. The policy allows the page's scripts and styles only
-    /// with a fresh nonce, the surface's own images and API calls, and the origins of the tenant's logo and tab icon.
+    /// Creates the security of one interactive page response. The policy allows the page's scripts and styles only with
+    /// a fresh nonce, the surface's own fonts, images and API calls, and the origins of the tenant's logo and tab icon.
     /// </summary>
     /// <param name="branding">The tenant's branding, or <see langword="null"/> when the page has none.</param>
     /// <returns>The nonce and the policy of the response.</returns>
@@ -43,6 +43,10 @@ internal readonly record struct InteractivePageSecurity(string Nonce, HtmlPageSe
                 new ContentSecurityPolicyDirective(
                     ContentSecurityPolicyDirectives.StyleSrc,
                     ContentSecurityPolicySources.Nonce(nonce)
+                ),
+                new ContentSecurityPolicyDirective(
+                    ContentSecurityPolicyDirectives.FontSrc,
+                    ContentSecurityPolicySources.Self
                 ),
                 new ContentSecurityPolicyDirective(
                     ContentSecurityPolicyDirectives.ImgSrc,

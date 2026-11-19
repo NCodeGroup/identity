@@ -15,23 +15,26 @@ Until the first stable release, the [Unreleased] section describes the product a
 
 - **Every frontend is themed with NCode Brand's Instrument design system (`frontend`).**
   `@ncodegroup/identity-brand` (`frontend/packages/brand`) vendors NCode Brand's `mui/instrument.json`, its brace data
-  (`brace/brace.json`) and its tenant color derivation (`tokens/derive.mjs`, with its types and test vectors) from the
-  release `brand/` takes, pinned by SHA-256 in `frontend/packages/brand/brand.lock.json` and held by
-  `pnpm run check:brand`, the frontend job and the `brand kit` stage of `./build/dod.ps1`, and every bundle loads them
-  as a `brand` chunk of their own. `createAppTheme` in `@ncodegroup/identity-ui` builds the Material UI theme from them:
-  every color role of both themes under `palette.instrument`, each typography variant in its Instrument type role with
-  the code style as `typography.code` and its family as `typography.fontFamilyMono`, a 6-pixel radius, the 8-pixel
-  spacing unit, four depths, Instrument's durations, easings and breakpoints, keys that stand on a lip and travel down
-  when pressed, without a ripple, and sink unlit when disabled, wells cut into the surface with their field's label
-  above them, cards as plates, dialogs that are sheets on a phone, tooltips as small screens, engraved table heads,
-  alerts with a signal bar, a title in their role's color and hazard tape on a caution, and a focus ring of the `focus`
-  color, 2 pixels wide and 2 pixels off the control. A branding without a color mode follows the reader's system
-  setting, a reader who asks for reduced motion sees no animation or transition, and Storybook's toolbar shows every
-  story in both modes and in a tenant's colors. The sign-in, consent and authorization error cards stand between two
-  braces in the tenant's scope color (`TenantCard`). A non-production tenant's banner is a hazard band, its text on the
-  hazard color between two runs of tape (`HazardBand`). The weekly `brand-watch` workflow keeps one `brand-update` issue
-  open while NCodeGroup/brand has a release at least three days old that the locks do not pin
-  ([#861](https://github.com/NCodeGroup/identity/issues/861),
+  (`brace/brace.json`), its tenant color derivation (`tokens/derive.mjs`, with its types and test vectors) and its two
+  typefaces, Instrument Sans and Martian Mono, with their SIL Open Font License texts, from the release `brand/` takes,
+  pinned by SHA-256 in `frontend/packages/brand/brand.lock.json` and held by `pnpm run check:brand`, the frontend job
+  and the `brand kit` stage of `./build/dod.ps1`, and every bundle loads them as a `brand` chunk of their own. Every app
+  loads the typefaces from its own `assets/`, which its host serves under the page's `font-src 'self'`, sets code in
+  Martian Mono through `typography.code`, and ships each typeface's license beside the fonts (`emitFontLicenses()` in
+  `@ncodegroup/identity-vite-config`). `createAppTheme` in `@ncodegroup/identity-ui` builds the Material UI theme from
+  the Instrument data: every color role of both themes under `palette.instrument`, each typography variant in its
+  Instrument type role with the code style as `typography.code` and its family as `typography.fontFamilyMono`, a 6-pixel
+  radius, the 8-pixel spacing unit, four depths, Instrument's durations, easings and breakpoints, keys that stand on a
+  lip and travel down when pressed, without a ripple, and sink unlit when disabled, wells cut into the surface with
+  their field's label above them, cards as plates, dialogs that are sheets on a phone, tooltips as small screens,
+  engraved table heads, alerts with a signal bar, a title in their role's color and hazard tape on a caution, and a
+  focus ring of the `focus` color, 2 pixels wide and 2 pixels off the control. A branding without a color mode follows
+  the reader's system setting, a reader who asks for reduced motion sees no animation or transition, and Storybook's
+  toolbar shows every story in both modes and in a tenant's colors. The sign-in, consent and authorization error cards
+  stand between two braces in the tenant's scope color (`TenantCard`). A non-production tenant's banner is a hazard
+  band, its text on the hazard color between two runs of tape (`HazardBand`). The weekly `brand-watch` workflow keeps
+  one `brand-update` issue open while NCodeGroup/brand has a release at least three days old that the locks do not pin
+  ([#861](https://github.com/NCodeGroup/identity/issues/861), [#862](https://github.com/NCodeGroup/identity/issues/862),
   [ADR-1516](docs/decisions/1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md)).
 
 - **A setup wizard at `/setup` creates an instance's first administrator.** Setup runs once per platform, on the
@@ -3074,19 +3077,23 @@ Until the first stable release, the [Unreleased] section describes the product a
   its session from `/bff/user`
   ([ADR-1438](docs/decisions/1438-the-management-console-holds-no-token-and-reads-its-session-from-its-bff.md)).
 
-- **The BFF is proven in real browsers and against a second OpenID Provider.** The `End-to-end` check runs
-  `./build/e2e.ps1`, which drives the BFF with Playwright in Chromium, Firefox and WebKit against Keycloak in a
-  container. The session cookie is host-only, `HttpOnly`, `Secure` and `SameSite=Strict` (or `Lax` when chosen). A
-  cross-site navigation carries it only under `Lax`, a cross-origin `fetch` stops at its CORS preflight, and Fetch
-  Metadata refuses a cross-site or untrusted same-site request even when CORS admits it. Login with PAR, PKCE,
-  `private_key_jwt` through `/bff/jwks`, DPoP, RFC 9207 and PS256 ID tokens works, and so do refresh-token
-  rotation, RP-initiated logout and back-channel logout, all from Keycloak's discovery metadata alone. A Blazor Web App
-  host (interactive server and WebAssembly) shows that a circuit signs out after back-channel logout, an idle hub
-  connection closes once its session ends, a `WebSocket` from another origin is refused and a WebAssembly component's
-  traffic carries no token. `./build/dod.ps1` never runs these `*.EndToEnd.Tests` suites
+- **The BFF and the hosts' pages are proven in real browsers, and the BFF against a second OpenID Provider.** The
+  `End-to-end` check runs `./build/e2e.ps1`, which drives the BFF with Playwright in Chromium, Firefox and WebKit
+  against Keycloak in a container. The session cookie is host-only, `HttpOnly`, `Secure` and `SameSite=Strict` (or `Lax`
+  when chosen). A cross-site navigation carries it only under `Lax`, a cross-origin `fetch` stops at its CORS preflight,
+  and Fetch Metadata refuses a cross-site or untrusted same-site request even when CORS admits it. Login with PAR, PKCE,
+  `private_key_jwt` through `/bff/jwks`, DPoP, RFC 9207 and PS256 ID tokens works, and so do refresh-token rotation,
+  RP-initiated logout and back-channel logout, all from Keycloak's discovery metadata alone. A Blazor Web App host
+  (interactive server and WebAssembly) shows that a circuit signs out after back-channel logout, an idle hub connection
+  closes once its session ends, a `WebSocket` from another origin is refused and a WebAssembly component's traffic
+  carries no token. The login, setup and management console pages, served by their hosts from the built bundles, load
+  Instrument Sans and Martian Mono from their own assets as `font/woff2` with no Content-Security-Policy violation, and
+  their hosts serve both typefaces' licenses from the same assets as `text/plain`; `./build/e2e.ps1` builds those
+  bundles first and checks for Docker only when it runs a suite that starts containers, `-Suite` runs one suite, and a
+  change under `frontend/` runs that suite. `./build/dod.ps1` never runs these `*.EndToEnd.Tests` suites
   ([#418](https://github.com/NCodeGroup/identity/issues/418), [#419](https://github.com/NCodeGroup/identity/issues/419),
-  [#603](https://github.com/NCodeGroup/identity/issues/603),
-  [ADR-1430](docs/decisions/1430-end-to-end-suites-run-the-bff-in-real-browsers-against-a-containerized-keycloak-in-their-own-gate.md),
+  [#603](https://github.com/NCodeGroup/identity/issues/603), [#862](https://github.com/NCodeGroup/identity/issues/862),
+  [ADR-1430](docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md),
   [ADR-1441](docs/decisions/1441-a-bff-connection-ends-with-its-session-even-when-idle-and-every-watcher-learns-at-once.md)).
 
 - **Entity Framework persistence is a reusable framework plus domain slices.** The framework package
@@ -5915,13 +5922,15 @@ Until the first stable release, the [Unreleased] section describes the product a
   `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin` and `no-store`; `ContentSecurityPolicyDirective`,
   `ContentSecurityPolicyDirectives` and `ContentSecurityPolicySources` build it. The interactive pages run only the
   `apps/auth` scripts and styles that carry the response's nonce, including a page served to a browser that already
-  holds the antiforgery cookie, and a bundle served from `InteractiveAuthentication:BundleRootPath` runs its scripts
-  only when its build writes the nonce placeholder (`@ncodegroup/identity-vite-config`'s `CSP_NONCE_PLACEHOLDER`); the
+  holds the antiforgery cookie, and load fonts only from their own origin (`font-src 'self'`), as the setup and
+  management console pages do; a bundle served from `InteractiveAuthentication:BundleRootPath` runs its scripts only
+  when its build writes the nonce placeholder (`@ncodegroup/identity-vite-config`'s `CSP_NONCE_PLACEHOLDER`); the
   `form_post` response runs only its own script and may be framed only by its redirect URI's origin; the front-channel
   logout page frames only the clients' logout origins; the `check_session_iframe` runs only its script and stays
   embeddable
   ([ADR-1256](docs/decisions/1256-every-page-the-server-writes-has-a-strict-content-security-policy-and-is-framed-only-by-design.md),
-  issue [#303](https://github.com/NCodeGroup/identity/issues/303)).
+  issue [#303](https://github.com/NCodeGroup/identity/issues/303), issue
+  [#862](https://github.com/NCodeGroup/identity/issues/862)).
 
 - **A host serves its OpenAPI document and API reference page only where the operator enables them, and the page runs
   under a strict Content-Security-Policy.** `ApiReference:DocumentEnabled` and `ApiReference:PageEnabled` are `false` by

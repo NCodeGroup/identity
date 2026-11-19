@@ -20,6 +20,34 @@
     "vendor/brace/brace.json": {
       "source": "brace/brace.json",
       "sha256": "83d94222176e19e8a812202c8879db38b2d9f9184b222c4579f9eed66890b39c"
+    },
+    "vendor/css/fonts.css": {
+      "source": "css/fonts.css",
+      "sha256": "edff8a23be2b246f2e88df4779be842713d7b67e0df64847d292290d9afa90d3"
+    },
+    "vendor/fonts/instrument-sans-latin-wdth-normal.woff2": {
+      "source": "fonts/instrument-sans-latin-wdth-normal.woff2",
+      "sha256": "8b74e9bc6e415d564a5ffd32125c92ffd50b1635043e77543cb871e0a3cfcaf2"
+    },
+    "vendor/fonts/instrument-sans-latin-ext-wdth-normal.woff2": {
+      "source": "fonts/instrument-sans-latin-ext-wdth-normal.woff2",
+      "sha256": "f21fc6486d81d72d2f8c389ac41befccf199b9c02367ea8377368321cad3e779"
+    },
+    "vendor/fonts/martian-mono-latin-wdth-normal.woff2": {
+      "source": "fonts/martian-mono-latin-wdth-normal.woff2",
+      "sha256": "f9c1655c2c9d1ed5bb8b301a57d1169a1123ffef1a588dc50a7a487810f7d732"
+    },
+    "vendor/fonts/martian-mono-latin-ext-wdth-normal.woff2": {
+      "source": "fonts/martian-mono-latin-ext-wdth-normal.woff2",
+      "sha256": "21fce7e290a2395b70fb1569e1b2ef65b3a2c0a121f28203e23dd9b17d120ed4"
+    },
+    "vendor/fonts/OFL-Instrument-Sans.txt": {
+      "source": "fonts/OFL-Instrument-Sans.txt",
+      "sha256": "c27a3c53c3beed7f5c26853afa15991478ff7145d3754a36b0382f84e10c0d03"
+    },
+    "vendor/fonts/OFL-Martian-Mono.txt": {
+      "source": "fonts/OFL-Martian-Mono.txt",
+      "sha256": "bd7d799f6a67b704f9546422ee83d69b4dc5e4ae289d5eabc22581251dd7150a"
     }
   }
 }

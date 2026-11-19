@@ -1607,7 +1607,7 @@ Each capability ends green under `./build/dod.ps1` and records its decisions in 
   an idle hub connection closes once its session ends, a `WebSocket` from another origin is refused and a WebAssembly
   component's traffic carries no token.
   Both end-to-end suites run in the `End-to-end` CI check through `./build/e2e.ps1`, never in the Definition of Done
-  ([ADR-1430](decisions/1430-end-to-end-suites-run-the-bff-in-real-browsers-against-a-containerized-keycloak-in-their-own-gate.md)).
+  ([ADR-1430](decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 
 ---
 

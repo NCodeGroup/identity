@@ -53,17 +53,16 @@ setup creates a root global administrator.**
 4. **The setup surface is hardened.** `/setup` answers 404 to a request that is not HTTPS, unless the host sets
    `LocalDevelopment:Enabled` and the request comes from a loopback remote address
    ([ADR-1370](1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)).
-   A request with no remote address is not loopback. It rate-limits
-   `POST /setup/api/token` and `POST /setup/api/root` to 10 requests per minute per client address and answers 429
-   beyond that, with `Retry-After` and the problem's `retryAfterSeconds` giving the seconds until the next attempt
+   A request with no remote address is not loopback. It rate-limits `POST /setup/api/token` and `POST /setup/api/root`
+   to 10 requests per minute per client address and answers 429 beyond that, with `Retry-After` and the problem's
+   `retryAfterSeconds` giving the seconds until the next attempt
    ([ADR-1483](1483-every-management-error-is-a-problem-document-that-its-route-declares.md)), and
-   `Cache-Control: no-store`. It serves
-   its page with a nonce Content-Security-Policy (`script-src 'nonce-…' 'strict-dynamic'`,
-   `style-src 'nonce-…'`, `img-src 'self'`, `connect-src 'self'` plus the hinted console's origin, if any,
-   `form-action 'none'`)
+   `Cache-Control: no-store`. It serves its page with a nonce Content-Security-Policy
+   (`script-src 'nonce-…' 'strict-dynamic'`, `style-src 'nonce-…'`, `font-src 'self'`, `img-src 'self'`,
+   `connect-src 'self'` plus the hinted console's origin, if any, `form-action 'none'`)
    ([ADR-1256](1256-every-page-the-server-writes-has-a-strict-content-security-policy-and-is-framed-only-by-design.md))
-   and `Cache-Control: no-store`. It never writes request or response bodies to HTTP logging, because its endpoints carry
-   `WithConfidentialBodies()`
+   and `Cache-Control: no-store`. It never writes request or response bodies to HTTP logging, because its endpoints
+   carry `WithConfidentialBodies()`
    ([ADR-1503](1503-http-logging-writes-a-body-only-for-an-endpoint-that-opts-in-and-never-for-one-that-carries-credentials.md)).
    The root password must satisfy the control-plane tenant's password policy and be at least 15 characters. The wizard
    reads the token from the URL fragment (`#token=`), which reaches neither the server nor a referrer, and strips it

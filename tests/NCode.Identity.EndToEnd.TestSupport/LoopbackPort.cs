@@ -4,7 +4,7 @@
 using System.Net;
 using System.Net.Sockets;
 
-namespace NCode.Identity.Bff.EndToEnd.Tests.Infrastructure;
+namespace NCode.Identity.EndToEnd.TestSupport;
 
 /// <summary>
 /// Reserves free TCP ports on the loopback interface.

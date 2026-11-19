@@ -1,4 +1,5 @@
-# End-to-end — the BFF in real browsers and against a containerized OpenID Provider (ADR-1430).
+# End-to-end — the BFF in real browsers and against a containerized OpenID Provider, and the hosts' built pages in real
+# browsers (ADR-1430).
 #
 # This workflow runs the SAME entrypoint developers run (build/e2e.ps1), with no CI-only variant: the script is the
 # single source of truth for how the tests/*.EndToEnd.Tests suites run, so a green run here and a green run locally mean
@@ -34,7 +35,7 @@ jobs:
   end-to-end:
     name: End-to-end
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     steps:
       - name: Checkout
@@ -49,6 +50,21 @@ jobs:
       # The SDK global.json selects and the runtime of each older .NET a test project targets.
       - name: Install .NET
         uses: ./.github/actions/install-dotnet
+
+      # The pages suite serves the built frontend bundles, which ./build/e2e.ps1 builds with the workspace's pnpm before
+      # it builds the suite (ADR-1430): the Node major frontend/.node-version pins and the pnpm frontend/package.json
+      # pins, as Frontend CI sets them up.
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: frontend/.node-version
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: frontend/package.json
+          cache: true
+          cache_dependency_path: frontend/pnpm-lock.yaml
 
       # No lock files are committed, so setup-dotnet's built-in cache cannot key itself. Key on the central package
       # manifest plus every project file: those are exactly the inputs that change the restore graph (ADR-1003).
@@ -68,9 +84,10 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('Directory.Packages.props') }}
 
-      # The one entrypoint. It checks Docker, builds the suites, installs the browsers and runs the tests. A pull request
-      # into main runs only the suites its change affects, measured from the base SHA (the checkout's full history holds
-      # its merge base); every other event runs every suite (ADR-1263).
+      # The one entrypoint. It checks Docker for the suites that start containers, builds the frontend packages the
+      # suites serve, builds the suites, installs the browsers and runs the tests. A pull request into main runs only
+      # the suites its change affects, measured from the base SHA (the checkout's full history holds its merge base);
+      # every other event runs every suite (ADR-1263).
       - name: End-to-end
         shell: pwsh
         env:

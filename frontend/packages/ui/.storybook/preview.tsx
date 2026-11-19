@@ -1,3 +1,6 @@
+// NCode Brand's two typefaces, so every story draws them as the apps do.
+import '@ncodegroup/identity-brand/fonts.css';
+
 import type { Preview } from '@storybook/react-vite';
 import type { BrandingConfig } from '@ncodegroup/identity-config';
 import { AppThemeProvider } from '../src/theme/AppThemeProvider.js';

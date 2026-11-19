@@ -7,12 +7,29 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using NCode.Buffers;
 using NCode.Identity.AspNetCore;
+using NCode.Identity.Frontend.TestSupport;
 using Xunit;
 
 namespace NCode.Identity.OpenId.Authentication.Interactive.Tests;
 
 public class InteractiveBundleShellTests
 {
+    private static BuiltBundleTypefaces<InteractiveBundleShell> CreateBuiltBundleTypefaces()
+    {
+        var indexPath = BuiltAuthBundleFactAttribute.IndexPath ?? string.Empty;
+        var assetsUri = new Uri("https://op.example/acme/account/assets/");
+        var layout = new BuiltBundleLayout(
+            indexPath,
+            InteractiveBundleShell.NoncePlaceholder,
+            "./assets/",
+            assetsUri
+        );
+        return new BuiltBundleTypefaces<InteractiveBundleShell>(
+            layout,
+            InteractiveBundleShell.TryCreate
+        );
+    }
+
     #region TryCreate Tests
 
     [Fact]
@@ -213,6 +230,26 @@ public class InteractiveBundleShellTests
         Assert.True(link.Success, linkPattern);
         var file = Assert.IsType<PhysicalFileHttpResult>(result);
         Assert.Equal(contentType, file.ContentType);
+    }
+
+    [BuiltAuthBundleFact]
+    public void TryCreate_WhenGivenTheBuiltBundlesIndex_NoncesEveryStylesheetAndServesEveryTypefaceItLoads()
+    {
+        using var typefaces = CreateBuiltBundleTypefaces();
+
+        typefaces.AssertNoncesEveryStylesheetAndServesEveryTypeface();
+    }
+
+    [BuiltAuthBundleTheory]
+    [MemberData(nameof(TypefaceLicenses.Theories), MemberType = typeof(TypefaceLicenses))]
+    public void TryCreate_WhenGivenTheBuiltBundlesIndex_ShipsEachTypefacesLicenseBesideTheFonts(
+        string licenseName,
+        string copyright
+    )
+    {
+        using var typefaces = CreateBuiltBundleTypefaces();
+
+        typefaces.AssertShipsLicenseBesideTheFonts(licenseName, copyright);
     }
 
     [Fact]

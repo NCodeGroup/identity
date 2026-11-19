@@ -19,11 +19,25 @@ function Write-Project([string]$Root, [string]$Path) {
     Write-FixtureFile (Join-Path $Root $Path) "<Project Sdk=`"Microsoft.NET.Sdk`"></Project>`n"
 }
 
+function Write-FrontendSuite([string]$Root, [string]$Path, [string]$Packages) {
+    Write-FixtureFile (Join-Path $Root $Path) "<Project Sdk=`"Microsoft.NET.Sdk`"><PropertyGroup><EndToEndFrontendPackages>$Packages</EndToEndFrontendPackages></PropertyGroup></Project>`n"
+}
+
+function Write-ContainerSuite([string]$Root, [string]$Path, [string]$Value) {
+    Write-FixtureFile (Join-Path $Root $Path) "<Project Sdk=`"Microsoft.NET.Sdk`"><PropertyGroup><EndToEndContainers>$Value</EndToEndContainers></PropertyGroup></Project>`n"
+}
+
 function Assert-Tiers([string]$Name, [object]$Result, [string]$Tests, [string]$EndToEnd) {
     $actualTests = $Result.Tests -join ','
     $actualEndToEnd = $Result.EndToEnd -join ','
     if ($actualTests -ne $Tests -or $actualEndToEnd -ne $EndToEnd) {
         throw "Test '$Name' expected Tests='$Tests' EndToEnd='$EndToEnd', got Tests='$actualTests' EndToEnd='$actualEndToEnd'."
+    }
+    if ($Result.FrontendPackages.Count -ne 0) {
+        throw "Test '$Name' expected no FrontendPackages, got $($Result.FrontendPackages.Count)."
+    }
+    if (@($Result.ContainerSuites).Count -ne 0) {
+        throw "Test '$Name' expected no ContainerSuites, got $(@($Result.ContainerSuites) -join ',')."
     }
     $script:testCount++
     Write-Host "PASS: $Name"
@@ -44,6 +58,33 @@ try {
     Write-Project $none 'src/A/A.csproj'
     $result = & $lister -Root $none
     Assert-Tiers 'a repository without tests lists nothing' $result '' ''
+
+    $frontend = Join-Path $fixtureRoot 'frontend'
+    Write-FrontendSuite $frontend 'tests/F.EndToEnd.Tests/F.EndToEnd.Tests.csproj' '@x/a; @x/b;'
+    Write-Project $frontend 'tests/G.EndToEnd.Tests/G.EndToEnd.Tests.csproj'
+    Write-FrontendSuite $frontend 'tests/H.Tests/H.Tests.csproj' '@x/c'
+    $result = & $lister -Root $frontend
+    $keys = @($result.FrontendPackages.Keys) -join ','
+    $names = @($result.FrontendPackages['tests/F.EndToEnd.Tests/F.EndToEnd.Tests.csproj']) -join ','
+    if ($keys -ne 'tests/F.EndToEnd.Tests/F.EndToEnd.Tests.csproj' -or $names -ne '@x/a,@x/b') {
+        throw "Test 'an end-to-end project names the frontend packages it serves' expected F with '@x/a,@x/b', got '$keys' with '$names'."
+    }
+    $testCount++
+    Write-Host "PASS: an end-to-end project names the frontend packages it serves"
+
+    $containers = Join-Path $fixtureRoot 'containers'
+    Write-ContainerSuite $containers 'tests/C.EndToEnd.Tests/C.EndToEnd.Tests.csproj' 'true'
+    Write-ContainerSuite $containers 'tests/D.EndToEnd.Tests/D.EndToEnd.Tests.csproj' 'false'
+    Write-ContainerSuite $containers 'tests/E.EndToEnd.Tests/E.EndToEnd.Tests.csproj' ' True '
+    Write-ContainerSuite $containers 'tests/H.Tests/H.Tests.csproj' 'true'
+    Write-Project $containers 'tests/G.EndToEnd.Tests/G.EndToEnd.Tests.csproj'
+    $result = & $lister -Root $containers
+    $suites = @($result.ContainerSuites) -join ','
+    if ($suites -ne 'tests/C.EndToEnd.Tests/C.EndToEnd.Tests.csproj,tests/E.EndToEnd.Tests/E.EndToEnd.Tests.csproj') {
+        throw "Test 'an end-to-end project declares that it starts containers' expected C and E, got '$suites'."
+    }
+    $testCount++
+    Write-Host "PASS: an end-to-end project declares that it starts containers"
 
     Write-Host "$testCount test-projects checks passed."
 }

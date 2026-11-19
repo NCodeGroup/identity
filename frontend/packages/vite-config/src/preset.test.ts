@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -13,6 +13,7 @@ import {
   defineStandaloneSurfaceConfig,
   defineTestConfig,
   devCertificateDirectory,
+  emitFontLicenses,
   failOnOversizedChunks,
   oversizedChunks,
   readDevCertificate,
@@ -136,6 +137,121 @@ describe('failOnOversizedChunks', () => {
     expect(() =>
       generate(plugin, { 'a.js': chunk('assets/a.js', 101), 'b.js': chunk('assets/b.js', 99) }),
     ).toThrow(/larger than 100 kB after minification: assets\/a\.js \(101\.00 kB\)\. Split/);
+  });
+});
+
+describe('emitFontLicenses', () => {
+  const roots: string[] = [];
+
+  afterEach(() => {
+    for (const root of roots.splice(0)) {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  function makeRoot(): string {
+    const root = mkdtempSync(join(tmpdir(), 'ncode-font-licenses-'));
+    roots.push(root);
+    return root;
+  }
+
+  function writeApp(root: string): void {
+    writeFileSync(
+      join(root, 'package.json'),
+      JSON.stringify({
+        name: 'app',
+        dependencies: { '@ncodegroup/identity-brand': 'workspace:*' },
+      }),
+    );
+    const brand = join(root, 'node_modules', '@ncodegroup', 'identity-brand');
+    const fonts = join(brand, 'vendor', 'fonts');
+    mkdirSync(fonts, { recursive: true });
+    writeFileSync(
+      join(brand, 'package.json'),
+      JSON.stringify({
+        name: '@ncodegroup/identity-brand',
+        exports: { './fonts/*': './vendor/fonts/*' },
+      }),
+    );
+    writeFileSync(join(fonts, 'OFL-Instrument-Sans.txt'), 'Instrument Sans license');
+    writeFileSync(join(fonts, 'OFL-Martian-Mono.txt'), 'Martian Mono license');
+  }
+
+  const context = {
+    emitFile: vi.fn(),
+    error(message: string): never {
+      throw new Error(message);
+    },
+  };
+
+  function build(root: string): void {
+    const plugin = emitFontLicenses();
+    (plugin.configResolved as unknown as (config: unknown) => void)({ root });
+    (plugin.generateBundle as unknown as (this: typeof context) => void).call(context);
+  }
+
+  afterEach(() => {
+    context.emitFile.mockClear();
+  });
+
+  it('runs only in builds', () => {
+    expect(emitFontLicenses().apply).toBe('build');
+  });
+
+  it("emits each typeface's license as an asset beside the fonts", () => {
+    const root = makeRoot();
+    writeApp(root);
+
+    build(root);
+
+    expect(context.emitFile).toHaveBeenCalledTimes(2);
+    expect(context.emitFile).toHaveBeenNthCalledWith(1, {
+      type: 'asset',
+      name: 'OFL-Instrument-Sans.txt',
+      source: Buffer.from('Instrument Sans license'),
+    });
+    expect(context.emitFile).toHaveBeenNthCalledWith(2, {
+      type: 'asset',
+      name: 'OFL-Martian-Mono.txt',
+      source: Buffer.from('Martian Mono license'),
+    });
+  });
+
+  it('fails the build of an app that does not depend on the brand package', () => {
+    const root = makeRoot();
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'app', dependencies: {} }));
+
+    expect(() => {
+      build(root);
+    }).toThrow(
+      /must list @ncodegroup\/identity-brand in its package\.json dependencies: .*\(ADR-1516\)\.$/,
+    );
+    expect(context.emitFile).not.toHaveBeenCalled();
+  });
+
+  it('fails the build of an app whose brand package does not export the licenses', () => {
+    const root = makeRoot();
+    writeApp(root);
+    writeFileSync(
+      join(root, 'node_modules', '@ncodegroup', 'identity-brand', 'package.json'),
+      JSON.stringify({ name: '@ncodegroup/identity-brand', exports: {} }),
+    );
+
+    expect(() => {
+      build(root);
+    }).toThrow(/could not resolve @ncodegroup\/identity-brand\/fonts\/OFL-Instrument-Sans\.txt/);
+    expect(context.emitFile).not.toHaveBeenCalled();
+  });
+
+  it('fails the build of an app without a package.json', () => {
+    const root = makeRoot();
+
+    expect(() => {
+      build(root);
+    }).toThrow(
+      /must list @ncodegroup\/identity-brand in its package\.json dependencies: .*\(ADR-1516\)\. Error: ENOENT/,
+    );
+    expect(context.emitFile).not.toHaveBeenCalled();
   });
 });
 
@@ -365,6 +481,7 @@ describe('defineStandaloneSurfaceConfig', () => {
     expect(config.test).toStrictEqual(testGates({ environment: 'jsdom', coverage: floors }));
     expect(pluginNames(config.plugins ?? [])).toContain('vite:react-babel');
     expect(pluginNames(config.plugins ?? [])).toContain('ncode:fail-on-oversized-chunks');
+    expect(pluginNames(config.plugins ?? [])).toContain('ncode:emit-font-licenses');
     expect(pluginNames(config.plugins ?? [])).toContain('ncode:serve-over-https');
   });
 
@@ -400,6 +517,7 @@ describe('defineBackendServedSurfaceConfig', () => {
     expect(config.test).toStrictEqual(testGates({ environment: 'jsdom', coverage: floors }));
     expect(pluginNames(config.plugins ?? [])).toContain('vite:react-babel');
     expect(pluginNames(config.plugins ?? [])).toContain('ncode:fail-on-oversized-chunks');
+    expect(pluginNames(config.plugins ?? [])).toContain('ncode:emit-font-licenses');
   });
 
   it("names the placeholder the host replaces with each response's nonce", () => {
@@ -418,5 +536,6 @@ describe('defineBffServedSurfaceConfig', () => {
     expect(config.test).toStrictEqual(testGates({ environment: 'jsdom', coverage: floors }));
     expect(pluginNames(config.plugins ?? [])).toContain('vite:react-babel');
     expect(pluginNames(config.plugins ?? [])).toContain('ncode:fail-on-oversized-chunks');
+    expect(pluginNames(config.plugins ?? [])).toContain('ncode:emit-font-licenses');
   });
 });

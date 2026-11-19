@@ -18,6 +18,7 @@
     "@mui/icons-material": "^9.5.0",
     "@mui/material": "^9.5.0",
     "@ncodegroup/identity-auth": "workspace:*",
+    "@ncodegroup/identity-brand": "workspace:*",
     "@ncodegroup/identity-config": "workspace:*",
     "@ncodegroup/identity-shell": "workspace:*",
     "@ncodegroup/identity-store": "workspace:*",

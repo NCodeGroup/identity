@@ -19,8 +19,9 @@ internal readonly record struct ManagementConsolePageSecurity(
 {
     /// <summary>
     /// Creates the security of one console page response. The policy allows the page's scripts and styles only with a
-    /// fresh nonce, the console's own images and API calls, the origins of the branding's logo and tab icon, and form
-    /// submissions to the console and to its authority, which signs the user in. It forbids a base URI and framing.
+    /// fresh nonce, the console's own fonts, images and API calls, the origins of the branding's logo and tab icon, and
+    /// form submissions to the console and to its authority, which signs the user in. It forbids a base URI and
+    /// framing.
     /// </summary>
     /// <param name="authority">The authority that the console's BFF signs users in with.</param>
     /// <param name="logoUrl">The branding's logo URL, or <see langword="null"/> when the console has none.</param>
@@ -54,6 +55,10 @@ internal readonly record struct ManagementConsolePageSecurity(
                 new ContentSecurityPolicyDirective(
                     ContentSecurityPolicyDirectives.StyleSrc,
                     ContentSecurityPolicySources.Nonce(nonce)
+                ),
+                new ContentSecurityPolicyDirective(
+                    ContentSecurityPolicyDirectives.FontSrc,
+                    ContentSecurityPolicySources.Self
                 ),
                 new ContentSecurityPolicyDirective(
                     ContentSecurityPolicyDirectives.ImgSrc,

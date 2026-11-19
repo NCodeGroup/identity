@@ -23,7 +23,8 @@ enforced quality bar.
 - Frontend / full-stack (Aspire F5): [NVS](https://github.com/jasongin/nvs); `build/frontend-install.ps1` adds the
   Node major pinned in `frontend/.node-version` and the pinned pnpm — see
   [`frontend/README.md`](frontend/README.md).
-- End-to-end suites only: a running Docker engine. `./build/e2e.ps1` installs the Playwright browsers.
+- End-to-end suites only: a running Docker engine for the BFF suite, which starts Keycloak in a container, and pnpm on
+  `PATH` for the pages suite. `./build/e2e.ps1` installs the Playwright browsers.
 - Conformance harness only: Docker, Python 3, and hosts-file entries — see
   [`build/conformance/README.md`](build/conformance/README.md).
 
@@ -94,34 +95,47 @@ dotnet run -c Release --project benchmarks/NCode.Identity.Jose.EdDsa.Benchmarks 
 
 ## End-to-end suites
 
-The `*.EndToEnd.Tests` projects under `tests/` run the backend-for-frontend (BFF) in real browsers and against an
-OpenID Provider that is not NCode. `NCode.Identity.Bff.EndToEnd.Tests` hosts the BFF on Kestrel over HTTPS and drives
-Chromium, Firefox and (off Windows) WebKit with Playwright for .NET. Its browser suite checks the session cookie's
-attributes, `SameSite` on cross-site navigation, CORS preflight denial and Fetch Metadata rejection. Its interop suite
-runs the BFF against Keycloak in a container and checks login, DPoP, refresh-token rotation, RP-initiated logout and
-back-channel logout. They need a running Docker engine.
+The `*.EndToEnd.Tests` projects under `tests/` run the backend-for-frontend (BFF) and the hosts' built pages in real
+browsers, and the BFF against an OpenID Provider that is not NCode. `NCode.Identity.Bff.EndToEnd.Tests` hosts the BFF on
+Kestrel over HTTPS and drives Chromium, Firefox and (off Windows) WebKit with Playwright for .NET. Its browser suite
+checks the session cookie's attributes, `SameSite` on cross-site navigation, CORS preflight denial and Fetch Metadata
+rejection. Its interop suite runs the BFF against Keycloak in a container and checks login, DPoP, refresh-token
+rotation, RP-initiated logout and back-channel logout. The suite starts Keycloak in a container, so its project file
+sets `EndToEndContainers` and `./build/e2e.ps1` runs it only with a running Docker engine.
 
 The suite also runs a Blazor Web App (interactive server and WebAssembly) from the support projects
 `NCode.Identity.Bff.EndToEnd.BlazorApp` and `NCode.Identity.Bff.EndToEnd.BlazorApp.Client` through
 `WebApplicationFactory` on Kestrel. It checks that a circuit signs out after back-channel logout, that a `WebSocket`
 from another origin is refused, that an idle hub connection closes once its session ends, and that a WebAssembly
 component's traffic carries no token. A project under `tests/` whose name does not end in `.Tests` is a support project:
-the solution compiles it and no gate tests it
-([ADR-1441](docs/decisions/1441-a-bff-connection-ends-with-its-session-even-when-idle-and-every-watcher-learns-at-once.md)).
+the solution compiles it, no gate runs it as tests, and a `.Tests` project of its own unit-tests its logic, as
+`NCode.Identity.EndToEnd.TestSupport.Tests` tests `Teardown` and `BrowserPool`
+([ADR-1430](docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
+
+`NCode.Identity.Frontend.EndToEnd.Tests` starts the OpenID Provider host and the management console's host on Kestrel
+over HTTPS with the built `apps/auth`, `apps/setup` and `apps/mgmt` bundles, and opens the login page, the setup page
+and the console's page in the same browsers. Each page must load NCode Brand's two typefaces from its own assets, as
+`font/woff2`, with no Content-Security-Policy violation, and its host must serve both typefaces' licenses from the same
+assets as `text/plain`. It starts no container, so it runs without Docker. The suite's project file names those frontend
+packages in `EndToEndFrontendPackages`, so `./build/e2e.ps1` installs the pnpm workspace and builds them first, which
+needs pnpm on `PATH` (`./build/frontend-install.ps1` installs it), and a change under `frontend/` runs the suite. The
+suites share `BrowserNames`, `BrowserPool`, `LoopbackPort`, `Teardown` and `TestCertificate` from the support project
+`NCode.Identity.EndToEnd.TestSupport`; `Teardown` stops what a suite started, every stop even when one throws.
 
 ```pwsh
 # Run every end-to-end suite (installs the Playwright browsers and pulls the Keycloak image on the first run):
 ./build/e2e.ps1
 # Run only the suites the branch's changes reach (against origin/main):
 ./build/e2e.ps1 -Affected
-# Run the tests that match a dotnet test filter:
-./build/e2e.ps1 -Filter 'FullyQualifiedName~SessionCookieTests'
+# Run one suite, or the tests of one suite that match a dotnet test filter:
+./build/e2e.ps1 -Suite NCode.Identity.Frontend.EndToEnd.Tests
+./build/e2e.ps1 -Suite NCode.Identity.Bff.EndToEnd.Tests -Filter 'FullyQualifiedName~SessionCookieTests'
 ```
 
 The `End-to-end` CI check runs `./build/e2e.ps1`: with `-Affected` on a pull request, and in full in the merge queue, on
 `main` and on the release lines. The Definition of Done and a bare `dotnet test NCode.Identity.slnx` differ: the
-Definition of Done never runs the suites, while a bare `dotnet test` runs them and so needs Docker
-([ADR-1430](docs/decisions/1430-end-to-end-suites-run-the-bff-in-real-browsers-against-a-containerized-keycloak-in-their-own-gate.md)).
+Definition of Done never runs the suites, while a bare `dotnet test` runs them and so needs Docker and the built bundles
+([ADR-1430](docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 
 ## Coding standards
 

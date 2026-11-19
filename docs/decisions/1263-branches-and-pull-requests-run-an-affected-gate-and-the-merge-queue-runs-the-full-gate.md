@@ -41,9 +41,12 @@ merged result passed the full gate.
    - A global build input selects all tests: anything under `build/` or `.config/`, `global.json`, `nuget.config`,
      `version.json`, `NCode.Identity.slnx`, `.editorconfig`, any `BannedSymbols*.txt` file, any `Directory.*` file and
      any `.runsettings` file.
+   - A path under `frontend/` maps to every end-to-end suite whose project file names frontend packages in
+     `EndToEndFrontendPackages`, because those suites serve the bundles the workspace builds
+     ([ADR-1430](1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
    - Every other path maps to the `.csproj` under `src/`, `hosts/`, `analyzers/` or `tests/` whose directory is its
-     longest prefix. A path under no project (`docs/`, `charts/`, `frontend/`, `.github/`) selects nothing; the checks
-     of Frontend CI, the host chart and the host image gate those paths.
+     longest prefix. A path under no project (`docs/`, `charts/`, `.github/`) selects nothing; the checks of the host
+     chart and the host image gate those paths, and Frontend CI gates `frontend/` beside the suites.
    - The selected tests are the reverse `ProjectReference` closure of the mapped projects, restricted to `tests/`.
 4. **Each place runs one gate tier.**
 
@@ -66,7 +69,8 @@ merged result passed the full gate.
    [`codecov.yml`](../../codecov.yml)). A pull request's run covers only the affected tests, so only its patch coverage
    is meaningful; `main`'s full runs keep reporting project coverage.
 7. **The end-to-end suites are not part of `dod.ps1`.** `./build/e2e.ps1` and the `End-to-end` check run them in their
-   own gate, as [ADR-1430](1430-end-to-end-suites-run-the-bff-in-real-browsers-against-a-containerized-keycloak-in-their-own-gate.md)
+   own gate, as
+   [ADR-1430](1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)
    decides.
 
 ## Options considered
@@ -103,8 +107,8 @@ merged result passed the full gate.
   — the protected trunk and its merge queue.
 - [ADR-1262](1262-minimal-api-request-delegates-are-generated-at-compile-time.md) — the compile-time delegates that
   shorten the test stage.
-- [ADR-1430](1430-end-to-end-suites-run-the-bff-in-real-browsers-against-a-containerized-keycloak-in-their-own-gate.md)
-  — the end-to-end gate.
+- [ADR-1430](1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md) — the
+  end-to-end gate.
 - [ADR-1143](1143-ci-presents-test-results-and-hand-written-code-coverage-through-job-summaries-annotations-and-codecov.md)
   — how CI presents test results and coverage.
 - [`build/dod.ps1`](../../build/dod.ps1) and [`build/affected-tests.ps1`](../../build/affected-tests.ps1) — the gate and

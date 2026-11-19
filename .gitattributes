@@ -14,6 +14,7 @@
 *.pdf binary
 *.zip binary
 *.snk binary
+*.woff2 binary
 
 # Kept from this repository's own .gitattributes when it adopted the project template
 # No rule here matches every file: a later rule overrides an earlier one, so one would switch the binary types above

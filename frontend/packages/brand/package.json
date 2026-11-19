@@ -11,6 +11,8 @@
       "default": "./vendor/tokens/derive.mjs"
     },
     "./derive.vectors.json": "./vendor/tokens/derive.vectors.json",
-    "./brace.json": "./vendor/brace/brace.json"
+    "./brace.json": "./vendor/brace/brace.json",
+    "./fonts.css": "./vendor/css/fonts.css",
+    "./fonts/*": "./vendor/fonts/*"
   }
 }

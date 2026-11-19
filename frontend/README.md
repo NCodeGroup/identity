@@ -72,7 +72,7 @@ frontend/
     auth/               @ncodegroup/identity-auth — framework-free authorization-code + PKCE helpers for the Playground's public client
     store/              @ncodegroup/identity-store — Redux store assembly, slices, typed hooks
     ui/                 @ncodegroup/identity-ui — MUI design system + stateless components + Storybook
-    brand/              @ncodegroup/identity-brand — the files of one NCode Brand release: Instrument's theme data, the tenant color derivation and the brace data (vendored; never edited)
+    brand/              @ncodegroup/identity-brand — the files of one NCode Brand release: Instrument's theme data, the tenant color derivation, the brace data and the two typefaces with their licenses (vendored; never edited)
     shell/              @ncodegroup/identity-shell — stateful app-shell containers shared by the surfaces (the runtime-config BootstrapGate)
     conformance-core/   @ncodegroup/identity-conformance-core — framework-free conformance logic (discovery, audit, spec-coverage, probes)
     test-support/       @ncodegroup/identity-test-support — test-only Vitest support shared by every workspace (the console guard, the Testing Library wait timeout, the family icon set and the CSS color helper)
@@ -223,8 +223,13 @@ Instrument's parts (keys on a lip, wells with their field's label above them, pl
 phone, tooltips as screens, engraved table heads and alerts with a signal bar), and a page a tenant shows its user wraps
 its card in `TenantCard`, which draws the tenant's braces. A non-production tenant's banner is a `HazardBand`, its text
 between two runs of hazard tape. Set code in `typography.code` (`variant="code"`, or `typography: 'code'` in `sx`) and a
-color by its Instrument role under `palette.instrument`, never a font family or a color literal. Storybook's toolbar
-switches the mode and a tenant's colors
+color by its Instrument role under `palette.instrument`, never a font family or a color literal. Each app imports
+`@ncodegroup/identity-brand/fonts.css` once, first in `src/main.tsx`: the build emits the four font files into `assets/`
+and, through the preset's `emitFontLicenses()`, each typeface's license beside them, and the hosts serve them under the
+pages' `font-src 'self'`. The `End-to-end` check's `NCode.Identity.Frontend.EndToEnd.Tests` opens the login, setup and
+console pages, served by their hosts from these builds, in Chromium, Firefox and WebKit, and fails when a typeface does
+not load, a page reports a Content-Security-Policy violation or a host does not serve a typeface's license; a change
+under `frontend/` runs it. Storybook's toolbar switches the mode and a tenant's colors
 ([ADR-1516](../docs/decisions/1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md)).
 
 ## Runtime configuration

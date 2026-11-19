@@ -35,10 +35,10 @@ has a folder of its own, and the build fails a project whose folder and packing 
 6. **The `RequirePackingFollowsFolder` target in `Directory.Build.targets` fails a project under `src/` that does not
    pack and a project outside `src/` that does,** in every build: the IDE, `dod.ps1`, CI and the image builds. The
    message names the folder rule.
-7. **Tools follow the folders.** `build/affected-tests.ps1` maps `src/`, `hosts/`, `analyzers/` and `tests/`;
-   `build/doc-comment-citations.ps1` scans the same four; the production C# conventions apply to `src/`, `hosts/` and
-   `analyzers/`; and `.dockerignore` admits `src/`, `hosts/`, `analyzers/` and `frontend/`, the four project folders of
-   the image builds' context.
+7. **Tools follow the folders.** `build/affected-tests.ps1` maps `src/`, `hosts/`, `analyzers/` and `tests/`, and
+   `frontend/` to the end-to-end suites that serve its bundles; `build/doc-comment-citations.ps1` scans the same four;
+   the production C# conventions apply to `src/`, `hosts/` and `analyzers/`; and `.dockerignore` admits `src/`,
+   `hosts/`, `analyzers/` and `frontend/`, the four project folders of the image builds' context.
 8. **Names distinguish role.** `NCode.Identity.Server` is the shipping library whose entry point is
    `AddIdentityServer()`. `…Host` is the deployable, and the `Host.` prefix groups the projects that travel with it: its
    EF migrations (`.Database`, host-owned, per [ADR-1073](1073-one-postgresql-database-holds-the-hosts-schema-and-key-ring-migrated-by-a-worker-and-drift-checked.md))
@@ -82,6 +82,6 @@ has a folder of its own, and the build fails a project whose folder and packing 
   [ADR-1071](1071-the-aspire-apphost-runs-the-local-stack-in-health-gated-order-after-checking-the-frontend-toolchain.md),
   [ADR-1084](1084-the-playground-explores-the-recommended-flow-and-the-conformance-harness-measures-the-published-spec-surface.md),
   [ADR-1386](1386-primitives-are-benchmarked-in-a-project-the-build-compiles-and-nothing-runs.md),
-  [ADR-1430](1430-end-to-end-suites-run-the-bff-in-real-browsers-against-a-containerized-keycloak-in-their-own-gate.md),
+  [ADR-1430](1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md),
   [ADR-1486](1486-the-repositorys-own-analyzer-project-fails-the-build-on-a-field-an-auto-property-could-replace.md)
 - `Directory.Build.targets`, `hosts/Directory.Build.props`

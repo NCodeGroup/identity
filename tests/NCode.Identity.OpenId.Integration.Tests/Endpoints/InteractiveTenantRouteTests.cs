@@ -299,6 +299,35 @@ public class InteractiveTenantRouteTests
     }
 
     [Theory]
+    [InlineData("instrument-sans-latin-wdth-normal-abc123.woff2", "font/woff2")]
+    [InlineData("OFL-Instrument-Sans-abc123.txt", "text/plain")]
+    public async Task GetAsset_WhenTheFileIsATypefaceOrItsLicense_ServesItWithItsType(
+        string fileName,
+        string contentType
+    )
+    {
+        var bundleRoot = CreateBundle();
+        try
+        {
+            var assetPath = Path.Combine(bundleRoot.FullName, "assets", fileName);
+            await File.WriteAllTextAsync(assetPath, "asset", SecureEncoding.UTF8);
+            using var factory = CreatePathFactory(bundleRoot.FullName);
+            await SeedTenantAsync(factory, "acme", settings: NoSettings, CancellationToken.None);
+            using var client = CreateClient(factory);
+            var requestPath = $"/acme/account/assets/{fileName}";
+
+            using var response = await client.GetAsync(requestPath);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(contentType, response.Content.Headers.ContentType?.MediaType);
+        }
+        finally
+        {
+            bundleRoot.Delete(recursive: true);
+        }
+    }
+
+    [Theory]
     [InlineData("/account/assets/app.js")]
     [InlineData("/acme/account/assets/missing.js")]
     [InlineData("/acme/account/assets")]

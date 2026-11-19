@@ -256,7 +256,7 @@ export function ConformanceDashboard({
                     >
                       Issuer (must byte-match the discovery document)
                     </Typography>
-                    <Typography data-testid="issuer" sx={{ fontFamily: 'monospace' }}>
+                    <Typography data-testid="issuer" variant="code" component="p">
                       {runtime.issuer}
                     </Typography>
                   </Box>
@@ -267,7 +267,7 @@ export function ConformanceDashboard({
                     >
                       RP callback the OP must accept
                     </Typography>
-                    <Typography data-testid="callback-url" sx={{ fontFamily: 'monospace' }}>
+                    <Typography data-testid="callback-url" variant="code" component="p">
                       {callbackUrl}
                     </Typography>
                   </Box>

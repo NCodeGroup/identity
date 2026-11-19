@@ -25,5 +25,6 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\NCode.Identity.ManagementConsole\NCode.Identity.ManagementConsole.csproj" />
+        <ProjectReference Include="..\NCode.Identity.Frontend.TestSupport\NCode.Identity.Frontend.TestSupport.csproj" />
     </ItemGroup>
 </Project>
