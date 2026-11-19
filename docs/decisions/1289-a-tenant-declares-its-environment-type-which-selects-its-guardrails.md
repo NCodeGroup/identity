@@ -60,7 +60,8 @@ a tenant that declares nothing is `production`.**
    operator turns it off first, which is a deliberate act.
 8. **A non-production tenant shows a banner.** A non-production type adds `"environment":{"type":…,"name":…}`
    (`InteractiveBranding.Environment`) to the branding JSON the interactive pages embed, and `apps/auth`'s
-   `EnvironmentBanner` shows "<name or type> environment — not for production use".
+   `EnvironmentBanner` shows "<name or type> environment — not for production use" on NCode Brand's hazard band
+   ([ADR-1516](1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md)).
 9. **Telemetry carries only the registered type name**, which registration bounds
    ([ADR-1197](1197-telemetry-has-one-owner-per-signal-bounded-attributes-and-spans-that-mirror-their-histograms.md)).
    The audit field `tenant_environment_type` follows `tenant_id` in audit schema `1.0`

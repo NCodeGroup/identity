@@ -22,14 +22,15 @@ Until the first stable release, the [Unreleased] section describes the product a
   every color role of both themes under `palette.instrument`, each typography variant in its Instrument type role with
   the code style as `typography.code` and its family as `typography.fontFamilyMono`, a 6-pixel radius, the 8-pixel
   spacing unit, four depths, Instrument's durations, easings and breakpoints, keys that stand on a lip and travel down
-  when pressed, without a ripple, and sink unlit when disabled, wells cut into the surface, cards as plates, dialogs
-  that are sheets on a phone, tooltips as small screens, engraved table heads, alerts with a signal bar, a title in
-  their role's color and hazard tape on a caution, and a focus ring of the `focus` color, 2 pixels wide and 2 pixels off
-  the control. A branding without a color mode follows the reader's system setting, a reader who asks for reduced
-  motion sees no animation or transition, and Storybook's toolbar shows every story in both modes and in a tenant's
-  colors. The sign-in, consent and authorization error cards stand between two braces in the tenant's scope color
-  (`TenantCard`). The weekly `brand-watch` workflow keeps one `brand-update` issue open while NCodeGroup/brand has a
-  release at least three days old that the locks do not pin
+  when pressed, without a ripple, and sink unlit when disabled, wells cut into the surface with their field's label
+  above them, cards as plates, dialogs that are sheets on a phone, tooltips as small screens, engraved table heads,
+  alerts with a signal bar, a title in their role's color and hazard tape on a caution, and a focus ring of the `focus`
+  color, 2 pixels wide and 2 pixels off the control. A branding without a color mode follows the reader's system
+  setting, a reader who asks for reduced motion sees no animation or transition, and Storybook's toolbar shows every
+  story in both modes and in a tenant's colors. The sign-in, consent and authorization error cards stand between two
+  braces in the tenant's scope color (`TenantCard`). A non-production tenant's banner is a hazard band, its text on the
+  hazard color between two runs of tape (`HazardBand`). The weekly `brand-watch` workflow keeps one `brand-update` issue
+  open while NCodeGroup/brand has a release at least three days old that the locks do not pin
   ([#861](https://github.com/NCodeGroup/identity/issues/861),
   [ADR-1516](docs/decisions/1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md)).
 
