@@ -15,12 +15,15 @@ Until the first stable release, the [Unreleased] section describes the product a
 
 - **Every frontend is themed with NCode Brand's Instrument design system (`frontend`).**
   `@ncodegroup/identity-brand` (`frontend/packages/brand`) vendors NCode Brand's `mui/instrument.json`, its brace data
-  (`brace/brace.json`) and its tenant color derivation (`tokens/derive.mjs`, with its types and test vectors) from the
-  release `brand/` takes, pinned by SHA-256 in `frontend/packages/brand/brand.lock.json` and held by
-  `pnpm run check:brand`, the frontend job and the `brand kit` stage of `./build/dod.ps1`, and every bundle loads them
-  as a `brand` chunk of their own. `createAppTheme` in `@ncodegroup/identity-ui` builds the Material UI theme from them:
-  every color role of both themes under `palette.instrument`, each typography variant in its Instrument type role with
-  the code style as `typography.code` and its family as `typography.fontFamilyMono`, a 6-pixel radius, the 8-pixel
+  (`brace/brace.json`), its tenant color derivation (`tokens/derive.mjs`, with its types and test vectors) and its two
+  typefaces, Instrument Sans and Martian Mono, with their SIL Open Font License texts, from the release `brand/` takes,
+  pinned by SHA-256 in `frontend/packages/brand/brand.lock.json` and held by `pnpm run check:brand`, the frontend job
+  and the `brand kit` stage of `./build/dod.ps1`, and every bundle loads them as a `brand` chunk of their own. Every app
+  loads the typefaces from its own `assets/`, which its host serves under the page's `font-src 'self'`, sets code in
+  Martian Mono through `typography.code`, and ships each typeface's license beside the fonts (`emitFontLicenses()` in
+  `@ncodegroup/identity-vite-config`). `createAppTheme` in `@ncodegroup/identity-ui` builds the Material UI theme from
+  them: every color role of both themes under `palette.instrument`, each typography variant in its Instrument type role
+  with the code style as `typography.code` and its family as `typography.fontFamilyMono`, a 6-pixel radius, the 8-pixel
   spacing unit, four depths, Instrument's durations, easings and breakpoints, keys that stand on a lip and travel down
   when pressed, without a ripple, and sink unlit when disabled, wells cut into the surface with their field's label
   above them, cards as plates, dialogs that are sheets on a phone, tooltips as small screens, engraved table heads,
@@ -32,6 +35,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   hazard color between two runs of tape (`HazardBand`). The weekly `brand-watch` workflow keeps one `brand-update` issue
   open while NCodeGroup/brand has a release at least three days old that the locks do not pin
   ([#861](https://github.com/NCodeGroup/identity/issues/861),
+  [#862](https://github.com/NCodeGroup/identity/issues/862),
   [ADR-1516](docs/decisions/1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md)).
 
 - **A setup wizard at `/setup` creates an instance's first administrator.** Setup runs once per platform, on the
@@ -5901,13 +5905,15 @@ Until the first stable release, the [Unreleased] section describes the product a
   `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin` and `no-store`; `ContentSecurityPolicyDirective`,
   `ContentSecurityPolicyDirectives` and `ContentSecurityPolicySources` build it. The interactive pages run only the
   `apps/auth` scripts and styles that carry the response's nonce, including a page served to a browser that already
-  holds the antiforgery cookie, and a bundle served from `InteractiveAuthentication:BundleRootPath` runs its scripts
-  only when its build writes the nonce placeholder (`@ncodegroup/identity-vite-config`'s `CSP_NONCE_PLACEHOLDER`); the
+  holds the antiforgery cookie, and load fonts only from their own origin (`font-src 'self'`), as the setup and
+  management console pages do; a bundle served from `InteractiveAuthentication:BundleRootPath` runs its scripts only
+  when its build writes the nonce placeholder (`@ncodegroup/identity-vite-config`'s `CSP_NONCE_PLACEHOLDER`); the
   `form_post` response runs only its own script and may be framed only by its redirect URI's origin; the front-channel
   logout page frames only the clients' logout origins; the `check_session_iframe` runs only its script and stays
   embeddable
   ([ADR-1256](docs/decisions/1256-every-page-the-server-writes-has-a-strict-content-security-policy-and-is-framed-only-by-design.md),
-  issue [#303](https://github.com/NCodeGroup/identity/issues/303)).
+  issue [#303](https://github.com/NCodeGroup/identity/issues/303),
+  issue [#862](https://github.com/NCodeGroup/identity/issues/862)).
 
 - **A host serves its OpenAPI document and API reference page only where the operator enables them, and the page runs
   under a strict Content-Security-Policy.** `ApiReference:DocumentEnabled` and `ApiReference:PageEnabled` are `false` by
