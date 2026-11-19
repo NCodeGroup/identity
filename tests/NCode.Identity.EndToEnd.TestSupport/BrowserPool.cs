@@ -18,7 +18,9 @@ public sealed class BrowserPool : IAsyncDisposable
 
     private IPlaywright Playwright { get; }
 
-    private ConcurrentDictionary<string, Task<IBrowser>> Browsers { get; } = new();
+    // GetOrAdd may run its factory more than once under contention, so each value is a Lazy and only the stored one
+    // launches.
+    private ConcurrentDictionary<string, Lazy<Task<IBrowser>>> Browsers { get; } = new();
 
     /// <summary>
     /// Starts Playwright.
@@ -39,10 +41,15 @@ public sealed class BrowserPool : IAsyncDisposable
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var browser = await Browsers.GetOrAdd(
+        var launch = Browsers.GetOrAdd(
             browserName,
-            name => Playwright[name].LaunchAsync(new BrowserTypeLaunchOptions { Headless = true })
+            name => new Lazy<Task<IBrowser>>(() =>
+                Playwright[name].LaunchAsync(new BrowserTypeLaunchOptions { Headless = true })
+            )
         );
+
+        // The token ends this caller's wait, never the launch other callers share.
+        var browser = await launch.Value.WaitAsync(cancellationToken);
         return await browser.NewContextAsync(
             new BrowserNewContextOptions { IgnoreHTTPSErrors = true }
         );
@@ -51,9 +58,15 @@ public sealed class BrowserPool : IAsyncDisposable
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        foreach (var browser in Browsers.Values)
+        foreach (var launch in Browsers.Values.Where(launch => launch.IsValueCreated))
         {
-            await (await browser).DisposeAsync();
+            await ((Task)launch.Value).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+
+            // A launch that failed holds no browser.
+            if (launch.Value.IsCompletedSuccessfully)
+            {
+                await (await launch.Value).DisposeAsync();
+            }
         }
 
         Browsers.Clear();
