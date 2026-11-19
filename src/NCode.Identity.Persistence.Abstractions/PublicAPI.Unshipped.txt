@@ -42,7 +42,7 @@ NCode.Identity.Persistence.StoreManagerLibrary
 NCode.Identity.Persistence.StoreManagerLibrary.StoreManagerLibrary() -> void
 NCode.Identity.Persistence.Stores.IPageCursorProtector
 NCode.Identity.Persistence.Stores.IPageCursorProtector.Protect(string! collection, System.ReadOnlySpan<byte> position) -> string!
-NCode.Identity.Persistence.Stores.IPageCursorProtector.TryUnprotect(string! collection, string! cursor, out byte[]? position) -> bool
+NCode.Identity.Persistence.Stores.IPageCursorProtector.TryUnprotect(string! collection, string! cursor, System.Span<byte> destination, out int bytesWritten) -> bool
 NCode.Identity.Persistence.Stores.IStore
 NCode.Identity.Persistence.Stores.IStore<T>
 NCode.Identity.Persistence.Stores.IStore<T>.AddAsync(T item, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask

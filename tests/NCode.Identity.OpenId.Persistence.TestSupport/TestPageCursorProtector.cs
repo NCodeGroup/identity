@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers.Text;
-using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.DataProtection;
 using NCode.Identity.Persistence.Stores;
@@ -34,10 +33,11 @@ public sealed class TestPageCursorProtector : IPageCursorProtector
     public bool TryUnprotect(
         string collection,
         string cursor,
-        [NotNullWhen(true)] out byte[]? position
+        Span<byte> destination,
+        out int bytesWritten
     )
     {
-        position = null;
+        bytesWritten = 0;
 
         if (!Base64Url.IsValid(cursor))
             return false;
@@ -46,7 +46,13 @@ public sealed class TestPageCursorProtector : IPageCursorProtector
 
         try
         {
-            position = Provider.CreateProtector(Purpose, collection).Unprotect(protectedBytes);
+            var position = Provider.CreateProtector(Purpose, collection).Unprotect(protectedBytes);
+
+            if (position.Length > destination.Length)
+                return false;
+
+            position.CopyTo(destination);
+            bytesWritten = position.Length;
             return true;
         }
         catch (CryptographicException)

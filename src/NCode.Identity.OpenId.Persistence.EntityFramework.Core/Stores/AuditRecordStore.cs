@@ -255,9 +255,15 @@ internal sealed class AuditRecordStore(
             return null;
 
         // A malformed cursor is treated as the start of the collection rather than a hard error.
+        Span<byte> position = stackalloc byte[PositionLength];
         if (
-            !CursorProtector.TryUnprotect(nameof(AuditRecordEntity), cursor, out var position)
-            || position.Length != PositionLength
+            !CursorProtector.TryUnprotect(
+                nameof(AuditRecordEntity),
+                cursor,
+                position,
+                out var bytesWritten
+            )
+            || bytesWritten != PositionLength
         )
             return null;
 
@@ -265,7 +271,7 @@ internal sealed class AuditRecordStore(
         if (ticks < DateTime.MinValue.Ticks || ticks > DateTime.MaxValue.Ticks)
             return null;
 
-        var id = new Guid(position.AsSpan(TicksLength), bigEndian: true);
+        var id = new Guid(position[TicksLength..], bigEndian: true);
         return (new DateTimeOffset(ticks, TimeSpan.Zero), id);
     }
 

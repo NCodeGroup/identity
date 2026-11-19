@@ -51,9 +51,10 @@ public static class PageCursorProtectorExtensions
                 return null;
             }
 
+            Span<byte> position = stackalloc byte[KeyLength];
             if (
-                !protector.TryUnprotect(collection, cursor, out var position)
-                || position.Length != KeyLength
+                !protector.TryUnprotect(collection, cursor, position, out var bytesWritten)
+                || bytesWritten != KeyLength
             )
             {
                 return null;

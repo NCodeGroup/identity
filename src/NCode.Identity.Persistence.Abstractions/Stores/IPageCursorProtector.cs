@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Diagnostics.CodeAnalysis;
 using JetBrains.Annotations;
 
 namespace NCode.Identity.Persistence.Stores;
@@ -22,14 +21,24 @@ public interface IPageCursorProtector
     string Protect(string collection, ReadOnlySpan<byte> position);
 
     /// <summary>
-    /// Reads the position from a cursor.
+    /// Reads the position from a cursor into a buffer of the caller.
     /// </summary>
     /// <param name="collection">The name of the collection that the cursor pages.</param>
     /// <param name="cursor">The cursor that a caller passed back.</param>
-    /// <param name="position">When this method returns <c>true</c>, the position where the previous page ended.</param>
+    /// <param name="destination">The buffer that receives the position where the previous page ended.</param>
+    /// <param name="bytesWritten">
+    /// When this method returns <c>true</c>, the number of bytes written to <paramref name="destination"/>; otherwise
+    /// <c>0</c>.
+    /// </param>
     /// <returns>
-    /// <c>true</c> when the cursor holds a position; <c>false</c> when the cursor is malformed, tampered with,
-    /// protected for another collection or protected under another key.
+    /// <c>true</c> when the cursor holds a position that fits in <paramref name="destination"/>; <c>false</c> when the
+    /// cursor is malformed, tampered with, protected for another collection or protected under another key, or when the
+    /// position is longer than <paramref name="destination"/>.
     /// </returns>
-    bool TryUnprotect(string collection, string cursor, [NotNullWhen(true)] out byte[]? position);
+    bool TryUnprotect(
+        string collection,
+        string cursor,
+        Span<byte> destination,
+        out int bytesWritten
+    );
 }

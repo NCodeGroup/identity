@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Diagnostics.CodeAnalysis;
 using Xunit;
 
 namespace NCode.Identity.Persistence.Stores;
@@ -35,12 +34,22 @@ public class PageCursorProtectorExtensionsTests
         public bool TryUnprotect(
             string collection,
             string cursor,
-            [NotNullWhen(true)] out byte[]? position
+            Span<byte> destination,
+            out int bytesWritten
         )
         {
             TryUnprotectCount++;
-            position = UnprotectedPosition;
-            return UnprotectResult;
+            bytesWritten = 0;
+
+            if (!UnprotectResult || UnprotectedPosition is null)
+                return false;
+
+            if (UnprotectedPosition.Length > destination.Length)
+                return false;
+
+            UnprotectedPosition.CopyTo(destination);
+            bytesWritten = UnprotectedPosition.Length;
+            return true;
         }
     }
 

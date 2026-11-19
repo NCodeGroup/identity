@@ -23,12 +23,27 @@ public sealed class DefaultPageCursorProtectorTests
     {
         var protector = CreateProtector();
         var position = CreatePosition();
+        var destination = new byte[32];
 
         var cursor = protector.Protect(Collection, position);
-        var result = protector.TryUnprotect(Collection, cursor, out var actual);
+        var result = protector.TryUnprotect(Collection, cursor, destination, out var bytesWritten);
 
         Assert.True(result);
-        Assert.Equal(position, actual);
+        Assert.Equal(position.Length, bytesWritten);
+        Assert.Equal(position, destination[..bytesWritten]);
+    }
+
+    [Fact]
+    public void TryUnprotect_DestinationTooSmall_ReturnsFalse()
+    {
+        var protector = CreateProtector();
+        var cursor = protector.Protect(Collection, CreatePosition());
+        var destination = new byte[15];
+
+        var result = protector.TryUnprotect(Collection, cursor, destination, out var bytesWritten);
+
+        Assert.False(result);
+        Assert.Equal(0, bytesWritten);
     }
 
     [Fact]
@@ -38,11 +53,17 @@ public sealed class DefaultPageCursorProtectorTests
         var cursor = protector.Protect(Collection, CreatePosition());
         var replacement = cursor[20] == 'A' ? 'B' : 'A';
         var tampered = string.Concat(cursor.AsSpan(0, 20), [replacement], cursor.AsSpan(21));
+        var destination = new byte[32];
 
-        var result = protector.TryUnprotect(Collection, tampered, out var actual);
+        var result = protector.TryUnprotect(
+            Collection,
+            tampered,
+            destination,
+            out var bytesWritten
+        );
 
         Assert.False(result);
-        Assert.Null(actual);
+        Assert.Equal(0, bytesWritten);
     }
 
     [Fact]
@@ -50,11 +71,17 @@ public sealed class DefaultPageCursorProtectorTests
     {
         var protector = CreateProtector();
         var cursor = protector.Protect(Collection, CreatePosition());
+        var destination = new byte[32];
 
-        var result = protector.TryUnprotect("ConsentEntity", cursor, out var actual);
+        var result = protector.TryUnprotect(
+            "ConsentEntity",
+            cursor,
+            destination,
+            out var bytesWritten
+        );
 
         Assert.False(result);
-        Assert.Null(actual);
+        Assert.Equal(0, bytesWritten);
     }
 
     [Fact]
@@ -63,22 +90,29 @@ public sealed class DefaultPageCursorProtectorTests
         var protector = CreateProtector();
         var otherProtector = CreateProtector();
         var cursor = protector.Protect(Collection, CreatePosition());
+        var destination = new byte[32];
 
-        var result = otherProtector.TryUnprotect(Collection, cursor, out var actual);
+        var result = otherProtector.TryUnprotect(
+            Collection,
+            cursor,
+            destination,
+            out var bytesWritten
+        );
 
         Assert.False(result);
-        Assert.Null(actual);
+        Assert.Equal(0, bytesWritten);
     }
 
     [Fact]
     public void TryUnprotect_MalformedCursor_ReturnsFalse()
     {
         var protector = CreateProtector();
+        var destination = new byte[32];
 
-        var result = protector.TryUnprotect(Collection, "!!", out var actual);
+        var result = protector.TryUnprotect(Collection, "!!", destination, out var bytesWritten);
 
         Assert.False(result);
-        Assert.Null(actual);
+        Assert.Equal(0, bytesWritten);
     }
 
     [Fact]
