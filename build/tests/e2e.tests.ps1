@@ -197,6 +197,19 @@ try {
         throw "Test 'a named suite that serves no bundles builds no frontend' expected no pnpm call, got:$([Environment]::NewLine)$($run.Output)"
     }
 
+    $fixture = New-Fixture 'narrowed' $true $true
+    Write-FixtureFile (Join-Path $fixture 'tests/F.EndToEnd.Tests/X.cs') "class X { }`n"
+    $run = Invoke-EndToEnd $fixture @('-Affected', '-Base', 'HEAD', '-Suite', 'A.EndToEnd.Tests') $docker
+    Assert-Run 'a named suite that the changes do not reach is skipped' $run $true @(
+        'No end-to-end suite is affected; skipping.',
+        'End-to-end: PASSED'
+    )
+
+    $run = Invoke-EndToEnd $fixture @('-Affected', '-Base', 'HEAD', '-Suite', 'F.EndToEnd.Tests') $docker
+    Assert-Run 'a named suite that the changes reach requires Docker' $run $false @(
+        $dockerMissing
+    )
+
     Write-Host "$testCount e2e checks passed."
 }
 finally {
