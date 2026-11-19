@@ -1,5 +1,11 @@
 export { CSP_NONCE_SELECTOR, readCspNonce } from './cspNonce.js';
-export { createAppTheme } from './theme/createAppTheme.js';
+export {
+  createAppTheme,
+  type AppThemeOptions,
+  type ColorMode,
+  type InstrumentColors,
+  type InstrumentMeasures,
+} from './theme/createAppTheme.js';
 export { AppThemeProvider, type AppThemeProviderProps } from './theme/AppThemeProvider.js';
 export { ScopeBadge, type ScopeBadgeProps, type ScopeKind } from './components/ScopeBadge.js';
 export { DataStateBoundary, type DataStateBoundaryProps } from './components/DataStateBoundary.js';
