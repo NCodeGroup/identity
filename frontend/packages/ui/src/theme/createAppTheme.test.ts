@@ -7,6 +7,14 @@ import { createAppTheme } from './createAppTheme.js';
 
 const MODES = ['light', 'dark'] as const;
 
+const TEAL = { primaryColor: '#0F766E', secondaryColor: '#7C2D12', mode: 'light' } as const;
+
+/** The `root` style of a component's `styleOverrides`, or the overrides themselves when they have no `root`. */
+function overrides(component: { styleOverrides?: unknown } | undefined): unknown {
+  const styleOverrides = component?.styleOverrides as Record<string, unknown> | undefined;
+  return 'root' in (styleOverrides ?? {}) ? styleOverrides?.root : styleOverrides;
+}
+
 describe('createAppTheme', () => {
   it.each(MODES)("takes Instrument's %s palette for NCode's own brand", (mode) => {
     const theme = createAppTheme({ mode });
@@ -131,5 +139,79 @@ describe('createAppTheme', () => {
 
     expect(theme.breakpoints.values).toEqual({ xs: 0, sm: 641, md: 1089, lg: 1281, xl: 1536 });
     expect(theme.breakpoints.down('sm')).toBe('@media (max-width:640.95px)');
+  });
+
+  it("times and eases motion with Instrument's durations and easings", () => {
+    const { duration, easing } = createAppTheme().transitions;
+
+    expect(duration).toMatchObject({
+      shortest: 70,
+      shorter: 120,
+      short: 120,
+      standard: 200,
+      complex: 280,
+      enteringScreen: 280,
+      leavingScreen: 200,
+    });
+    expect(easing.easeOut).toBe(instrument.transitions.easing.out);
+    expect(easing.easeInOut).toBe(instrument.transitions.easing['in-out']);
+  });
+
+  it('makes every transition instant when the reader asks for reduced motion', () => {
+    const { transitions } = createAppTheme({}, { reducedMotion: true });
+
+    expect(transitions.create(['opacity'])).toBe('none');
+    for (const value of Object.values(transitions.duration)) {
+      expect(value).toBe(0);
+    }
+  });
+
+  it('draws the focus ring in the focus color, focus wide and offset', () => {
+    const { components } = createAppTheme(TEAL);
+    const ring = { outline: '2px solid #006D65', outlineOffset: '2px' };
+
+    expect(overrides(components?.MuiButtonBase)).toMatchObject({ '&.Mui-focusVisible': ring });
+    expect(overrides(components?.MuiCssBaseline)).toMatchObject({
+      ':focus-visible:not(.MuiInputBase-input)': ring,
+    });
+    expect(overrides(components?.MuiOutlinedInput)).toMatchObject({
+      '&.Mui-focused:not(.Mui-error) .MuiOutlinedInput-notchedOutline': {
+        borderColor: '#006D65',
+        borderWidth: 2,
+      },
+    });
+  });
+
+  it('sets the brand as text in primary-text', () => {
+    const { components } = createAppTheme(TEAL);
+
+    expect(overrides(components?.MuiLink)).toMatchObject({
+      variants: [{ props: { color: 'primary' }, style: { color: '#006D65' } }],
+    });
+    expect(overrides(components?.MuiButton)).toMatchObject({
+      variants: [
+        { props: { variant: 'text', color: 'primary' }, style: { color: '#006D65' } },
+        {
+          props: { variant: 'outlined', color: 'primary' },
+          style: { color: '#006D65', borderColor: '#07534D' },
+        },
+      ],
+    });
+  });
+
+  it('presses keys without a ripple', () => {
+    expect(createAppTheme().components?.MuiButtonBase?.defaultProps).toEqual({
+      disableRipple: true,
+    });
+  });
+
+  it('maps the code, label, field, value and readout variants to their elements', () => {
+    expect(createAppTheme().components?.MuiTypography?.defaultProps?.variantMapping).toEqual({
+      code: 'code',
+      label: 'span',
+      field: 'span',
+      value: 'span',
+      readout: 'span',
+    });
   });
 });

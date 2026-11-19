@@ -6,6 +6,7 @@ import {
   type Theme,
   type ThemeOptions,
 } from '@mui/material/styles';
+import { outlinedInputClasses } from '@mui/material/OutlinedInput';
 import { deriveBrand, type DerivedColors } from '@ncodegroup/identity-brand/derive';
 import instrument from '@ncodegroup/identity-brand/instrument.json';
 import type { BrandingConfig } from '@ncodegroup/identity-config';
@@ -34,6 +35,8 @@ export type InstrumentMeasures = {
 export type AppThemeOptions = {
   /** The reader's system color mode, used when the branding names none. */
   readonly systemMode?: ColorMode;
+  /** Whether the reader asks for reduced motion; every transition is then instant. */
+  readonly reducedMotion?: boolean;
 };
 
 // Material UI's theme types grow by declaration merging, which only an interface takes.
@@ -170,6 +173,88 @@ function paletteOf(
   };
 }
 
+function transitionsOf(reducedMotion: boolean): ThemeOptions['transitions'] {
+  const { duration, easing } = instrument.transitions;
+  const still = reducedMotion ? 0 : undefined;
+  return {
+    duration: {
+      shortest: still ?? duration.press,
+      shorter: still ?? duration.quick,
+      short: still ?? duration.quick,
+      standard: still ?? duration.move,
+      complex: still ?? duration.enter,
+      enteringScreen: still ?? duration.enter,
+      leavingScreen: still ?? duration.move,
+    },
+    easing: { easeOut: easing.out, easeInOut: easing['in-out'] },
+    ...(reducedMotion ? { create: () => 'none' } : {}),
+  };
+}
+
+function componentsOf(colors: InstrumentColors): ThemeOptions['components'] {
+  const ring = {
+    outline: `${String(instrument.focus.width)}px solid ${colors.focus}`,
+    outlineOffset: `${String(instrument.focus.offset)}px`,
+  };
+  return {
+    MuiCssBaseline: {
+      styleOverrides: {
+        // A text field shows its focus by its outline, so its input takes no ring of its own.
+        ':focus-visible:not(.MuiInputBase-input)': ring,
+      },
+    },
+    MuiButtonBase: {
+      defaultProps: { disableRipple: true },
+      styleOverrides: { root: { '&.Mui-focusVisible': ring } },
+    },
+    MuiOutlinedInput: {
+      styleOverrides: {
+        root: {
+          [`&.Mui-focused:not(.Mui-error) .${outlinedInputClasses.notchedOutline}`]: {
+            borderColor: colors.focus,
+            borderWidth: instrument.focus.width,
+          },
+        },
+      },
+    },
+    // The brand as text is primary-text, which holds 4.5 to 1 on the page; primary is a key's face.
+    MuiLink: {
+      styleOverrides: {
+        root: {
+          variants: [{ props: { color: 'primary' }, style: { color: colors['primary-text'] } }],
+        },
+      },
+    },
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          variants: [
+            {
+              props: { variant: 'text', color: 'primary' },
+              style: { color: colors['primary-text'] },
+            },
+            {
+              props: { variant: 'outlined', color: 'primary' },
+              style: { color: colors['primary-text'], borderColor: colors['primary-edge'] },
+            },
+          ],
+        },
+      },
+    },
+    MuiTypography: {
+      defaultProps: {
+        variantMapping: {
+          code: 'code',
+          label: 'span',
+          field: 'span',
+          value: 'span',
+          readout: 'span',
+        },
+      },
+    },
+  };
+}
+
 /**
  * Builds the application theme from NCode Brand's Instrument and the optional runtime {@link BrandingConfig}. A
  * tenant's colors pass through `deriveBrand`, which holds every pairing they touch at its contrast floor and reads a
@@ -187,6 +272,8 @@ export function createAppTheme(branding?: BrandingConfig, options: AppThemeOptio
     spacing: instrument.spacing,
     shadows: instrument.shadows[mode] as Shadows,
     breakpoints: BREAKPOINTS,
+    transitions: transitionsOf(options.reducedMotion === true),
+    components: componentsOf(colors),
     instrument: MEASURES,
   });
 }
