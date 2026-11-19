@@ -20,10 +20,15 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
 /// scope, so the tenant-scoping filter confines the queries to that tenant's join rows.
 /// </remarks>
 // See ADR-1407.
-internal class SecretEnvelopeStore(IStoreProvider storeProvider, OpenIdDbContext openIdDbContext)
-    : ISecretEnvelopeStore
+internal class SecretEnvelopeStore(
+    IStoreProvider storeProvider,
+    IPageCursorProtector cursorProtector,
+    OpenIdDbContext openIdDbContext
+) : ISecretEnvelopeStore
 {
     private IStoreProvider StoreProvider { get; } = storeProvider;
+
+    private IPageCursorProtector CursorProtector { get; } = cursorProtector;
 
     private OpenIdDbContext DbContext { get; } = openIdDbContext;
 
@@ -58,7 +63,7 @@ internal class SecretEnvelopeStore(IStoreProvider storeProvider, OpenIdDbContext
             && prefixes.Contains(entity.EncodedValue.Substring(0, length))
         );
 
-        var afterId = KeysetCursor.Decode(page.Cursor);
+        var afterId = CursorProtector.UnprotectKey(nameof(SecretEntity), page.Cursor);
         if (afterId is { } id)
             query = query.Where(entity => entity.Id > id);
 
@@ -90,7 +95,9 @@ internal class SecretEnvelopeStore(IStoreProvider storeProvider, OpenIdDbContext
                     ConcurrencyToken = entity.ConcurrencyToken,
                 })
                 .ToList(),
-            NextCursor = hasMore ? KeysetCursor.Encode(entities[count - 1].Id) : null,
+            NextCursor = hasMore
+                ? CursorProtector.ProtectKey(nameof(SecretEntity), entities[count - 1].Id)
+                : null,
         };
     }
 

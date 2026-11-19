@@ -98,12 +98,11 @@ internal abstract class CoreBaseStore<TItem, TEntity> : BaseStore<TItem, TEntity
     /// Maps a <see cref="PersistedSecret"/> DTO to its corresponding <see cref="SecretEntity"/>.
     /// </summary>
     /// <param name="secret">The <see cref="PersistedSecret"/> DTO to map.</param>
-    /// <param name="id">The optional identifier for the entity. If <c>null</c> or zero, a new identifier will be generated.</param>
     /// <returns>The newly mapped <see cref="SecretEntity"/> entity.</returns>
-    protected SecretEntity MapToSecretEntity(PersistedSecret secret, long? id = null) =>
+    protected SecretEntity MapToSecretEntity(PersistedSecret secret) =>
         new()
         {
-            Id = NextId(id),
+            Id = NextId(),
             SecretId = secret.SecretId,
             NormalizedSecretId = Normalize(secret.SecretId),
             KeyId = secret.KeyId,
