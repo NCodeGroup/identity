@@ -38,9 +38,9 @@ page
 wizard, is a bundle the OP host serves at `/setup`, as it serves `auth`
 ([ADR-1512](1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md)).
 
-The kit's `brand/README.md` describes a site that serves the favicon files at its root, but neither host serves a file at
-the root of a bundle. Each serves only the bundle's `assets/` directory, with an immutable cache. Every page the server
-writes carries a content security policy with `img-src 'self'` and no `manifest-src`
+The kit's `brand/README.md` describes a site that serves the favicon files at its root, but neither host serves a file
+at the root of a bundle. Each serves only the bundle's `assets/` directory, with an immutable cache. Every page the
+server writes carries a content security policy with `img-src 'self'` and no `manifest-src`
 ([ADR-1256](1256-every-page-the-server-writes-has-a-strict-content-security-policy-and-is-framed-only-by-design.md)).
 The image builds' context holds only `src/`, `hosts/`, `analyzers/`, `frontend/` and the root build files
 ([ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)), so
@@ -166,8 +166,8 @@ against the SHA-256 its lock pins. Each web app carries copies of the kit's brow
 
 - A change to the mark, a color or a line of text is made in NCodeGroup/brand. It reaches this repository when
   `--update` takes the release that carries it, and the pull request shows every file that changed; one that changes
-  `brand/favicon/` also copies the changed files into each app. The weekly brand watch keeps an issue open while a newer
-  release is three days old
+  `brand/favicon/` also copies the changed files into each app. The weekly brand watch keeps an issue open while a
+  release at least three days old is newer than the locks pin
   ([ADR-1516](1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md)).
 - The host chart and any README outside the repository read the files by their address on `main`, so a file under
   `brand/` that such an address names keeps its path.
@@ -189,8 +189,8 @@ against the SHA-256 its lock pins. Each web app carries copies of the kit's brow
 - [`brand/brand.lock.json`](../../brand/brand.lock.json), [`brand/vendor-brand.mjs`](../../brand/vendor-brand.mjs) and
   [`build/brand-kit.ps1`](../../build/brand-kit.ps1) — the lock, the script that vendors and checks the kit, and the
   gate's check.
-- [`build/brand-watch.ps1`](../../build/brand-watch.ps1) — the weekly watch that keeps an issue open while a newer
-  release is three days old.
+- [`build/brand-watch.ps1`](../../build/brand-watch.ps1) — the weekly watch that keeps an issue open while a release
+  at least three days old is newer than the locks pin.
 - [NCodeGroup/brand ADR-1007](https://github.com/NCodeGroup/brand/blob/v0.11.0/docs/decisions/1007-every-ncode-marks-kit-is-drawn-here-by-one-kit-writer.md),
   [NCodeGroup/brand ADR-1001](https://github.com/NCodeGroup/brand/blob/v0.11.0/docs/decisions/1001-consumers-vendor-files-from-a-tagged-release-and-check-their-hashes.md)
   and

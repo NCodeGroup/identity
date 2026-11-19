@@ -95,7 +95,7 @@ if ($newest -le $pinned) {
     if ($DryRun) { "Would close #$($issue.number)."; return }
     Invoke-Gh issue close $issue.number --comment ("The brand locks pin NCode Brand $pinned, and no release at " +
         'least three days old is newer, so this issue is done. The brand-watch workflow opens a new one when a newer ' +
-        'release is three days old.') | Out-Null
+        'release is at least three days old.') | Out-Null
     "Closed #$($issue.number): the $said."
     return
 }
@@ -117,7 +117,7 @@ $body = @(
     'folder, and run ./build/dod.ps1 -Fast and the frontend gate.'
     ''
     'The brand-watch workflow keeps this issue current every week: it retitles it and rewrites this text when a ' +
-    'newer release is three days old, and closes it once the locks pin the newest release.'
+    'newer release is at least three days old, and closes it once the locks pin the newest release.'
 ) -join "`n"
 $body = $body.TrimEnd() + "`n"
 
