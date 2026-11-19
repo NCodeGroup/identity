@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import react from '@vitejs/plugin-react';
@@ -118,6 +119,65 @@ export function failOnOversizedChunks(): Plugin {
           `Chunks larger than ${String(limitKb)} kB after minification: ${list}. Split them — lazy-load the ` +
             'route-level containers or add a vendor chunk — rather than raising the limit (ADR-1151).',
         );
+      }
+    },
+  };
+}
+
+/** The package that vendors NCode Brand's typefaces and their licenses, which every app depends on. */
+export const BRAND_PACKAGE = '@ncodegroup/identity-brand';
+
+/**
+ * The SIL Open Font License texts of NCode Brand's two typefaces, as the brand package's `fonts/` directory names them.
+ */
+export const FONT_LICENSE_FILES = ['OFL-Instrument-Sans.txt', 'OFL-Martian-Mono.txt'] as const;
+
+/**
+ * Emits each typeface's license into `assets/` under a content-hashed name, beside the font files the build emits,
+ * because the SIL Open Font License asks every copy of a font to carry its license (ADR-1516). The texts are resolved
+ * from the app's own dependency on the brand package at build time, so the preset imports no workspace package
+ * (ADR-1151).
+ */
+export function emitFontLicenses(): Plugin {
+  let root = process.cwd();
+  return {
+    name: 'ncode:emit-font-licenses',
+    apply: 'build',
+    configResolved(config) {
+      root = config.root;
+    },
+    generateBundle() {
+      // Resolution alone cannot enforce the dependency: pnpm puts its hoisted store on NODE_PATH, which Node searches
+      // after any root, so a root without the dependency still resolves the package.
+      let dependencies: Record<string, string> | undefined;
+      let cause: unknown;
+      try {
+        const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as {
+          dependencies?: Record<string, string>;
+        };
+        dependencies = manifest.dependencies;
+      } catch (error) {
+        cause = error;
+      }
+      if (!dependencies || !Object.hasOwn(dependencies, BRAND_PACKAGE)) {
+        return this.error(
+          `The app at '${root}' must list ${BRAND_PACKAGE} in its package.json dependencies: every app takes it for ` +
+            "NCode Brand's typefaces and ships their licenses beside them (ADR-1516)." +
+            (cause === undefined ? '' : ` ${String(cause)}`),
+        );
+      }
+      const resolveFromApp = createRequire(join(root, 'package.json'));
+      for (const name of FONT_LICENSE_FILES) {
+        let path: string;
+        try {
+          path = resolveFromApp.resolve(`${BRAND_PACKAGE}/fonts/${name}`);
+        } catch (error) {
+          return this.error(
+            `The app at '${root}' could not resolve ${BRAND_PACKAGE}/fonts/${name}, so the build cannot ship the ` +
+              `typeface's license beside its font (ADR-1516): ${String(error)}`,
+          );
+        }
+        this.emitFile({ type: 'asset', name, source: readFileSync(path) });
       }
     },
   };
@@ -295,7 +355,7 @@ export function defineStandaloneSurfaceConfig({
   assertPort(port);
   return {
     base: '/',
-    plugins: [react(), failOnOversizedChunks(), serveOverHttps(env)],
+    plugins: [react(), failOnOversizedChunks(), emitFontLicenses(), serveOverHttps(env)],
     server: {
       port,
       strictPort: true,
@@ -314,7 +374,7 @@ export function defineStandaloneSurfaceConfig({
 }
 
 /**
- * The value Vite writes into the `nonce` attribute of every script, modulepreload link and the
+ * The value Vite writes into the `nonce` attribute of every script, modulepreload link and stylesheet link and the
  * `<meta property="csp-nonce">` of a backend-served or BFF-served bundle. The host writes each response's nonce in its
  * place, so `InteractiveBundleShell.NoncePlaceholder` in the OpenID Provider host and
  * `ManagementConsoleDefaults.NoncePlaceholder` in the console host must stay equal (ADR-1256).
@@ -322,12 +382,12 @@ export function defineStandaloneSurfaceConfig({
 export const CSP_NONCE_PLACEHOLDER = '__NCODE_CSP_NONCE__';
 
 /**
- * The configuration of a backend-served surface: a bundle the OpenID Provider host serves from its `dist` folder. It has
- * no dev server; its `dev` script rebuilds `dist` on change instead. The bundle is built with a relative base, so it
- * does not assume where it is mounted: the host serves it beneath each tenant's route and sets the document's
+ * The configuration of a backend-served surface: a bundle the OpenID Provider host serves from its `dist` folder. It
+ * has no dev server; its `dev` script rebuilds `dist` on change instead. The bundle is built with a relative base, so
+ * it does not assume where it is mounted: the host serves it beneath each tenant's route and sets the document's
  * `<base href>` to that location, which the bundle's asset URLs resolve against (ADR-1193). The bundle runs under the
- * page's Content-Security-Policy nonce, so the build marks its scripts with the placeholder the host replaces
- * (ADR-1256).
+ * page's Content-Security-Policy nonce, so the build marks its scripts and its stylesheet with the placeholder the host
+ * replaces (ADR-1256).
  */
 export function defineBackendServedSurfaceConfig({
   coverage,
@@ -335,7 +395,7 @@ export function defineBackendServedSurfaceConfig({
   return {
     base: './',
     html: { cspNonce: CSP_NONCE_PLACEHOLDER },
-    plugins: [react(), failOnOversizedChunks()],
+    plugins: [react(), failOnOversizedChunks(), emitFontLicenses()],
     build: buildOptions(),
     test: testGates({ environment: 'jsdom', coverage }),
   };
@@ -344,7 +404,8 @@ export function defineBackendServedSurfaceConfig({
 /**
  * The configuration of a BFF-served surface: a bundle its own BFF host serves from its `dist` folder at the root of its
  * origin. It has no dev server; its `dev` script rebuilds `dist` on change. The bundle runs under the page's
- * Content-Security-Policy nonce, so the build marks its scripts with the placeholder the host replaces (ADR-1256).
+ * Content-Security-Policy nonce, so the build marks its scripts and its stylesheet with the placeholder the host
+ * replaces (ADR-1256).
  */
 export function defineBffServedSurfaceConfig({
   coverage,
@@ -352,7 +413,7 @@ export function defineBffServedSurfaceConfig({
   return {
     base: '/',
     html: { cspNonce: CSP_NONCE_PLACEHOLDER },
-    plugins: [react(), failOnOversizedChunks()],
+    plugins: [react(), failOnOversizedChunks(), emitFontLicenses()],
     build: buildOptions(),
     test: testGates({ environment: 'jsdom', coverage }),
   };
