@@ -217,8 +217,11 @@ ESLint skip the folder, and `pnpm run check:brand`, the frontend job and `./buil
 file that differs from its SHA-256. To take another release, run
 `node brand/vendor-brand.mjs --update <version> --lock frontend/packages/brand/brand.lock.json` from the repository
 root, and the same for `brand/brand.lock.json`, so both name one release, then review the diff; the weekly brand watch
-opens a `brand-update` issue when one is due. `createAppTheme` reads only `instrument.json` and `deriveBrand`;
-`brandRelease.test.ts` proves the copy derives every vector of the release. Set code in `typography.code`
+opens a `brand-update` issue when one is due. `createAppTheme` reads only `instrument.json`, `brace.json` and `deriveBrand`;
+`brandRelease.test.ts` proves the copy derives every vector of the release. `createAppTheme` also draws Instrument's
+parts (keys on a lip, wells, plates, dialogs that are sheets on a phone, tooltips as screens, engraved table heads and
+alerts with a signal bar), and a page a tenant shows its user wraps its card in `TenantCard`, which draws the tenant's
+braces. Set code in `typography.code`
 (`variant="code"`, or `typography: 'code'` in `sx`) and a color by its Instrument role under `palette.instrument`, never
 a font family or a color literal. Storybook's toolbar switches the mode and a tenant's colors
 ([ADR-1516](../docs/decisions/1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md)).

@@ -32,9 +32,10 @@ from the NCodeGroup/brand release the logo kit pins, vendored into `frontend/pac
 ### The vendored release
 
 1. **The package.** `@ncodegroup/identity-brand` is private. Its files sit at their release paths under `vendor/`
-   (`mui/instrument.json`, `tokens/derive.mjs`, `tokens/derive.d.mts` and `tokens/derive.vectors.json`), and its
-   `brand.lock.json` sits at its root. It holds no code, scripts or tests, and its `exports` map names the files the
-   frontend reads. Prettier and ESLint skip `vendor/` and the lock, because a reformatted byte fails its SHA-256.
+   (`mui/instrument.json`, `tokens/derive.mjs`, `tokens/derive.d.mts`, `tokens/derive.vectors.json` and
+   `brace/brace.json`), and its `brand.lock.json` sits at its root. It holds no code, scripts or tests, and its
+   `exports` map names the files the frontend reads. Prettier and ESLint skip `vendor/` and the lock, because a
+   reformatted byte fails its SHA-256.
 2. **One release.** `build/brand-kit.ps1`, which the `brand kit` stage of `./build/dod.ps1` runs, checks both locks
    with `brand/vendor-brand.mjs --check` and fails when they name different releases. `pnpm run check:brand` runs in
    the frontend job after the format check, because a push that changes only `frontend/` runs only the frontend
@@ -62,17 +63,24 @@ from the NCodeGroup/brand release the logo kit pins, vendored into `frontend/pac
 10. **Motion.** The durations are `shortest` 70, `shorter` and `short` 120, `standard` 200, `complex` and
     `enteringScreen` 280, and `leavingScreen` 200. The easings are `easeOut` and `easeInOut`.
 11. **Breakpoints.** `xs` is 0, `sm` 641, `md` 1089, `lg` 1281 and `xl` 1536, so `down('sm')` ends at 640 px.
-12. **The overrides.** The theme overrides only the focus ring (2 px of `focus`, 2 px off), the ripple (none), and the
-    brand as text in `primary-text` (links, and text and outlined primary buttons, with `primary-edge` as the outlined
-    border).
+12. **The parts.** The theme draws Instrument's parts with Material UI's components: a key stands on a lip of its edge
+    color and travels down 2 px when pressed (a contained key, a plain outlined key on the control face, a ghost key as
+    the text variant), with no ripple; a well is cut in with a shade under its top edge; a card is a plate with the
+    module's radius, and a sheet takes no elevation overlay; a dialog dims the page with the scrim and is a sheet on a
+    phone; a tooltip is a small screen; a table's head is engraved on a sunken ground; an alert has a signal bar in its
+    role's mark, and a caution's is hazard tape. The focus ring is 2 px of `focus`, 2 px off the part, and the brand as
+    text is `primary-text` (links, and text and outlined primary keys, with `primary-edge` as the outlined border).
 13. **Storybook.** The toolbar has the globals `mode` and `tenant`.
 
-### The watch and the fonts
+### The brace, the watch and the fonts
 
-14. **The watch.** `build/brand-watch.ps1` and the weekly `brand-watch` workflow keep one `brand-update` issue open
+14. **The brace.** `Brace` draws NCode Brand's stretching brace inline from `brace/brace.json`, so it needs no image
+    source, and `TenantCard` sets the sign-in, consent and authorization error cards as raised plates between two
+    braces in the tenant's `scope-tenant` ink, `brace-lg` and `brace-md` on a phone.
+15. **The watch.** `build/brand-watch.ps1` and the weekly `brand-watch` workflow keep one `brand-update` issue open
     while a release that is at least three days old is newer than the one the locks pin, and close it once the locks
     pin that release.
-15. **The fonts.** The font lists name Instrument Sans and Martian Mono first, and no page loads them, so browsers draw
+16. **The fonts.** The font lists name Instrument Sans and Martian Mono first, and no page loads them, so browsers draw
     the system UI and monospace fonts the lists name next
     ([#862](https://github.com/NCodeGroup/identity/issues/862)).
 
@@ -85,6 +93,8 @@ from the NCodeGroup/brand release the logo kit pins, vendored into `frontend/pac
 - **A light theme for a branding without a mode.** Rejected: Instrument follows the reader's system setting.
 - **Reading the repository's `brand/` from the frontend.** Rejected: the image builds' context holds only `frontend/`.
 - **A release of its own for the theme.** Rejected: two versions of one brand drift apart.
+- **The braces as CSS masks of the release's SVG files.** Rejected: a bundler inlines a small file as a `data:`
+  address, which the pages' `img-src` refuses, and an inline SVG needs no image at all.
 - **The chosen design.** One release feeds both the logo kit and the theme, the files are vendored byte for byte and
   checked by SHA-256, and one derivation builds every surface's palette, so a tenant's colors hold their contrast
   floors in both modes.
@@ -105,6 +115,8 @@ from the NCodeGroup/brand release the logo kit pins, vendored into `frontend/pac
   theme files.
 - [`frontend/packages/ui/src/theme/createAppTheme.ts`](../../frontend/packages/ui/src/theme/createAppTheme.ts) — the
   theme.
+- [`frontend/packages/ui/src/components/TenantCard.tsx`](../../frontend/packages/ui/src/components/TenantCard.tsx) — the
+  tenant's card between two braces.
 - [`build/brand-kit.ps1`](../../build/brand-kit.ps1) and [`build/brand-watch.ps1`](../../build/brand-watch.ps1) — the
   check of both locks and the weekly watch.
 - NCode Brand's
