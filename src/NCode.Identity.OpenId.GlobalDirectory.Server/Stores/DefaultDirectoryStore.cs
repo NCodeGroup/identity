@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 using NCode.Buffers;
 using NCode.Identity.Json;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Entities;
+using NCode.Identity.Persistence;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
 
@@ -28,6 +29,7 @@ internal sealed class DefaultDirectoryStore(
     IDbContextFactory<DirectoryDbContext> dbContextFactory,
     IOptions<DirectoryServerOptions> options,
     IPersistedPayloadSerializer payloadSerializer,
+    ISurrogateKeyGenerator keyGenerator,
     TimeProvider timeProvider
 )
     : ITenantDirectory,
@@ -56,6 +58,11 @@ internal sealed class DefaultDirectoryStore(
     /// document.
     /// </summary>
     private IPersistedPayloadSerializer PayloadSerializer { get; } = payloadSerializer;
+
+    /// <summary>
+    /// Gets the generator that mints the surrogate key of every record the store adds.
+    /// </summary>
+    private ISurrogateKeyGenerator KeyGenerator { get; } = keyGenerator;
 
     private TimeProvider TimeProvider { get; } = timeProvider;
 
@@ -208,6 +215,7 @@ internal sealed class DefaultDirectoryStore(
                 dbContext.Tenants.Add(
                     new TenantRecord
                     {
+                        Id = KeyGenerator.CreateKey(),
                         TenantId = tenantId,
                         NormalizedTenantId = normalizedTenantId,
                         Issuer = reservation.Issuer,
@@ -564,6 +572,7 @@ internal sealed class DefaultDirectoryStore(
                     dbContext.TenantMoveOffers.Add(
                         new TenantMoveOfferRecord
                         {
+                            Id = KeyGenerator.CreateKey(),
                             NormalizedTenantId = normalizedTenantId,
                             FromCell = fromCell,
                             ToCell = toCell,
@@ -649,6 +658,7 @@ internal sealed class DefaultDirectoryStore(
                     dbContext.Tenants.Add(
                         new TenantRecord
                         {
+                            Id = KeyGenerator.CreateKey(),
                             TenantId = tenantId,
                             NormalizedTenantId = normalizedTenantId,
                             State = TenantRecord.StateRetired,
@@ -973,7 +983,7 @@ internal sealed class DefaultDirectoryStore(
     /// <param name="tenantId">The identifier of the tenant that gave up the issuer.</param>
     /// <param name="issuer">The issuer that the tenant gave up.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    private static async ValueTask AddRetiredIssuerAsync(
+    private async ValueTask AddRetiredIssuerAsync(
         DirectoryDbContext dbContext,
         string tenantId,
         string issuer,
@@ -994,6 +1004,7 @@ internal sealed class DefaultDirectoryStore(
         dbContext.RetiredIssuers.Add(
             new RetiredIssuerRecord
             {
+                Id = KeyGenerator.CreateKey(),
                 Issuer = issuer,
                 NormalizedIssuer = normalizedIssuer,
                 TenantId = tenantId,
@@ -1380,6 +1391,7 @@ internal sealed class DefaultDirectoryStore(
                 dbContext.Teams.Add(
                     new TeamRecord
                     {
+                        Id = KeyGenerator.CreateKey(),
                         TeamId = teamId,
                         NormalizedTeamId = normalizedTeamId,
                         NormalizedPath = await GetTeamPathAsync(
@@ -1502,6 +1514,7 @@ internal sealed class DefaultDirectoryStore(
                 {
                     team = new TeamRecord
                     {
+                        Id = KeyGenerator.CreateKey(),
                         TeamId = document.TeamId,
                         NormalizedTeamId = normalizedTeamId,
                         NormalizedPath = teamPath,
@@ -1611,6 +1624,7 @@ internal sealed class DefaultDirectoryStore(
                 {
                     team = new TeamRecord
                     {
+                        Id = KeyGenerator.CreateKey(),
                         TeamId = teamId,
                         NormalizedTeamId = normalizedTeamId,
                         NormalizedPath = await GetTeamPathAsync(

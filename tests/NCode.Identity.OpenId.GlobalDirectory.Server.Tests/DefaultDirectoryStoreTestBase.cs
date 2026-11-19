@@ -10,6 +10,7 @@ using Microsoft.Extensions.Time.Testing;
 using NCode.Identity.Json;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Entities;
 using NCode.Identity.OpenId.GlobalDirectory.Server.Stores;
+using NCode.Identity.Persistence;
 using Xunit;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
@@ -47,6 +48,7 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
             options.UseSqlite(Connection)
         );
         serviceCollection.AddPersistedPayloadSerializer();
+        serviceCollection.AddSurrogateKeyGenerator();
         Provider = serviceCollection.BuildServiceProvider();
         DbContextFactory = Provider.GetRequiredService<IDbContextFactory<DirectoryDbContext>>();
 
@@ -61,6 +63,7 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
                 new DirectoryServerOptions { ControlPlaneCell = ControlPlaneCell }
             ),
             Provider.GetRequiredService<IPersistedPayloadSerializer>(),
+            Provider.GetRequiredService<ISurrogateKeyGenerator>(),
             TimeProvider
         );
     }
