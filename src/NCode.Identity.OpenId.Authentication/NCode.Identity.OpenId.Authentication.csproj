@@ -21,7 +21,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="IdGen" />
         <PackageReference Include="JetBrains.Annotations" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
