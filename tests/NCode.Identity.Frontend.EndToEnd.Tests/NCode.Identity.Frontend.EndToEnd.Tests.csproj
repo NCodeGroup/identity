@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <LangVersion>latest</LangVersion>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <RootNamespace>NCode.Identity.Frontend.EndToEnd.Tests</RootNamespace>
+        <!--
+            The frontend packages whose built bundles the suite's hosts serve: ./build/e2e.ps1 builds them before it
+            builds the suite, and build/affected-tests.ps1 selects the suite for every change under frontend/
+            (ADR-1430).
+        -->
+        <EndToEndFrontendPackages>@ncodegroup/identity-app-auth;@ncodegroup/identity-app-setup;@ncodegroup/identity-app-mgmt</EndToEndFrontendPackages>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="Microsoft.Playwright" />
+        <PackageReference Include="xunit" />
+        <PackageReference Include="xunit.runner.visualstudio">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\hosts\NCode.Identity.OpenId.Host\NCode.Identity.OpenId.Host.csproj" />
+        <ProjectReference Include="..\..\hosts\NCode.Identity.ManagementConsole.Host\NCode.Identity.ManagementConsole.Host.csproj" />
+        <ProjectReference Include="..\NCode.Identity.EndToEnd.TestSupport\NCode.Identity.EndToEnd.TestSupport.csproj" />
+    </ItemGroup>
+</Project>
