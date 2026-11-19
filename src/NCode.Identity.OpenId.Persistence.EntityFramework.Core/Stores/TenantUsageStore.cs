@@ -1,11 +1,11 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
@@ -20,13 +20,13 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
 /// </summary>
 internal sealed class TenantUsageStore(
     IStoreProvider storeProvider,
-    IIdGenerator<long> idGenerator,
+    ISurrogateKeyGenerator keyGenerator,
     OpenIdDbContext openIdDbContext
 ) : ITenantUsageStore
 {
     private IStoreProvider StoreProvider { get; } = storeProvider;
 
-    private IIdGenerator<long> IdGenerator { get; } = idGenerator;
+    private ISurrogateKeyGenerator KeyGenerator { get; } = keyGenerator;
 
     private OpenIdDbContext DbContext { get; } = openIdDbContext;
 
@@ -70,7 +70,7 @@ internal sealed class TenantUsageStore(
             await DbContext.TenantUsageCheckpoints.AddAsync(
                 new TenantUsageCheckpointEntity
                 {
-                    Id = IdGenerator.CreateId(),
+                    Id = KeyGenerator.CreateKey(),
                     ReplicaId = replicaId,
                     LastBatchNumber = batchNumber,
                     LastDay = lastDay,
@@ -130,7 +130,7 @@ internal sealed class TenantUsageStore(
 
                 entity = new TenantUsageEntity
                 {
-                    Id = IdGenerator.CreateId(),
+                    Id = KeyGenerator.CreateKey(),
                     TenantId = entry.TenantId,
                     TeamPath = entry.TeamPath,
                     Day = day,

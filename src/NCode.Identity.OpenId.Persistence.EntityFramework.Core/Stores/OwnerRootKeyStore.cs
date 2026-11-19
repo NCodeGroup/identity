@@ -1,9 +1,9 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.Persistence.DataContracts;
 using NCode.Identity.Secrets.Persistence.Protection;
@@ -22,13 +22,13 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
 // See ADR-1414.
 internal class OwnerRootKeyStore(
     IStoreProvider storeProvider,
-    IIdGenerator<long> idGenerator,
+    ISurrogateKeyGenerator keyGenerator,
     OpenIdDbContext openIdDbContext
 ) : IOwnerRootKeyStore
 {
     private IStoreProvider StoreProvider { get; } = storeProvider;
 
-    private IIdGenerator<long> IdGenerator { get; } = idGenerator;
+    private ISurrogateKeyGenerator KeyGenerator { get; } = keyGenerator;
 
     private OpenIdDbContext DbContext { get; } = openIdDbContext;
 
@@ -46,7 +46,7 @@ internal class OwnerRootKeyStore(
 
         var entity = new OwnerRootKeyEntity
         {
-            Id = IdGenerator.CreateId(),
+            Id = KeyGenerator.CreateKey(),
             OwnerType = item.OwnerType.ToLowerInvariant(),
             OwnerId = item.OwnerId,
             NormalizedOwnerId = item.OwnerId.ToLowerInvariant(),

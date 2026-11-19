@@ -3,11 +3,11 @@
 
 using System.Linq.Expressions;
 using System.Text.Json;
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
@@ -18,7 +18,8 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
 /// </summary>
 internal class ConsentStore(
     IStoreProvider storeProvider,
-    IIdGenerator<long> idGenerator,
+    ISurrogateKeyGenerator keyGenerator,
+    IPageCursorProtector cursorProtector,
     OpenIdDbContext openIdDbContext
 ) : CoreBaseStore<PersistedConsent, ConsentEntity>, IConsentStore
 {
@@ -26,7 +27,10 @@ internal class ConsentStore(
     protected override IStoreProvider StoreProvider { get; } = storeProvider;
 
     /// <inheritdoc />
-    protected override IIdGenerator<long> IdGenerator { get; } = idGenerator;
+    protected override ISurrogateKeyGenerator KeyGenerator { get; } = keyGenerator;
+
+    /// <inheritdoc />
+    protected override IPageCursorProtector CursorProtector { get; } = cursorProtector;
 
     /// <inheritdoc />
     protected override OpenIdDbContext DbContext { get; } = openIdDbContext;
@@ -67,7 +71,7 @@ internal class ConsentStore(
 
     /// <inheritdoc />
     protected override async ValueTask<IReadOnlyList<ConsentEntity>> GetEntityPageAsync(
-        long? afterId,
+        Guid? afterId,
         int take,
         CancellationToken cancellationToken
     )
@@ -86,7 +90,7 @@ internal class ConsentStore(
     }
 
     /// <inheritdoc />
-    protected override long GetSortKey(ConsentEntity entity) => entity.Id;
+    protected override Guid GetSortKey(ConsentEntity entity) => entity.Id;
 
     /// <inheritdoc />
     public async ValueTask<PersistedConsent?> GetOrDefaultAsync(

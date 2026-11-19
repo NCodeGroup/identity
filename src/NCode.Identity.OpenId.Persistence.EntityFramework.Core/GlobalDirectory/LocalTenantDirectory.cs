@@ -1,12 +1,12 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 using NCode.Identity.OpenId.Persistence.Tenants;
+using NCode.Identity.Persistence;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.GlobalDirectory;
 
@@ -21,7 +21,7 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.GlobalDirectory
 // See ADR-1411.
 internal sealed class LocalTenantDirectory(
     IDbContextFactory<OpenIdDbContext> dbContextFactory,
-    IIdGenerator<long> idGenerator,
+    ISurrogateKeyGenerator keyGenerator,
     IAmbientTenantAccessor ambientTenantAccessor,
     IOptions<CellOptions> cellOptions
 ) : ITenantDirectory
@@ -30,7 +30,7 @@ internal sealed class LocalTenantDirectory(
 
     private IDbContextFactory<OpenIdDbContext> DbContextFactory { get; } = dbContextFactory;
 
-    private IIdGenerator<long> IdGenerator { get; } = idGenerator;
+    private ISurrogateKeyGenerator KeyGenerator { get; } = keyGenerator;
 
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
 
@@ -181,7 +181,7 @@ internal sealed class LocalTenantDirectory(
             dbContext.RetiredTenants.Add(
                 new RetiredTenantEntity
                 {
-                    Id = IdGenerator.CreateId(),
+                    Id = KeyGenerator.CreateKey(),
                     TenantId = tenantId,
                     NormalizedTenantId = normalizedTenantId,
                 }
@@ -279,7 +279,7 @@ internal sealed class LocalTenantDirectory(
         dbContext.RetiredIssuers.Add(
             new RetiredIssuerEntity
             {
-                Id = IdGenerator.CreateId(),
+                Id = KeyGenerator.CreateKey(),
                 Issuer = issuer,
                 NormalizedIssuer = normalizedIssuer,
                 TenantId = tenantId,

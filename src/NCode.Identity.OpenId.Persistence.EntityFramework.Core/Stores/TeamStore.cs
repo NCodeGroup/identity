@@ -3,12 +3,12 @@
 
 using System.Linq.Expressions;
 using System.Text.Json;
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using NCode.Identity.Json;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.Persistence.Protection;
 
@@ -22,7 +22,8 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
 // See ADR-1426.
 internal class TeamStore(
     IStoreProvider storeProvider,
-    IIdGenerator<long> idGenerator,
+    ISurrogateKeyGenerator keyGenerator,
+    IPageCursorProtector cursorProtector,
     OpenIdDbContext openIdDbContext,
     IPersistedPayloadSerializer payloadSerializer
 ) : CoreBaseStoreWithResourceId<PersistedTeam, TeamEntity>, ITeamStore
@@ -31,7 +32,10 @@ internal class TeamStore(
     protected override IStoreProvider StoreProvider { get; } = storeProvider;
 
     /// <inheritdoc />
-    protected override IIdGenerator<long> IdGenerator { get; } = idGenerator;
+    protected override ISurrogateKeyGenerator KeyGenerator { get; } = keyGenerator;
+
+    /// <inheritdoc />
+    protected override IPageCursorProtector CursorProtector { get; } = cursorProtector;
 
     /// <inheritdoc />
     protected override OpenIdDbContext DbContext { get; } = openIdDbContext;
@@ -131,7 +135,7 @@ internal class TeamStore(
 
     /// <inheritdoc />
     protected override async ValueTask<IReadOnlyList<TeamEntity>> GetEntityPageAsync(
-        long? afterId,
+        Guid? afterId,
         int take,
         CancellationToken cancellationToken
     )
@@ -147,7 +151,7 @@ internal class TeamStore(
     }
 
     /// <inheritdoc />
-    protected override long GetSortKey(TeamEntity entity) => entity.Id;
+    protected override Guid GetSortKey(TeamEntity entity) => entity.Id;
 
     /// <inheritdoc />
     public async ValueTask<IReadOnlyDictionary<string, string>> GetConcurrencyTokensAsync(

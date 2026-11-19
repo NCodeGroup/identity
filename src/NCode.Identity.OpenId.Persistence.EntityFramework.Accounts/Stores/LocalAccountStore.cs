@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Linq.Expressions;
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using NCode.Identity.OpenId.Accounts.Credentials;
 using NCode.Identity.OpenId.Accounts.DataContracts;
@@ -10,6 +9,7 @@ using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Accounts.Entities;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Stores;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Accounts.Stores;
@@ -24,7 +24,8 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Accounts.Stores;
 /// </summary>
 internal sealed class LocalAccountStore(
     IStoreProvider storeProvider,
-    IIdGenerator<long> idGenerator,
+    ISurrogateKeyGenerator keyGenerator,
+    IPageCursorProtector cursorProtector,
     IPasswordHasher passwordHasher,
     OpenIdDbContext openIdDbContext
 )
@@ -36,7 +37,10 @@ internal sealed class LocalAccountStore(
     protected override IStoreProvider StoreProvider { get; } = storeProvider;
 
     /// <inheritdoc />
-    protected override IIdGenerator<long> IdGenerator { get; } = idGenerator;
+    protected override ISurrogateKeyGenerator KeyGenerator { get; } = keyGenerator;
+
+    /// <inheritdoc />
+    protected override IPageCursorProtector CursorProtector { get; } = cursorProtector;
 
     /// <inheritdoc />
     protected override OpenIdDbContext DbContext { get; } = openIdDbContext;
@@ -63,7 +67,7 @@ internal sealed class LocalAccountStore(
 
     /// <inheritdoc />
     protected override async ValueTask<IReadOnlyList<LocalAccountEntity>> GetEntityPageAsync(
-        long? afterId,
+        Guid? afterId,
         int take,
         CancellationToken cancellationToken
     )
@@ -82,7 +86,7 @@ internal sealed class LocalAccountStore(
     }
 
     /// <inheritdoc />
-    protected override long GetSortKey(LocalAccountEntity entity) => entity.Id;
+    protected override Guid GetSortKey(LocalAccountEntity entity) => entity.Id;
 
     /// <inheritdoc />
     public async ValueTask AddAsync(

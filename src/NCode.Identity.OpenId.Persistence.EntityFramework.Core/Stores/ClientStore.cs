@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Linq.Expressions;
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using NCode.Identity.Cryptography;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.Persistence.DataContracts;
 
@@ -18,7 +18,8 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
 /// </summary>
 internal class ClientStore(
     IStoreProvider storeProvider,
-    IIdGenerator<long> idGenerator,
+    ISurrogateKeyGenerator keyGenerator,
+    IPageCursorProtector cursorProtector,
     OpenIdDbContext openIdDbContext,
     ICryptoService cryptoService
 ) : CoreBaseStoreWithResourceId<PersistedClient, ClientEntity>, IClientStore
@@ -27,7 +28,10 @@ internal class ClientStore(
     protected override IStoreProvider StoreProvider { get; } = storeProvider;
 
     /// <inheritdoc />
-    protected override IIdGenerator<long> IdGenerator { get; } = idGenerator;
+    protected override ISurrogateKeyGenerator KeyGenerator { get; } = keyGenerator;
+
+    /// <inheritdoc />
+    protected override IPageCursorProtector CursorProtector { get; } = cursorProtector;
 
     /// <inheritdoc />
     protected override OpenIdDbContext DbContext { get; } = openIdDbContext;
@@ -132,14 +136,14 @@ internal class ClientStore(
 
     /// <inheritdoc />
     protected override async ValueTask<IReadOnlyList<ClientEntity>> GetEntityPageAsync(
-        long? afterId,
+        Guid? afterId,
         int take,
         CancellationToken cancellationToken
     ) => await GetEntityPageAsync(QueryClients(), afterId, take, cancellationToken);
 
     private static async ValueTask<IReadOnlyList<ClientEntity>> GetEntityPageAsync(
         IQueryable<ClientEntity> query,
-        long? afterId,
+        Guid? afterId,
         int take,
         CancellationToken cancellationToken
     )
@@ -269,12 +273,12 @@ internal class ClientStore(
     }
 
     /// <inheritdoc />
-    protected override long GetSortKey(ClientEntity entity) => entity.Id;
+    protected override Guid GetSortKey(ClientEntity entity) => entity.Id;
 
     // A client is bound only to a resource server of its own tenant.
     private async ValueTask<ResourceServerEntity?> GetResourceServerEntityOrDefaultAsync(
         PersistedClient persistedClient,
-        long tenantEntityId,
+        Guid tenantEntityId,
         CancellationToken cancellationToken
     )
     {

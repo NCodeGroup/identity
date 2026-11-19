@@ -165,7 +165,7 @@ internal class SecretEnvelopeStore(IStoreProvider storeProvider, OpenIdDbContext
     }
 
     // Gives the record that owns a secret, which is found through the join tables, a new secrets concurrency token.
-    private async ValueTask BumpOwnerTokenAsync(long secretId, CancellationToken cancellationToken)
+    private async ValueTask BumpOwnerTokenAsync(Guid secretId, CancellationToken cancellationToken)
     {
         var token = Guid.NewGuid().ToString("N");
 

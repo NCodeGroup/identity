@@ -3,12 +3,12 @@
 
 using System.Collections.Immutable;
 using System.Text.Json;
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using NCode.Identity.Json;
 using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 using NCode.Identity.OpenId.Persistence.Tenants;
+using NCode.Identity.Persistence;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.GlobalDirectory;
 
@@ -22,7 +22,7 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.GlobalDirectory
 // See ADR-1411.
 internal sealed class LocalTeamDirectory(
     IDbContextFactory<OpenIdDbContext> dbContextFactory,
-    IIdGenerator<long> idGenerator,
+    ISurrogateKeyGenerator keyGenerator,
     IAmbientTenantAccessor ambientTenantAccessor,
     IPersistedPayloadSerializer payloadSerializer
 ) : ITeamDirectory
@@ -31,7 +31,7 @@ internal sealed class LocalTeamDirectory(
 
     private IDbContextFactory<OpenIdDbContext> DbContextFactory { get; } = dbContextFactory;
 
-    private IIdGenerator<long> IdGenerator { get; } = idGenerator;
+    private ISurrogateKeyGenerator KeyGenerator { get; } = keyGenerator;
 
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
 
@@ -122,7 +122,7 @@ internal sealed class LocalTeamDirectory(
         dbContext.RetiredTeams.Add(
             new RetiredTeamEntity
             {
-                Id = IdGenerator.CreateId(),
+                Id = KeyGenerator.CreateKey(),
                 TeamId = heldTeamId,
                 NormalizedTeamId = normalizedTeamId,
             }

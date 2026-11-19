@@ -3,11 +3,11 @@
 
 using System.Buffers.Binary;
 using System.Buffers.Text;
-using IdGen;
 using Microsoft.EntityFrameworkCore;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
@@ -21,13 +21,13 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Stores;
 // See ADR-1303.
 internal sealed class AuditRecordStore(
     IStoreProvider storeProvider,
-    IIdGenerator<long> idGenerator,
+    ISurrogateKeyGenerator keyGenerator,
     OpenIdDbContext openIdDbContext
 ) : IAuditRecordStore
 {
     private IStoreProvider StoreProvider { get; } = storeProvider;
 
-    private IIdGenerator<long> IdGenerator { get; } = idGenerator;
+    private ISurrogateKeyGenerator KeyGenerator { get; } = keyGenerator;
 
     private OpenIdDbContext DbContext { get; } = openIdDbContext;
 
@@ -71,7 +71,7 @@ internal sealed class AuditRecordStore(
     {
         var entity = new AuditRecordEntity
         {
-            Id = IdGenerator.CreateId(),
+            Id = KeyGenerator.CreateKey(),
             EventId = record.EventId,
             EventTime = record.EventTime.ToUniversalTime(),
             EventName = record.EventName,
@@ -95,7 +95,7 @@ internal sealed class AuditRecordStore(
             entity.Resources.Add(
                 new AuditRecordResourceEntity
                 {
-                    Id = IdGenerator.CreateId(),
+                    Id = KeyGenerator.CreateKey(),
                     AuditRecord = entity,
                     Ordinal = ordinal++,
                     Type = resource.Type,
