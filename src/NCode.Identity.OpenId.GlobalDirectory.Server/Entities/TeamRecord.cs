@@ -27,7 +27,7 @@ public sealed class TeamRecord
     /// <summary>
     /// Gets the surrogate identifier for this record.
     /// </summary>
-    public long Id { get; init; }
+    public required Guid Id { get; init; }
 
     /// <summary>
     /// Gets or sets the team identifier.
