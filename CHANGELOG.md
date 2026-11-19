@@ -3085,10 +3085,11 @@ Until the first stable release, the [Unreleased] section describes the product a
   closes once its session ends, a `WebSocket` from another origin is refused and a WebAssembly component's traffic
   carries no token. The login, setup and management console pages, served by their hosts from the built bundles, load
   Instrument Sans and Martian Mono from their own assets as `font/woff2` with no Content-Security-Policy violation;
-  `./build/e2e.ps1` builds those bundles first, `-Suite` runs one suite, and a change under `frontend/` runs that suite.
-  `./build/dod.ps1` never runs these `*.EndToEnd.Tests` suites
-  ([#418](https://github.com/NCodeGroup/identity/issues/418), [#419](https://github.com/NCodeGroup/identity/issues/419),
-  [#603](https://github.com/NCodeGroup/identity/issues/603), [#862](https://github.com/NCodeGroup/identity/issues/862),
+  `./build/e2e.ps1` builds those bundles first and checks for Docker only when it runs a suite that starts containers,
+  `-Suite` runs one suite, and a change under `frontend/` runs that suite. `./build/dod.ps1` never runs these
+  `*.EndToEnd.Tests` suites ([#418](https://github.com/NCodeGroup/identity/issues/418),
+  [#419](https://github.com/NCodeGroup/identity/issues/419), [#603](https://github.com/NCodeGroup/identity/issues/603),
+  [#862](https://github.com/NCodeGroup/identity/issues/862),
   [ADR-1430](docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md),
   [ADR-1441](docs/decisions/1441-a-bff-connection-ends-with-its-session-even-when-idle-and-every-watcher-learns-at-once.md)).
 

@@ -213,8 +213,9 @@ enables auto-merge, because the user self-reviews the draft and that step is the
       `build` and `test:report`. `test:report` runs every package's tests with coverage, and a package under its
       coverage threshold fails the job.
     - **The end-to-end tier runs in CI.** `./build/dod.ps1` never runs the `*.EndToEnd.Tests` suites. The `End-to-end`
-      check runs `./build/e2e.ps1`, which needs a running Docker engine, and pnpm on `PATH` for the suite that serves
-      the built frontend bundles. Run it locally to reproduce that check, as `./build/e2e.ps1 -Affected`.
+      check runs `./build/e2e.ps1`, which needs a running Docker engine for the suite that starts containers, and pnpm
+      on `PATH` for the suite that serves the built frontend bundles. Run it locally to reproduce that check, as
+      `./build/e2e.ps1 -Affected`.
     - **A merge conflict that only touches documentation skips the gate.** A push that only merges the base branch
       into a topic branch, and resolves conflicts only in documentation (Markdown files such as `CHANGELOG.md`,
       `docs/**` and the decision records), changes no code the gate checks. Resolve the conflicts, run the checks the

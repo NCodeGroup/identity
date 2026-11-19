@@ -454,7 +454,7 @@ base with `origin/main`, while still building the whole solution. The plain `./b
 runs in the merge queue, on `main` and on the release lines; a pull request into `main` runs it with `-Affected`
 ([ADR-1263](docs/decisions/1263-branches-and-pull-requests-run-an-affected-gate-and-the-merge-queue-runs-the-full-gate.md)). It is also
 available locally for a thorough clean Release check. The end-to-end suites are not part of it: `./build/e2e.ps1` runs
-them and needs a running Docker engine. Package versions are centrally managed in
+them and needs a running Docker engine for a suite that starts containers. Package versions are centrally managed in
 [`Directory.Packages.props`](Directory.Packages.props); versioning is stamped in lockstep by Nerdbank.GitVersioning
 from the root [`version.json`](version.json). See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full workflow and
 [`GOVERNANCE.md`](GOVERNANCE.md) for ownership, versioning, and publishing. For a full conventions sweep, run the

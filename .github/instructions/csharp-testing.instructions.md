@@ -461,6 +461,9 @@ seams, facades, and `InternalsVisibleTo` wiring that make code mockable — live
   `build/affected-tests.ps1` selects the suite for every change under `frontend/`, and the suite reads each bundle at
   `frontend/apps/<app>/dist` and fails, never skips, when one is not built (`FrontendBundles`)
   ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
+- 👁 **A suite that starts containers sets `EndToEndContainers` to `true` in its project file.** `./build/e2e.ps1`
+  checks for a running Docker engine before it runs such a suite, and a run of suites that set none needs no Docker
+  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 - 👁 **Prove a page's policy in the browser.** An init script records every `securitypolicyviolation` event before the
   page's own scripts run, and a test asserts none, no Content-Security-Policy console message, and the status and type
   of what the page fetched (`TypefaceProbe`). Open a page with `WaitUntilState.Load` and wait for the bundle to render:

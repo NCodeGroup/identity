@@ -84,9 +84,10 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('Directory.Packages.props') }}
 
-      # The one entrypoint. It checks Docker, builds the frontend packages the suites serve, builds the suites, installs
-      # the browsers and runs the tests. A pull request into main runs only the suites its change affects, measured from
-      # the base SHA (the checkout's full history holds its merge base); every other event runs every suite (ADR-1263).
+      # The one entrypoint. It checks Docker for the suites that start containers, builds the frontend packages the
+      # suites serve, builds the suites, installs the browsers and runs the tests. A pull request into main runs only
+      # the suites its change affects, measured from the base SHA (the checkout's full history holds its merge base);
+      # every other event runs every suite (ADR-1263).
       - name: End-to-end
         shell: pwsh
         env:

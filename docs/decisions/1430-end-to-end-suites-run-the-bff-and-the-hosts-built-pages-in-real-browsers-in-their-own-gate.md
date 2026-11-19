@@ -21,9 +21,9 @@ and each bundle loads NCode Brand's typefaces from its own assets
 Only a browser applies a page's policy to what its bundle loads: a unit test reads the policy and the built files, never
 the two together.
 
-The suites need Docker and real browsers, and a browser download is roughly 500 MB. The Definition of Done
-([`build/dod.ps1`](../../build/dod.ps1)) is the one gate that developers, agents and CI run, and a container runtime
-must not become a prerequisite of it, for the reason given in
+The suites need real browsers, a browser download is roughly 500 MB, and the BFF's suite needs Docker. The Definition of
+Done ([`build/dod.ps1`](../../build/dod.ps1)) is the one gate that developers, agents and CI run, and a container
+runtime must not become a prerequisite of it, for the reason given in
 [ADR-1071](1071-the-aspire-apphost-runs-the-local-stack-in-health-gated-order-after-checking-the-frontend-toolchain.md).
 The suites therefore run in their own gate, which has its own required check
 ([ADR-1261](1261-the-main-branch-takes-only-reviewed-pull-requests-squash-merged-by-the-merge-queue-past-required-checks.md)).
@@ -44,14 +44,16 @@ built frontend bundles in the same browsers.**
    such as `NCode.Identity.Bff.EndToEnd.BlazorApp`, is a support project that a suite references. The solution
    compiles it and no gate runs it.
 
-3. **One entrypoint, `./build/e2e.ps1`, for CI and developers.** It checks Docker, builds the suites, installs the
-   Playwright browsers and runs `dotnet test`. With `-Affected` it runs only the suites in
+3. **One entrypoint, `./build/e2e.ps1`, for CI and developers.** It builds the suites, installs the Playwright browsers
+   and runs `dotnet test`. A suite whose project file sets `EndToEndContainers` to `true` starts containers: when the
+   suites it runs include one, the entrypoint checks for a running Docker engine before it builds anything, and a run of
+   suites that start none needs no Docker. With `-Affected` it runs only the suites in
    [`build/affected-tests.ps1`](../../build/affected-tests.ps1)'s `EndToEndProjects` output, and it passes without
    building when none is affected. It writes JUnit reports to `artifacts/e2e-results` and ends with
    `End-to-end: PASSED`. `-Suite <name>` runs only the named suites. A suite whose project file sets
    `EndToEndFrontendPackages` names the frontend packages whose built bundles it serves: the entrypoint installs the
    pnpm workspace with `--frozen-lockfile` and builds those packages with `turbo` before it builds the suite, so it
-   needs pnpm on `PATH`. [`build/test-projects.ps1`](../../build/test-projects.ps1) reads the property, and
+   needs pnpm on `PATH`. [`build/test-projects.ps1`](../../build/test-projects.ps1) reads both properties, and
    `affected-tests.ps1` selects such a suite for every change under `frontend/`.
 
 4. **A CI job, `End-to-end`, is a required check.** [`.github/workflows/e2e.yml`](../../.github/workflows/e2e.yml) has
@@ -80,10 +82,11 @@ built frontend bundles in the same browsers.**
    login that succeeds proves the BFF used them. The BFF's browser assertions are about the BFF, so they need no NCode
    OP, and the NCode OP stays the BFF's in-process oracle in `NCode.Identity.OpenId.Integration.Tests`.
 
-8. **Testcontainers starts Keycloak.** The fixture owns the container's lifecycle and the port wiring. The realm uses
-   Keycloak's `${ENV}` placeholders for ports and per-run credentials, so the repository holds no static secret.
-   `TestcontainersSettings.ExposeHostPortsAsync` lets Keycloak reach the BFF at `host.testcontainers.internal` for
-   `jwks_uri` and back-channel logout, without binding the BFF beyond loopback.
+8. **Testcontainers starts Keycloak.** The BFF suite's project file sets `EndToEndContainers`. The fixture owns the
+   container's lifecycle and the port wiring. The realm uses Keycloak's `${ENV}` placeholders for ports and per-run
+   credentials, so the repository holds no static secret. `TestcontainersSettings.ExposeHostPortsAsync` lets Keycloak
+   reach the BFF at `host.testcontainers.internal` for `jwks_uri` and back-channel logout, without binding the BFF
+   beyond loopback.
 
 9. **Sites and TLS.** The BFFs listen on `https://localhost:<port>`. Keycloak and the cross-site pages are reached at
    `https://127.0.0.1:<port>`, and the same-site sibling pages at other `localhost` ports. One self-signed certificate
@@ -118,7 +121,7 @@ built frontend bundles in the same browsers.**
     posture, with ephemeral Data Protection and no database. Without a connection the OP keeps its data in one in-memory
     database per process, so the suite starts one OP host per run. The console reaches the OP only when a user signs in,
     which the suite never does. The hosts serve the bundles at `frontend/apps/<app>/dist`, and the suite fails, never
-    skips, when one is not built. It needs no container.
+    skips, when one is not built. It starts no container, so it sets no `EndToEndContainers` and runs without Docker.
 
 16. **A page proves its policy in each browser.** The suite opens the login page, the setup page and the management
     console's page, waits for the bundle to render, and loads both typefaces through `document.fonts`. Each page loads
@@ -148,6 +151,11 @@ built frontend bundles in the same browsers.**
   needs only the hosts' composition with the built bundles.
 - **The bundles built by the CI job instead of the entrypoint.** Rejected: a developer's `./build/e2e.ps1` would test
   whatever `dist` is on disk.
+- **Docker checked before every run.** Rejected: a developer who runs only the pages suite would need a container engine
+  that none of its tests uses.
+- **Containers inferred from a suite's `Testcontainers` reference.** Rejected: a package reference says nothing certain
+  about what a suite starts; the property states the need in the suite's own project file, as `EndToEndFrontendPackages`
+  states the bundles it serves.
 - **Docker Compose.** Rejected: the fixture owns the lifecycle and the port wiring, which Testcontainers expresses in
   code.
 - **Other OPs.** Rejected:
@@ -168,6 +176,7 @@ built frontend bundles in the same browsers.**
 - A change under `frontend/`, to the OP or console host or to a package either composes runs the pages suite in a pull
   request, and every run of it builds the three bundles first.
 - The `End-to-end` job and a developer who runs the pages suite need Node and pnpm.
+- A developer runs the pages suite without Docker; a run that includes the BFF suite needs it.
 
 ## References
 
