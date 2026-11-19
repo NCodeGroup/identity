@@ -69,7 +69,8 @@ merged result passed the full gate.
    [`codecov.yml`](../../codecov.yml)). A pull request's run covers only the affected tests, so only its patch coverage
    is meaningful; `main`'s full runs keep reporting project coverage.
 7. **The end-to-end suites are not part of `dod.ps1`.** `./build/e2e.ps1` and the `End-to-end` check run them in their
-   own gate, as [ADR-1430](1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)
+   own gate, as
+   [ADR-1430](1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)
    decides.
 
 ## Options considered

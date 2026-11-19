@@ -75,20 +75,22 @@ and the `form_post` response only by its client's origin.**
    | Front-channel logout   | `frame-src`, and `script-src` by hash when it redirects                          | none  | no     |
    | `check_session_iframe` | `script-src` by the hash of its script                                           | none  | yes    |
 
-   The interactive pages are the login, consent, account and error pages. Their policy is `script-src 'nonce-N'
-   'strict-dynamic'`, `style-src 'nonce-N'`, `font-src 'self'`, `img-src 'self'` plus the origins of the tenant's logo
-   and favicon, `connect-src 'self'` and `base-uri 'self'`, where N is 16 random bytes, Base64Url-encoded, created for
-   each response. `font-src 'self'` admits the bundle's own typefaces, which its stylesheet loads from the assets route
-   beside it under any tenant's route; the setup page
+   The interactive pages are the login, consent, account and error pages. Their policy is
+   `script-src 'nonce-N' 'strict-dynamic'`, `style-src 'nonce-N'`, `font-src 'self'`, `img-src 'self'` plus the origins
+   of the tenant's logo and favicon, `connect-src 'self'` and `base-uri 'self'`, where N is 16 random bytes,
+   Base64Url-encoded, created for each response. `font-src 'self'` admits the bundle's own typefaces, which its
+   stylesheet loads from the assets route beside it under any tenant's route; the setup page
    ([ADR-1512](1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md))
    and the management console's page
    ([ADR-1438](1438-the-management-console-holds-no-token-and-reads-its-session-from-its-bff.md)) list it too, and the
-   API reference page, whose Scalar bundle loads no font, does not. The API reference page (`/scalar/v1`, [ADR-1481](1481-the-composition-layer-serves-the-api-reference-only-where-a-host-enables-it-and-each-management-problem-says-when-it-occurs.md))
+   API reference page, whose Scalar bundle loads no font, does not. The API reference page (`/scalar/v1`,
+   [ADR-1481](1481-the-composition-layer-serves-the-api-reference-only-where-a-host-enables-it-and-each-management-problem-says-when-it-occurs.md))
    lists `script-src 'nonce-N' 'strict-dynamic'`, `style-src 'nonce-N'`, `img-src 'self' data:` and
    `connect-src 'self'`; Scalar writes the nonce on its scripts, and its injected stylesheet reads it from a
-   `<meta property="csp-nonce">` element in the page's head. The `check_session_iframe` sets `AllowsFraming`, so it carries no `X-Frame-Options` and no `frame-ancestors`; relying
-   parties frame only it ([ADR-1088](1088-front-channel-logout-and-session-management-are-available-but-disabled-by-default.md)).
-   The `form_post` response lists as `FrameAncestors` the origin of an `http` or `https` redirect URI whose host is a DNS
+   `<meta property="csp-nonce">` element in the page's head. The `check_session_iframe` sets `AllowsFraming`, so it
+   carries no `X-Frame-Options` and no `frame-ancestors`; relying parties frame only it
+   ([ADR-1088](1088-front-channel-logout-and-session-management-are-available-but-disabled-by-default.md)). The
+   `form_post` response lists as `FrameAncestors` the origin of an `http` or `https` redirect URI whose host is a DNS
    name or an IPv4 address, and carries no `X-Frame-Options`, so a relying party's `prompt=none` re-authentication in an
    iframe (Session Management 1.0) receives it. Any other redirect URI gets `frame-ancestors 'none'`. The front-channel
    logout page lists as `frame-src` the distinct origins of the logout URIs it frames and, only when it redirects, the
