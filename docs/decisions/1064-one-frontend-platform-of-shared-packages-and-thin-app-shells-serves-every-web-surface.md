@@ -13,12 +13,12 @@ and a tenant.
 
 Built as one-off UIs, these surfaces would duplicate the design system, the management client, the boot sequence and the
 build tooling, and they would drift apart. A single SPA that route-gates every surface would couple the management
-console to the end-user sign-in page and widen the blast radius of one bundle. Every surface also has to run unchanged in
-every tier (sandbox, test, production), so nothing tier-specific can be baked in at build time.
+console to the end-user sign-in page and widen the blast radius of one bundle. Every surface also has to run unchanged
+in every tier (sandbox, test, production), so nothing tier-specific can be baked in at build time.
 
-A boot container that discovers a surface's runtime configuration, stores it, themes the app and shows a loading or error
-state depends on both the store and the UI package. If no shared package may hold it, every standalone app carries its
-own copy, and the copies drift in their tests. The surface name that the host maps to client coordinates is an open
+A boot container that discovers a surface's runtime configuration, stores it, themes the app and shows a loading or
+error state depends on both the store and the UI package. If no shared package may hold it, every standalone app carries
+its own copy, and the copies drift in their tests. The surface name that the host maps to client coordinates is an open
 dictionary, so a closed union of surface names in a library would be the only thing a new surface had to edit a library
 for.
 
@@ -43,8 +43,8 @@ over shared, scoped `@ncodegroup/identity-*` packages, and a layering rule keeps
     of UI and Redux.
   - `@ncodegroup/identity-ui` is the stateless design system and its theme, which `createAppTheme` builds from NCode
     Brand's Instrument.
-  - `@ncodegroup/identity-brand` holds the files of the NCode Brand release that the theme reads: Instrument's Material
-    UI data and the tenant color derivation. It has no code of its own
+  - `@ncodegroup/identity-brand` holds the files of the NCode Brand release that the theme and its parts read:
+    Instrument's Material UI data, the tenant color derivation and the brace data. It has no code of its own
     ([ADR-1516](1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md)).
   - `@ncodegroup/identity-shell` holds the shared stateful containers.
   - `@ncodegroup/identity-auth` holds the public-client protocol helpers.
@@ -66,9 +66,9 @@ over shared, scoped `@ncodegroup/identity-*` packages, and a layering rule keeps
   ([ADR-1253](1253-a-tenant-brands-its-sign-in-pages-through-settings-and-the-bundle-mounts-over-the-hosts-page.md)).
   The bootstrap issuer is the serving tenant's
   ([ADR-1182](1182-the-frontend-bootstraps-issuer-is-the-serving-tenants-and-its-api-base-is-root-relative.md)).
-- **A surface-aware bootstrap.** A bundle sends `?surface=<name>`. `FrontendBootstrapOptions.Surfaces` maps the name to an
-  override: its client id and scopes replace the default, its feature flags merge per key and its branding falls back. An
-  unknown or absent surface gets the default.
+- **A surface-aware bootstrap.** A bundle sends `?surface=<name>`. `FrontendBootstrapOptions.Surfaces` maps the name to
+  an override: its client id and scopes replace the default, its feature flags merge per key and its branding falls
+  back. An unknown or absent surface gets the default.
 - **An open surface name.** `SurfaceKind` is the shipped names plus `(string & {})`, an open vocabulary
   ([ADR-1150](1150-vocabularies-are-open-unless-provably-closed.md)), so a new surface needs no change to
   `@ncodegroup/identity-config`. Each standalone OpenID surface declares itself once, in `main.tsx`, by passing
@@ -101,15 +101,15 @@ over shared, scoped `@ncodegroup/identity-*` packages, and a layering rule keeps
 
 - **One SPA with route-gated surfaces.** Rejected: one origin and one bundle weaken the security boundary, enlarge the
   blast radius and couple the console to the end-user sign-in page.
-- **One-off UIs per surface.** Rejected: they duplicate the design system, the client, the boot sequence and the tooling,
-  and they drift.
+- **One-off UIs per surface.** Rejected: they duplicate the design system, the client, the boot sequence and the
+  tooling, and they drift.
 - **Build-time tier configuration.** Rejected: per-environment bundles forfeit one bundle for every tier and invite a
   mismatch between bundle and configuration.
-- **Nx.** Rejected: its generator and plugin surface is heavier than a package-and-apps graph needs; pnpm workspaces with
-  Turborepo are lighter and sufficient.
-- **Yarn Plug'n'Play or zero-installs.** Rejected: Plug'n'Play still needs patches for the Vite, Storybook and MUI stack,
-  and zero-installs fills the repository with binary archives. pnpm's symlinked layout gives most of the strictness
-  without that cost.
+- **Nx.** Rejected: its generator and plugin surface is heavier than a package-and-apps graph needs; pnpm workspaces
+  with Turborepo are lighter and sufficient.
+- **Yarn Plug'n'Play or zero-installs.** Rejected: Plug'n'Play still needs patches for the Vite, Storybook and MUI
+  stack, and zero-installs fills the repository with binary archives. pnpm's symlinked layout gives most of the
+  strictness without that cost.
 - **A closed `SurfaceKind`.** Rejected: a misspelled surface gets the host default, which fails visibly at the first
   sign-in, while a closed union makes every new surface edit a library.
 - **The boot gate in `@ncodegroup/identity-ui` or `@ncodegroup/identity-store`.** Rejected: a store-backed container

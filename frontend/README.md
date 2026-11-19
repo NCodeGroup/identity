@@ -72,7 +72,7 @@ frontend/
     auth/               @ncodegroup/identity-auth — framework-free authorization-code + PKCE helpers for the Playground's public client
     store/              @ncodegroup/identity-store — Redux store assembly, slices, typed hooks
     ui/                 @ncodegroup/identity-ui — MUI design system + stateless components + Storybook
-    brand/              @ncodegroup/identity-brand — the files of one NCode Brand release: Instrument's theme data and the tenant color derivation (vendored; never edited)
+    brand/              @ncodegroup/identity-brand — the files of one NCode Brand release: Instrument's theme data, the tenant color derivation and the brace data (vendored; never edited)
     shell/              @ncodegroup/identity-shell — stateful app-shell containers shared by the surfaces (the runtime-config BootstrapGate)
     conformance-core/   @ncodegroup/identity-conformance-core — framework-free conformance logic (discovery, audit, spec-coverage, probes)
     test-support/       @ncodegroup/identity-test-support — test-only Vitest support shared by every workspace (the console guard, the Testing Library wait timeout and the family icon set)

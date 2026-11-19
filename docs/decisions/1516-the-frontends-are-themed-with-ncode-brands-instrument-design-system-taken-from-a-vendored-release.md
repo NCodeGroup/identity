@@ -33,8 +33,8 @@ from the NCodeGroup/brand release the logo kit pins, vendored into `frontend/pac
 
 1. **The package.** `@ncodegroup/identity-brand` is private. Its files sit at their release paths under `vendor/`
    (`mui/instrument.json`, `tokens/derive.mjs`, `tokens/derive.d.mts`, `tokens/derive.vectors.json` and
-   `brace/brace.json`), and its `brand.lock.json` sits at its root. It holds no code, scripts or tests, and its
-   `exports` map names the files the frontend reads. Prettier and ESLint skip `vendor/` and the lock, because a
+   `brace/brace.json`), and its `brand.lock.json` sits at its root. It holds no code, scripts or tests of its own, and
+   its `exports` map names the files the frontend reads. Prettier and ESLint skip `vendor/` and the lock, because a
    reformatted byte fails its SHA-256.
 2. **One release.** `build/brand-kit.ps1`, which the `brand kit` stage of `./build/dod.ps1` runs, checks both locks
    with `brand/vendor-brand.mjs --check` and fails when they name different releases. `pnpm run check:brand` runs in
