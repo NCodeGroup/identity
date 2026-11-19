@@ -11,8 +11,15 @@ using NCode.Identity.Persistence;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Configuration;
 
-public class SurrogateKeyConventionTests
+public class SurrogateKeyConventionTests : IDisposable
 {
+    private MockRepository Mocks { get; } = new(MockBehavior.Strict);
+
+    public void Dispose()
+    {
+        Mocks.Verify();
+    }
+
     private sealed class NonGuidRow
     {
         [Key]
@@ -68,7 +75,7 @@ public class SurrogateKeyConventionTests
     public void Add_TeamWithoutKey_MintsTheKeyFromTheRegisteredGenerator()
     {
         var fixedKey = Guid.CreateVersion7();
-        var mockGenerator = new Mock<ISurrogateKeyGenerator>(MockBehavior.Strict);
+        var mockGenerator = Mocks.Create<ISurrogateKeyGenerator>();
         mockGenerator.Setup(x => x.CreateKey()).Returns(fixedKey).Verifiable();
 
         using var serviceProvider = CreateServiceProvider(serviceCollection =>
@@ -82,7 +89,6 @@ public class SurrogateKeyConventionTests
         dbContext.Set<TeamEntity>().Add(team);
 
         Assert.Equal(fixedKey, team.Id);
-        mockGenerator.Verify();
     }
 
     [Fact]
@@ -91,10 +97,10 @@ public class SurrogateKeyConventionTests
         var firstKey = Guid.CreateVersion7();
         var secondKey = Guid.CreateVersion7();
 
-        var mockFirstGenerator = new Mock<ISurrogateKeyGenerator>(MockBehavior.Strict);
+        var mockFirstGenerator = Mocks.Create<ISurrogateKeyGenerator>();
         mockFirstGenerator.Setup(x => x.CreateKey()).Returns(firstKey).Verifiable();
 
-        var mockSecondGenerator = new Mock<ISurrogateKeyGenerator>(MockBehavior.Strict);
+        var mockSecondGenerator = Mocks.Create<ISurrogateKeyGenerator>();
         mockSecondGenerator.Setup(x => x.CreateKey()).Returns(secondKey).Verifiable();
 
         using var firstServiceProvider = CreateServiceProvider(serviceCollection =>
@@ -116,8 +122,6 @@ public class SurrogateKeyConventionTests
 
         Assert.Equal(firstKey, firstTeam.Id);
         Assert.Equal(secondKey, secondTeam.Id);
-        mockFirstGenerator.Verify();
-        mockSecondGenerator.Verify();
     }
 
     [Fact]
