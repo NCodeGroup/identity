@@ -46,12 +46,18 @@ export type EnvironmentConfig = {
   readonly name?: string;
 };
 
-/** Brandable theme tokens injected at runtime (see docs/decisions/1064 branding seam). */
+/** Brandable theme values injected at runtime (ADR-1253, ADR-1516). */
 export type BrandingConfig = {
   readonly displayName?: string;
   readonly logoUrl?: string;
+  /**
+   * The tenant's primary color, `#rgb` or `#rrggbb`. The theme derives every color it touches from it, at its contrast
+   * floor.
+   */
   readonly primaryColor?: string;
+  /** The tenant's secondary color, which follows the primary when absent. */
   readonly secondaryColor?: string;
+  /** The color mode; without it the surface follows the reader's system setting. */
   readonly mode?: 'light' | 'dark';
   /** The tenant's non-production environment; absent for a production tenant. */
   readonly environment?: EnvironmentConfig;
