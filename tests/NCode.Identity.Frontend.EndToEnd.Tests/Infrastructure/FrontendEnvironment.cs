@@ -13,6 +13,9 @@ namespace NCode.Identity.Frontend.EndToEnd.Tests.Infrastructure;
 /// </summary>
 public sealed class FrontendEnvironment : IAsyncLifetime
 {
+    private static InvalidOperationException NotInitialized() =>
+        new("The frontend end-to-end environment has not been initialized.");
+
     private TestCertificate? Certificate { get; set; }
     private OpenIdHostApplication? OpenIdHostOrNull { get; set; }
     private ManagementConsoleApplication? ManagementConsoleOrNull { get; set; }
@@ -35,15 +38,17 @@ public sealed class FrontendEnvironment : IAsyncLifetime
         try
         {
             Certificate = TestCertificate.Create();
+            var openIdHostPort = LoopbackPort.Reserve();
+            var managementConsolePort = LoopbackPort.Reserve();
 
             OpenIdHostOrNull = await OpenIdHostApplication.StartAsync(
                 Certificate,
-                LoopbackPort.Reserve(),
+                openIdHostPort,
                 CancellationToken.None
             );
             ManagementConsoleOrNull = await ManagementConsoleApplication.StartAsync(
                 Certificate,
-                LoopbackPort.Reserve(),
+                managementConsolePort,
                 OpenIdHost.Origin,
                 CancellationToken.None
             );
@@ -53,7 +58,7 @@ public sealed class FrontendEnvironment : IAsyncLifetime
         // A failed start stops what it already started, then fails the run.
         catch (Exception startFailure)
         {
-            await Teardown.StopStartedAsync(startFailure, () => new ValueTask(DisposeAsync()));
+            await Teardown.StopStartedAsync(startFailure, async () => await DisposeAsync());
             throw;
         }
     }
@@ -66,10 +71,8 @@ public sealed class FrontendEnvironment : IAsyncLifetime
         CancellationToken cancellationToken
     )
     {
-        return await (BrowserPoolOrNull ?? throw NotInitialized()).NewContextAsync(
-            browserName,
-            cancellationToken
-        );
+        var pool = BrowserPoolOrNull ?? throw NotInitialized();
+        return await pool.NewContextAsync(browserName, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -114,7 +117,4 @@ public sealed class FrontendEnvironment : IAsyncLifetime
             }
         );
     }
-
-    private static InvalidOperationException NotInitialized() =>
-        new("The frontend end-to-end environment has not been initialized.");
 }

@@ -11,6 +11,16 @@ namespace NCode.Identity.EndToEnd.TestSupport;
 /// </summary>
 public sealed class BrowserPool : IAsyncDisposable
 {
+    /// <summary>
+    /// Starts Playwright.
+    /// </summary>
+    public static async ValueTask<BrowserPool> CreateAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var playwright = await Microsoft.Playwright.Playwright.CreateAsync();
+        return new BrowserPool(playwright);
+    }
+
     private BrowserPool(IPlaywright playwright)
     {
         Playwright = playwright;
@@ -23,15 +33,6 @@ public sealed class BrowserPool : IAsyncDisposable
     private ConcurrentDictionary<string, Lazy<Task<IBrowser>>> Browsers { get; } = new();
 
     /// <summary>
-    /// Starts Playwright.
-    /// </summary>
-    public static async ValueTask<BrowserPool> CreateAsync(CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        return new BrowserPool(await Microsoft.Playwright.Playwright.CreateAsync());
-    }
-
-    /// <summary>
     /// Creates a browser context that ignores certificate errors, in a browser that is launched once per run.
     /// </summary>
     public async ValueTask<IBrowserContext> NewContextAsync(
@@ -41,18 +42,16 @@ public sealed class BrowserPool : IAsyncDisposable
     {
         cancellationToken.ThrowIfCancellationRequested();
 
+        var launchOptions = new BrowserTypeLaunchOptions { Headless = true };
         var launch = Browsers.GetOrAdd(
             browserName,
-            name => new Lazy<Task<IBrowser>>(() =>
-                Playwright[name].LaunchAsync(new BrowserTypeLaunchOptions { Headless = true })
-            )
+            name => new Lazy<Task<IBrowser>>(() => Playwright[name].LaunchAsync(launchOptions))
         );
 
         // The token ends this caller's wait, never the launch other callers share.
         var browser = await launch.Value.WaitAsync(cancellationToken);
-        return await browser.NewContextAsync(
-            new BrowserNewContextOptions { IgnoreHTTPSErrors = true }
-        );
+        var contextOptions = new BrowserNewContextOptions { IgnoreHTTPSErrors = true };
+        return await browser.NewContextAsync(contextOptions);
     }
 
     /// <inheritdoc />
@@ -71,7 +70,8 @@ public sealed class BrowserPool : IAsyncDisposable
                         // A launch that failed holds no browser.
                         if (launch.Value.IsCompletedSuccessfully)
                         {
-                            await (await launch.Value).DisposeAsync();
+                            var browser = await launch.Value;
+                            await browser.DisposeAsync();
                         }
                     }
                 )

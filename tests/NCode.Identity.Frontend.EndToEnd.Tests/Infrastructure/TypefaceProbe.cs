@@ -68,13 +68,10 @@ public static class TypefaceProbe
         {
             if (response.Url.EndsWith(".woff2", StringComparison.Ordinal))
             {
-                fontResponses.Enqueue(
-                    new FontResponse(
-                        new Uri(response.Url),
-                        response.Status,
-                        response.Headers.GetValueOrDefault("content-type")
-                    )
-                );
+                var fontUrl = new Uri(response.Url);
+                var contentType = response.Headers.GetValueOrDefault("content-type");
+                var fontResponse = new FontResponse(fontUrl, response.Status, contentType);
+                fontResponses.Enqueue(fontResponse);
             }
         };
 
@@ -93,7 +90,8 @@ public static class TypefaceProbe
             }
         };
 
-        await page.GotoAsync(url, new PageGotoOptions { WaitUntil = WaitUntilState.Load });
+        var gotoOptions = new PageGotoOptions { WaitUntil = WaitUntilState.Load };
+        await page.GotoAsync(url, gotoOptions);
         await page.WaitForFunctionAsync(RenderedScript);
 
         var instrumentSansFaces = await page.EvaluateAsync<int>(LoadFamilyScript, InstrumentSans);

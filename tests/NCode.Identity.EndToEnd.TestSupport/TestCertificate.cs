@@ -12,32 +12,6 @@ namespace NCode.Identity.EndToEnd.TestSupport;
 /// </summary>
 public sealed class TestCertificate : IDisposable
 {
-    private TestCertificate(
-        X509Certificate2 certificate,
-        string certificatePem,
-        string privateKeyPem
-    )
-    {
-        Certificate = certificate;
-        CertificatePem = certificatePem;
-        PrivateKeyPem = privateKeyPem;
-    }
-
-    /// <summary>
-    /// Gets the certificate with a persisted private key, which Windows SChannel requires to serve it.
-    /// </summary>
-    public X509Certificate2 Certificate { get; }
-
-    /// <summary>
-    /// Gets the PEM encoding of the certificate.
-    /// </summary>
-    public string CertificatePem { get; }
-
-    /// <summary>
-    /// Gets the PEM encoding of the PKCS#8 private key.
-    /// </summary>
-    public string PrivateKeyPem { get; }
-
     /// <summary>
     /// Creates a new self-signed certificate for <c>localhost</c>, <c>host.testcontainers.internal</c>,
     /// <c>127.0.0.1</c> and <c>::1</c>.
@@ -88,6 +62,32 @@ public sealed class TestCertificate : IDisposable
             rsa.ExportPkcs8PrivateKeyPem()
         );
     }
+
+    private TestCertificate(
+        X509Certificate2 certificate,
+        string certificatePem,
+        string privateKeyPem
+    )
+    {
+        Certificate = certificate;
+        CertificatePem = certificatePem;
+        PrivateKeyPem = privateKeyPem;
+    }
+
+    /// <summary>
+    /// Gets the certificate with a persisted private key, which Windows SChannel requires to serve it.
+    /// </summary>
+    public X509Certificate2 Certificate { get; }
+
+    /// <summary>
+    /// Gets the PEM encoding of the certificate.
+    /// </summary>
+    public string CertificatePem { get; }
+
+    /// <summary>
+    /// Gets the PEM encoding of the PKCS#8 private key.
+    /// </summary>
+    public string PrivateKeyPem { get; }
 
     /// <summary>
     /// Determines whether the presented certificate is exactly this certificate.

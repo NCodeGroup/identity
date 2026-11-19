@@ -27,20 +27,6 @@ public sealed class ManagementConsoleApplication
     private const string ClientKeyRing = "mgmt-client";
     private const string DPoPKeyRing = "mgmt-dpop";
 
-    private List<ECDsa> Keys { get; } = [];
-    private string Authority { get; }
-
-    private ManagementConsoleApplication(string origin, string authority)
-    {
-        Origin = origin;
-        Authority = authority;
-    }
-
-    /// <summary>
-    /// Gets the origin of the host, which is <c>https://localhost:{port}</c>.
-    /// </summary>
-    public string Origin { get; }
-
     /// <summary>
     /// Builds and starts the management console's reference host.
     /// </summary>
@@ -75,13 +61,33 @@ public sealed class ManagementConsoleApplication
         }
     }
 
+    private List<ECDsa> Keys { get; } = [];
+    private string Authority { get; }
+
+    private ManagementConsoleApplication(string origin, string authority)
+    {
+        Origin = origin;
+        Authority = authority;
+    }
+
+    /// <summary>
+    /// Gets the origin of the host, which is <c>https://localhost:{port}</c>.
+    /// </summary>
+    public string Origin { get; }
+
     /// <inheritdoc />
     public override async ValueTask DisposeAsync()
     {
-        await base.DisposeAsync();
-        foreach (var key in Keys)
+        try
         {
-            key.Dispose();
+            await base.DisposeAsync();
+        }
+        finally
+        {
+            foreach (var key in Keys)
+            {
+                key.Dispose();
+            }
         }
     }
 
@@ -94,11 +100,12 @@ public sealed class ManagementConsoleApplication
         builder.ConfigureLogging(logging => logging.ClearProviders());
 
         // The host reads these while it registers its services, so each is a host setting.
+        var bundleRootPath = FrontendBundles.GetRootPath("mgmt");
         builder.UseSetting("LocalDevelopment:Enabled", "true");
         builder.UseSetting("Bff:Frontends:mgmt:Authority", Authority);
         builder.UseSetting("Bff:Frontends:mgmt:PublicOrigin", Origin);
         builder.UseSetting("ManagementConsole:ManagementApiUrl", $"{Authority}/api");
-        builder.UseSetting("ManagementConsole:BundleRootPath", FrontendBundles.GetRootPath("mgmt"));
+        builder.UseSetting("ManagementConsole:BundleRootPath", bundleRootPath);
 
         builder.ConfigureTestServices(serviceCollection =>
         {
@@ -116,13 +123,14 @@ public sealed class ManagementConsoleApplication
         serviceCollection.AddKeyedSingleton<ISecretKeyCollectionProvider>(
             name,
             (serviceProvider, _) =>
-                serviceProvider
-                    .GetRequiredService<ISecretKeyCollectionProviderFactory>()
-                    .CreateStatic([
-                        serviceProvider
-                            .GetRequiredService<ISecretKeyFactory>()
-                            .CreateEcc(new KeyMetadata { KeyId = name }, key),
-                    ])
+            {
+                var keyFactory = serviceProvider.GetRequiredService<ISecretKeyFactory>();
+                var metadata = new KeyMetadata { KeyId = name };
+                var secretKey = keyFactory.CreateEcc(metadata, key);
+                var providerFactory =
+                    serviceProvider.GetRequiredService<ISecretKeyCollectionProviderFactory>();
+                return providerFactory.CreateStatic([secretKey]);
+            }
         );
     }
 }

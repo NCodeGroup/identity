@@ -22,16 +22,6 @@ namespace NCode.Identity.Frontend.EndToEnd.Tests.Infrastructure;
 /// </remarks>
 public sealed class OpenIdHostApplication : WebApplicationFactory<HostApiMarker>
 {
-    private OpenIdHostApplication(string origin)
-    {
-        Origin = origin;
-    }
-
-    /// <summary>
-    /// Gets the origin of the host, which is <c>https://localhost:{port}</c>.
-    /// </summary>
-    public string Origin { get; }
-
     /// <summary>
     /// Builds and starts the OpenID Provider's reference host.
     /// </summary>
@@ -63,6 +53,16 @@ public sealed class OpenIdHostApplication : WebApplicationFactory<HostApiMarker>
         }
     }
 
+    private OpenIdHostApplication(string origin)
+    {
+        Origin = origin;
+    }
+
+    /// <summary>
+    /// Gets the origin of the host, which is <c>https://localhost:{port}</c>.
+    /// </summary>
+    public string Origin { get; }
+
     /// <inheritdoc />
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -72,13 +72,12 @@ public sealed class OpenIdHostApplication : WebApplicationFactory<HostApiMarker>
         builder.ConfigureLogging(logging => logging.ClearProviders());
 
         // The host reads these while it registers its services, so each is a host setting.
+        var authBundleRootPath = FrontendBundles.GetRootPath("auth");
+        var setupBundleRootPath = FrontendBundles.GetRootPath("setup");
         builder.UseSetting("LocalDevelopment:Enabled", "true");
         builder.UseSetting("OpenId:TenantResolution:StaticSingle:Issuer", Origin);
-        builder.UseSetting(
-            "InteractiveAuthentication:BundleRootPath",
-            FrontendBundles.GetRootPath("auth")
-        );
-        builder.UseSetting("Setup:BundleRootPath", FrontendBundles.GetRootPath("setup"));
+        builder.UseSetting("InteractiveAuthentication:BundleRootPath", authBundleRootPath);
+        builder.UseSetting("Setup:BundleRootPath", setupBundleRootPath);
 
         builder.ConfigureTestServices(serviceCollection =>
             serviceCollection.AddDataProtection().UseEphemeralDataProtectionProvider()

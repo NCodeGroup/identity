@@ -10,6 +10,53 @@ namespace NCode.Identity.Frontend.EndToEnd.Tests.Pages;
 [Collection(FrontendCollection.Name)]
 public sealed class PageTypefaceTests(FrontendEnvironment environment)
 {
+    #region Helpers
+
+    private static void AssertLoadedUnderPolicy(
+        TypefaceProbeResult result,
+        string origin,
+        string assetsPath
+    )
+    {
+        Assert.Empty(result.PolicyViolations);
+        Assert.Empty(result.PolicyMessages);
+
+        // Loading a family for its space character loads its latin face, the one face whose unicode-range holds it.
+        Assert.Equal(1, result.InstrumentSansFaces);
+        Assert.Equal(1, result.MartianMonoFaces);
+        Assert.True(result.BothChecked);
+
+        Assert.Contains(
+            result.FontResponses,
+            response =>
+                response.Url.AbsolutePath.Contains(
+                    "/instrument-sans-latin-wdth-normal-",
+                    StringComparison.Ordinal
+                )
+        );
+        Assert.Contains(
+            result.FontResponses,
+            response =>
+                response.Url.AbsolutePath.Contains(
+                    "/martian-mono-latin-wdth-normal-",
+                    StringComparison.Ordinal
+                )
+        );
+
+        Assert.All(
+            result.FontResponses,
+            response =>
+            {
+                Assert.Equal(origin, response.Url.GetLeftPart(UriPartial.Authority));
+                Assert.StartsWith(assetsPath, response.Url.AbsolutePath, StringComparison.Ordinal);
+                Assert.Equal(200, response.Status);
+                Assert.Equal("font/woff2", response.ContentType);
+            }
+        );
+    }
+
+    #endregion
+
     #region Login Page Tests
 
     [Theory, MemberData(nameof(BrowserNames.All), MemberType = typeof(BrowserNames))]
@@ -77,47 +124,4 @@ public sealed class PageTypefaceTests(FrontendEnvironment environment)
     }
 
     #endregion
-
-    private static void AssertLoadedUnderPolicy(
-        TypefaceProbeResult result,
-        string origin,
-        string assetsPath
-    )
-    {
-        Assert.Empty(result.PolicyViolations);
-        Assert.Empty(result.PolicyMessages);
-
-        // Loading a family for its space character loads its latin face, the one face whose unicode-range holds it.
-        Assert.Equal(1, result.InstrumentSansFaces);
-        Assert.Equal(1, result.MartianMonoFaces);
-        Assert.True(result.BothChecked);
-
-        Assert.Contains(
-            result.FontResponses,
-            response =>
-                response.Url.AbsolutePath.Contains(
-                    "/instrument-sans-latin-wdth-normal-",
-                    StringComparison.Ordinal
-                )
-        );
-        Assert.Contains(
-            result.FontResponses,
-            response =>
-                response.Url.AbsolutePath.Contains(
-                    "/martian-mono-latin-wdth-normal-",
-                    StringComparison.Ordinal
-                )
-        );
-
-        Assert.All(
-            result.FontResponses,
-            response =>
-            {
-                Assert.Equal(origin, response.Url.GetLeftPart(UriPartial.Authority));
-                Assert.StartsWith(assetsPath, response.Url.AbsolutePath, StringComparison.Ordinal);
-                Assert.Equal(200, response.Status);
-                Assert.Equal("font/woff2", response.ContentType);
-            }
-        );
-    }
 }

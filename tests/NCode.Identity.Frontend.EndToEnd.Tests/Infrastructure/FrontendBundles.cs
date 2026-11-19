@@ -4,26 +4,30 @@
 namespace NCode.Identity.Frontend.EndToEnd.Tests.Infrastructure;
 
 /// <summary>
-/// Locates the frontend bundles that ./build/e2e.ps1 builds before the suite runs.
+/// Locates the built bundles of the frontend apps that the suite's hosts serve.
 /// </summary>
+// ./build/e2e.ps1 builds each bundle at frontend/apps/<app>/dist before it runs the suite.
 public static class FrontendBundles
 {
     private const string SolutionFileName = "NCode.Identity.slnx";
 
+    private static bool HoldsSolution(DirectoryInfo directory)
+    {
+        var solutionPath = Path.Combine(directory.FullName, SolutionFileName);
+        return File.Exists(solutionPath);
+    }
+
     /// <summary>
-    /// Gets the directory of the built bundle of a frontend app, which is <c>frontend/apps/{appName}/dist</c> under the
-    /// repository.
+    /// Gets the directory of a frontend app's built bundle, and fails when the bundle is not built.
     /// </summary>
-    /// <param name="appName">The name of the app's folder under <c>frontend/apps</c>.</param>
+    /// <param name="appName">The name of the frontend app, such as <c>auth</c>.</param>
     public static string GetRootPath(string appName)
     {
         ArgumentException.ThrowIfNullOrEmpty(appName);
 
+        // The bundle is frontend/apps/<appName>/dist under the directory that holds the solution.
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (
-            directory is not null
-            && !File.Exists(Path.Combine(directory.FullName, SolutionFileName))
-        )
+        while (directory is not null && !HoldsSolution(directory))
         {
             directory = directory.Parent;
         }
