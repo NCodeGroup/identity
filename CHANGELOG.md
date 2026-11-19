@@ -13,6 +13,22 @@ Until the first stable release, the [Unreleased] section describes the product a
 
 ### Added
 
+- **Every frontend is themed with NCode Brand's Instrument design system (`frontend`).**
+  `@ncodegroup/identity-brand` (`frontend/packages/brand`) vendors NCode Brand's `mui/instrument.json` and its tenant
+  color derivation (`tokens/derive.mjs`, with its types and test vectors) from the release `brand/` takes, pinned by
+  SHA-256 in `frontend/packages/brand/brand.lock.json` and held by `pnpm run check:brand`, the frontend job and the
+  `brand kit` stage of `./build/dod.ps1`, and every bundle loads them as a `brand` chunk of their own.
+  `createAppTheme` in `@ncodegroup/identity-ui` builds the Material UI theme from them: every color role of both themes
+  under `palette.instrument`, each typography variant in its Instrument type role with the code style as
+  `typography.code` and its family as `typography.fontFamilyMono`, a 6-pixel radius, the 8-pixel spacing unit, four
+  depths, Instrument's durations, easings and breakpoints, keys that press without a ripple, and a focus ring of the
+  `focus` color, 2 pixels wide and 2 pixels off the control. A branding without a color mode follows the reader's system
+  setting, a reader who asks for reduced motion gets no transitions, and Storybook's toolbar shows every story in both
+  modes and in a tenant's colors. The weekly `brand-watch` workflow keeps one `brand-update` issue open while
+  NCodeGroup/brand has a release at least three days old that the locks do not pin
+  ([#861](https://github.com/NCodeGroup/identity/issues/861),
+  [ADR-1516](docs/decisions/1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md)).
+
 - **A setup wizard at `/setup` creates an instance's first administrator.** Setup runs once per platform, on the
   control-plane cell only. The OP serves the `@ncodegroup/identity-app-setup` bundle (`frontend/apps/setup`) under a
   per-response CSP nonce, and the wizard asks for the setup token, reads it from the URL fragment (`#token=`, beside the
@@ -2234,14 +2250,16 @@ Until the first stable release, the [Unreleased] section describes the product a
   named in `InteractiveSettingNames` and `InteractiveSettingKeys`. Every page served with the `apps/auth` bundle carries
   the tenant's branding, in the bootstrap document's `branding` shape, in a
   `<script type="application/json" id="branding">` block after its `<base>`, and the bundle themes itself from it
-  without a request: it themes the surface with the colors and mode, draws the logo, and titles the login and account
-  pages with the display name; a page without branding gets the default theme. `@ncodegroup/identity-config` exports
+  without a request: it themes the surface with the colors, through NCode Brand's tenant derivation, and the mode,
+  draws the logo, and titles the login and account pages with the display name; a page without branding
+  gets NCode's own Instrument theme in the reader's system color mode. `@ncodegroup/identity-config` exports
   `parseBrandingConfig`, which the bootstrap parser uses too, so a malformed branding token is dropped, never trusted. A
   tenant that sets `branding_favicon_uri` shows that icon in its pages' tabs instead of the family's: the host links it,
   drops the bundle's family icon links, and admits its origin in the page's `img-src`
   ([ADR-1253](docs/decisions/1253-a-tenant-brands-its-sign-in-pages-through-settings-and-the-bundle-mounts-over-the-hosts-page.md),
   issues [#211](https://github.com/NCodeGroup/identity/issues/211),
-  [#745](https://github.com/NCodeGroup/identity/issues/745)).
+  [#745](https://github.com/NCodeGroup/identity/issues/745),
+  [#861](https://github.com/NCodeGroup/identity/issues/861)).
 
 - **The interactive surface renders in the language the request prefers.** The locales the end-user interface
   renders are a registered vocabulary (`IUiLocale`, resolved through `IUiLocaleCatalog`), so the tenant settings
@@ -4586,6 +4604,14 @@ Until the first stable release, the [Unreleased] section describes the product a
 
 ### Security
 
+- **A tenant's colors keep every text, key and focus ring readable.** `createAppTheme` passes
+  `branding_primary_color` and `branding_secondary_color` through NCode Brand's `deriveBrand`, which holds each pairing
+  they touch at WCAG 2.2 AA in the light and the dark theme (4.5 to 1 for text, 3 to 1 for a part and the focus ring)
+  and reads a color it cannot parse as NCode Blue, so no stored branding renders an unreadable sign-in page
+  ([#861](https://github.com/NCodeGroup/identity/issues/861),
+  [ADR-1516](docs/decisions/1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md),
+  [ADR-1253](docs/decisions/1253-a-tenant-brands-its-sign-in-pages-through-settings-and-the-bundle-mounts-over-the-hosts-page.md)).
+
 - **Every host runs one secure-by-default posture in every environment.** The deployment gate, the Kestrel transport
   check, HSTS, HTTPS-only setup, an explicit `AllowedHosts` in every BFF host and the global directory, https-only BFF
   and console URLs and the key-ring refusal apply unless `LocalDevelopment:Enabled` is set. That switch is off when
@@ -6602,10 +6628,13 @@ Until the first stable release, the [Unreleased] section describes the product a
   answer the reservation with a conflict that names the platform or the team. The global directory and every cell store
   settings only as a JSON object, the empty object when there are none.
 
-- **The logo kit is taken only from an attested NCodeGroup/brand release and checked offline.**
+- **NCode Brand's files are taken only from an attested NCodeGroup/brand release and checked offline.**
   `brand/vendor-brand.mjs --update` writes nothing unless `gh attestation verify` proves that NCodeGroup/brand's publish
   workflow built the release's archive for its tag on a GitHub-hosted runner and every file matches the release's
-  manifest; it bounds the archive and writes nothing outside `brand/`. `brand/brand.lock.json` pins each vendored
-  file's SHA-256, so the `brand kit` stage of `./build/dod.ps1` fails a file changed by hand
+  manifest; it bounds the archive and writes nothing outside the lock's folder (`brand/` or `frontend/packages/brand`).
+  `brand/brand.lock.json` and `frontend/packages/brand/brand.lock.json` pin each vendored file's SHA-256 and name one
+  release, so the `brand kit` stage of `./build/dod.ps1` and `pnpm run check:brand` fail a file changed by hand
   ([#856](https://github.com/NCodeGroup/identity/issues/856),
+  [#861](https://github.com/NCodeGroup/identity/issues/861),
+  [ADR-1516](docs/decisions/1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md),
   [ADR-1492](docs/decisions/1492-the-familys-id-logo-is-vendored-from-an-ncodegroup-brand-release-and-every-web-app-shows-its-icon.md)).
