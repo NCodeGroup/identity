@@ -320,6 +320,24 @@ public class SinglePageBundleTests : BaseTests
         Assert.Equal(contentType, file.ContentType);
     }
 
+    [Theory]
+    [InlineData("instrument-sans-latin-wdth-normal-abc123.woff2", "font/woff2")]
+    [InlineData("OFL-Instrument-Sans-abc123.txt", "text/plain")]
+    public void ServeAsset_WhenTheAssetIsATypefaceOrItsLicense_ServesItWithItsType(
+        string fileName,
+        string contentType
+    )
+    {
+        WriteAsset(fileName, "x");
+        using var bundle = CreateBundle();
+        var httpContext = new DefaultHttpContext();
+
+        var result = bundle.ServeAsset(httpContext.Response, fileName);
+
+        var file = Assert.IsType<PhysicalFileHttpResult>(result);
+        Assert.Equal(contentType, file.ContentType);
+    }
+
     [Fact]
     public void ServeAsset_WhenTheAssetIsMissing_AnswersNotFoundWithoutACacheLifetime()
     {
