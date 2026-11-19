@@ -1,4 +1,4 @@
-# 1430. End-to-end suites run the BFF in real browsers against a containerized Keycloak in their own gate
+# 1430. End-to-end suites run the BFF and the hosts' built pages in real browsers in their own gate
 
 - **Status:** Accepted
 - **Date:** 2026-11-05
@@ -13,7 +13,15 @@ cross-site navigation and form posts, CORS preflight denial and Fetch Metadata r
 login (PAR, PKCE `S256`, `private_key_jwt`, RFC 9207, PS256 ID tokens), DPoP, refresh-token rotation, RP-initiated
 logout and back-channel logout against an OP built by someone else, using only its discovery metadata.
 
-Both need Docker and real browsers, and a browser download is roughly 500 MB. The Definition of Done
+The OpenID Provider (OP) host and the management console's host serve the built `apps/auth`, `apps/setup` and
+`apps/mgmt` bundles under a strict Content-Security-Policy
+([ADR-1256](1256-every-page-the-server-writes-has-a-strict-content-security-policy-and-is-framed-only-by-design.md)),
+and each bundle loads NCode Brand's typefaces from its own assets
+([ADR-1516](1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md)).
+Only a browser applies a page's policy to what its bundle loads: a unit test reads the policy and the built files, never
+the two together.
+
+The suites need Docker and real browsers, and a browser download is roughly 500 MB. The Definition of Done
 ([`build/dod.ps1`](../../build/dod.ps1)) is the one gate that developers, agents and CI run, and a container runtime
 must not become a prerequisite of it, for the reason given in
 [ADR-1071](1071-the-aspire-apphost-runs-the-local-stack-in-health-gated-order-after-checking-the-frontend-toolchain.md).
@@ -22,8 +30,9 @@ The suites therefore run in their own gate, which has its own required check
 
 ## Decision
 
-**End-to-end suites are test projects marked by name, run by one entrypoint in their own required CI check, and they
-run the BFF in Chromium, Firefox and WebKit against a containerized Keycloak.**
+**End-to-end suites are test projects marked by name, run by one entrypoint in their own required CI check. They run the
+BFF in Chromium, Firefox and WebKit against a containerized Keycloak, and the OP and management console hosts with their
+built frontend bundles in the same browsers.**
 
 1. **A tier, marked by name.** An end-to-end suite is a test project under `tests/` whose name ends in
    `.EndToEnd.Tests`. [`build/test-projects.ps1`](../../build/test-projects.ps1) is the one place that holds this rule.
@@ -39,31 +48,37 @@ run the BFF in Chromium, Firefox and WebKit against a containerized Keycloak.**
    Playwright browsers and runs `dotnet test`. With `-Affected` it runs only the suites in
    [`build/affected-tests.ps1`](../../build/affected-tests.ps1)'s `EndToEndProjects` output, and it passes without
    building when none is affected. It writes JUnit reports to `artifacts/e2e-results` and ends with
-   `End-to-end: PASSED`.
+   `End-to-end: PASSED`. `-Suite <name>` runs only the named suites. A suite whose project file sets
+   `EndToEndFrontendPackages` names the frontend packages whose built bundles it serves: the entrypoint installs the
+   pnpm workspace with `--frozen-lockfile` and builds those packages with `turbo` before it builds the suite, so it
+   needs pnpm on `PATH`. [`build/test-projects.ps1`](../../build/test-projects.ps1) reads the property, and
+   `affected-tests.ps1` selects such a suite for every change under `frontend/`.
 
 4. **A CI job, `End-to-end`, is a required check.** [`.github/workflows/e2e.yml`](../../.github/workflows/e2e.yml) has
    the triggers and tiers of `ci.yml`
    ([ADR-1263](1263-branches-and-pull-requests-run-an-affected-gate-and-the-merge-queue-runs-the-full-gate.md)): the
    affected suites on a pull request into `main`, every suite in the merge queue, on `main` and on the release lines.
-   It reports on every pull request, and it is a required check of the `main` and `release-lines` rulesets.
+   It reports on every pull request, and it is a required check of the `main` and `release-lines` rulesets. The job
+   sets up the Node major `frontend/.node-version` pins and the pnpm `frontend/package.json` pins with the actions and
+   pins of Frontend CI, and caches the pnpm store.
 
 5. **Playwright for .NET, driven by xUnit.** The BFF, the origin pages and the fixtures run in the test process, in
    one language and one runner, with the existing JUnit logger. The suites do not use Node Playwright in
    `frontend`, which is the console's workspace.
 
-6. **Browsers.** Tests are theories over `BrowserNames.All`: Chromium and Firefox on every operating system, and WebKit
-   except on Windows. Playwright's Windows WebKit port does not use Safari's cookie stack and mishandles `SameSite` and
+6. **Browsers.** Tests are theories over `BrowserNames.All`, in the support project
+   `NCode.Identity.EndToEnd.TestSupport`: Chromium and Firefox on every operating system, and WebKit except on Windows.
+   Playwright's Windows WebKit port does not use Safari's cookie stack and mishandles `SameSite` and
    `Secure` (microsoft/playwright#20370). CI runs on Linux, so it covers all three engines. The interop suite uses
    Chromium only, because what it tests is the OP, not the browser.
 
-7. **The OP is Keycloak 26 for both suites.** The image is pinned by digest in
+7. **The BFF's OP is Keycloak 26.** The image is pinned by digest in
    `tests/NCode.Identity.Bff.EndToEnd.Tests/Keycloak/Dockerfile`, beside the checked-in `bff-e2e-realm.json`, and
    Dependabot's own `docker` entry keeps it current, ignoring majors
    ([project-template ADR-0008](project-template/0008-external-inputs-are-pinned-and-kept-current.md)). Keycloak
    implements every standard the BFF uses and can require PAR, PKCE, DPoP and the ID-token algorithm per client, so a
-   login that succeeds proves the BFF used them. The browser suite's assertions are about the BFF, so it needs no NCode
-   OP. The NCode OP stays the in-process oracle of `NCode.Identity.OpenId.Integration.Tests`, and no shared host
-   library is extracted.
+   login that succeeds proves the BFF used them. The BFF's browser assertions are about the BFF, so they need no NCode
+   OP, and the NCode OP stays the BFF's in-process oracle in `NCode.Identity.OpenId.Integration.Tests`.
 
 8. **Testcontainers starts Keycloak.** The fixture owns the container's lifecycle and the port wiring. The realm uses
    Keycloak's `${ENV}` placeholders for ports and per-run credentials, so the repository holds no static secret.
@@ -97,6 +112,24 @@ run the BFF in Chromium, Firefox and WebKit against a containerized Keycloak.**
     [ADR-1291](1291-the-bff-refreshes-a-sessions-token-single-flight-under-a-lease-its-winner-releases-by-owner-token.md) describes, so Keycloak's
     logout at the OP reaches the BFF as a back-channel logout token.
 
+15. **The pages suite runs the hosts' own composition.** `NCode.Identity.Frontend.EndToEnd.Tests` starts
+    `NCode.Identity.OpenId.Host` and `NCode.Identity.ManagementConsole.Host` through
+    `WebApplicationFactory<TEntryPoint>.UseKestrel()` on loopback over the run's certificate, in the local-development
+    posture, with ephemeral Data Protection and no database. Without a connection the OP keeps its data in one in-memory
+    database per process, so the suite starts one OP host per run. The console reaches the OP only when a user signs in,
+    which the suite never does. The hosts serve the bundles at `frontend/apps/<app>/dist`, and the suite fails, never
+    skips, when one is not built. It needs no container.
+
+16. **A page proves its policy in each browser.** The suite opens the login page, the setup page and the management
+    console's page, waits for the bundle to render, and loads both typefaces through `document.fonts`. Each page loads
+    one face of each family, answers every font request from its own assets with `200` and `font/woff2`, and reports no
+    `securitypolicyviolation` event and no Content-Security-Policy console message. An init script records the events
+    before the page's own scripts run.
+
+17. **The suites share their browser plumbing.** `NCode.Identity.EndToEnd.TestSupport` holds `BrowserNames`,
+    `BrowserPool` (one headless browser per engine per run, and a fresh context per test that ignores certificate
+    errors), `LoopbackPort` and `TestCertificate`.
+
 ## Options considered
 
 - **A trait filter in the Definition of Done.** Rejected: the gate loads the end-to-end assembly even when a filter
@@ -105,8 +138,16 @@ run the BFF in Chromium, Firefox and WebKit against a containerized Keycloak.**
   of the gate every developer, agent and CI run uses.
 - **Node Playwright in `frontend`.** Rejected: it splits the suites across two languages and two runners, and the
   BFF host, the origin pages and the container fixtures would have to start from Node.
-- **The NCode OP in the tier, through a shared host library.** Rejected: it needs a host library extracted from the
-  integration tests, and an NCode OP proves the BFF only against its own implementation of the standards.
+- **The NCode OP as the BFF's provider in the tier.** Rejected: an NCode OP proves the BFF only against its own
+  implementation of the standards.
+- **The pages checked in `NCode.Identity.OpenId.Integration.Tests`.** Rejected: its hosts run on `TestServer`, which
+  no browser reaches, and the Definition of Done would need the browsers.
+- **A by-hand check of the pages in a browser.** Rejected: nothing fails a change whose policy refuses what its bundle
+  loads.
+- **The pages suite against the host image in a container.** Rejected: the image checks build the image, and the suite
+  needs only the hosts' composition with the built bundles.
+- **The bundles built by the CI job instead of the entrypoint.** Rejected: a developer's `./build/e2e.ps1` would test
+  whatever `dist` is on disk.
 - **Docker Compose.** Rejected: the fixture owns the lifecycle and the port wiring, which Testcontainers expresses in
   code.
 - **Other OPs.** Rejected:
@@ -124,14 +165,21 @@ run the BFF in Chromium, Firefox and WebKit against a containerized Keycloak.**
 - A Keycloak bump arrives as a Dependabot pull request that the check validates.
 - WebKit is proven only off Windows; CI covers it on Linux.
 - A test that shows the BFF failing against Keycloak or a browser is a finding about the BFF.
+- A change under `frontend/`, to the OP or console host or to a package either composes runs the pages suite in a pull
+  request, and every run of it builds the three bundles first.
+- The `End-to-end` job and a developer who runs the pages suite need Node and pnpm.
 
 ## References
 
-- [ADR-1261](1261-the-main-branch-takes-only-reviewed-pull-requests-squash-merged-by-the-merge-queue-past-required-checks.md),
+- [ADR-1256](1256-every-page-the-server-writes-has-a-strict-content-security-policy-and-is-framed-only-by-design.md),
+  [ADR-1261](1261-the-main-branch-takes-only-reviewed-pull-requests-squash-merged-by-the-merge-queue-past-required-checks.md),
   [ADR-1263](1263-branches-and-pull-requests-run-an-affected-gate-and-the-merge-queue-runs-the-full-gate.md),
   [ADR-1291](1291-the-bff-refreshes-a-sessions-token-single-flight-under-a-lease-its-winner-releases-by-owner-token.md),
+  [ADR-1516](1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md),
   [project-template ADR-0008](project-template/0008-external-inputs-are-pinned-and-kept-current.md)
-- Issues [#418](https://github.com/NCodeGroup/identity/issues/418) and
-  [#419](https://github.com/NCodeGroup/identity/issues/419)
-- `tests/NCode.Identity.Bff.EndToEnd.Tests/`, `build/e2e.ps1`, `build/test-projects.ps1`,
+- Issues [#418](https://github.com/NCodeGroup/identity/issues/418),
+  [#419](https://github.com/NCodeGroup/identity/issues/419) and
+  [#862](https://github.com/NCodeGroup/identity/issues/862)
+- `tests/NCode.Identity.Bff.EndToEnd.Tests/`, `tests/NCode.Identity.Frontend.EndToEnd.Tests/`,
+  `tests/NCode.Identity.EndToEnd.TestSupport/`, `build/e2e.ps1`, `build/test-projects.ps1`,
   `.github/workflows/e2e.yml`

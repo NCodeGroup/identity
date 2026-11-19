@@ -442,7 +442,7 @@ seams, facades, and `InternalsVisibleTo` wiring that make code mockable — live
 
 - 👁 **A suite is a `*.EndToEnd.Tests` project, which only `./build/e2e.ps1` and the `End-to-end` check run.**
   `./build/dod.ps1` never runs it
-  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-in-real-browsers-against-a-containerized-keycloak-in-their-own-gate.md)).
+  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 - 👁 **A project under `tests/` whose name does not end in `.Tests` is a support project.** The solution compiles it, no
   tier of `build/test-projects.ps1` lists it, and it is no test project and has no JUnit logger, so a suite references
   it and no gate tests it
@@ -454,17 +454,17 @@ seams, facades, and `InternalsVisibleTo` wiring that make code mockable — live
 - 👁 **An end-to-end suite is not hermetic by design.** Every host stays on loopback over the run's throwaway
   certificate, the container reaches the host only through `TestcontainersSettings.ExposeHostPortsAsync`, and
   credentials are generated per run
-  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-in-real-browsers-against-a-containerized-keycloak-in-their-own-gate.md)).
+  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 - 👁 **One collection fixture serves all tests, and each test gets a fresh browser context**
-  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-in-real-browsers-against-a-containerized-keycloak-in-their-own-gate.md)).
+  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 - 👁 **Browser theories run over `BrowserNames.All`:** Chromium and Firefox on every OS, and WebKit except on Windows,
   because Playwright's Windows WebKit port does not use Safari's cookie stack and mishandles `SameSite` and `Secure`
-  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-in-real-browsers-against-a-containerized-keycloak-in-their-own-gate.md)).
+  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 - 👁 **Assert server-side counters as well as browser outcomes, and read an API response through `fetch` in the
   page.** Firefox shows a JSON response in a viewer, so a navigation to it reads nothing
-  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-in-real-browsers-against-a-containerized-keycloak-in-their-own-gate.md)).
+  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 - 👁 **`localhost` and `127.0.0.1` are different sites;** a port never changes a site
-  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-in-real-browsers-against-a-containerized-keycloak-in-their-own-gate.md)).
+  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 - 👁 **A test reads its files, such as an image's build context, from the output directory.** Copy them there with
   `CopyToOutputDirectory` and resolve them from `AppContext.BaseDirectory`. A CI build (`CI=true`) is a
   `ContinuousIntegrationBuild` that maps source paths to `/_/`, so a path found from the source, such as

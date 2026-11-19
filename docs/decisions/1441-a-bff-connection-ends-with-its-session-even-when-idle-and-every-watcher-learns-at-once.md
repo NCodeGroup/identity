@@ -62,7 +62,7 @@ browsers.**
    making the connection current, because its application has been told and signs its user out. Every token request
    through the connection fails, because the latch holds.
 8. **Support projects.** The Blazor apps are support projects
-   ([ADR-1430](1430-end-to-end-suites-run-the-bff-in-real-browsers-against-a-containerized-keycloak-in-their-own-gate.md)).
+   ([ADR-1430](1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 9. **A Blazor Web App in the suite.** The suite hosts `NCode.Identity.Bff.EndToEnd.BlazorApp` and its
    `NCode.Identity.Bff.EndToEnd.BlazorApp.Client` through `WebApplicationFactory<TEntryPoint>.UseKestrel()` as Keycloak
    client `bff-blazor`, with a `Session:RevalidationInterval` of 2 seconds. Each test is a theory over
@@ -110,7 +110,7 @@ sign out itself.
 
 ## References
 
-- [ADR-1430](1430-end-to-end-suites-run-the-bff-in-real-browsers-against-a-containerized-keycloak-in-their-own-gate.md),
+- [ADR-1430](1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md),
   [ADR-1435](1435-server-rendered-and-blazor-hosts-use-the-bff-session-through-pages-hubs-and-opt-in-packages.md)
 - `src/NCode.Identity.Bff/Hubs/BffHubFilter.cs`, `src/NCode.Identity.Bff/Sessions/DefaultBffConnectionSession.cs`
 - Issues [#603](https://github.com/NCodeGroup/identity/issues/603),

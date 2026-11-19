@@ -37,10 +37,10 @@ Benchmark projects (the `*.Benchmarks` projects) live under `benchmarks/`; the b
 them ([ADR-1386](docs/decisions/1386-primitives-are-benchmarked-in-a-project-the-build-compiles-and-nothing-runs.md)).
 End-to-end suites (the `*.EndToEnd.Tests` projects) live under `tests/`; `./build/dod.ps1` never runs them, and
 `./build/e2e.ps1` and the `End-to-end` CI check do
-([ADR-1430](docs/decisions/1430-end-to-end-suites-run-the-bff-in-real-browsers-against-a-containerized-keycloak-in-their-own-gate.md)).
+([ADR-1430](docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 A project under `tests/` whose name does not end in `.Tests` is a support project that a suite references: the solution
 compiles it and no gate tests it
-([ADR-1430](docs/decisions/1430-end-to-end-suites-run-the-bff-in-real-browsers-against-a-containerized-keycloak-in-their-own-gate.md)).
+([ADR-1430](docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 
 - **Foundation** — `NCode.Identity.Json` (the JSON value model of JOSE, OAuth and OpenID Connect, and the
   schema-versioned serializer of the payloads stored at rest as JSON), `NCode.Identity.Time` (`NumericDate`
