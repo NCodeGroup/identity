@@ -7,8 +7,15 @@ using Xunit;
 
 namespace NCode.Identity.Persistence;
 
-public class DefaultRegistrationTests
+public class DefaultRegistrationTests : IDisposable
 {
+    private MockRepository Mocks { get; } = new(MockBehavior.Strict);
+
+    public void Dispose()
+    {
+        Mocks.Verify();
+    }
+
     #region AddSurrogateKeyGenerator Tests
 
     [Fact]
@@ -35,7 +42,7 @@ public class DefaultRegistrationTests
     [Fact]
     public void AddSurrogateKeyGenerator_WhenAGeneratorIsRegisteredFirst_KeepsIt()
     {
-        var mockGenerator = new Mock<ISurrogateKeyGenerator>(MockBehavior.Strict);
+        var mockGenerator = Mocks.Create<ISurrogateKeyGenerator>();
         var serviceCollection = new ServiceCollection();
         serviceCollection.AddSingleton(mockGenerator.Object);
 

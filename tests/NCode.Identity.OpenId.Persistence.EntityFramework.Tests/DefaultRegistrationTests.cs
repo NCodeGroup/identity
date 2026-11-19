@@ -9,8 +9,15 @@ using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework;
 
-public sealed class DefaultRegistrationTests
+public sealed class DefaultRegistrationTests : IDisposable
 {
+    private MockRepository Mocks { get; } = new(MockBehavior.Strict);
+
+    public void Dispose()
+    {
+        Mocks.Verify();
+    }
+
     #region AddEntityFrameworkPersistenceServices Tests
 
     [Fact]
@@ -43,7 +50,8 @@ public sealed class DefaultRegistrationTests
     [Fact]
     public void AddEntityFrameworkPersistenceServices_WhenAGeneratorIsRegisteredFirst_KeepsIt()
     {
-        var generator = Mock.Of<ISurrogateKeyGenerator>();
+        var mockGenerator = Mocks.Create<ISurrogateKeyGenerator>();
+        var generator = mockGenerator.Object;
         var serviceCollection = new ServiceCollection();
         serviceCollection.AddSingleton(generator);
 
