@@ -48,6 +48,8 @@ $ErrorActionPreference = 'Stop'
 
 $label = 'brand-update'
 $brandRepo = 'NCodeGroup/brand'
+# The cooldown, in days, before a release counts as newest; project-template ADR-0009 sets it.
+$cooldownDays = 3
 $brandLock = 'brand/brand.lock.json'
 $themeLock = 'frontend/packages/brand/brand.lock.json'
 
@@ -73,7 +75,7 @@ if ($brandVersion -ne $themeVersion) {
 }
 $pinned = [version]$brandVersion
 
-$cutoff = $Now.AddDays(-3)
+$cutoff = $Now.AddDays(-$cooldownDays)
 $releases = @(Invoke-Gh release list --repo $brandRepo --json 'tagName,publishedAt,isDraft,isPrerelease' --limit 100 |
         ConvertFrom-Json)
 $candidates = @(foreach ($release in $releases) {
@@ -83,7 +85,7 @@ $candidates = @(foreach ($release in $releases) {
         else { $published = [DateTimeOffset]::Parse("$published", [Globalization.CultureInfo]::InvariantCulture) }
         if ($published -le $cutoff) { [pscustomobject]@{ Version = [version]$Matches[1] } }
     })
-if (-not $candidates) { 'NCodeGroup/brand has no release at least three days old.'; return }
+if (-not $candidates) { "NCodeGroup/brand has no release at least $cooldownDays days old."; return }
 $newest = ($candidates | Sort-Object Version | Select-Object -Last 1).Version
 
 $open = @(Invoke-Gh issue list --label $label --state open --json 'number,title,body' --limit 100 |
@@ -91,12 +93,12 @@ $open = @(Invoke-Gh issue list --label $label --state open --json 'number,title,
 $issue = $open | Select-Object -First 1
 
 if ($newest -le $pinned) {
-    $said = "brand locks pin NCode Brand $pinned, and no release at least three days old is newer"
+    $said = "brand locks pin NCode Brand $pinned, and no release at least $cooldownDays days old is newer"
     if (-not $issue) { "The $said."; return }
     if ($DryRun) { "Would close #$($issue.number)."; return }
     Invoke-Gh issue close $issue.number --comment ("The brand locks pin NCode Brand $pinned, and no release at " +
-        'least three days old is newer, so this issue is done. The brand-watch workflow opens a new one when a newer ' +
-        'release is at least three days old.') | Out-Null
+        "least $cooldownDays days old is newer, so this issue is done. The brand-watch workflow opens a new one " +
+        "when a newer release is at least $cooldownDays days old.") | Out-Null
     "Closed #$($issue.number): the $said."
     return
 }
@@ -104,7 +106,7 @@ if ($newest -le $pinned) {
 $title = "Update NCode Brand to $newest"
 $fence = '```'
 $body = @(
-    "The brand locks pin NCode Brand $pinned. The newest release at least three days old is " +
+    "The brand locks pin NCode Brand $pinned. The newest release at least $cooldownDays days old is " +
     "[$newest](https://github.com/$brandRepo/releases/tag/v$newest)."
     ''
     'Take it from the repository root, with the GitHub CLI signed in:'
@@ -118,7 +120,7 @@ $body = @(
     'folder, and run ./build/dod.ps1 -Fast and the frontend gate.'
     ''
     'The brand-watch workflow keeps this issue current every week: it retitles it and rewrites this text when a ' +
-    'newer release is at least three days old, and closes it once the locks pin the newest release.'
+    "newer release is at least $cooldownDays days old, and closes it once the locks pin the newest release."
 ) -join "`n"
 $body = $body.TrimEnd() + "`n"
 

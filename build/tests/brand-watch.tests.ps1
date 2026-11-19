@@ -129,7 +129,7 @@ $old = '2026-11-01T00:00:00Z'
 $settled = '2026-11-20T00:00:00Z'
 $title = 'Update NCode Brand to 0.12.0'
 $labelCall = 'label create brand-update --description A newer NCodeGroup/brand release is out --color 0033CC'
-$pinnedText = 'The brand locks pin NCode Brand 0.11.0, and no release at least three days old is newer.'
+$pinnedText = 'The brand locks pin NCode Brand 0.11.0, and no release at least 3 days old is newer.'
 $vendorCall = 'node brand/vendor-brand.mjs --update 0.12.0 --lock'
 
 try {
@@ -146,7 +146,7 @@ try {
     Assert-Call $name $result '^issue create --title Update NCode Brand to 0\.12\.0 --label brand-update --body-file '
     Assert-True $name ($result.Bodies.Count -eq 1) "bodies were: $($result.Bodies.Count)"
     $body = $result.Bodies[0]
-    $firstLine = 'The brand locks pin NCode Brand 0.11.0. The newest release at least three days old is ' +
+    $firstLine = 'The brand locks pin NCode Brand 0.11.0. The newest release at least 3 days old is ' +
     '[0.12.0](https://github.com/NCodeGroup/brand/releases/tag/v0.12.0).'
     Assert-True $name $body.StartsWith("$firstLine`n`n", [StringComparison]::Ordinal) "body was: $body"
     Assert-True $name ($body.EndsWith("release.`n", [StringComparison]::Ordinal)) 'the body does not end with a newline'
@@ -203,7 +203,7 @@ try {
 
     $name = 'reports a repository without a settled release'
     $result = Invoke-Watch $root -Releases @((New-Release 'v0.12.0' '2026-11-30T00:00:00Z'))
-    Assert-Output $name $result 'NCodeGroup/brand has no release at least three days old.'
+    Assert-Output $name $result 'NCodeGroup/brand has no release at least 3 days old.'
     Assert-NoWrites $name $result
     Pass $name
 
@@ -223,7 +223,7 @@ try {
         (New-Release 'v0.12.0' '2026-11-30T00:00:00Z')
     )
     Assert-Output $name $result `
-        'The brand locks pin NCode Brand 0.12.0, and no release at least three days old is newer.'
+        'The brand locks pin NCode Brand 0.12.0, and no release at least 3 days old is newer.'
     Assert-NoWrites $name $result
     Pass $name
 
