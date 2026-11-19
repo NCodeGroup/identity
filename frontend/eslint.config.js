@@ -14,6 +14,7 @@ export default defineConfig([
     '**/storybook-static',
     '**/coverage',
     '**/test-results',
+    'packages/brand/vendor/',
     '**/*.config.{ts,js}',
   ]),
   js.configs.recommended,

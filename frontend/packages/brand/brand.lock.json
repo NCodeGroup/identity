@@ -1,0 +1,21 @@
+{
+  "version": "0.11.0",
+  "files": {
+    "vendor/mui/instrument.json": {
+      "source": "mui/instrument.json",
+      "sha256": "1011762908c9a24ee96b0811c03ec04dd94a5ad82f343d7297cbed134862cab6"
+    },
+    "vendor/tokens/derive.mjs": {
+      "source": "tokens/derive.mjs",
+      "sha256": "b7823862ac28a134ff9e1a29c73f62d188502e8fe98b6142bd7ef12a3782566f"
+    },
+    "vendor/tokens/derive.d.mts": {
+      "source": "tokens/derive.d.mts",
+      "sha256": "da5ceb804a40e1a82730d947fac6586b54191b2982bca113e4a453ecfc595d16"
+    },
+    "vendor/tokens/derive.vectors.json": {
+      "source": "tokens/derive.vectors.json",
+      "sha256": "14e4b3476d3cc18bea7c32dc5f25cb475fb919899e35d0903e962044c0858629"
+    }
+  }
+}
