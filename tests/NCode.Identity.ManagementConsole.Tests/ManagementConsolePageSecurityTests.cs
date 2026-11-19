@@ -22,7 +22,7 @@ public class ManagementConsolePageSecurityTests
 
         var nonce = security.Nonce;
         Assert.Equal(
-            $"default-src 'none'; script-src 'nonce-{nonce}' 'strict-dynamic'; style-src 'nonce-{nonce}'; img-src 'self'; connect-src 'self'; form-action 'self' https://id.example; base-uri 'none'; frame-ancestors 'none'",
+            $"default-src 'none'; script-src 'nonce-{nonce}' 'strict-dynamic'; style-src 'nonce-{nonce}'; font-src 'self'; img-src 'self'; connect-src 'self'; form-action 'self' https://id.example; base-uri 'none'; frame-ancestors 'none'",
             security.Policy.ToContentSecurityPolicy()
         );
     }
@@ -38,6 +38,22 @@ public class ManagementConsolePageSecurityTests
 
         Assert.Contains(
             "img-src 'self' https://cdn.example:8443;",
+            security.Policy.ToContentSecurityPolicy(),
+            StringComparison.Ordinal
+        );
+    }
+
+    [Fact]
+    public void Create_WithAnAbsoluteLogo_LoadsFontsOnlyFromTheConsole()
+    {
+        var security = ManagementConsolePageSecurity.Create(
+            Authority,
+            "https://cdn.example:8443/logo.png",
+            faviconUrl: null
+        );
+
+        Assert.Contains(
+            "; font-src 'self'; img-src 'self' https://cdn.example:8443;",
             security.Policy.ToContentSecurityPolicy(),
             StringComparison.Ordinal
         );

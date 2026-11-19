@@ -150,7 +150,7 @@ public sealed partial class SetupPageHandlerTests : IDisposable
         var policy = httpContext.Response.Headers.ContentSecurityPolicy.ToString();
         var nonce = NonceRegex().Match(policy).Groups[1].Value;
         Assert.Equal(
-            $"default-src 'none'; script-src 'nonce-{nonce}' 'strict-dynamic'; style-src 'nonce-{nonce}'; img-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'",
+            $"default-src 'none'; script-src 'nonce-{nonce}' 'strict-dynamic'; style-src 'nonce-{nonce}'; font-src 'self'; img-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'",
             policy
         );
     }
@@ -168,6 +168,24 @@ public sealed partial class SetupPageHandlerTests : IDisposable
         var policy = httpContext.Response.Headers.ContentSecurityPolicy.ToString();
         Assert.Contains(
             "connect-src 'self' https://console.example.com;",
+            policy,
+            StringComparison.Ordinal
+        );
+    }
+
+    [Fact]
+    public async Task HandlePageAsync_WhenAConsoleIsHinted_LoadsFontsOnlyFromThePage()
+    {
+        await WriteIndexAsync(CancellationToken.None);
+        SetupIsServed(true);
+        var handler = CreateHandler("https://console.example.com");
+        var httpContext = CreateHttpContext();
+
+        await handler.HandlePageAsync(httpContext, CancellationToken.None);
+
+        var policy = httpContext.Response.Headers.ContentSecurityPolicy.ToString();
+        Assert.Contains(
+            "; font-src 'self'; img-src 'self'; connect-src 'self' https://console.example.com;",
             policy,
             StringComparison.Ordinal
         );
