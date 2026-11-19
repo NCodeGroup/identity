@@ -98,6 +98,15 @@ $recordingPnpm = @{
     Posix   = "#!/bin/sh`necho `"pnpm `$*`"`ncase `"`$*`" in *turbo*) exit 1;; esac`nexit 0`n"
 }
 
+# A pnpm on PATH that cannot start, which says why on its error output and fails.
+$brokenPnpm = @{
+    Windows = "@echo corepack cannot start pnpm 1>&2`r`n@exit /b 1`r`n"
+    Posix   = "#!/bin/sh`necho 'corepack cannot start pnpm' >&2`nexit 1`n"
+}
+
+# A PowerShell pnpm that throws, as a broken PowerShell shim does.
+$throwingPnpmScript = @{ PowerShell = "throw 'corepack cannot start pnpm'`n" }
+
 # A PowerShell pnpm that prints each argument it receives on its own line, inside angle brackets, and fails the turbo call.
 $recordingPnpmScript = @{ PowerShell = "foreach (`$argument in `$args) { Write-Output `"pnpm-argument: <`$argument>`" }`nif (`$args -contains 'turbo') { exit 1 }`nexit 0`n" }
 
@@ -191,10 +200,22 @@ try {
     )
 
     $fixture = New-Fixture 'frontend' $false $true
-    $stubs = New-Stubs 'no-pnpm' @{ pnpm = $failingStub }
+    $stubs = New-Stubs 'broken-pnpm' @{ pnpm = $brokenPnpm }
     $run = Invoke-EndToEnd $fixture @('-Suite', 'F.EndToEnd.Tests') $stubs
-    Assert-Run 'a suite that serves built bundles needs pnpm' $run $false @(
-        'need pnpm on PATH'
+    Assert-Run 'a suite that serves built bundles reports the error of a pnpm that fails' $run $false @(
+        "need a working pnpm, and 'pnpm --version' failed with exit code 1: corepack cannot start pnpm"
+    )
+
+    $stubs = New-Stubs 'silent-pnpm' @{ pnpm = $failingStub }
+    $run = Invoke-EndToEnd $fixture @('-Suite', 'F.EndToEnd.Tests') $stubs
+    Assert-Run 'a suite that serves built bundles reports a pnpm that fails without output' $run $false @(
+        "'pnpm --version' failed with exit code 1: it printed nothing"
+    )
+
+    $stubs = New-Stubs 'throwing-pnpm' @{ pnpm = $throwingPnpmScript }
+    $run = Invoke-EndToEnd $fixture @('-Suite', 'F.EndToEnd.Tests') $stubs
+    Assert-Run 'a suite that serves built bundles reports the error a PowerShell pnpm throws' $run $false @(
+        "'pnpm --version' failed with exit code 1: corepack cannot start pnpm"
     )
 
     $stubs = New-Stubs 'recording-pnpm' @{ pnpm = $recordingPnpm }

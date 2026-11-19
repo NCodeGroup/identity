@@ -118,16 +118,23 @@ try {
     # 3. Build the frontend packages the suites serve.
     $frontendPackages = @(@(foreach ($project in $projects) { if ($tiers.FrontendPackages.Contains($project)) { $tiers.FrontendPackages[$project] } }) | Select-Object -Unique)
     if ($frontendPackages.Count -gt 0) {
-        $pnpmAvailable = $false
+        if ($null -eq (Get-Command pnpm -ErrorAction Ignore)) {
+            throw 'The end-to-end suites that serve built frontend bundles need pnpm on PATH; ./build/frontend-install.ps1 installs the version frontend/package.json pins.'
+        }
+
+        # A pnpm that is on PATH but fails, such as one whose Corepack shim cannot start, reports why on its own output.
         try {
-            pnpm --version *> $null
-            $pnpmAvailable = $LASTEXITCODE -eq 0
+            $pnpmOutput = @(pnpm --version 2>&1)
+            $pnpmExitCode = $LASTEXITCODE
         }
         catch {
-            $pnpmAvailable = $false
+            $pnpmOutput = @($_.Exception.Message)
+            $pnpmExitCode = 1
         }
-        if (-not $pnpmAvailable) {
-            throw 'The end-to-end suites that serve built frontend bundles need pnpm on PATH; ./build/frontend-install.ps1 installs the version frontend/package.json pins.'
+        if ($pnpmExitCode -ne 0) {
+            $pnpmLines = @($pnpmOutput | ForEach-Object { "$_".Trim() } | Where-Object { $_ })
+            $pnpmReason = if ($pnpmLines.Count -gt 0) { $pnpmLines[0] } else { 'it printed nothing' }
+            throw "The end-to-end suites that serve built frontend bundles need a working pnpm, and 'pnpm --version' failed with exit code ${pnpmExitCode}: $pnpmReason"
         }
 
         $frontend = Join-Path $root 'frontend'
