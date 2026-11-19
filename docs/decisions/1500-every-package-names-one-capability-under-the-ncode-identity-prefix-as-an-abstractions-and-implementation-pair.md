@@ -90,8 +90,10 @@ any package may reference.**
     default is the form rule of the keys the stores write, a UUIDv7 from `Guid.CreateVersion7()`, so the Entity
     Framework framework and the directory server mint keys through one registration without referencing each other
     ([ADR-1517](1517-internal-surrogate-keys-are-uuidv7-minted-in-process-behind-one-seam-and-never-reach-a-caller.md)).
-    `ISupportClone` lives in `NCode.Identity.OpenId.Abstractions`, namespace `NCode.Identity.OpenId.Messages`, beside
-    `IOpenIdMessage`. The serializer of the payloads stored at rest as JSON is the JSON foundation's (decision 6).
+    `PageCursorProtectorExtensions` is the form rule of a surrogate key's cursor position, 16 big-endian bytes, so every
+    store and every `IPageCursorProtector` share it. `ISupportClone` lives in `NCode.Identity.OpenId.Abstractions`,
+    namespace `NCode.Identity.OpenId.Messages`, beside `IOpenIdMessage`. The serializer of the payloads stored at rest as
+    JSON is the JSON foundation's (decision 6).
 11. **Settings, claims and cryptography.** `NCode.Identity.Settings`, `NCode.Identity.Claims` and
     `NCode.Identity.Cryptography`, each with its `.Abstractions` package, are flat, single-purpose pairs with the markers
     `SettingsLibrary`, `ClaimsLibrary` and `CryptographyLibrary`. Each `Add…Library()` extends a bare

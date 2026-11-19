@@ -224,8 +224,9 @@ than inlining the rationale.
 - 👁 **An `.Abstractions` package holds contracts, data and the pure form rules of the values its contracts carry**
   (`TenantIdentifierRules`, `CellLabelRules`, `AbsoluteUri`, `DatabaseRoleNameRules` with the Postgres identifier
   quoting and runtime-role grant statements built on it, `PostgresIdentifiers` and `RuntimeRoleGrants`, and
-  `ExpiringKeys`, and the UUIDv7 default of `ISurrogateKeyGenerator` with `AddSurrogateKeyGenerator()`), so every
-  implementation of a contract applies one rule; it holds no service logic and never logs. See
+  `ExpiringKeys`, and the UUIDv7 default of `ISurrogateKeyGenerator` with `AddSurrogateKeyGenerator()`, and
+  `PageCursorProtectorExtensions`, the big-endian cursor position of a surrogate key), so every implementation of a
+  contract applies one rule; it holds no service logic and never logs. See
   [ADR-1500](../../docs/decisions/1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md) and
   [ADR-1517](../../docs/decisions/1517-internal-surrogate-keys-are-uuidv7-minted-in-process-behind-one-seam-and-never-reach-a-caller.md).
 - 👁 **Mark infrastructure-public types** — template [Public API](csharp.instructions.md#public-api), with the summary
