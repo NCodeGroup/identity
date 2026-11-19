@@ -48,7 +48,8 @@ public sealed class PageTypefaceTests(FrontendEnvironment environment)
             result.FontResponses,
             response =>
             {
-                Assert.Equal(origin, response.Url.GetLeftPart(UriPartial.Authority));
+                var authority = response.Url.GetLeftPart(UriPartial.Authority);
+                Assert.Equal(origin, authority);
                 Assert.StartsWith(assetsPath, response.Url.AbsolutePath, StringComparison.Ordinal);
                 Assert.Equal(200, response.Status);
                 Assert.Equal("font/woff2", response.ContentType);
@@ -79,7 +80,8 @@ public sealed class PageTypefaceTests(FrontendEnvironment environment)
             responses,
             response =>
             {
-                Assert.Equal(origin, response.Url.GetLeftPart(UriPartial.Authority));
+                var authority = response.Url.GetLeftPart(UriPartial.Authority);
+                Assert.Equal(origin, authority);
                 Assert.StartsWith(assetsPath, response.Url.AbsolutePath, StringComparison.Ordinal);
                 Assert.Equal(200, response.Status);
                 Assert.Equal("text/plain", response.ContentType);

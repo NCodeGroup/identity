@@ -42,8 +42,11 @@ public sealed class BrowserPoolTests : BaseTests
 
         launch.SetResult(browser.Object);
 
-        Assert.Same(context.Object, await first);
-        Assert.Same(context.Object, await second);
+        var firstContext = await first;
+        var secondContext = await second;
+
+        Assert.Same(context.Object, firstContext);
+        Assert.Same(context.Object, secondContext);
         browserType.Verify(x => x.LaunchAsync(It.IsAny<BrowserTypeLaunchOptions>()), Times.Once());
     }
 
@@ -79,7 +82,9 @@ public sealed class BrowserPoolTests : BaseTests
 
         launch.SetResult(browser.Object);
 
-        Assert.Same(context.Object, await waiting);
+        var waitingContext = await waiting;
+
+        Assert.Same(context.Object, waitingContext);
     }
 
     #endregion
@@ -150,7 +155,9 @@ public sealed class BrowserPoolTests : BaseTests
             await pool.DisposeAsync()
         );
 
-        Assert.Same(closeFailure, Assert.Single(failure.InnerExceptions));
+        var reported = Assert.Single(failure.InnerExceptions);
+
+        Assert.Same(closeFailure, reported);
     }
 
     #endregion

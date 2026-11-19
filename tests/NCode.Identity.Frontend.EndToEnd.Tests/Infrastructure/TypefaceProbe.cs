@@ -7,7 +7,8 @@ using Microsoft.Playwright;
 namespace NCode.Identity.Frontend.EndToEnd.Tests.Infrastructure;
 
 /// <summary>
-/// Opens a page in a browser and reports whether its typefaces load under its Content-Security-Policy.
+/// Opens pages and typeface licenses in a browser, and reports whether a page's typefaces load under its
+/// Content-Security-Policy and what the browser received for each license.
 /// </summary>
 public static class TypefaceProbe
 {

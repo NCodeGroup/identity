@@ -21,7 +21,10 @@ public sealed class TeardownTests
     {
         List<string> stopped = [];
 
-        await Teardown.StopAllAsync(Recording(stopped, "first"), Recording(stopped, "second"));
+        var first = Recording(stopped, "first");
+        var second = Recording(stopped, "second");
+
+        await Teardown.StopAllAsync(first, second);
 
         Assert.Equal(["first", "second"], stopped);
     }
@@ -32,11 +35,12 @@ public sealed class TeardownTests
         List<string> stopped = [];
         var firstFailure = new InvalidOperationException("first");
         var secondFailure = new InvalidOperationException("second");
+        var afterFirstFailure = Recording(stopped, "after the first failure");
 
         var failure = await Assert.ThrowsAsync<AggregateException>(async () =>
             await Teardown.StopAllAsync(
                 () => ValueTask.FromException(firstFailure),
-                Recording(stopped, "after the first failure"),
+                afterFirstFailure,
                 () => ValueTask.FromException(secondFailure)
             )
         );
@@ -55,7 +59,9 @@ public sealed class TeardownTests
         List<string> stopped = [];
         var startFailure = new InvalidOperationException("start");
 
-        await Teardown.StopStartedAsync(startFailure, Recording(stopped, "started"));
+        var started = Recording(stopped, "started");
+
+        await Teardown.StopStartedAsync(startFailure, started);
 
         Assert.Equal(["started"], stopped);
     }
@@ -66,12 +72,13 @@ public sealed class TeardownTests
         List<string> stopped = [];
         var startFailure = new InvalidOperationException("start");
         var stopFailure = new InvalidOperationException("stop");
+        var afterStopFailure = Recording(stopped, "after the stop failure");
 
         var failure = await Assert.ThrowsAsync<AggregateException>(async () =>
             await Teardown.StopStartedAsync(
                 startFailure,
                 () => ValueTask.FromException(stopFailure),
-                Recording(stopped, "after the stop failure")
+                afterStopFailure
             )
         );
 
