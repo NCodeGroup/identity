@@ -7,9 +7,12 @@
 
 .DESCRIPTION
     Builds each end-to-end suite, installs the Playwright browsers it drives (Chromium, Firefox and WebKit) and runs
-    its tests. The suites start containers, so a running Docker engine is required (Docker Desktop on Windows and
-    macOS). The first run downloads the browsers and the container images, so it can take several minutes. On Linux
-    in GitHub Actions the browsers are installed with their operating-system dependencies.
+    its tests. Before it builds a suite whose project file sets EndToEndFrontendPackages, it installs the pnpm
+    workspace and builds those frontend packages with turbo, so the suite serves bundles built from the tree; that
+    needs pnpm on PATH (./build/frontend-install.ps1 installs it). The suites start containers, so a running Docker
+    engine is required (Docker Desktop on Windows and macOS). The first run downloads the browsers and the container
+    images, so it can take several minutes. On Linux in GitHub Actions the browsers are installed with their
+    operating-system dependencies.
 
     Every run writes its JUnit reports to artifacts/e2e-results (cleared first, so a report never mixes in an earlier
     run), prints a test digest, and ends with 'End-to-end: PASSED' when every suite passes. build/dod.ps1 never runs
@@ -20,7 +23,13 @@
 
 .PARAMETER Filter
     A `dotnet test --filter` expression; runs only the matching tests (for example
-    `FullyQualifiedName~SessionCookieTests`).
+    `FullyQualifiedName~SessionCookieTests`). Every suite that runs must match at least one test, so name the suite
+    with -Suite.
+
+.PARAMETER Suite
+    The names of the end-to-end suites to run, such as NCode.Identity.Frontend.EndToEnd.Tests (a project's file name
+    without .csproj). With -Affected, only those of them the changes reach run. An unknown name fails before anything
+    is built.
 
 .PARAMETER Affected
     Runs only the end-to-end suites that build/affected-tests.ps1 selects for the changes since the merge base of HEAD
@@ -37,12 +46,13 @@
     ./build/e2e.ps1 -Affected
 
 .EXAMPLE
-    ./build/e2e.ps1 -Filter 'FullyQualifiedName~SessionCookieTests'
+    ./build/e2e.ps1 -Suite NCode.Identity.Bff.EndToEnd.Tests -Filter 'FullyQualifiedName~SessionCookieTests'
 #>
 [CmdletBinding()]
 param(
     [string]$Configuration = 'Release',
     [string]$Filter,
+    [string[]]$Suite,
     [switch]$Affected,
     [string]$Base = 'origin/main'
 )
@@ -57,11 +67,19 @@ Push-Location $root
 try {
     # 1. Select the projects.
     $tiers = & (Join-Path $PSScriptRoot 'test-projects.ps1') -Root $root
+    if (-not $Affected -and @($tiers.EndToEnd).Count -eq 0) {
+        throw 'No end-to-end suite exists under tests/.'
+    }
+    if ($Suite) {
+        $suiteNames = @($tiers.EndToEnd | ForEach-Object { [System.IO.Path]::GetFileNameWithoutExtension($_) })
+        foreach ($name in $Suite) {
+            if ($suiteNames -notcontains $name) {
+                throw "No end-to-end suite is named '$name'."
+            }
+        }
+    }
     if (-not $Affected) {
         $projects = @($tiers.EndToEnd)
-        if ($projects.Count -eq 0) {
-            throw 'No end-to-end suite exists under tests/.'
-        }
     }
     else {
         $selection = & (Join-Path $PSScriptRoot 'affected-tests.ps1') -Root $root -Base $Base
@@ -70,11 +88,14 @@ try {
         }
         # An if statement unrolls its output, so the array subexpression wraps it: an empty selection stays an array.
         $projects = @(if ($selection.All) { $tiers.EndToEnd } else { $selection.EndToEndProjects })
-        if ($projects.Count -eq 0) {
-            Write-Host 'No end-to-end suite is affected; skipping.'
-            Write-Host "`nEnd-to-end: PASSED" -ForegroundColor Green
-            return
-        }
+    }
+    if ($Suite) {
+        $projects = @($projects | Where-Object { $Suite -contains [System.IO.Path]::GetFileNameWithoutExtension($_) })
+    }
+    if ($Affected -and $projects.Count -eq 0) {
+        Write-Host 'No end-to-end suite is affected; skipping.'
+        Write-Host "`nEnd-to-end: PASSED" -ForegroundColor Green
+        return
     }
 
     # 2. The suites start containers.
@@ -90,12 +111,39 @@ try {
         throw 'The end-to-end suites need a running Docker engine (Docker Desktop on Windows and macOS).'
     }
 
-    # 3. Clear the earlier reports.
+    # 3. Build the frontend packages the suites serve.
+    $frontendPackages = @(@(foreach ($project in $projects) { if ($tiers.FrontendPackages.Contains($project)) { $tiers.FrontendPackages[$project] } }) | Select-Object -Unique)
+    if ($frontendPackages.Count -gt 0) {
+        $pnpmAvailable = $false
+        try {
+            pnpm --version *> $null
+            $pnpmAvailable = $LASTEXITCODE -eq 0
+        }
+        catch {
+            $pnpmAvailable = $false
+        }
+        if (-not $pnpmAvailable) {
+            throw 'The end-to-end suites that serve built frontend bundles need pnpm on PATH; ./build/frontend-install.ps1 installs the version frontend/package.json pins.'
+        }
+
+        $frontend = Join-Path $root 'frontend'
+        pnpm --dir $frontend install --frozen-lockfile --config.confirm-modules-purge=false
+        if ($LASTEXITCODE -ne 0) {
+            throw "Installing the frontend workspace failed with exit code $LASTEXITCODE."
+        }
+
+        pnpm --dir $frontend exec turbo run build @(foreach ($package in $frontendPackages) { "--filter=$package" })
+        if ($LASTEXITCODE -ne 0) {
+            throw "Building the frontend packages $($frontendPackages -join ', ') failed with exit code $LASTEXITCODE."
+        }
+    }
+
+    # 4. Clear the earlier reports.
     if (Test-Path -LiteralPath $results) {
         Remove-Item -LiteralPath $results -Recurse -Force
     }
 
-    # 4. Build, install the browsers and test each suite.
+    # 5. Build, install the browsers and test each suite.
     $testsFailed = $false
     foreach ($relativeProject in $projects) {
         $project = Join-Path $root $relativeProject
@@ -146,13 +194,13 @@ try {
         }
     }
 
-    # 5. Report whatever ran, then let the test runs decide the verdict.
+    # 6. Report whatever ran, then let the test runs decide the verdict.
     & (Join-Path $PSScriptRoot 'test-report.ps1') -Path 'artifacts/e2e-results/*.junit.xml' -Title 'End-to-end tests' -Root $root
     if ($testsFailed) {
         throw 'The end-to-end tests failed.'
     }
 
-    # 6. Done.
+    # 7. Done.
     Write-Host "`nEnd-to-end: PASSED" -ForegroundColor Green
 }
 finally {
