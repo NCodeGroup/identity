@@ -5,7 +5,6 @@ using JetBrains.Annotations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using NCode.Identity.OpenId.Persistence.EntityFramework.Configuration;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Stores;
 using NCode.Identity.Persistence;
 using NCode.Identity.Persistence.Stores;
@@ -15,9 +14,9 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework;
 
 /// <summary>
 /// Provides extension methods for <see cref="IServiceCollection"/> to register the reusable Entity Framework
-/// persistence framework (the store-manager, id generation, and the <see cref="AddStore{TDbContext,TService,TImplementation}"/>
-/// helper that slices use to register their stores). Register a schema slice (such as the core OpenID slice) separately
-/// to contribute entities and stores.
+/// persistence framework (the store-manager, the surrogate key generator, the page cursor protector, and the
+/// <see cref="AddStore{TDbContext,TService,TImplementation}"/> helper that slices use to register their stores).
+/// Register a schema slice (such as the core OpenID slice) separately to contribute entities and stores.
 /// </summary>
 [PublicAPI]
 public static class DefaultRegistration
@@ -26,8 +25,8 @@ public static class DefaultRegistration
     extension(IServiceCollection serviceCollection)
     {
         /// <summary>
-        /// Registers the reusable Entity Framework persistence framework (the id generator, the id-generator
-        /// convention, and the store-manager/unit-of-work plumbing) into the provided <see cref="IServiceCollection"/>.
+        /// Registers the reusable Entity Framework persistence framework (the surrogate key generator, the page cursor
+        /// protector, and the store-manager/unit-of-work plumbing) into the provided <see cref="IServiceCollection"/>.
         /// Make sure to also register the Entity Framework <see cref="DbContext"/> itself and the schema slices whose
         /// stores you need. The host registers ASP.NET Core Data Protection, whose key ring protects the page cursors
         /// (a server does through its secret protection).
@@ -39,9 +38,6 @@ public static class DefaultRegistration
             where TDbContext : DbContext
         {
             var newBuilder = serviceCollection.NewBuilder<StoreManagerLibrary>();
-
-            serviceCollection.TryAddSingleton<IdValueGenerator>();
-            serviceCollection.TryAddSingleton<UseIdGeneratorConvention>();
 
             serviceCollection.TryAddSingleton<
                 IStoreManagerFactory,

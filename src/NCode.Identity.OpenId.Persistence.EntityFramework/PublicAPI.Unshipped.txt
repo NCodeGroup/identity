@@ -12,8 +12,6 @@ abstract NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStoreWithR
 abstract NCode.Identity.OpenId.Persistence.EntityFramework.Stores.BaseStoreWithResourceId<TItem, TEntity>.UpdateAsync(TItem! item, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Persistence.EntityFramework.Configuration.SurrogateKeyAttribute
 NCode.Identity.OpenId.Persistence.EntityFramework.Configuration.SurrogateKeyAttribute.SurrogateKeyAttribute() -> void
-NCode.Identity.OpenId.Persistence.EntityFramework.Configuration.UseIdGeneratorAttribute
-NCode.Identity.OpenId.Persistence.EntityFramework.Configuration.UseIdGeneratorAttribute.UseIdGeneratorAttribute() -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.DefaultRegistration
 NCode.Identity.OpenId.Persistence.EntityFramework.DefaultRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!)
 NCode.Identity.OpenId.Persistence.EntityFramework.DefaultRegistration.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).AddEntityFrameworkPersistenceServices<TDbContext>() -> NCode.Identity.Registration.IServiceBuilder<NCode.Identity.Persistence.StoreManagerLibrary>!
