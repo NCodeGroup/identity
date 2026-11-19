@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
+import { AppThemeProvider } from '../theme/AppThemeProvider.js';
+import { createAppTheme } from '../theme/createAppTheme.js';
 import { ExportPublicKeyDialog, type PublicKeyMaterial } from './ExportPublicKeyDialog.js';
 
 const publicKey: PublicKeyMaterial = {
@@ -38,6 +40,25 @@ describe('ExportPublicKeyDialog', () => {
     expect(screen.getByTestId('export-public-key-pem-value').textContent).toBe(publicKey.pem);
     expect(screen.queryByTestId('export-public-key-loading')).not.toBeInTheDocument();
     expect(screen.queryByTestId('export-public-key-error')).not.toBeInTheDocument();
+  });
+
+  it('shows the key material in the code font', () => {
+    render(
+      <AppThemeProvider>
+        <ExportPublicKeyDialog
+          open
+          secretId="s-1"
+          publicKey={publicKey}
+          isLoading={false}
+          error={undefined}
+          onClose={vi.fn()}
+        />
+      </AppThemeProvider>,
+    );
+
+    const expected = { fontFamily: createAppTheme().typography.fontFamilyMono };
+    expect(screen.getByTestId('export-public-key-jwk-value')).toHaveStyle(expected);
+    expect(screen.getByTestId('export-public-key-pem-value')).toHaveStyle(expected);
   });
 
   it.each([
