@@ -153,10 +153,16 @@ addresses are relative; from another one they are the files' addresses on `main`
 ```powershell
 node brand/vendor-brand.mjs --check --lock brand/brand.lock.json
 node brand/vendor-brand.mjs --update <version> --lock brand/brand.lock.json
+node brand/vendor-brand.mjs --update <version> --lock frontend/packages/brand/brand.lock.json
 ```
 
-Run both from the repository root. `brand.lock.json` pins the release and, for each file, its path in the release and
-its SHA-256. It also names `vendor-brand.mjs`, the release's own script.
+Run each from the repository root. `brand.lock.json` pins the release and, for each file, its path in the release and
+its SHA-256. It also names `vendor-brand.mjs`, the release's own script. Both locks name one release, because
+`frontend/packages/brand` holds the same release's theme files
+([ADR-1516](../docs/decisions/1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md)).
+`build/brand-kit.ps1` checks both and fails when their releases differ. The weekly brand watch
+(`.github/workflows/brand-watch.yml`) keeps a `brand-update` issue open while a release at least three days old is newer
+than the locks pin.
 
 `--check` runs offline and names each file that is missing or differs. The `brand kit` stage of `./build/dod.ps1` runs
 it through `build/brand-kit.ps1`, which also fails on a file here that the lock does not name.

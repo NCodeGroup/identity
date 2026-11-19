@@ -72,6 +72,7 @@ frontend/
     auth/               @ncodegroup/identity-auth — framework-free authorization-code + PKCE helpers for the Playground's public client
     store/              @ncodegroup/identity-store — Redux store assembly, slices, typed hooks
     ui/                 @ncodegroup/identity-ui — MUI design system + stateless components + Storybook
+    brand/              @ncodegroup/identity-brand — the files of one NCode Brand release: Instrument's theme data and the tenant color derivation (vendored; never edited)
     shell/              @ncodegroup/identity-shell — stateful app-shell containers shared by the surfaces (the runtime-config BootstrapGate)
     conformance-core/   @ncodegroup/identity-conformance-core — framework-free conformance logic (discovery, audit, spec-coverage, probes)
     test-support/       @ncodegroup/identity-test-support — test-only Vitest support shared by every workspace (the console guard, the Testing Library wait timeout and the family icon set)
@@ -110,7 +111,9 @@ frontend/
 7. **Branding is a runtime seam.** `@ncodegroup/identity-ui` themes from runtime `BrandingConfig`. The interactive
    surface (`apps/auth`) reads its tenant's branding from the JSON block the host embeds in every page it serves with
    the bundle (`<script type="application/json" id="branding">`, `BRANDING_ELEMENT_ID`), parses it with
-   `parseBrandingConfig`, and mounts at once over the server-rendered page (ADR-1253).
+   `parseBrandingConfig`, and mounts at once over the server-rendered page (ADR-1253). `createAppTheme` builds the theme
+   from NCode Brand's Instrument, passes a tenant's colors through `deriveBrand`, and follows the reader's system color
+   mode when the branding names none (ADR-1516).
 8. **The interactive surface renders in the language the host selected.** The host writes the locale it selected
    from the request's `ui_locales` and the tenant's settings into the page's `lang` attribute (in place of the
    `__NCODE_LANG__` placeholder of `apps/auth/index.html`), `mountSurface` reads it before it renders, and every
@@ -119,7 +122,8 @@ frontend/
    back as `ui_locales`. No text is written inline in a surface (ADR-1402).
 9. **`type` over `interface`, always.** All declarations — DTOs, props, unions — use `type` aliases,
    standardizing on the single most capable mechanism (unions, intersections, mapped/conditional
-   types) rather than mixing the two.
+   types) rather than mixing the two. Module augmentation of a library's types (`declare module
+'@mui/material/styles'`) uses `interface`, because only an interface merges.
 
 ## Common commands
 
@@ -133,6 +137,7 @@ pnpm test                 # run all unit tests
 pnpm run test:report      # same, plus per-package JUnit (test-results/) and coverage (coverage/) — what CI runs;
                           # every package runs to completion even when one fails, so the report is never truncated;
                           # fails when a package drops below its coverage floor
+pnpm run check:brand      # check packages/brand/vendor against the SHA-256 its lock pins
 pnpm lint                 # lint all packages (warnings fail: --max-warnings 0)
 pnpm typecheck            # type-check all packages, including tests, stories, and setup files
 pnpm --filter @ncodegroup/identity-ui storybook    # component workbench
@@ -203,6 +208,20 @@ is offered as an installed app. `build/favicon-copies.ps1` (the `favicon copies`
 a copy differs from the kit's file, and each app's `src/favicon.test.ts` checks its links and files against the family
 icon set that `@ncodegroup/identity-test-support` holds
 ([ADR-1492](../docs/decisions/1492-the-familys-id-logo-is-vendored-from-an-ncodegroup-brand-release-and-every-web-app-shows-its-icon.md)).
+
+### Every app is themed with Instrument
+
+`@ncodegroup/identity-brand` (`packages/brand`) holds one NCode Brand release's files at their release paths under
+`vendor/`, written by `brand/vendor-brand.mjs` from `packages/brand/brand.lock.json`. Never edit one: Prettier and
+ESLint skip the folder, and `pnpm run check:brand`, the frontend job and `./build/dod.ps1`'s `brand kit` stage fail a
+file that differs from its SHA-256. To take another release, run
+`node brand/vendor-brand.mjs --update <version> --lock frontend/packages/brand/brand.lock.json` from the repository
+root, and the same for `brand/brand.lock.json`, so both name one release, then review the diff; the weekly brand watch
+opens a `brand-update` issue when one is due. `createAppTheme` reads only `instrument.json` and `deriveBrand`;
+`brandRelease.test.ts` proves the copy derives every vector of the release. Set code in `typography.code`
+(`variant="code"`, or `typography: 'code'` in `sx`) and a color by its Instrument role under `palette.instrument`, never
+a font family or a color literal. Storybook's toolbar switches the mode and a tenant's colors
+([ADR-1516](../docs/decisions/1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md)).
 
 ## Runtime configuration
 
