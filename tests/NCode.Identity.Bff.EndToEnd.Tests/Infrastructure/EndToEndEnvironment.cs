@@ -148,9 +148,9 @@ public sealed class EndToEndEnvironment : IAsyncLifetime
             BrowserPoolOrNull = await BrowserPool.CreateAsync(CancellationToken.None);
         }
         // A failed start stops what it already started, then fails the run.
-        catch
+        catch (Exception startFailure)
         {
-            await DisposeAsync();
+            await StartFailure.StopStartedAsync(startFailure, () => new ValueTask(DisposeAsync()));
             throw;
         }
     }

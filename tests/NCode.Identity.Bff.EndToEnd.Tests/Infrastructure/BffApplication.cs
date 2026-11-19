@@ -14,6 +14,7 @@ using NCode.Buffers;
 using NCode.Identity.Bff.Antiforgery;
 using NCode.Identity.Bff.Endpoints;
 using NCode.Identity.Bff.Server;
+using NCode.Identity.EndToEnd.TestSupport;
 using NCode.Identity.Jose;
 
 namespace NCode.Identity.Bff.EndToEnd.Tests.Infrastructure;
@@ -182,9 +183,9 @@ public sealed class BffApplication : IAsyncDisposable
             await application.App.StartAsync(cancellationToken);
             return application;
         }
-        catch
+        catch (Exception startFailure)
         {
-            await application.DisposeAsync();
+            await StartFailure.StopStartedAsync(startFailure, application.DisposeAsync);
             throw;
         }
     }

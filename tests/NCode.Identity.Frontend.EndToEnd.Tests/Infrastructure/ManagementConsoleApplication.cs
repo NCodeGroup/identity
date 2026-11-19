@@ -68,9 +68,9 @@ public sealed class ManagementConsoleApplication
             application.StartServer();
             return application;
         }
-        catch
+        catch (Exception startFailure)
         {
-            await application.DisposeAsync();
+            await StartFailure.StopStartedAsync(startFailure, application.DisposeAsync);
             throw;
         }
     }

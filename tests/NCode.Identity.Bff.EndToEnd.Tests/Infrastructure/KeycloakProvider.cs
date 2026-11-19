@@ -147,10 +147,13 @@ public sealed class KeycloakProvider : IAsyncDisposable
         {
             await container.StartAsync(cancellationToken);
         }
-        catch
+        catch (Exception startFailure)
         {
-            await container.DisposeAsync();
-            await image.DisposeAsync();
+            await StartFailure.StopStartedAsync(
+                startFailure,
+                container.DisposeAsync,
+                image.DisposeAsync
+            );
             throw;
         }
 

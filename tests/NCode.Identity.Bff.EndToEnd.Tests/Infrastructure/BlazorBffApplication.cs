@@ -11,6 +11,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NCode.Identity.Bff.EndToEnd.BlazorApp;
 using NCode.Identity.Bff.EndToEnd.BlazorApp.Components;
+using NCode.Identity.EndToEnd.TestSupport;
 
 namespace NCode.Identity.Bff.EndToEnd.Tests.Infrastructure;
 
@@ -72,9 +73,9 @@ public sealed class BlazorBffApplication : WebApplicationFactory<App>
             application.StartServer();
             return application;
         }
-        catch
+        catch (Exception startFailure)
         {
-            await application.DisposeAsync();
+            await StartFailure.StopStartedAsync(startFailure, application.DisposeAsync);
             throw;
         }
     }
