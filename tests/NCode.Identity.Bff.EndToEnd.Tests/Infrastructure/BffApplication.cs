@@ -40,6 +40,29 @@ public sealed class BffApplication : IAsyncDisposable
     /// </summary>
     public const string LoginCookieName = $"{BffDefaults.LoginCookieName}.{FrontendName}";
 
+    /// <summary>
+    /// Builds and starts a BFF application.
+    /// </summary>
+    public static async ValueTask<BffApplication> StartAsync(
+        BffApplicationSettings settings,
+        CancellationToken cancellationToken
+    )
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        var application = new BffApplication(settings);
+        try
+        {
+            await application.App.StartAsync(cancellationToken);
+            return application;
+        }
+        catch (Exception startFailure)
+        {
+            await Teardown.StopStartedAsync(startFailure, application.DisposeAsync);
+            throw;
+        }
+    }
+
     private WebApplication App { get; }
     private List<ECDsa> Keys { get; } = [];
     private int _apiCalls;
@@ -167,36 +190,19 @@ public sealed class BffApplication : IAsyncDisposable
     /// </summary>
     public int PreflightRequests => Volatile.Read(ref _preflightRequests);
 
-    /// <summary>
-    /// Builds and starts a BFF application.
-    /// </summary>
-    public static async ValueTask<BffApplication> StartAsync(
-        BffApplicationSettings settings,
-        CancellationToken cancellationToken
-    )
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-
-        var application = new BffApplication(settings);
-        try
-        {
-            await application.App.StartAsync(cancellationToken);
-            return application;
-        }
-        catch (Exception startFailure)
-        {
-            await Teardown.StopStartedAsync(startFailure, application.DisposeAsync);
-            throw;
-        }
-    }
-
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        await App.DisposeAsync();
-        foreach (var key in Keys)
+        try
         {
-            key.Dispose();
+            await App.DisposeAsync();
+        }
+        finally
+        {
+            foreach (var key in Keys)
+            {
+                key.Dispose();
+            }
         }
     }
 }

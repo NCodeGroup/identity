@@ -16,13 +16,6 @@ namespace NCode.Identity.Bff.EndToEnd.Tests.Infrastructure;
 /// </summary>
 public sealed class OriginServer : IAsyncDisposable
 {
-    private WebApplication App { get; }
-
-    private OriginServer(WebApplication app)
-    {
-        App = app;
-    }
-
     /// <summary>
     /// Starts a server that listens on each of the ports.
     /// </summary>
@@ -48,14 +41,34 @@ public sealed class OriginServer : IAsyncDisposable
         });
 
         var app = builder.Build();
-        app.MapGet(
-            "/",
-            static () =>
-                Results.Content(TestPages.Blank, "text/html", contentEncoding: SecureEncoding.UTF8)
-        );
+        try
+        {
+            app.MapGet(
+                "/",
+                static () =>
+                    Results.Content(
+                        TestPages.Blank,
+                        "text/html",
+                        contentEncoding: SecureEncoding.UTF8
+                    )
+            );
 
-        await app.StartAsync(cancellationToken);
+            await app.StartAsync(cancellationToken);
+        }
+        catch (Exception startFailure)
+        {
+            await Teardown.StopStartedAsync(startFailure, app.DisposeAsync);
+            throw;
+        }
+
         return new OriginServer(app);
+    }
+
+    private WebApplication App { get; }
+
+    private OriginServer(WebApplication app)
+    {
+        App = app;
     }
 
     /// <inheritdoc />

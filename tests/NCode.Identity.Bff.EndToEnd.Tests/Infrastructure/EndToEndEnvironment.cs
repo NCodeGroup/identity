@@ -20,6 +20,9 @@ public sealed class EndToEndEnvironment : IAsyncLifetime
     private const string BlazorClientId = "bff-blazor";
     private const string ContainerHost = BffHostSetup.ContainerHost;
 
+    private static InvalidOperationException NotInitialized() =>
+        new("The end-to-end environment has not been initialized.");
+
     private TestCertificate? Certificate { get; set; }
     private KeycloakProvider? KeycloakOrNull { get; set; }
     private BffApplication? StrictBffOrNull { get; set; }
@@ -150,7 +153,7 @@ public sealed class EndToEndEnvironment : IAsyncLifetime
         // A failed start stops what it already started, then fails the run.
         catch (Exception startFailure)
         {
-            await Teardown.StopStartedAsync(startFailure, () => new ValueTask(DisposeAsync()));
+            await Teardown.StopStartedAsync(startFailure, async () => await DisposeAsync());
             throw;
         }
     }
@@ -163,10 +166,8 @@ public sealed class EndToEndEnvironment : IAsyncLifetime
         CancellationToken cancellationToken
     )
     {
-        return await (BrowserPoolOrNull ?? throw NotInitialized()).NewContextAsync(
-            browserName,
-            cancellationToken
-        );
+        var pool = BrowserPoolOrNull ?? throw NotInitialized();
+        return await pool.NewContextAsync(browserName, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -254,7 +255,4 @@ public sealed class EndToEndEnvironment : IAsyncLifetime
             [SameSiteTrusted],
             TimeSpan.FromMinutes(1)
         );
-
-    private static InvalidOperationException NotInitialized() =>
-        new("The end-to-end environment has not been initialized.");
 }

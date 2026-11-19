@@ -21,6 +21,35 @@ namespace NCode.Identity.Bff.EndToEnd.Tests.Infrastructure;
 /// </summary>
 public sealed class BlazorBffApplication : WebApplicationFactory<App>
 {
+    /// <summary>
+    /// Builds and starts the Blazor BFF application.
+    /// </summary>
+    public static async ValueTask<BlazorBffApplication> StartAsync(
+        BffApplicationSettings settings,
+        CancellationToken cancellationToken
+    )
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        var application = new BlazorBffApplication(settings);
+        try
+        {
+            application.UseKestrel(kestrel =>
+                kestrel.ListenLocalhost(
+                    settings.Port,
+                    listen => listen.UseHttps(settings.Certificate.Certificate)
+                )
+            );
+            application.StartServer();
+            return application;
+        }
+        catch (Exception startFailure)
+        {
+            await Teardown.StopStartedAsync(startFailure, application.DisposeAsync);
+            throw;
+        }
+    }
+
     private BffApplicationSettings Settings { get; }
     private List<ECDsa> Keys { get; } = [];
 
@@ -51,42 +80,19 @@ public sealed class BlazorBffApplication : WebApplicationFactory<App>
     /// </summary>
     public HostCounters Counters => Services.GetRequiredService<HostCounters>();
 
-    /// <summary>
-    /// Builds and starts the Blazor BFF application.
-    /// </summary>
-    public static async ValueTask<BlazorBffApplication> StartAsync(
-        BffApplicationSettings settings,
-        CancellationToken cancellationToken
-    )
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-
-        var application = new BlazorBffApplication(settings);
-        try
-        {
-            application.UseKestrel(kestrel =>
-                kestrel.ListenLocalhost(
-                    settings.Port,
-                    listen => listen.UseHttps(settings.Certificate.Certificate)
-                )
-            );
-            application.StartServer();
-            return application;
-        }
-        catch (Exception startFailure)
-        {
-            await Teardown.StopStartedAsync(startFailure, application.DisposeAsync);
-            throw;
-        }
-    }
-
     /// <inheritdoc />
     public override async ValueTask DisposeAsync()
     {
-        await base.DisposeAsync();
-        foreach (var key in Keys)
+        try
         {
-            key.Dispose();
+            await base.DisposeAsync();
+        }
+        finally
+        {
+            foreach (var key in Keys)
+            {
+                key.Dispose();
+            }
         }
     }
 
