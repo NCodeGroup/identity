@@ -30,10 +30,9 @@ public class SurrogateKeyExposureAnalyzerTests
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
         var tree = diagnostic.Location.SourceTree;
         Assert.NotNull(tree);
-        Assert.Equal(
-            expectedLocationText,
-            tree.GetText(cancellationToken).ToString(diagnostic.Location.SourceSpan)
-        );
+        var sourceText = tree.GetText(cancellationToken);
+        var locationText = sourceText.ToString(diagnostic.Location.SourceSpan);
+        Assert.Equal(expectedLocationText, locationText);
     }
 
     private static async ValueTask AssertReportsNothingAsync(

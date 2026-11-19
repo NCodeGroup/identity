@@ -60,13 +60,14 @@ public class PageCursorProtectorExtensionsTests
     {
         var protector = new FakePageCursorProtector { ProtectedCursor = "opaque" };
         var key = Guid.CreateVersion7();
+        var position = key.ToByteArray(bigEndian: true);
 
         var cursor = protector.ProtectKey("collection", key);
 
         Assert.Equal("opaque", cursor);
         Assert.Equal(1, protector.ProtectCount);
         Assert.Equal("collection", protector.ProtectedCollection);
-        Assert.Equal(key.ToByteArray(bigEndian: true), protector.ProtectedPosition);
+        Assert.Equal(position, protector.ProtectedPosition);
     }
 
     #endregion
@@ -77,10 +78,11 @@ public class PageCursorProtectorExtensionsTests
     public void UnprotectKey_ProtectedKey_ReturnsTheKey()
     {
         var key = Guid.CreateVersion7();
+        var position = key.ToByteArray(bigEndian: true);
         var protector = new FakePageCursorProtector
         {
             UnprotectResult = true,
-            UnprotectedPosition = key.ToByteArray(bigEndian: true),
+            UnprotectedPosition = position,
         };
 
         var result = protector.UnprotectKey("collection", "cursor");
@@ -94,10 +96,12 @@ public class PageCursorProtectorExtensionsTests
     [InlineData("")]
     public void UnprotectKey_NullOrEmptyCursor_ReturnsNull(string? cursor)
     {
+        var key = Guid.CreateVersion7();
+        var position = key.ToByteArray(bigEndian: true);
         var protector = new FakePageCursorProtector
         {
             UnprotectResult = true,
-            UnprotectedPosition = Guid.CreateVersion7().ToByteArray(bigEndian: true),
+            UnprotectedPosition = position,
         };
 
         var result = protector.UnprotectKey("collection", cursor);
