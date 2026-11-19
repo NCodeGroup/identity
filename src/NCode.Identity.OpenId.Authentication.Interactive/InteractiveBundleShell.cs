@@ -25,8 +25,8 @@ internal sealed record InteractiveBundleShell(
 )
 {
     /// <summary>
-    /// The value that the bundle's build writes into the <c>nonce</c> attribute of its scripts and of its
-    /// <c>csp-nonce</c> meta element. A served page carries the response's nonce in its place.
+    /// The value that the bundle's build writes into the <c>nonce</c> attribute of its scripts, of its stylesheet links
+    /// and of its <c>csp-nonce</c> meta element. A served page carries the response's nonce in its place.
     /// </summary>
     // See ADR-1256.
     public const string NoncePlaceholder = "__NCODE_CSP_NONCE__";
