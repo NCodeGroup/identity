@@ -43,8 +43,10 @@ Some identifiers come from elsewhere by design:
   `POST /api/platform/clients`, because the directory and the control plane identify a cell by that client id. No other
   client create request names an identifier.
 
-Internal surrogate keys, the IdGen snowflake produced through `IdValueGenerator` and `UseIdGeneratorConvention`, are never
-exposed. `Guid` is not used for resource identifiers.
+Internal surrogate keys are UUIDv7 `Guid`s that `ISurrogateKeyGenerator` mints in-process, and they never reach a
+caller
+([ADR-1517](1517-internal-surrogate-keys-are-uuidv7-minted-in-process-behind-one-seam-and-never-reach-a-caller.md)). A
+resource identifier is never a `Guid`.
 
 ### Pages
 
@@ -52,9 +54,10 @@ A collection `GET` answers `CollectionResource<TResource>`, `{ items, continuati
 `?limit=`. `ManagementApiEndpointHandler` clamps the limit: `DefaultPageSize` is 50 and `MaxPageSize` is 100.
 
 Stores page through `GetPageAsync(PageRequest { Cursor, Limit }, ...)`, which returns `PagedResult<T>` (`Items`,
-`NextCursor`). `BaseStore` owns the keyset mechanics: it orders by the surrogate `Id`, fetches `limit + 1` rows, encodes
-the last id as a Base64Url cursor and treats a malformed cursor as the start of the list. Each store supplies only its
-ordered query.
+`NextCursor`). `BaseStore` owns the keyset mechanics: it orders by the surrogate `Id`, fetches `limit + 1` rows,
+protects the last key into the cursor through `IPageCursorProtector`, which encrypts and authenticates it under the
+host's Data Protection key ring and binds it to the collection, and treats a cursor that is malformed, tampered with,
+from another collection or undecryptable as the start of the list. Each store supplies only its ordered query.
 
 A list is authorized once per request, at its node or tenant scope, with `Operations.List`, never per item. Tenant-bound
 lists are confined by the persistence query filter under the route's tenant. The authority itself is the caller's role
@@ -85,7 +88,8 @@ no general query protocol.
 - Every create path calls one generator, so identifier format and entropy change in one place.
 - A client never needs to supply or guess an identifier, and a response never exposes a surrogate key.
 - Every list endpoint has the same shape, and a new store gets paging by supplying an ordered query.
-- A malformed cursor restarts the list instead of failing, so a stale or tampered cursor cannot cause an error.
+- A malformed, tampered or undecryptable cursor restarts the list instead of failing, so it cannot cause an error, and a
+  cursor reveals nothing about the row it ends at.
 - A caller who needs a specific subset needs an explicit filter and store method added for it; the absence of a general
   query protocol is deliberate.
 - Smell: a create request that accepts an identifier outside the exceptions above, a list that authorizes per item, or a
@@ -94,7 +98,7 @@ no general query protocol.
 
 ## References
 
-- `ICryptoService.GenerateResourceId()`, `IdValueGenerator`, `UseIdGeneratorConvention`
+- `ICryptoService.GenerateResourceId()`, `ISurrogateKeyGenerator`, `IPageCursorProtector`
 - `CollectionResource<TResource>`, `PageRequest`, `PagedResult<T>`, `BaseStore`, `ManagementApiEndpointHandler`
 - [project-template ADR-0123](project-template/0123-resource-ids-are-server-generated-and-opaque.md)
 - [project-template ADR-0124](project-template/0124-collection-endpoints-use-keyset-pagination.md)
