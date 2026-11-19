@@ -11,6 +11,21 @@ namespace NCode.Identity.Frontend.EndToEnd.Tests.Infrastructure;
 // ./build/e2e.ps1 builds each bundle at frontend/apps/<app>/dist before it runs the suite.
 public static class FrontendBundles
 {
+    /// <summary>
+    /// The name of the app whose bundle the OpenID Provider serves on its interactive pages.
+    /// </summary>
+    public const string AuthAppName = "auth";
+
+    /// <summary>
+    /// The name of the app whose bundle the OpenID Provider serves on its setup page.
+    /// </summary>
+    public const string SetupAppName = "setup";
+
+    /// <summary>
+    /// The name of the app whose bundle the management console's host serves.
+    /// </summary>
+    public const string ManagementConsoleAppName = "mgmt";
+
     private const string SolutionFileName = "NCode.Identity.slnx";
 
     private static bool HoldsSolution(DirectoryInfo directory)

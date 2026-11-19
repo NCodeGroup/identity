@@ -11,6 +11,10 @@ namespace NCode.Identity.Frontend.EndToEnd.Tests.Pages;
 [Collection(FrontendCollection.Name)]
 public sealed class PageTypefaceTests(FrontendEnvironment environment)
 {
+    private const string LoginAssetsPath = "/account/assets/";
+    private const string SetupAssetsPath = "/setup/assets/";
+    private const string ManagementConsoleAssetsPath = "/assets/";
+
     #region Helpers
 
     private static void AssertLoadedUnderPolicy(
@@ -110,7 +114,7 @@ public sealed class PageTypefaceTests(FrontendEnvironment environment)
             CancellationToken.None
         );
 
-        AssertLoadedUnderPolicy(result, origin, "/account/assets/");
+        AssertLoadedUnderPolicy(result, origin, LoginAssetsPath);
     }
 
     [Theory, MemberData(nameof(BrowserNames.All), MemberType = typeof(BrowserNames))]
@@ -119,8 +123,8 @@ public sealed class PageTypefaceTests(FrontendEnvironment environment)
     )
     {
         var origin = environment.OpenIdHost.Origin;
-        var assetsUri = new Uri($"{origin}/account/assets/");
-        var licenseUrls = FrontendBundles.GetLicenseUrls("auth", assetsUri);
+        var assetsUri = new Uri($"{origin}{LoginAssetsPath}");
+        var licenseUrls = FrontendBundles.GetLicenseUrls(FrontendBundles.AuthAppName, assetsUri);
         await using var context = await environment.NewContextAsync(
             browserName,
             CancellationToken.None
@@ -132,7 +136,7 @@ public sealed class PageTypefaceTests(FrontendEnvironment environment)
             CancellationToken.None
         );
 
-        AssertServedAsLicenses(responses, origin, "/account/assets/");
+        AssertServedAsLicenses(responses, origin, LoginAssetsPath);
     }
 
     #endregion
@@ -156,7 +160,7 @@ public sealed class PageTypefaceTests(FrontendEnvironment environment)
             CancellationToken.None
         );
 
-        AssertLoadedUnderPolicy(result, origin, "/setup/assets/");
+        AssertLoadedUnderPolicy(result, origin, SetupAssetsPath);
     }
 
     [Theory, MemberData(nameof(BrowserNames.All), MemberType = typeof(BrowserNames))]
@@ -165,8 +169,8 @@ public sealed class PageTypefaceTests(FrontendEnvironment environment)
     )
     {
         var origin = environment.OpenIdHost.Origin;
-        var assetsUri = new Uri($"{origin}/setup/assets/");
-        var licenseUrls = FrontendBundles.GetLicenseUrls("setup", assetsUri);
+        var assetsUri = new Uri($"{origin}{SetupAssetsPath}");
+        var licenseUrls = FrontendBundles.GetLicenseUrls(FrontendBundles.SetupAppName, assetsUri);
         await using var context = await environment.NewContextAsync(
             browserName,
             CancellationToken.None
@@ -178,7 +182,7 @@ public sealed class PageTypefaceTests(FrontendEnvironment environment)
             CancellationToken.None
         );
 
-        AssertServedAsLicenses(responses, origin, "/setup/assets/");
+        AssertServedAsLicenses(responses, origin, SetupAssetsPath);
     }
 
     #endregion
@@ -198,7 +202,7 @@ public sealed class PageTypefaceTests(FrontendEnvironment environment)
 
         var result = await TypefaceProbe.OpenAsync(context, $"{origin}/", CancellationToken.None);
 
-        AssertLoadedUnderPolicy(result, origin, "/assets/");
+        AssertLoadedUnderPolicy(result, origin, ManagementConsoleAssetsPath);
     }
 
     [Theory, MemberData(nameof(BrowserNames.All), MemberType = typeof(BrowserNames))]
@@ -207,8 +211,11 @@ public sealed class PageTypefaceTests(FrontendEnvironment environment)
     )
     {
         var origin = environment.ManagementConsole.Origin;
-        var assetsUri = new Uri($"{origin}/assets/");
-        var licenseUrls = FrontendBundles.GetLicenseUrls("mgmt", assetsUri);
+        var assetsUri = new Uri($"{origin}{ManagementConsoleAssetsPath}");
+        var licenseUrls = FrontendBundles.GetLicenseUrls(
+            FrontendBundles.ManagementConsoleAppName,
+            assetsUri
+        );
         await using var context = await environment.NewContextAsync(
             browserName,
             CancellationToken.None
@@ -220,7 +227,7 @@ public sealed class PageTypefaceTests(FrontendEnvironment environment)
             CancellationToken.None
         );
 
-        AssertServedAsLicenses(responses, origin, "/assets/");
+        AssertServedAsLicenses(responses, origin, ManagementConsoleAssetsPath);
     }
 
     #endregion

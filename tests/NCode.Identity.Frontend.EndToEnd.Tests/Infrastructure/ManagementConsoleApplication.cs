@@ -100,7 +100,7 @@ public sealed class ManagementConsoleApplication
         builder.ConfigureLogging(logging => logging.ClearProviders());
 
         // The host reads these while it registers its services, so each is a host setting.
-        var bundleRootPath = FrontendBundles.GetRootPath("mgmt");
+        var bundleRootPath = FrontendBundles.GetRootPath(FrontendBundles.ManagementConsoleAppName);
         builder.UseSetting("LocalDevelopment:Enabled", "true");
         builder.UseSetting("Bff:Frontends:mgmt:Authority", Authority);
         builder.UseSetting("Bff:Frontends:mgmt:PublicOrigin", Origin);

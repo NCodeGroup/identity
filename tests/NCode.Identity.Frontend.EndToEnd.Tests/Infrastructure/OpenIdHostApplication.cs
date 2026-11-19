@@ -72,8 +72,8 @@ public sealed class OpenIdHostApplication : WebApplicationFactory<HostApiMarker>
         builder.ConfigureLogging(logging => logging.ClearProviders());
 
         // The host reads these while it registers its services, so each is a host setting.
-        var authBundleRootPath = FrontendBundles.GetRootPath("auth");
-        var setupBundleRootPath = FrontendBundles.GetRootPath("setup");
+        var authBundleRootPath = FrontendBundles.GetRootPath(FrontendBundles.AuthAppName);
+        var setupBundleRootPath = FrontendBundles.GetRootPath(FrontendBundles.SetupAppName);
         builder.UseSetting("LocalDevelopment:Enabled", "true");
         builder.UseSetting("OpenId:TenantResolution:StaticSingle:Issuer", Origin);
         builder.UseSetting("InteractiveAuthentication:BundleRootPath", authBundleRootPath);
