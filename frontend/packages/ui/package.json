@@ -24,6 +24,7 @@
     "@emotion/styled": "^11.13.0",
     "@mui/icons-material": "^9.5.0",
     "@mui/material": "^9.5.0",
+    "@ncodegroup/identity-brand": "workspace:*",
     "@ncodegroup/identity-config": "workspace:*"
   },
   "peerDependencies": {

@@ -1,7 +1,20 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render as renderUnthemed, screen, waitFor } from '@testing-library/react';
+import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { AppThemeProvider } from '@ncodegroup/identity-ui';
 import { ConsentForm, type ConsentDetails } from './ConsentForm.js';
 import { LocaleProvider } from './i18n/LocaleContext.js';
+
+/** Renders `ui` inside the Instrument theme, which the tenant's card reads; `rerender` keeps the theme too. */
+function render(ui: ReactElement) {
+  const result = renderUnthemed(<AppThemeProvider>{ui}</AppThemeProvider>);
+  return {
+    ...result,
+    rerender: (next: ReactElement) => {
+      result.rerender(<AppThemeProvider>{next}</AppThemeProvider>);
+    },
+  };
+}
 
 const details: ConsentDetails = {
   clientId: 'test-client',

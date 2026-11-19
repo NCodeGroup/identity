@@ -82,6 +82,9 @@ against the SHA-256 its lock pins. Each web app carries copies of the kit's brow
    no file under `brand/` is edited by hand. `build/brand-kit.ps1`, which the `brand kit` stage of `./build/dod.ps1`
    runs through its fixture tests, runs `node brand/vendor-brand.mjs --check --lock brand/brand.lock.json` offline and
    fails on a file the lock names that is missing or differs, and on a file under `brand/` that the lock does not name.
+   The same stage checks `frontend/packages/brand`, the theme's files from the same release, and fails when the two
+   locks name different releases
+   ([ADR-1516](1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md)).
 5. **The repository takes the logo from the kit wherever it shows it.** `Directory.Build.targets` packs
    `brand/nuget/ncode-identity-nuget-tile-blue.png` into every package as its icon. The host chart's `icon` is the
    address of `brand/tile/ncode-identity-tile-blue-256.png` on `main`, so that path is kept. The README opens with the
@@ -163,7 +166,9 @@ against the SHA-256 its lock pins. Each web app carries copies of the kit's brow
 
 - A change to the mark, a color or a line of text is made in NCodeGroup/brand. It reaches this repository when
   `--update` takes the release that carries it, and the pull request shows every file that changed; one that changes
-  `brand/favicon/` also copies the changed files into each app.
+  `brand/favicon/` also copies the changed files into each app. The weekly brand watch keeps an issue open while a
+  release at least three days old is newer than the locks pin
+  ([ADR-1516](1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md)).
 - The host chart and any README outside the repository read the files by their address on `main`, so a file under
   `brand/` that such an address names keeps its path.
 - A build file that packs or embeds a file from `brand/` makes every project depend on it. The host images are
@@ -184,6 +189,8 @@ against the SHA-256 its lock pins. Each web app carries copies of the kit's brow
 - [`brand/brand.lock.json`](../../brand/brand.lock.json), [`brand/vendor-brand.mjs`](../../brand/vendor-brand.mjs) and
   [`build/brand-kit.ps1`](../../build/brand-kit.ps1) — the lock, the script that vendors and checks the kit, and the
   gate's check.
+- [`build/brand-watch.ps1`](../../build/brand-watch.ps1) — the weekly watch that keeps an issue open while a release
+  at least three days old is newer than the locks pin.
 - [NCodeGroup/brand ADR-1007](https://github.com/NCodeGroup/brand/blob/v0.11.0/docs/decisions/1007-every-ncode-marks-kit-is-drawn-here-by-one-kit-writer.md),
   [NCodeGroup/brand ADR-1001](https://github.com/NCodeGroup/brand/blob/v0.11.0/docs/decisions/1001-consumers-vendor-files-from-a-tagged-release-and-check-their-hashes.md)
   and

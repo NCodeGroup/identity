@@ -2,11 +2,11 @@ import { useCallback } from 'react';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import { TenantCard } from '@ncodegroup/identity-ui';
 import { useLocale } from './i18n/LocaleContext.js';
 import { ANTIFORGERY_FIELD, LOGIN_ACTION, UI_LOCALES_FIELD, resolveSurfacePath } from './params.js';
 import { writeCarriedValue } from './serverPage.js';
@@ -65,7 +65,7 @@ export function LoginForm({
         p: 2,
       }}
     >
-      <Card sx={{ width: '100%', maxWidth: 400 }}>
+      <TenantCard maxWidth={400}>
         <CardContent>
           <Stack
             spacing={3}
@@ -119,7 +119,7 @@ export function LoginForm({
             </Button>
           </Stack>
         </CardContent>
-      </Card>
+      </TenantCard>
     </Box>
   );
 }

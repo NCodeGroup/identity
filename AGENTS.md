@@ -154,13 +154,16 @@ compiles it and no gate tests it
   ([ADR-1018](docs/decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md))
 - **Frontend (`frontend/`)** — the pnpm workspace of the web apps (`apps/auth`, `apps/conformance`,
   `apps/conformance-runner`, `apps/mgmt`, `apps/playground`, `apps/setup`) and their shared `@ncodegroup/identity-*`
-  packages, with a gate of its own
+  packages, themed with NCode Brand's Instrument, whose files `frontend/packages/brand` vendors from the release
+  `brand/` takes
+  ([ADR-1516](docs/decisions/1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md)),
+  with a gate of its own
   ([ADR-1064](docs/decisions/1064-one-frontend-platform-of-shared-packages-and-thin-app-shells-serves-every-web-surface.md))
 - **Logo** — `brand/`, the family's logo kit: the `{id}` mark as SVG masters and as the PNG and ICO files each platform
   takes, which every package, the host chart and the README show. Every file there is vendored from a release of
   NCodeGroup/brand, which draws it: `brand/brand.lock.json` pins each file's SHA-256, the `brand kit` stage of
-  `./build/dod.ps1` checks them, and `node brand/vendor-brand.mjs --update <version> --lock brand/brand.lock.json` takes
-  another release, never a hand edit
+  `./build/dod.ps1` checks them and the theme's files under `frontend/packages/brand`, which name the same release, and
+  `node brand/vendor-brand.mjs --update <version> --lock brand/brand.lock.json` takes another release, never a hand edit
   ([ADR-1492](docs/decisions/1492-the-familys-id-logo-is-vendored-from-an-ncodegroup-brand-release-and-every-web-app-shows-its-icon.md))
 
 The central extensibility model — **service** vs **strategy collection** vs **mediator** — is captured in

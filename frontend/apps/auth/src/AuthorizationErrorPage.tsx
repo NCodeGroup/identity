@@ -1,9 +1,9 @@
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
-import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
+import { TenantCard } from '@ncodegroup/identity-ui';
 import { useMessages } from './i18n/LocaleContext.js';
 
 export type AuthorizationErrorPageProps = {
@@ -30,7 +30,7 @@ export function AuthorizationErrorPage({ code, description }: AuthorizationError
         p: 2,
       }}
     >
-      <Card sx={{ width: '100%', maxWidth: 400 }}>
+      <TenantCard maxWidth={400}>
         <CardContent>
           <Stack spacing={3}>
             <Typography variant="h5" component="h1">
@@ -48,7 +48,7 @@ export function AuthorizationErrorPage({ code, description }: AuthorizationError
             ) : null}
           </Stack>
         </CardContent>
-      </Card>
+      </TenantCard>
     </Box>
   );
 }

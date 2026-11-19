@@ -45,6 +45,13 @@ describe('LoginForm', () => {
     expect(form.getAttribute('method')).toBe('post');
   });
 
+  it("draws the sign-in card between the tenant's braces", () => {
+    const { container } = renderForm({ returnUrl: '/', antiforgeryToken: 'the-token' });
+
+    expect(loginForm().closest('.MuiCard-root')).toHaveClass('MuiPaper-elevation4');
+    expect(container.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(4);
+  });
+
   it('marks both credentials as required, autofocuses the username, and masks the password', () => {
     renderForm({ returnUrl: '/', antiforgeryToken: 'the-token' });
 

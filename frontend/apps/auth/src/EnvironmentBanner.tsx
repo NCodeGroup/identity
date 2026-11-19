@@ -1,5 +1,5 @@
-import Alert from '@mui/material/Alert';
 import type { EnvironmentConfig } from '@ncodegroup/identity-config';
+import { HazardBand } from '@ncodegroup/identity-ui';
 import { useMessages } from './i18n/LocaleContext.js';
 
 export type EnvironmentBannerProps = {
@@ -11,9 +11,5 @@ export type EnvironmentBannerProps = {
 export function EnvironmentBanner({ environment }: EnvironmentBannerProps) {
   const messages = useMessages();
   const label = environment.name ?? environment.type;
-  return (
-    <Alert severity="warning" variant="filled" square sx={{ justifyContent: 'center' }}>
-      {messages.environmentBanner(label)}
-    </Alert>
-  );
+  return <HazardBand>{messages.environmentBanner(label)}</HazardBand>;
 }

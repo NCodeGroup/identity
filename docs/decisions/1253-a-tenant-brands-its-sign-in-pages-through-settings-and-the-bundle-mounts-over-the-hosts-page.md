@@ -50,7 +50,10 @@ branding and the state the page carries.**
 2. **Each value is checked against the shape the bundle draws.** The display name is at most 100 characters with no
    control characters. The logo and the favicon are absolute `https` URIs, because the end-user's browser fetches them
    from a page served over TLS. The colors are `#rgb` or `#rrggbb`, the one notation every theme engine reads the same
-   way. The color mode is `light` or `dark`. A stored value therefore always renders.
+   way. The color mode is `light` or `dark`; a page without one follows the reader's system setting. A stored value
+   therefore always renders, and `createAppTheme` passes the two colors through NCode Brand's `deriveBrand`, which holds
+   every pairing they touch at its WCAG 2.2 AA floor in both themes and reads anything else as NCode Blue
+   ([ADR-1516](1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md)).
 3. **The host embeds the branding in the page.** Every page served with the bundle carries
    `<script type="application/json" id="branding">…</script>` right after `<base>`. The JSON is the
    `InteractiveBranding` of the tenant the page is served for, in the shape of the bootstrap document's `branding`
@@ -132,6 +135,8 @@ branding and the state the page carries.**
   the pages the host serves.
 - A branding change shows on the next page load. The pages that issue antiforgery tokens are sent `no-cache, no-store`,
   so a browser does not serve a stale branding block from its cache.
+- A tenant's colors never make a key's label, a link or the focus ring unreadable: `deriveBrand` moves a color that
+  would fall below its floor, in the light and the dark theme.
 - A browser that withholds an autofilled password from script until the end-user interacts with the page gives the
   bundle nothing to carry. The browser then fills the bundle's form itself, because the form keeps the ids, names and
   `autocomplete` values of the server's.

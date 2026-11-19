@@ -62,8 +62,8 @@ page, failed tests and the failing stage are annotated, and coverage is uploaded
 `pnpm run test:report` (in `frontend`), which adds per-package JUnit and coverage output to `pnpm test`.
 
 The Definition of Done gates the .NET tier only. A change under `frontend` also runs that workspace's gates before
-it is pushed — `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` in `frontend` —
-the same gates CI's frontend workflow runs. Every text file is LF with a final newline (`.editorconfig`,
+it is pushed — `pnpm check:brand`, `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` in
+`frontend` — the same gates CI's frontend workflow runs. Every text file is LF with a final newline (`.editorconfig`,
 `.gitattributes`), and the format gates read the working tree, not the normalized index: a file an editor or tool wrote
 with CRLF fails Prettier until it is converted.
 

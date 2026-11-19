@@ -1,55 +1,565 @@
 import { describe, expect, it } from 'vitest';
-import { createTheme } from '@mui/material/styles';
+import { createTheme, type Theme } from '@mui/material/styles';
+import { deriveBrand } from '@ncodegroup/identity-brand/derive';
+import instrument from '@ncodegroup/identity-brand/instrument.json';
+import vectors from '@ncodegroup/identity-brand/derive.vectors.json';
 import { createAppTheme } from './createAppTheme.js';
 
-const muiDefaults = createTheme();
+const MODES = ['light', 'dark'] as const;
+
+const TEAL = { primaryColor: '#0F766E', secondaryColor: '#7C2D12', mode: 'light' } as const;
+
+/** The `root` style of a component's `styleOverrides`, or the overrides themselves when they have no `root`. */
+function overrides(component: { styleOverrides?: unknown } | undefined): unknown {
+  const styleOverrides = component?.styleOverrides as Record<string, unknown> | undefined;
+  return 'root' in (styleOverrides ?? {}) ? styleOverrides?.root : styleOverrides;
+}
+
+type ButtonVariant = { props: { variant?: string; color?: string }; style: unknown };
+
+/** The `variants` of the MuiButton `root` style of a theme. */
+function buttonVariants(theme: Theme): ButtonVariant[] {
+  return (overrides(theme.components?.MuiButton) as { variants: ButtonVariant[] }).variants;
+}
+
+/** The red, green, blue and alpha of a `#rgb`, `#rrggbb`, `rgb(r g b)` or `rgb(r g b / a)` color. */
+function parseColor(color: string): { rgb: [number, number, number]; alpha: number } {
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim());
+  if (hex) {
+    const digits = hex[1] ?? '';
+    const full = digits.length === 3 ? [...digits].map((d) => d + d).join('') : digits;
+    const n = Number.parseInt(full, 16);
+    return { rgb: [(n >> 16) & 255, (n >> 8) & 255, n & 255], alpha: 1 };
+  }
+  const fn =
+    /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)\s*(?:[/,]\s*([\d.]+)(%?))?\s*\)$/i.exec(
+      color.trim(),
+    );
+  if (!fn) {
+    throw new Error(`Unsupported color: ${color}`);
+  }
+  const alpha = fn[4] === undefined ? 1 : Number(fn[4]) / (fn[5] === '%' ? 100 : 1);
+  return { rgb: [Number(fn[1]), Number(fn[2]), Number(fn[3])], alpha };
+}
+
+/** The WCAG 2.2 relative luminance of an opaque color. */
+function luminance([r, g, b]: [number, number, number]): number {
+  const [lr, lg, lb] = [r, g, b].map((c) => {
+    const s = c / 255;
+    return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  }) as [number, number, number];
+  return 0.2126 * lr + 0.7152 * lg + 0.0722 * lb;
+}
+
+/** The WCAG 2.2 contrast ratio of `fg` on `bg`, where a translucent `bg` is composited over the opaque `under`. */
+function contrast(fg: string, bg: string, under: string): number {
+  const below = parseColor(under).rgb;
+  const { rgb, alpha } = parseColor(bg);
+  const face = rgb.map((c, i) => c * alpha + (below[i] ?? 0) * (1 - alpha)) as [
+    number,
+    number,
+    number,
+  ];
+  const ink = parseColor(fg).rgb;
+  const [hi, lo] = [luminance(ink), luminance(face)].sort((a, b) => b - a) as [number, number];
+  return (hi + 0.05) / (lo + 0.05);
+}
 
 describe('createAppTheme', () => {
-  it('builds a light theme with the default palette when no branding is supplied', () => {
-    const theme = createAppTheme();
+  it.each(MODES)("takes Instrument's %s palette for NCode's own brand", (mode) => {
+    const theme = createAppTheme({ mode });
+    const expected = instrument.palette[mode];
 
-    expect(theme.palette.mode).toBe('light');
-    expect(theme.palette.primary.main).toBe(muiDefaults.palette.primary.main);
-    expect(theme.palette.secondary.main).toBe(muiDefaults.palette.secondary.main);
+    expect(theme.palette.mode).toBe(mode);
+    expect(theme.palette.primary).toMatchObject(expected.primary);
+    expect(theme.palette.secondary).toMatchObject(expected.secondary);
+    expect(theme.palette.error).toMatchObject(expected.error);
+    expect(theme.palette.warning).toMatchObject(expected.warning);
+    expect(theme.palette.info).toMatchObject(expected.info);
+    expect(theme.palette.success).toMatchObject(expected.success);
+    expect(theme.palette.text).toMatchObject(expected.text);
+    expect(theme.palette.background).toEqual(expected.background);
+    expect(theme.palette.divider).toBe(expected.divider);
+    expect(theme.palette.instrument).toEqual(expected.instrument);
   });
 
-  it('applies the shared shape and typography regardless of branding', () => {
-    for (const theme of [
-      createAppTheme(),
-      createAppTheme({ mode: 'dark', primaryColor: '#123456' }),
-    ]) {
-      expect(theme.shape.borderRadius).toBe(8);
-      expect(theme.typography.fontFamily).toBe('Inter,Roboto,Helvetica,Arial,sans-serif');
-    }
+  it('is light when neither the branding nor the system names a mode', () => {
+    expect(createAppTheme().palette.mode).toBe('light');
+    expect(createAppTheme({ displayName: 'Acme' }).palette.mode).toBe('light');
   });
 
-  it('applies the branded mode and colors', () => {
-    const theme = createAppTheme({
-      mode: 'dark',
-      primaryColor: '#123456',
-      secondaryColor: '#abcdef',
-    });
+  it('follows the system mode when the branding names none', () => {
+    const theme = createAppTheme({ displayName: 'Acme' }, { systemMode: 'dark' });
 
     expect(theme.palette.mode).toBe('dark');
-    expect(theme.palette.primary.main).toBe('#123456');
-    expect(theme.palette.secondary.main).toBe('#abcdef');
+    expect(theme.palette.background.default).toBe(instrument.palette.dark.background.default);
   });
 
-  it('keeps the default colors for branding that omits or blanks them', () => {
-    const omitted = createAppTheme({ displayName: 'Acme' });
-    const blank = createAppTheme({ primaryColor: '', secondaryColor: '' });
+  it("keeps the branding's mode over the system's", () => {
+    expect(createAppTheme({ mode: 'light' }, { systemMode: 'dark' }).palette.mode).toBe('light');
+    expect(createAppTheme({ mode: 'dark' }, { systemMode: 'light' }).palette.mode).toBe('dark');
+  });
 
-    for (const theme of [omitted, blank]) {
-      expect(theme.palette.mode).toBe('light');
-      expect(theme.palette.primary.main).toBe(muiDefaults.palette.primary.main);
-      expect(theme.palette.secondary.main).toBe(muiDefaults.palette.secondary.main);
+  describe.each(vectors.vectors)('for the vector "$name"', ({ primary, secondary }) => {
+    it.each(MODES)('maps the colors deriveBrand derives in the %s theme', (mode) => {
+      const d = deriveBrand(primary, secondary)[mode];
+      const theme = createAppTheme({
+        mode,
+        ...(primary === null ? {} : { primaryColor: primary }),
+        ...(secondary === null ? {} : { secondaryColor: secondary }),
+      });
+
+      expect(theme.palette.primary).toMatchObject({
+        main: d.primary,
+        dark: d['primary-hover'],
+        contrastText: d['on-primary'],
+      });
+      expect(theme.palette.secondary).toMatchObject(
+        mode === 'light'
+          ? { main: d.screen, dark: d['screen-raised'], contrastText: d['on-screen'] }
+          : { main: d['screen-lit'], dark: d['on-screen-secondary'], contrastText: d.screen },
+      );
+      expect(theme.palette.instrument).toMatchObject(d);
+      expect(theme.palette.error).toMatchObject(instrument.palette[mode].error);
+    });
+  });
+
+  it('falls back to NCode Blue for colors it cannot read, and never throws', () => {
+    const theme = createAppTheme({ primaryColor: 'not a color', secondaryColor: '#12' });
+
+    expect(theme.palette.mode).toBe('light');
+    expect(theme.palette.primary.main).toBe(instrument.palette.light.primary.main);
+    expect(theme.palette.secondary.main).toBe(instrument.palette.light.secondary.main);
+  });
+
+  it('sets every typography variant in its Instrument type role', () => {
+    const theme = createAppTheme();
+    const { variants, fontFamily, fontSize, fontWeightRegular, fontWeightMedium, fontWeightBold } =
+      instrument.typography;
+
+    for (const [name, variant] of Object.entries(variants)) {
+      const { role, ...values } = variant;
+
+      expect(role).toBeTypeOf('string');
+      expect(theme.typography[name as keyof typeof theme.typography]).toMatchObject(values);
     }
+    expect(theme.typography.fontFamily).toBe(fontFamily);
+    expect(theme.typography.fontSize).toBe(fontSize);
+    expect(theme.typography.fontWeightRegular).toBe(fontWeightRegular);
+    expect(theme.typography.fontWeightMedium).toBe(fontWeightMedium);
+    expect(theme.typography.fontWeightBold).toBe(fontWeightBold);
   });
 
-  it('brands only the primary color when no secondary color is supplied', () => {
-    const theme = createAppTheme({ primaryColor: '#123456' });
+  it('reads the code font through the theme', () => {
+    const theme = createAppTheme();
 
-    expect(theme.palette.primary.main).toBe('#123456');
-    expect(theme.palette.secondary.main).toBe(muiDefaults.palette.secondary.main);
+    expect(theme.typography.fontFamilyMono).toBe(instrument.typography.fontFamilyMono);
+    expect(theme.typography.code.fontFamily).toBe(instrument.typography.fontFamilyMono);
+  });
+
+  it("keeps Material UI's size for a variant Instrument does not name", () => {
+    const theme = createAppTheme();
+
+    expect(theme.typography.caption.fontSize).toBe(createTheme().typography.caption.fontSize);
+    expect(theme.typography.caption.fontFamily).toBe(instrument.typography.fontFamily);
+  });
+
+  it('takes the radius, spacing and measures', () => {
+    const theme = createAppTheme();
+
+    expect(theme.shape.borderRadius).toBe(6);
+    expect(theme.spacing(1)).toBe('8px');
+    expect(theme.instrument).toEqual({
+      radius: instrument.radius,
+      space: instrument.space,
+      size: instrument.size,
+      focus: instrument.focus,
+    });
+  });
+
+  it.each(MODES)('takes the %s depths for the 25 elevations', (mode) => {
+    const theme = createAppTheme({ mode });
+
+    expect(theme.shadows).toHaveLength(25);
+    expect(theme.shadows).toEqual(instrument.shadows[mode]);
+  });
+
+  it("changes layout at Instrument's breakpoints", () => {
+    const theme = createAppTheme();
+
+    expect(theme.breakpoints.values).toEqual({ xs: 0, sm: 641, md: 1089, lg: 1281, xl: 1536 });
+    expect(theme.breakpoints.down('sm')).toBe('@media (max-width:640.95px)');
+  });
+
+  it("times and eases motion with Instrument's durations and easings", () => {
+    const { duration, easing } = createAppTheme().transitions;
+
+    expect(duration).toMatchObject({
+      shortest: 70,
+      shorter: 120,
+      short: 120,
+      standard: 200,
+      complex: 280,
+      enteringScreen: 280,
+      leavingScreen: 200,
+    });
+    expect(easing.easeOut).toBe(instrument.transitions.easing.out);
+    expect(easing.easeInOut).toBe(instrument.transitions.easing['in-out']);
+  });
+
+  it('stops every animation and transition when the reader asks for reduced motion', () => {
+    const { transitions, components } = createAppTheme({}, { reducedMotion: true });
+
+    expect(transitions.create(['opacity'])).toBe('none');
+    for (const value of Object.values(transitions.duration)) {
+      expect(value).toBe(0);
+    }
+    expect(overrides(components?.MuiCssBaseline)).toMatchObject({
+      '*, *::before, *::after': {
+        animation: 'none !important',
+        transition: 'none !important',
+        scrollBehavior: 'auto !important',
+      },
+    });
+  });
+
+  it('keeps animations when the reader does not ask for reduced motion', () => {
+    const { components } = createAppTheme();
+
+    expect(overrides(components?.MuiCssBaseline)).not.toHaveProperty(['*, *::before, *::after']);
+  });
+
+  it('draws the focus ring in the focus color, focus wide and offset', () => {
+    const { components } = createAppTheme(TEAL);
+    const ring = { outline: '2px solid #006D65', outlineOffset: '2px' };
+
+    expect(overrides(components?.MuiButtonBase)).toMatchObject({ '&.Mui-focusVisible': ring });
+    expect(overrides(components?.MuiCssBaseline)).toMatchObject({
+      ':focus-visible:not(.MuiInputBase-input)': ring,
+    });
+    expect(overrides(components?.MuiOutlinedInput)).toMatchObject({
+      '&.Mui-focused:not(.Mui-error) .MuiOutlinedInput-notchedOutline': {
+        borderColor: '#006D65',
+        borderWidth: 2,
+      },
+    });
+  });
+
+  it('sets the brand as text in primary-text', () => {
+    const { components } = createAppTheme(TEAL);
+    const subtle = deriveBrand('#0F766E', '#7C2D12').light['primary-subtle'];
+
+    expect(overrides(components?.MuiLink)).toMatchObject({
+      variants: [{ props: { color: 'primary' }, style: { color: '#006D65' } }],
+    });
+    expect(overrides(components?.MuiButton)).toMatchObject({
+      variants: expect.arrayContaining([
+        {
+          props: { variant: 'text', color: 'primary' },
+          style: {
+            color: '#006D65',
+            '&:hover': { backgroundColor: subtle },
+            '&:active': { transform: 'translateY(2px)', backgroundColor: subtle },
+          },
+        },
+        {
+          props: { variant: 'outlined', color: 'primary' },
+          style: {
+            color: '#006D65',
+            borderColor: '#07534D',
+            '&:active': {
+              transform: 'translateY(2px)',
+              backgroundColor: subtle,
+              boxShadow: 'none',
+            },
+          },
+        },
+      ]),
+    });
+  });
+
+  describe.each([{ name: "NCode's own", primary: null, secondary: null }, ...vectors.vectors])(
+    'for "$name"',
+    ({ primary, secondary }) => {
+      it.each(MODES)(
+        "keeps a primary text and outlined key's ink at 4.5 to 1 on every face in the %s theme",
+        (mode) => {
+          const theme = createAppTheme({
+            mode,
+            ...(primary === null ? {} : { primaryColor: primary }),
+            ...(secondary === null ? {} : { secondaryColor: secondary }),
+          });
+          const colors = theme.palette.instrument;
+          const variants = buttonVariants(theme);
+          const text = variants.find(
+            (v) => v.props.variant === 'text' && v.props.color === 'primary',
+          )?.style as Record<string, Record<string, string>>;
+          const outlined = variants.find(
+            (v) => v.props.variant === 'outlined' && v.props.color === 'primary',
+          )?.style as Record<string, Record<string, string>>;
+          const faces = [
+            colors.control,
+            colors['control-hover'],
+            text['&:hover']?.backgroundColor,
+            text['&:active']?.backgroundColor,
+            outlined['&:active']?.backgroundColor,
+            'rgb(0 0 0 / 0)',
+          ];
+
+          for (const under of [colors.page, colors.surface]) {
+            for (const face of faces) {
+              expect(face).toBeTypeOf('string');
+              expect(
+                contrast(colors['primary-text'], face as string, under),
+              ).toBeGreaterThanOrEqual(4.5);
+            }
+          }
+        },
+      );
+    },
+  );
+
+  it('raises a contained key on its lip and presses it down', () => {
+    const { light } = deriveBrand('#0F766E', '#7C2D12');
+    const variants = buttonVariants(createAppTheme(TEAL));
+    const primary = variants.find(
+      (v) => v.props.variant === 'contained' && v.props.color === 'primary',
+    );
+
+    expect(primary?.style).toMatchObject({
+      boxShadow: `inset 0 0 0 1px #07534D, 0 2px 0 ${light['primary-lip']}`,
+      '&:active': {
+        transform: 'translateY(2px)',
+        backgroundColor: light['primary-pressed'],
+      },
+    });
+  });
+
+  it('draws a plain key on the control face', () => {
+    const { control, 'control-pressed': pressed } = instrument.palette.light.instrument;
+    const plain = buttonVariants(createAppTheme({ mode: 'light' })).find(
+      (v) => v.props.variant === 'outlined' && v.props.color === undefined,
+    );
+
+    expect(plain?.style).toMatchObject({
+      backgroundColor: control,
+      '&:active': { backgroundColor: pressed },
+    });
+  });
+
+  it('draws a disabled key sunken and unlit', () => {
+    const {
+      'text-disabled': ink,
+      'surface-sunken': sunken,
+      border,
+    } = instrument.palette.light.instrument;
+    const theme = createAppTheme({ mode: 'light' });
+    const variants = buttonVariants(theme);
+    const contained = variants.find(
+      (v) => v.props.variant === 'contained' && v.props.color === undefined,
+    );
+    const plain = variants.find(
+      (v) => v.props.variant === 'outlined' && v.props.color === undefined,
+    );
+
+    expect(theme.palette.action.disabled).toBe(ink);
+    expect(theme.palette.action.disabledBackground).toBe(sunken);
+    expect(contained?.style).toMatchObject({
+      '&.Mui-disabled': { boxShadow: `inset 0 0 0 1px ${border}` },
+    });
+    expect((plain?.style as Record<string, unknown>)['&.Mui-disabled']).toEqual({
+      backgroundColor: sunken,
+      borderColor: border,
+    });
+  });
+
+  it('draws a ghost key as the text variant', () => {
+    const { 'ghost-hover': hover, 'ghost-pressed': pressed } = instrument.palette.light.instrument;
+    const ghost = buttonVariants(createAppTheme({ mode: 'light' })).find(
+      (v) => v.props.variant === 'text' && v.props.color === undefined,
+    );
+
+    expect(ghost?.style).toMatchObject({
+      '&:hover': { backgroundColor: hover },
+      '&:active': { backgroundColor: pressed },
+    });
+  });
+
+  it("times a key's travel with Instrument's press and quick durations", () => {
+    const root = overrides(createAppTheme().components?.MuiButton) as { transition: string };
+
+    expect(root.transition).toContain('transform 70ms');
+    expect(root.transition).toContain('background-color 120ms');
+  });
+
+  it('cuts a well into the surface', () => {
+    const { shade, well } = instrument.palette.light.instrument;
+
+    expect(overrides(createAppTheme({ mode: 'light' }).components?.MuiOutlinedInput)).toMatchObject(
+      {
+        backgroundColor: well,
+        boxShadow: `inset 0 2px 0 ${shade}`,
+        '& .MuiOutlinedInput-notchedOutline': {
+          borderColor: instrument.palette.light.instrument['border-strong'],
+        },
+      },
+    );
+  });
+
+  it('squares the icon key to the control radius', () => {
+    expect(overrides(createAppTheme().components?.MuiIconButton)).toMatchObject({
+      borderRadius: 6,
+    });
+  });
+
+  it('presses keys without a ripple', () => {
+    expect(createAppTheme().components?.MuiButtonBase?.defaultProps).toEqual({
+      disableRipple: true,
+    });
+  });
+
+  it('takes no elevation overlay on a dark sheet', () => {
+    const { components } = createAppTheme({ mode: 'dark' });
+
+    expect(overrides(components?.MuiPaper)).toEqual({ backgroundImage: 'none' });
+  });
+
+  it('rounds a card to the module radius on a hairline edge', () => {
+    expect(overrides(createAppTheme({ mode: 'light' }).components?.MuiCard)).toEqual({
+      borderRadius: 14,
+      border: `1px solid ${instrument.palette.light.instrument.border}`,
+    });
+  });
+
+  it('dims the page under a dialog with the scrim', () => {
+    const { scrim } = instrument.palette.light.instrument;
+
+    expect(overrides(createAppTheme({ mode: 'light' }).components?.MuiBackdrop)).toEqual({
+      variants: [{ props: { invisible: false }, style: { backgroundColor: scrim } }],
+    });
+  });
+
+  it('makes a dialog a sheet on a phone', () => {
+    const theme = createAppTheme();
+    const phone = theme.breakpoints.down('sm');
+    const dialog = theme.components?.MuiDialog?.styleOverrides as Record<string, unknown>;
+
+    expect(dialog.paper).toMatchObject({
+      borderRadius: 14,
+      [phone]: {
+        margin: 0,
+        width: '100%',
+        maxWidth: '100%',
+        borderBottomLeftRadius: 0,
+        borderBottomRightRadius: 0,
+      },
+    });
+    expect(dialog.container).toEqual({ [phone]: { alignItems: 'flex-end' } });
+  });
+
+  it('draws a tooltip as a small screen', () => {
+    const { light } = deriveBrand('#0F766E', '#7C2D12');
+    const tooltip = createAppTheme(TEAL).components?.MuiTooltip?.styleOverrides as Record<
+      string,
+      unknown
+    >;
+
+    expect(tooltip.tooltip).toMatchObject({
+      backgroundColor: light.screen,
+      color: light['on-screen'],
+      borderRadius: 4,
+    });
+    expect(tooltip.arrow).toEqual({ color: light.screen });
+  });
+
+  it("engraves a table's head on a sunken ground", () => {
+    const { label } = instrument.typography.variants;
+    const cell = createAppTheme({ mode: 'light' }).components?.MuiTableCell?.styleOverrides as {
+      head: Record<string, unknown>;
+    };
+
+    expect(cell.head).toMatchObject({
+      textTransform: label.textTransform,
+      letterSpacing: label.letterSpacing,
+      backgroundColor: instrument.palette.light.instrument['surface-sunken'],
+    });
+    expect(cell.head.textTransform).toBe('uppercase');
+  });
+
+  it.each([
+    ['success', 'success'],
+    ['info', 'info'],
+    ['warning', 'warning'],
+    ['error', 'danger'],
+  ] as const)('marks each alert with its signal bar: %s', (severity, role) => {
+    const colors = instrument.palette.light.instrument;
+    const variants = (
+      overrides(createAppTheme({ mode: 'light' }).components?.MuiAlert) as {
+        variants: { props: { severity?: string }; style: Record<string, unknown> }[];
+      }
+    ).variants;
+    const entry = variants.find((v) => v.props.severity === severity);
+
+    expect(entry?.style).toMatchObject({
+      backgroundColor: colors[`${role}-subtle`],
+      border: `1px solid ${colors[`${role}-border`]}`,
+      paddingInlineStart: 18,
+      '& .MuiAlertTitle-root': { color: colors[`${role}-text`] },
+      '&::before': { background: colors[`${role}-mark`] },
+    });
+  });
+
+  it("tapes a caution's signal bar", () => {
+    const { hazard } = instrument.palette.light.instrument;
+    const variants = (
+      overrides(createAppTheme({ mode: 'light' }).components?.MuiAlert) as {
+        variants: { props: { severity?: string }; style: Record<string, unknown> }[];
+      }
+    ).variants;
+    const tape = variants.filter((v) => v.props.severity === 'warning').at(-1);
+    const bar = tape?.style['&::before'] as { background: string };
+
+    expect(bar.background).toMatch(/^repeating-linear-gradient\(-45deg, /);
+    expect(bar.background).toContain(hazard);
+  });
+
+  it("sets a field's label above its well", () => {
+    const colors = instrument.palette.light.instrument;
+    const { field } = instrument.typography.variants;
+    const { components } = createAppTheme({ mode: 'light' });
+
+    expect(components?.MuiInputLabel?.defaultProps).toEqual({ shrink: true });
+    expect(overrides(components?.MuiInputLabel)).toMatchObject({
+      fontSize: field.fontSize,
+      fontWeight: field.fontWeight,
+      color: colors.text,
+      '&.Mui-focused': { color: colors.text },
+      '&.Mui-error': { color: colors['danger-text'] },
+      '&.Mui-disabled': { color: colors['text-disabled'] },
+      variants: [
+        {
+          props: { variant: 'outlined' },
+          style: {
+            position: 'static',
+            transform: 'none',
+            maxWidth: '100%',
+            marginBottom: '0.375rem',
+          },
+        },
+      ],
+    });
+    expect(overrides(components?.MuiOutlinedInput)).toMatchObject({
+      '& .MuiOutlinedInput-notchedOutline legend': { maxWidth: '0.01px' },
+    });
+  });
+
+  it('maps the code, label, field, value and readout variants to their elements', () => {
+    expect(createAppTheme().components?.MuiTypography?.defaultProps?.variantMapping).toEqual({
+      code: 'code',
+      label: 'span',
+      field: 'span',
+      value: 'span',
+      readout: 'span',
+    });
   });
 });

@@ -8,3 +8,8 @@ CHANGELOG.md
 # Turborepo's local task cache. It is gitignored build output whose manifests are
 # machine-written JSON, so formatting it is both meaningless and nondeterministic.
 .turbo
+
+# The files of one NCode Brand release and their lock: brand/vendor-brand.mjs pins each byte by SHA-256, so a
+# reformat would fail its check (ADR-1516).
+packages/brand/vendor
+packages/brand/brand.lock.json

@@ -1,0 +1,16 @@
+{
+  "name": "@ncodegroup/identity-brand",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The files of the NCode Brand release the frontends take. brand/vendor-brand.mjs writes vendor/ from brand.lock.json; never edit a file there.",
+  "type": "module",
+  "exports": {
+    "./instrument.json": "./vendor/mui/instrument.json",
+    "./derive": {
+      "types": "./vendor/tokens/derive.d.mts",
+      "default": "./vendor/tokens/derive.mjs"
+    },
+    "./derive.vectors.json": "./vendor/tokens/derive.vectors.json",
+    "./brace.json": "./vendor/brace/brace.json"
+  }
+}
