@@ -14,10 +14,10 @@ using NCode.Identity.Secrets.Persistence.Protection;
 namespace NCode.Identity.OpenId.Persistence.EntityFramework;
 
 /// <summary>
-/// Shared test setup for the <see cref="OpenIdDbContext"/>: registers the id generator, the id-generation convention,
-/// the core model contributor (so the <c>DbSet</c>-less context's model contains the core entities), and an unscoped
-/// ambient tenant accessor. On a relational provider, a query that loads several collections as one SQL query throws,
-/// so every store test checks that its reads run as split queries.
+/// Shared test setup for the <see cref="OpenIdDbContext"/>: registers the sequential surrogate key generator, the test
+/// page cursor protector, the core model contributor (so the <c>DbSet</c>-less context's model contains the core
+/// entities), and an unscoped ambient tenant accessor. On a relational provider, a query that loads several collections
+/// as one SQL query throws, so every store test checks that its reads run as split queries.
 /// </summary>
 internal static class TestOpenIdDbContextSetup
 {

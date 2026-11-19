@@ -41,6 +41,7 @@ public sealed class GrantStoreConcurrencyTests : IAsyncLifetime, IDisposable
         var tenantStore = new TenantStore(
             Mock.Of<IStoreProvider>(),
             Provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TestPageCursorProtector.Instance,
             context
         );
         await tenantStore.AddAsync(CreateTenant(), CancellationToken.None);
@@ -59,6 +60,7 @@ public sealed class GrantStoreConcurrencyTests : IAsyncLifetime, IDisposable
         new(
             Mock.Of<IStoreProvider>(),
             Provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TestPageCursorProtector.Instance,
             context
         );
 

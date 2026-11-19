@@ -27,7 +27,12 @@ public sealed class FederatedPrincipalStoreTests : IDisposable
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
         var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
-        Store = new FederatedPrincipalStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
+        Store = new FederatedPrincipalStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
         DbContext.SeedTenant(keyGenerator, TenantId);
     }
 
@@ -161,12 +166,18 @@ public sealed class FederatedPrincipalStoreTests : IDisposable
         var clientStore = new ClientStore(
             Mock.Of<IStoreProvider>(),
             keyGenerator,
+            TestPageCursorProtector.Instance,
             DbContext,
             TestCryptoServices.CreateResourceIdGenerator()
         );
         await clientStore.AddAsync(CreateClient(clientId), CancellationToken.None);
         await DbContext.SaveChangesAsync();
-        var consentStore = new ConsentStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
+        var consentStore = new ConsentStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
         await consentStore.SaveAsync(
             CreateConsent(clientId, "principal-1"),
             CancellationToken.None
@@ -175,7 +186,12 @@ public sealed class FederatedPrincipalStoreTests : IDisposable
             CreateConsent(clientId, "principal-2"),
             CancellationToken.None
         );
-        var grantStore = new GrantStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
+        var grantStore = new GrantStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
         await grantStore.AddAsync(CreateGrant(clientId, "principal-1"), CancellationToken.None);
         await grantStore.AddAsync(CreateGrant(clientId, "principal-2"), CancellationToken.None);
         await DbContext.SaveChangesAsync();

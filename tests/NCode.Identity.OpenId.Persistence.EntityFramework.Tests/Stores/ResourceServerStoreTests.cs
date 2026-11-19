@@ -32,8 +32,18 @@ public sealed class ResourceServerStoreTests : IDisposable
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
         var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
-        TenantStore = new TenantStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
-        Store = new ResourceServerStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
+        TenantStore = new TenantStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
+        Store = new ResourceServerStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
     }
 
     public void Dispose()
@@ -238,6 +248,7 @@ public sealed class ResourceServerStoreTests : IDisposable
         var roleAssignmentStore = new RoleAssignmentStore(
             Mock.Of<IStoreProvider>(),
             Provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TestPageCursorProtector.Instance,
             DbContext
         );
         await roleAssignmentStore.AddAsync(

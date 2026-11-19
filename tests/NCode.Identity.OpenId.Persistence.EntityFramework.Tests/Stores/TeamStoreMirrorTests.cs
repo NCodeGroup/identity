@@ -34,6 +34,7 @@ public sealed class TeamStoreMirrorTests : IDisposable
         Store = new TeamStore(
             Mock.Of<IStoreProvider>(),
             keyGenerator,
+            TestPageCursorProtector.Instance,
             DbContext,
             TestPayloadSerializer.Instance
         );

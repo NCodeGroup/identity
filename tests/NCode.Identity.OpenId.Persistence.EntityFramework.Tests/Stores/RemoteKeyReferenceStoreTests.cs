@@ -32,14 +32,24 @@ public sealed class RemoteKeyReferenceStoreTests : IDisposable
         ServiceProvider = serviceCollection.BuildServiceProvider();
         DbContext = ServiceProvider.GetRequiredService<OpenIdDbContext>();
         var keyGenerator = ServiceProvider.GetRequiredService<ISurrogateKeyGenerator>();
-        TenantStore = new TenantStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
+        TenantStore = new TenantStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
         ClientStore = new ClientStore(
             Mock.Of<IStoreProvider>(),
             keyGenerator,
+            TestPageCursorProtector.Instance,
             DbContext,
             TestCryptoServices.CreateResourceIdGenerator()
         );
-        Store = new RemoteKeyReferenceStore(Mock.Of<IStoreProvider>(), DbContext);
+        Store = new RemoteKeyReferenceStore(
+            Mock.Of<IStoreProvider>(),
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
     }
 
     public void Dispose()

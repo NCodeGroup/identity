@@ -32,8 +32,18 @@ public sealed class RoleAssignmentStoreTests : IDisposable
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
         var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
-        TenantStore = new TenantStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
-        Store = new RoleAssignmentStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
+        TenantStore = new TenantStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
+        Store = new RoleAssignmentStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
     }
 
     public void Dispose()

@@ -45,21 +45,43 @@ public sealed class ClientStoreRelationalRemovalTests : IDisposable
         DbContext.SeedTeam(Provider.GetRequiredService<ISurrogateKeyGenerator>(), "platform");
 
         var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
-        TenantStore = new TenantStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
+        TenantStore = new TenantStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
         ClientStore = new ClientStore(
             Mock.Of<IStoreProvider>(),
             keyGenerator,
+            TestPageCursorProtector.Instance,
             DbContext,
             TestCryptoServices.CreateResourceIdGenerator()
         );
         ResourceServerStore = new ResourceServerStore(
             Mock.Of<IStoreProvider>(),
             keyGenerator,
+            TestPageCursorProtector.Instance,
             DbContext
         );
-        ClientGrantStore = new ClientGrantStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
-        ConsentStore = new ConsentStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
-        GrantStore = new GrantStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
+        ClientGrantStore = new ClientGrantStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
+        ConsentStore = new ConsentStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
+        GrantStore = new GrantStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
     }
 
     public void Dispose()

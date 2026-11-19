@@ -36,28 +36,42 @@ public sealed class TenantStoreLifecycleTests : IDisposable
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
         var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
-        Store = new TenantStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
+        Store = new TenantStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
         DbContext.SeedTeam(Provider.GetRequiredService<ISurrogateKeyGenerator>(), "platform");
         ClientStore = new ClientStore(
             Mock.Of<IStoreProvider>(),
             keyGenerator,
+            TestPageCursorProtector.Instance,
             DbContext,
             TestCryptoServices.CreateResourceIdGenerator()
         );
         ResourceServerStore = new ResourceServerStore(
             Mock.Of<IStoreProvider>(),
             keyGenerator,
+            TestPageCursorProtector.Instance,
             DbContext
         );
         RoleAssignmentStore = new RoleAssignmentStore(
             Mock.Of<IStoreProvider>(),
             keyGenerator,
+            TestPageCursorProtector.Instance,
             DbContext
         );
-        MasterKeyStore = new MasterKeyStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
+        MasterKeyStore = new MasterKeyStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
         OwnerRootKeyStore = new OwnerRootKeyStore(
             Mock.Of<IStoreProvider>(),
             keyGenerator,
+            TestPageCursorProtector.Instance,
             DbContext
         );
     }

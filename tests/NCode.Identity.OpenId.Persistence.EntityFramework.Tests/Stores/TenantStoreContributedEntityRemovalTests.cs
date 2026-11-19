@@ -42,7 +42,12 @@ public sealed class TenantStoreContributedEntityRemovalTests : IDisposable
         DbContext.Database.EnsureCreated();
 
         var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
-        Store = new TenantStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
+        Store = new TenantStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
     }
 
     public void Dispose()
@@ -57,7 +62,7 @@ public sealed class TenantStoreContributedEntityRemovalTests : IDisposable
     private sealed class TestTenantNoteEntity : ISupportTenantEntity
     {
         [Key]
-        public required long Id { get; init; }
+        public required Guid Id { get; init; }
 
         public required string NormalizedTenantId { get; init; }
 

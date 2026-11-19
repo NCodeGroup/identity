@@ -25,7 +25,12 @@ public sealed class TenantStoreHostLookupTests : IDisposable
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
         var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
-        Store = new TenantStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
+        Store = new TenantStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
         DbContext.SeedTeam(Provider.GetRequiredService<ISurrogateKeyGenerator>(), "platform");
     }
 

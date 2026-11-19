@@ -37,6 +37,7 @@ public sealed class TeamStoreLifecycleTests : IDisposable
         Store = new TeamStore(
             Mock.Of<IStoreProvider>(),
             keyGenerator,
+            TestPageCursorProtector.Instance,
             DbContext,
             TestPayloadSerializer.Instance
         );
@@ -371,6 +372,7 @@ public sealed class TeamStoreLifecycleTests : IDisposable
         var store = new TeamStore(
             Mock.Of<IStoreProvider>(),
             provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TestPageCursorProtector.Instance,
             dbContext,
             TestPayloadSerializer.Instance
         );
@@ -406,6 +408,7 @@ public sealed class TeamStoreLifecycleTests : IDisposable
         var store = new TeamStore(
             Mock.Of<IStoreProvider>(),
             provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TestPageCursorProtector.Instance,
             dbContext,
             TestPayloadSerializer.Instance
         );

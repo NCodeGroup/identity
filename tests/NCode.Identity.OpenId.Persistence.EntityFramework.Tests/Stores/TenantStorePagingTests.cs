@@ -26,7 +26,12 @@ public sealed class TenantStorePagingTests : IDisposable
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
         var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
-        Store = new TenantStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
+        Store = new TenantStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
     }
 
     public void Dispose()

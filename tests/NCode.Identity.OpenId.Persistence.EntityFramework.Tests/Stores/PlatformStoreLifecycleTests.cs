@@ -33,6 +33,7 @@ public sealed class PlatformStoreLifecycleTests : IDisposable
         Store = new PlatformStore(
             Mock.Of<IStoreProvider>(),
             Provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TestPageCursorProtector.Instance,
             DbContext
         );
     }

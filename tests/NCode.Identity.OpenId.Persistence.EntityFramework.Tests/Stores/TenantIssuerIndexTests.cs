@@ -48,7 +48,12 @@ public sealed class TenantIssuerIndexTests : IDisposable
         using var scope = Provider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
         var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
-        var store = new TenantStore(Mock.Of<IStoreProvider>(), keyGenerator, context);
+        var store = new TenantStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            context
+        );
 
         context.SeedTeam(keyGenerator, "platform");
         await store.AddAsync(CreatePersistedTenant(tenantId, issuer), cancellationToken);

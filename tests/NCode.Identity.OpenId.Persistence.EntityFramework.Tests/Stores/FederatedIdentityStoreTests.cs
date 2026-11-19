@@ -34,9 +34,15 @@ public sealed class FederatedIdentityStoreTests : IDisposable
         PrincipalStore = new FederatedPrincipalStore(
             Mock.Of<IStoreProvider>(),
             keyGenerator,
+            TestPageCursorProtector.Instance,
             DbContext
         );
-        Store = new FederatedIdentityStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
+        Store = new FederatedIdentityStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
         DbContext.SeedTenant(keyGenerator, TenantId);
     }
 

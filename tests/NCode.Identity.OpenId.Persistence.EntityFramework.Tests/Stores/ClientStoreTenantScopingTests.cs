@@ -46,10 +46,16 @@ public sealed class ClientStoreTenantScopingTests : IDisposable
             [new CoreModelContributor()]
         );
         var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
-        TenantStore = new TenantStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
+        TenantStore = new TenantStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
         Store = new ClientStore(
             Mock.Of<IStoreProvider>(),
             keyGenerator,
+            TestPageCursorProtector.Instance,
             DbContext,
             TestCryptoServices.CreateResourceIdGenerator()
         );

@@ -48,6 +48,7 @@ public sealed class TenantStoreTenantScopingTests : IDisposable
         Store = new TenantStore(
             Mock.Of<IStoreProvider>(),
             Provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TestPageCursorProtector.Instance,
             DbContext
         );
     }

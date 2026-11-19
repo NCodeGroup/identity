@@ -28,6 +28,7 @@ public sealed class TeamStorePagingTests : IDisposable
         Store = new TeamStore(
             Mock.Of<IStoreProvider>(),
             keyGenerator,
+            TestPageCursorProtector.Instance,
             DbContext,
             TestPayloadSerializer.Instance
         );

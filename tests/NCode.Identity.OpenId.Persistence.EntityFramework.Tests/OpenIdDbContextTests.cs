@@ -49,10 +49,16 @@ public sealed class OpenIdDbContextTests : IDisposable
         ScopeProvider = serviceCollection.BuildServiceProvider();
         var dbContext = ScopeProvider.GetRequiredService<OpenIdDbContext>();
         var keyGenerator = ScopeProvider.GetRequiredService<ISurrogateKeyGenerator>();
-        var tenantStore = new TenantStore(Mock.Of<IStoreProvider>(), keyGenerator, dbContext);
+        var tenantStore = new TenantStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            dbContext
+        );
         var clientStore = new ClientStore(
             Mock.Of<IStoreProvider>(),
             keyGenerator,
+            TestPageCursorProtector.Instance,
             dbContext,
             TestCryptoServices.CreateResourceIdGenerator()
         );

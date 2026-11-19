@@ -39,15 +39,22 @@ public sealed class TenantStoreRelationalRemovalTests : IDisposable
         DbContext.SeedTeam(Provider.GetRequiredService<ISurrogateKeyGenerator>(), "platform");
 
         var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
-        Store = new TenantStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
+        Store = new TenantStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
         ResourceServerStore = new ResourceServerStore(
             Mock.Of<IStoreProvider>(),
             keyGenerator,
+            TestPageCursorProtector.Instance,
             DbContext
         );
         RoleAssignmentStore = new RoleAssignmentStore(
             Mock.Of<IStoreProvider>(),
             keyGenerator,
+            TestPageCursorProtector.Instance,
             DbContext
         );
     }
@@ -177,15 +184,22 @@ public sealed class TenantStoreRelationalRemovalTests : IDisposable
     )
     {
         var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
-        var grantStore = new GrantStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
+        var grantStore = new GrantStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
         var principalStore = new FederatedPrincipalStore(
             Mock.Of<IStoreProvider>(),
             keyGenerator,
+            TestPageCursorProtector.Instance,
             DbContext
         );
         var identityStore = new FederatedIdentityStore(
             Mock.Of<IStoreProvider>(),
             keyGenerator,
+            TestPageCursorProtector.Instance,
             DbContext
         );
 

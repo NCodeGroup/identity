@@ -46,6 +46,7 @@ public sealed class AuditRecordStoreTests : IDisposable
         new(
             Mock.Of<IStoreProvider>(),
             Provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TestPageCursorProtector.Instance,
             context
         );
 
@@ -218,6 +219,7 @@ public sealed class AuditRecordStoreTests : IDisposable
         var store = new AuditRecordStore(
             Mock.Of<IStoreProvider>(),
             provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TestPageCursorProtector.Instance,
             context
         );
         return await store.GetPageAsync(

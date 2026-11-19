@@ -49,6 +49,7 @@ public sealed class MasterKeyStoreTests : IDisposable
         new(
             Mock.Of<IStoreProvider>(),
             Provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TestPageCursorProtector.Instance,
             context
         );
 

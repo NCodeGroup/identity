@@ -33,19 +33,30 @@ public sealed class SecretEnvelopeStoreTests : IDisposable
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
         var keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
-        TenantStore = new TenantStore(Mock.Of<IStoreProvider>(), keyGenerator, DbContext);
+        TenantStore = new TenantStore(
+            Mock.Of<IStoreProvider>(),
+            keyGenerator,
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
         ClientStore = new ClientStore(
             Mock.Of<IStoreProvider>(),
             keyGenerator,
+            TestPageCursorProtector.Instance,
             DbContext,
             TestCryptoServices.CreateResourceIdGenerator()
         );
         ResourceServerStore = new ResourceServerStore(
             Mock.Of<IStoreProvider>(),
             keyGenerator,
+            TestPageCursorProtector.Instance,
             DbContext
         );
-        Store = new SecretEnvelopeStore(Mock.Of<IStoreProvider>(), DbContext);
+        Store = new SecretEnvelopeStore(
+            Mock.Of<IStoreProvider>(),
+            TestPageCursorProtector.Instance,
+            DbContext
+        );
     }
 
     public void Dispose()

@@ -43,6 +43,7 @@ public sealed class BaseStoreLocalLookupTests : IDisposable
         Store = new ClientStore(
             Mock.Of<IStoreProvider>(),
             Provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TestPageCursorProtector.Instance,
             DbContext,
             TestCryptoServices.CreateResourceIdGenerator()
         );

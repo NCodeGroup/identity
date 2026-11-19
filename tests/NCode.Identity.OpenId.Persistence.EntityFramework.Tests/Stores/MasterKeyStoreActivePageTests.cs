@@ -66,6 +66,7 @@ public sealed class MasterKeyStoreActivePageTests : IDisposable
         var store = new MasterKeyStore(
             Mock.Of<IStoreProvider>(),
             Provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TestPageCursorProtector.Instance,
             context
         );
         foreach (var key in new[] { retired, old, recent })

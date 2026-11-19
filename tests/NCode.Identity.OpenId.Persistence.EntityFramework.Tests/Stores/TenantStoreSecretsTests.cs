@@ -30,6 +30,7 @@ public sealed class TenantStoreSecretsTests : IDisposable
         Store = new TenantStore(
             Mock.Of<IStoreProvider>(),
             Provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TestPageCursorProtector.Instance,
             DbContext
         );
     }

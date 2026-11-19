@@ -33,6 +33,7 @@ public sealed class OwnerRootKeyStoreDueTests : IDisposable
         new(
             Mock.Of<IStoreProvider>(),
             Provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TestPageCursorProtector.Instance,
             context
         );
 
