@@ -13,8 +13,6 @@ namespace NCode.Identity.OpenId.Setup;
 
 public sealed class SetupPageTests
 {
-    private const string BundleIndexVariable = "NCODE_SETUP_BUNDLE_INDEX";
-
     #region Render Tests
 
     [Fact]
@@ -103,14 +101,10 @@ public sealed class SetupPageTests
         Assert.Equal("<body><script nonce=\"abc\"></script></body>", rendered);
     }
 
-    [Fact]
+    [BuiltSetupBundleFact]
     public async Task Render_WhenGivenTheBuiltBundlesIndex_LeavesNoPlaceholderAndNoncesEveryScript()
     {
-        var indexPath = Environment.GetEnvironmentVariable(BundleIndexVariable);
-        if (string.IsNullOrEmpty(indexPath))
-        {
-            return;
-        }
+        var indexPath = BuiltSetupBundleFactAttribute.IndexPath ?? string.Empty;
 
         var html = await File.ReadAllTextAsync(
             indexPath,
@@ -131,14 +125,10 @@ public sealed class SetupPageTests
         );
     }
 
-    [Fact]
+    [BuiltSetupBundleFact]
     public void Render_WhenGivenTheBuiltBundlesIndex_NoncesEveryStylesheetAndServesEveryTypefaceItLoads()
     {
-        var indexPath = Environment.GetEnvironmentVariable(BundleIndexVariable);
-        if (string.IsNullOrEmpty(indexPath))
-        {
-            return;
-        }
+        var indexPath = BuiltSetupBundleFactAttribute.IndexPath ?? string.Empty;
 
         const string assetsPath = "/setup/assets/";
         var html = File.ReadAllText(indexPath, SecureEncoding.UTF8);
@@ -199,7 +189,7 @@ public sealed class SetupPageTests
         );
     }
 
-    [Theory]
+    [BuiltSetupBundleTheory]
     [InlineData("OFL-Instrument-Sans", "Copyright 2022 The Instrument Sans Project Authors")]
     [InlineData("OFL-Martian-Mono", "Copyright 2020 The Martian Mono Project Authors")]
     public void Render_WhenGivenTheBuiltBundlesIndex_ShipsEachTypefacesLicenseBesideTheFonts(
@@ -207,11 +197,7 @@ public sealed class SetupPageTests
         string copyright
     )
     {
-        var indexPath = Environment.GetEnvironmentVariable(BundleIndexVariable);
-        if (string.IsNullOrEmpty(indexPath))
-        {
-            return;
-        }
+        var indexPath = BuiltSetupBundleFactAttribute.IndexPath ?? string.Empty;
 
         var bundleRootPath = Path.GetDirectoryName(indexPath);
         using var bundle = new SinglePageBundle<SetupPage>(
