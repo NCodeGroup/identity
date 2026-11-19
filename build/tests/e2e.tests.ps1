@@ -106,9 +106,24 @@ function New-FailingDocker {
     return New-Stubs 'docker' @{ docker = $failingStub }
 }
 
+# PowerShell's error view breaks a long message at spaces to fit the console and starts each continuation line with a
+# '|' gutter, so a run's output and an expected text are compared with any color codes and gutters removed and each
+# whitespace run collapsed to one space: an expected message matches at any console width.
+function Get-ComparableText([string]$Text) {
+    $plain = $Text -replace '\x1b\[[0-9;?]*[A-Za-z]', ''
+    $joined = $plain -replace '(?m)^[ \t]*\|[ \t]?', ''
+    return $joined -replace '\s+', ' '
+}
+
+function Test-RunOutput([object]$Run, [string]$Text) {
+    $output = Get-ComparableText $Run.Output
+    $expected = Get-ComparableText $Text
+    return $output.Contains($expected)
+}
+
 function Assert-Run([string]$Name, [object]$Run, [bool]$Succeeds, [string[]]$Expected) {
     $succeeded = $Run.ExitCode -eq 0
-    $missing = @($Expected | Where-Object { -not $Run.Output.Contains($_) })
+    $missing = @($Expected | Where-Object { -not (Test-RunOutput $Run $_) })
     if ($succeeded -ne $Succeeds -or $missing.Count -gt 0) {
         throw "Test '$Name' expected success=$Succeeds and output containing '$($Expected -join "', '")', got exit code $($Run.ExitCode):$([Environment]::NewLine)$($Run.Output)"
     }
@@ -117,6 +132,16 @@ function Assert-Run([string]$Name, [object]$Run, [bool]$Succeeds, [string[]]$Exp
 }
 
 try {
+    # The error view's rendering of a thrown message on an 80-column console.
+    $wrapped = [pscustomobject]@{
+        ExitCode = 1
+        Output   = "Exception: /tmp/fixture/build/e2e.ps1:130`nLine |`n 130 |      throw 'The end-to-end suites that serve built frontend bu ...`n     |      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`n     | The end-to-end suites that serve built frontend bundles need pnpm on`n     | PATH; ./build/frontend-install.ps1 installs the version`n     | frontend/package.json pins.`n"
+    }
+    Assert-Run "an expected text matches across the error view's line breaks" $wrapped $false @(
+        'need pnpm on PATH',
+        'installs the version frontend/package.json pins.'
+    )
+
     $fixture = New-Fixture 'affected' $true $false
     $run = Invoke-EndToEnd $fixture @('-Affected', '-Base', 'HEAD')
     Assert-Run 'no change affects no suite and passes' $run $true @(
@@ -153,7 +178,7 @@ try {
     Assert-Run 'an unknown suite name fails before it needs Docker' $run $false @(
         "No end-to-end suite is named 'Missing.EndToEnd.Tests'."
     )
-    if ($run.Output.Contains($dockerMissing)) {
+    if (Test-RunOutput $run $dockerMissing) {
         throw "Test 'an unknown suite name fails before it needs Docker' expected no Docker message, got:$([Environment]::NewLine)$($run.Output)"
     }
 
@@ -192,7 +217,7 @@ try {
     Assert-Run 'a suite that starts no container runs without Docker' $run $false @(
         'Building the frontend packages @x/app, @x/other failed'
     )
-    if ($run.Output.Contains($dockerMissing)) {
+    if (Test-RunOutput $run $dockerMissing) {
         throw "Test 'a suite that starts no container runs without Docker' expected no Docker message, got:$([Environment]::NewLine)$($run.Output)"
     }
 
@@ -202,7 +227,7 @@ try {
     Assert-Run 'a named suite that serves no bundles builds no frontend' $run $false @(
         'Building tests/A.EndToEnd.Tests/A.EndToEnd.Tests.csproj failed'
     )
-    if ($run.Output.Contains('pnpm ')) {
+    if (Test-RunOutput $run 'pnpm ') {
         throw "Test 'a named suite that serves no bundles builds no frontend' expected no pnpm call, got:$([Environment]::NewLine)$($run.Output)"
     }
 
@@ -212,7 +237,7 @@ try {
         'tests/A.EndToEnd.Tests/A.EndToEnd.Tests.csproj.'
     )
     foreach ($text in 'pnpm ', 'F.EndToEnd.Tests') {
-        if ($run.Output.Contains($text)) {
+        if (Test-RunOutput $run $text) {
             throw "Test 'a run with a suite that starts containers checks Docker before it builds the frontend' expected no '$text', got:$([Environment]::NewLine)$($run.Output)"
         }
     }
