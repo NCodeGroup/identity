@@ -117,6 +117,7 @@
         <Project Path="tests/NCode.Identity.Cryptography.Tests/NCode.Identity.Cryptography.Tests.csproj" />
         <Project Path="tests/NCode.Identity.Cwt.Tests/NCode.Identity.Cwt.Tests.csproj" />
         <Project Path="tests/NCode.Identity.Dispatch.Tests/NCode.Identity.Dispatch.Tests.csproj" />
+        <Project Path="tests/NCode.Identity.EndToEnd.TestSupport.Tests/NCode.Identity.EndToEnd.TestSupport.Tests.csproj" />
         <Project Path="tests/NCode.Identity.EndToEnd.TestSupport/NCode.Identity.EndToEnd.TestSupport.csproj" />
         <Project Path="tests/NCode.Identity.Events.Tests/NCode.Identity.Events.Tests.csproj" />
         <Project Path="tests/NCode.Identity.Frontend.EndToEnd.Tests/NCode.Identity.Frontend.EndToEnd.Tests.csproj" />

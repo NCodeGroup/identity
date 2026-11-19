@@ -40,9 +40,12 @@ built frontend bundles in the same browsers.**
    through `artifacts/tests.slnf`, in full and in `-Affected` mode alike. A suite under `tests/` keeps every test
    convention, the editorconfig `[tests/**/*.cs]` block and `tests/Directory.Build.props`.
 
-2. **A support project is compiled and never tested.** A project under `tests/` whose name does not end in `.Tests`,
-   such as `NCode.Identity.Bff.EndToEnd.BlazorApp`, is a support project that a suite references. The solution
-   compiles it and no gate runs it.
+2. **A support project is compiled, and a test project of its own tests its logic.** A project under `tests/` whose name
+   does not end in `.Tests`, such as `NCode.Identity.Bff.EndToEnd.BlazorApp` or `NCode.Identity.EndToEnd.TestSupport`,
+   is a support project that a suite references. The solution compiles it and no gate runs it as tests. Its logic that a
+   failing run would otherwise show only as a leaked host, container or browser is unit-tested in a `.Tests` project of
+   its own, which the Definition of Done runs: `NCode.Identity.EndToEnd.TestSupport.Tests` tests `Teardown` and
+   `BrowserPool` with Playwright mocked.
 
 3. **One entrypoint, `./build/e2e.ps1`, for CI and developers.** It builds the suites, installs the Playwright browsers
    and runs `dotnet test`. A suite whose project file sets `EndToEndContainers` to `true` starts containers: when the
@@ -190,4 +193,5 @@ built frontend bundles in the same browsers.**
   [#419](https://github.com/NCodeGroup/identity/issues/419) and
   [#862](https://github.com/NCodeGroup/identity/issues/862)
 - `tests/NCode.Identity.Bff.EndToEnd.Tests/`, `tests/NCode.Identity.Frontend.EndToEnd.Tests/`,
-  `tests/NCode.Identity.EndToEnd.TestSupport/`, `build/e2e.ps1`, `build/test-projects.ps1`, `.github/workflows/e2e.yml`
+  `tests/NCode.Identity.EndToEnd.TestSupport/`, `tests/NCode.Identity.EndToEnd.TestSupport.Tests/`, `build/e2e.ps1`,
+  `build/test-projects.ps1`, `.github/workflows/e2e.yml`

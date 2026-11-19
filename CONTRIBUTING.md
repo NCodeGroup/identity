@@ -108,8 +108,9 @@ The suite also runs a Blazor Web App (interactive server and WebAssembly) from t
 `WebApplicationFactory` on Kestrel. It checks that a circuit signs out after back-channel logout, that a `WebSocket`
 from another origin is refused, that an idle hub connection closes once its session ends, and that a WebAssembly
 component's traffic carries no token. A project under `tests/` whose name does not end in `.Tests` is a support project:
-the solution compiles it and no gate tests it
-([ADR-1441](docs/decisions/1441-a-bff-connection-ends-with-its-session-even-when-idle-and-every-watcher-learns-at-once.md)).
+the solution compiles it, no gate runs it as tests, and a `.Tests` project of its own unit-tests its logic, as
+`NCode.Identity.EndToEnd.TestSupport.Tests` tests `Teardown` and `BrowserPool`
+([ADR-1430](docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 
 `NCode.Identity.Frontend.EndToEnd.Tests` starts the OpenID Provider host and the management console's host on Kestrel
 over HTTPS with the built `apps/auth`, `apps/setup` and `apps/mgmt` bundles, and opens the login page, the setup page

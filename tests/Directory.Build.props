@@ -18,7 +18,7 @@
   </PropertyGroup>
 
   <!-- A project under tests/ whose name does not end in '.Tests' is a support project a suite references, which the
-       solution compiles and no runner tests. -->
+       solution compiles and no runner runs as tests; a .Tests project of its own tests its logic. -->
   <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>

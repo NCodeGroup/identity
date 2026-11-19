@@ -448,8 +448,9 @@ seams, facades, and `InternalsVisibleTo` wiring that make code mockable — live
   ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 - 👁 **A project under `tests/` whose name does not end in `.Tests` is a support project.** The solution compiles it, no
   tier of `build/test-projects.ps1` lists it, and it is no test project and has no JUnit logger, so a suite references
-  it and no gate tests it
-  ([ADR-1441](../../docs/decisions/1441-a-bff-connection-ends-with-its-session-even-when-idle-and-every-watcher-learns-at-once.md)).
+  it and no gate runs it as tests. A `.Tests` project of its own unit-tests its logic, with what it drives mocked, and
+  the Definition of Done runs that project (`NCode.Identity.EndToEnd.TestSupport.Tests` mocks Playwright)
+  ([ADR-1430](../../docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 - 👁 **Host a Blazor Web App through `WebApplicationFactory<TEntryPoint>.UseKestrel()` over the suite's certificate,
   then call `StartServer()`.** The factory locates the app's static web assets, which a `WebApplication.CreateBuilder`
   in the test process does not

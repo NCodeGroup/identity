@@ -39,7 +39,7 @@ End-to-end suites (the `*.EndToEnd.Tests` projects) live under `tests/`; `./buil
 `./build/e2e.ps1` and the `End-to-end` CI check do
 ([ADR-1430](docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 A project under `tests/` whose name does not end in `.Tests` is a support project that a suite references: the solution
-compiles it and no gate tests it
+compiles it, no gate runs it as tests, and a `.Tests` project of its own unit-tests its logic
 ([ADR-1430](docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)).
 
 - **Foundation** — `NCode.Identity.Json` (the JSON value model of JOSE, OAuth and OpenID Connect, and the

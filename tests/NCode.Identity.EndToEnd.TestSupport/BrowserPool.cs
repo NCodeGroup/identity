@@ -21,7 +21,7 @@ public sealed class BrowserPool : IAsyncDisposable
         return new BrowserPool(playwright);
     }
 
-    private BrowserPool(IPlaywright playwright)
+    internal BrowserPool(IPlaywright playwright)
     {
         Playwright = playwright;
     }
