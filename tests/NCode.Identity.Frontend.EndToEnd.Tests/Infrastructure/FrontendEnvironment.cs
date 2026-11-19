@@ -32,21 +32,30 @@ public sealed class FrontendEnvironment : IAsyncLifetime
     /// <inheritdoc />
     public async Task InitializeAsync()
     {
-        Certificate = TestCertificate.Create();
+        try
+        {
+            Certificate = TestCertificate.Create();
 
-        OpenIdHostOrNull = await OpenIdHostApplication.StartAsync(
-            Certificate,
-            LoopbackPort.Reserve(),
-            CancellationToken.None
-        );
-        ManagementConsoleOrNull = await ManagementConsoleApplication.StartAsync(
-            Certificate,
-            LoopbackPort.Reserve(),
-            OpenIdHost.Origin,
-            CancellationToken.None
-        );
+            OpenIdHostOrNull = await OpenIdHostApplication.StartAsync(
+                Certificate,
+                LoopbackPort.Reserve(),
+                CancellationToken.None
+            );
+            ManagementConsoleOrNull = await ManagementConsoleApplication.StartAsync(
+                Certificate,
+                LoopbackPort.Reserve(),
+                OpenIdHost.Origin,
+                CancellationToken.None
+            );
 
-        BrowserPoolOrNull = await BrowserPool.CreateAsync(CancellationToken.None);
+            BrowserPoolOrNull = await BrowserPool.CreateAsync(CancellationToken.None);
+        }
+        // A failed start stops what it already started, then fails the run.
+        catch
+        {
+            await DisposeAsync();
+            throw;
+        }
     }
 
     /// <summary>
@@ -66,16 +75,27 @@ public sealed class FrontendEnvironment : IAsyncLifetime
     /// <inheritdoc />
     public async Task DisposeAsync()
     {
+        // Each property is cleared once disposed, so a second call disposes nothing twice.
         if (BrowserPoolOrNull is not null)
+        {
             await BrowserPoolOrNull.DisposeAsync();
+            BrowserPoolOrNull = null;
+        }
 
         if (ManagementConsoleOrNull is not null)
+        {
             await ManagementConsoleOrNull.DisposeAsync();
+            ManagementConsoleOrNull = null;
+        }
 
         if (OpenIdHostOrNull is not null)
+        {
             await OpenIdHostOrNull.DisposeAsync();
+            OpenIdHostOrNull = null;
+        }
 
         Certificate?.Dispose();
+        Certificate = null;
     }
 
     private static InvalidOperationException NotInitialized() =>
