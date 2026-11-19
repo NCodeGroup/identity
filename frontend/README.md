@@ -75,7 +75,7 @@ frontend/
     brand/              @ncodegroup/identity-brand — the files of one NCode Brand release: Instrument's theme data, the tenant color derivation and the brace data (vendored; never edited)
     shell/              @ncodegroup/identity-shell — stateful app-shell containers shared by the surfaces (the runtime-config BootstrapGate)
     conformance-core/   @ncodegroup/identity-conformance-core — framework-free conformance logic (discovery, audit, spec-coverage, probes)
-    test-support/       @ncodegroup/identity-test-support — test-only Vitest support shared by every workspace (the console guard, the Testing Library wait timeout and the family icon set)
+    test-support/       @ncodegroup/identity-test-support — test-only Vitest support shared by every workspace (the console guard, the Testing Library wait timeout, the family icon set and the CSS color helper)
     vite-config/        @ncodegroup/identity-vite-config — the Vite/Vitest preset every workspace builds and tests from
   apps/
     mgmt/               @ncodegroup/identity-app-mgmt — Management console (served by its BFF host, `NCode.Identity.ManagementConsole.Host`)
