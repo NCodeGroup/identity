@@ -523,6 +523,36 @@ describe('createAppTheme', () => {
     expect(bar.background).toContain(hazard);
   });
 
+  it("sets a field's label above its well", () => {
+    const colors = instrument.palette.light.instrument;
+    const { field } = instrument.typography.variants;
+    const { components } = createAppTheme({ mode: 'light' });
+
+    expect(components?.MuiInputLabel?.defaultProps).toEqual({ shrink: true });
+    expect(overrides(components?.MuiInputLabel)).toMatchObject({
+      fontSize: field.fontSize,
+      fontWeight: field.fontWeight,
+      color: colors.text,
+      '&.Mui-focused': { color: colors.text },
+      '&.Mui-error': { color: colors['danger-text'] },
+      '&.Mui-disabled': { color: colors['text-disabled'] },
+      variants: [
+        {
+          props: { variant: 'outlined' },
+          style: {
+            position: 'static',
+            transform: 'none',
+            maxWidth: '100%',
+            marginBottom: '0.375rem',
+          },
+        },
+      ],
+    });
+    expect(overrides(components?.MuiOutlinedInput)).toMatchObject({
+      '& .MuiOutlinedInput-notchedOutline legend': { maxWidth: '0.01px' },
+    });
+  });
+
   it('maps the code, label, field, value and readout variants to their elements', () => {
     expect(createAppTheme().components?.MuiTypography?.defaultProps?.variantMapping).toEqual({
       code: 'code',

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { useTheme } from '@mui/material/styles';
+import TextField from '@mui/material/TextField';
 import { AppThemeProvider } from './AppThemeProvider.js';
 
 /** Renders the theme values its descendants receive, so the test can observe what the provider supplies. */
@@ -107,5 +108,28 @@ describe('AppThemeProvider', () => {
     );
 
     expect(screen.getByTestId('probe-transition')).toHaveTextContent('none');
+  });
+
+  it("sets a field's label above its well, with no notch in its outline", () => {
+    const { container } = render(
+      <AppThemeProvider>
+        <TextField label="Name" />
+        <TextField label="Date" slotProps={{ inputLabel: { shrink: true } }} />
+      </AppThemeProvider>,
+    );
+
+    const labels = container.querySelectorAll('label');
+    const legends = container.querySelectorAll('legend');
+    expect(labels.length).toBeGreaterThan(0);
+    expect(legends.length).toBeGreaterThan(0);
+    for (const label of labels) {
+      expect(label).toHaveAttribute('data-shrink', 'true');
+      expect(getComputedStyle(label).position).toBe('static');
+      expect(getComputedStyle(label).transform).toBe('none');
+    }
+    for (const legend of legends) {
+      expect(getComputedStyle(legend).maxWidth).toBe('0.01px');
+    }
+    expect(screen.getByLabelText('Name')).toBeInTheDocument();
   });
 });

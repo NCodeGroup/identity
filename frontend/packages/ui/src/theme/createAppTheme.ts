@@ -250,6 +250,31 @@ function componentsOf(
       defaultProps: { disableRipple: true },
       styleOverrides: { root: { '&.Mui-focusVisible': ring } },
     },
+    // A field's label stands above its well in sentence case, never inside it, as NCode Brand's base.css sets
+    // .field__label.
+    MuiInputLabel: {
+      defaultProps: { shrink: true },
+      styleOverrides: {
+        root: {
+          ...style(instrument.typography.variants.field),
+          color: colors.text,
+          '&.Mui-focused': { color: colors.text },
+          '&.Mui-error': { color: colors['danger-text'] },
+          '&.Mui-disabled': { color: colors['text-disabled'] },
+          variants: [
+            {
+              props: { variant: 'outlined' },
+              style: {
+                position: 'static',
+                transform: 'none',
+                maxWidth: '100%',
+                marginBottom: '0.375rem',
+              },
+            },
+          ],
+        },
+      },
+    },
     MuiOutlinedInput: {
       styleOverrides: {
         root: {
@@ -261,6 +286,8 @@ function componentsOf(
           backgroundColor: colors.well,
           boxShadow: `inset 0 ${String(size.travel)}px 0 ${colors.shade}`,
           [`& .${outlinedInputClasses.notchedOutline}`]: { borderColor: colors['border-strong'] },
+          // The label stands above the well, so its outline cuts no notch for it, whatever notched says.
+          [`& .${outlinedInputClasses.notchedOutline} legend`]: { maxWidth: '0.01px' },
           [`&:hover:not(.Mui-disabled):not(.Mui-focused):not(.Mui-error) .${outlinedInputClasses.notchedOutline}`]:
             { borderColor: colors['text-secondary'] },
           '&.Mui-disabled': { backgroundColor: colors['surface-sunken'], boxShadow: 'none' },
@@ -353,8 +380,8 @@ function componentsOf(
                 '&:active': { transform: travel, backgroundColor: colors['ghost-pressed'] },
               },
             },
-            // A key whose ink is primary-text is tinted with primary-subtle when touched: deriveBrand holds primary-text
-            // at 4.5 to 1 on it, and not on a ghost face over the page or on a pressed control face.
+            // A key whose ink is primary-text is tinted with primary-subtle when touched: deriveBrand holds
+            // primary-text at 4.5 to 1 on it, and not on a ghost face over the page or on a pressed control face.
             {
               props: { variant: 'text', color: 'primary' },
               style: {
