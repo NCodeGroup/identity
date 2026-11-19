@@ -19,6 +19,8 @@ $watcher = Join-Path $PSScriptRoot '..' 'brand-watch.ps1'
 $fixtureRoot = Join-Path ([System.IO.Path]::GetTempPath()) "identity-brand-watch-$([guid]::NewGuid().ToString('N'))"
 $now = [DateTimeOffset]'2026-12-01T00:00:00Z'
 $issueUrl = 'https://github.com/NCodeGroup/identity/issues/900'
+# The gh calls that write to GitHub.
+$writeCall = '^(issue (create|edit|close)|label create) '
 $testCount = 0
 
 function Write-Lock([string]$Path, [string]$Version) {
@@ -89,7 +91,7 @@ function Invoke-Watch(
         Output = $output
         Calls = @($global:BrandWatchCalls)
         Bodies = @($global:BrandWatchBodies)
-        Writes = @($global:BrandWatchCalls | Where-Object { $_ -match '^(issue (create|edit|close)|label create) ' })
+        Writes = @($global:BrandWatchCalls | Where-Object { $_ -match $writeCall })
     }
 }
 
@@ -258,7 +260,7 @@ try {
     $name = 'fails when gh fails, and writes nothing'
     $said = Get-Failure $name { Invoke-Watch $root -FailReleaseList }
     Assert-True $name $said.Contains('gh release list exited with code') "it said: $said"
-    $writes = @($global:BrandWatchCalls | Where-Object { $_ -match '^(issue (create|edit|close)|label create) ' })
+    $writes = @($global:BrandWatchCalls | Where-Object { $_ -match $writeCall })
     Assert-True $name ($writes.Count -eq 0) "writes were: $($writes -join ' | ')"
     Pass $name
 
