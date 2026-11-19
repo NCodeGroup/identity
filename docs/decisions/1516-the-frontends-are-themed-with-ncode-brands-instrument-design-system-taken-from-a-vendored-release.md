@@ -20,28 +20,34 @@ so a theme cannot read `brand/` at the repository root.
 Instrument says that a page without a mode follows the reader's system setting, and that reduced motion stops all
 motion.
 
+The release also carries Instrument's two typefaces, Instrument Sans and Martian Mono, as `css/fonts.css` and four
+WOFF2 files under `fonts/`, each family with its SIL Open Font License 1.1 text, which asks every copy of a font to
+carry its license. Every page the hosts serve starts from `default-src 'none'`
+([ADR-1256](1256-every-page-the-server-writes-has-a-strict-content-security-policy-and-is-framed-only-by-design.md)),
+so a page loads a font only from a source its policy lists.
+
 `brand/` vendors the logo kit from one NCodeGroup/brand release, under `brand/brand.lock.json`
 ([ADR-1492](1492-the-familys-id-logo-is-vendored-from-an-ncodegroup-brand-release-and-every-web-app-shows-its-icon.md)).
 
 ## Decision
 
-**Every frontend is themed with NCode Brand's Instrument: its Material UI data and its tenant color derivation come
-from the NCodeGroup/brand release the logo kit pins, vendored into `frontend/packages/brand` and pinned by SHA-256, and
-`createAppTheme` builds each surface's theme from them.**
+**Every frontend is themed with NCode Brand's Instrument: its Material UI data, its tenant color derivation and its two
+typefaces come from the NCodeGroup/brand release the logo kit pins, vendored into `frontend/packages/brand` and pinned
+by SHA-256, and `createAppTheme` builds each surface's theme from them.**
 
 ### The vendored release
 
 1. **The package.** `@ncodegroup/identity-brand` is private. Its files sit at their release paths under `vendor/`
-   (`mui/instrument.json`, `tokens/derive.mjs`, `tokens/derive.d.mts`, `tokens/derive.vectors.json` and
-   `brace/brace.json`), and its `brand.lock.json` sits at its root. It holds no code, scripts or tests of its own, and
-   its `exports` map names the files the frontend reads. Prettier and ESLint skip `vendor/` and the lock, because a
-   reformatted byte fails its SHA-256.
+   (`mui/instrument.json`, `tokens/derive.mjs`, `tokens/derive.d.mts`, `tokens/derive.vectors.json`,
+   `brace/brace.json`, `css/fonts.css`, `fonts/*.woff2` and `fonts/OFL-*.txt`), and its `brand.lock.json` sits at its
+   root. It holds no code, scripts or tests of its own, and its `exports` map names the files the frontend reads.
+   Prettier and ESLint skip `vendor/` and the lock, because a reformatted byte fails its SHA-256.
 2. **One release.** `build/brand-kit.ps1`, which the `brand kit` stage of `./build/dod.ps1` runs, checks both locks
    with `brand/vendor-brand.mjs --check` and fails when they name different releases. `pnpm run check:brand` runs in
    the frontend job after the format check, because a push that changes only `frontend/` runs only the frontend
    workflow. The frontend lock does not name `vendor-brand.mjs`.
 3. **A chunk of its own.** The vendored files load in a `brand` chunk, because, like a package's chunk, they change
-   only with a brand release.
+   only with a brand release. The typefaces' stylesheet is the chunk's `brand-<hash>.css`.
 
 ### The theme
 
@@ -57,7 +63,9 @@ from the NCodeGroup/brand release the logo kit pins, vendored into `frontend/pac
    `none`, and `CssBaseline` stops every CSS animation and transition.
 8. **Typography.** The typography comes from `instrument.typography`. `typography.fontFamilyMono` and the `code`
    variant set code, and a module augmentation types them. `variantMapping` maps `code` to `<code>`, and `label`,
-   `field`, `value` and `readout` to `<span>`.
+   `field`, `value` and `readout` to `<span>`. Every code value is set in the `code` variant: `variant="code"` on a
+   `Typography`, `typography: 'code'` in `sx`, or on a field's input through `inputBaseClasses.input`, so the field's
+   label keeps its style; the playground's sensitive `CodeBlock` sits on `warning-subtle` with a `warning-border` edge.
 9. **Measures.** The radius is 6 and the spacing is 8. The theme holds the mode's 25 shadows and
    `theme.instrument = { radius, space, size, focus }`.
 10. **Motion.** The durations are `shortest` 70, `shorter` and `short` 120, `standard` 200, `complex` and
@@ -84,9 +92,12 @@ from the NCodeGroup/brand release the logo kit pins, vendored into `frontend/pac
 15. **The watch.** `build/brand-watch.ps1` and the weekly `brand-watch` workflow keep one `brand-update` issue open
     while a release that is at least three days old is newer than the one the locks pin, and close it once the locks
     pin that release.
-16. **The fonts.** The font lists name Instrument Sans and Martian Mono first, and no page loads them, so browsers draw
-    the system UI and monospace fonts the lists name next
-    ([#862](https://github.com/NCodeGroup/identity/issues/862)).
+16. **The fonts.** Each app imports `@ncodegroup/identity-brand/fonts.css` once, first in `src/main.tsx`. Its build
+    emits the four font files into `assets/` under content-hashed names beside the stylesheet, whose link carries the
+    page's nonce, and the preset's `emitFontLicenses()` emits `OFL-Instrument-Sans-<hash>.txt` and
+    `OFL-Martian-Mono-<hash>.txt` beside them, resolved from the app's own dependency on the brand package, so a build
+    of an app without it fails. The interactive, setup and management console pages list `font-src 'self'`, and their
+    hosts serve the fonts as `font/woff2` and the licenses as `text/plain` from the bundle's assets route.
 
 ## Options considered
 
@@ -99,6 +110,13 @@ from the NCodeGroup/brand release the logo kit pins, vendored into `frontend/pac
 - **A release of its own for the theme.** Rejected: two versions of one brand drift apart.
 - **The braces as CSS masks of the release's SVG files.** Rejected: a bundler inlines a small file as a `data:`
   address, which the pages' `img-src` refuses, and an inline SVG needs no image at all.
+- **Fontsource packages from npm for the typefaces.** Rejected: a second pin of the same files, which can drift from
+  the files NCode Brand measured its type with.
+- **Fonts from a font CDN.** Rejected: every sign-in page would call a third party, and `font-src` would name a third
+  origin.
+- **The licenses only in `THIRD-PARTY-NOTICES.md`.** Rejected: the images ship the fonts, not that file.
+- **The licenses under fixed names.** Rejected: the hosts serve every asset as immutable for a year, which holds only
+  for a content-hashed name.
 - **The chosen design.** One release feeds both the logo kit and the theme, the files are vendored byte for byte and
   checked by SHA-256, and one derivation builds every surface's palette, so a tenant's colors hold their contrast
   floors in both modes.
@@ -111,8 +129,8 @@ from the NCodeGroup/brand release the logo kit pins, vendored into `frontend/pac
 - A release is taken once it is three days old
   ([project-template ADR-0009](project-template/0009-new-dependency-versions-wait-a-cooldown.md)).
 - A value that Instrument does not export is added in NCode Brand first.
-- Until the typefaces load ([#862](https://github.com/NCodeGroup/identity/issues/862)), every page draws the system
-  fonts.
+- Every app ships four font files, 139 kB in all, of which a browser fetches only those whose `unicode-range` a page
+  uses, and two license texts.
 
 ## References
 
@@ -126,13 +144,16 @@ from the NCodeGroup/brand release the logo kit pins, vendored into `frontend/pac
   hazard band.
 - [`build/brand-kit.ps1`](../../build/brand-kit.ps1) and [`build/brand-watch.ps1`](../../build/brand-watch.ps1) — the
   check of both locks and the weekly watch.
+- [`THIRD-PARTY-NOTICES.md`](../../THIRD-PARTY-NOTICES.md) — the typefaces' notices.
 - NCode Brand's
   [`guidelines/12-applying.md`](https://github.com/NCodeGroup/brand/blob/v0.11.0/guidelines/12-applying.md) — applying
   Instrument.
 - Issue [#861](https://github.com/NCodeGroup/identity/issues/861)
+- Issue [#862](https://github.com/NCodeGroup/identity/issues/862)
 - [ADR-1064](1064-one-frontend-platform-of-shared-packages-and-thin-app-shells-serves-every-web-surface.md)
 - [ADR-1151](1151-every-frontend-workspace-builds-and-tests-from-one-preset-that-fails-on-warnings-and-oversized-chunks.md)
 - [ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)
+- [ADR-1256](1256-every-page-the-server-writes-has-a-strict-content-security-policy-and-is-framed-only-by-design.md)
 - [ADR-1253](1253-a-tenant-brands-its-sign-in-pages-through-settings-and-the-bundle-mounts-over-the-hosts-page.md)
 - [ADR-1492](1492-the-familys-id-logo-is-vendored-from-an-ncodegroup-brand-release-and-every-web-app-shows-its-icon.md)
 - [project-template ADR-0008](project-template/0008-external-inputs-are-pinned-and-kept-current.md)

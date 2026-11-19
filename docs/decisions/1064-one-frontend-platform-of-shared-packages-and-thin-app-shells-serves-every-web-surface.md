@@ -44,7 +44,8 @@ over shared, scoped `@ncodegroup/identity-*` packages, and a layering rule keeps
   - `@ncodegroup/identity-ui` is the stateless design system and its theme, which `createAppTheme` builds from NCode
     Brand's Instrument.
   - `@ncodegroup/identity-brand` holds the files of the NCode Brand release that the theme and its parts read:
-    Instrument's Material UI data, the tenant color derivation and the brace data. It has no code of its own
+    Instrument's Material UI data, the tenant color derivation, the brace data and
+    the two typefaces with their licenses. It has no code of its own
     ([ADR-1516](1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md)).
   - `@ncodegroup/identity-shell` holds the shared stateful containers.
   - `@ncodegroup/identity-auth` holds the public-client protocol helpers.
