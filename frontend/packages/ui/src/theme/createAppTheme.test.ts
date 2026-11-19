@@ -347,6 +347,32 @@ describe('createAppTheme', () => {
     });
   });
 
+  it('draws a disabled key sunken and unlit', () => {
+    const {
+      'text-disabled': ink,
+      'surface-sunken': sunken,
+      border,
+    } = instrument.palette.light.instrument;
+    const theme = createAppTheme({ mode: 'light' });
+    const variants = buttonVariants(theme);
+    const contained = variants.find(
+      (v) => v.props.variant === 'contained' && v.props.color === undefined,
+    );
+    const plain = variants.find(
+      (v) => v.props.variant === 'outlined' && v.props.color === undefined,
+    );
+
+    expect(theme.palette.action.disabled).toBe(ink);
+    expect(theme.palette.action.disabledBackground).toBe(sunken);
+    expect(contained?.style).toMatchObject({
+      '&.Mui-disabled': { boxShadow: `inset 0 0 0 1px ${border}` },
+    });
+    expect((plain?.style as Record<string, unknown>)['&.Mui-disabled']).toEqual({
+      backgroundColor: sunken,
+      borderColor: border,
+    });
+  });
+
   it('draws a ghost key as the text variant', () => {
     const { 'ghost-hover': hover, 'ghost-pressed': pressed } = instrument.palette.light.instrument;
     const ghost = buttonVariants(createAppTheme({ mode: 'light' })).find(

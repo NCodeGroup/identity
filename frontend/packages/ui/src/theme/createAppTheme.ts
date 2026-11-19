@@ -181,6 +181,7 @@ function paletteOf(
     background: base.background,
     text: base.text,
     divider: base.divider,
+    action: { disabled: colors['text-disabled'], disabledBackground: colors['surface-sunken'] },
     instrument: colors,
   };
 }
@@ -296,9 +297,13 @@ function componentsOf(
           // A key stands on a lip and travels down when pressed; a ghost key, the text variant, has no face until it
           // is touched.
           variants: [
+            // A disabled key is sunken and unlit, on a hairline edge.
             {
               props: { variant: 'contained' },
-              style: key(colors['border-strong'], colors.lip, travel),
+              style: {
+                ...key(colors['border-strong'], colors.lip, travel),
+                '&.Mui-disabled': { boxShadow: `inset 0 0 0 1px ${colors.border}` },
+              },
             },
             {
               props: { variant: 'contained', color: 'primary' },
@@ -333,6 +338,10 @@ function componentsOf(
                   transform: travel,
                   backgroundColor: colors['control-pressed'],
                   boxShadow: 'none',
+                },
+                '&.Mui-disabled': {
+                  backgroundColor: colors['surface-sunken'],
+                  borderColor: colors.border,
                 },
               },
             },
