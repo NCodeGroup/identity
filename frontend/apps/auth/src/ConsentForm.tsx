@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Checkbox from '@mui/material/Checkbox';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import FormGroup from '@mui/material/FormGroup';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
+import { TenantCard } from '@ncodegroup/identity-ui';
 import { useLocale } from './i18n/LocaleContext.js';
 import {
   ANTIFORGERY_FIELD,
@@ -113,7 +113,7 @@ export function ConsentForm({
         p: 2,
       }}
     >
-      <Card sx={{ width: '100%', maxWidth: 400 }}>
+      <TenantCard maxWidth={400}>
         <CardContent>
           <Stack
             spacing={3}
@@ -189,7 +189,7 @@ export function ConsentForm({
             </Stack>
           </Stack>
         </CardContent>
-      </Card>
+      </TenantCard>
     </Box>
   );
 }
