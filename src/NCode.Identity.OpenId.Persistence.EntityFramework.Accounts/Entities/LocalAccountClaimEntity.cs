@@ -5,6 +5,7 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 using NCode.Identity.OpenId.Accounts;
+using NCode.Identity.OpenId.Persistence.EntityFramework.Configuration;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Entities;
 using NCode.Identity.Persistence;
@@ -18,10 +19,11 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Accounts.Entities;
 internal sealed class LocalAccountClaimEntity : ISupportTenantEntity
 {
     [Key]
-    public required long Id { get; init; }
+    [SurrogateKey]
+    public required Guid Id { get; init; }
 
     [ForeignKey(nameof(Tenant))]
-    public required long TenantId { get; init; }
+    public required Guid TenantId { get; init; }
 
     [Unicode(false)]
     [MaxLength(MaxLengths.ResourceId)]
