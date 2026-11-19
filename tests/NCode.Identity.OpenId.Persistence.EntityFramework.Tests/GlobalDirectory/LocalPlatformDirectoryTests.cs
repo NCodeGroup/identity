@@ -17,7 +17,7 @@ public sealed class LocalPlatformDirectoryTests : IDisposable
     private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
     private ServiceProvider Provider { get; }
     private OpenIdDbContext DbContext { get; }
-    private ISurrogateKeyGenerator keyGenerator { get; }
+    private ISurrogateKeyGenerator KeyGenerator { get; }
     private LocalPlatformDirectory Directory { get; }
 
     public LocalPlatformDirectoryTests()
@@ -32,7 +32,7 @@ public sealed class LocalPlatformDirectoryTests : IDisposable
 
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
-        keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        KeyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
         Directory = new LocalPlatformDirectory(
             Provider.GetRequiredService<IDbContextFactory<OpenIdDbContext>>(),
             MockAmbientTenantAccessor.Object
@@ -61,7 +61,7 @@ public sealed class LocalPlatformDirectoryTests : IDisposable
             .Add(
                 new PlatformEntity
                 {
-                    Id = keyGenerator.CreateKey(),
+                    Id = KeyGenerator.CreateKey(),
                     Key = OpenIdResourceIds.Platform,
                     ConcurrencyToken = string.Empty,
                     SettingsConcurrencyToken = string.Empty,

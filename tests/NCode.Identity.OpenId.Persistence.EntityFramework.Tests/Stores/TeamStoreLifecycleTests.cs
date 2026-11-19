@@ -18,7 +18,7 @@ public sealed class TeamStoreLifecycleTests : IDisposable
 
     private SqliteConnection Connection { get; }
     private ServiceProvider Provider { get; }
-    private ISurrogateKeyGenerator keyGenerator { get; }
+    private ISurrogateKeyGenerator KeyGenerator { get; }
     private OpenIdDbContext DbContext { get; }
     private TeamStore Store { get; }
 
@@ -33,10 +33,10 @@ public sealed class TeamStoreLifecycleTests : IDisposable
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
         DbContext.Database.EnsureCreated();
-        keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        KeyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
         Store = new TeamStore(
             Mock.Of<IStoreProvider>(),
-            keyGenerator,
+            KeyGenerator,
             TestPageCursorProtector.Instance,
             DbContext,
             TestPayloadSerializer.Instance
@@ -87,13 +87,13 @@ public sealed class TeamStoreLifecycleTests : IDisposable
 
     private async ValueTask SeedTenantInTeamAsync(CancellationToken cancellationToken)
     {
-        var team = DbContext.SeedTeam(keyGenerator, TeamId);
+        var team = DbContext.SeedTeam(KeyGenerator, TeamId);
         DbContext
             .Set<TenantEntity>()
             .Add(
                 new TenantEntity
                 {
-                    Id = keyGenerator.CreateKey(),
+                    Id = KeyGenerator.CreateKey(),
                     TeamId = team.Id,
                     Team = team,
                     TenantId = "tenant-in-team",
@@ -314,11 +314,11 @@ public sealed class TeamStoreLifecycleTests : IDisposable
     public async Task RemoveAsync_RemovesTheTeamAndItsNodesAssignmentsAndWritesNoRetiredRow()
     {
         await SeedTeamAsync(CancellationToken.None);
-        var tenant = DbContext.SeedTenant(keyGenerator, "tenant-1");
+        var tenant = DbContext.SeedTenant(KeyGenerator, "tenant-1");
         RoleAssignmentEntity CreateAssignment(string assignmentId, string resourceType) =>
             new()
             {
-                Id = keyGenerator.CreateKey(),
+                Id = KeyGenerator.CreateKey(),
                 TenantId = tenant.Id,
                 Tenant = tenant,
                 NormalizedTenantId = tenant.NormalizedTenantId,
@@ -425,14 +425,14 @@ public sealed class TeamStoreLifecycleTests : IDisposable
     [Fact]
     public async Task HasDependentsAsync_WhenTheTeamOwnsAMachineClient_ReturnsTrue()
     {
-        var team = DbContext.SeedTeam(keyGenerator, TeamId);
-        var tenant = DbContext.SeedTenant(keyGenerator, "tenant-1");
+        var team = DbContext.SeedTeam(KeyGenerator, TeamId);
+        var tenant = DbContext.SeedTenant(KeyGenerator, "tenant-1");
         DbContext
             .Set<ClientEntity>()
             .Add(
                 new ClientEntity
                 {
-                    Id = keyGenerator.CreateKey(),
+                    Id = KeyGenerator.CreateKey(),
                     TenantId = tenant.Id,
                     NormalizedTenantId = tenant.NormalizedTenantId,
                     ClientId = "machine-client",

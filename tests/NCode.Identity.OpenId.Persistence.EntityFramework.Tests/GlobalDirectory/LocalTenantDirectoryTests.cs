@@ -27,7 +27,7 @@ public sealed class LocalTenantDirectoryTests : IDisposable
     private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
     private ServiceProvider Provider { get; }
     private OpenIdDbContext DbContext { get; }
-    private ISurrogateKeyGenerator keyGenerator { get; }
+    private ISurrogateKeyGenerator KeyGenerator { get; }
     private LocalTenantDirectory Directory { get; }
 
     public LocalTenantDirectoryTests()
@@ -42,10 +42,10 @@ public sealed class LocalTenantDirectoryTests : IDisposable
 
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
-        keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        KeyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
         Directory = new LocalTenantDirectory(
             Provider.GetRequiredService<IDbContextFactory<OpenIdDbContext>>(),
-            keyGenerator,
+            KeyGenerator,
             MockAmbientTenantAccessor.Object,
             Options.Create(new CellOptions { Name = CellName, Region = CellRegion })
         );
@@ -68,7 +68,7 @@ public sealed class LocalTenantDirectoryTests : IDisposable
 
     private TeamEntity SeedTeamWithLimit(string teamId, int? maxTenants)
     {
-        var team = DbContext.SeedTeam(keyGenerator, teamId);
+        var team = DbContext.SeedTeam(KeyGenerator, teamId);
         if (maxTenants is { } limit)
         {
             team.SettingsJson = JsonSerializer.SerializeToElement(
@@ -85,7 +85,7 @@ public sealed class LocalTenantDirectoryTests : IDisposable
         DbContext.Platforms.Add(
             new PlatformEntity
             {
-                Id = keyGenerator.CreateKey(),
+                Id = KeyGenerator.CreateKey(),
                 Key = OpenIdResourceIds.Platform,
                 ConcurrencyToken = string.Empty,
                 SettingsConcurrencyToken = string.Empty,
@@ -104,7 +104,7 @@ public sealed class LocalTenantDirectoryTests : IDisposable
             .Add(
                 new TenantEntity
                 {
-                    Id = keyGenerator.CreateKey(),
+                    Id = KeyGenerator.CreateKey(),
                     TeamId = team.Id,
                     Team = team,
                     TenantId = tenantId,
@@ -133,7 +133,7 @@ public sealed class LocalTenantDirectoryTests : IDisposable
         DbContext.RetiredTenants.Add(
             new RetiredTenantEntity
             {
-                Id = keyGenerator.CreateKey(),
+                Id = KeyGenerator.CreateKey(),
                 TenantId = tenantId,
                 NormalizedTenantId = tenantId.ToLowerInvariant(),
             }
@@ -146,7 +146,7 @@ public sealed class LocalTenantDirectoryTests : IDisposable
         DbContext.RetiredIssuers.Add(
             new RetiredIssuerEntity
             {
-                Id = keyGenerator.CreateKey(),
+                Id = KeyGenerator.CreateKey(),
                 Issuer = issuer,
                 NormalizedIssuer = issuer.ToLowerInvariant(),
                 TenantId = tenantId,
@@ -301,7 +301,7 @@ public sealed class LocalTenantDirectoryTests : IDisposable
     {
         SetupUnscoped();
         var parent = SeedTeamWithLimit(TeamId, maxTenants: 1);
-        var child = DbContext.SeedChildTeam(keyGenerator, parent, "platform-web");
+        var child = DbContext.SeedChildTeam(KeyGenerator, parent, "platform-web");
         SeedTenantWithIssuer(child, OtherTenantId, OtherIssuer);
 
         var result = await Directory.ReserveAsync(

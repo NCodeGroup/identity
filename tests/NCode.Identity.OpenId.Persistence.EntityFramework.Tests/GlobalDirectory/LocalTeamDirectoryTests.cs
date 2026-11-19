@@ -22,7 +22,7 @@ public sealed class LocalTeamDirectoryTests : IDisposable
     private Mock<IAmbientTenantAccessor> MockAmbientTenantAccessor { get; }
     private ServiceProvider Provider { get; }
     private OpenIdDbContext DbContext { get; }
-    private ISurrogateKeyGenerator keyGenerator { get; }
+    private ISurrogateKeyGenerator KeyGenerator { get; }
     private LocalTeamDirectory Directory { get; }
 
     public LocalTeamDirectoryTests()
@@ -37,10 +37,10 @@ public sealed class LocalTeamDirectoryTests : IDisposable
 
         Provider = serviceCollection.BuildServiceProvider();
         DbContext = Provider.GetRequiredService<OpenIdDbContext>();
-        keyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
+        KeyGenerator = Provider.GetRequiredService<ISurrogateKeyGenerator>();
         Directory = new LocalTeamDirectory(
             Provider.GetRequiredService<IDbContextFactory<OpenIdDbContext>>(),
-            keyGenerator,
+            KeyGenerator,
             MockAmbientTenantAccessor.Object,
             TestPayloadSerializer.Instance
         );
@@ -66,7 +66,7 @@ public sealed class LocalTeamDirectoryTests : IDisposable
         DbContext.RetiredTeams.Add(
             new RetiredTeamEntity
             {
-                Id = keyGenerator.CreateKey(),
+                Id = KeyGenerator.CreateKey(),
                 TeamId = teamId,
                 NormalizedTeamId = teamId.ToLowerInvariant(),
             }
@@ -80,7 +80,7 @@ public sealed class LocalTeamDirectoryTests : IDisposable
     public async Task ReserveAsync_WhenNothingHoldsTheIdentifier_IsReserved()
     {
         SetupUnscoped();
-        DbContext.SeedTeam(keyGenerator, OtherTeamId);
+        DbContext.SeedTeam(KeyGenerator, OtherTeamId);
 
         var result = await Directory.ReserveAsync(TeamId, CancellationToken.None);
 
@@ -106,7 +106,7 @@ public sealed class LocalTeamDirectoryTests : IDisposable
     public async Task ReserveAsync_WhenATeamHoldsTheIdentifier_ReturnsConflict()
     {
         SetupUnscoped();
-        DbContext.SeedTeam(keyGenerator, TeamId);
+        DbContext.SeedTeam(KeyGenerator, TeamId);
 
         var result = await Directory.ReserveAsync(
             TeamId.ToUpperInvariant(),
@@ -166,7 +166,7 @@ public sealed class LocalTeamDirectoryTests : IDisposable
     public async Task RetireAsync_WhenTheTeamExists_RetiresItsIdentifierWithoutACallersSave()
     {
         SetupUnscoped();
-        DbContext.SeedTeam(keyGenerator, TeamId);
+        DbContext.SeedTeam(KeyGenerator, TeamId);
 
         await Directory.RetireAsync(TeamId.ToUpperInvariant(), CancellationToken.None);
 
@@ -252,7 +252,7 @@ public sealed class LocalTeamDirectoryTests : IDisposable
     public async Task GetOrDefaultAsync_WhenTheTeamExists_ReturnsItsDocument()
     {
         SetupUnscoped();
-        var team = DbContext.SeedTeam(keyGenerator, TeamId);
+        var team = DbContext.SeedTeam(KeyGenerator, TeamId);
         team.DisplayName = "Platform team";
         team.SettingsJson = JsonSerializer.SerializeToElement(
             new Dictionary<string, object> { ["max_tenants"] = 3 }
@@ -276,7 +276,7 @@ public sealed class LocalTeamDirectoryTests : IDisposable
     public async Task GetOrDefaultAsync_WhenTheTeamHoldsRootKeys_ReturnsThemByRegion()
     {
         SetupUnscoped();
-        var team = DbContext.SeedTeam(keyGenerator, TeamId);
+        var team = DbContext.SeedTeam(KeyGenerator, TeamId);
         team.RootKeysJson = TeamRootKeysPayload.Write(
             TestPayloadSerializer.Instance,
             new Dictionary<string, OwnerRootKeyRequest>
@@ -313,7 +313,7 @@ public sealed class LocalTeamDirectoryTests : IDisposable
     )
     {
         SetupUnscoped();
-        var team = DbContext.SeedTeam(keyGenerator, TeamId);
+        var team = DbContext.SeedTeam(KeyGenerator, TeamId);
         team.RootKeysJson = JsonElement.Parse(rootKeysJson);
         await DbContext.SaveChangesAsync();
 
@@ -326,8 +326,8 @@ public sealed class LocalTeamDirectoryTests : IDisposable
     public async Task GetOrDefaultAsync_WhenTheTeamHasAParent_ReturnsTheParentTeamId()
     {
         SetupUnscoped();
-        var parent = DbContext.SeedTeam(keyGenerator, TeamId);
-        DbContext.SeedChildTeam(keyGenerator, parent, OtherTeamId);
+        var parent = DbContext.SeedTeam(KeyGenerator, TeamId);
+        DbContext.SeedChildTeam(KeyGenerator, parent, OtherTeamId);
 
         var document = await Directory.GetOrDefaultAsync(OtherTeamId, CancellationToken.None);
 
@@ -339,7 +339,7 @@ public sealed class LocalTeamDirectoryTests : IDisposable
     public async Task GetOrDefaultAsync_WhenTheTeamIsTopLevel_ReturnsNoParentTeamId()
     {
         SetupUnscoped();
-        DbContext.SeedTeam(keyGenerator, TeamId);
+        DbContext.SeedTeam(KeyGenerator, TeamId);
 
         var document = await Directory.GetOrDefaultAsync(TeamId, CancellationToken.None);
 
@@ -364,7 +364,7 @@ public sealed class LocalTeamDirectoryTests : IDisposable
     [Fact]
     public async Task ListChangesAsync_WhenCalled_ReturnsNothing()
     {
-        DbContext.SeedTeam(keyGenerator, TeamId);
+        DbContext.SeedTeam(KeyGenerator, TeamId);
 
         var changes = await Directory.ListChangesAsync(0, 100, CancellationToken.None);
 
