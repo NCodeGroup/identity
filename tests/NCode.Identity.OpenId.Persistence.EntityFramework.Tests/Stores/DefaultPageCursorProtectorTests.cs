@@ -13,8 +13,11 @@ public sealed class DefaultPageCursorProtectorTests
     private static byte[] CreatePosition() =>
         Enumerable.Range(1, 16).Select(i => (byte)i).ToArray();
 
-    private static DefaultPageCursorProtector CreateProtector() =>
-        new(new EphemeralDataProtectionProvider());
+    private static DefaultPageCursorProtector CreateProtector()
+    {
+        var provider = new EphemeralDataProtectionProvider();
+        return new DefaultPageCursorProtector(provider);
+    }
 
     #region Protect and TryUnprotect Tests
 
@@ -27,17 +30,19 @@ public sealed class DefaultPageCursorProtectorTests
 
         var cursor = protector.Protect(Collection, position);
         var result = protector.TryUnprotect(Collection, cursor, destination, out var bytesWritten);
+        var written = destination[..bytesWritten];
 
         Assert.True(result);
         Assert.Equal(position.Length, bytesWritten);
-        Assert.Equal(position, destination[..bytesWritten]);
+        Assert.Equal(position, written);
     }
 
     [Fact]
     public void TryUnprotect_DestinationTooSmall_ReturnsFalse()
     {
         var protector = CreateProtector();
-        var cursor = protector.Protect(Collection, CreatePosition());
+        var position = CreatePosition();
+        var cursor = protector.Protect(Collection, position);
         var destination = new byte[15];
 
         var result = protector.TryUnprotect(Collection, cursor, destination, out var bytesWritten);
@@ -50,9 +55,12 @@ public sealed class DefaultPageCursorProtectorTests
     public void TryUnprotect_TamperedCursor_ReturnsFalse()
     {
         var protector = CreateProtector();
-        var cursor = protector.Protect(Collection, CreatePosition());
+        var position = CreatePosition();
+        var cursor = protector.Protect(Collection, position);
         var replacement = cursor[20] == 'A' ? 'B' : 'A';
-        var tampered = string.Concat(cursor.AsSpan(0, 20), [replacement], cursor.AsSpan(21));
+        var prefix = cursor.AsSpan(0, 20);
+        var suffix = cursor.AsSpan(21);
+        var tampered = string.Concat(prefix, [replacement], suffix);
         var destination = new byte[32];
 
         var result = protector.TryUnprotect(
@@ -70,7 +78,8 @@ public sealed class DefaultPageCursorProtectorTests
     public void TryUnprotect_OtherCollection_ReturnsFalse()
     {
         var protector = CreateProtector();
-        var cursor = protector.Protect(Collection, CreatePosition());
+        var position = CreatePosition();
+        var cursor = protector.Protect(Collection, position);
         var destination = new byte[32];
 
         var result = protector.TryUnprotect(
@@ -89,7 +98,8 @@ public sealed class DefaultPageCursorProtectorTests
     {
         var protector = CreateProtector();
         var otherProtector = CreateProtector();
-        var cursor = protector.Protect(Collection, CreatePosition());
+        var position = CreatePosition();
+        var cursor = protector.Protect(Collection, position);
         var destination = new byte[32];
 
         var result = otherProtector.TryUnprotect(
@@ -123,8 +133,9 @@ public sealed class DefaultPageCursorProtectorTests
 
         var cursor = protector.Protect(Collection, position);
         var bytes = Base64Url.DecodeFromChars(cursor);
+        var index = bytes.AsSpan().IndexOf(position.AsSpan());
 
-        Assert.True(bytes.AsSpan().IndexOf(position.AsSpan()) < 0);
+        Assert.True(index < 0);
     }
 
     #endregion

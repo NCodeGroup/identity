@@ -149,10 +149,15 @@ public sealed class ClientStorePagingTests : IDisposable
 
         var cursor = Assert.IsType<string>(page.NextCursor);
         var key = DbContext.Set<ClientEntity>().OrderBy(client => client.Id).First().Id;
-        Assert.DoesNotContain(key.ToString("N"), cursor, StringComparison.OrdinalIgnoreCase);
+        var keyText = key.ToString("N");
+        Assert.DoesNotContain(keyText, cursor, StringComparison.OrdinalIgnoreCase);
         var decoded = Base64Url.DecodeFromChars(cursor);
-        Assert.Equal(-1, decoded.AsSpan().IndexOf(key.ToByteArray(bigEndian: true)));
-        Assert.Equal(-1, decoded.AsSpan().IndexOf(key.ToByteArray(bigEndian: false)));
+        var bigEndianBytes = key.ToByteArray(bigEndian: true);
+        var littleEndianBytes = key.ToByteArray(bigEndian: false);
+        var bigEndianIndex = decoded.AsSpan().IndexOf(bigEndianBytes);
+        var littleEndianIndex = decoded.AsSpan().IndexOf(littleEndianBytes);
+        Assert.Equal(-1, bigEndianIndex);
+        Assert.Equal(-1, littleEndianIndex);
     }
 
     [Fact]
@@ -169,16 +174,16 @@ public sealed class ClientStorePagingTests : IDisposable
         var cursor = Assert.IsType<string>(firstPage.NextCursor);
         var tampered = cursor.ToCharArray();
         tampered[20] = tampered[20] == 'A' ? 'B' : 'A';
+        var tamperedCursor = new string(tampered);
 
         var page = await Store.GetPageAsync(
-            new PageRequest { Cursor = new string(tampered), Limit = 1 },
+            new PageRequest { Cursor = tamperedCursor, Limit = 1 },
             CancellationToken.None
         );
 
-        Assert.Equal(
-            firstPage.Items.Select(client => client.ClientId),
-            page.Items.Select(client => client.ClientId)
-        );
+        var expectedClientIds = firstPage.Items.Select(client => client.ClientId).ToList();
+        var actualClientIds = page.Items.Select(client => client.ClientId).ToList();
+        Assert.Equal(expectedClientIds, actualClientIds);
     }
 
     [Fact]

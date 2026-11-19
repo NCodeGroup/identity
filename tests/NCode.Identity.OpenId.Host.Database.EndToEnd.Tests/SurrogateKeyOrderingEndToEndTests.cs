@@ -24,20 +24,26 @@ public sealed class SurrogateKeyOrderingEndToEndTests(PostgresFixture fixture)
         var start = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
         var keys = Enumerable
             .Range(0, KeyCount)
-            .Select(i => Guid.CreateVersion7(start.AddMilliseconds(i / 3)))
+            .Select(i =>
+            {
+                var timestamp = start.AddMilliseconds(i / 3);
+                return Guid.CreateVersion7(timestamp);
+            })
             .ToList();
 
         var random = new Random(843);
         return keys.OrderBy(_ => random.Next()).ToArray();
     }
 
+    private static string ToBigEndianHex(Guid key)
+    {
+        var bytes = key.ToByteArray(bigEndian: true);
+        return Convert.ToHexString(bytes);
+    }
+
     private static List<Guid> CreateExpectedOrder(IEnumerable<Guid> keys)
     {
-        return keys.OrderBy(
-                key => Convert.ToHexString(key.ToByteArray(bigEndian: true)),
-                StringComparer.Ordinal
-            )
-            .ToList();
+        return keys.OrderBy(ToBigEndianHex, StringComparer.Ordinal).ToList();
     }
 
     #region OrderBy Tests
@@ -60,7 +66,8 @@ public sealed class SurrogateKeyOrderingEndToEndTests(PostgresFixture fixture)
         await using var reader = await command.ExecuteReaderAsync(CancellationToken.None);
         while (await reader.ReadAsync(CancellationToken.None))
         {
-            actual.Add(reader.GetGuid(0));
+            var key = reader.GetGuid(0);
+            actual.Add(key);
         }
 
         Assert.Equal(expected, actual);
@@ -76,6 +83,7 @@ public sealed class SurrogateKeyOrderingEndToEndTests(PostgresFixture fixture)
         var keys = CreateShuffledKeys();
         var expected = CreateExpectedOrder(keys);
         var pivot = expected[PivotIndex];
+        var after = expected.Skip(PivotIndex + 1).ToList();
 
         await using var connection = new NpgsqlConnection(fixture.OwnerConnectionString);
         await connection.OpenAsync(CancellationToken.None);
@@ -90,10 +98,11 @@ public sealed class SurrogateKeyOrderingEndToEndTests(PostgresFixture fixture)
         await using var reader = await command.ExecuteReaderAsync(CancellationToken.None);
         while (await reader.ReadAsync(CancellationToken.None))
         {
-            actual.Add(reader.GetGuid(0));
+            var key = reader.GetGuid(0);
+            actual.Add(key);
         }
 
-        Assert.Equal(expected.Skip(PivotIndex + 1).ToList(), actual);
+        Assert.Equal(after, actual);
     }
 
     #endregion

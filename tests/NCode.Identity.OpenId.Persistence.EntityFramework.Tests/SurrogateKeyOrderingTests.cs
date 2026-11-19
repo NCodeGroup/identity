@@ -36,32 +36,39 @@ public class SurrogateKeyOrderingTests
         var start = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
         var keys = Enumerable
             .Range(0, KeyCount)
-            .Select(i => Guid.CreateVersion7(start.AddMilliseconds(i / 3)))
+            .Select(i =>
+            {
+                var timestamp = start.AddMilliseconds(i / 3);
+                return Guid.CreateVersion7(timestamp);
+            })
             .ToList();
 
         var random = new Random(843);
         return keys.OrderBy(_ => random.Next()).ToList();
     }
 
+    private static string ToBigEndianHex(Guid key)
+    {
+        var bytes = key.ToByteArray(bigEndian: true);
+        return Convert.ToHexString(bytes);
+    }
+
     private static List<Guid> CreateExpectedOrder(IEnumerable<Guid> keys)
     {
-        return keys.OrderBy(
-                key => Convert.ToHexString(key.ToByteArray(bigEndian: true)),
-                StringComparer.Ordinal
-            )
-            .ToList();
+        return keys.OrderBy(ToBigEndianHex, StringComparer.Ordinal).ToList();
     }
 
     private static void Insert(KeyDbContext context, IEnumerable<Guid> keys)
     {
-        context.Rows.AddRange(keys.Select(key => new KeyRow { Id = key }));
+        var rows = keys.Select(key => new KeyRow { Id = key }).ToList();
+        context.Rows.AddRange(rows);
         context.SaveChanges();
     }
 
     #region Order Tests
 
     [Fact]
-    public void CompareTo_Version7Keys_OrdersByBigEndianBytes()
+    public void Order_Version7Keys_OrdersByBigEndianBytes()
     {
         var keys = CreateShuffledKeys();
         var expected = CreateExpectedOrder(keys);
@@ -81,8 +88,9 @@ public class SurrogateKeyOrderingTests
         var keys = CreateShuffledKeys();
         var expected = CreateExpectedOrder(keys);
 
+        var databaseName = Guid.NewGuid().ToString("N");
         var options = new DbContextOptionsBuilder<KeyDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
+            .UseInMemoryDatabase(databaseName)
             .Options;
         using var context = new KeyDbContext(options);
         Insert(context, keys);
@@ -120,6 +128,7 @@ public class SurrogateKeyOrderingTests
         var keys = CreateShuffledKeys();
         var expected = CreateExpectedOrder(keys);
         var pivot = expected[PivotIndex];
+        var after = expected.Skip(PivotIndex + 1).ToList();
 
         using var connection = new SqliteConnection("DataSource=:memory:");
         connection.Open();
@@ -134,7 +143,7 @@ public class SurrogateKeyOrderingTests
             .Select(row => row.Id)
             .ToList();
 
-        Assert.Equal(expected.Skip(PivotIndex + 1).ToList(), actual);
+        Assert.Equal(after, actual);
     }
 
     #endregion
