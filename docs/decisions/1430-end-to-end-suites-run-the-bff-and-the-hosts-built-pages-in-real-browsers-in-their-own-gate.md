@@ -13,8 +13,8 @@ cross-site navigation and form posts, CORS preflight denial and Fetch Metadata r
 login (PAR, PKCE `S256`, `private_key_jwt`, RFC 9207, PS256 ID tokens), DPoP, refresh-token rotation, RP-initiated
 logout and back-channel logout against an OP built by someone else, using only its discovery metadata.
 
-The OpenID Provider (OP) host and the management console's host serve the built `apps/auth`, `apps/setup` and
-`apps/mgmt` bundles under a strict Content-Security-Policy
+The OP host and the management console's host serve the built `apps/auth`, `apps/setup` and `apps/mgmt` bundles under a
+strict Content-Security-Policy
 ([ADR-1256](1256-every-page-the-server-writes-has-a-strict-content-security-policy-and-is-framed-only-by-design.md)),
 and each bundle loads NCode Brand's typefaces from its own assets
 ([ADR-1516](1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md)).
@@ -57,10 +57,10 @@ built frontend bundles in the same browsers.**
 4. **A CI job, `End-to-end`, is a required check.** [`.github/workflows/e2e.yml`](../../.github/workflows/e2e.yml) has
    the triggers and tiers of `ci.yml`
    ([ADR-1263](1263-branches-and-pull-requests-run-an-affected-gate-and-the-merge-queue-runs-the-full-gate.md)): the
-   affected suites on a pull request into `main`, every suite in the merge queue, on `main` and on the release lines.
-   It reports on every pull request, and it is a required check of the `main` and `release-lines` rulesets. The job
-   sets up the Node major `frontend/.node-version` pins and the pnpm `frontend/package.json` pins with the actions and
-   pins of Frontend CI, and caches the pnpm store.
+   affected suites on a pull request into `main`, every suite in the merge queue, on `main` and on the release lines. It
+   reports on every pull request, and it is a required check of the `main` and `release-lines` rulesets. The job sets up
+   the Node major `frontend/.node-version` pins and the pnpm `frontend/package.json` pins with the actions and pins of
+   Frontend CI, and caches the pnpm store.
 
 5. **Playwright for .NET, driven by xUnit.** The BFF, the origin pages and the fixtures run in the test process, in
    one language and one runner, with the existing JUnit logger. The suites do not use Node Playwright in
@@ -68,9 +68,9 @@ built frontend bundles in the same browsers.**
 
 6. **Browsers.** Tests are theories over `BrowserNames.All`, in the support project
    `NCode.Identity.EndToEnd.TestSupport`: Chromium and Firefox on every operating system, and WebKit except on Windows.
-   Playwright's Windows WebKit port does not use Safari's cookie stack and mishandles `SameSite` and
-   `Secure` (microsoft/playwright#20370). CI runs on Linux, so it covers all three engines. The interop suite uses
-   Chromium only, because what it tests is the OP, not the browser.
+   Playwright's Windows WebKit port does not use Safari's cookie stack and mishandles `SameSite` and `Secure`
+   (microsoft/playwright#20370). CI runs on Linux, so it covers all three engines. The interop suite uses Chromium only,
+   because what it tests is the OP, not the browser.
 
 7. **The BFF's OP is Keycloak 26.** The image is pinned by digest in
    `tests/NCode.Identity.Bff.EndToEnd.Tests/Keycloak/Dockerfile`, beside the checked-in `bff-e2e-realm.json`, and
@@ -140,8 +140,8 @@ built frontend bundles in the same browsers.**
   BFF host, the origin pages and the container fixtures would have to start from Node.
 - **The NCode OP as the BFF's provider in the tier.** Rejected: an NCode OP proves the BFF only against its own
   implementation of the standards.
-- **The pages checked in `NCode.Identity.OpenId.Integration.Tests`.** Rejected: its hosts run on `TestServer`, which
-  no browser reaches, and the Definition of Done would need the browsers.
+- **The pages checked in `NCode.Identity.OpenId.Integration.Tests`.** Rejected: its hosts run on `TestServer`, which no
+  browser reaches, and the Definition of Done would need the browsers.
 - **A by-hand check of the pages in a browser.** Rejected: nothing fails a change whose policy refuses what its bundle
   loads.
 - **The pages suite against the host image in a container.** Rejected: the image checks build the image, and the suite
@@ -181,5 +181,4 @@ built frontend bundles in the same browsers.**
   [#419](https://github.com/NCodeGroup/identity/issues/419) and
   [#862](https://github.com/NCodeGroup/identity/issues/862)
 - `tests/NCode.Identity.Bff.EndToEnd.Tests/`, `tests/NCode.Identity.Frontend.EndToEnd.Tests/`,
-  `tests/NCode.Identity.EndToEnd.TestSupport/`, `build/e2e.ps1`, `build/test-projects.ps1`,
-  `.github/workflows/e2e.yml`
+  `tests/NCode.Identity.EndToEnd.TestSupport/`, `build/e2e.ps1`, `build/test-projects.ps1`, `.github/workflows/e2e.yml`

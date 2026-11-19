@@ -35,9 +35,9 @@ has a folder of its own, and the build fails a project whose folder and packing 
 6. **The `RequirePackingFollowsFolder` target in `Directory.Build.targets` fails a project under `src/` that does not
    pack and a project outside `src/` that does,** in every build: the IDE, `dod.ps1`, CI and the image builds. The
    message names the folder rule.
-7. **Tools follow the folders.** `build/affected-tests.ps1` maps `src/`, `hosts/`, `analyzers/` and `tests/`,
-   and `frontend/` to the end-to-end suites that serve its bundles; `build/doc-comment-citations.ps1` scans the same
-   four; the production C# conventions apply to `src/`, `hosts/` and `analyzers/`; and `.dockerignore` admits `src/`,
+7. **Tools follow the folders.** `build/affected-tests.ps1` maps `src/`, `hosts/`, `analyzers/` and `tests/`, and
+   `frontend/` to the end-to-end suites that serve its bundles; `build/doc-comment-citations.ps1` scans the same four;
+   the production C# conventions apply to `src/`, `hosts/` and `analyzers/`; and `.dockerignore` admits `src/`,
    `hosts/`, `analyzers/` and `frontend/`, the four project folders of the image builds' context.
 8. **Names distinguish role.** `NCode.Identity.Server` is the shipping library whose entry point is
    `AddIdentityServer()`. `…Host` is the deployable, and the `Host.` prefix groups the projects that travel with it: its

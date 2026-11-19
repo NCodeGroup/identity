@@ -103,8 +103,8 @@ warning, and the build fails on any oversized chunk.**
     [ADR-1516](1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md))
     and `vendor` (every other package). The `brand` chunk also holds the typefaces' `@font-face` stylesheet,
     `assets/brand-<hash>.css`. The preset passes them to Rolldown's `output.codeSplitting.groups`. A vendor chunk
-    changes only when its packages are upgraded or another brand release is taken, so it stays cached across
-    application releases.
+    changes only when its packages are upgraded or another brand release is taken, so it stays cached across application
+    releases.
 11. **Surface containers load lazily.** `apps/mgmt`, `apps/playground` and `apps/conformance` import their route-level
     containers through `React.lazy` inside a `Suspense` boundary: one chunk per surface in the management console, and
     the single container as its own chunk in the playground and the conformance dashboard. The shell paints before a

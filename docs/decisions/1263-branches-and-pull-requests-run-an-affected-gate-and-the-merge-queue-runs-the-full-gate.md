@@ -106,8 +106,8 @@ merged result passed the full gate.
   — the protected trunk and its merge queue.
 - [ADR-1262](1262-minimal-api-request-delegates-are-generated-at-compile-time.md) — the compile-time delegates that
   shorten the test stage.
-- [ADR-1430](1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md)
-  — the end-to-end gate.
+- [ADR-1430](1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md) — the
+  end-to-end gate.
 - [ADR-1143](1143-ci-presents-test-results-and-hand-written-code-coverage-through-job-summaries-annotations-and-codecov.md)
   — how CI presents test results and coverage.
 - [`build/dod.ps1`](../../build/dod.ps1) and [`build/affected-tests.ps1`](../../build/affected-tests.ps1) — the gate and

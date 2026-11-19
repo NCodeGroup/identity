@@ -20,11 +20,11 @@ so a theme cannot read `brand/` at the repository root.
 Instrument says that a page without a mode follows the reader's system setting, and that reduced motion stops all
 motion.
 
-The release also carries Instrument's two typefaces, Instrument Sans and Martian Mono, as `css/fonts.css` and four
-WOFF2 files under `fonts/`, each family with its SIL Open Font License 1.1 text, which asks every copy of a font to
-carry its license. Every page the hosts serve starts from `default-src 'none'`
-([ADR-1256](1256-every-page-the-server-writes-has-a-strict-content-security-policy-and-is-framed-only-by-design.md)),
-so a page loads a font only from a source its policy lists.
+The release also carries Instrument's two typefaces, Instrument Sans and Martian Mono, as `css/fonts.css` and four WOFF2
+files under `fonts/`, each family with its SIL Open Font License 1.1 text, which asks every copy of a font to carry its
+license. Every page the hosts serve starts from `default-src 'none'`
+([ADR-1256](1256-every-page-the-server-writes-has-a-strict-content-security-policy-and-is-framed-only-by-design.md)), so
+a page loads a font only from a source its policy lists.
 
 `brand/` vendors the logo kit from one NCodeGroup/brand release, under `brand/brand.lock.json`
 ([ADR-1492](1492-the-familys-id-logo-is-vendored-from-an-ncodegroup-brand-release-and-every-web-app-shows-its-icon.md)).
@@ -38,16 +38,16 @@ by SHA-256, and `createAppTheme` builds each surface's theme from them.**
 ### The vendored release
 
 1. **The package.** `@ncodegroup/identity-brand` is private. Its files sit at their release paths under `vendor/`
-   (`mui/instrument.json`, `tokens/derive.mjs`, `tokens/derive.d.mts`, `tokens/derive.vectors.json`,
-   `brace/brace.json`, `css/fonts.css`, `fonts/*.woff2` and `fonts/OFL-*.txt`), and its `brand.lock.json` sits at its
-   root. It holds no code, scripts or tests of its own, and its `exports` map names the files the frontend reads.
-   Prettier and ESLint skip `vendor/` and the lock, because a reformatted byte fails its SHA-256.
+   (`mui/instrument.json`, `tokens/derive.mjs`, `tokens/derive.d.mts`, `tokens/derive.vectors.json`, `brace/brace.json`,
+   `css/fonts.css`, `fonts/*.woff2` and `fonts/OFL-*.txt`), and its `brand.lock.json` sits at its root. It holds no
+   code, scripts or tests of its own, and its `exports` map names the files the frontend reads. Prettier and ESLint skip
+   `vendor/` and the lock, because a reformatted byte fails its SHA-256.
 2. **One release.** `build/brand-kit.ps1`, which the `brand kit` stage of `./build/dod.ps1` runs, checks both locks
    with `brand/vendor-brand.mjs --check` and fails when they name different releases. `pnpm run check:brand` runs in
    the frontend job after the format check, because a push that changes only `frontend/` runs only the frontend
    workflow. The frontend lock does not name `vendor-brand.mjs`.
-3. **A chunk of its own.** The vendored files load in a `brand` chunk, because, like a package's chunk, they change
-   only with a brand release. The typefaces' stylesheet is the chunk's `brand-<hash>.css`.
+3. **A chunk of its own.** The vendored files load in a `brand` chunk, because, like a package's chunk, they change only
+   with a brand release. The typefaces' stylesheet is the chunk's `brand-<hash>.css`.
 
 ### The theme
 
@@ -113,8 +113,8 @@ by SHA-256, and `createAppTheme` builds each surface's theme from them.**
 - **A release of its own for the theme.** Rejected: two versions of one brand drift apart.
 - **The braces as CSS masks of the release's SVG files.** Rejected: a bundler inlines a small file as a `data:`
   address, which the pages' `img-src` refuses, and an inline SVG needs no image at all.
-- **Fontsource packages from npm for the typefaces.** Rejected: a second pin of the same files, which can drift from
-  the files NCode Brand measured its type with.
+- **Fontsource packages from npm for the typefaces.** Rejected: a second pin of the same files, which can drift from the
+  files NCode Brand measured its type with.
 - **Fonts from a font CDN.** Rejected: every sign-in page would call a third party, and `font-src` would name a third
   origin.
 - **The licenses only in `THIRD-PARTY-NOTICES.md`.** Rejected: the images ship the fonts, not that file.

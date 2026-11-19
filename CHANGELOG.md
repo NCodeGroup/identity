@@ -34,8 +34,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   stand between two braces in the tenant's scope color (`TenantCard`). A non-production tenant's banner is a hazard
   band, its text on the hazard color between two runs of tape (`HazardBand`). The weekly `brand-watch` workflow keeps
   one `brand-update` issue open while NCodeGroup/brand has a release at least three days old that the locks do not pin
-  ([#861](https://github.com/NCodeGroup/identity/issues/861),
-  [#862](https://github.com/NCodeGroup/identity/issues/862),
+  ([#861](https://github.com/NCodeGroup/identity/issues/861), [#862](https://github.com/NCodeGroup/identity/issues/862),
   [ADR-1516](docs/decisions/1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md)).
 
 - **A setup wizard at `/setup` creates an instance's first administrator.** Setup runs once per platform, on the
@@ -3086,11 +3085,10 @@ Until the first stable release, the [Unreleased] section describes the product a
   closes once its session ends, a `WebSocket` from another origin is refused and a WebAssembly component's traffic
   carries no token. The login, setup and management console pages, served by their hosts from the built bundles, load
   Instrument Sans and Martian Mono from their own assets as `font/woff2` with no Content-Security-Policy violation;
-  `./build/e2e.ps1` builds those bundles first, `-Suite` runs one suite, and a change under `frontend/` runs that
-  suite. `./build/dod.ps1` never runs these `*.EndToEnd.Tests` suites
+  `./build/e2e.ps1` builds those bundles first, `-Suite` runs one suite, and a change under `frontend/` runs that suite.
+  `./build/dod.ps1` never runs these `*.EndToEnd.Tests` suites
   ([#418](https://github.com/NCodeGroup/identity/issues/418), [#419](https://github.com/NCodeGroup/identity/issues/419),
-  [#603](https://github.com/NCodeGroup/identity/issues/603),
-  [#862](https://github.com/NCodeGroup/identity/issues/862),
+  [#603](https://github.com/NCodeGroup/identity/issues/603), [#862](https://github.com/NCodeGroup/identity/issues/862),
   [ADR-1430](docs/decisions/1430-end-to-end-suites-run-the-bff-and-the-hosts-built-pages-in-real-browsers-in-their-own-gate.md),
   [ADR-1441](docs/decisions/1441-a-bff-connection-ends-with-its-session-even-when-idle-and-every-watcher-learns-at-once.md)).
 
@@ -5916,8 +5914,8 @@ Until the first stable release, the [Unreleased] section describes the product a
   logout page frames only the clients' logout origins; the `check_session_iframe` runs only its script and stays
   embeddable
   ([ADR-1256](docs/decisions/1256-every-page-the-server-writes-has-a-strict-content-security-policy-and-is-framed-only-by-design.md),
-  issue [#303](https://github.com/NCodeGroup/identity/issues/303),
-  issue [#862](https://github.com/NCodeGroup/identity/issues/862)).
+  issue [#303](https://github.com/NCodeGroup/identity/issues/303), issue
+  [#862](https://github.com/NCodeGroup/identity/issues/862)).
 
 - **A host serves its OpenAPI document and API reference page only where the operator enables them, and the page runs
   under a strict Content-Security-Policy.** `ApiReference:DocumentEnabled` and `ApiReference:PageEnabled` are `false` by
