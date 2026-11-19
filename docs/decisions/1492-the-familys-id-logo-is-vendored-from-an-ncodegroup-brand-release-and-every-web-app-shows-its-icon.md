@@ -38,9 +38,9 @@ page
 wizard, is a bundle the OP host serves at `/setup`, as it serves `auth`
 ([ADR-1512](1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md)).
 
-The kit's `brand/README.md` describes a site that serves the favicon files at its root, but neither host serves a file
-at the root of a bundle. Each serves only the bundle's `assets/` directory, with an immutable cache. Every page the
-server writes carries a content security policy with `img-src 'self'` and no `manifest-src`
+The kit's `brand/README.md` describes a site that serves the favicon files at its root, but neither host serves a file at
+the root of a bundle. Each serves only the bundle's `assets/` directory, with an immutable cache. Every page the server
+writes carries a content security policy with `img-src 'self'` and no `manifest-src`
 ([ADR-1256](1256-every-page-the-server-writes-has-a-strict-content-security-policy-and-is-framed-only-by-design.md)).
 The image builds' context holds only `src/`, `hosts/`, `analyzers/`, `frontend/` and the root build files
 ([ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)), so
