@@ -61,8 +61,8 @@ type BuildConfig = NonNullable<ViteUserConfig['build']>;
 /**
  * The vendor chunks every bundle splits its third-party code into, highest priority first: React, then MUI with its
  * emotion styling engine, then Redux, then the vendored NCode Brand files, then every other package. A vendor chunk
- * changes only when its packages are upgraded, so it stays cached across application releases, and no chunk carries the
- * whole dependency graph (ADR-1151).
+ * changes only when its packages are upgraded or another NCode Brand release is taken, so it stays cached across
+ * application releases, and no chunk carries the whole dependency graph (ADR-1151).
  */
 export const VENDOR_CHUNKS: readonly { readonly name: string; readonly test: RegExp }[] = [
   { name: 'react', test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/ },

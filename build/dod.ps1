@@ -246,7 +246,10 @@ try {
 
     # The weekly brand watch's script (.github/workflows/brand-watch.yml) is build-free and offline, because its tests
     # stub gh, so it runs before the slow stages (ADR-1516).
-    Invoke-Step 'brand watch' { & (Join-Path $PSScriptRoot 'tests\brand-watch.tests.ps1'); $global:LASTEXITCODE = 0 }
+    Invoke-Step 'brand watch' {
+        & (Join-Path $PSScriptRoot 'tests\brand-watch.tests.ps1')
+        $global:LASTEXITCODE = 0
+    }
 
     # Favicon copies gate: each web app carries copies of the kit's favicon files because a frontend build reads only
     # src/. Build-free, so it runs before the slow stages. Its fixture tests end with the repository's own kit and apps.

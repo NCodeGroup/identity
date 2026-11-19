@@ -122,8 +122,8 @@ frontend/
    back as `ui_locales`. No text is written inline in a surface (ADR-1402).
 9. **`type` over `interface`, always.** All declarations — DTOs, props, unions — use `type` aliases,
    standardizing on the single most capable mechanism (unions, intersections, mapped/conditional
-   types) rather than mixing the two. Module augmentation of a library's types (`declare module
-'@mui/material/styles'`) uses `interface`, because only an interface merges.
+   types) rather than mixing the two. Module augmentation of a library's types
+   (`declare module '@mui/material/styles'`) uses `interface`, because only an interface merges.
 
 ## Common commands
 

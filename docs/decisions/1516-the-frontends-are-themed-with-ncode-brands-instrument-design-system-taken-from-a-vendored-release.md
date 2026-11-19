@@ -107,7 +107,8 @@ from the NCodeGroup/brand release the logo kit pins, vendored into `frontend/pac
 - A release is taken once it is three days old
   ([project-template ADR-0009](project-template/0009-new-dependency-versions-wait-a-cooldown.md)).
 - A value that Instrument does not export is added in NCode Brand first.
-- Until the typefaces load, every page draws the system fonts.
+- Until the typefaces load ([#862](https://github.com/NCodeGroup/identity/issues/862)), every page draws the system
+  fonts.
 
 ## References
 
