@@ -20,6 +20,10 @@ function Write-Project([string]$Root, [string]$Path, [string[]]$References) {
     Write-FixtureFile (Join-Path $Root $Path) "<Project Sdk=`"Microsoft.NET.Sdk`"><ItemGroup>$items</ItemGroup></Project>`n"
 }
 
+function Write-FrontendSuite([string]$Root, [string]$Path, [string]$Packages) {
+    Write-FixtureFile (Join-Path $Root $Path) "<Project Sdk=`"Microsoft.NET.Sdk`"><PropertyGroup><EndToEndFrontendPackages>$Packages</EndToEndFrontendPackages></PropertyGroup></Project>`n"
+}
+
 function New-Fixture([string]$Name) {
     $root = Join-Path $fixtureRoot $Name
     Write-Project $root 'src/A/A.csproj' @()
@@ -68,6 +72,14 @@ try {
     Assert-Selection 'build script selects all' $result $true '' ''
     $result = & $selector -Root $fixture -ChangedPath 'BannedSymbols.Encoding.txt'
     Assert-Selection 'banned-symbols file selects all' $result $true '' ''
+
+    $frontendPath = 'frontend/apps/app/src/main.tsx'
+    $result = & $selector -Root $fixture -ChangedPath $frontendPath
+    Assert-Selection 'a frontend path selects nothing when no suite serves built bundles' $result $false '' ''
+    $frontendFixture = New-Fixture 'frontend'
+    Write-FrontendSuite $frontendFixture 'tests/F.EndToEnd.Tests/F.EndToEnd.Tests.csproj' '@x/app'
+    $result = & $selector -Root $frontendFixture -ChangedPath $frontendPath
+    Assert-Selection 'a frontend path selects the suites that serve built bundles' $result $false '' 'tests/F.EndToEnd.Tests/F.EndToEnd.Tests.csproj'
 
     $hostFixture = New-Fixture 'hosts'
     Write-Project $hostFixture 'hosts/H/H.csproj' @('..\..\src\B\B.csproj')

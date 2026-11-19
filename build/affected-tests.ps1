@@ -10,8 +10,9 @@
     untracked files), maps each path to the project under src/, hosts/, analyzers/ or tests/ whose directory is its longest prefix, and
     selects the test projects (under tests/) in the reverse ProjectReference closure of those projects. A change to a
     global build input (build/, .config/, global.json, nuget.config, version.json, the solution, .editorconfig,
-    any BannedSymbols*.txt, any Directory.* file, any .runsettings file) selects all tests. A path under no project,
-    such as docs/, charts/, frontend/ or .github/, selects nothing (ADR-1263).
+    any BannedSymbols*.txt, any Directory.* file, any .runsettings file) selects all tests. A path under frontend/
+    selects the end-to-end suites that set EndToEndFrontendPackages, because they serve the bundles the workspace
+    builds; a path under no other project, such as docs/, charts/ or .github/, selects nothing (ADR-1263, ADR-1430).
 
     Outputs one object with All (true when a global trigger matched), Projects (repository-relative test .csproj paths
     with / separators, sorted ordinal, empty when All is true), EndToEndProjects (the *.EndToEnd.Tests projects, which
@@ -129,10 +130,18 @@ foreach ($project in $projects.Keys) {
 $all = $false
 $reasons = [System.Collections.Generic.List[string]]::new()
 $mappedProjects = [System.Collections.Generic.List[string]]::new()
+$tiers = & (Join-Path $PSScriptRoot 'test-projects.ps1') -Root $Root
 foreach ($path in $changedPaths) {
     if ($path -match $globalTrigger) {
         $all = $true
         $reasons.Add("$path -> all tests (global trigger)")
+        continue
+    }
+    if ($path.StartsWith('frontend/', [StringComparison]::Ordinal) -and $tiers.FrontendPackages.Count -gt 0) {
+        foreach ($suite in $tiers.FrontendPackages.Keys) {
+            $mappedProjects.Add($suite)
+        }
+        $reasons.Add("$path -> $(@($tiers.FrontendPackages.Keys) -join ', ') (frontend packages)")
         continue
     }
     $owner = $null
@@ -173,7 +182,6 @@ if (-not $all) {
             }
         }
     }
-    $tiers = & (Join-Path $PSScriptRoot 'test-projects.ps1') -Root $Root
     $testProjects = [System.Collections.Generic.HashSet[string]]::new([string[]]@($tiers.Tests), [StringComparer]::Ordinal)
     $endToEndProjects = [System.Collections.Generic.HashSet[string]]::new([string[]]@($tiers.EndToEnd), [StringComparer]::Ordinal)
     $selected = [string[]]@($visited | Where-Object { $testProjects.Contains($_) })

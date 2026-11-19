@@ -9,11 +9,13 @@
     Finds every *.csproj under the tests/ folder, skipping bin/ and obj/ folders. A project whose file name ends with
     .EndToEnd.Tests.csproj belongs to the end-to-end tier, one whose file name ends with .Tests.csproj is a test
     project, and any other project under tests/ is a support project that a suite references, which neither tier
-    lists.
+    lists. An end-to-end project whose project file sets EndToEndFrontendPackages (pnpm package names separated by ;)
+    serves those frontend packages' built bundles: FrontendPackages maps its path to the names, which ./build/e2e.ps1
+    builds before it runs the suite and build/affected-tests.ps1 selects the suite for.
 
-    Outputs one object with Tests (repository-relative .csproj paths of the test projects) and EndToEnd
-    (repository-relative .csproj paths of the end-to-end projects). Paths use / separators and each list is sorted
-    ordinal.
+    Outputs one object with Tests (repository-relative .csproj paths of the test projects), EndToEnd
+    (repository-relative .csproj paths of the end-to-end projects) and FrontendPackages (each end-to-end project that
+    names frontend packages, mapped to those names). Paths use / separators and each list is sorted ordinal.
 
 .PARAMETER Root
     The repository root. Defaults to the parent of the build/ directory.
@@ -53,7 +55,24 @@ if (Test-Path -LiteralPath $testsFolder -PathType Container) {
 $tests.Sort([StringComparer]::Ordinal)
 $endToEnd.Sort([StringComparer]::Ordinal)
 
+$frontendPackages = [ordered]@{}
+foreach ($project in $endToEnd) {
+    [xml]$xml = Get-Content -LiteralPath (Join-Path $Root $project) -Raw
+    $names = [System.Collections.Generic.List[string]]::new()
+    foreach ($node in $xml.SelectNodes('//EndToEndFrontendPackages')) {
+        foreach ($name in $node.InnerText.Split(';')) {
+            if (-not [string]::IsNullOrWhiteSpace($name)) {
+                $names.Add($name.Trim())
+            }
+        }
+    }
+    if ($names.Count -gt 0) {
+        $frontendPackages[$project] = [string[]]$names.ToArray()
+    }
+}
+
 [pscustomobject]@{
-    Tests    = [string[]]$tests.ToArray()
-    EndToEnd = [string[]]$endToEnd.ToArray()
+    Tests            = [string[]]$tests.ToArray()
+    EndToEnd         = [string[]]$endToEnd.ToArray()
+    FrontendPackages = $frontendPackages
 }
