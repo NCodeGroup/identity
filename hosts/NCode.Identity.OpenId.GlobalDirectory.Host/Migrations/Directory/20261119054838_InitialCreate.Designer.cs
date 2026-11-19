@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations.Directory
 {
     [DbContext(typeof(DirectoryDbContext))]
-    [Migration("20261116230424_InitialCreate")]
+    [Migration("20261119054838_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -103,11 +103,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations.Directory
 
             modelBuilder.Entity("NCode.Identity.OpenId.GlobalDirectory.Server.Entities.RetiredIssuerRecord", b =>
                 {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Issuer")
                         .IsRequired()
@@ -134,11 +131,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations.Directory
 
             modelBuilder.Entity("NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TeamRecord", b =>
                 {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("DocumentJson")
                         .HasColumnType("text");
@@ -185,11 +179,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations.Directory
 
             modelBuilder.Entity("NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantMoveOfferRecord", b =>
                 {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("CreatedWhen")
                         .HasColumnType("timestamp with time zone");
@@ -222,11 +213,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Host.Migrations.Directory
 
             modelBuilder.Entity("NCode.Identity.OpenId.GlobalDirectory.Server.Entities.TenantRecord", b =>
                 {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Cell")
                         .HasMaxLength(31)
