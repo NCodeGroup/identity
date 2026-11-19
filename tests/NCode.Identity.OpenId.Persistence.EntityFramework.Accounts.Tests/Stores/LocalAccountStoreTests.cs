@@ -39,6 +39,7 @@ public sealed class LocalAccountStoreTests : IDisposable
         Store = new LocalAccountStore(
             Mock.Of<IStoreProvider>(),
             keyGenerator,
+            TestPageCursorProtector.Instance,
             Mock.Of<IPasswordHasher>(),
             DbContext
         );
@@ -87,6 +88,7 @@ public sealed class LocalAccountStoreTests : IDisposable
         new(
             Mock.Of<IStoreProvider>(),
             Provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TestPageCursorProtector.Instance,
             Hasher,
             DbContext
         );

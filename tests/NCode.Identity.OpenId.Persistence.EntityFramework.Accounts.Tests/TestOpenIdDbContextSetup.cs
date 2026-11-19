@@ -9,14 +9,15 @@ using NCode.Identity.OpenId.Persistence.EntityFramework.Core;
 using NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence;
+using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence.EntityFramework.Accounts;
 
 /// <summary>
-/// Shared test setup for the <see cref="OpenIdDbContext"/> over the local-account slice: registers the id generator,
-/// the core persistence slice (so the <c>DbSet</c>-less context's model contains the tenant and team entities), the
-/// <see cref="LocalAccountModelContributor"/> (so the model contains the account entities), and a settable ambient
-/// tenant accessor.
+/// Shared test setup for the <see cref="OpenIdDbContext"/> over the local-account slice: registers the sequential
+/// surrogate key generator and the test page cursor protector, the core persistence slice (so the <c>DbSet</c>-less
+/// context's model contains the tenant and team entities), the <see cref="LocalAccountModelContributor"/> (so the model
+/// contains the account entities), and a settable ambient tenant accessor.
 /// </summary>
 internal static class TestOpenIdDbContextSetup
 {
@@ -28,6 +29,7 @@ internal static class TestOpenIdDbContextSetup
         serviceCollection.AddSingleton<ISurrogateKeyGenerator>(
             new SequentialSurrogateKeyGenerator()
         );
+        serviceCollection.AddSingleton<IPageCursorProtector>(TestPageCursorProtector.Instance);
         serviceCollection.AddEntityFrameworkCorePersistence<OpenIdDbContext>();
         serviceCollection.TryAddEnumerable(
             ServiceDescriptor.Singleton<IOpenIdModelContributor, LocalAccountModelContributor>()

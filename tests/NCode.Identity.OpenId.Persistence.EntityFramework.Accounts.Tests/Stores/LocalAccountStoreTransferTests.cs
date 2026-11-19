@@ -46,6 +46,7 @@ public sealed class LocalAccountStoreTransferTests : IDisposable
         Store = new LocalAccountStore(
             new Mock<IStoreProvider>(MockBehavior.Strict).Object,
             keyGenerator,
+            TestPageCursorProtector.Instance,
             new PlainPasswordHasher(),
             DbContext
         );

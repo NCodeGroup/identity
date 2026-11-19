@@ -47,6 +47,7 @@ public sealed class LocalAccountTenantRemovalTests : IDisposable
         AccountStore = new LocalAccountStore(
             storeProvider,
             keyGenerator,
+            TestPageCursorProtector.Instance,
             Mock.Of<IPasswordHasher>(),
             DbContext
         );

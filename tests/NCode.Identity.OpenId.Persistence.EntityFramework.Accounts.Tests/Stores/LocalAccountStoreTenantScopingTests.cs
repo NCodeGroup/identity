@@ -40,6 +40,7 @@ public sealed class LocalAccountStoreTenantScopingTests : IDisposable
         Store = new LocalAccountStore(
             Mock.Of<IStoreProvider>(),
             keyGenerator,
+            TestPageCursorProtector.Instance,
             Mock.Of<IPasswordHasher>(),
             DbContext
         );
