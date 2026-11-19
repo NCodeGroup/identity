@@ -61,14 +61,15 @@ identifiers only.**
    asserts insertion order uses a generator whose timestamp advances one millisecond per key.
 5. **A cursor is encrypted and authenticated.** `IPageCursorProtector`, in `NCode.Identity.Persistence.Abstractions`,
    namespace `NCode.Identity.Persistence.Stores`, protects the position of a page as text with `Protect` and
-   `TryUnprotect`, each taking the collection name. Its extensions `ProtectKey` and `UnprotectKey` carry a `Guid` as 16
-   big-endian bytes, and `UnprotectKey` returns `null` for a null or empty cursor, a failed unprotect or a position
-   that is not 16 bytes. `ProtectKey` and `UnprotectKey` are the form rule of a surrogate key's cursor position and
-   live beside the contract, in `PageCursorProtectorExtensions`. The default, `DefaultPageCursorProtector`, uses ASP.NET
-   Core Data Protection with the purpose `NCode.Identity.Persistence.PageCursor` and the collection name,
-   base64url-encodes the protected bytes and creates a protector on each call. A collection name is the entity type
-   name; `AuditRecordStore` carries a 24-byte position, the 8-byte big-endian UTC ticks and then the 16-byte big-endian
-   key. The framework registers the protector with `TryAddSingleton` and never calls `AddDataProtection()`: the key ring
+   `TryUnprotect`, each taking the collection name. `TryUnprotect` writes the position into the caller's `Span<byte>`,
+   reports its length through `bytesWritten` and returns `false` when the cursor does not unprotect or the position
+   does not fit. Its extensions `ProtectKey` and `UnprotectKey` carry a `Guid` as 16 big-endian bytes, and
+   `UnprotectKey` returns `null` for a null or empty cursor, a failed unprotect or a position that is not 16 bytes.
+   `ProtectKey` and `UnprotectKey` are the form rule of a surrogate key's cursor position and live beside the
+   contract, in `PageCursorProtectorExtensions`. The default, `DefaultPageCursorProtector`, uses ASP.NET Core Data
+   Protection with the purpose `NCode.Identity.Persistence.PageCursor` and the collection name, base64url-encodes the
+   protected bytes and keeps one protector per collection. A collection name is the entity type name; `AuditRecordStore`
+   carries a 24-byte position, the 8-byte big-endian UTC ticks and then the 16-byte big-endian key. The framework registers the protector with `TryAddSingleton` and never calls `AddDataProtection()`: the key ring
    is the host's, shared by every replica and encrypted at rest under the platform master key
    ([ADR-1247](1247-the-platform-master-key-protects-the-data-protection-ring-and-an-unreadable-key-stops-the-host.md)),
    and a ring the framework created would differ per process. Data Protection is built for short-lived opaque payloads

@@ -6,11 +6,15 @@ using JetBrains.Annotations;
 namespace NCode.Identity.Persistence.Stores;
 
 /// <summary>
-/// Provides extension methods for <see cref="IPageCursorProtector"/>.
+/// Provides extension methods for <see cref="IPageCursorProtector"/>. The extensions are the form rule of a surrogate
+/// key's cursor position: the key as 16 big-endian bytes, and no key for anything else.
 /// </summary>
 [PublicAPI]
 public static class PageCursorProtectorExtensions
 {
+    /// <summary>
+    /// The length in bytes of a surrogate key.
+    /// </summary>
     private const int KeyLength = 16;
 
     /// <param name="protector">The <see cref="IPageCursorProtector"/> that protects the cursor.</param>
