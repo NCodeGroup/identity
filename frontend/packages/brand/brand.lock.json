@@ -16,6 +16,10 @@
     "vendor/tokens/derive.vectors.json": {
       "source": "tokens/derive.vectors.json",
       "sha256": "14e4b3476d3cc18bea7c32dc5f25cb475fb919899e35d0903e962044c0858629"
+    },
+    "vendor/brace/brace.json": {
+      "source": "brace/brace.json",
+      "sha256": "83d94222176e19e8a812202c8879db38b2d9f9184b222c4579f9eed66890b39c"
     }
   }
 }

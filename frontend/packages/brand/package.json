@@ -10,6 +10,7 @@
       "types": "./vendor/tokens/derive.d.mts",
       "default": "./vendor/tokens/derive.mjs"
     },
-    "./derive.vectors.json": "./vendor/tokens/derive.vectors.json"
+    "./derive.vectors.json": "./vendor/tokens/derive.vectors.json",
+    "./brace.json": "./vendor/brace/brace.json"
   }
 }
