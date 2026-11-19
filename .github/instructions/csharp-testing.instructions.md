@@ -423,9 +423,10 @@ seams, facades, and `InternalsVisibleTo` wiring that make code mockable — live
   built `apps/auth` `index.html` under `[BuiltAuthBundleFact]`, which skips unless `NCODE_AUTH_BUNDLE_INDEX` names it.
   `ManagementConsolePageTests` and `SetupPageTests` read the built `apps/mgmt` and `apps/setup` bundles the same way,
   under `[BuiltConsoleBundleFact]` and `[BuiltSetupBundleFact]`, and the three share the typeface checks of
-  `BuiltBundleTypefaces` and `TypefaceLicenses` in `NCode.Identity.Frontend.TestSupport`. Frontend CI sets the variable
-  after `pnpm run build`; locally, run `pnpm exec vite build` in `frontend/apps/auth` and set the variable to the
-  absolute path of `dist/index.html`.
+  `BuiltBundleTypefaces` and `TypefaceLicenses` in `NCode.Identity.Frontend.TestSupport`. Frontend CI sets
+  `NCODE_AUTH_BUNDLE_INDEX`, `NCODE_MGMT_BUNDLE_INDEX` and `NCODE_SETUP_BUNDLE_INDEX` after `pnpm run build`; locally,
+  run `pnpm exec vite build` in `frontend/apps/<app>` and set that app's variable to the absolute path of its
+  `dist/index.html`.
 - 👁 **Validate new tests in Release before running `dod.ps1`** — template
   [Integration Tests](csharp-tests.instructions.md#integration-tests).
 - 👁 **Build a JWT with exact time claims through `IJoseSerializer`, not `IJwtEncoder`.** The JWT encoder

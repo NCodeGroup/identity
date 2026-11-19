@@ -87,6 +87,21 @@ public sealed class BrowserPoolTests : BaseTests
         Assert.Same(context.Object, waitingContext);
     }
 
+    [Fact]
+    public async Task NewContextAsync_WhenTheTokenIsCancelled_ThrowsAndLaunchesNoBrowser()
+    {
+        var playwright = CreateStrictMock<IPlaywright>();
+        playwright.Setup(x => x.Dispose()).Verifiable();
+        await using var pool = new BrowserPool(playwright.Object);
+        using var cancellation = new CancellationTokenSource();
+
+        await cancellation.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            await pool.NewContextAsync(BrowserType.Chromium, cancellation.Token)
+        );
+    }
+
     #endregion
 
     #region DisposeAsync Tests
