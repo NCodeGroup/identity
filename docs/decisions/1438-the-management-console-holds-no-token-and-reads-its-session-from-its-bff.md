@@ -49,9 +49,9 @@ console to its sign-in screen, and the user's click starts the login.**
 8. **Sign-out.** The console posts the BFF's logout form with `sid` and `returnUrl=/`.
 9. **The page's security.** The console host serves `index.html` for every non-file `GET` or `HEAD` path with a fresh
    nonce in place of `__NCODE_CSP_NONCE__`, through `SetHtmlPageSecurity` with `ManagementConsolePageSecurity`'s policy:
-   `script-src 'nonce' 'strict-dynamic'; style-src 'nonce'; img-src 'self'` plus the branding logo and favicon origins;
-   `connect-src 'self'; form-action 'self' <authority origin>; base-uri 'none'; frame-ancestors 'none'`. `/assets/*` is
-   immutable. A missing bundle answers `503` and never stops startup.
+   `script-src 'nonce' 'strict-dynamic'; style-src 'nonce'; font-src 'self'; img-src 'self'` plus the branding logo and
+   favicon origins; `connect-src 'self'; form-action 'self' <authority origin>; base-uri 'none'; frame-ancestors 'none'`.
+   `/assets/*` is immutable. A missing bundle answers `503` and never stops startup.
 10. **The bundle's build.** The bundle builds with `defineBffServedSurfaceConfig`: base `/` and the nonce placeholder.
     Emotion takes the nonce from `<meta property="csp-nonce">` through `readCspNonce`, which `@ncodegroup/identity-ui`
     provides.

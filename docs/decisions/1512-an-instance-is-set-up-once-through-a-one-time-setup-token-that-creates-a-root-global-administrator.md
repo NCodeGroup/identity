@@ -59,7 +59,8 @@ setup creates a root global administrator.**
    ([ADR-1483](1483-every-management-error-is-a-problem-document-that-its-route-declares.md)), and
    `Cache-Control: no-store`. It serves
    its page with a nonce Content-Security-Policy (`script-src 'nonce-…' 'strict-dynamic'`,
-   `style-src 'nonce-…'`, `img-src 'self'`, `connect-src 'self'` plus the hinted console's origin, if any,
+   `style-src 'nonce-…'`, `font-src 'self'`, `img-src 'self'`, `connect-src 'self'` plus the hinted console's origin, if
+   any,
    `form-action 'none'`)
    ([ADR-1256](1256-every-page-the-server-writes-has-a-strict-content-security-policy-and-is-framed-only-by-design.md))
    and `Cache-Control: no-store`. It never writes request or response bodies to HTTP logging, because its endpoints carry

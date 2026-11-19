@@ -111,6 +111,9 @@ against the SHA-256 its lock pins. Each web app carries copies of the kit's brow
    hashed files through their assets routes, immutable, as `image/x-icon`, `image/svg+xml` and `image/png`, under the
    pages' `img-src 'self'`. Only the assets directory is servable
    ([ADR-1193](1193-the-interactive-surface-uses-the-tenant-route-host-only-cookies-and-one-shared-single-page-bundle-helper.md)).
+   The same routes serve the typefaces the theme loads and their license texts, as `font/woff2` and `text/plain`, under
+   the pages' `font-src 'self'`
+   ([ADR-1516](1516-the-frontends-are-themed-with-ncode-brands-instrument-design-system-taken-from-a-vendored-release.md)).
 10. **No web manifest.** No app carries `site.webmanifest` or the 192 and 512 pixel icons, and the fourth tag of the
     kit's README is not used. A manifest makes a page installable as an app named "NCode Identity": every tenant's
     sign-in page would offer that install, and the sign-in surface is a step of a client's authorization request, never

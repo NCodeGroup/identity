@@ -22,9 +22,10 @@ they are secured:
 - The pages need different policies. The `check_session_iframe` is framed cross-site by relying parties by design
   (Session Management 1.0). The front-channel logout page frames the clients' logout URIs. The login, consent and
   `form_post` pages post forms whose redirects lead to a client.
-- The `apps/auth` bundle is made of module scripts, and emotion, which MUI styles through, inserts `<style>` elements at
-  run time. A policy can admit both without `'unsafe-inline'`, which would admit every injected script and style as
-  well, only by marking them with a nonce.
+- The `apps/auth` bundle is made of module scripts and a stylesheet that loads its typefaces from the bundle's own
+  assets, and emotion, which MUI styles through, inserts `<style>` elements at run time. A policy can admit them all
+  without `'unsafe-inline'`, which would admit every injected script and style as well, only by marking them with a
+  nonce.
 - Every package that writes a page needs the same model, and CSP directive names are an open vocabulary
   ([ADR-1150](1150-vocabularies-are-open-unless-provably-closed.md)). The model holds logic (validation, serialization,
   hashing, a header writer) and names no identity concept.
@@ -66,18 +67,23 @@ and the `form_post` response only by its client's origin.**
    pages. `same-origin` sends no referrer cross-origin and lets a same-origin POST send its `Origin`.
 4. **Each page lists what it needs.**
 
-   | Page                   | Directives after `default-src 'none'`                                | Forms | Framed |
-   | ---------------------- | -------------------------------------------------------------------- | ----- | ------ |
-   | Interactive pages      | nonce `script-src`/`style-src`, `img-src`, `connect-src`, `base-uri` | any   | no     |
-   | API reference page     | nonce `script-src`/`style-src`, `img-src`, `connect-src`             | none  | no     |
-   | `form_post` response   | `script-src` by the hash of its auto-submit script                   | any   | client |
-   | Front-channel logout   | `frame-src`, and `script-src` by hash when it redirects              | none  | no     |
-   | `check_session_iframe` | `script-src` by the hash of its script                               | none  | yes    |
+   | Page                   | Directives after `default-src 'none'`                                            | Forms | Framed |
+   | ---------------------- | -------------------------------------------------------------------------------- | ----- | ------ |
+   | Interactive pages      | nonce `script-src`/`style-src`, `font-src`, `img-src`, `connect-src`, `base-uri` | any   | no     |
+   | API reference page     | nonce `script-src`/`style-src`, `img-src`, `connect-src`                         | none  | no     |
+   | `form_post` response   | `script-src` by the hash of its auto-submit script                               | any   | client |
+   | Front-channel logout   | `frame-src`, and `script-src` by hash when it redirects                          | none  | no     |
+   | `check_session_iframe` | `script-src` by the hash of its script                                           | none  | yes    |
 
    The interactive pages are the login, consent, account and error pages. Their policy is `script-src 'nonce-N'
-   'strict-dynamic'`, `style-src 'nonce-N'`, `img-src 'self'` plus the origins of the tenant's logo and favicon,
-   `connect-src 'self'` and `base-uri 'self'`, where N is 16 random bytes, Base64Url-encoded, created for each response.
-   The API reference page (`/scalar/v1`, [ADR-1481](1481-the-composition-layer-serves-the-api-reference-only-where-a-host-enables-it-and-each-management-problem-says-when-it-occurs.md))
+   'strict-dynamic'`, `style-src 'nonce-N'`, `font-src 'self'`, `img-src 'self'` plus the origins of the tenant's logo
+   and favicon, `connect-src 'self'` and `base-uri 'self'`, where N is 16 random bytes, Base64Url-encoded, created for
+   each response. `font-src 'self'` admits the bundle's own typefaces, which its stylesheet loads from the assets route
+   beside it under any tenant's route; the setup page
+   ([ADR-1512](1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md))
+   and the management console's page
+   ([ADR-1438](1438-the-management-console-holds-no-token-and-reads-its-session-from-its-bff.md)) list it too, and the
+   API reference page, whose Scalar bundle loads no font, does not. The API reference page (`/scalar/v1`, [ADR-1481](1481-the-composition-layer-serves-the-api-reference-only-where-a-host-enables-it-and-each-management-problem-says-when-it-occurs.md))
    lists `script-src 'nonce-N' 'strict-dynamic'`, `style-src 'nonce-N'`, `img-src 'self' data:` and
    `connect-src 'self'`; Scalar writes the nonce on its scripts, and its injected stylesheet reads it from a
    `<meta property="csp-nonce">` element in the page's head. The `check_session_iframe` sets `AllowsFraming`, so it carries no `X-Frame-Options` and no `frame-ancestors`; relying
@@ -97,7 +103,8 @@ and the `form_post` response only by its client's origin.**
    encoding of every rendered value, nonce-only scripts and `base-uri` keep an injected form out.
 6. **The bundle carries the page's nonce.** `@ncodegroup/identity-vite-config`'s `defineBackendServedSurfaceConfig` sets
    Vite's `html.cspNonce` to `CSP_NONCE_PLACEHOLDER`, which is `__NCODE_CSP_NONCE__`, so the build writes
-   `nonce="__NCODE_CSP_NONCE__"` on its module script and its modulepreload links, and a `<meta property="csp-nonce">`.
+   `nonce="__NCODE_CSP_NONCE__"` on its module script, its modulepreload links and its stylesheet link, and a
+   `<meta property="csp-nonce">`.
    `InteractiveBundleShell.NoncePlaceholder` and `ManagementConsoleDefaults.NoncePlaceholder` are the same string, and
    the host writes the response's nonce in its place only inside the bundle's own segments (prelude, head and tail),
    never inside a rendered value. The bundle reads the nonce with `readCspNonce` from the meta element's `nonce`
