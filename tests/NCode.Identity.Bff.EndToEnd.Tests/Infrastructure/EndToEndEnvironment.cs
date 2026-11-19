@@ -1,17 +1,17 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Collections.Concurrent;
 using DotNet.Testcontainers.Configurations;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Playwright;
+using NCode.Identity.EndToEnd.TestSupport;
 using Xunit;
 
 namespace NCode.Identity.Bff.EndToEnd.Tests.Infrastructure;
 
 /// <summary>
 /// The environment that the end-to-end tests share: Keycloak in a container, three backend-for-frontend (BFF)
-/// applications, the origin pages and Playwright.
+/// applications, the origin pages and the browsers.
 /// </summary>
 public sealed class EndToEndEnvironment : IAsyncLifetime
 {
@@ -20,15 +20,13 @@ public sealed class EndToEndEnvironment : IAsyncLifetime
     private const string BlazorClientId = "bff-blazor";
     private const string ContainerHost = BffHostSetup.ContainerHost;
 
-    private ConcurrentDictionary<string, Task<IBrowser>> Browsers { get; } = new();
-
     private TestCertificate? Certificate { get; set; }
     private KeycloakProvider? KeycloakOrNull { get; set; }
     private BffApplication? StrictBffOrNull { get; set; }
     private BffApplication? LaxBffOrNull { get; set; }
     private BlazorBffApplication? BlazorBffOrNull { get; set; }
     private OriginServer? OriginServer { get; set; }
-    private IPlaywright? PlaywrightOrNull { get; set; }
+    private BrowserPool? BrowserPoolOrNull { get; set; }
     private string? CrossSiteDeniedOrNull { get; set; }
     private string? CrossSiteAdmittedOrNull { get; set; }
     private string? SameSiteUntrustedOrNull { get; set; }
@@ -53,11 +51,6 @@ public sealed class EndToEndEnvironment : IAsyncLifetime
     /// Gets the BFF that hosts the Blazor Web App, whose session cookie is <c>SameSite=Strict</c>.
     /// </summary>
     public BlazorBffApplication BlazorBff => BlazorBffOrNull ?? throw NotInitialized();
-
-    /// <summary>
-    /// Gets the Playwright instance.
-    /// </summary>
-    public IPlaywright Playwright => PlaywrightOrNull ?? throw NotInitialized();
 
     /// <summary>
     /// Gets a cross-site origin that the CORS policy does not admit.
@@ -150,7 +143,7 @@ public sealed class EndToEndEnvironment : IAsyncLifetime
             CancellationToken.None
         );
 
-        PlaywrightOrNull = await Microsoft.Playwright.Playwright.CreateAsync();
+        BrowserPoolOrNull = await BrowserPool.CreateAsync(CancellationToken.None);
     }
 
     /// <summary>
@@ -161,26 +154,17 @@ public sealed class EndToEndEnvironment : IAsyncLifetime
         CancellationToken cancellationToken
     )
     {
-        var browser = await Browsers.GetOrAdd(
+        return await (BrowserPoolOrNull ?? throw NotInitialized()).NewContextAsync(
             browserName,
-            name => LaunchBrowserAsync(name, cancellationToken).AsTask()
-        );
-        return await browser.NewContextAsync(
-            new BrowserNewContextOptions { IgnoreHTTPSErrors = true }
+            cancellationToken
         );
     }
 
     /// <inheritdoc />
     public async Task DisposeAsync()
     {
-        foreach (var browser in Browsers.Values)
-        {
-            await (await browser).DisposeAsync();
-        }
-
-        Browsers.Clear();
-
-        PlaywrightOrNull?.Dispose();
+        if (BrowserPoolOrNull is not null)
+            await BrowserPoolOrNull.DisposeAsync();
 
         if (OriginServer is not null)
             await OriginServer.DisposeAsync();
@@ -215,15 +199,6 @@ public sealed class EndToEndEnvironment : IAsyncLifetime
             [SameSiteTrusted],
             TimeSpan.FromMinutes(1)
         );
-
-    private async ValueTask<IBrowser> LaunchBrowserAsync(
-        string browserName,
-        CancellationToken cancellationToken
-    )
-    {
-        var browserType = Playwright[browserName];
-        return await browserType.LaunchAsync(new BrowserTypeLaunchOptions { Headless = true });
-    }
 
     private static InvalidOperationException NotInitialized() =>
         new("The end-to-end environment has not been initialized.");

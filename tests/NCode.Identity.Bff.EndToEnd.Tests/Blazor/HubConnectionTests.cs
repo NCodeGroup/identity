@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using NCode.Identity.Bff.EndToEnd.Tests.Infrastructure;
+using NCode.Identity.EndToEnd.TestSupport;
 using Xunit;
 
 namespace NCode.Identity.Bff.EndToEnd.Tests.Blazor;

@@ -5,7 +5,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
-namespace NCode.Identity.Bff.EndToEnd.Tests.Infrastructure;
+namespace NCode.Identity.EndToEnd.TestSupport;
 
 /// <summary>
 /// A self-signed TLS certificate for one test run, which covers every host name that the end-to-end suites use.

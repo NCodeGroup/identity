@@ -12,6 +12,7 @@ using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using DotNet.Testcontainers.Images;
 using NCode.Buffers;
+using NCode.Identity.EndToEnd.TestSupport;
 using NCode.Identity.OpenId;
 
 namespace NCode.Identity.Bff.EndToEnd.Tests.Infrastructure;

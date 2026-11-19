@@ -4,7 +4,7 @@
 using Microsoft.Playwright;
 using Xunit;
 
-namespace NCode.Identity.Bff.EndToEnd.Tests.Infrastructure;
+namespace NCode.Identity.EndToEnd.TestSupport;
 
 /// <summary>
 /// The names of the browsers that the end-to-end tests run in, as theory data.

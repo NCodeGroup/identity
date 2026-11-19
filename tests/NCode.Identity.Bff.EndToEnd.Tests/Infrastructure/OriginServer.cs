@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using NCode.Buffers;
+using NCode.Identity.EndToEnd.TestSupport;
 
 namespace NCode.Identity.Bff.EndToEnd.Tests.Infrastructure;
 

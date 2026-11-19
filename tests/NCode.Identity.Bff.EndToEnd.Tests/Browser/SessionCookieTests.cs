@@ -4,6 +4,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Playwright;
 using NCode.Identity.Bff.EndToEnd.Tests.Infrastructure;
+using NCode.Identity.EndToEnd.TestSupport;
 using Xunit;
 
 namespace NCode.Identity.Bff.EndToEnd.Tests.Browser;
