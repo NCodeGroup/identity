@@ -41,8 +41,8 @@ public sealed class OwnerRootKeyEntity : ISupportConcurrencyToken
     /// Gets the surrogate identifier for this entity.
     /// </summary>
     [Key]
-    [UseIdGenerator]
-    public required long Id { get; init; }
+    [SurrogateKey]
+    public required Guid Id { get; init; }
 
     /// <summary>
     /// Gets the type of owner of this root key, such as <c>tenant</c>.

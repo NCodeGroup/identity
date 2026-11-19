@@ -22,8 +22,8 @@ public sealed class TenantUsageCheckpointEntity : ISupportConcurrencyToken
     /// Gets the surrogate identifier for this entity.
     /// </summary>
     [Key]
-    [UseIdGenerator]
-    public long Id { get; init; }
+    [SurrogateKey]
+    public Guid Id { get; init; }
 
     /// <summary>
     /// Gets the identifier that the replica drew when it started.

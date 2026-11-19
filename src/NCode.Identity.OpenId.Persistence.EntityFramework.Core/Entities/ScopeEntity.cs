@@ -26,12 +26,12 @@ public sealed class ScopeEntity : ISupportTenantEntity, ISupportConcurrencyToken
     /// Gets the surrogate identifier for this entity.
     /// </summary>
     [Key]
-    [UseIdGenerator]
-    public required long Id { get; init; }
+    [SurrogateKey]
+    public required Guid Id { get; init; }
 
     /// <inheritdoc />
     [ForeignKey(nameof(Tenant))]
-    public required long TenantId { get; init; }
+    public required Guid TenantId { get; init; }
 
     /// <summary>
     /// Gets the owning tenant's normalized identifier, denormalized onto this entity so the tenant-scoping global
@@ -45,7 +45,7 @@ public sealed class ScopeEntity : ISupportTenantEntity, ISupportConcurrencyToken
     /// Gets the foreign key for the resource server that owns this scope.
     /// </summary>
     [ForeignKey(nameof(ResourceServer))]
-    public required long ResourceServerId { get; init; }
+    public required Guid ResourceServerId { get; init; }
 
     /// <summary>
     /// Gets the value of this scope (for example, <c>read:messages</c>).

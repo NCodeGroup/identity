@@ -22,8 +22,8 @@ public sealed class TenantEntity : ISupportConcurrencyToken
     /// Gets the surrogate identifier for this entity.
     /// </summary>
     [Key]
-    [UseIdGenerator]
-    public long Id { get; init; }
+    [SurrogateKey]
+    public Guid Id { get; init; }
 
     /// <summary>
     /// Gets the natural identifier for this entity.
@@ -133,7 +133,7 @@ public sealed class TenantEntity : ISupportConcurrencyToken
     /// Gets the surrogate identifier of the team this tenant belongs to. A tenant never moves between teams.
     /// </summary>
     [ForeignKey(nameof(Team))]
-    public required long TeamId { get; init; }
+    public required Guid TeamId { get; init; }
 
     // navigation properties
 

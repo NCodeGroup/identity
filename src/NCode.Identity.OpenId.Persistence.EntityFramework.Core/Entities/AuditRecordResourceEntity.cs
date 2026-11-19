@@ -20,13 +20,13 @@ public sealed class AuditRecordResourceEntity
     /// Gets the surrogate identifier for this entity.
     /// </summary>
     [Key]
-    [UseIdGenerator]
-    public long Id { get; init; }
+    [SurrogateKey]
+    public Guid Id { get; init; }
 
     /// <summary>
     /// Gets the surrogate identifier of the audit record.
     /// </summary>
-    public long AuditRecordId { get; init; }
+    public Guid AuditRecordId { get; init; }
 
     /// <summary>
     /// Gets the position of the resource in the record, the target first.

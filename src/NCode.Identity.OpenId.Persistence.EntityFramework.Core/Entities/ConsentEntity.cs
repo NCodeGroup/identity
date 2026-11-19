@@ -25,12 +25,12 @@ public sealed class ConsentEntity : ISupportTenantEntity, ISupportConcurrencyTok
     /// Gets the surrogate identifier for this entity.
     /// </summary>
     [Key]
-    [UseIdGenerator]
-    public required long Id { get; init; }
+    [SurrogateKey]
+    public required Guid Id { get; init; }
 
     /// <inheritdoc />
     [ForeignKey(nameof(Tenant))]
-    public required long TenantId { get; init; }
+    public required Guid TenantId { get; init; }
 
     /// <summary>
     /// Gets the owning tenant's normalized identifier, denormalized onto this entity so the tenant-scoping global
@@ -44,7 +44,7 @@ public sealed class ConsentEntity : ISupportTenantEntity, ISupportConcurrencyTok
     /// Gets the <c>ClientId</c> (surrogate key) of the client the subject consented to.
     /// </summary>
     [ForeignKey(nameof(Client))]
-    public required long ClientId { get; init; }
+    public required Guid ClientId { get; init; }
 
     /// <summary>
     /// Gets the identifier of the subject (end-user) that granted the consent.

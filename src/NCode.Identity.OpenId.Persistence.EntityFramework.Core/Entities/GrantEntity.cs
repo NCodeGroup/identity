@@ -30,8 +30,8 @@ public sealed class GrantEntity : ISupportTenantEntity, ISupportConcurrencyToken
     /// Gets the surrogate identifier for this entity.
     /// </summary>
     [Key]
-    [UseIdGenerator]
-    public required long Id { get; init; }
+    [SurrogateKey]
+    public required Guid Id { get; init; }
 
     /// <summary>
     /// Gets the opaque, server-generated public identifier for this grant, used by the management API. This is
@@ -75,7 +75,7 @@ public sealed class GrantEntity : ISupportTenantEntity, ISupportConcurrencyToken
     /// Gets the <c>TenantId</c> associated with this entity.
     /// </summary>
     [ForeignKey(nameof(Tenant))]
-    public required long TenantId { get; init; }
+    public required Guid TenantId { get; init; }
 
     /// <summary>
     /// Gets the owning tenant's normalized identifier, denormalized onto this entity so the tenant-scoping global
@@ -89,7 +89,7 @@ public sealed class GrantEntity : ISupportTenantEntity, ISupportConcurrencyToken
     /// Gets the <c>ClientId</c> associated with this entity.
     /// </summary>
     [ForeignKey(nameof(Client))]
-    public required long? ClientId { get; init; }
+    public required Guid? ClientId { get; init; }
 
     /// <summary>
     /// Gets the <c>SubjectId</c> associated with this entity.

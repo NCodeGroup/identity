@@ -21,8 +21,8 @@ public sealed class SecretEntity : ISupportConcurrencyToken
     /// Gets the surrogate identifier for this entity.
     /// </summary>
     [Key]
-    [UseIdGenerator]
-    public required long Id { get; init; }
+    [SurrogateKey]
+    public required Guid Id { get; init; }
 
     /// <summary>
     /// Gets the natural key for this entity.

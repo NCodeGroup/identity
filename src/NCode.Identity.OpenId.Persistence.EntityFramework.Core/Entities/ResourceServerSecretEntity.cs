@@ -21,12 +21,12 @@ public sealed class ResourceServerSecretEntity : ISupportTenantEntity, ISupportS
     /// Gets the surrogate identifier for this entity.
     /// </summary>
     [Key]
-    [UseIdGenerator]
-    public required long Id { get; init; }
+    [SurrogateKey]
+    public required Guid Id { get; init; }
 
     /// <inheritdoc />
     [ForeignKey(nameof(Tenant))]
-    public required long TenantId { get; init; }
+    public required Guid TenantId { get; init; }
 
     /// <summary>
     /// Gets the owning tenant's normalized identifier, denormalized onto this entity so the tenant-scoping global
@@ -40,11 +40,11 @@ public sealed class ResourceServerSecretEntity : ISupportTenantEntity, ISupportS
     /// Gets the foreign key for the associated resource server.
     /// </summary>
     [ForeignKey(nameof(ResourceServer))]
-    public required long ResourceServerId { get; init; }
+    public required Guid ResourceServerId { get; init; }
 
     /// <inheritdoc />
     [ForeignKey(nameof(Secret))]
-    public required long SecretId { get; init; }
+    public required Guid SecretId { get; init; }
 
     //
 

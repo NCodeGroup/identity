@@ -20,8 +20,8 @@ public sealed class RetiredTenantEntity
     /// Gets the surrogate identifier for this entity.
     /// </summary>
     [Key]
-    [UseIdGenerator]
-    public long Id { get; init; }
+    [SurrogateKey]
+    public Guid Id { get; init; }
 
     /// <summary>
     /// Gets the identifier of the deleted tenant.

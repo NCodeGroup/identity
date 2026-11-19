@@ -23,8 +23,8 @@ public sealed class FederatedPrincipalEntity : ISupportTenantEntity, ISupportCon
     /// Gets the surrogate identifier for this entity.
     /// </summary>
     [Key]
-    [UseIdGenerator]
-    public required long Id { get; init; }
+    [SurrogateKey]
+    public required Guid Id { get; init; }
 
     /// <summary>
     /// Gets the server-generated opaque public identifier of the principal.
@@ -45,7 +45,7 @@ public sealed class FederatedPrincipalEntity : ISupportTenantEntity, ISupportCon
     /// Gets the foreign key for the associated tenant.
     /// </summary>
     [ForeignKey(nameof(Tenant))]
-    public required long TenantId { get; init; }
+    public required Guid TenantId { get; init; }
 
     /// <summary>
     /// Gets the owning tenant's normalized identifier, denormalized onto this entity so the tenant-scoping global
