@@ -59,18 +59,17 @@ public sealed class BuiltBundleTypefaces<TIndex>(
     /// <param name="copyright">The copyright line that the license's text starts with.</param>
     public void AssertShipsLicenseBesideTheFonts(string licenseName, string copyright)
     {
-        var searchPattern = $"{licenseName}-*.txt";
-        var licenses = Directory.GetFiles(Layout.AssetsFolderPath, searchPattern);
-        var license = Assert.Single(licenses);
-        var assetPath = Path.GetFileName(license);
+        var license = new TypefaceLicense(licenseName, copyright);
+        var licensePath = license.FindAsset(Layout.AssetsFolderPath);
+        var assetPath = Path.GetFileName(licensePath);
         var httpContext = new DefaultHttpContext();
 
         var result = Bundle.ServeAsset(httpContext.Response, assetPath);
 
         var file = Assert.IsType<PhysicalFileHttpResult>(result);
         Assert.Equal("text/plain", file.ContentType);
-        var text = File.ReadAllText(license, SecureEncoding.UTF8);
-        Assert.StartsWith(copyright, text, StringComparison.Ordinal);
+        var text = File.ReadAllText(licensePath, SecureEncoding.UTF8);
+        Assert.StartsWith(license.Copyright, text, StringComparison.Ordinal);
     }
 
     /// <inheritdoc />

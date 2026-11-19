@@ -70,16 +70,8 @@ public static class FrontendBundles
         foreach (var license in TypefaceLicenses.All)
         {
             // The build names each license by its content hash, so the bundle on disk says which name the host serves.
-            var searchPattern = $"{license.Name}-*.txt";
-            var files = Directory.GetFiles(assetsPath, searchPattern);
-            if (files.Length != 1)
-            {
-                throw new InvalidOperationException(
-                    $"The apps/{appName} bundle holds {files.Length} assets named '{searchPattern}', not one."
-                );
-            }
-
-            var fileName = Path.GetFileName(files[0]);
+            var licensePath = license.FindAsset(assetsPath);
+            var fileName = Path.GetFileName(licensePath);
             var url = new Uri(assetsUri, fileName);
             urls.Add(url);
         }
