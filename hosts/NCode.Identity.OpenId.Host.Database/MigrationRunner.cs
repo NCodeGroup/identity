@@ -26,8 +26,8 @@ public static class MigrationRunner
     /// checks that every migration each context's history records is one this assembly holds, and applies nothing when
     /// one is not.
     /// </summary>
-    /// <param name="serviceProvider">A provider that has the OpenID persistence slice registered (id generator and
-    /// model contributors), used to construct the contexts outside a request scope.</param>
+    /// <param name="serviceProvider">A provider that has the OpenID persistence slice registered (surrogate key
+    /// generator and model contributors), used to construct the contexts outside a request scope.</param>
     /// <param name="connectionString">The Postgres connection string supplied by Aspire.</param>
     /// <param name="runtimeRole">The name of the database role the host runs as. After it migrates, the runner enables
     /// row-level security on every tenant-bound table and grants this role its data access, in one transaction.</param>

@@ -16,8 +16,8 @@ A satellite that persists its own entities in the _same_ `OpenIdDbContext` share
 atomically with the core entities, as the local accounts of
 [ADR-1051](1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md) do. It needs the framework, not the core
 schema. If the two were fused in one package, every satellite would depend on the core stores it never uses, and the
-reusable pieces (`BaseStore`, the store-registration helper, the id-generator attribute) would have to stay internal,
-which forces each satellite to re-implement the store boilerplate: `IStore` delegation, normalization, id and
+reusable pieces (`BaseStore`, the store-registration helper, the surrogate key attribute) would have to stay internal,
+which forces each satellite to re-implement the store boilerplate: `IStore` delegation, normalization, surrogate key and
 concurrency-token generation, and the registration factory. With more than one slice, that duplication and the
 misdirected dependency compound.
 
