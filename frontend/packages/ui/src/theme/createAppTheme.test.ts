@@ -157,13 +157,26 @@ describe('createAppTheme', () => {
     expect(easing.easeInOut).toBe(instrument.transitions.easing['in-out']);
   });
 
-  it('makes every transition instant when the reader asks for reduced motion', () => {
-    const { transitions } = createAppTheme({}, { reducedMotion: true });
+  it('stops every animation and transition when the reader asks for reduced motion', () => {
+    const { transitions, components } = createAppTheme({}, { reducedMotion: true });
 
     expect(transitions.create(['opacity'])).toBe('none');
     for (const value of Object.values(transitions.duration)) {
       expect(value).toBe(0);
     }
+    expect(overrides(components?.MuiCssBaseline)).toMatchObject({
+      '*, *::before, *::after': {
+        animation: 'none !important',
+        transition: 'none !important',
+        scrollBehavior: 'auto !important',
+      },
+    });
+  });
+
+  it('keeps animations when the reader does not ask for reduced motion', () => {
+    const { components } = createAppTheme();
+
+    expect(overrides(components?.MuiCssBaseline)).not.toHaveProperty(['*, *::before, *::after']);
   });
 
   it('draws the focus ring in the focus color, focus wide and offset', () => {

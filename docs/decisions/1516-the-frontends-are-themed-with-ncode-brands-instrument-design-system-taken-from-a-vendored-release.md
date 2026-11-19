@@ -52,8 +52,8 @@ from the NCodeGroup/brand release the logo kit pins, vendored into `frontend/pac
    holds Instrument's roles overlaid with the derived colors.
 6. **The mode.** The mode is `branding.mode`, else the reader's `prefers-color-scheme`, else light. `CssBaseline` sets
    `enableColorScheme`.
-7. **Reduced motion.** Under `prefers-reduced-motion: reduce` every duration is 0 and `transitions.create` returns
-   `none`.
+7. **Reduced motion.** Under `prefers-reduced-motion: reduce` every duration is 0, `transitions.create` returns
+   `none`, and `CssBaseline` stops every CSS animation and transition.
 8. **Typography.** The typography comes from `instrument.typography`. `typography.fontFamilyMono` and the `code`
    variant set code, and a module augmentation types them. `variantMapping` maps `code` to `<code>`, and `label`,
    `field`, `value` and `readout` to `<span>`.

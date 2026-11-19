@@ -191,7 +191,10 @@ function transitionsOf(reducedMotion: boolean): ThemeOptions['transitions'] {
   };
 }
 
-function componentsOf(colors: InstrumentColors): ThemeOptions['components'] {
+function componentsOf(
+  colors: InstrumentColors,
+  reducedMotion: boolean,
+): ThemeOptions['components'] {
   const ring = {
     outline: `${String(instrument.focus.width)}px solid ${colors.focus}`,
     outlineOffset: `${String(instrument.focus.offset)}px`,
@@ -201,6 +204,16 @@ function componentsOf(colors: InstrumentColors): ThemeOptions['components'] {
       styleOverrides: {
         // A text field shows its focus by its outline, so its input takes no ring of its own.
         ':focus-visible:not(.MuiInputBase-input)': ring,
+        // A reader who asks for reduced motion sees none, as NCode Brand's base.css does.
+        ...(reducedMotion
+          ? {
+              '*, *::before, *::after': {
+                animation: 'none !important',
+                transition: 'none !important',
+                scrollBehavior: 'auto !important',
+              },
+            }
+          : {}),
       },
     },
     MuiButtonBase: {
@@ -273,7 +286,7 @@ export function createAppTheme(branding?: BrandingConfig, options: AppThemeOptio
     shadows: instrument.shadows[mode] as Shadows,
     breakpoints: BREAKPOINTS,
     transitions: transitionsOf(options.reducedMotion === true),
-    components: componentsOf(colors),
+    components: componentsOf(colors, options.reducedMotion === true),
     instrument: MEASURES,
   });
 }
