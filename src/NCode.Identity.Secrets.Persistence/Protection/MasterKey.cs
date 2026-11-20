@@ -6,9 +6,9 @@ using NCode.Buffers;
 namespace NCode.Identity.Secrets.Persistence.Protection;
 
 /// <summary>
-/// Holds the unwrapped key material of a single master key together with the identity that the key is registered
-/// under. The key material lives in a <see cref="Secret{T}"/>, a sensitive buffer from the secure memory pool that the
-/// garbage collector never copies, and it is zeroed when the master key is disposed.
+/// Holds the unwrapped key material of a single master key together with the identity that the key is registered under.
+/// The key material lives in a <see cref="Secret{T}"/>, a sensitive buffer from the secure memory pool that the garbage
+/// collector never copies, and it is zeroed when the master key is disposed.
 /// </summary>
 // See ADR-1235.
 internal sealed class MasterKey : IDisposable

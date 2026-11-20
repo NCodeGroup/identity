@@ -54,10 +54,11 @@ public static class TelemetryRegistration
     extension(IServiceCollection serviceCollection)
     {
         /// <summary>
-        /// Registers the OpenTelemetry metrics pipeline: every <c>NCode.Identity.*</c> meter, the secure buffer
-        /// pool's <c>NCode.Buffers</c> meter, the ASP.NET Core, Kestrel, routing, diagnostics, <c>System.Net.Http</c>,
-        /// and runtime meters, and a view that keeps only bounded attributes on the outbound-HTTP instruments. The OTLP exporter is added only when
-        /// <see cref="OtlpEndpointConfigurationKey"/> is configured, so a host without a collector exports nothing.
+        /// Registers the OpenTelemetry metrics pipeline: every <c>NCode.Identity.*</c> meter, the secure buffer pool's
+        /// <c>NCode.Buffers</c> meter, the ASP.NET Core, Kestrel, routing, diagnostics, <c>System.Net.Http</c>, and
+        /// runtime meters, and a view that keeps only bounded attributes on the outbound-HTTP instruments. The OTLP
+        /// exporter is added only when <see cref="OtlpEndpointConfigurationKey"/> is configured, so a host without a
+        /// collector exports nothing.
         /// </summary>
         /// <param name="configuration">The <see cref="IConfiguration"/> read for the OTLP endpoint.</param>
         /// <returns>The same <see cref="IServiceCollection"/> instance for method chaining.</returns>
