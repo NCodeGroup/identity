@@ -7,34 +7,27 @@ namespace NCode.Identity.Secrets.Persistence.Protection;
 
 /// <summary>
 /// Holds the unwrapped key material of a single master key together with the identity that the key is registered
-/// under. The key material lives in a pinned array from the secure memory pool so that the garbage collector never
-/// copies it, and it is zeroed when the master key is disposed.
+/// under. The key material lives in a <see cref="Secret{T}"/>, a sensitive buffer from the secure memory pool that the
+/// garbage collector never copies, and it is zeroed when the master key is disposed.
 /// </summary>
 // See ADR-1235.
 internal sealed class MasterKey : IDisposable
 {
-    private MasterKey(
-        Guid keyId,
-        SecretOwner owner,
-        int version,
-        IDisposable materialLease,
-        Memory<byte> material
-    )
+    private MasterKey(Guid keyId, SecretOwner owner, int version, Secret<byte> materialSecret)
     {
         KeyId = keyId;
         Owner = owner;
         Version = version;
-        MaterialLease = materialLease;
-        MaterialMemory = material;
+        MaterialSecret = materialSecret;
     }
 
-    private IDisposable MaterialLease { get; }
+    private Secret<byte> MaterialSecret { get; }
 
     /// <summary>
     /// Gets the key material of the master key as memory, for the key wrappers that take memory. The memory belongs to
     /// the master key and is zeroed when it is disposed, so a caller must not keep it.
     /// </summary>
-    internal ReadOnlyMemory<byte> MaterialMemory { get; }
+    internal ReadOnlyMemory<byte> MaterialMemory => MaterialSecret.RevealMemory();
 
     /// <summary>
     /// Gets the identifier of the master key, which is written to every value that the master key protects.
@@ -55,10 +48,10 @@ internal sealed class MasterKey : IDisposable
     /// <summary>
     /// Gets the key material of the master key.
     /// </summary>
-    internal ReadOnlySpan<byte> Material => MaterialMemory.Span;
+    internal ReadOnlySpan<byte> Material => MaterialSecret.Reveal();
 
     /// <summary>
-    /// Creates a master key from key material, which is copied into a sensitive rental that the master key owns.
+    /// Creates a master key from key material, which is copied into a secret that the master key owns.
     /// </summary>
     /// <param name="keyId">The identifier of the master key.</param>
     /// <param name="owner">The owner of the master key, which is normalized.</param>
@@ -85,15 +78,7 @@ internal sealed class MasterKey : IDisposable
 
         var normalizedOwner = owner.Normalize();
 
-        var materialLease = BufferFactory.Rent(
-            SecretProtectionFormat.MasterKeySizeBytes,
-            isSensitive: true,
-            out Memory<byte> materialMemory
-        );
-
-        material.CopyTo(materialMemory.Span);
-
-        return new MasterKey(keyId, normalizedOwner, version, materialLease, materialMemory);
+        return new MasterKey(keyId, normalizedOwner, version, Secret.Create(material));
     }
 
     /// <summary>
@@ -101,6 +86,6 @@ internal sealed class MasterKey : IDisposable
     /// </summary>
     public void Dispose()
     {
-        MaterialLease.Dispose();
+        MaterialSecret.Dispose();
     }
 }
