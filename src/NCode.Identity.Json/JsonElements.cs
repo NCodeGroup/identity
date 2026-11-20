@@ -252,14 +252,8 @@ public static class JsonElements
             }
 
             // A response body may carry tokens, so the contiguous copy is sensitive.
-            using var lease = BufferFactory.Rent(
-                checked((int)utf8Json.Length),
-                isSensitive: true,
-                out Span<byte> buffer
-            );
-            utf8Json.CopyTo(buffer);
-
-            return JsonElement.Parse(buffer, options);
+            using var lease = utf8Json.GetSpanLease(isSensitive: true);
+            return JsonElement.Parse(lease.Span, options);
         }
 
         /// <summary>
