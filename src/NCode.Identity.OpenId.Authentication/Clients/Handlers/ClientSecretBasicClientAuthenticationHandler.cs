@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers;
 using System.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -143,45 +144,51 @@ internal class ClientSecretBasicClientAuthenticationHandler(
         CancellationToken cancellationToken
     )
     {
-        // RFC 7617 encodes the user-id/password with standard Base64 (padded), not Base64Url. An upper bound of
-        // length*3/4 is always large enough for the decoded bytes regardless of padding.
-        var maxByteCount = encodedCredentials.Length * 3 / 4;
-        using var base64Lease = BufferFactory.Rent(
-            maxByteCount,
-            isSensitive: true,
-            out Span<byte> base64Buffer
-        );
-
-        // The credentials are untrusted input, so a decode failure must be handled explicitly (never asserted, which
-        // is compiled out in Release); a malformed header is a failed authentication per RFC 6749 §5.2.
-        if (
-            !Convert.TryFromBase64Chars(
-                encodedCredentials.Span,
-                base64Buffer,
-                out var base64BytesWritten
-            )
-        )
+        // RFC 7617 encodes the user-id/password with standard Base64 (padded), not Base64Url.
+        // The credentials are untrusted input, so a malformed header is a failed authentication per RFC 6749 §5.2.
+        IMemoryOwner<byte>? base64Lease = null;
+        try
         {
-            return CreateInvalidClientResult(openIdContext);
+            Span<byte> base64Bytes;
+            try
+            {
+                base64Lease = BinaryTextEncoding.RentDecoded(
+                    encodedCredentials.Span,
+                    BinaryTextFormat.Base64,
+                    isSensitive: true,
+                    out base64Bytes
+                );
+            }
+            catch (FormatException)
+            {
+                return CreateInvalidClientResult(openIdContext);
+            }
+
+            using var decodeLease = SecureEncoding.UTF8.RentChars(
+                base64Bytes,
+                isSensitive: true,
+                out Memory<char> decodeBuffer
+            );
+
+            return await AuthenticateDecodedCredentialsAsync(
+                openIdContext,
+                decodeBuffer,
+                cancellationToken
+            );
         }
+        finally
+        {
+            base64Lease?.Dispose();
+        }
+    }
 
-        var base64Bytes = base64Buffer[..base64BytesWritten];
-
-        var decodeCharCount = SecureEncoding.UTF8.GetCharCount(base64Bytes);
-        using var decodeLease = BufferFactory.Rent<char>(
-            decodeCharCount,
-            isSensitive: true,
-            out Memory<char> decodeBuffer
-        );
-
+    private async ValueTask<ClientAuthenticationResult> AuthenticateDecodedCredentialsAsync(
+        OpenIdContext openIdContext,
+        Memory<char> decodeBuffer,
+        CancellationToken cancellationToken
+    )
+    {
         var decodeSpan = decodeBuffer.Span;
-
-        var decodeResult = SecureEncoding.UTF8.TryGetChars(
-            base64Bytes,
-            decodeSpan,
-            out var decodeCharsWritten
-        );
-        Debug.Assert(decodeResult && decodeCharsWritten == decodeCharCount);
 
         var indexOfColon = decodeSpan.IndexOf(':');
 

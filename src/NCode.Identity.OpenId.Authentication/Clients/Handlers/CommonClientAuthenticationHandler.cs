@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Diagnostics;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -332,19 +331,11 @@ internal abstract class CommonClientAuthenticationHandler(
             return rejected;
 
         var clientSecretChars = clientSecret.Span;
-        var byteCount = SecureEncoding.UTF8.GetByteCount(clientSecretChars);
-        using var _ = BufferFactory.Rent(
-            byteCount,
+        using var _ = SecureEncoding.UTF8.RentBytes(
+            clientSecretChars,
             isSensitive: true,
             out Memory<byte> clientSecretBytes
         );
-
-        var decodeResult = SecureEncoding.UTF8.TryGetBytes(
-            clientSecretChars,
-            clientSecretBytes.Span,
-            out var bytesWritten
-        );
-        Debug.Assert(decodeResult && bytesWritten == byteCount);
 
         return await VerifyClientSecretAsync(
             openIdContext,
