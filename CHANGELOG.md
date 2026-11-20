@@ -5121,6 +5121,18 @@ Until the first stable release, the [Unreleased] section describes the product a
   ([#803](https://github.com/NCodeGroup/identity/issues/803),
   [ADR-1266](docs/decisions/1266-binary-data-uses-bufferfactory-rentals-with-explicit-sensitivity-and-text-only-strict-encodings.md)).
 
+- **Buffers are rented through the helper for their source.** Random bytes, encoded text and decoded Base64 text are
+  rented filled (`RentRandom`, `RentBytes`, `RentChars`, `RentDecoded`), a writer read as one span is a
+  `ContiguousBufferWriter`, a request or document body is held in a pooled stream or writer, and a Basic credential is
+  built in a `PooledTextBuilder`, so no secret is left in an unzeroed array. The ephemeral root key, the master key
+  material, the local wrapper's keys and the recovery key PEM are held in `Secret<T>`, which prints `[REDACTED]` and is
+  zeroed on dispose
+  ([ADR-1266](docs/decisions/1266-binary-data-uses-bufferfactory-rentals-with-explicit-sensitivity-and-text-only-strict-encodings.md)).
+
+- **The secure buffer pool's metrics are collected.** `AddOpenTelemetryMetrics` subscribes to the `NCode.Buffers` meter,
+  which reports secure-pool rentals, returns and buffers dropped under memory pressure
+  ([ADR-1197](docs/decisions/1197-telemetry-has-one-owner-per-signal-bounded-attributes-and-spans-that-mirror-their-histograms.md)).
+
 - **Stored secrets are protected by a key hierarchy under an external root key.** Stored private and symmetric secrets
   are AES-256-GCM envelopes (`nce1.`) under a fresh data key, wrapped by an HKDF-derived purpose key of the owning
   tenant's master key, which is wrapped by a root key held by a root key provider (`ephemeral`, `local`, or a registered
