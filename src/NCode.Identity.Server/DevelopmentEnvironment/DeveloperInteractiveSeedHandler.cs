@@ -379,11 +379,13 @@ internal sealed class DeveloperInteractiveSeedHandler(
 
         // Encode the password into a pinned, zeroed-on-return buffer so the credential never lingers on the GC heap;
         // the store hashes it internally.
-        var byteCount = SecureEncoding.UTF8.GetByteCount(password);
-        using var owner = BufferFactory.Rent(byteCount, isSensitive: true, out Memory<byte> buffer);
-        var written = SecureEncoding.UTF8.GetBytes(password, buffer.Span);
+        using var owner = SecureEncoding.UTF8.RentBytes(
+            password,
+            isSensitive: true,
+            out Memory<byte> buffer
+        );
 
-        await store.AddAsync(account, buffer[..written], cancellationToken);
+        await store.AddAsync(account, buffer, cancellationToken);
     }
 
     private bool TargetsTenant(TenantSeedContext context) =>

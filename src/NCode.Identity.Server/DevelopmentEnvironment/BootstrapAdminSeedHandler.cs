@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Buffers.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -87,14 +86,12 @@ internal sealed class BootstrapAdminSeedHandler(
 
         // The configured secret is supplied Base64Url-encoded (not plaintext) so a raw process-memory snapshot does
         // not expose it directly; decode it straight into a pinned, zeroed-on-return buffer threaded as ReadOnlyMemory.
-        var secretMaxLength = Base64Url.GetMaxDecodedLength(clientSecret.Length);
-        using var secretOwner = BufferFactory.Rent(
-            secretMaxLength,
+        using var secretOwner = BinaryTextEncoding.RentDecoded(
+            clientSecret,
+            BinaryTextFormat.Base64Url,
             isSensitive: true,
-            out Memory<byte> secretBuffer
+            out Memory<byte> clientSecretBytes
         );
-        var secretWritten = Base64Url.DecodeFromChars(clientSecret, secretBuffer.Span);
-        var clientSecretBytes = secretBuffer[..secretWritten];
 
         var existing = await store.GetOrDefaultAsync(clientId, cancellationToken);
         if (existing is not null)
