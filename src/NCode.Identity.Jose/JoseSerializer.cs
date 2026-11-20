@@ -331,10 +331,12 @@ internal partial class JoseSerializer(
     /// <inheritdoc />
     public void VerifyJws(JoseToken token, SecretKey secretKey, ReadOnlySpan<char> detachedPayload)
     {
-        var byteCount = SecureEncoding.UTF8.GetByteCount(detachedPayload);
-        using var lease = BufferFactory.Rent(byteCount, isSensitive: false, out Span<byte> bytes);
-        var bytesWritten = SecureEncoding.UTF8.GetBytes(detachedPayload, bytes);
-        VerifyJws(token, secretKey, bytes[..bytesWritten]);
+        using var lease = SecureEncoding.UTF8.RentBytes(
+            detachedPayload,
+            isSensitive: false,
+            out Span<byte> bytes
+        );
+        VerifyJws(token, secretKey, bytes);
     }
 
     /// <inheritdoc />
@@ -394,19 +396,21 @@ internal partial class JoseSerializer(
             return Encode(SecureEncoding.UTF8, stringValue, out bytes);
         }
 
-        // increase our chances of getting a single-segment buffer
-        var buffer = BufferFactory.CreatePooledBufferWriter(isSensitive: true, 1024);
+        var buffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: true, 1024);
 
         try
         {
-            using var writer = new Utf8JsonWriter(buffer);
-            JsonSerializer.Serialize(
-                writer,
-                value,
-                options ?? JoseSerializerOptions.JsonSerializerOptions
-            );
+            using (var writer = new Utf8JsonWriter(buffer))
+            {
+                JsonSerializer.Serialize(
+                    writer,
+                    value,
+                    options ?? JoseSerializerOptions.JsonSerializerOptions
+                );
+            }
 
-            return buffer.ConsumeAsContiguousSpan(isSensitive: true, out bytes);
+            bytes = buffer.WrittenSpan;
+            return buffer;
         }
         catch
         {
@@ -490,21 +494,8 @@ internal partial class JoseSerializer(
         out ReadOnlySpan<byte> bytes
     )
     {
-        var byteCount = encoding.GetByteCount(chars);
-        var byteLease = BufferFactory.Rent(byteCount, isSensitive: true, out Span<byte> span);
-        try
-        {
-            var bytesWritten = encoding.GetBytes(chars, span);
-            Debug.Assert(bytesWritten == byteCount);
-
-            bytes = span;
-        }
-        catch
-        {
-            byteLease.Dispose();
-            throw;
-        }
-
+        var byteLease = encoding.RentBytes(chars, isSensitive: true, out Span<byte> span);
+        bytes = span;
         return byteLease;
     }
 
