@@ -66,10 +66,11 @@ internal class DefaultSecretKeyFactory(
     /// <inheritdoc />
     public SymmetricSecretKey CreateSymmetric(KeyMetadata metadata, ReadOnlySpan<char> password)
     {
-        var keySizeBytes = SecureEncoding.UTF8.GetByteCount(password);
-        using var _ = BufferFactory.Rent(keySizeBytes, isSensitive: true, out Span<byte> span);
-        var bytesWritten = SecureEncoding.UTF8.GetBytes(password, span);
-        Debug.Assert(bytesWritten == keySizeBytes);
+        using var _ = SecureEncoding.UTF8.RentBytes(
+            password,
+            isSensitive: true,
+            out Span<byte> span
+        );
         return CreateSymmetric(metadata, span);
     }
 
