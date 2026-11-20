@@ -186,9 +186,13 @@ internal class DefaultCoseKeyConverter(
                 case CoseKeyParameterEncoding.ByteString:
                     try
                     {
-                        map[parameter.Label] = CoseValue.FromByteString(
-                            Base64Url.DecodeFromChars(member)
+                        using var decodedLease = BinaryTextEncoding.RentDecoded(
+                            member,
+                            BinaryTextFormat.Base64Url,
+                            isSensitive: false,
+                            out Span<byte> decoded
                         );
+                        map[parameter.Label] = CoseValue.FromByteString(decoded);
                     }
                     catch (FormatException exception)
                     {

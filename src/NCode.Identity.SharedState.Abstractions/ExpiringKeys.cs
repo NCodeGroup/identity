@@ -39,7 +39,7 @@ public static class ExpiringKeys
         params ReadOnlySpan<string> components
     )
     {
-        using var buffer = BufferFactory.CreatePooledBufferWriter(isSensitive: false);
+        using var buffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
 
         foreach (var component in components)
         {
@@ -49,9 +49,8 @@ public static class ExpiringKeys
             SecureEncoding.UTF8.GetBytes(component, buffer);
         }
 
-        using var lease = buffer.GetSpanLease(isSensitive: false);
         Span<byte> digest = stackalloc byte[SHA256.HashSizeInBytes];
-        SHA256.HashData(lease.Span, digest);
+        SHA256.HashData(buffer.WrittenSpan, digest);
 
         var encodedDigest = Base64Url.Encode(digest);
 
