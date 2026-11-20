@@ -90,9 +90,11 @@ internal sealed class LocalAccountPasswords(
         CancellationToken cancellationToken
     )
     {
-        var byteCount = SecureEncoding.UTF8.GetByteCount(password);
-        using var owner = BufferFactory.Rent(byteCount, isSensitive: true, out Memory<byte> buffer);
-        var written = SecureEncoding.UTF8.GetBytes(password, buffer.Span);
-        await useAsync(buffer[..written], cancellationToken);
+        using var owner = SecureEncoding.UTF8.RentBytes(
+            password,
+            isSensitive: true,
+            out Memory<byte> buffer
+        );
+        await useAsync(buffer, cancellationToken);
     }
 }

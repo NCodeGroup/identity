@@ -156,13 +156,11 @@ internal sealed class DefaultPasswordHasher : IPasswordHasher
             }
 
             ReadOnlySpan<char> normalizedChars = buffer[..written];
-            var byteCount = SecureEncoding.UTF8.GetByteCount(normalizedChars);
-            var bytesLease = BufferFactory.Rent(
-                byteCount,
+            var bytesLease = SecureEncoding.UTF8.RentBytes(
+                normalizedChars,
                 isSensitive: true,
                 out Memory<byte> bytes
             );
-            SecureEncoding.UTF8.GetBytes(normalizedChars, bytes.Span);
             normalized = bytes;
             return bytesLease;
         }
