@@ -14,6 +14,7 @@ opts in with `AddOpenTelemetryMetrics(configuration)` from the opt-in `NCode.Ide
 the only package that references the OpenTelemetry SDK. It adds:
 
 - every meter whose name starts with `NCode.Identity.`;
+- the secure buffer pool's `NCode.Buffers` meter;
 - ASP.NET Core's built-in meters (`Microsoft.AspNetCore.Hosting`, `Microsoft.AspNetCore.Server.Kestrel`,
   `Microsoft.AspNetCore.Routing`, `Microsoft.AspNetCore.Diagnostics`), `System.Net.Http`, and `System.Runtime`;
 - a view that keeps only bounded attributes on `System.Net.Http`'s instruments, because their `server.address` and
@@ -30,6 +31,7 @@ the only package that references the OpenTelemetry SDK. It adds:
 | `NCode.Identity.SharedState.Valkey`    | `NCode.Identity.SharedState.Valkey`    | `ValkeyMetrics.MeterName`               |
 | `NCode.Identity.Bff`                   | `NCode.Identity.Bff`                   | `BffTelemetry.MeterName`                |
 | `NCode.Identity.OpenId.Client`         | `NCode.Identity.OpenId.Client`         | `OpenIdClientMetrics.MeterName`         |
+| `NCode.Buffers`                        | `NCode.Buffers`                        | `BufferMetrics.MeterName`               |
 
 ## Protocol requests: `http.server.request.duration`
 
@@ -152,6 +154,18 @@ cancels records nothing.
 | -------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `ncode.identity.outbound_http.timeout_scope` | On `ncode.identity.outbound_http.timeouts`: `attempt` (`AttemptTimeout`) or `total` (`TotalTimeout`) |
 | `ncode.identity.openid_client.timeout_scope` | On `ncode.identity.openid_client.timeouts`: `attempt` (`AttemptTimeout`) or `total` (`TotalTimeout`) |
+
+### NCode.Buffers secure pool
+
+Counters, unit `{buffer}`, meter `NCode.Buffers`. The meter is static and process-wide, so it is not scoped to a host.
+
+- `ncode.buffers.secure_pool.rentals` is recorded for each buffer the secure memory pool rents.
+- `ncode.buffers.secure_pool.returns` is recorded for each buffer returned to the pool's cache.
+- `ncode.buffers.secure_pool.trimmed` is recorded for the cached buffers the pool dropped when memory pressure was high.
+
+| Attribute                     | Present on                           | Values                                                                                                                                                                                                  |
+| ----------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ncode.buffers.rental.source` | `ncode.buffers.secure_pool.rentals`  | `cache` (a buffer from the pool's cache), `new` (a new pooled buffer), `unpooled` (a buffer above the page size, which no pool caches), `empty` (a rental of zero elements, which gets the shared empty buffer) |
 
 ## Traces
 
