@@ -164,12 +164,11 @@ internal static class BffKeyDerivation
     /// <param name="value">The value to fingerprint.</param>
     public static string Fingerprint(string value)
     {
-        using var lease = BufferFactory.Rent(
-            SecureEncoding.UTF8.GetByteCount(value),
+        using var lease = SecureEncoding.UTF8.RentBytes(
+            value,
             isSensitive: true,
             out Span<byte> bytes
         );
-        SecureEncoding.UTF8.GetBytes(value, bytes);
 
         Span<byte> hash = stackalloc byte[SHA256.HashSizeInBytes];
         SHA256.HashData(bytes, hash);

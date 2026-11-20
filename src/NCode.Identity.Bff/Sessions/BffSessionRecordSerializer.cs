@@ -46,11 +46,10 @@ internal static class BffSessionRecordSerializer
         out ReadOnlyMemory<byte> value
     )
     {
-        using var metadataBuffer = BufferFactory.CreatePooledBufferWriter(isSensitive: false);
+        using var metadataBuffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
         WriteMetadata(metadata, metadataBuffer);
 
-        using var metadataLease = metadataBuffer.GetSpanLease(isSensitive: false);
-        var metadataSpan = metadataLease.Span;
+        var metadataSpan = metadataBuffer.WrittenSpan;
 
         var rental = BufferFactory.Rent(
             HeaderLength + metadataSpan.Length + protectedPayload.Length,
