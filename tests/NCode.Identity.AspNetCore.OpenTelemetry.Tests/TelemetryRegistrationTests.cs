@@ -160,7 +160,7 @@ public sealed class TelemetryRegistrationTests
     }
 
     [Fact]
-    public void AddOpenTelemetryMetrics_WhenTheSecurePoolRecords_CollectsTheNCodeBuffersMeter()
+    public void AddOpenTelemetryMetrics_WhenAMeterNamedNCodeBuffersRecords_CollectsIt()
     {
         var exporter = new CollectingExporter();
         using var reader = new BaseExportingMetricReader(exporter);
@@ -173,8 +173,9 @@ public sealed class TelemetryRegistrationTests
         using var bufferMeter = new Meter(BufferMetrics.MeterName);
         bufferMeter.CreateCounter<long>("buffers.test.counter").Add(1);
 
-        Assert.True(reader.Collect());
+        var collected = reader.Collect();
 
+        Assert.True(collected);
         Assert.Contains(exporter.Points, point => point.Name == "buffers.test.counter");
     }
 

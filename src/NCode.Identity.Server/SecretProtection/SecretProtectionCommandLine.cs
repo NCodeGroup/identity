@@ -328,10 +328,10 @@ public sealed class SecretProtectionCommandLine
                 isSensitive: true,
                 out Memory<byte> bytes
             );
-            await stream.ReadExactlyAsync(bytes[..size], cancellationToken);
+            await stream.ReadExactlyAsync(bytes, cancellationToken);
             var pem = Secret.Create<char, ReadOnlyMemory<byte>>(
                 size,
-                bytes[..size],
+                bytes,
                 static (chars, source) => SecureEncoding.ASCII.GetChars(source.Span, chars)
             );
             return new RecoveryKeyLease(pem);

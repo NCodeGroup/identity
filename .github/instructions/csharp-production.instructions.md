@@ -1234,12 +1234,11 @@ IBufferWriter<byte>, allows ref struct` (as in `SymmetricSecretKey.ExportPrivate
   `ReadOnlySpan<byte>` / `ReadOnlyMemory<byte>`. Rent a pooled writer with
   `BufferFactory.CreateContiguousBufferWriter(isSensitive:)` when the data is read as one span, and
   `BufferFactory.CreatePooledBufferWriter(isSensitive:)` when it is read segment by segment (`NCode.Buffers` over
-  `Nerdbank.Streams`), not a bare
-  `ArrayBufferWriter<byte>`, `ArrayPool<T>.Shared` or `MemoryPool<T>.Shared` — `isSensitive: true` for secrets (pinned,
-  zeroed `SecureMemoryPool`), `false` for non-secret bytes. `BufferFactory.CreateArrayBufferWriter()` is the writer
-  for output that is never secret (public keys, wrapped keys, a user's own document). `BannedSymbols.Buffers.txt`
-  fails the build (`RS0030`) on the bare pools, `ArrayBufferWriter<T>` and `Sequence<T>` constructors in every
-  project but the test projects. Read a multi-segment sequence segment by segment or with
+  `Nerdbank.Streams`), not a bare `ArrayBufferWriter<byte>`, `ArrayPool<T>.Shared` or `MemoryPool<T>.Shared` —
+  `isSensitive: true` for secrets (pinned, zeroed `SecureMemoryPool`), `false` for non-secret bytes.
+  `BufferFactory.CreateArrayBufferWriter()` is the writer for output that is never secret (public keys, wrapped keys, a
+  user's own document). `BannedSymbols.Buffers.txt` fails the build (`RS0030`) on the bare pools, `ArrayBufferWriter<T>`
+  and `Sequence<T>` constructors in every project but the test projects. Read a multi-segment sequence segment by segment or with
   `SequenceReader<byte>`, and take one contiguous span with `GetSpanLease(isSensitive:)` only when a consumer needs
   it — never manual concatenation or `.ToArray()`. This is the general convention for all byte-array/memory/buffer
   usage; existing `byte[]` surfaces migrate incrementally. See

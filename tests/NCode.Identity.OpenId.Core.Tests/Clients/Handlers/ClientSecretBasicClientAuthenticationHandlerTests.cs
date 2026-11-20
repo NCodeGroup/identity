@@ -77,6 +77,25 @@ public class ClientSecretBasicClientAuthenticationHandlerTests : ClientAuthentic
     }
 
     [Fact]
+    public async Task AuthenticateClientAsync_WhenTheCredentialsAreNotBase64_Returns401InvalidClient()
+    {
+        // A malformed Basic value is a failed authentication (RFC 6749 §5.2), answered before anything is resolved or
+        // counted, as the strict limiter proves.
+        HttpContext.Request.Method = HttpMethods.Post;
+        HttpContext.Request.Headers.Authorization = "Basic !!!";
+        SetupErrorFactory();
+        SetupChallengeRealm();
+        var handler = CreateHandler();
+
+        var result = await handler.AuthenticateClientAsync(
+            MockContext.Object,
+            CancellationToken.None
+        );
+
+        AssertInvalidClient(result, StatusCodes.Status401Unauthorized);
+    }
+
+    [Fact]
     public async Task AuthenticateClientAsync_WhenTheClientIsRegisteredForAnotherMethod_Returns401InvalidClient()
     {
         SetupBasicCredentials($"{ClientId}:presented-secret");

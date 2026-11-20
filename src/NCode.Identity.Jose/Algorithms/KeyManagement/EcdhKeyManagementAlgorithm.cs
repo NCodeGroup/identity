@@ -704,9 +704,10 @@ internal class EcdhKeyManagementAlgorithm : CommonKeyManagementAlgorithm
     /// Exports the public key as a DER-encoded <c>SubjectPublicKeyInfo</c> into pooled memory.
     /// </summary>
     /// <param name="publicKey">The public key to export.</param>
-    /// <param name="subjectPublicKeyInfo">The exported bytes, which are valid until the returned lease is disposed.</param>
-    /// <returns>The lease that returns the memory to the pool, which the caller disposes.</returns>
-    // The rental lives across the key agreement's await, so the caller disposes it once the service has answered.
+    /// <param name="subjectPublicKeyInfo">The exported bytes, which are valid until the returned writer is
+    /// disposed.</param>
+    /// <returns>The buffer writer that owns the exported bytes, which the caller disposes.</returns>
+    // The writer lives across the key agreement's await, so the caller disposes it once the service has answered.
     private static ContiguousBufferWriter<byte> RentSubjectPublicKeyInfo(
         AsymmetricSecretKey publicKey,
         out ReadOnlyMemory<byte> subjectPublicKeyInfo

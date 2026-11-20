@@ -146,42 +146,66 @@ internal class ClientSecretBasicClientAuthenticationHandler(
     {
         // RFC 7617 encodes the user-id/password with standard Base64 (padded), not Base64Url.
         // The credentials are untrusted input, so a malformed header is a failed authentication per RFC 6749 §5.2.
-        IMemoryOwner<byte>? base64Lease = null;
+        using var base64Lease = TryRentDecodedCredentials(
+            encodedCredentials.Span,
+            out var base64Bytes
+        );
+        if (base64Lease is null)
+            return CreateInvalidClientResult(openIdContext);
+
+        using var decodeLease = SecureEncoding.UTF8.RentChars(
+            base64Bytes,
+            isSensitive: true,
+            out Memory<char> decodeBuffer
+        );
+
+        return await AuthenticateDecodedCredentialsAsync(
+            openIdContext,
+            decodeBuffer,
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Decodes the standard Base64 text of the Basic credentials into a sensitive buffer.
+    /// </summary>
+    /// <param name="encodedCredentials">The Base64 text after the <c>Basic</c> scheme.</param>
+    /// <param name="credentialBytes">The decoded bytes, valid until the returned owner is disposed.</param>
+    /// <returns>
+    /// The owner of <paramref name="credentialBytes"/>, which the caller disposes, or <see langword="null"/> when the
+    /// text is not valid Base64.
+    /// </returns>
+    private static IMemoryOwner<byte>? TryRentDecodedCredentials(
+        ReadOnlySpan<char> encodedCredentials,
+        out Span<byte> credentialBytes
+    )
+    {
         try
         {
-            Span<byte> base64Bytes;
-            try
-            {
-                base64Lease = BinaryTextEncoding.RentDecoded(
-                    encodedCredentials.Span,
-                    BinaryTextFormat.Base64,
-                    isSensitive: true,
-                    out base64Bytes
-                );
-            }
-            catch (FormatException)
-            {
-                return CreateInvalidClientResult(openIdContext);
-            }
-
-            using var decodeLease = SecureEncoding.UTF8.RentChars(
-                base64Bytes,
+            return BinaryTextEncoding.RentDecoded(
+                encodedCredentials,
+                BinaryTextFormat.Base64,
                 isSensitive: true,
-                out Memory<char> decodeBuffer
-            );
-
-            return await AuthenticateDecodedCredentialsAsync(
-                openIdContext,
-                decodeBuffer,
-                cancellationToken
+                out credentialBytes
             );
         }
-        finally
+        catch (FormatException)
         {
-            base64Lease?.Dispose();
+            credentialBytes = default;
+            return null;
         }
     }
 
+    /// <summary>
+    /// Authenticates the client from its decoded <c>user-id:password</c> text.
+    /// </summary>
+    /// <param name="openIdContext">The <see cref="OpenIdContext"/> of the request.</param>
+    /// <param name="decodeBuffer">
+    /// The sensitive <c>user-id:password</c> text. The caller owns its lease, so it is valid only until the caller
+    /// disposes it.
+    /// </param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that cancels the authentication.</param>
+    /// <returns>The <see cref="ClientAuthenticationResult"/> of the authentication.</returns>
     private async ValueTask<ClientAuthenticationResult> AuthenticateDecodedCredentialsAsync(
         OpenIdContext openIdContext,
         Memory<char> decodeBuffer,
