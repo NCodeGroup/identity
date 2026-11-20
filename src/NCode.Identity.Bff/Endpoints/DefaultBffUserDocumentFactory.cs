@@ -48,7 +48,7 @@ internal sealed class DefaultBffUserDocumentFactory(
             await contributor.ContributeAsync(userContext, cancellationToken);
         }
 
-        var buffer = BufferFactory.CreateArrayBufferWriter();
+        using var buffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: true);
         using (var writer = new Utf8JsonWriter(buffer))
         {
             writer.WriteStartObject();
