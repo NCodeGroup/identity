@@ -40,14 +40,11 @@ internal static class ClientPemKeyReader
         var bytesRead = RandomAccess.Read(handle, buffer, 0);
         var bytes = buffer[..bytesRead];
 
-        var charCount = SecureEncoding.UTF8.GetCharCount(bytes);
-        using var charsLease = BufferFactory.Rent(
-            charCount,
+        using var charsLease = SecureEncoding.UTF8.RentChars(
+            bytes,
             isSensitive: true,
-            out Span<char> chars
+            out Span<char> pem
         );
-        var charsWritten = SecureEncoding.UTF8.GetChars(bytes, chars);
-        var pem = chars[..charsWritten];
 
         var metadata = new KeyMetadata { KeyId = Path.GetFileNameWithoutExtension(path) };
 
