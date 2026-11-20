@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -641,24 +640,15 @@ internal class TenantImportApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
-        byte[]? payload = null;
         try
         {
-            using var decoded = BufferFactory.CreatePooledBufferWriter(isSensitive: true);
+            using var decoded = BufferFactory.CreateContiguousBufferWriter(isSensitive: true);
             await JoseSerializer.DecodeAsync(token, privateKey, decoded, cancellationToken);
-            payload = decoded.AsReadOnlySequence.ToArray();
-            return JsonElement.Parse(payload);
+            return JsonElement.Parse(decoded.WrittenSpan);
         }
         catch (Exception exception) when (IsPackageFailure(exception))
         {
             return null;
-        }
-        finally
-        {
-            if (payload is not null)
-            {
-                CryptographicOperations.ZeroMemory(payload);
-            }
         }
     }
 

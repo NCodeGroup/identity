@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Buffers;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
@@ -453,7 +452,7 @@ internal class TenantTransferApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
-        using var payload = BufferFactory.CreatePooledBufferWriter(isSensitive: true);
+        using var payload = BufferFactory.CreateContiguousBufferWriter(isSensitive: true);
         using (var writer = new Utf8JsonWriter(payload))
         {
             writer.WriteStartObject();
@@ -481,15 +480,7 @@ internal class TenantTransferApiEndpointHandler(
             writer.Flush();
         }
 
-        var payloadLength = checked((int)payload.Length);
-        using var lease = BufferFactory.Rent(
-            payloadLength,
-            isSensitive: true,
-            out Memory<byte> contiguous
-        );
-        payload.AsReadOnlySequence.CopyTo(contiguous.Span);
-
-        ReadOnlyMemory<byte> content = contiguous[..payloadLength];
+        ReadOnlyMemory<byte> content = payload.WrittenMemory;
         var encoder = JoseSerializer.CreateEncoder(CreateEncryptionOptions(recipient));
         return await encoder.EncodeAsync(content, cancellationToken);
     }
