@@ -240,8 +240,15 @@ internal class DefaultAuthorizationRequestClient(
         return parameters;
     }
 
-    private static string ComputeS256Challenge(string verifier) =>
-        Base64Url.Encode(SHA256.HashData(SecureEncoding.ASCII.GetBytes(verifier)));
+    private static string ComputeS256Challenge(string verifier)
+    {
+        using var verifierLease = SecureEncoding.ASCII.RentBytes(
+            verifier,
+            isSensitive: true,
+            out Span<byte> verifierBytes
+        );
+        return Base64Url.Encode(SHA256.HashData(verifierBytes));
+    }
 
     private static string AddQuery(string endpoint, List<KeyValuePair<string, string>> parameters)
     {
