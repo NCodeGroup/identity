@@ -27,6 +27,7 @@
 
     <ItemGroup>
         <PackageReference Include="Humanizer.Core" />
+        <PackageReference Include="JetBrains.Annotations" PrivateAssets="All" />
         <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" />
         <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
