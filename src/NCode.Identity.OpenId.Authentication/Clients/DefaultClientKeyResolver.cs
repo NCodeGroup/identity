@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Buffers;
 using System.Text.Json;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -252,7 +251,7 @@ internal sealed class DefaultClientKeyResolver(
                 return [];
             }
 
-            using var buffer = BufferFactory.CreatePooledBufferWriter(isSensitive: false);
+            using var buffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
             var readResult = await OutboundHttpContentReader.ReadCappedAsync(
                 response,
                 buffer,
@@ -272,7 +271,7 @@ internal sealed class DefaultClientKeyResolver(
                 return [];
             }
 
-            return ImportKeys(openIdClient, uri, buffer.AsReadOnlySequence);
+            return ImportKeys(openIdClient, uri, buffer.WrittenSpan);
         }
         catch (Exception exception)
             when (OutboundFetchFailureReasons.IsFetchFailure(exception, cancellationToken))
@@ -287,7 +286,7 @@ internal sealed class DefaultClientKeyResolver(
     private List<SecretKey> ImportKeys(
         OpenIdClient openIdClient,
         Uri uri,
-        ReadOnlySequence<byte> content
+        ReadOnlySpan<byte> content
     )
     {
         JsonElement keySet;
