@@ -418,7 +418,7 @@ internal partial class DefaultCoseSerializer
         for (var index = 0; index < algorithms.Count; index++)
         {
             var recipient = recipients.Recipients[index];
-            var writer = BufferFactory.CreateArrayBufferWriter();
+            using var writer = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
             algorithms[index]
                 .WrapKey(
                     recipient.Credentials.SecretKey,
