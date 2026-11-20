@@ -208,14 +208,13 @@ public sealed class JsonWebKeySet
     public string ToJsonString()
     {
         var isSensitive = Keys.Any(static key => key.ContainsPrivateKeyMaterial);
-        using var buffer = BufferFactory.CreatePooledBufferWriter(isSensitive: isSensitive);
+        using var buffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: isSensitive);
         using (var writer = new Utf8JsonWriter(buffer))
         {
             WriteTo(writer);
         }
 
-        using var lease = buffer.GetSpanLease(isSensitive: isSensitive);
-        return SecureEncoding.UTF8.GetString(lease.Span);
+        return SecureEncoding.UTF8.GetString(buffer.WrittenSpan);
     }
 
     internal void WriteTo(Utf8JsonWriter writer)

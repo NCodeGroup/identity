@@ -112,11 +112,10 @@ public abstract class AsymmetricSecretKey(
     /// </summary>
     public virtual string ExportSubjectPublicKeyInfoPem()
     {
-        using var buffer = BufferFactory.CreatePooledBufferWriter(isSensitive: false);
+        using var buffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
         IBufferWriter<byte> writer = buffer;
         ExportSubjectPublicKeyInfo(ref writer);
-        using var lease = buffer.GetSpanLease(isSensitive: false);
-        return PemEncoding.WriteString("PUBLIC KEY", lease.Span);
+        return PemEncoding.WriteString("PUBLIC KEY", buffer.WrittenSpan);
     }
 
     /// <summary>
