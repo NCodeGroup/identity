@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers;
-using System.Security.Cryptography;
 using Microsoft.Extensions.Options;
 using NCode.Buffers;
 using NCode.Encoders;
@@ -312,12 +311,11 @@ internal class DefaultSecretGenerator(
     // Encodes the SubjectPublicKeyInfo of the key. It is synchronous because a span lease cannot live across an await.
     private static string EncodeSubjectPublicKeyInfo(AsymmetricSecretKey key)
     {
-        using var buffer = BufferFactory.CreatePooledBufferWriter(isSensitive: false, 512);
+        using var buffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: false, 512);
         IBufferWriter<byte> writer = buffer;
         key.ExportSubjectPublicKeyInfo(ref writer);
 
-        using var lease = buffer.GetSpanLease(isSensitive: false);
-        return Base64Url.Encode(lease.Span);
+        return Base64Url.Encode(buffer.WrittenSpan);
     }
 
     /// <inheritdoc />
@@ -409,14 +407,13 @@ internal class DefaultSecretGenerator(
             );
         }
 
-        using var octetsBuffer = BufferFactory.CreatePooledBufferWriter(isSensitive: true, 64);
+        using var octetsBuffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: true, 64);
         IBufferWriter<byte> octetsWriter = octetsBuffer;
         protector.Unprotect(
             secret.EncodedValue,
             SecretProtectionContext.ForPersistedSecret(secret.SecretId),
             ref octetsWriter
         );
-        using var octetsLease = octetsBuffer.GetSpanLease(isSensitive: true);
 
         // Only a secret the server generated is known to have the entropy that lets its verifier skip the work factor.
         var isGenerated = string.Equals(
@@ -437,7 +434,7 @@ internal class DefaultSecretGenerator(
                 ExpiresWhen = secret.ExpiresWhen,
             },
             secret.Origin,
-            octetsLease.Span
+            octetsBuffer.WrittenSpan
         );
     }
 
@@ -462,12 +459,11 @@ internal class DefaultSecretGenerator(
         }
 
         var entropyByteLength = request.EntropyBits >> 3;
-        using var entropyLease = BufferFactory.Rent(
+        using var entropyLease = BufferFactory.RentRandom(
             entropyByteLength,
             isSensitive: true,
             out Span<byte> entropy
         );
-        RandomNumberGenerator.Fill(entropy);
 
         return Base64Url.Encode(entropy);
     }
@@ -481,12 +477,11 @@ internal class DefaultSecretGenerator(
     // What is stored is computed from the secret's UTF-8 octets, which is what a presented secret is compared as.
     private static IDisposable RentUtf8(string secretMaterial, out ReadOnlySpan<byte> utf8)
     {
-        var lease = BufferFactory.Rent(
-            SecureEncoding.UTF8.GetByteCount(secretMaterial),
+        var lease = SecureEncoding.UTF8.RentBytes(
+            secretMaterial,
             isSensitive: true,
             out Span<byte> buffer
         );
-        SecureEncoding.UTF8.GetBytes(secretMaterial, buffer);
         utf8 = buffer;
         return lease;
     }
@@ -500,11 +495,13 @@ internal class DefaultSecretGenerator(
         ReadOnlySpan<byte> secret
     )
     {
-        using var verifierBuffer = BufferFactory.CreatePooledBufferWriter(isSensitive: true, 128);
+        using var verifierBuffer = BufferFactory.CreateContiguousBufferWriter(
+            isSensitive: true,
+            128
+        );
         SecretVerifierFormat.Write(scheme, secret, verifierBuffer);
 
-        using var verifierSpanLease = verifierBuffer.GetSpanLease(isSensitive: true);
-        var encodedValue = Protect(protector, request.SecretId, verifierSpanLease.Span);
+        var encodedValue = Protect(protector, request.SecretId, verifierBuffer.WrittenSpan);
 
         return CreateSharedSecret(
             request,

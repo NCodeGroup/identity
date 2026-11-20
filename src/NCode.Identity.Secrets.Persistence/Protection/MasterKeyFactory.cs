@@ -74,12 +74,11 @@ internal class MasterKeyFactory(
     {
         var keyId = Guid.NewGuid();
 
-        using var materialLease = BufferFactory.Rent(
+        using var materialLease = BufferFactory.RentRandom(
             SecretProtectionFormat.MasterKeySizeBytes,
             isSensitive: true,
             out Memory<byte> material
         );
-        RandomNumberGenerator.Fill(material.Span);
 
         var wraps = await WrapMaterialAsync(keyId, owner, material, rootKey, cancellationToken);
 
@@ -151,7 +150,7 @@ internal class MasterKeyFactory(
         );
         var context = contextBuffer[..contextWritten];
 
-        using var destination = BufferFactory.CreatePooledBufferWriter(
+        using var destination = BufferFactory.CreateContiguousBufferWriter(
             isSensitive: true,
             SecretProtectionFormat.MasterKeySizeBytes
         );
@@ -176,9 +175,7 @@ internal class MasterKeyFactory(
                 .UnwrapAsync(wrappedKey, access, context, destination, cancellationToken);
         }
 
-        using var material = destination.GetSpanLease(isSensitive: true);
-
-        return CreateVerifiedKey(material.Span, row, owner);
+        return CreateVerifiedKey(destination.WrittenSpan, row, owner);
     }
 
     /// <summary>
@@ -212,15 +209,13 @@ internal class MasterKeyFactory(
             );
         }
 
-        using var destination = BufferFactory.CreatePooledBufferWriter(
+        using var destination = BufferFactory.CreateContiguousBufferWriter(
             isSensitive: true,
             SecretProtectionFormat.MasterKeySizeBytes
         );
         unwrapper.Unwrap(row.RecoveryWrappedKey, destination);
 
-        using var material = destination.GetSpanLease(isSensitive: true);
-
-        return CreateVerifiedKey(material.Span, row, owner);
+        return CreateVerifiedKey(destination.WrittenSpan, row, owner);
     }
 
     /// <summary>
