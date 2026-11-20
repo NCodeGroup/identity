@@ -119,18 +119,16 @@ internal class Pbes2KeyManagementAlgorithm(
         header[JoseClaimNames.Header.P2c] = iterationCount;
         header[JoseClaimNames.Header.P2s] = Base64Url.Encode(saltInput);
 
-        // increase our chances for a single-segment buffer
-        using var privateKeyBuffer = BufferFactory.CreatePooledBufferWriter(
+        using var privateKeyBuffer = BufferFactory.CreateContiguousBufferWriter(
             isSensitive: true,
             secretKey.KeySizeBytes
         );
         IBufferWriter<byte> privateKeyWriter = privateKeyBuffer;
 
         validatedSecretKey.ExportPrivateKey(ref privateKeyWriter);
-        Debug.Assert(privateKeyBuffer.Length == validatedSecretKey.KeySizeBytes);
+        Debug.Assert(privateKeyBuffer.WrittenCount == validatedSecretKey.KeySizeBytes);
 
-        using var privateKeySpanLease = privateKeyBuffer.GetSpanLease(isSensitive: true);
-        var privateKeySpan = privateKeySpanLease.Span;
+        var privateKeySpan = privateKeyBuffer.WrittenSpan;
 
         using var newKek = BufferFactory.CreatePinnedArray(KeySizeBytes);
 
@@ -224,18 +222,16 @@ internal class Pbes2KeyManagementAlgorithm(
         Debug.Assert(saltInput.Length == SaltInputSizeBytes);
         DecodeSaltInput(saltInputString, saltInput);
 
-        // increase our chances for a single-segment buffer
-        using var privateKeyBuffer = BufferFactory.CreatePooledBufferWriter(
+        using var privateKeyBuffer = BufferFactory.CreateContiguousBufferWriter(
             isSensitive: true,
             secretKey.KeySizeBytes
         );
         IBufferWriter<byte> privateKeyWriter = privateKeyBuffer;
 
         validatedSecretKey.ExportPrivateKey(ref privateKeyWriter);
-        Debug.Assert(privateKeyBuffer.Length == validatedSecretKey.KeySizeBytes);
+        Debug.Assert(privateKeyBuffer.WrittenCount == validatedSecretKey.KeySizeBytes);
 
-        using var privateKeySpanLease = privateKeyBuffer.GetSpanLease(isSensitive: true);
-        var privateKeySpan = privateKeySpanLease.Span;
+        var privateKeySpan = privateKeyBuffer.WrittenSpan;
 
         using var newKek = BufferFactory.CreatePinnedArray(KeySizeBytes);
 

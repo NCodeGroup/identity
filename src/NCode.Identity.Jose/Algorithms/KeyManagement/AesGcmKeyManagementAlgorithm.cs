@@ -60,18 +60,16 @@ internal class AesGcmKeyManagementAlgorithm(string code, int kekSizeBits)
     {
         var validatedSecretKey = secretKey.Validate<SymmetricSecretKey>(KeyBitSizes);
 
-        // increase our chances for a single-segment buffer
-        using var privateKeyBuffer = BufferFactory.CreatePooledBufferWriter(
+        using var privateKeyBuffer = BufferFactory.CreateContiguousBufferWriter(
             isSensitive: true,
             secretKey.KeySizeBytes
         );
         IBufferWriter<byte> privateKeyWriter = privateKeyBuffer;
 
         validatedSecretKey.ExportPrivateKey(ref privateKeyWriter);
-        Debug.Assert(privateKeyBuffer.Length == validatedSecretKey.KeySizeBytes);
+        Debug.Assert(privateKeyBuffer.WrittenCount == validatedSecretKey.KeySizeBytes);
 
-        using var privateKeySpanLease = privateKeyBuffer.GetSpanLease(isSensitive: true);
-        var privateKeySpan = privateKeySpanLease.Span;
+        var privateKeySpan = privateKeyBuffer.WrittenSpan;
 
         using var key = new AesGcm(privateKeySpan, TagSizeBytes);
 
@@ -115,18 +113,16 @@ internal class AesGcmKeyManagementAlgorithm(string code, int kekSizeBits)
 
         ValidateHeaderForUnwrap(header, iv, tag);
 
-        // increase our chances for a single-segment buffer
-        using var privateKeyBuffer = BufferFactory.CreatePooledBufferWriter(
+        using var privateKeyBuffer = BufferFactory.CreateContiguousBufferWriter(
             isSensitive: true,
             secretKey.KeySizeBytes
         );
         IBufferWriter<byte> privateKeyWriter = privateKeyBuffer;
 
         validatedSecretKey.ExportPrivateKey(ref privateKeyWriter);
-        Debug.Assert(privateKeyBuffer.Length == validatedSecretKey.KeySizeBytes);
+        Debug.Assert(privateKeyBuffer.WrittenCount == validatedSecretKey.KeySizeBytes);
 
-        using var privateKeySpanLease = privateKeyBuffer.GetSpanLease(isSensitive: true);
-        var privateKeySpan = privateKeySpanLease.Span;
+        var privateKeySpan = privateKeyBuffer.WrittenSpan;
 
         try
         {
