@@ -7,6 +7,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using JetBrains.Annotations;
+using NCode.Buffers;
 using NCode.Identity.Json;
 using NCode.Identity.Jwk;
 using NCode.Identity.Secrets.KeyMaterial;
@@ -169,7 +170,13 @@ public abstract class AsymmetricSecretKeyTypeDescriptor(ISecretKeyFactory secret
         X509Certificate2 certificate;
         try
         {
-            certificate = X509CertificateLoader.LoadCertificate(Convert.FromBase64String(value));
+            using var derLease = BinaryTextEncoding.RentDecoded(
+                value,
+                BinaryTextFormat.Base64,
+                isSensitive: false,
+                out Span<byte> der
+            );
+            certificate = X509CertificateLoader.LoadCertificate(der);
         }
         catch (Exception exception) when (exception is CryptographicException or FormatException)
         {
@@ -267,9 +274,13 @@ public abstract class AsymmetricSecretKeyTypeDescriptor(ISecretKeyFactory secret
             if (keyMaterial.Contains("-----BEGIN", StringComparison.Ordinal))
                 return X509Certificate2.CreateFromPem(keyMaterial);
 
-            return X509CertificateLoader.LoadCertificate(
-                Convert.FromBase64String(keyMaterial.Trim())
+            using var derLease = BinaryTextEncoding.RentDecoded(
+                keyMaterial.Trim(),
+                BinaryTextFormat.Base64,
+                isSensitive: false,
+                out Span<byte> der
             );
+            return X509CertificateLoader.LoadCertificate(der);
         }
         catch (Exception exception) when (exception is CryptographicException or FormatException)
         {
