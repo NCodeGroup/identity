@@ -31,12 +31,11 @@ internal static class RemoteKeyGroupName
         var text =
             $"{deployment}\n{ownerId}\n{algorithm.Provider}\n{algorithm.Algorithm}\n{algorithm.KeySpec}\n{algorithm.KeySizeBits}\n{algorithm.Curve}";
 
-        using var lease = BufferFactory.Rent(
-            SecureEncoding.UTF8.GetByteCount(text),
+        using var lease = SecureEncoding.UTF8.RentBytes(
+            text,
             isSensitive: false,
             out Span<byte> bytes
         );
-        SecureEncoding.UTF8.GetBytes(text, bytes);
 
         Span<byte> hash = stackalloc byte[SHA256.HashSizeInBytes];
         SHA256.HashData(bytes, hash);
