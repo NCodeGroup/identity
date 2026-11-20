@@ -44,7 +44,7 @@ internal sealed class DefaultGrantPayloadProtector(
     {
         var element = PayloadSerializer.Serialize(payload, jsonOptions);
 
-        using var buffer = BufferFactory.CreatePooledBufferWriter(isSensitive: true);
+        using var buffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: true);
 
         using (var writer = new Utf8JsonWriter(buffer))
         {
@@ -57,10 +57,8 @@ internal sealed class DefaultGrantPayloadProtector(
             cancellationToken
         );
 
-        using var lease = buffer.GetSpanLease(isSensitive: true);
-
         return protector.ProtectToString(
-            lease.Span,
+            buffer.WrittenSpan,
             SecretProtectionContext.ForGrantPayload(hashedKey)
         );
     }
@@ -83,7 +81,7 @@ internal sealed class DefaultGrantPayloadProtector(
                 cancellationToken
             );
 
-            using var plaintext = BufferFactory.CreatePooledBufferWriter(isSensitive: true);
+            using var plaintext = BufferFactory.CreateContiguousBufferWriter(isSensitive: true);
             IBufferWriter<byte> writer = plaintext;
 
             protector.Unprotect(
@@ -92,9 +90,7 @@ internal sealed class DefaultGrantPayloadProtector(
                 ref writer
             );
 
-            using var lease = plaintext.GetSpanLease(isSensitive: true);
-
-            var reader = new Utf8JsonReader(lease.Span);
+            var reader = new Utf8JsonReader(plaintext.WrittenSpan);
             var element = JsonElement.ParseValue(ref reader);
 
             return new GrantPayload<TPayload>(

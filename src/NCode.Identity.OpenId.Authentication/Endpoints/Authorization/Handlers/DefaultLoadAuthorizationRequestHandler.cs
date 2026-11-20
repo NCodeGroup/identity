@@ -320,7 +320,7 @@ internal class DefaultLoadAuthorizationRequestHandler(
         request.Options.Set(new HttpRequestOptionsKey<OpenIdClient>("OpenIdClient"), openIdClient);
 
         using var httpClient = HttpClientFactory.CreateClient(GuardedHttpClient.Name);
-        using var buffer = BufferFactory.CreatePooledBufferWriter(isSensitive: false);
+        using var buffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
 
         try
         {
@@ -381,10 +381,9 @@ internal class DefaultLoadAuthorizationRequestHandler(
                 .AsException();
         }
 
-        using var lease = buffer.GetSpanLease(isSensitive: false);
         try
         {
-            return SecureEncoding.UTF8.GetString(lease.Span);
+            return SecureEncoding.UTF8.GetString(buffer.WrittenSpan);
         }
         catch (DecoderFallbackException exception)
         {
