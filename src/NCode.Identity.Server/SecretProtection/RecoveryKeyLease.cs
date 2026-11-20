@@ -1,24 +1,22 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using NCode.Buffers;
+
 namespace NCode.Identity.Server.SecretProtection;
 
 /// <summary>
-/// Holds the two sensitive buffers of the recovery private key until the command ends, and zeroes both when it is
+/// Holds the sensitive PEM text of the recovery private key until the command ends, and zeroes it when it is
 /// disposed.
 /// </summary>
 // See ADR-1408.
-internal sealed class RecoveryKeyLease(IDisposable bytesLease, IDisposable charsLease) : IDisposable
+internal sealed class RecoveryKeyLease(Secret<char> pem) : IDisposable
 {
     /// <summary>
-    /// Gets or sets the PEM text of the recovery private key, which lives in the sensitive character buffer.
+    /// Gets the PEM text of the recovery private key.
     /// </summary>
-    public ReadOnlyMemory<char> Pem { get; set; }
+    public ReadOnlyMemory<char> Pem => pem.RevealMemory();
 
     /// <inheritdoc />
-    public void Dispose()
-    {
-        bytesLease.Dispose();
-        charsLease.Dispose();
-    }
+    public void Dispose() => pem.Dispose();
 }
