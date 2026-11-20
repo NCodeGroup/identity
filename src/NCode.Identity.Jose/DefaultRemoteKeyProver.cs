@@ -8,7 +8,6 @@ using NCode.Identity.Jose.Credentials;
 using NCode.Identity.Jose.Exceptions;
 using NCode.Identity.Secrets.Keys;
 using NCode.Identity.Secrets.RemoteKeys;
-using Nerdbank.Streams;
 
 namespace NCode.Identity.Jose;
 
@@ -93,12 +92,11 @@ internal sealed class DefaultRemoteKeyProver(
         CancellationToken cancellationToken
     )
     {
-        using var challengeLease = BufferFactory.Rent(
+        using var challengeLease = BufferFactory.RentRandom(
             ChallengeSizeBytes,
             isSensitive: false,
             out Memory<byte> challenge
         );
-        RandomNumberGenerator.Fill(challenge.Span);
 
         using var signatureLease = BufferFactory.Rent(
             signatureAlgorithm.GetSignatureSizeBytes(key.KeySizeBits),
@@ -127,12 +125,11 @@ internal sealed class DefaultRemoteKeyProver(
         CancellationToken cancellationToken
     )
     {
-        using var challengeLease = BufferFactory.Rent(
+        using var challengeLease = BufferFactory.RentRandom(
             ChallengeSizeBytes,
             isSensitive: false,
             out Memory<byte> challenge
         );
-        RandomNumberGenerator.Fill(challenge.Span);
 
         try
         {
@@ -161,7 +158,7 @@ internal sealed class DefaultRemoteKeyProver(
                 )
                 .EncodeAsync((ReadOnlyMemory<byte>)challenge, cancellationToken);
 
-            using var payload = BufferFactory.CreatePooledBufferWriter(isSensitive: false);
+            using var payload = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
             await JoseSerializer.DecodeAsync(
                 JoseSerializer.Parse(token),
                 key,
@@ -169,7 +166,7 @@ internal sealed class DefaultRemoteKeyProver(
                 cancellationToken
             );
 
-            if (!IsChallenge(payload, challenge.Span))
+            if (!IsChallenge(payload.WrittenSpan, challenge.Span))
             {
                 throw new RemoteKeyRefusedException(DecryptionRefusalMessage(reference));
             }
@@ -180,11 +177,8 @@ internal sealed class DefaultRemoteKeyProver(
         }
     }
 
-    private static bool IsChallenge(Sequence<byte> payload, ReadOnlySpan<byte> challenge)
-    {
-        using var lease = payload.GetSpanLease(isSensitive: false);
-        return CryptographicOperations.FixedTimeEquals(lease.Span, challenge);
-    }
+    private static bool IsChallenge(ReadOnlySpan<byte> payload, ReadOnlySpan<byte> challenge) =>
+        CryptographicOperations.FixedTimeEquals(payload, challenge);
 
     private static string DecryptionRefusalMessage(RemoteKeyReference reference) =>
         $"The key '{reference.KeyId}' of the remote key provider '{reference.Provider}' does not decrypt with the private half of the public key the service returned.";

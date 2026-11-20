@@ -347,12 +347,11 @@ internal class DefaultDPoPProofService(
                 isSensitive: false,
                 out var signature
             );
-            using var signingInputLease = BufferFactory.Rent(
-                encodedSigningInput.Length,
+            using var signingInputLease = SecureEncoding.ASCII.RentBytes(
+                encodedSigningInput,
                 isSensitive: false,
                 out Span<byte> signingInput
             );
-            SecureEncoding.ASCII.GetBytes(encodedSigningInput, signingInput);
             verified =
                 signature.Length == signatureAlgorithm.GetSignatureSizeBytes(secretKey.KeySizeBits)
                 && signatureAlgorithm.Verify(secretKey, signingInput, signature);
