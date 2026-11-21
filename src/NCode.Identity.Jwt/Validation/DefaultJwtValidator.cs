@@ -84,7 +84,7 @@ internal sealed class DefaultJwtValidator(
         CancellationToken cancellationToken
     )
     {
-        var propertyBag = parameters.PropertyBag.Clone();
+        var propertyBag = parameters.PropertyBag.CreateChild();
         try
         {
             var joseToken = ParseCompact(token);

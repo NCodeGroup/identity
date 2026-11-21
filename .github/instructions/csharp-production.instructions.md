@@ -804,6 +804,12 @@ than inlining the rationale.
   [Outbound Calls](csharp.instructions.md#outbound-calls); it also takes its own copy of any disposable input a caller
   owns, such as a chain's certificates (`DefaultClientCertificateRevocationChecker`,
   [ADR-1400](../../docs/decisions/1400-client-certificate-revocation-is-checked-by-configured-sources-under-the-clients-revocation-mode.md)).
+- 👁 **A long-lived object owns a concurrent property bag, and an operation layers a child over its owner's.** An
+  object that many requests share, such as the platform, a team or a tenant, holds a `ConcurrentPropertyBagDictionary`
+  it clones from its parent's bag when it is created. An operation, and an object that serves one operation such as an
+  `OpenIdContext` or an `OpenIdClient`, takes `CreateChild()` of its owner's bag, and a factory runs its own calls on a
+  child of the bag it is given and never stores that bag in what it creates. See
+  [ADR-1518](../../docs/decisions/1518-a-long-lived-openid-object-owns-a-concurrent-property-bag-and-an-operation-layers-a-child-over-its-owners.md).
 - 👁 **A count every replica must agree on increments `IExpiringCounterSet`, never a get-then-set.** A counter is
   incremented with the port's atomic `IncrementAsync`, which starts a counter for one fixed window, or, for the limits
   of a rate-limit stage, with `IncrementUntilExceededAsync`; a read followed by a write loses concurrent requests. Read

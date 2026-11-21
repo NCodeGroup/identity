@@ -94,6 +94,96 @@ public class DefaultOpenIdPlatformFactoryTests : BaseTests
         Assert.Throws<ObjectDisposedException>(() => platformSettingsDataSource.GetChangeToken());
     }
 
+    private async ValueTask<(
+        PropertyBagKey<string> MarkerKey,
+        ConcurrentPropertyBagDictionary EnvBag,
+        TestablePlatformFactory Factory,
+        OpenIdPlatform Created,
+        OpenIdPlatform Result,
+        RefreshableSettingsCollectionDataSource DataSource
+    )> CreatePlatformAsync(CancellationToken cancellationToken)
+    {
+        var markerKey = new PropertyBagKey<string>("Marker");
+        var envBag = new ConcurrentPropertyBagDictionary();
+        envBag.SetValue(markerKey, "environment");
+
+        var mockEnvironment = CreateStrictMock<OpenIdEnvironment>();
+        mockEnvironment.Setup(x => x.PropertyBag).Returns(envBag).Verifiable();
+
+        var mockRootDataSource = CreateStrictMock<IDisposableCollectionDataSource<Setting>>();
+
+        var mockTimer = CreateStrictMock<ITimer>();
+        mockTimer.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
+
+        var mockTimeProvider = CreateStrictMock<TimeProvider>();
+        mockTimeProvider
+            .Setup(x =>
+                x.CreateTimer(It.IsAny<TimerCallback>(), It.IsAny<object?>(), Interval, Interval)
+            )
+            .Returns(mockTimer.Object)
+            .Verifiable();
+
+        var platformSettingsDataSource = new RefreshableSettingsCollectionDataSource(
+            [],
+            _ => ValueTask.FromResult<IReadOnlyCollection<Setting>?>(null),
+            Interval,
+            mockTimeProvider.Object,
+            CreateLooseMock<ILogger<RefreshableSettingsCollectionDataSource>>().Object
+        );
+
+        var mockProviderFactory = CreateStrictMock<IReadOnlySettingCollectionProviderFactory>();
+        mockProviderFactory
+            .Setup(x =>
+                x.Create(It.IsAny<IEnumerable<ICollectionDataSource<Setting>>>(), It.IsAny<bool>())
+            )
+            .Returns(CreateStrictMock<IReadOnlySettingCollectionProvider>().Object)
+            .Verifiable();
+
+        var createdPlatform = CreateStrictMock<OpenIdPlatform>().Object;
+        var factory = new TestablePlatformFactory(
+            this,
+            mockProviderFactory.Object,
+            mockRootDataSource.Object,
+            platformSettingsDataSource,
+            createdPlatform
+        );
+
+        var result = await factory.CreateAsync(mockEnvironment.Object, cancellationToken);
+
+        return (markerKey, envBag, factory, createdPlatform, result, platformSettingsDataSource);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenCreated_RunsItsCallsOnAChildOfTheEnvironmentsBag()
+    {
+        var (_, envBag, factory, createdPlatform, result, platformSettingsDataSource) =
+            await CreatePlatformAsync(CancellationToken.None);
+
+        Assert.Same(createdPlatform, result);
+        Assert.Equal(3, factory.OperationPropertyBags.Count);
+        Assert.All(
+            factory.OperationPropertyBags,
+            bag => Assert.Same(envBag, Assert.IsType<LayeredPropertyBag>(bag).Parent)
+        );
+
+        await platformSettingsDataSource.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenCreated_GivesThePlatformACloneOfTheEnvironmentsBag()
+    {
+        var (markerKey, envBag, factory, _, _, platformSettingsDataSource) =
+            await CreatePlatformAsync(CancellationToken.None);
+
+        var platformBag = Assert.IsType<ConcurrentPropertyBagDictionary>(
+            factory.PlatformPropertyBag
+        );
+        Assert.NotSame(envBag, platformBag);
+        Assert.Equal("environment", platformBag.GetValue(markerKey));
+
+        await platformSettingsDataSource.DisposeAsync();
+    }
+
     #endregion
 
     #region GetPersistedPlatformAsync Tests
@@ -315,7 +405,8 @@ public class DefaultOpenIdPlatformFactoryTests : BaseTests
         DefaultOpenIdPlatformFactoryTests tests,
         IReadOnlySettingCollectionProviderFactory settingCollectionProviderFactory,
         IDisposableCollectionDataSource<Setting> rootSettingsDataSource,
-        RefreshableSettingsCollectionDataSource platformSettingsDataSource
+        RefreshableSettingsCollectionDataSource platformSettingsDataSource,
+        OpenIdPlatform? createdPlatform = null
     )
         : DefaultOpenIdPlatformFactory(
             Options.Create(new OpenIdOptions()),
@@ -326,23 +417,50 @@ public class DefaultOpenIdPlatformFactoryTests : BaseTests
             tests.CreateStrictMock<ISecurityProfileCatalog>().Object
         )
     {
+        public List<IPropertyBag> OperationPropertyBags { get; } = [];
+
+        public IPropertyBag? PlatformPropertyBag { get; private set; }
+
+        protected internal override OpenIdPlatform Create(
+            IReadOnlySettingCollectionProvider configuredSettingsProvider,
+            IReadOnlySettingCollectionProvider settingsProvider,
+            Func<CancellationToken, ValueTask> refreshSettingsAsync,
+            IPropertyBag propertyBag
+        )
+        {
+            PlatformPropertyBag = propertyBag;
+            return createdPlatform ?? throw new InvalidOperationException();
+        }
+
         protected internal override ValueTask<PersistedPlatform> GetPersistedPlatformAsync(
             IPropertyBag propertyBag,
             CancellationToken cancellationToken
-        ) => ValueTask.FromResult(CreateEmptyPersistedPlatform());
+        )
+        {
+            OperationPropertyBags.Add(propertyBag);
+            return ValueTask.FromResult(CreateEmptyPersistedPlatform());
+        }
 
         protected internal override ValueTask<
             IDisposableCollectionDataSource<Setting>
         > CreateRootSettingsDataSourceAsync(
             IPropertyBag propertyBag,
             CancellationToken cancellationToken
-        ) => ValueTask.FromResult(rootSettingsDataSource);
+        )
+        {
+            OperationPropertyBags.Add(propertyBag);
+            return ValueTask.FromResult(rootSettingsDataSource);
+        }
 
         protected internal override ValueTask<RefreshableSettingsCollectionDataSource> CreatePlatformSettingsDataSourceAsync(
             OpenIdEnvironment openIdEnvironment,
             PersistedPlatform persistedPlatform,
             IPropertyBag propertyBag,
             CancellationToken cancellationToken
-        ) => ValueTask.FromResult(platformSettingsDataSource);
+        )
+        {
+            OperationPropertyBags.Add(propertyBag);
+            return ValueTask.FromResult(platformSettingsDataSource);
+        }
     }
 }

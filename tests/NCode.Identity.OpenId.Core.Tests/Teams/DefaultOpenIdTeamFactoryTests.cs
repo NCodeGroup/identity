@@ -30,7 +30,11 @@ public sealed class DefaultOpenIdTeamFactoryTests
     {
         var mocks = new MockRepository(MockBehavior.Strict);
         var parentCollection = mocks.Create<IReadOnlySettingCollection>();
-        var platform = CreatePlatform(mocks, parentCollection.Object);
+        var platform = CreatePlatform(
+            mocks,
+            parentCollection.Object,
+            new ConcurrentPropertyBagDictionary()
+        );
         var resolver = mocks.Create<IEffectiveSettingsResolver>();
         resolver
             .Setup(x =>
@@ -68,7 +72,11 @@ public sealed class DefaultOpenIdTeamFactoryTests
         var persistedTeam = CreatePersistedTeam();
         var teamDocument = persistedTeam.Settings.Value;
         var parentCollection = mocks.Create<IReadOnlySettingCollection>();
-        var platform = CreatePlatform(mocks, parentCollection.Object);
+        var platform = CreatePlatform(
+            mocks,
+            parentCollection.Object,
+            new ConcurrentPropertyBagDictionary()
+        );
         var resolver = mocks.Create<IEffectiveSettingsResolver>();
         resolver
             .Setup(x =>
@@ -109,6 +117,10 @@ public sealed class DefaultOpenIdTeamFactoryTests
             .Returns(ValueTask.CompletedTask);
         parentTeam.Setup(x => x.SettingsProvider).Returns(parentProvider.Object).Verifiable();
         parentTeam.Setup(x => x.IsDisabled).Returns(false).Verifiable();
+        parentTeam
+            .Setup(x => x.PropertyBag)
+            .Returns(new ConcurrentPropertyBagDictionary())
+            .Verifiable();
         await using var parentOwner = AsyncSharedReference.Create(parentTeam.Object);
         var resolver = mocks.Create<IEffectiveSettingsResolver>();
         resolver
@@ -153,6 +165,10 @@ public sealed class DefaultOpenIdTeamFactoryTests
             .Returns(ValueTask.CompletedTask);
         parentTeam.Setup(x => x.SettingsProvider).Returns(parentProvider.Object).Verifiable();
         parentTeam.Setup(x => x.IsDisabled).Returns(true).Verifiable();
+        parentTeam
+            .Setup(x => x.PropertyBag)
+            .Returns(new ConcurrentPropertyBagDictionary())
+            .Verifiable();
         await using var parentOwner = AsyncSharedReference.Create(parentTeam.Object);
         var resolver = mocks.Create<IEffectiveSettingsResolver>();
         resolver
@@ -195,6 +211,10 @@ public sealed class DefaultOpenIdTeamFactoryTests
             .Returns(ValueTask.CompletedTask);
         parentTeam.Setup(x => x.SettingsProvider).Returns(parentProvider.Object).Verifiable();
         parentTeam.Setup(x => x.IsDisabled).Returns(false).Verifiable();
+        parentTeam
+            .Setup(x => x.PropertyBag)
+            .Returns(new ConcurrentPropertyBagDictionary())
+            .Verifiable();
         await using var parentOwner = AsyncSharedReference.Create(parentTeam.Object);
         var resolver = mocks.Create<IEffectiveSettingsResolver>();
         resolver
@@ -223,6 +243,96 @@ public sealed class DefaultOpenIdTeamFactoryTests
         mocks.Verify();
     }
 
+    [Fact]
+    public async Task CreateTeamAsync_WithoutAParentTeam_OwnsACloneOfThePlatformsBag()
+    {
+        var mocks = new MockRepository(MockBehavior.Strict);
+        var marker = new PropertyBagKey<string>("Marker");
+        var platformBag = new ConcurrentPropertyBagDictionary();
+        platformBag.SetValue(marker, "platform");
+        var operationBag = new ConcurrentPropertyBagDictionary();
+        var parentCollection = mocks.Create<IReadOnlySettingCollection>();
+        var platform = CreatePlatform(mocks, parentCollection.Object, platformBag);
+        var resolver = mocks.Create<IEffectiveSettingsResolver>();
+        resolver
+            .Setup(x =>
+                x.ReadScopeSettings(
+                    parentCollection.Object,
+                    It.IsAny<string>(),
+                    It.IsAny<JsonElement>()
+                )
+            )
+            .Returns([])
+            .Verifiable();
+        var fixture = CreateFixture(mocks, resolver.Object);
+
+        var lease = await fixture.Factory.CreateTeamAsync(
+            Mock.Of<OpenIdEnvironment>(),
+            platform.Object,
+            default,
+            CreatePersistedTeam(),
+            operationBag,
+            CancellationToken.None
+        );
+
+        var teamBag = Assert.IsType<ConcurrentPropertyBagDictionary>(lease.Value.PropertyBag);
+        Assert.NotSame(platformBag, teamBag);
+        Assert.NotSame(operationBag, teamBag);
+        Assert.Equal("platform", teamBag.GetValue(marker));
+        await lease.DisposeAsync();
+        mocks.Verify();
+    }
+
+    [Fact]
+    public async Task CreateTeamAsync_WithAParentTeam_OwnsACloneOfTheParentsBag()
+    {
+        var mocks = new MockRepository(MockBehavior.Strict);
+        var marker = new PropertyBagKey<string>("Marker");
+        var parentBag = new ConcurrentPropertyBagDictionary();
+        parentBag.SetValue(marker, "parent");
+        var operationBag = new ConcurrentPropertyBagDictionary();
+        var parentCollection = mocks.Create<IReadOnlySettingCollection>();
+        var parentProvider = mocks.Create<IReadOnlySettingCollectionProvider>();
+        parentProvider.Setup(x => x.Collection).Returns(parentCollection.Object).Verifiable();
+        var parentTeam = mocks.Create<OpenIdTeam>();
+        parentTeam
+            .Protected()
+            .Setup<ValueTask>("DisposeAsyncCore")
+            .Returns(ValueTask.CompletedTask);
+        parentTeam.Setup(x => x.SettingsProvider).Returns(parentProvider.Object).Verifiable();
+        parentTeam.Setup(x => x.IsDisabled).Returns(false).Verifiable();
+        parentTeam.Setup(x => x.PropertyBag).Returns(parentBag).Verifiable();
+        await using var parentOwner = AsyncSharedReference.Create(parentTeam.Object);
+        var resolver = mocks.Create<IEffectiveSettingsResolver>();
+        resolver
+            .Setup(x =>
+                x.ReadScopeSettings(
+                    parentCollection.Object,
+                    OpenIdSettingScopes.Team,
+                    It.IsAny<JsonElement>()
+                )
+            )
+            .Returns([])
+            .Verifiable();
+        var fixture = CreateFixture(mocks, resolver.Object);
+
+        var lease = await fixture.Factory.CreateTeamAsync(
+            Mock.Of<OpenIdEnvironment>(),
+            mocks.Create<OpenIdPlatform>().Object,
+            parentOwner.AddReference(),
+            CreateChildPersistedTeam(),
+            operationBag,
+            CancellationToken.None
+        );
+
+        var teamBag = Assert.IsType<ConcurrentPropertyBagDictionary>(lease.Value.PropertyBag);
+        Assert.NotSame(parentBag, teamBag);
+        Assert.NotSame(operationBag, teamBag);
+        Assert.Equal("parent", teamBag.GetValue(marker));
+        await lease.DisposeAsync();
+        mocks.Verify();
+    }
+
     #endregion
 
     #region RefreshSettingsAsync Tests
@@ -232,7 +342,11 @@ public sealed class DefaultOpenIdTeamFactoryTests
     {
         var mocks = new MockRepository(MockBehavior.Strict);
         var parentCollection = mocks.Create<IReadOnlySettingCollection>();
-        var platform = CreatePlatform(mocks, parentCollection.Object);
+        var platform = CreatePlatform(
+            mocks,
+            parentCollection.Object,
+            new ConcurrentPropertyBagDictionary()
+        );
         var resolver = mocks.Create<IEffectiveSettingsResolver>();
         resolver
             .Setup(x =>
@@ -314,7 +428,8 @@ public sealed class DefaultOpenIdTeamFactoryTests
 
     private static Mock<OpenIdPlatform> CreatePlatform(
         MockRepository mocks,
-        IReadOnlySettingCollection parentCollection
+        IReadOnlySettingCollection parentCollection,
+        IPropertyBag? propertyBag = null
     )
     {
         var parentProvider = mocks.Create<IReadOnlySettingCollectionProvider>();
@@ -322,6 +437,8 @@ public sealed class DefaultOpenIdTeamFactoryTests
 
         var platform = mocks.Create<OpenIdPlatform>();
         platform.Setup(x => x.SettingsProvider).Returns(parentProvider.Object).Verifiable();
+        if (propertyBag is not null)
+            platform.Setup(x => x.PropertyBag).Returns(propertyBag).Verifiable();
         return platform;
     }
 

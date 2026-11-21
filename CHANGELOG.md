@@ -3690,6 +3690,15 @@ Until the first stable release, the [Unreleased] section describes the product a
   with its request-driven counterpart, `CreateForRequestAsync` and `CreateTenantForRequestAsync`; "Resolve" is reserved
   for `ITenantResolver` selecting a `PersistedTenant`.
 
+- **Every OpenID object carries a property bag that its owners' values reach and its own writes never leave.** The
+  environment, the platform, each team and each tenant own a `ConcurrentPropertyBagDictionary`, safe to use from
+  several threads, that each clones from its parent's bag when it is created: the platform from the environment, a team
+  from its parent team or the platform, and a tenant from its team. An `OpenIdContext`, an `OpenIdClient` and a JWT
+  validation use a child bag, NCode.PropertyBag's `CreateChild()`, that reads through to its tenant's, context's or
+  validation parameters' bag without copying it and never writes it, and the platform and tenant factories run their own
+  lookups, seeds and cache calls on a child of the bag they are given
+  ([ADR-1518](docs/decisions/1518-a-long-lived-openid-object-owns-a-concurrent-property-bag-and-an-operation-layers-a-child-over-its-owners.md)).
+
 - **The control-plane tenant is named from configuration and served from the tenant cache.** `ITenantStrategy` and
   `ITenantResolver` expose `GetControlPlaneTenantId()`, and `CreateControlPlaneTenantAsync` probes the tenant cache with
   that identifier first, reading the store only on a miss

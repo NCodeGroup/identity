@@ -52,6 +52,10 @@ public sealed class JwtValidationContext(
     /// <summary>
     /// Gets an <see cref="IPropertyBag"/> that can provide additional user-defined information about the current operation.
     /// </summary>
+    /// <remarks>
+    /// The default JWT validator passes a child of the <see cref="JwtValidationParameters.PropertyBag"/>: it reads
+    /// every value the parameters hold, and its own writes and removals stay with this validation.
+    /// </remarks>
     public IPropertyBag PropertyBag { get; } = propertyBag;
 
     /// <summary>

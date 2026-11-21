@@ -28,6 +28,10 @@ public abstract class OpenIdPlatform
     /// <summary>
     /// Gets the <see cref="IPropertyBag"/> that can provide additional user-defined information about the current instance or operation.
     /// </summary>
+    /// <remarks>
+    /// The default platform's bag is a clone of the environment's bag, taken when the platform is created, and each
+    /// top-level team's bag is a clone of it.
+    /// </remarks>
     public abstract IPropertyBag PropertyBag { get; }
 
     /// <summary>

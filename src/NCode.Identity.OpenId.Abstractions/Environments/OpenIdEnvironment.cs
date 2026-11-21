@@ -46,6 +46,10 @@ public abstract class OpenIdEnvironment
     /// <summary>
     /// Gets the <see cref="IPropertyBag"/> that can provide additional user-defined information about the current instance or operation.
     /// </summary>
+    /// <remarks>
+    /// The default environment's bag is a <c>ConcurrentPropertyBagDictionary</c>, safe to use from several threads, and
+    /// the platform's bag is a clone of it.
+    /// </remarks>
     public abstract IPropertyBag PropertyBag { get; }
 
     /// <summary>

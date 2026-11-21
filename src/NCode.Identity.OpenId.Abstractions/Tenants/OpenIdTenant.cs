@@ -76,6 +76,10 @@ public abstract class OpenIdTenant : IAsyncDisposable
     /// <summary>
     /// Gets the <see cref="IPropertyBag"/> that can provide additional user-defined information about the current instance or operation.
     /// </summary>
+    /// <remarks>
+    /// The default tenant's bag is a clone of its team's bag, taken when the tenant is materialized, and each context
+    /// of the tenant layers a child bag over it.
+    /// </remarks>
     public abstract IPropertyBag PropertyBag { get; }
 
     /// <inheritdoc />

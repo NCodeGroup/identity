@@ -540,7 +540,9 @@ public sealed class DefaultOpenIdTenantFactoryTests
         var teamProvider = mocks.Create<IOpenIdTeamProvider>();
 
         var teamReleases = 0;
-        var team = Mock.Of<OpenIdTeam>(x => x.IsDisabled == false);
+        var team = Mock.Of<OpenIdTeam>(x =>
+            x.IsDisabled == false && x.PropertyBag == new ConcurrentPropertyBagDictionary()
+        );
         var teamLease = AsyncSharedReference.Create(
             team,
             _ =>
@@ -644,6 +646,171 @@ public sealed class DefaultOpenIdTenantFactoryTests
         mocks.Verify();
     }
 
+    private sealed record TenantBagsResult(
+        MockRepository Mocks,
+        AsyncSharedReferenceLease<OpenIdTenant> TenantLease,
+        AsyncSharedReferenceLease<OpenIdTenant> CachedTenant,
+        IAsyncDisposable TeamLease,
+        IPropertyBag TeamBag,
+        IPropertyBag CallerBag,
+        IPropertyBag? OperationBag,
+        PropertyBagKey<string> Marker
+    );
+
+    private static async ValueTask<TenantBagsResult> MaterializeWithBagsAsync(
+        CancellationToken cancellationToken
+    )
+    {
+        var mocks = new MockRepository(MockBehavior.Strict);
+
+        var tenantResolver = mocks.Create<ITenantResolver>();
+        var tenantCache = mocks.Create<IOpenIdTenantCache>();
+        var provisioner = mocks.Create<ITenantProvisioner>();
+        var teamProvider = mocks.Create<IOpenIdTeamProvider>();
+
+        var marker = new PropertyBagKey<string>("Marker");
+        var teamBag = new ConcurrentPropertyBagDictionary();
+        teamBag.SetValue(marker, "team");
+        var team = Mock.Of<OpenIdTeam>(x => x.IsDisabled == false && x.PropertyBag == teamBag);
+        var teamLease = AsyncSharedReference.Create(team, _ => ValueTask.CompletedTask);
+        IPropertyBag? operationBag = null;
+        teamProvider
+            .Setup(x =>
+                x.GetTeamAsync(
+                    It.IsAny<OpenIdEnvironment>(),
+                    It.IsAny<OpenIdPlatform>(),
+                    "platform",
+                    It.IsAny<IPropertyBag>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Callback(
+                (
+                    OpenIdEnvironment _,
+                    OpenIdPlatform _,
+                    string _,
+                    IPropertyBag bag,
+                    CancellationToken _
+                ) => operationBag = bag
+            )
+            .ReturnsAsync(teamLease.AddReference())
+            .Verifiable();
+
+        var tenantId = "acme";
+        tenantResolver
+            .Setup(x => x.TryGetTenantId(It.IsAny<HttpContext>(), out tenantId))
+            .Returns(true)
+            .Verifiable();
+        tenantCache
+            .Setup(x =>
+                x.TryGetAsync("acme", It.IsAny<IPropertyBag>(), It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(default(AsyncSharedReferenceLease<OpenIdTenant>))
+            .Verifiable();
+        var persistedTenant = CreatePersistedTenant("https://op.example/acme");
+        tenantResolver
+            .Setup(x =>
+                x.ResolveTenantAsync(It.IsAny<HttpContext>(), It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(persistedTenant)
+            .Verifiable();
+        provisioner
+            .Setup(x => x.SeedAsync("acme", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(persistedTenant)
+            .Verifiable();
+
+        AsyncSharedReferenceLease<OpenIdTenant> cachedTenant = default;
+        tenantCache
+            .Setup(x =>
+                x.SetAsync(
+                    "acme",
+                    It.IsAny<AsyncSharedReferenceLease<OpenIdTenant>>(),
+                    It.IsAny<IPropertyBag>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(
+                (
+                    string _,
+                    AsyncSharedReferenceLease<OpenIdTenant> tenant,
+                    IPropertyBag _,
+                    CancellationToken _
+                ) =>
+                {
+                    cachedTenant = tenant.AddReference();
+                    return ValueTask.CompletedTask;
+                }
+            )
+            .Verifiable();
+
+        var httpContext = new DefaultHttpContext
+        {
+            RequestServices = new ServiceCollection()
+                .AddSingleton(provisioner.Object)
+                .BuildServiceProvider(),
+        };
+
+        var factory = new LeaseTenantFactory(
+            mocks,
+            tenantResolver.Object,
+            tenantCache.Object,
+            teamProvider.Object
+        );
+
+        var callerBag = new ConcurrentPropertyBagDictionary();
+        var tenantLease = await factory.CreateTenantForRequestAsync(
+            httpContext,
+            Mock.Of<OpenIdEnvironment>(),
+            Mock.Of<OpenIdPlatform>(),
+            callerBag,
+            cancellationToken
+        );
+
+        return new TenantBagsResult(
+            mocks,
+            tenantLease,
+            cachedTenant,
+            teamLease,
+            teamBag,
+            callerBag,
+            operationBag,
+            marker
+        );
+    }
+
+    [Fact]
+    public async Task MaterializeTenantAsync_WhenCreated_OwnsACloneOfTheTeamsBag()
+    {
+        var result = await MaterializeWithBagsAsync(CancellationToken.None);
+
+        var tenantBag = Assert.IsType<ConcurrentPropertyBagDictionary>(
+            result.TenantLease.Value.PropertyBag
+        );
+        Assert.NotSame(result.TeamBag, tenantBag);
+        Assert.Equal("team", tenantBag.GetValue(result.Marker));
+
+        await result.TenantLease.DisposeAsync();
+        await result.CachedTenant.DisposeAsync();
+        await result.TeamLease.DisposeAsync();
+        result.Mocks.Verify();
+    }
+
+    [Fact]
+    public async Task MaterializeTenantAsync_WhenCreated_RunsOnAChildOfTheCallersBag()
+    {
+        var result = await MaterializeWithBagsAsync(CancellationToken.None);
+
+        Assert.Same(
+            result.CallerBag,
+            Assert.IsType<LayeredPropertyBag>(result.OperationBag).Parent
+        );
+
+        await result.TenantLease.DisposeAsync();
+        await result.CachedTenant.DisposeAsync();
+        await result.TeamLease.DisposeAsync();
+        result.Mocks.Verify();
+    }
+
     [Fact]
     public async Task MaterializeTenantAsync_WhenTheSeedCommitsTheTenantRow_CachesTheTenantWithTheRowTokenItsSeedCommitted()
     {
@@ -654,7 +821,9 @@ public sealed class DefaultOpenIdTenantFactoryTests
         var provisioner = mocks.Create<ITenantProvisioner>();
         var teamProvider = mocks.Create<IOpenIdTeamProvider>();
 
-        var team = Mock.Of<OpenIdTeam>(x => x.IsDisabled == false);
+        var team = Mock.Of<OpenIdTeam>(x =>
+            x.IsDisabled == false && x.PropertyBag == new ConcurrentPropertyBagDictionary()
+        );
         var teamLease = AsyncSharedReference.Create(team, _ => ValueTask.CompletedTask);
         teamProvider
             .Setup(x =>
