@@ -25,7 +25,9 @@ public interface IOpenIdTeamFactory
     /// <param name="openIdPlatform">The <see cref="OpenIdPlatform"/> instance associated with the current operation.</param>
     /// <param name="parentTeam">A lease on the team directly above, or <see langword="default"/> for a top-level team. The created team takes its own reference.</param>
     /// <param name="persistedTeam">The <see cref="PersistedTeam"/> to materialize.</param>
-    /// <param name="propertyBag">The <see cref="IPropertyBag"/> that can provide additional user-defined information about the current instance or operation.</param>
+    /// <param name="propertyBag">The <see cref="IPropertyBag"/> of the current operation, which an implementation can
+    /// read; the default implementation gives the team a clone of its parent team's bag, or of the platform's for a
+    /// top-level team, and stores none of this one.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the newly created <see cref="OpenIdTeam"/> instance.</returns>
     // See ADR-1426

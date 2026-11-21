@@ -220,7 +220,8 @@ public class DefaultOpenIdTenantFactory(
     )
     {
         var tenantId = resolvedTenant.TenantId;
-        // The materialization runs on a child of the caller's bag; the tenant owns a clone of its team's bag (ADR-1518).
+        // The materialization runs on a child of the caller's bag; the tenant owns a clone of its team's bag
+        // (ADR-1518).
         var operationPropertyBag = propertyBag.CreateChild();
 
         // The team is checked before the tenant is seeded: a disabled team answers 404 without running the seed
@@ -703,7 +704,8 @@ public class DefaultOpenIdTenantFactory(
     /// <param name="tenantBaseAddress">The <see cref="UriDescriptor"/> instance for the current tenant.</param>
     /// <param name="tenantSettings">The <see cref="IReadOnlySettingCollectionProvider"/> instance for the current tenant.</param>
     /// <param name="tenantSecrets">The <see cref="ISecretKeyCollectionProvider"/> instance for the current tenant.</param>
-    /// <param name="propertyBag">The <see cref="IPropertyBag"/> instance that can provide additional user-defined information about the current operation.</param>
+    /// <param name="propertyBag">The <see cref="IPropertyBag"/> of the current operation, which an override can read;
+    /// the default implementation gives the tenant a clone of the team's bag and stores none of this one.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the <see cref="OpenIdTenant"/> instance.</returns>
     protected virtual ValueTask<AsyncSharedReferenceLease<OpenIdTenant>> CreateOpenIdTenantAsync(
