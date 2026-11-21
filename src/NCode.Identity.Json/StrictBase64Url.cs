@@ -159,7 +159,8 @@ public static class StrictBase64Url
 
     /// <summary>
     /// Decodes strict base64url <paramref name="text"/> into a rented buffer. The decoded view is valid only until the
-    /// returned lease is disposed.
+    /// returned lease is disposed. It decodes through NCode.Buffers' <see cref="BinaryTextFormat.Base64UrlStrict"/>,
+    /// which refuses the same text as the other members.
     /// </summary>
     /// <param name="text">The text to decode.</param>
     /// <param name="isSensitive">Whether the rented buffer is pinned and zeroed when it is disposed.</param>
@@ -172,10 +173,9 @@ public static class StrictBase64Url
         out ReadOnlySpan<byte> bytes
     )
     {
-        ThrowIfInvalid(text);
         var lease = BinaryTextEncoding.RentDecoded(
             text,
-            BinaryTextFormat.Base64Url,
+            BinaryTextFormat.Base64UrlStrict,
             isSensitive,
             out Span<byte> decoded
         );
@@ -185,7 +185,8 @@ public static class StrictBase64Url
 
     /// <summary>
     /// Decodes strict base64url <paramref name="text"/> into a rented buffer. The decoded view is valid only until the
-    /// returned lease is disposed.
+    /// returned lease is disposed. It decodes through NCode.Buffers' <see cref="BinaryTextFormat.Base64UrlStrict"/>,
+    /// which refuses the same text as the other members.
     /// </summary>
     /// <param name="text">The text to decode.</param>
     /// <param name="isSensitive">Whether the rented buffer is pinned and zeroed when it is disposed.</param>
@@ -198,10 +199,9 @@ public static class StrictBase64Url
         out ReadOnlyMemory<byte> bytes
     )
     {
-        ThrowIfInvalid(text);
         var lease = BinaryTextEncoding.RentDecoded(
             text,
-            BinaryTextFormat.Base64Url,
+            BinaryTextFormat.Base64UrlStrict,
             isSensitive,
             out Memory<byte> decoded
         );

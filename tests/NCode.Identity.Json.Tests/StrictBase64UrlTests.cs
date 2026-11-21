@@ -306,8 +306,11 @@ public class StrictBase64UrlTests
     }
 
     [Theory]
+    [InlineData("AQ==")]
     [InlineData("AQ I")]
+    [InlineData("+/AA")]
     [InlineData("AR")]
+    [InlineData("AQIDB")]
     public void RentDecoded_WhenTheTextIsNotStrict_ThrowsFormatException(string text)
     {
         Assert.Throws<FormatException>(() =>
