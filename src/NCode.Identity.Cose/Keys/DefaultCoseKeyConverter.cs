@@ -11,6 +11,7 @@ using NCode.Buffers;
 using NCode.Identity.Cose.Algorithms;
 using NCode.Identity.Cose.Cbor;
 using NCode.Identity.Cose.Options;
+using NCode.Identity.Json;
 using NCode.Identity.Jwk;
 using NCode.Identity.Secrets;
 using NCode.Identity.Secrets.KeyMaterial;
@@ -186,9 +187,8 @@ internal class DefaultCoseKeyConverter(
                 case CoseKeyParameterEncoding.ByteString:
                     try
                     {
-                        using var decodedLease = BinaryTextEncoding.RentDecoded(
+                        using var decodedLease = StrictBase64Url.RentDecoded(
                             member,
-                            BinaryTextFormat.Base64Url,
                             isSensitive: false,
                             out Span<byte> decoded
                         );

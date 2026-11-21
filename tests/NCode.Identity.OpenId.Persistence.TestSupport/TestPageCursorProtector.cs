@@ -5,6 +5,7 @@ using System.Buffers.Text;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.DataProtection;
+using NCode.Identity.Json;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Persistence;
@@ -56,11 +57,11 @@ public sealed class TestPageCursorProtector : IPageCursorProtector
     {
         bytesWritten = 0;
 
-        if (!Base64Url.IsValid(cursor))
+        if (!StrictBase64Url.IsValid(cursor))
             return false;
 
         var protector = GetProtector(collection);
-        var protectedBytes = Base64Url.DecodeFromChars(cursor);
+        var protectedBytes = StrictBase64Url.Decode(cursor);
 
         try
         {
