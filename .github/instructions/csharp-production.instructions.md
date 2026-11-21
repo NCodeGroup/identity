@@ -1217,8 +1217,10 @@ says for a pre-release project.
   decoded straight into the secure buffer, so a raw process-memory snapshot does not expose the plaintext directly. See
   [ADR-1266](../../docs/decisions/1266-binary-data-uses-bufferfactory-rentals-with-explicit-sensitivity-and-text-only-strict-encodings.md).
 - 👁 **Use the rental helper for the source.** `BufferFactory.RentRandom`, `RentBytes`/`RentChars` on `SecureEncoding`,
-  `BinaryTextEncoding.RentDecoded`/`RentEncoded`, `CreatePooledStream` and `PooledTextBuilder` replace a rental
-  followed by a fill, encode, decode or copy; a secret kept in a field is a `Secret<T>`. See
+  `BinaryTextEncoding.RentDecoded`/`RentEncoded`, `CreatePooledStream` and `PooledTextBuilder` replace a rental followed
+  by a fill, encode, decode or copy; a secret kept in a field is a `Secret<T>`; base64url text is decoded only through
+  `StrictBase64Url` (`NCode.Identity.Json`), and random bytes are never drawn with
+  `RandomNumberGenerator.GetBytes(int)`. See
   [ADR-1266](../../docs/decisions/1266-binary-data-uses-bufferfactory-rentals-with-explicit-sensitivity-and-text-only-strict-encodings.md).
 - ✅ **Encode and decode text only through a strict encoding.** Use `SecureEncoding.UTF8` / `SecureEncoding.ASCII`
   (`NCode.Buffers`), which throw on invalid input, never `Encoding.UTF8`, `Encoding.ASCII` or `Encoding.Default`, which
