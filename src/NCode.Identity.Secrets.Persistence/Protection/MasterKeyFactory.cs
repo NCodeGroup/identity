@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using NCode.Buffers;
 using NCode.Encoders;
+using NCode.Identity.Json;
 using NCode.Identity.Secrets.KeyWrapping;
 using NCode.Identity.Secrets.Persistence.DataContracts;
 
@@ -474,7 +475,7 @@ internal class MasterKeyFactory(
         // A remainder of one character is not a valid base64url length, and counting its bytes throws.
         if (
             persisted.Length % 4 == 1
-            || Base64Url.GetByteCountForDecode(persisted.Length)
+            || StrictBase64Url.GetDecodedLength(persisted.Length)
                 != SecretProtectionFormat.KeyCheckSizeBytes
         )
         {
@@ -485,7 +486,7 @@ internal class MasterKeyFactory(
         try
         {
             if (
-                !Base64Url.TryDecode(persisted, actual, out var bytesWritten)
+                !StrictBase64Url.TryDecode(persisted, actual, out var bytesWritten)
                 || bytesWritten != SecretProtectionFormat.KeyCheckSizeBytes
             )
             {
