@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Buffers;
 using System.Buffers.Text;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
@@ -242,17 +241,8 @@ public sealed class Disclosure
             writer.WriteEndArray();
         }
 
-        var sequence = buffer.AsReadOnlySequence;
-        if (sequence.IsSingleSegment)
-            return Base64Url.EncodeToString(sequence.FirstSpan);
-
-        using var lease = BufferFactory.Rent(
-            checked((int)sequence.Length),
-            isSensitive: false,
-            out Span<byte> copy
-        );
-        sequence.CopyTo(copy);
-        return Base64Url.EncodeToString(copy);
+        using var lease = buffer.AsReadOnlySequence.GetSpanLease(isSensitive: false);
+        return Base64Url.EncodeToString(lease.Span);
     }
 
     /// <summary>

@@ -398,20 +398,8 @@ internal partial class JoseSerializer(
     {
         if (b64)
         {
-            if (bytes.IsSingleSegment)
-            {
-                EncodeBase64Url(bytes.FirstSpan, writer);
-            }
-            else
-            {
-                using var lease = BufferFactory.Rent(
-                    checked((int)bytes.Length),
-                    isSensitive: false,
-                    out Span<byte> copy
-                );
-                bytes.CopyTo(copy);
-                EncodeBase64Url(copy, writer);
-            }
+            using var lease = bytes.GetSpanLease(isSensitive: true);
+            EncodeBase64Url(lease.Span, writer);
         }
         else
         {
