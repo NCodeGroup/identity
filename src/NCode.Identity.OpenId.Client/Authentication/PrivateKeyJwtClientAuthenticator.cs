@@ -1,10 +1,10 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Text;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
 using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.Jose;
 using NCode.Identity.Jose.Algorithms;
 using NCode.Identity.Jose.Credentials;
@@ -52,7 +52,7 @@ internal class PrivateKeyJwtClientAuthenticator(
             isSensitive: false,
             out Span<byte> bytes
         );
-        return Base64Url.Encode(bytes);
+        return Base64Url.EncodeToString(bytes);
     }
 
     private TimeProvider TimeProvider { get; } = timeProvider;
