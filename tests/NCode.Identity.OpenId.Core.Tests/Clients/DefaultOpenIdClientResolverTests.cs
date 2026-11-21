@@ -3,6 +3,7 @@
 
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Time.Testing;
 using Moq;
 using NCode.Identity.OpenId.Authentication.Clients;
@@ -347,6 +348,7 @@ public class DefaultOpenIdClientResolverTests : BaseTests
     [Fact]
     public async Task ResolveClientOrDefaultAsync_ReadsTheVerifiersApartFromTheKeys()
     {
+        SetupHttpContext();
         // A one-way verifier is not key material, so it is read apart from the client's keys. See ADR-1391.
         var key = CreatePersistedSecret("key", Now.AddDays(1));
         var firstVerifier = CreatePersistedSecret(
@@ -395,6 +397,30 @@ public class DefaultOpenIdClientResolverTests : BaseTests
     }
 
     [Fact]
+    public async Task ResolveClientOrDefaultAsync_WhenTheClientHasVerifiers_DisposesThemWhenTheRequestCompletes()
+    {
+        var feature = new CompletableResponseFeature();
+        HttpContext.Features.Set<IHttpResponseFeature>(feature);
+        SetupHttpContext();
+        var persistedVerifier = CreatePersistedSecret(
+            "verifier",
+            Now.AddDays(1),
+            NCode.Identity.Secrets.SecretEncodings.Verifier
+        );
+        SetupStoredClient(CreatePersistedClient(secrets: [persistedVerifier]));
+        using var verifier = new DisposalRecordingSecretVerifier();
+        SetupClientCreation(null, [], ["verifier"], [verifier]);
+
+        await ResolveAsync(CancellationToken.None);
+
+        Assert.False(verifier.IsDisposed);
+
+        await feature.CompleteAsync(CancellationToken.None);
+
+        Assert.True(verifier.IsDisposed);
+    }
+
+    [Fact]
     public async Task ResolveClientOrDefaultAsync_WhenABoundClientAtAnEndpointThatDoesNotAcceptIt_ReturnsNull()
     {
         SetupStoredClient(CreatePersistedClient(ResourceServerId));
@@ -437,5 +463,49 @@ public class DefaultOpenIdClientResolverTests : BaseTests
         : IOpenIdEndpointResourceServerClientMetadata
     {
         public bool AcceptsResourceServerClients { get; } = accepts;
+    }
+
+    private sealed class CompletableResponseFeature : HttpResponseFeature
+    {
+        private List<(Func<object, Task> Callback, object State)> Callbacks { get; } = [];
+
+        public override void OnCompleted(Func<object, Task> callback, object state) =>
+            Callbacks.Add((callback, state));
+
+        public async ValueTask CompleteAsync(CancellationToken cancellationToken)
+        {
+            foreach (var (callback, state) in Callbacks)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await callback(state);
+            }
+        }
+    }
+
+    private sealed class DisposalRecordingSecretVerifier : SecretVerifier
+    {
+        public override KeyMetadata Metadata { get; } =
+            new() { KeyId = "verifier", ExpiresWhen = DateTimeOffset.UnixEpoch.AddYears(1) };
+
+        public override string Scheme => "test";
+
+        public override bool HasWorkFactor => false;
+
+        public bool IsDisposed { get; private set; }
+
+        public override ValueTask<SecretVerificationResult> VerifyAsync(
+            ReadOnlyMemory<byte> secret,
+            CancellationToken cancellationToken
+        ) => ValueTask.FromResult(SecretVerificationResult.Failed);
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                IsDisposed = true;
+            }
+
+            base.Dispose(disposing);
+        }
     }
 }
