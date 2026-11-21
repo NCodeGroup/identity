@@ -94,7 +94,7 @@ internal class DefaultOpenIdContextFactory(
         AsyncSharedReferenceLease<OpenIdTenant> tenantReference
     )
     {
-        var propertyBag = tenantReference.Value.PropertyBag.Clone();
+        var propertyBag = tenantReference.Value.PropertyBag.CreateChild();
 
         var openIdContext = CreateContext(
             httpContext,
@@ -134,7 +134,7 @@ internal class DefaultOpenIdContextFactory(
             cancellationToken
         );
 
-        var propertyBag = tenantReference.Value.PropertyBag.Clone();
+        var propertyBag = tenantReference.Value.PropertyBag.CreateChild();
 
         // Intentionally not published as the ambient context feature nor registered for request disposal: this is a
         // secondary, caller-owned context for the addressed tenant, distinct from the request's own context.

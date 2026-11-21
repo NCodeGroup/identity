@@ -58,6 +58,10 @@ public abstract class OpenIdContext : IAsyncDisposable
     /// <summary>
     /// Gets the <see cref="IPropertyBag"/> that can provide additional user-defined information about the current instance or operation.
     /// </summary>
+    /// <remarks>
+    /// The default context's bag is a child of its tenant's bag: it reads every value the tenant holds, and its own
+    /// writes and removals stay in this context.
+    /// </remarks>
     public abstract IPropertyBag PropertyBag { get; }
 
     /// <summary>
