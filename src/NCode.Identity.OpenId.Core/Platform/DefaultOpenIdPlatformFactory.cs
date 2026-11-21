@@ -51,12 +51,15 @@ internal class DefaultOpenIdPlatformFactory(
     )
     {
         var disposables = new List<object>(2);
-        var propertyBag = openIdEnvironment.PropertyBag.Clone();
-        var persistedPlatform = await GetPersistedPlatformAsync(propertyBag, cancellationToken);
+        var operationPropertyBag = openIdEnvironment.PropertyBag.CreateChild();
+        var persistedPlatform = await GetPersistedPlatformAsync(
+            operationPropertyBag,
+            cancellationToken
+        );
         try
         {
             var rootSettingsDataSource = await CreateRootSettingsDataSourceAsync(
-                propertyBag,
+                operationPropertyBag,
                 cancellationToken
             );
 
@@ -69,7 +72,7 @@ internal class DefaultOpenIdPlatformFactory(
                 platformSettingsDataSource = await CreatePlatformSettingsDataSourceAsync(
                     openIdEnvironment,
                     persistedPlatform,
-                    propertyBag,
+                    operationPropertyBag,
                     cancellationToken
                 );
                 dataSources.Add(platformSettingsDataSource);
@@ -98,7 +101,7 @@ internal class DefaultOpenIdPlatformFactory(
                 configuredSettingsProvider,
                 settingsProvider,
                 platformSettingsDataSource.RefreshAsync,
-                propertyBag
+                openIdEnvironment.PropertyBag.Clone()
             );
         }
         catch
