@@ -54,9 +54,9 @@ one adapter package named for the service, `NCode.Identity.Secrets.<Vendor>`.**
    stored ciphertext that a wrapper writes as unpadded base64url, into a caller-supplied span or `IBufferWriter<byte>`.
    Wrappers encode with `System.Buffers.Text.Base64Url`, and it decodes through `StrictBase64Url`, which refuses
    padding, whitespace, illegal characters and non-zero trailing bits, so the AES-GCM primitive, the three adapters and
-   third-party wrappers share one decoder and one set of messages: empty or invalid text throws `CryptographicException`,
-   and a destination span that is too short throws `ArgumentException`. A format's own structural checks, such as
-   AES-GCM's minimum length, and the encoding stay in each wrapper.
+   third-party wrappers share one decoder and one set of messages: empty or invalid text throws
+   `CryptographicException`, and a destination span that is too short throws `ArgumentException`. A format's own
+   structural checks, such as AES-GCM's minimum length, and the encoding stay in each wrapper.
 5. **The recovery wrapper only wraps.** `RecoveryKeyWrapper` (`recovery-rsa-oaep-256`) implements the internal
    `IRecoveryKeyWrapper : IKeyWrapper`, whose one extra member is `bool IsConfigured`. It ignores the context (RSA-OAEP
    in .NET takes no label) and throws `NotSupportedException` from `UnwrapAsync`, because its private key is offline. It
