@@ -17,25 +17,64 @@ public class StrictBase64UrlTests
     [InlineData("-_-_")]
     public void IsValid_WhenTheTextIsStrict_ReturnsTrue(string text)
     {
-        Assert.True(StrictBase64Url.IsValid(text.AsSpan()));
-        Assert.True(StrictBase64Url.IsValid(SecureEncoding.ASCII.GetBytes(text)));
+        var utf8Text = SecureEncoding.ASCII.GetBytes(text);
+
+        var isCharsValid = StrictBase64Url.IsValid(text.AsSpan());
+        var isUtf8Valid = StrictBase64Url.IsValid(utf8Text);
+
+        Assert.True(isCharsValid);
+        Assert.True(isUtf8Valid);
     }
 
     [Theory]
     [InlineData("AQ==")]
     [InlineData("AQ=")]
+    public void IsValid_Padding_ReturnsFalse(string text)
+    {
+        AssertNotValid(text);
+    }
+
+    [Theory]
     [InlineData("AQ I")]
     [InlineData("AQID\n")]
-    [InlineData("A")]
-    [InlineData("AQIDB")]
+    public void IsValid_Whitespace_ReturnsFalse(string text)
+    {
+        AssertNotValid(text);
+    }
+
+    [Theory]
     [InlineData("+/AA")]
+    public void IsValid_IllegalCharacter_ReturnsFalse(string text)
+    {
+        AssertNotValid(text);
+    }
+
+    [Theory]
     [InlineData("AQJ")]
     [InlineData("AR")]
     [InlineData("-_")]
-    public void IsValid_WhenTheTextIsNotStrict_ReturnsFalse(string text)
+    public void IsValid_NonZeroTrailingBits_ReturnsFalse(string text)
     {
-        Assert.False(StrictBase64Url.IsValid(text.AsSpan()));
-        Assert.False(StrictBase64Url.IsValid(SecureEncoding.ASCII.GetBytes(text)));
+        AssertNotValid(text);
+    }
+
+    [Theory]
+    [InlineData("A")]
+    [InlineData("AQIDB")]
+    public void IsValid_RemainderOfOneCharacter_ReturnsFalse(string text)
+    {
+        AssertNotValid(text);
+    }
+
+    private static void AssertNotValid(string text)
+    {
+        var utf8Text = SecureEncoding.ASCII.GetBytes(text);
+
+        var isCharsValid = StrictBase64Url.IsValid(text.AsSpan());
+        var isUtf8Valid = StrictBase64Url.IsValid(utf8Text);
+
+        Assert.False(isCharsValid);
+        Assert.False(isUtf8Valid);
     }
 
     #endregion
@@ -50,7 +89,9 @@ public class StrictBase64UrlTests
     [InlineData(8, 6)]
     public void GetDecodedLength_ReturnsTheExactLength(int textLength, int expected)
     {
-        Assert.Equal(expected, StrictBase64Url.GetDecodedLength(textLength));
+        var length = StrictBase64Url.GetDecodedLength(textLength);
+
+        Assert.Equal(expected, length);
     }
 
     [Fact]
@@ -115,21 +156,13 @@ public class StrictBase64UrlTests
     {
         var destination = new byte[3];
 
-        var decoded = StrictBase64Url.TryDecode(
-            SecureEncoding.ASCII.GetBytes("AQID"),
-            destination,
-            out var written
-        );
+        var decoded = StrictBase64Url.TryDecode("AQID"u8, destination, out var written);
 
         Assert.True(decoded);
         Assert.Equal(3, written);
         Assert.Equal(new byte[] { 1, 2, 3 }, destination);
 
-        decoded = StrictBase64Url.TryDecode(
-            SecureEncoding.ASCII.GetBytes("-_-_"),
-            destination,
-            out written
-        );
+        decoded = StrictBase64Url.TryDecode("-_-_"u8, destination, out written);
 
         Assert.True(decoded);
         Assert.Equal(3, written);
@@ -141,11 +174,7 @@ public class StrictBase64UrlTests
     {
         var destination = new byte[2];
 
-        var decoded = StrictBase64Url.TryDecode(
-            SecureEncoding.ASCII.GetBytes("AQID"),
-            destination,
-            out var written
-        );
+        var decoded = StrictBase64Url.TryDecode("AQID"u8, destination, out var written);
 
         Assert.False(decoded);
         Assert.Equal(0, written);
@@ -178,8 +207,40 @@ public class StrictBase64UrlTests
 
     [Theory]
     [InlineData("AQ==")]
+    [InlineData("AQ=")]
+    public void Decode_Padding_Throws(string text)
+    {
+        Assert.Throws<FormatException>(() => StrictBase64Url.Decode(text.AsSpan()));
+    }
+
+    [Theory]
+    [InlineData("AQ I")]
+    [InlineData("AQID\n")]
+    public void Decode_Whitespace_Throws(string text)
+    {
+        Assert.Throws<FormatException>(() => StrictBase64Url.Decode(text.AsSpan()));
+    }
+
+    [Theory]
+    [InlineData("+/AA")]
+    public void Decode_IllegalCharacter_Throws(string text)
+    {
+        Assert.Throws<FormatException>(() => StrictBase64Url.Decode(text.AsSpan()));
+    }
+
+    [Theory]
     [InlineData("AQJ")]
-    public void Decode_WhenTheTextIsNotStrict_ThrowsFormatException(string text)
+    [InlineData("AR")]
+    [InlineData("-_")]
+    public void Decode_NonZeroTrailingBits_Throws(string text)
+    {
+        Assert.Throws<FormatException>(() => StrictBase64Url.Decode(text.AsSpan()));
+    }
+
+    [Theory]
+    [InlineData("A")]
+    [InlineData("AQIDB")]
+    public void Decode_RemainderOfOneCharacter_Throws(string text)
     {
         Assert.Throws<FormatException>(() => StrictBase64Url.Decode(text.AsSpan()));
     }

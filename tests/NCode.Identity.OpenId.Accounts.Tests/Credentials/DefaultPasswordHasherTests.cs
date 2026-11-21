@@ -14,6 +14,9 @@ public sealed class DefaultPasswordHasherTests
     private const string ComposedPassword = "caf\u00E9 correct horse battery";
     private const string DecomposedPassword = "cafe\u0301 correct horse battery";
 
+    private const string Base64UrlAlphabet =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
     private static byte[] PasswordBytes { get; } = "correct horse battery staple"u8.ToArray();
     private static byte[] ComposedBytes { get; } = "caf\u00E9 correct horse battery"u8.ToArray();
     private static byte[] DecomposedBytes { get; } = "cafe\u0301 correct horse battery"u8.ToArray();
@@ -29,6 +32,22 @@ public sealed class DefaultPasswordHasherTests
         var passwordBytes = SecureEncoding.UTF8.GetBytes(password);
         var key = Rfc2898DeriveBytes.Pbkdf2(
             passwordBytes,
+            salt,
+            iterations,
+            HashAlgorithmName.SHA256,
+            32
+        );
+
+        var iterationsText = iterations.ToString(CultureInfo.InvariantCulture);
+        var saltText = Base64Url.EncodeToString(salt);
+        var keyText = Base64Url.EncodeToString(key);
+        return string.Concat("$ncode-pbkdf2-sha256$", iterationsText, "$", saltText, "$", keyText);
+    }
+
+    private static string HashWithSalt(byte[] password, byte[] salt, int iterations)
+    {
+        var key = Rfc2898DeriveBytes.Pbkdf2(
+            password,
             salt,
             iterations,
             HashAlgorithmName.SHA256,
@@ -203,9 +222,7 @@ public sealed class DefaultPasswordHasherTests
     public void VerifyHashedPassword_SaltLongerThanLimit_Failed()
     {
         var hasher = CreateHasher();
-        var saltText = Base64Url.EncodeToString(new byte[257]);
-        var keyText = Base64Url.EncodeToString(new byte[32]);
-        var hash = string.Concat("$ncode-pbkdf2-sha256$1000$", saltText, "$", keyText);
+        var hash = HashWithSalt(PasswordBytes, new byte[257], 1000);
 
         var result = hasher.VerifyHashedPassword(hash, PasswordBytes);
 
@@ -213,26 +230,44 @@ public sealed class DefaultPasswordHasherTests
     }
 
     [Fact]
-    public void VerifyHashedPassword_HashWithPaddingOrNonZeroTrailingBits_Failed()
+    public void VerifyHashedPassword_SaltAtLimit_Success()
+    {
+        var hasher = CreateHasher();
+        var hash = HashWithSalt(PasswordBytes, new byte[256], 1000);
+
+        var result = hasher.VerifyHashedPassword(hash, PasswordBytes);
+
+        Assert.Equal(PasswordVerificationResult.Success, result);
+    }
+
+    [Fact]
+    public void VerifyHashedPassword_HashWithPadding_Failed()
     {
         var hasher = CreateHasher();
         var hash = hasher.HashPassword(PasswordBytes);
-        Assert.Equal(
-            PasswordVerificationResult.Success,
-            hasher.VerifyHashedPassword(hash, PasswordBytes)
-        );
-
+        var control = hasher.VerifyHashedPassword(hash, PasswordBytes);
         var padded = hash + "=";
-        var trailingBits = string.Concat(hash.AsSpan(0, hash.Length - 1), "B");
 
-        Assert.Equal(
-            PasswordVerificationResult.Failed,
-            hasher.VerifyHashedPassword(padded, PasswordBytes)
-        );
-        Assert.Equal(
-            PasswordVerificationResult.Failed,
-            hasher.VerifyHashedPassword(trailingBits, PasswordBytes)
-        );
+        var result = hasher.VerifyHashedPassword(padded, PasswordBytes);
+
+        Assert.Equal(PasswordVerificationResult.Success, control);
+        Assert.Equal(PasswordVerificationResult.Failed, result);
+    }
+
+    [Fact]
+    public void VerifyHashedPassword_HashWithNonZeroTrailingBits_Failed()
+    {
+        var hasher = CreateHasher();
+        var hash = hasher.HashPassword(PasswordBytes);
+        var control = hasher.VerifyHashedPassword(hash, PasswordBytes);
+        var lastIndex = Base64UrlAlphabet.IndexOf(hash[^1], StringComparison.Ordinal);
+        var changed = Base64UrlAlphabet[lastIndex | 1];
+        var trailingBits = string.Concat(hash.AsSpan(0, hash.Length - 1), changed.ToString());
+
+        var result = hasher.VerifyHashedPassword(trailingBits, PasswordBytes);
+
+        Assert.Equal(PasswordVerificationResult.Success, control);
+        Assert.Equal(PasswordVerificationResult.Failed, result);
     }
 
     #endregion
