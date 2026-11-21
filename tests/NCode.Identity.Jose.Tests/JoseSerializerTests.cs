@@ -536,13 +536,15 @@ public class JoseSerializerTests : BaseTests
     }
 
     // A length no base64url value has, characters outside the base64url alphabet, and padding, which JOSE omits
-    // (RFC 7515 §2).
+    // (RFC 7515 §2), and a final character whose unused bits are not zero.
     [Theory]
     [InlineData("AAAAA")]
     [InlineData("!!!!")]
     [InlineData("AAA+")]
     [InlineData("AAA/")]
     [InlineData("AA==")]
+    [InlineData("AAB")]
+    [InlineData("AB")]
     public void DecodeBase64Url_WhenTheDataIsNotBase64Url_ThrowsJoseException(string chars)
     {
         var exception = Assert.Throws<JoseException>(() =>

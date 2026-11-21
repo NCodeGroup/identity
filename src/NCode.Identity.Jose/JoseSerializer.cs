@@ -11,6 +11,7 @@ using NCode.Disposables;
 using NCode.Encoders;
 using NCode.Identity.Jose.Algorithms;
 using NCode.Identity.Jose.Exceptions;
+using NCode.Identity.Json;
 using NCode.Identity.Secrets.Keys;
 
 namespace NCode.Identity.Jose;
@@ -42,11 +43,16 @@ internal partial class JoseSerializer(
         out ReadOnlySpan<byte> bytes
     )
     {
-        var byteCount = GetDecodedByteCount(chars);
-        var lease = BufferFactory.Rent(byteCount, isSensitive, out Span<byte> buffer);
-        DecodeInto(chars, buffer, lease);
-        bytes = buffer;
-        return lease;
+        try
+        {
+            var lease = StrictBase64Url.RentDecoded(chars, isSensitive, out Span<byte> decoded);
+            bytes = decoded;
+            return lease;
+        }
+        catch (FormatException exception)
+        {
+            throw InvalidBase64Url(exception);
+        }
     }
 
     /// <summary>
@@ -64,48 +70,15 @@ internal partial class JoseSerializer(
         out ReadOnlyMemory<byte> bytes
     )
     {
-        var byteCount = GetDecodedByteCount(chars);
-        var lease = BufferFactory.Rent(byteCount, isSensitive, out Memory<byte> buffer);
-        DecodeInto(chars, buffer.Span, lease);
-        bytes = buffer;
-        return lease;
-    }
-
-    private static int GetDecodedByteCount(ReadOnlySpan<char> chars)
-    {
         try
         {
-            return Base64Url.GetByteCountForDecode(chars.Length);
+            var lease = StrictBase64Url.RentDecoded(chars, isSensitive, out Memory<byte> decoded);
+            bytes = decoded;
+            return lease;
         }
         catch (FormatException exception)
         {
             throw InvalidBase64Url(exception);
-        }
-    }
-
-    private static void DecodeInto(ReadOnlySpan<char> chars, Span<byte> bytes, IDisposable lease)
-    {
-        try
-        {
-            // The data is read from a token, so data that does not decode whole is refused, never read from a buffer
-            // the decoder wrote only in part.
-            if (
-                !Base64Url.TryDecode(chars, bytes, out var bytesWritten)
-                || bytesWritten != bytes.Length
-            )
-            {
-                throw InvalidBase64Url();
-            }
-        }
-        catch (FormatException exception)
-        {
-            lease.Dispose();
-            throw InvalidBase64Url(exception);
-        }
-        catch
-        {
-            lease.Dispose();
-            throw;
         }
     }
 
@@ -119,7 +92,7 @@ internal partial class JoseSerializer(
     {
         try
         {
-            Base64Url.Decode(chars, writer);
+            StrictBase64Url.Decode(chars, writer);
         }
         catch (FormatException exception)
         {
@@ -129,8 +102,6 @@ internal partial class JoseSerializer(
 
     private const string InvalidBase64UrlMessage =
         "The JOSE token contains a segment that is not valid base64url.";
-
-    private static JoseException InvalidBase64Url() => new(InvalidBase64UrlMessage);
 
     private static JoseException InvalidBase64Url(FormatException exception) =>
         new(InvalidBase64UrlMessage, exception);
