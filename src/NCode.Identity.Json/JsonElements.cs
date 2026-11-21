@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers;
-using System.Buffers.Text;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using JetBrains.Annotations;
@@ -97,9 +96,9 @@ public static class JsonElements
 
         // base64url (RFC 4648 §5), the JOSE/JWT encoding.
         var text = element.GetString();
-        if (text is not null && Base64Url.IsValid(text))
+        if (text is not null && StrictBase64Url.IsValid(text))
         {
-            value = Base64Url.DecodeFromChars(text);
+            value = StrictBase64Url.Decode(text);
             return true;
         }
 

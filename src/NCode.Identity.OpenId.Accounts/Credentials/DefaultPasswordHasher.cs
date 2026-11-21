@@ -10,6 +10,7 @@ using System.Text;
 using System.Text.Unicode;
 using Microsoft.Extensions.Options;
 using NCode.Buffers;
+using NCode.Identity.Json;
 
 namespace NCode.Identity.OpenId.Accounts.Credentials;
 
@@ -251,8 +252,8 @@ internal sealed class DefaultPasswordHasher : IPasswordHasher
 
         try
         {
-            salt = Base64Url.DecodeFromChars(segments[3]);
-            expectedHash = Base64Url.DecodeFromChars(segments[4]);
+            salt = StrictBase64Url.Decode(segments[3]);
+            expectedHash = StrictBase64Url.Decode(segments[4]);
         }
         catch (FormatException)
         {
