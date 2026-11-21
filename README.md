@@ -188,6 +188,8 @@ and shipped versions are serviced from `release/vX.Y` lines beside it
 | [`CHANGELOG.md`](CHANGELOG.md)       | What the family does until its first stable release, then each release's changes |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Build, conventions, and the change workflow                                    |
 | [`GOVERNANCE.md`](GOVERNANCE.md)     | Ownership, versioning, releases, and publishing                                |
+| [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) | How everyone taking part treats each other, and where to report a problem |
+| [`ROADMAP.md`](ROADMAP.md) | Where the family is going over the next year |
 | [`SECURITY.md`](SECURITY.md)         | How to report a vulnerability                                                  |
 | [`brand/`](brand/README.md)          | The logo kit, vendored from an NCodeGroup/brand release: the `{id}` mark as SVG masters and as the PNG and ICO files each platform takes |
 
