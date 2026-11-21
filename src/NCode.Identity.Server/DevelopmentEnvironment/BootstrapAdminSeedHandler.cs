@@ -89,7 +89,7 @@ internal sealed class BootstrapAdminSeedHandler(
         using var secretOwner = StrictBase64Url.RentDecoded(
             clientSecret,
             isSensitive: true,
-            out Memory<byte> clientSecretBytes
+            out ReadOnlyMemory<byte> clientSecretBytes
         );
 
         var existing = await store.GetOrDefaultAsync(clientId, cancellationToken);

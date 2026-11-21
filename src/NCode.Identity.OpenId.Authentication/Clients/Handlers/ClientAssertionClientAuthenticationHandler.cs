@@ -367,7 +367,7 @@ internal abstract class ClientAssertionClientAuthenticationHandler(
             using var lease = StrictBase64Url.RentDecoded(
                 encoded,
                 isSensitive: false,
-                out Span<byte> utf8Json
+                out ReadOnlySpan<byte> utf8Json
             );
             element = JsonElement.Parse(utf8Json);
         }

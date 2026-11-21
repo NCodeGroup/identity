@@ -45,7 +45,11 @@ internal partial class JoseSerializer(
     {
         try
         {
-            var lease = StrictBase64Url.RentDecoded(chars, isSensitive, out Span<byte> decoded);
+            var lease = StrictBase64Url.RentDecoded(
+                chars,
+                isSensitive,
+                out ReadOnlySpan<byte> decoded
+            );
             bytes = decoded;
             return lease;
         }
@@ -72,7 +76,11 @@ internal partial class JoseSerializer(
     {
         try
         {
-            var lease = StrictBase64Url.RentDecoded(chars, isSensitive, out Memory<byte> decoded);
+            var lease = StrictBase64Url.RentDecoded(
+                chars,
+                isSensitive,
+                out ReadOnlyMemory<byte> decoded
+            );
             bytes = decoded;
             return lease;
         }

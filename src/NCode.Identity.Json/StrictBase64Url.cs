@@ -169,16 +169,18 @@ public static class StrictBase64Url
     public static IMemoryOwner<byte> RentDecoded(
         ReadOnlySpan<char> text,
         bool isSensitive,
-        out Span<byte> bytes
+        out ReadOnlySpan<byte> bytes
     )
     {
         ThrowIfInvalid(text);
-        return BinaryTextEncoding.RentDecoded(
+        var lease = BinaryTextEncoding.RentDecoded(
             text,
             BinaryTextFormat.Base64Url,
             isSensitive,
-            out bytes
+            out Span<byte> decoded
         );
+        bytes = decoded;
+        return lease;
     }
 
     /// <summary>
@@ -193,16 +195,18 @@ public static class StrictBase64Url
     public static IMemoryOwner<byte> RentDecoded(
         ReadOnlySpan<char> text,
         bool isSensitive,
-        out Memory<byte> bytes
+        out ReadOnlyMemory<byte> bytes
     )
     {
         ThrowIfInvalid(text);
-        return BinaryTextEncoding.RentDecoded(
+        var lease = BinaryTextEncoding.RentDecoded(
             text,
             BinaryTextFormat.Base64Url,
             isSensitive,
-            out bytes
+            out Memory<byte> decoded
         );
+        bytes = decoded;
+        return lease;
     }
 
     private static void ThrowIfInvalid(ReadOnlySpan<char> text)

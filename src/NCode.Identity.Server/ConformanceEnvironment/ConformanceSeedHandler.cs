@@ -342,7 +342,7 @@ internal sealed class ConformanceSeedHandler(
         using var secretOwner = StrictBase64Url.RentDecoded(
             encodedSecret,
             isSensitive: true,
-            out Span<byte> clientSecret
+            out ReadOnlySpan<byte> clientSecret
         );
 
         var now = TimeProvider.GetUtcNow();

@@ -190,7 +190,7 @@ internal class DefaultCoseKeyConverter(
                         using var decodedLease = StrictBase64Url.RentDecoded(
                             member,
                             isSensitive: false,
-                            out Span<byte> decoded
+                            out ReadOnlySpan<byte> decoded
                         );
                         map[parameter.Label] = CoseValue.FromByteString(decoded);
                     }

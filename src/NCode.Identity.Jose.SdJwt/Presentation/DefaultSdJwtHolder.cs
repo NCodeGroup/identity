@@ -205,7 +205,7 @@ internal class DefaultSdJwtHolder(
             using var lease = StrictBase64Url.RentDecoded(
                 encodedPayload,
                 isSensitive: false,
-                out Span<byte> utf8Json
+                out ReadOnlySpan<byte> utf8Json
             );
 
             var payload = JsonElement.Parse(utf8Json);

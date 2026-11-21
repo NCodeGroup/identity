@@ -257,7 +257,11 @@ public sealed class Disclosure
         out ReadOnlySpan<byte> bytes
     )
     {
-        var lease = StrictBase64Url.RentDecoded(chars, isSensitive: false, out Span<byte> decoded);
+        var lease = StrictBase64Url.RentDecoded(
+            chars,
+            isSensitive: false,
+            out ReadOnlySpan<byte> decoded
+        );
         bytes = decoded;
         return lease;
     }

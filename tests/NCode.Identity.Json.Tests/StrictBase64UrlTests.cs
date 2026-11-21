@@ -287,7 +287,7 @@ public class StrictBase64UrlTests
         using var lease = StrictBase64Url.RentDecoded(
             "AQID",
             isSensitive: true,
-            out Span<byte> bytes
+            out ReadOnlySpan<byte> bytes
         );
 
         Assert.Equal(new byte[] { 1, 2, 3 }, bytes.ToArray());
@@ -299,7 +299,7 @@ public class StrictBase64UrlTests
         using var lease = StrictBase64Url.RentDecoded(
             "-_-_",
             isSensitive: false,
-            out Memory<byte> bytes
+            out ReadOnlyMemory<byte> bytes
         );
 
         Assert.Equal(new byte[] { 0xFB, 0xFF, 0xBF }, bytes.ToArray());
@@ -315,7 +315,7 @@ public class StrictBase64UrlTests
             using var lease = StrictBase64Url.RentDecoded(
                 text,
                 isSensitive: true,
-                out Span<byte> _
+                out ReadOnlySpan<byte> _
             );
         });
         Assert.Throws<FormatException>(() =>
@@ -323,7 +323,7 @@ public class StrictBase64UrlTests
             using var lease = StrictBase64Url.RentDecoded(
                 text,
                 isSensitive: false,
-                out Memory<byte> _
+                out ReadOnlyMemory<byte> _
             );
         });
     }
