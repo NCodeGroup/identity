@@ -1,5 +1,6 @@
-# Codecov configuration (ADR-1143). Reports arrive from .github/workflows/codecov-upload.yml, which both CI tiers call:
-# .NET under the `dotnet` flag (ci.yml) and the frontend workspace under the `frontend` flag (frontend.yml).
+# Codecov configuration (ADR-1143). Reports arrive from .github/workflows/codecov-upload.yml, which follows each run of
+# both CI tiers: .NET under the `dotnet` flag (ci.yml) and the frontend workspace under the `frontend` flag
+# (frontend.yml).
 
 coverage:
   status:
