@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using NCode.Buffers;
 using NCode.Encoders;
+using NCode.Identity.Json;
 
 namespace NCode.Identity.Bff.Sessions;
 
@@ -79,7 +80,7 @@ internal static class BffKeyDerivation
             int written;
             try
             {
-                if (!Base64Url.TryDecode(secret, buffer, out written))
+                if (!StrictBase64Url.TryDecode(secret, buffer, out written))
                     return false;
             }
             catch (FormatException)

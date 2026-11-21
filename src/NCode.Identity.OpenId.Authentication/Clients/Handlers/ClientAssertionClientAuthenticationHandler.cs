@@ -5,8 +5,6 @@ using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
-using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.Jose;
 using NCode.Identity.Jose.Algorithms;
 using NCode.Identity.Json;
@@ -366,15 +364,11 @@ internal abstract class ClientAssertionClientAuthenticationHandler(
         element = default;
         try
         {
-            var byteCount = Base64Url.GetByteCountForDecode(encoded.Length);
-            using var lease = BufferFactory.Rent(
-                byteCount,
+            using var lease = StrictBase64Url.RentDecoded(
+                encoded,
                 isSensitive: false,
                 out Span<byte> utf8Json
             );
-            if (!Base64Url.TryDecode(encoded, utf8Json, out _))
-                return false;
-
             element = JsonElement.Parse(utf8Json);
         }
         catch (Exception exception) when (exception is FormatException or JsonException)
