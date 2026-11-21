@@ -76,5 +76,9 @@ public abstract class OpenIdClient
     /// <summary>
     /// Gets the <see cref="IPropertyBag"/> that can provide additional user-defined information about the current instance or operation.
     /// </summary>
+    /// <remarks>
+    /// The default client's bag is a child of its context's bag: it reads every value the context holds, and its own
+    /// writes and removals stay with this client.
+    /// </remarks>
     public abstract IPropertyBag PropertyBag { get; }
 }

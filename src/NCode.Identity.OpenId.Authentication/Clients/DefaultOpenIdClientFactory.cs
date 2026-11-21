@@ -27,7 +27,7 @@ internal class DefaultOpenIdClientFactory(ISecretKeyCollectionFactory secretKeyC
     )
     {
         var secretKeys = SecretKeyCollectionFactory.Create(definition.Secrets);
-        var propertyBag = openIdContext.PropertyBag.Clone();
+        var propertyBag = openIdContext.PropertyBag.CreateChild();
 
         var redirectUris = GetRedirectUris(definition.Settings);
 

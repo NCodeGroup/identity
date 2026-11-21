@@ -29,6 +29,7 @@
         <PackageReference Include="NCode.Buffers" />
         <PackageReference Include="NCode.Collections.Providers" />
         <PackageReference Include="NCode.Mediator" />
+        <PackageReference Include="NCode.PropertyBag" />
         <PackageReference Include="Nerdbank.Streams" />
         <PackageReference Include="Polly.Core" />
     </ItemGroup>
