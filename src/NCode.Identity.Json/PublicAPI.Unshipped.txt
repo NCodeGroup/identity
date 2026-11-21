@@ -47,6 +47,7 @@ NCode.Identity.Json.PersistedPayloadVersionAttribute.PersistedPayloadVersionAttr
 NCode.Identity.Json.PersistedPayloadVersionAttribute.Version.get -> int
 override NCode.Identity.Json.ObjectJsonConverter.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> object?
 override NCode.Identity.Json.ObjectJsonConverter.Write(System.Text.Json.Utf8JsonWriter! writer, object! value, System.Text.Json.JsonSerializerOptions! options) -> void
+NCode.Identity.Json.StrictBase64Url
 NCode.Identity.Json.UriJsonConverter
 NCode.Identity.Json.UriJsonConverter.UriJsonConverter() -> void
 override NCode.Identity.Json.DelegatingJsonConverter<TInterface, TImplementation>.CanConvert(System.Type! typeToConvert) -> bool
@@ -66,6 +67,15 @@ static NCode.Identity.Json.DateCoercion.TryParseNumericDate(string? text, out Sy
 static NCode.Identity.Json.ObjectJsonConverter.Default.get -> NCode.Identity.Json.ObjectJsonConverter!
 static NCode.Identity.Json.ObjectJsonConverterOptions.Default.get -> NCode.Identity.Json.ObjectJsonConverterOptions!
 static NCode.Identity.Json.ObjectJsonConverterOptions.NewtonsoftCompatible.get -> NCode.Identity.Json.ObjectJsonConverterOptions!
+static NCode.Identity.Json.StrictBase64Url.Decode(System.ReadOnlySpan<char> text) -> byte[]!
+static NCode.Identity.Json.StrictBase64Url.Decode(System.ReadOnlySpan<char> text, System.Buffers.IBufferWriter<byte>! destination) -> int
+static NCode.Identity.Json.StrictBase64Url.GetDecodedLength(int textLength) -> int
+static NCode.Identity.Json.StrictBase64Url.IsValid(System.ReadOnlySpan<byte> utf8Text) -> bool
+static NCode.Identity.Json.StrictBase64Url.IsValid(System.ReadOnlySpan<char> text) -> bool
+static NCode.Identity.Json.StrictBase64Url.RentDecoded(System.ReadOnlySpan<char> text, bool isSensitive, out System.Memory<byte> bytes) -> System.Buffers.IMemoryOwner<byte>!
+static NCode.Identity.Json.StrictBase64Url.RentDecoded(System.ReadOnlySpan<char> text, bool isSensitive, out System.Span<byte> bytes) -> System.Buffers.IMemoryOwner<byte>!
+static NCode.Identity.Json.StrictBase64Url.TryDecode(System.ReadOnlySpan<byte> utf8Text, System.Span<byte> destination, out int bytesWritten) -> bool
+static NCode.Identity.Json.StrictBase64Url.TryDecode(System.ReadOnlySpan<char> text, System.Span<byte> destination, out int bytesWritten) -> bool
 static NCode.Identity.Json.UriJsonConverter.Singleton.get -> NCode.Identity.Json.UriJsonConverter!
 NCode.Identity.Json.JsonElements.extension(System.Text.Json.JsonElement)
 NCode.Identity.Json.JsonElements.extension(System.Text.Json.JsonElement).IsNullOrUndefined() -> bool

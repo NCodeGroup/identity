@@ -4,7 +4,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <RootNamespace>NCode.Identity.Json</RootNamespace>
-        <Description>The JSON value model of JOSE, OAuth and OpenID Connect for NCode.Identity: NumericDate coercion, claim sets as object graphs, strict claim reads on JsonElement, the family's JSON converters and the schema-versioned serializer of the payloads stored at rest as JSON.</Description>
+        <Description>The JSON value model of JOSE, OAuth and OpenID Connect for NCode.Identity: NumericDate coercion, claim sets as object graphs, strict claim reads on JsonElement, the family's JSON converters, the strict base64url decoder, and the schema-versioned serializer of the payloads stored at rest as JSON.</Description>
     </PropertyGroup>
 
     <ItemGroup>
