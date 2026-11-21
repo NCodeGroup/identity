@@ -5071,12 +5071,13 @@ Until the first stable release, the [Unreleased] section describes the product a
 
 - **Base64url text is decoded strictly, through one decoder.** `StrictBase64Url` (`NCode.Identity.Json`) accepts only
   the canonical unpadded base64url of RFC 4648 §5 and RFC 7515 §2 and refuses padding, whitespace, a one-character
-  remainder and non-zero trailing bits before it decodes; its `RentDecoded` rents the bytes through
-  `BinaryTextEncoding.RentDecoded`. Every JOSE, SD-JWT and client-assertion segment, every JWK and COSE key member, the
-  JWE header members, `dpop_jkt`, the secret envelopes, the key wraps, the root key files, the verifiers, the stored
+  remainder and non-zero trailing bits before it decodes; its `RentDecoded` rents the bytes through NCode.Buffers'
+  `BinaryTextFormat.Base64UrlStrict`. Every JOSE, SD-JWT and client-assertion segment, every JWK and COSE key member,
+  the JWE header members, `dpop_jkt`, the secret envelopes, the key wraps, the root key files, the verifiers, the stored
   password hashes, the page cursors and the configured client secrets are decoded through it, and any other base64url
-  decoder in code that is not a test fails the build. Base64url text is encoded with the .NET `Base64Url`, so the
-  family references one base64url implementation ([#889](https://github.com/NCodeGroup/identity/issues/889),
+  decoder in code that is not a test fails the build. Base64url text is encoded with the .NET `Base64Url`, so the family
+  references one base64url implementation ([#889](https://github.com/NCodeGroup/identity/issues/889),
+  [#892](https://github.com/NCodeGroup/identity/issues/892),
   [ADR-1266](docs/decisions/1266-binary-data-uses-bufferfactory-rentals-with-explicit-sensitivity-and-text-only-strict-encodings.md)).
 
 - **Decrypted JOSE payloads are zeroed when released.** A decrypted JWE payload, a payload serialized or compressed
