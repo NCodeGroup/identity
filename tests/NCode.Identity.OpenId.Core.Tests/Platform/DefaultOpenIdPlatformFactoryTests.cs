@@ -94,8 +94,14 @@ public class DefaultOpenIdPlatformFactoryTests : BaseTests
         Assert.Throws<ObjectDisposedException>(() => platformSettingsDataSource.GetChangeToken());
     }
 
-    [Fact]
-    public async Task CreateAsync_WhenCreated_RunsItsCallsOnAChildBagAndGivesThePlatformAClone()
+    private async ValueTask<(
+        PropertyBagKey<string> MarkerKey,
+        ConcurrentPropertyBagDictionary EnvBag,
+        TestablePlatformFactory Factory,
+        OpenIdPlatform Created,
+        OpenIdPlatform Result,
+        RefreshableSettingsCollectionDataSource DataSource
+    )> CreatePlatformAsync(CancellationToken cancellationToken)
     {
         var markerKey = new PropertyBagKey<string>("Marker");
         var envBag = new ConcurrentPropertyBagDictionary();
@@ -142,7 +148,16 @@ public class DefaultOpenIdPlatformFactoryTests : BaseTests
             createdPlatform
         );
 
-        var result = await factory.CreateAsync(mockEnvironment.Object, CancellationToken.None);
+        var result = await factory.CreateAsync(mockEnvironment.Object, cancellationToken);
+
+        return (markerKey, envBag, factory, createdPlatform, result, platformSettingsDataSource);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenCreated_RunsItsCallsOnAChildOfTheEnvironmentsBag()
+    {
+        var (_, envBag, factory, createdPlatform, result, platformSettingsDataSource) =
+            await CreatePlatformAsync(CancellationToken.None);
 
         Assert.Same(createdPlatform, result);
         Assert.Equal(3, factory.OperationPropertyBags.Count);
@@ -150,6 +165,15 @@ public class DefaultOpenIdPlatformFactoryTests : BaseTests
             factory.OperationPropertyBags,
             bag => Assert.Same(envBag, Assert.IsType<LayeredPropertyBag>(bag).Parent)
         );
+
+        await platformSettingsDataSource.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenCreated_GivesThePlatformACloneOfTheEnvironmentsBag()
+    {
+        var (markerKey, envBag, factory, _, _, platformSettingsDataSource) =
+            await CreatePlatformAsync(CancellationToken.None);
 
         var platformBag = Assert.IsType<ConcurrentPropertyBagDictionary>(
             factory.PlatformPropertyBag

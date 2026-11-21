@@ -55,8 +55,9 @@ over its owner's bag.**
 - A context, a client or a validation reads every value its owners hold, and its writes stay with it.
 - A child bag reads its parent's values by reference, so a mutable value a long-lived object holds is shared with
   every operation that reads it; an operation that needs its own copy sets one in its child bag.
-- `IOpenIdTeamFactory.CreateTeamAsync` and `DefaultOpenIdTenantFactory.CreateOpenIdTenantAsync` take their
-  `propertyBag` for the operation only.
+- `IOpenIdTeamFactory.CreateTeamAsync` and `DefaultOpenIdTenantFactory.CreateOpenIdTenantAsync` take the operation's
+  bag, as every seam of the factories does, so an override can read it; the default implementations store none of
+  it, and give the team or tenant a clone of its parent's bag.
 
 ## References
 

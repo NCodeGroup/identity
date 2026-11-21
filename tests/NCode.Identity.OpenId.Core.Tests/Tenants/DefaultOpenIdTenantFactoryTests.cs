@@ -646,8 +646,20 @@ public sealed class DefaultOpenIdTenantFactoryTests
         mocks.Verify();
     }
 
-    [Fact]
-    public async Task MaterializeTenantAsync_WhenCreated_OwnsACloneOfTheTeamsBagAndRunsOnAChildOfTheCallersBag()
+    private sealed record TenantBagsResult(
+        MockRepository Mocks,
+        AsyncSharedReferenceLease<OpenIdTenant> TenantLease,
+        AsyncSharedReferenceLease<OpenIdTenant> CachedTenant,
+        IAsyncDisposable TeamLease,
+        IPropertyBag TeamBag,
+        IPropertyBag CallerBag,
+        IPropertyBag? OperationBag,
+        PropertyBagKey<string> Marker
+    );
+
+    private static async ValueTask<TenantBagsResult> MaterializeWithBagsAsync(
+        CancellationToken cancellationToken
+    )
     {
         var mocks = new MockRepository(MockBehavior.Strict);
 
@@ -751,20 +763,52 @@ public sealed class DefaultOpenIdTenantFactoryTests
             Mock.Of<OpenIdEnvironment>(),
             Mock.Of<OpenIdPlatform>(),
             callerBag,
-            CancellationToken.None
+            cancellationToken
         );
 
-        Assert.Same(callerBag, Assert.IsType<LayeredPropertyBag>(operationBag).Parent);
+        return new TenantBagsResult(
+            mocks,
+            tenantLease,
+            cachedTenant,
+            teamLease,
+            teamBag,
+            callerBag,
+            operationBag,
+            marker
+        );
+    }
+
+    [Fact]
+    public async Task MaterializeTenantAsync_WhenCreated_OwnsACloneOfTheTeamsBag()
+    {
+        var result = await MaterializeWithBagsAsync(CancellationToken.None);
+
         var tenantBag = Assert.IsType<ConcurrentPropertyBagDictionary>(
-            tenantLease.Value.PropertyBag
+            result.TenantLease.Value.PropertyBag
         );
-        Assert.NotSame(teamBag, tenantBag);
-        Assert.Equal("team", tenantBag.GetValue(marker));
+        Assert.NotSame(result.TeamBag, tenantBag);
+        Assert.Equal("team", tenantBag.GetValue(result.Marker));
 
-        await tenantLease.DisposeAsync();
-        await cachedTenant.DisposeAsync();
-        await teamLease.DisposeAsync();
-        mocks.Verify();
+        await result.TenantLease.DisposeAsync();
+        await result.CachedTenant.DisposeAsync();
+        await result.TeamLease.DisposeAsync();
+        result.Mocks.Verify();
+    }
+
+    [Fact]
+    public async Task MaterializeTenantAsync_WhenCreated_RunsOnAChildOfTheCallersBag()
+    {
+        var result = await MaterializeWithBagsAsync(CancellationToken.None);
+
+        Assert.Same(
+            result.CallerBag,
+            Assert.IsType<LayeredPropertyBag>(result.OperationBag).Parent
+        );
+
+        await result.TenantLease.DisposeAsync();
+        await result.CachedTenant.DisposeAsync();
+        await result.TeamLease.DisposeAsync();
+        result.Mocks.Verify();
     }
 
     [Fact]
