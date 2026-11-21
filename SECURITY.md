@@ -6,7 +6,7 @@
 
 Report privately via GitHub's **[Security Advisories](https://github.com/NCodeGroup/identity/security/advisories/new)**
 ("Report a vulnerability"). Include a description, affected package(s) and version(s), reproduction steps, and impact.
-You will receive an acknowledgement, and we will coordinate a fix and disclosure timeline with you.
+You will receive an acknowledgement within 14 days, and we will coordinate a fix and disclosure timeline with you.
 
 Because this is a security-relevant identity library, please give us a reasonable window to release a fix before any
 public disclosure.
