@@ -3,7 +3,6 @@
 
 using System.Buffers;
 using System.Buffers.Text;
-using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -191,46 +190,71 @@ internal sealed class DefaultPasswordHasher : IPasswordHasher
         ReadOnlySpan<byte> password
     )
     {
-        if (!TryParse(hashedPassword, out var iterations, out var salt, out var expectedHash))
-        {
-            // A stored hash this hasher cannot read takes as long to refuse as a wrong password. The dummy hash always
-            // reads, so this recursion is one level deep. See ADR-1239.
-            _ = VerifyCore(DummyPasswordHash, password);
-            return PasswordVerificationResult.Failed;
-        }
-
-        var matched = false;
-        Span<byte> computed = stackalloc byte[expectedHash.Length];
+        // The stored salt and derived key are as sensitive as the computed key, so every buffer is zeroed.
+        Span<byte> saltBuffer = stackalloc byte[MaxByteCount];
+        Span<byte> hashBuffer = stackalloc byte[MaxByteCount];
         try
         {
-            Rfc2898DeriveBytes.Pbkdf2(password, salt, computed, iterations, Algorithm);
-            matched = CryptographicOperations.FixedTimeEquals(computed, expectedHash);
+            if (
+                !TryParse(
+                    hashedPassword,
+                    saltBuffer,
+                    hashBuffer,
+                    out var iterations,
+                    out var saltLength,
+                    out var hashLength
+                )
+            )
+            {
+                // A stored hash this hasher cannot read takes as long to refuse as a wrong password. The dummy hash
+                // always reads, so this recursion is one level deep. See ADR-1239.
+                _ = VerifyCore(DummyPasswordHash, password);
+                return PasswordVerificationResult.Failed;
+            }
+
+            ReadOnlySpan<byte> salt = saltBuffer[..saltLength];
+            ReadOnlySpan<byte> expectedHash = hashBuffer[..hashLength];
+
+            var matched = false;
+            Span<byte> computed = stackalloc byte[hashLength];
+            try
+            {
+                Rfc2898DeriveBytes.Pbkdf2(password, salt, computed, iterations, Algorithm);
+                matched = CryptographicOperations.FixedTimeEquals(computed, expectedHash);
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(computed);
+            }
+
+            if (!matched)
+            {
+                return PasswordVerificationResult.Failed;
+            }
+
+            return iterations < Options.Iterations
+                ? PasswordVerificationResult.SuccessRehashNeeded
+                : PasswordVerificationResult.Success;
         }
         finally
         {
-            CryptographicOperations.ZeroMemory(computed);
+            CryptographicOperations.ZeroMemory(saltBuffer);
+            CryptographicOperations.ZeroMemory(hashBuffer);
         }
-
-        if (!matched)
-        {
-            return PasswordVerificationResult.Failed;
-        }
-
-        return iterations < Options.Iterations
-            ? PasswordVerificationResult.SuccessRehashNeeded
-            : PasswordVerificationResult.Success;
     }
 
     private static bool TryParse(
         string hashedPassword,
+        Span<byte> saltBuffer,
+        Span<byte> hashBuffer,
         out int iterations,
-        [NotNullWhen(true)] out byte[]? salt,
-        [NotNullWhen(true)] out byte[]? expectedHash
+        out int saltLength,
+        out int hashLength
     )
     {
         iterations = 0;
-        salt = null;
-        expectedHash = null;
+        saltLength = 0;
+        hashLength = 0;
 
         // $ncode-pbkdf2-sha256$<iterations>$<saltBase64Url>$<hashBase64Url>
         var segments = hashedPassword.Split('$');
@@ -252,19 +276,19 @@ internal sealed class DefaultPasswordHasher : IPasswordHasher
 
         try
         {
-            salt = StrictBase64Url.Decode(segments[3]);
-            expectedHash = StrictBase64Url.Decode(segments[4]);
+            if (
+                !StrictBase64Url.TryDecode(segments[3], saltBuffer, out saltLength)
+                || !StrictBase64Url.TryDecode(segments[4], hashBuffer, out hashLength)
+            )
+            {
+                return false;
+            }
         }
         catch (FormatException)
         {
             return false;
         }
 
-        if (expectedHash.Length is < 16 or > MaxByteCount)
-        {
-            return false;
-        }
-
-        return true;
+        return hashLength >= 16;
     }
 }

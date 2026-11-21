@@ -199,5 +199,41 @@ public sealed class DefaultPasswordHasherTests
         Assert.Equal(PasswordVerificationResult.Success, result);
     }
 
+    [Fact]
+    public void VerifyHashedPassword_SaltLongerThanLimit_Failed()
+    {
+        var hasher = CreateHasher();
+        var saltText = Base64Url.EncodeToString(new byte[257]);
+        var keyText = Base64Url.EncodeToString(new byte[32]);
+        var hash = string.Concat("$ncode-pbkdf2-sha256$1000$", saltText, "$", keyText);
+
+        var result = hasher.VerifyHashedPassword(hash, PasswordBytes);
+
+        Assert.Equal(PasswordVerificationResult.Failed, result);
+    }
+
+    [Fact]
+    public void VerifyHashedPassword_HashWithPaddingOrNonZeroTrailingBits_Failed()
+    {
+        var hasher = CreateHasher();
+        var hash = hasher.HashPassword(PasswordBytes);
+        Assert.Equal(
+            PasswordVerificationResult.Success,
+            hasher.VerifyHashedPassword(hash, PasswordBytes)
+        );
+
+        var padded = hash + "=";
+        var trailingBits = string.Concat(hash.AsSpan(0, hash.Length - 1), "B");
+
+        Assert.Equal(
+            PasswordVerificationResult.Failed,
+            hasher.VerifyHashedPassword(padded, PasswordBytes)
+        );
+        Assert.Equal(
+            PasswordVerificationResult.Failed,
+            hasher.VerifyHashedPassword(trailingBits, PasswordBytes)
+        );
+    }
+
     #endregion
 }
