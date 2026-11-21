@@ -16,7 +16,7 @@ using NCode.Identity.Secrets.KeyMaterial;
 using NCode.Identity.Secrets.Keys;
 using NCode.Identity.Secrets.KeyTypes;
 using NCode.Identity.Secrets.RemoteKeys;
-using Base64Url = NCode.Encoders.Base64Url;
+using Base64Url = System.Buffers.Text.Base64Url;
 using JoseException = NCode.Identity.Jose.Exceptions.JoseException;
 using JoseInvalidAlgorithmException = NCode.Identity.Jose.Exceptions.JoseInvalidAlgorithmException;
 
@@ -83,12 +83,12 @@ public class EcdhKeyManagementAlgorithmTests : BaseTests
         {
             ["kty"] = "EC",
             ["crv"] = $"P-{curveSizeBits}",
-            ["x"] = Base64Url.Encode(parameters.Q.X),
-            ["y"] = Base64Url.Encode(parameters.Q.Y),
+            ["x"] = Base64Url.EncodeToString(parameters.Q.X),
+            ["y"] = Base64Url.EncodeToString(parameters.Q.Y),
         };
         if (includePrivateKey)
         {
-            epk["d"] = Base64Url.Encode(parameters.D);
+            epk["d"] = Base64Url.EncodeToString(parameters.D);
         }
 
         return epk;
@@ -324,8 +324,14 @@ public class EcdhKeyManagementAlgorithmTests : BaseTests
         Assert.Equal($"P-{curveSizeBits}", epk["crv"]);
 
         var coordinateSizeBytes = (curveSizeBits + 7) >> 3;
-        Assert.Equal(coordinateSizeBytes, Base64Url.Decode(Assert.IsType<string>(epk["x"])).Length);
-        Assert.Equal(coordinateSizeBytes, Base64Url.Decode(Assert.IsType<string>(epk["y"])).Length);
+        Assert.Equal(
+            coordinateSizeBytes,
+            Base64Url.DecodeFromChars(Assert.IsType<string>(epk["x"])).Length
+        );
+        Assert.Equal(
+            coordinateSizeBytes,
+            Base64Url.DecodeFromChars(Assert.IsType<string>(epk["y"])).Length
+        );
     }
 
     [Fact]
@@ -354,7 +360,7 @@ public class EcdhKeyManagementAlgorithmTests : BaseTests
     )
     {
         var epk = CreateEpk(256);
-        epk[privateMember] = Base64Url.Encode(new byte[32]);
+        epk[privateMember] = Base64Url.EncodeToString(new byte[32]);
         var header = new JsonObject { ["enc"] = Enc, ["epk"] = epk };
 
         var exception = ValidateHeaderForUnwrapThrows(CreateRecipientKey(256), header);
@@ -369,8 +375,8 @@ public class EcdhKeyManagementAlgorithmTests : BaseTests
     public void ValidateHeaderForUnwrap_WhenValidHeader_ReturnsTheEphemeralPublicKey()
     {
         var epk = CreateEpk(256);
-        var apu = Base64Url.Encode(RandomNumberGenerator.GetBytes(32));
-        var apv = Base64Url.Encode(RandomNumberGenerator.GetBytes(32));
+        var apu = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32));
+        var apv = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32));
         var header = new JsonObject
         {
             ["enc"] = Enc,
@@ -396,8 +402,8 @@ public class EcdhKeyManagementAlgorithmTests : BaseTests
         var parameters = ecdh.ExportParameters(includePrivateParameters: false);
         var x = Assert.IsType<JsonValue>(epk["x"], exactMatch: false);
         var y = Assert.IsType<JsonValue>(epk["y"], exactMatch: false);
-        Assert.Equal(x.GetValue<string>(), Base64Url.Encode(parameters.Q.X));
-        Assert.Equal(y.GetValue<string>(), Base64Url.Encode(parameters.Q.Y));
+        Assert.Equal(x.GetValue<string>(), Base64Url.EncodeToString(parameters.Q.X));
+        Assert.Equal(y.GetValue<string>(), Base64Url.EncodeToString(parameters.Q.Y));
     }
 
     [Fact]
@@ -497,9 +503,9 @@ public class EcdhKeyManagementAlgorithmTests : BaseTests
     {
         var epk = CreateEpk(256);
         var yMember = Assert.IsType<JsonValue>(epk["y"], exactMatch: false);
-        var y = Base64Url.Decode(yMember.GetValue<string>());
+        var y = Base64Url.DecodeFromChars(yMember.GetValue<string>());
         y[^1] ^= 0x01;
-        epk["y"] = Base64Url.Encode(y);
+        epk["y"] = Base64Url.EncodeToString(y);
 
         var exception = ValidateHeaderForUnwrapThrows(
             CreateRecipientKey(256),
@@ -583,10 +589,10 @@ public class EcdhKeyManagementAlgorithmTests : BaseTests
             Curve = ECCurve.NamedCurves.nistP256,
             Q = new ECPoint
             {
-                X = Base64Url.Decode("weNJy2HscCSM6AEDTDg04biOvhFhyyWvOHQfeF_PxMQ"),
-                Y = Base64Url.Decode("e8lnCO-AlStT-NJVX-crhB7QRYhiix03illJOVAOyck"),
+                X = Base64Url.DecodeFromChars("weNJy2HscCSM6AEDTDg04biOvhFhyyWvOHQfeF_PxMQ"),
+                Y = Base64Url.DecodeFromChars("e8lnCO-AlStT-NJVX-crhB7QRYhiix03illJOVAOyck"),
             },
-            D = Base64Url.Decode("VEmDZpDXXK8p8N0Cndsxs924q6nS1RXFASRl6BfUqdw"),
+            D = Base64Url.DecodeFromChars("VEmDZpDXXK8p8N0Cndsxs924q6nS1RXFASRl6BfUqdw"),
         };
         using var bob = ECDiffieHellman.Create(bobParameters);
         var bobKey = SecretKeyFactory.CreateEcc(new KeyMetadata { KeyId = "bob" }, bob);
@@ -617,7 +623,7 @@ public class EcdhKeyManagementAlgorithmTests : BaseTests
 
         Assert.True(result);
         Assert.Equal(16, bytesWritten);
-        Assert.Equal("VqqN6vgjbSBcIijNcacQGg", Base64Url.Encode(cek));
+        Assert.Equal("VqqN6vgjbSBcIijNcacQGg", Base64Url.EncodeToString(cek));
     }
 
     [Fact]
@@ -687,8 +693,8 @@ public class EcdhKeyManagementAlgorithmTests : BaseTests
         var header = new Dictionary<string, object>
         {
             ["enc"] = enc,
-            ["apu"] = Base64Url.Encode(apu),
-            ["apv"] = Base64Url.Encode(apv),
+            ["apu"] = Base64Url.EncodeToString(apu),
+            ["apv"] = Base64Url.EncodeToString(apv),
         };
 
         var cek1 = new byte[keySizeBytes];
@@ -1028,8 +1034,8 @@ public class EcdhKeyManagementAlgorithmTests : BaseTests
         var header = new Dictionary<string, object>
         {
             ["enc"] = "A256GCM",
-            ["apu"] = Base64Url.Encode(RandomNumberGenerator.GetBytes(16)),
-            ["apv"] = Base64Url.Encode(RandomNumberGenerator.GetBytes(16)),
+            ["apu"] = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(16)),
+            ["apv"] = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(16)),
         };
         var contentKey = new byte[32];
         Algorithm.NewKey(secretKey, header, contentKey);

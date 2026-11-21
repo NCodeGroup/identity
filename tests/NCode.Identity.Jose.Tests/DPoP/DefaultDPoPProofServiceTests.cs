@@ -1,12 +1,12 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Text;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.Jose.Algorithms;
 using NCode.Identity.Jose.Credentials;
 using NCode.Identity.Jose.DPoP;
@@ -95,20 +95,20 @@ public class DefaultDPoPProofServiceTests : BaseTests
         };
 
     private static JsonElement DecodeSegment(string proof, int index) =>
-        JsonElement.Parse(Base64Url.Decode(proof.Split('.')[index]));
+        JsonElement.Parse(Base64Url.DecodeFromChars(proof.Split('.')[index]));
 
     // Hand-builds an ES256-signed proof so a test can emit headers the service itself never produces.
     private static string BuildEs256Proof(ECDsa ecdsa, object header, object payload)
     {
-        var encodedHeader = Base64Url.Encode(JsonSerializer.SerializeToUtf8Bytes(header));
-        var encodedPayload = Base64Url.Encode(JsonSerializer.SerializeToUtf8Bytes(payload));
+        var encodedHeader = Base64Url.EncodeToString(JsonSerializer.SerializeToUtf8Bytes(header));
+        var encodedPayload = Base64Url.EncodeToString(JsonSerializer.SerializeToUtf8Bytes(payload));
         var signingInput = $"{encodedHeader}.{encodedPayload}";
         var signature = ecdsa.SignData(
             SecureEncoding.ASCII.GetBytes(signingInput),
             HashAlgorithmName.SHA256,
             DSASignatureFormat.IeeeP1363FixedFieldConcatenation
         );
-        return $"{signingInput}.{Base64Url.Encode(signature)}";
+        return $"{signingInput}.{Base64Url.EncodeToString(signature)}";
     }
 
     private static Dictionary<string, object> CreateEcJwk(ECDsa ecdsa, bool includePrivate)
@@ -118,11 +118,11 @@ public class DefaultDPoPProofServiceTests : BaseTests
         {
             ["kty"] = "EC",
             ["crv"] = "P-256",
-            ["x"] = Base64Url.Encode(parameters.Q.X!),
-            ["y"] = Base64Url.Encode(parameters.Q.Y!),
+            ["x"] = Base64Url.EncodeToString(parameters.Q.X!),
+            ["y"] = Base64Url.EncodeToString(parameters.Q.Y!),
         };
         if (includePrivate)
-            jwk["d"] = Base64Url.Encode(parameters.D!);
+            jwk["d"] = Base64Url.EncodeToString(parameters.D!);
         return jwk;
     }
 
@@ -202,7 +202,9 @@ public class DefaultDPoPProofServiceTests : BaseTests
         Assert.Equal(HttpUri, payload.GetProperty("htu").GetString());
         Assert.Equal(StartTime.ToUnixTimeSeconds(), payload.GetProperty("iat").GetInt64());
         Assert.Equal(
-            Base64Url.Encode(SHA256.HashData(SecureEncoding.ASCII.GetBytes("access-token"))),
+            Base64Url.EncodeToString(
+                SHA256.HashData(SecureEncoding.ASCII.GetBytes("access-token"))
+            ),
             payload.GetProperty("ath").GetString()
         );
         Assert.False(payload.TryGetProperty("nonce", out _));
@@ -560,19 +562,21 @@ public class DefaultDPoPProofServiceTests : BaseTests
             ["jwk"] = new Dictionary<string, object>
             {
                 ["kty"] = "RSA",
-                ["n"] = Base64Url.Encode(parameters.Modulus!),
-                ["e"] = Base64Url.Encode(parameters.Exponent!),
+                ["n"] = Base64Url.EncodeToString(parameters.Modulus!),
+                ["e"] = Base64Url.EncodeToString(parameters.Exponent!),
             },
         };
-        var encodedHeader = Base64Url.Encode(JsonSerializer.SerializeToUtf8Bytes(header));
-        var encodedPayload = Base64Url.Encode(JsonSerializer.SerializeToUtf8Bytes(CreatePayload()));
+        var encodedHeader = Base64Url.EncodeToString(JsonSerializer.SerializeToUtf8Bytes(header));
+        var encodedPayload = Base64Url.EncodeToString(
+            JsonSerializer.SerializeToUtf8Bytes(CreatePayload())
+        );
         var signingInput = $"{encodedHeader}.{encodedPayload}";
         var signature = rsa.SignData(
             SecureEncoding.ASCII.GetBytes(signingInput),
             HashAlgorithmName.SHA256,
             RSASignaturePadding.Pkcs1
         );
-        var proof = $"{signingInput}.{Base64Url.Encode(signature)}";
+        var proof = $"{signingInput}.{Base64Url.EncodeToString(signature)}";
 
         AssertRejected(proof, CreateParameters(allowedAlgorithms: "RS256"), "key size");
     }

@@ -1,8 +1,8 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Text;
 using System.Security.Cryptography;
-using NCode.Encoders;
 using NCode.Identity.Bff.Sessions;
 using Xunit;
 
@@ -178,7 +178,7 @@ public class BffKeyDerivationTests : BaseTests
     [Fact]
     public void Fingerprint_Value_IsBase64UrlSha256OfUtf8()
     {
-        var expected = Base64Url.Encode(SHA256.HashData("refresh-token-value"u8));
+        var expected = Base64Url.EncodeToString(SHA256.HashData("refresh-token-value"u8));
 
         var fingerprint = BffKeyDerivation.Fingerprint("refresh-token-value");
 

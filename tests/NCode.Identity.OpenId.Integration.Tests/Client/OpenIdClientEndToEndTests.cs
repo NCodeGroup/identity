@@ -1,10 +1,10 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Text;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
-using NCode.Encoders;
 using NCode.Identity.Jose;
 using NCode.Identity.Jwt;
 using NCode.Identity.OpenId.Client;
@@ -37,8 +37,8 @@ public class OpenIdClientEndToEndTests
             ["use"] = "sig",
             ["alg"] = "PS256",
             ["kid"] = KeyId,
-            ["n"] = Base64Url.Encode(parameters.Modulus!),
-            ["e"] = Base64Url.Encode(parameters.Exponent!),
+            ["n"] = Base64Url.EncodeToString(parameters.Modulus!),
+            ["e"] = Base64Url.EncodeToString(parameters.Exponent!),
         };
         var jwks = new Dictionary<string, object> { ["keys"] = new[] { jwk } };
         return JsonSerializer.Serialize(jwks);

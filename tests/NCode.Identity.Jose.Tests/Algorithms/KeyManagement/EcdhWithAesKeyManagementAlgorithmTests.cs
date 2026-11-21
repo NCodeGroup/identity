@@ -12,7 +12,7 @@ using NCode.Identity.Secrets;
 using NCode.Identity.Secrets.Keys;
 using NCode.Identity.Secrets.KeyTypes;
 using NCode.Identity.Secrets.RemoteKeys;
-using Base64Url = NCode.Encoders.Base64Url;
+using Base64Url = System.Buffers.Text.Base64Url;
 using JoseException = NCode.Identity.Jose.Exceptions.JoseException;
 using JoseInvalidAlgorithmException = NCode.Identity.Jose.Exceptions.JoseInvalidAlgorithmException;
 
@@ -133,8 +133,8 @@ public class EcdhWithAesKeyManagementAlgorithmTests : BaseTests
         var header = new Dictionary<string, object>
         {
             ["alg"] = alg,
-            ["apu"] = Base64Url.Encode(apu),
-            ["apv"] = Base64Url.Encode(apv),
+            ["apu"] = Base64Url.EncodeToString(apu),
+            ["apv"] = Base64Url.EncodeToString(apv),
         };
 
         algorithm.WrapKey(secretKey, header, cek, encryptedCekWriter);
@@ -307,8 +307,8 @@ public class EcdhWithAesKeyManagementAlgorithmTests : BaseTests
         var header = new Dictionary<string, object>
         {
             ["alg"] = RemoteAlgorithmCode,
-            ["apu"] = Base64Url.Encode(RandomNumberGenerator.GetBytes(16)),
-            ["apv"] = Base64Url.Encode(RandomNumberGenerator.GetBytes(16)),
+            ["apu"] = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(16)),
+            ["apv"] = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(16)),
         };
         var contentKey = new byte[cekSizeBytes];
         var encryptedContentKeyWriter = new ArrayBufferWriter<byte>();

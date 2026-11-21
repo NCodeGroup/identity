@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Text;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
@@ -9,7 +10,6 @@ using System.Text.Json;
 using System.Web;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using NCode.Encoders;
 using NCode.Identity.Jose;
 using NCode.Identity.Jwt;
 using NCode.Identity.OpenId.Client;
@@ -59,8 +59,8 @@ public class EncryptedTokenEndToEndTests
             ["use"] = "enc",
             ["alg"] = "RSA-OAEP-256",
             ["kid"] = EncryptionKeyId,
-            ["n"] = Base64Url.Encode(parameters.Modulus!),
-            ["e"] = Base64Url.Encode(parameters.Exponent!),
+            ["n"] = Base64Url.EncodeToString(parameters.Modulus!),
+            ["e"] = Base64Url.EncodeToString(parameters.Exponent!),
         };
         var jwks = new Dictionary<string, object> { ["keys"] = new[] { jwk } };
         return JsonSerializer.Serialize(jwks);
@@ -277,7 +277,7 @@ public class EncryptedTokenEndToEndTests
     {
         var segments = token.Split('.');
         Assert.Equal(5, segments.Length);
-        var header = JsonElement.Parse(System.Buffers.Text.Base64Url.DecodeFromChars(segments[0]));
+        var header = JsonElement.Parse(Base64Url.DecodeFromChars(segments[0]));
         return header;
     }
 

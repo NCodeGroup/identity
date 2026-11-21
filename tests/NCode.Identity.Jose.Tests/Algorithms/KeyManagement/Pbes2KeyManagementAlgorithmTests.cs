@@ -10,7 +10,7 @@ using NCode.Buffers;
 using NCode.Identity.Jose.Algorithms;
 using NCode.Identity.Jose.Algorithms.KeyManagement;
 using NCode.Identity.Secrets.Keys;
-using Base64Url = NCode.Encoders.Base64Url;
+using Base64Url = System.Buffers.Text.Base64Url;
 using JoseEncryptionException = NCode.Identity.Jose.Exceptions.JoseEncryptionException;
 using JoseException = NCode.Identity.Jose.Exceptions.JoseException;
 
@@ -303,7 +303,9 @@ public class Pbes2KeyManagementAlgorithmTests : BaseTests
         {
             ["alg"] = "PBES2-HS256+A128KW",
             ["p2c"] = Pbes2KeyManagementAlgorithm.MinIterationCount,
-            ["p2s"] = Base64Url.Encode(new byte[Pbes2KeyManagementAlgorithm.SaltInputSizeBytes]),
+            ["p2s"] = Base64Url.EncodeToString(
+                new byte[Pbes2KeyManagementAlgorithm.SaltInputSizeBytes]
+            ),
         };
 
     [Theory]
@@ -346,7 +348,7 @@ public class Pbes2KeyManagementAlgorithmTests : BaseTests
     public void TryUnwrapKey_GivenSaltInputOfAnotherSize_ThenThrows(int saltInputSizeBytes)
     {
         var header = CreateHeader();
-        header["p2s"] = Base64Url.Encode(new byte[saltInputSizeBytes]);
+        header["p2s"] = Base64Url.EncodeToString(new byte[saltInputSizeBytes]);
 
         var exception = AssertUnwrapRefusesHeader(header);
 
@@ -518,7 +520,9 @@ public class Pbes2KeyManagementAlgorithmTests : BaseTests
     {
         var algorithm = Create(aesKeyWrap: DefaultAesKeyWrap.Singleton);
         var (header, encryptedContentKey, _) = Wrap(algorithm);
-        header["p2s"] = Base64Url.Encode(new byte[Pbes2KeyManagementAlgorithm.SaltInputSizeBytes]);
+        header["p2s"] = Base64Url.EncodeToString(
+            new byte[Pbes2KeyManagementAlgorithm.SaltInputSizeBytes]
+        );
         var contentKey = new byte[32];
 
         Assert.Throws<JoseEncryptionException>(() =>

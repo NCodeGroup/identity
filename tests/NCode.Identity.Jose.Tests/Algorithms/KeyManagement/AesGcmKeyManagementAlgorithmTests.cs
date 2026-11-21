@@ -8,7 +8,7 @@ using System.Text.Json.Nodes;
 using Jose;
 using NCode.Identity.Jose.Algorithms.KeyManagement;
 using NCode.Identity.Secrets.Keys;
-using Base64Url = NCode.Encoders.Base64Url;
+using Base64Url = System.Buffers.Text.Base64Url;
 using JoseException = NCode.Identity.Jose.Exceptions.JoseException;
 
 namespace NCode.Identity.Jose.Tests.Algorithms.KeyManagement;
@@ -96,11 +96,11 @@ public class AesGcmKeyManagementAlgorithmTests : BaseTests
         Assert.Equal(cekSizeBytes, encryptedCekWriter.WrittenCount);
 
         var encodedNonce = Assert.IsType<string>(Assert.Contains("iv", headerForWrap));
-        var nonceSizeBytes = Base64Url.GetByteCountForDecode(encodedNonce.Length);
+        var nonceSizeBytes = Base64Url.GetMaxDecodedLength(encodedNonce.Length);
         Assert.Equal(96 >> 3, nonceSizeBytes);
 
         var encodedTag = Assert.IsType<string>(Assert.Contains("tag", headerForWrap));
-        var tagSizeBytes = Base64Url.GetByteCountForDecode(encodedTag.Length);
+        var tagSizeBytes = Base64Url.GetMaxDecodedLength(encodedTag.Length);
         Assert.Equal(128 >> 3, tagSizeBytes);
 
         var controlAlgorithm = new AesGcmKeyWrapManagement(kekSizeBits);
@@ -146,7 +146,7 @@ public class AesGcmKeyManagementAlgorithmTests : BaseTests
     {
         var iv = new byte[1];
         var tag = new byte[1];
-        var header = new JsonObject { ["iv"] = Base64Url.Encode(iv) };
+        var header = new JsonObject { ["iv"] = Base64Url.EncodeToString(iv) };
 
         var headerForUnwrap = header.Deserialize<JsonElement>();
 
@@ -164,7 +164,7 @@ public class AesGcmKeyManagementAlgorithmTests : BaseTests
         var tag = new byte[1];
         var header = new JsonObject
         {
-            ["iv"] = new string('!', Base64Url.GetCharCountForEncode(96 >> 3)),
+            ["iv"] = new string('!', Base64Url.GetEncodedLength(96 >> 3)),
         };
 
         var headerForUnwrap = header.Deserialize<JsonElement>();
@@ -184,7 +184,7 @@ public class AesGcmKeyManagementAlgorithmTests : BaseTests
     {
         var iv = new byte[96 >> 3];
         var tag = new byte[1];
-        var header = new JsonObject { ["iv"] = Base64Url.Encode(iv) };
+        var header = new JsonObject { ["iv"] = Base64Url.EncodeToString(iv) };
 
         var headerForUnwrap = header.Deserialize<JsonElement>();
 
@@ -202,8 +202,8 @@ public class AesGcmKeyManagementAlgorithmTests : BaseTests
         var tag = new byte[1];
         var header = new JsonObject
         {
-            ["iv"] = Base64Url.Encode(iv),
-            ["tag"] = Base64Url.Encode(tag),
+            ["iv"] = Base64Url.EncodeToString(iv),
+            ["tag"] = Base64Url.EncodeToString(tag),
         };
 
         var headerForUnwrap = header.Deserialize<JsonElement>();
@@ -222,8 +222,8 @@ public class AesGcmKeyManagementAlgorithmTests : BaseTests
         var tag = new byte[1];
         var header = new JsonObject
         {
-            ["iv"] = Base64Url.Encode(iv),
-            ["tag"] = new string('!', Base64Url.GetCharCountForEncode(128 >> 3)),
+            ["iv"] = Base64Url.EncodeToString(iv),
+            ["tag"] = new string('!', Base64Url.GetEncodedLength(128 >> 3)),
         };
 
         var headerForUnwrap = header.Deserialize<JsonElement>();
@@ -262,7 +262,7 @@ public class AesGcmKeyManagementAlgorithmTests : BaseTests
         var tag = new byte[128 >> 3];
         var header = new JsonObject
         {
-            ["iv"] = Base64Url.Encode(iv),
+            ["iv"] = Base64Url.EncodeToString(iv),
             ["tag"] = new string('A', 21),
         };
 

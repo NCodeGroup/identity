@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Text;
 using System.Formats.Asn1;
 using System.Net;
 using System.Numerics;
@@ -8,7 +9,6 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
-using NCode.Encoders;
 using NCode.Identity.OpenId.Integration.Tests.Infrastructure;
 using Xunit;
 
@@ -380,8 +380,8 @@ public class TokenEndpointMutualTlsTests
             ["kty"] = "RSA",
             ["use"] = "sig",
             ["kid"] = "it-mtls-jwks-key",
-            ["n"] = Base64Url.Encode(parameters.Modulus!),
-            ["e"] = Base64Url.Encode(parameters.Exponent!),
+            ["n"] = Base64Url.EncodeToString(parameters.Modulus!),
+            ["e"] = Base64Url.EncodeToString(parameters.Exponent!),
         };
         if (includeCertificate)
             jwk["x5c"] = new[] { Convert.ToBase64String(certificate.RawData) };

@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers.Binary;
+using System.Buffers.Text;
 using System.Security.Cryptography;
 using System.Text;
 using NCode.Buffers;
-using NCode.Encoders;
 using Xunit;
 
 namespace NCode.Identity.SharedState.Tests;
@@ -36,7 +36,10 @@ public sealed class ExpiringKeysTests
 
         var key = ExpiringKeys.Create("purpose", "tenant-1", Component);
 
-        Assert.Equal($"purpose:{{tenant-1}}:{Base64Url.Encode(SHA256.HashData(input))}", key);
+        Assert.Equal(
+            $"purpose:{{tenant-1}}:{Base64Url.EncodeToString(SHA256.HashData(input))}",
+            key
+        );
     }
 
     [Fact]

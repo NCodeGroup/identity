@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Text;
 using Moq;
 using NCode.Identity.OpenId.Authentication.Clients;
 using NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Handlers;
@@ -760,7 +761,7 @@ public class DefaultValidateAuthorizationRequestHandlerTests : BaseTests
     public void ValidateConfiguredConstraints_WhenDPoPJwkThumbprintValid_DoesNotThrow()
     {
         var (mockSettings, mockRequest) = CreateScaffold();
-        var thumbprint = NCode.Encoders.Base64Url.Encode(new byte[32]);
+        var thumbprint = Base64Url.EncodeToString(new byte[32]);
         mockRequest.SetupGet(x => x.DPoPJwkThumbprint).Returns(thumbprint);
 
         var exception = Record.Exception(() =>

@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Text;
 using System.Net;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -8,7 +9,6 @@ using System.Text.Json;
 using System.Web;
 using Microsoft.AspNetCore.Mvc.Testing;
 using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.OpenId.Integration.Tests.Infrastructure;
 using Xunit;
 
@@ -91,8 +91,8 @@ public sealed class Fapi1AdvancedAuthorizationTests : IDisposable
         IReadOnlyDictionary<string, object> payload
     )
     {
-        var encodedHeader = Base64Url.Encode(JsonSerializer.SerializeToUtf8Bytes(header));
-        var encodedPayload = Base64Url.Encode(JsonSerializer.SerializeToUtf8Bytes(payload));
+        var encodedHeader = Base64Url.EncodeToString(JsonSerializer.SerializeToUtf8Bytes(header));
+        var encodedPayload = Base64Url.EncodeToString(JsonSerializer.SerializeToUtf8Bytes(payload));
         var signingInput = $"{encodedHeader}.{encodedPayload}";
 
         var signature = ClientRsa.SignData(
@@ -101,7 +101,7 @@ public sealed class Fapi1AdvancedAuthorizationTests : IDisposable
             RSASignaturePadding.Pss
         );
 
-        return $"{signingInput}.{Base64Url.Encode(signature)}";
+        return $"{signingInput}.{Base64Url.EncodeToString(signature)}";
     }
 
     private string CreateClientAssertion(string clientId, string issuer)
@@ -201,7 +201,7 @@ public sealed class Fapi1AdvancedAuthorizationTests : IDisposable
     {
         var segments = jwt.Split('.');
         Assert.Equal(3, segments.Length);
-        return JsonElement.Parse(System.Buffers.Text.Base64Url.DecodeFromChars(segments[index]));
+        return JsonElement.Parse(Base64Url.DecodeFromChars(segments[index]));
     }
 
     #endregion

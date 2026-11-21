@@ -1,9 +1,9 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Text;
 using System.Security.Cryptography;
 using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.Jose.SdJwt.Digests;
 
 namespace NCode.Identity.Jose.SdJwt.Tests.Digests;
@@ -24,7 +24,9 @@ public class SdJwtDigestAlgorithmTests
     public void ComputeDigest_WithValueOverTheStackLimit_HashesWholeValue()
     {
         var value = new string('a', 1000);
-        var expected = Base64Url.Encode(SHA512.HashData(SecureEncoding.ASCII.GetBytes(value)));
+        var expected = Base64Url.EncodeToString(
+            SHA512.HashData(SecureEncoding.ASCII.GetBytes(value))
+        );
 
         var digest = SdJwtDigestAlgorithms.Sha512.ComputeDigest(value);
 
