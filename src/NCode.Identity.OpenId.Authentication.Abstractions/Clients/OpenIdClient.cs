@@ -40,7 +40,8 @@ public abstract class OpenIdClient
     /// <summary>
     /// Gets the one-way verifiers of the shared secrets the client presents that the server only compares, such as the
     /// <c>client_secret</c> of a <c>client_secret_basic</c> or <c>client_secret_post</c> client. A verifier is not a
-    /// key, so it is never among <see cref="SecretKeys"/>.
+    /// key, so it is never among <see cref="SecretKeys"/>. The request that resolved the client owns them: they are
+    /// disposed when it completes.
     /// </summary>
     public abstract IReadOnlyCollection<SecretVerifier> SecretVerifiers { get; }
 

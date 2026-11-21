@@ -17,10 +17,11 @@ namespace NCode.Identity.OpenId.Authentication.Clients;
 
 /// <summary>
 /// Provides the default implementation of <see cref="IOpenIdClientResolver"/> that loads the persisted client, applies
-/// the tenant-merged effective settings and the deserialized unexpired keys and shared-secret verifiers, and builds the public
-/// <see cref="OpenIdClient"/>. A client bound to a resource server is resolved only at an endpoint that accepts such
-/// clients (<see cref="IOpenIdEndpointResourceServerClientMetadata"/>); everywhere else it does not exist, so its
-/// credentials serve only the calls the resource server needs.
+/// the tenant-merged effective settings and the deserialized unexpired keys and shared-secret verifiers, and builds the
+/// public <see cref="OpenIdClient"/>. It disposes each verifier when the request completes. A client bound to a
+/// resource server is resolved only at an endpoint that accepts such clients
+/// (<see cref="IOpenIdEndpointResourceServerClientMetadata"/>); everywhere else it does not exist, so its credentials
+/// serve only the calls the resource server needs.
 /// </summary>
 // See ADR-1168.
 internal class DefaultOpenIdClientResolver(
@@ -188,6 +189,13 @@ internal class DefaultOpenIdClientResolver(
         SplitVerifiers(liveSecrets, out var keySecrets, out var verifierSecrets);
         var secrets = SecretSerializer.DeserializeSecrets(protector, keySecrets);
         var verifiers = SecretSerializer.DeserializeVerifiers(protector, verifierSecrets);
+        // A verifier holds its parameters in memory that is zeroed when it is disposed, so each one is disposed when the
+        // request that resolved the client completes.
+        // See ADR-1391.
+        foreach (var verifier in verifiers)
+        {
+            openIdContext.Http.Response.RegisterForDispose(verifier);
+        }
 
         var definition = new OpenIdClientDefinition
         {
