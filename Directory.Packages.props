@@ -109,7 +109,7 @@
   <!-- NCode building blocks (published separately on nuget.org) -->
   <ItemGroup>
     <!-- NCode.Buffers is the family's own package: its newest release is taken without the three-day cooldown (project-template ADR-0009, decision 3). -->
-    <PackageVersion Include="NCode.Buffers" Version="5.3.2" />
+    <PackageVersion Include="NCode.Buffers" Version="5.4.0" />
     <PackageVersion Include="NCode.Collections.Providers" Version="1.0.0" />
     <PackageVersion Include="NCode.Collections.Providers.Abstractions" Version="1.0.0" />
     <PackageVersion Include="NCode.Disposables" Version="5.3.0" />
