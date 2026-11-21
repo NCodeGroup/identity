@@ -9,6 +9,7 @@ using NCode.Identity.OpenId.Environments;
 using NCode.Identity.OpenId.Messages;
 using NCode.Identity.OpenId.Messages.Parameters;
 using NCode.Identity.OpenId.Serialization;
+using NCode.PropertyBag;
 using Xunit;
 
 namespace NCode.Identity.OpenId.Core.Tests.Environments;
@@ -86,6 +87,18 @@ public class DefaultOpenIdEnvironmentTests : BaseTests
         var converters = environment.JsonSerializerOptions.Converters;
 
         Assert.Equal([firstConverter, secondConverter], converters);
+    }
+
+    #endregion
+
+    #region PropertyBag Property Tests
+
+    [Fact]
+    public void PropertyBag_WhenCreated_IsAConcurrentPropertyBagDictionary()
+    {
+        var environment = CreateEnvironment();
+
+        Assert.IsType<ConcurrentPropertyBagDictionary>(environment.PropertyBag);
     }
 
     #endregion

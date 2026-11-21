@@ -58,7 +58,7 @@ internal class DefaultOpenIdEnvironment(
     public override IOpenIdErrorFactory ErrorFactory => this;
 
     /// <inheritdoc />
-    public override IPropertyBag PropertyBag { get; } = PropertyBagFactory.Create();
+    public override IPropertyBag PropertyBag { get; } = new ConcurrentPropertyBagDictionary();
 
     /// <inheritdoc />
     public override string? GetSubjectId(
