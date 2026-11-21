@@ -14,8 +14,8 @@ namespace NCode.Identity.Secrets.Persistence.Protection;
 /// by the same instance, so it is suitable for development and tests but not for data that must survive a restart.
 /// </summary>
 /// <remarks>
-/// The root key lives in a pinned buffer from the secure memory pool so that the garbage collector never copies it,
-/// and it is zeroed when the key wrapper is disposed.
+/// The root key is a <see cref="Secret{T}"/> of bytes, held in a pinned buffer from the secure memory pool so that the
+/// garbage collector never copies it, and it is zeroed when the key wrapper is disposed.
 /// </remarks>
 // See ADR-1235.
 internal class EphemeralKeyWrapper : IKeyWrapper, IDisposable
@@ -27,24 +27,20 @@ internal class EphemeralKeyWrapper : IKeyWrapper, IDisposable
     /// </summary>
     public EphemeralKeyWrapper()
     {
-        RootKeyLease = BufferFactory.Rent(
+        RootKey = Secret.Create<byte, object?>(
             RootKeySizeBytes,
-            isSensitive: true,
-            out Memory<byte> rootKey
+            null,
+            static (span, _) => RandomNumberGenerator.Fill(span)
         );
-        RandomNumberGenerator.Fill(rootKey.Span);
-        RootKey = rootKey;
 
         KeyId = string.Create(
             AesGcmKeyWrap.FingerprintLength,
             RootKey,
-            static (chars, key) => AesGcmKeyWrap.ComputeFingerprint(key.Span, chars)
+            static (chars, key) => AesGcmKeyWrap.ComputeFingerprint(key.Reveal(), chars)
         );
     }
 
-    private IDisposable RootKeyLease { get; }
-
-    private ReadOnlyMemory<byte> RootKey { get; }
+    private Secret<byte> RootKey { get; }
 
     private string KeyId { get; }
 
@@ -68,7 +64,7 @@ internal class EphemeralKeyWrapper : IKeyWrapper, IDisposable
             {
                 var writer = chars.GetFixedBufferWriter();
                 AesGcmKeyWrap.Wrap(
-                    state.RootKey.Span,
+                    state.RootKey.Reveal(),
                     state.Key.Span,
                     state.Context.Span,
                     ref writer
@@ -110,7 +106,12 @@ internal class EphemeralKeyWrapper : IKeyWrapper, IDisposable
             );
         }
 
-        AesGcmKeyWrap.Unwrap(RootKey.Span, wrappedKey.Ciphertext, context.Span, ref destination);
+        AesGcmKeyWrap.Unwrap(
+            RootKey.Reveal(),
+            wrappedKey.Ciphertext,
+            context.Span,
+            ref destination
+        );
         return ValueTask.CompletedTask;
     }
 
@@ -119,6 +120,6 @@ internal class EphemeralKeyWrapper : IKeyWrapper, IDisposable
     /// </summary>
     public void Dispose()
     {
-        RootKeyLease.Dispose();
+        RootKey.Dispose();
     }
 }

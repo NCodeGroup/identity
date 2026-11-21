@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers;
-using System.Diagnostics;
 using System.Text.Json;
 using NCode.Buffers;
 
@@ -131,11 +130,11 @@ internal abstract class CommonJoseEncoder(JoseSerializer joseSerializer) : JoseE
         out ReadOnlyMemory<byte> bytes
     )
     {
-        var byteCount = SecureEncoding.UTF8.GetByteCount(payload);
-        var lease = BufferFactory.Rent(byteCount, isSensitive: false, out Memory<byte> memory);
-
-        var bytesWritten = SecureEncoding.UTF8.GetBytes(payload, memory.Span);
-        Debug.Assert(bytesWritten == byteCount);
+        var lease = SecureEncoding.UTF8.RentBytes(
+            payload,
+            isSensitive: false,
+            out Memory<byte> memory
+        );
 
         bytes = memory;
         return lease;

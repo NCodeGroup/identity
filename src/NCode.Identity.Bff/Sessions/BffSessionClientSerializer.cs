@@ -22,23 +22,22 @@ internal static class BffSessionClientSerializer
     /// </returns>
     public static IDisposable Serialize(BffSessionClient client, out ReadOnlyMemory<byte> value)
     {
-        using var buffer = BufferFactory.CreatePooledBufferWriter(isSensitive: false);
+        using var buffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
         using (var writer = new Utf8JsonWriter(buffer))
         {
             JsonSerializer.Serialize(writer, client, BffJsonContext.Default.BffSessionClient);
             writer.Flush();
         }
 
-        using var lease = buffer.GetSpanLease(isSensitive: false);
         var rental = BufferFactory.Rent(
-            lease.Span.Length,
+            buffer.WrittenCount,
             isSensitive: false,
             out Memory<byte> memory
         );
 
         try
         {
-            lease.Span.CopyTo(memory.Span);
+            buffer.WrittenSpan.CopyTo(memory.Span);
         }
         catch
         {

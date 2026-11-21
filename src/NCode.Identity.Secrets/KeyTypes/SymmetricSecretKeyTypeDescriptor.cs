@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers.Text;
-using System.Security.Cryptography;
 using NCode.Buffers;
 using NCode.Identity.Jwk;
 using NCode.Identity.Secrets.KeyMaterial;
@@ -56,8 +55,11 @@ internal sealed class SymmetricSecretKeyTypeDescriptor(ISecretKeyFactory secretK
         }
 
         var keySizeBytes = keySizeBits >> 3;
-        using var _ = BufferFactory.Rent(keySizeBytes, isSensitive: true, out Span<byte> span);
-        RandomNumberGenerator.Fill(span);
+        using var _ = BufferFactory.RentRandom(
+            keySizeBytes,
+            isSensitive: true,
+            out Span<byte> span
+        );
 
         // Reveal-once plaintext for symmetric shared secrets (ADR-1050); asymmetric private keys stay null.
         var secretMaterial = Base64Url.EncodeToString(span);

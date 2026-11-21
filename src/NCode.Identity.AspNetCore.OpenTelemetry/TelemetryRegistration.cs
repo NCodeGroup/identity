@@ -4,13 +4,15 @@
 using JetBrains.Annotations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using NCode.Buffers;
 using OpenTelemetry.Metrics;
 
 namespace NCode.Identity.AspNetCore.OpenTelemetry;
 
 /// <summary>
-/// Registers the OpenTelemetry metrics pipeline for a host: the family's meters, ASP.NET Core, Kestrel, outbound HTTP,
-/// and the .NET runtime, exported over OTLP when an endpoint is configured.
+/// Registers the OpenTelemetry metrics pipeline for a host: the family's meters, the secure buffer pool's
+/// <c>NCode.Buffers</c> meter, ASP.NET Core, Kestrel, outbound HTTP, and the .NET runtime, exported over OTLP when an
+/// endpoint is configured.
 /// </summary>
 // See ADR-1197.
 [PublicAPI]
@@ -52,10 +54,11 @@ public static class TelemetryRegistration
     extension(IServiceCollection serviceCollection)
     {
         /// <summary>
-        /// Registers the OpenTelemetry metrics pipeline: every <c>NCode.Identity.*</c> meter, the ASP.NET Core,
-        /// Kestrel, routing, diagnostics, <c>System.Net.Http</c>, and runtime meters, and a view that keeps only
-        /// bounded attributes on the outbound-HTTP instruments. The OTLP exporter is added only when
-        /// <see cref="OtlpEndpointConfigurationKey"/> is configured, so a host without a collector exports nothing.
+        /// Registers the OpenTelemetry metrics pipeline: every <c>NCode.Identity.*</c> meter, the secure buffer pool's
+        /// <c>NCode.Buffers</c> meter, the ASP.NET Core, Kestrel, routing, diagnostics, <c>System.Net.Http</c>, and
+        /// runtime meters, and a view that keeps only bounded attributes on the outbound-HTTP instruments. The OTLP
+        /// exporter is added only when <see cref="OtlpEndpointConfigurationKey"/> is configured, so a host without a
+        /// collector exports nothing.
         /// </summary>
         /// <param name="configuration">The <see cref="IConfiguration"/> read for the OTLP endpoint.</param>
         /// <returns>The same <see cref="IServiceCollection"/> instance for method chaining.</returns>
@@ -77,6 +80,8 @@ public static class TelemetryRegistration
                     metrics
                         .AddMeter(FamilyMeters)
                         .AddMeter(PlatformMeters)
+                        // The secure buffer pool's meter, which NCode.Buffers owns, outside the family's namespace.
+                        .AddMeter(BufferMetrics.MeterName)
                         .AddView(instrument =>
                             instrument.Meter.Name == "System.Net.Http"
                                 ? new MetricStreamConfiguration

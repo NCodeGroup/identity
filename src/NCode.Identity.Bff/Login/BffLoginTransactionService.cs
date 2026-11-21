@@ -115,7 +115,7 @@ internal class BffLoginTransactionService(BffInstrumentedSessionStore store)
         out ReadOnlyMemory<byte> protectedTransaction
     )
     {
-        using var buffer = BufferFactory.CreatePooledBufferWriter(isSensitive: true);
+        using var buffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: true);
         using (var writer = new Utf8JsonWriter(buffer))
         {
             JsonSerializer.Serialize(
@@ -129,9 +129,8 @@ internal class BffLoginTransactionService(BffInstrumentedSessionStore store)
         Span<byte> keyBytes = stackalloc byte[BffKeyDerivation.SecretLength];
         var keyLength = SecureEncoding.UTF8.GetBytes(key, keyBytes);
 
-        using var lease = buffer.GetSpanLease(isSensitive: true);
         var rental = BufferFactory.Rent(
-            BffPayloadProtector.GetProtectedLength(lease.Span.Length),
+            BffPayloadProtector.GetProtectedLength(buffer.WrittenCount),
             isSensitive: false,
             out Memory<byte> memory
         );
@@ -141,7 +140,7 @@ internal class BffLoginTransactionService(BffInstrumentedSessionStore store)
             BffPayloadProtector.Protect(
                 initiatorSecret,
                 BffKeyDerivation.LoginPayloadPurpose,
-                lease.Span,
+                buffer.WrittenSpan,
                 keyBytes[..keyLength],
                 memory.Span
             );
@@ -171,7 +170,7 @@ internal class BffLoginTransactionService(BffInstrumentedSessionStore store)
         Span<byte> keyBytes = stackalloc byte[BffKeyDerivation.SecretLength];
         var keyLength = SecureEncoding.UTF8.GetBytes(key, keyBytes);
 
-        using var buffer = BufferFactory.CreatePooledBufferWriter(isSensitive: true);
+        using var buffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: true);
         var unprotected = BffPayloadProtector.TryUnprotect(
             initiatorSecret,
             BffKeyDerivation.LoginPayloadPurpose,
@@ -182,11 +181,10 @@ internal class BffLoginTransactionService(BffInstrumentedSessionStore store)
         if (!unprotected)
             return null;
 
-        using var lease = buffer.GetSpanLease(isSensitive: true);
         try
         {
             return JsonSerializer.Deserialize(
-                lease.Span,
+                buffer.WrittenSpan,
                 BffJsonContext.Default.BffLoginTransaction
             );
         }

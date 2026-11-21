@@ -14,12 +14,11 @@ internal static class Utf8TextResults
 {
     public static Utf8ContentHttpResult Create(string content, string contentType)
     {
-        using var lease = BufferFactory.Rent(
-            SecureEncoding.UTF8.GetByteCount(content),
+        using var lease = SecureEncoding.UTF8.RentBytes(
+            content,
             isSensitive: false,
             out Span<byte> utf8
         );
-        SecureEncoding.UTF8.GetBytes(content, utf8);
         return TypedResults.Text(utf8, contentType); // copies the bytes
     }
 }

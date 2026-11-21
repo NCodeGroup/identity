@@ -6,7 +6,6 @@ using System.Xml.Linq;
 using Microsoft.AspNetCore.DataProtection.XmlEncryption;
 using NCode.Buffers;
 using NCode.Identity.Secrets.Persistence.Protection;
-using Nerdbank.Streams;
 
 namespace NCode.Identity.Server.SecretProtection;
 
@@ -33,7 +32,7 @@ internal class MasterKeyXmlEncryptor(PlatformSecretProtectorHolder holder) : IXm
 
         var protector = Holder.GetRequired();
 
-        using var xml = BufferFactory.CreatePooledBufferWriter(isSensitive: true);
+        using var xml = BufferFactory.CreatePooledStream(isSensitive: true);
 
         var settings = new XmlWriterSettings
         {
@@ -42,16 +41,13 @@ internal class MasterKeyXmlEncryptor(PlatformSecretProtectorHolder holder) : IXm
             CloseOutput = false,
         };
 
-        using (var stream = xml.AsStream())
-        using (var writer = XmlWriter.Create(stream, settings))
+        using (var writer = XmlWriter.Create(xml, settings))
         {
             plaintextElement.Save(writer);
             writer.Flush();
         }
 
-        using var lease = xml.GetSpanLease(isSensitive: true);
-
-        var value = protector.ProtectToString(lease.Span, MasterKeyXmlFormat.Context);
+        var value = protector.ProtectToString(xml.WrittenSpan, MasterKeyXmlFormat.Context);
 
         var element = new XElement(
             MasterKeyXmlFormat.EncryptedSecretName,

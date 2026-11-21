@@ -54,18 +54,16 @@ internal class AesKeyManagementAlgorithm(IAesKeyWrap aesKeyWrap, string code, in
     {
         var validatedSecretKey = secretKey.Validate<SymmetricSecretKey>(KeyBitSizes);
 
-        // increase our chances for a single-segment buffer
-        using var privateKeyBuffer = BufferFactory.CreatePooledBufferWriter(
+        using var privateKeyBuffer = BufferFactory.CreateContiguousBufferWriter(
             isSensitive: true,
             secretKey.KeySizeBytes
         );
         IBufferWriter<byte> privateKeyWriter = privateKeyBuffer;
 
         validatedSecretKey.ExportPrivateKey(ref privateKeyWriter);
-        Debug.Assert(privateKeyBuffer.Length == validatedSecretKey.KeySizeBytes);
+        Debug.Assert(privateKeyBuffer.WrittenCount == validatedSecretKey.KeySizeBytes);
 
-        using var privateKeySpanLease = privateKeyBuffer.GetSpanLease(isSensitive: true);
-        var privateKeySpan = privateKeySpanLease.Span;
+        var privateKeySpan = privateKeyBuffer.WrittenSpan;
 
         AesKeyWrap.WrapKey(privateKeySpan, contentKey, ref encryptedContentKeyWriter);
     }
@@ -87,18 +85,16 @@ internal class AesKeyManagementAlgorithm(IAesKeyWrap aesKeyWrap, string code, in
             return false;
         }
 
-        // increase our chances for a single-segment buffer
-        using var privateKeyBuffer = BufferFactory.CreatePooledBufferWriter(
-            true,
+        using var privateKeyBuffer = BufferFactory.CreateContiguousBufferWriter(
+            isSensitive: true,
             secretKey.KeySizeBytes
         );
         IBufferWriter<byte> privateKeyWriter = privateKeyBuffer;
 
         validatedSecretKey.ExportPrivateKey(ref privateKeyWriter);
-        Debug.Assert(privateKeyBuffer.Length == validatedSecretKey.KeySizeBytes);
+        Debug.Assert(privateKeyBuffer.WrittenCount == validatedSecretKey.KeySizeBytes);
 
-        using var privateKeySpanLease = privateKeyBuffer.GetSpanLease(isSensitive: true);
-        var privateKeySpan = privateKeySpanLease.Span;
+        var privateKeySpan = privateKeyBuffer.WrittenSpan;
 
         var contentKeyWriter = contentKey.GetFixedBufferWriter();
 

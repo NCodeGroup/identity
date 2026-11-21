@@ -33,18 +33,18 @@ public static class DataProtectorExtensions
         )
             where T : AsymmetricAlgorithm
         {
-            using var privateKeyBuffer = BufferFactory.CreatePooledBufferWriter(isSensitive: true);
+            using var privateKeyBuffer = BufferFactory.CreateContiguousBufferWriter(
+                isSensitive: true
+            );
             IBufferWriter<byte> privateKeyWriter = privateKeyBuffer;
 
             dataProtector.UnprotectSpan(protectedPkcs8PrivateKey, ref privateKeyWriter);
 
-            using var spanLease = privateKeyBuffer.GetSpanLease(isSensitive: true);
-
             var algorithm = algorithmFactory();
             try
             {
-                algorithm.ImportPkcs8PrivateKey(spanLease.Span, out var bytesRead);
-                Debug.Assert(bytesRead == spanLease.Span.Length);
+                algorithm.ImportPkcs8PrivateKey(privateKeyBuffer.WrittenSpan, out var bytesRead);
+                Debug.Assert(bytesRead == privateKeyBuffer.WrittenCount);
             }
             catch
             {

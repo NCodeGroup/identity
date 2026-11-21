@@ -93,12 +93,12 @@ partial class JoseSerializer
                     secretKey.KeyId
                 );
 
-                using var encryptedKeyBuffer = BufferFactory.CreatePooledBufferWriter(
+                using var encryptedKeyBuffer = BufferFactory.CreateContiguousBufferWriter(
                     isSensitive: false
                 );
                 keyManagementAlgorithm.WrapKey(secretKey, recipientHeader, cek, encryptedKeyBuffer);
 
-                encodedEncryptedKeys.Add(ToBase64UrlString(encryptedKeyBuffer.AsReadOnlySequence));
+                encodedEncryptedKeys.Add(Base64Url.Encode(encryptedKeyBuffer.WrittenSpan));
                 recipientHeaders.Add(recipientHeader);
             }
         }
@@ -117,14 +117,14 @@ partial class JoseSerializer
             // because 'enc' belongs in the shared protected header on the wire
             recipientHeader[JoseClaimNames.Header.Enc] = authenticatedEncryptionAlgorithm.Code;
 
-            using var encryptedKeyBuffer = BufferFactory.CreatePooledBufferWriter(
+            using var encryptedKeyBuffer = BufferFactory.CreateContiguousBufferWriter(
                 isSensitive: false
             );
             keyManagementAlgorithm.WrapNewKey(secretKey, recipientHeader, cek, encryptedKeyBuffer);
 
             recipientHeader.Remove(JoseClaimNames.Header.Enc);
 
-            encodedEncryptedKeys.Add(ToBase64UrlString(encryptedKeyBuffer.AsReadOnlySequence));
+            encodedEncryptedKeys.Add(Base64Url.Encode(encryptedKeyBuffer.WrittenSpan));
             recipientHeaders.Add(recipientHeader);
         }
 
@@ -275,17 +275,5 @@ partial class JoseSerializer
         encodedAad = Base64Url.Encode(additionalAuthenticatedData.Value.Span);
         var combined = string.Concat(encodedProtected, ".", encodedAad);
         return Encode(SecureEncoding.ASCII, combined.AsSpan(), out associatedData);
-    }
-
-    private static string ToBase64UrlString(ReadOnlySequence<byte> data)
-    {
-        if (data.IsEmpty)
-            return string.Empty;
-
-        if (data.IsSingleSegment)
-            return Base64Url.Encode(data.FirstSpan);
-
-        var array = data.ToArray();
-        return Base64Url.Encode(array);
     }
 }

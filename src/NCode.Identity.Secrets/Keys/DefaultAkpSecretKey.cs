@@ -34,10 +34,9 @@ internal sealed class DefaultAkpSecretKey(
     /// <inheritdoc />
     public override MLDsa ExportMLDsa()
     {
-        using var privateKeyBuffer = BufferFactory.CreatePooledBufferWriter(isSensitive: true);
+        using var privateKeyBuffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: true);
         IBufferWriter<byte> writer = privateKeyBuffer;
         DataProtector.UnprotectSpan(ProtectedPkcs8PrivateKey.Span, ref writer);
-        using var lease = privateKeyBuffer.GetSpanLease(isSensitive: true);
-        return MLDsa.ImportPkcs8PrivateKey(lease.Span);
+        return MLDsa.ImportPkcs8PrivateKey(privateKeyBuffer.WrittenSpan);
     }
 }

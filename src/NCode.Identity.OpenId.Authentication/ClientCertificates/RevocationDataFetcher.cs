@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Buffers;
 using System.Net.Http.Headers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -121,7 +120,7 @@ internal sealed class RevocationDataFetcher(
                 return null;
             }
 
-            using var buffer = BufferFactory.CreatePooledBufferWriter(isSensitive: false);
+            using var buffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
             var readResult = await OutboundHttpContentReader.ReadCappedAsync(
                 response,
                 buffer,
@@ -138,7 +137,7 @@ internal sealed class RevocationDataFetcher(
                 return null;
             }
 
-            return buffer.AsReadOnlySequence.ToArray();
+            return buffer.WrittenSpan.ToArray();
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {

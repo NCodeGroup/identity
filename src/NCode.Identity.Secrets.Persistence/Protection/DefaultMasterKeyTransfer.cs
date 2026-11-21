@@ -94,7 +94,7 @@ internal sealed class DefaultMasterKeyTransfer(
                 .FindAsync(key, cancellationToken);
         }
 
-        using var payload = BufferFactory.CreatePooledBufferWriter(isSensitive: true);
+        using var payload = BufferFactory.CreateContiguousBufferWriter(isSensitive: true);
         using (var writer = new Utf8JsonWriter(payload))
         {
             writer.WriteStartObject();
@@ -117,15 +117,7 @@ internal sealed class DefaultMasterKeyTransfer(
             writer.Flush();
         }
 
-        var payloadLength = checked((int)payload.Length);
-        using var lease = BufferFactory.Rent(
-            payloadLength,
-            isSensitive: true,
-            out Memory<byte> contiguous
-        );
-        payload.AsReadOnlySequence.CopyTo(contiguous.Span);
-
-        ReadOnlyMemory<byte> content = contiguous[..payloadLength];
+        ReadOnlyMemory<byte> content = payload.WrittenMemory;
         return await encoder.EncodeAsync(content, cancellationToken);
     }
 

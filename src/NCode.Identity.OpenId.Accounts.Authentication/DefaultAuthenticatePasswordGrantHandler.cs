@@ -154,9 +154,11 @@ internal class DefaultAuthenticatePasswordGrantHandler(
     )
     {
         // Encode the password into a pinned, zeroed-on-return buffer so the credential never lingers on the GC heap.
-        var byteCount = SecureEncoding.UTF8.GetByteCount(password);
-        using var owner = BufferFactory.Rent(byteCount, isSensitive: true, out Memory<byte> buffer);
-        var written = SecureEncoding.UTF8.GetBytes(password, buffer.Span);
+        using var owner = SecureEncoding.UTF8.RentBytes(
+            password,
+            isSensitive: true,
+            out Memory<byte> buffer
+        );
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<ILocalAccountStore>();
@@ -167,7 +169,7 @@ internal class DefaultAuthenticatePasswordGrantHandler(
         var gate = new PasswordAttemptGate(PasswordAttemptLimiter, openIdContext);
         var storedResult = await store.VerifyCredentialAsync(
             userName,
-            buffer[..written],
+            buffer,
             gate.IsRefusedAsync,
             cancellationToken
         );

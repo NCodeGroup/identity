@@ -189,7 +189,7 @@ internal class EcdhKeyManagementAlgorithm : CommonKeyManagementAlgorithm
         }
 
         // Only the key type's required members are imported; any other member is ignored (RFC 7518 §4.6.1.1).
-        using var minimalBuffer = BufferFactory.CreatePooledBufferWriter(isSensitive: false);
+        using var minimalBuffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
         using (var writer = new Utf8JsonWriter(minimalBuffer))
         {
             writer.WriteStartObject();
@@ -207,26 +207,27 @@ internal class EcdhKeyManagementAlgorithm : CommonKeyManagementAlgorithm
             writer.WriteEndObject();
         }
 
-        using var minimalJwk = minimalBuffer.GetSpanLease(isSensitive: false);
-
         try
         {
             var imported = descriptor.ImportPublicKeyMaterial(
                 new SecretKeyImportParameters
                 {
                     Format = SecretKeyImportFormats.Jwk,
-                    KeyMaterial = SecureEncoding.UTF8.GetString(minimalJwk.Span),
+                    KeyMaterial = SecureEncoding.UTF8.GetString(minimalBuffer.WrittenSpan),
                 },
                 // The material is a public key, so it is carried rather than protected.
                 static publicKey =>
                     Convert.ToBase64String(publicKey)
             );
 
-            return descriptor.DeserializeKeyMaterial(
-                default,
-                imported.SecretEncoding,
-                Convert.FromBase64String(imported.ProtectedKeyMaterial)
+            using var keyMaterialLease = BinaryTextEncoding.RentDecoded(
+                imported.ProtectedKeyMaterial,
+                BinaryTextFormat.Base64,
+                isSensitive: false,
+                out Span<byte> keyMaterial
             );
+
+            return descriptor.DeserializeKeyMaterial(default, imported.SecretEncoding, keyMaterial);
         }
         catch (Exception exception)
             when (exception
@@ -474,16 +475,15 @@ internal class EcdhKeyManagementAlgorithm : CommonKeyManagementAlgorithm
             out Span<byte> sharedSecret
         );
 
-        using var ephemeralPublicKeyBuffer = BufferFactory.CreatePooledBufferWriter(
+        using var ephemeralPublicKeyBuffer = BufferFactory.CreateContiguousBufferWriter(
             isSensitive: false
         );
         keyAgreement.AgreeWithEphemeralKey(secretKey, ephemeralPublicKeyBuffer, sharedSecret);
 
-        using var ephemeralPublicKey = ephemeralPublicKeyBuffer.GetSpanLease(isSensitive: false);
         header[JoseClaimNames.Header.Epk] = WriteEphemeralKey(
             descriptor,
             jwkKeyType,
-            ephemeralPublicKey.Span
+            ephemeralPublicKeyBuffer.WrittenSpan
         );
 
         DeriveKey(algorithm, apu, apv, sharedSecret, destination);
@@ -704,25 +704,29 @@ internal class EcdhKeyManagementAlgorithm : CommonKeyManagementAlgorithm
     /// Exports the public key as a DER-encoded <c>SubjectPublicKeyInfo</c> into pooled memory.
     /// </summary>
     /// <param name="publicKey">The public key to export.</param>
-    /// <param name="subjectPublicKeyInfo">The exported bytes, which are valid until the returned lease is disposed.</param>
-    /// <returns>The lease that returns the memory to the pool, which the caller disposes.</returns>
-    // The rental lives across the key agreement's await, so the caller disposes it once the service has answered.
-    private static IDisposable RentSubjectPublicKeyInfo(
+    /// <param name="subjectPublicKeyInfo">The exported bytes, which are valid until the returned writer is
+    /// disposed.</param>
+    /// <returns>The buffer writer that owns the exported bytes, which the caller disposes.</returns>
+    // The writer lives across the key agreement's await, so the caller disposes it once the service has answered.
+    private static ContiguousBufferWriter<byte> RentSubjectPublicKeyInfo(
         AsymmetricSecretKey publicKey,
         out ReadOnlyMemory<byte> subjectPublicKeyInfo
     )
     {
-        using var buffer = BufferFactory.CreatePooledBufferWriter(isSensitive: false);
-        IBufferWriter<byte> writer = buffer;
-        publicKey.ExportSubjectPublicKeyInfo(ref writer);
-        var lease = BufferFactory.Rent(
-            checked((int)buffer.Length),
-            isSensitive: false,
-            out Memory<byte> rental
-        );
-        buffer.AsReadOnlySequence.CopyTo(rental.Span);
-        subjectPublicKeyInfo = rental;
-        return lease;
+        var buffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
+        try
+        {
+            IBufferWriter<byte> writer = buffer;
+            publicKey.ExportSubjectPublicKeyInfo(ref writer);
+        }
+        catch
+        {
+            buffer.Dispose();
+            throw;
+        }
+
+        subjectPublicKeyInfo = buffer.WrittenMemory;
+        return buffer;
     }
 
     /// <summary>

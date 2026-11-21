@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Buffers.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using NCode.Buffers;
@@ -255,11 +254,13 @@ internal sealed class ConformanceSeedHandler(
 
         // Encode the password into a pinned, zeroed-on-return buffer so the credential never lingers on the GC heap;
         // the store hashes it internally.
-        var byteCount = SecureEncoding.UTF8.GetByteCount(password);
-        using var owner = BufferFactory.Rent(byteCount, isSensitive: true, out Memory<byte> buffer);
-        var written = SecureEncoding.UTF8.GetBytes(password, buffer.Span);
+        using var owner = SecureEncoding.UTF8.RentBytes(
+            password,
+            isSensitive: true,
+            out Memory<byte> buffer
+        );
 
-        await store.AddAsync(account, buffer[..written], cancellationToken);
+        await store.AddAsync(account, buffer, cancellationToken);
 
         Logger.ConformanceTestUserSeeded(userName, tenantId);
     }
@@ -337,14 +338,12 @@ internal sealed class ConformanceSeedHandler(
     {
         // The secret is supplied Base64Url-encoded (not plaintext) so a raw process-memory snapshot does not expose it
         // directly; decode it straight into a pinned, zeroed-on-return buffer.
-        var secretMaxLength = Base64Url.GetMaxDecodedLength(encodedSecret.Length);
-        using var secretOwner = BufferFactory.Rent(
-            secretMaxLength,
+        using var secretOwner = BinaryTextEncoding.RentDecoded(
+            encodedSecret,
+            BinaryTextFormat.Base64Url,
             isSensitive: true,
-            out Span<byte> secretBuffer
+            out Span<byte> clientSecret
         );
-        var secretWritten = Base64Url.DecodeFromChars(encodedSecret, secretBuffer);
-        var clientSecret = secretBuffer[..secretWritten];
 
         var now = TimeProvider.GetUtcNow();
 

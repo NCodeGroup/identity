@@ -78,8 +78,7 @@ internal class KeyedHashSignatureAlgorithm : SignatureAlgorithm
     {
         var validatedSecretKey = secretKey.Validate<SymmetricSecretKey>(KeyBitSizes);
 
-        // increase our chances for a single-segment buffer
-        using var privateKeyBuffer = BufferFactory.CreatePooledBufferWriter(
+        using var privateKeyBuffer = BufferFactory.CreateContiguousBufferWriter(
             isSensitive: true,
             secretKey.KeySizeBytes
         );
@@ -87,10 +86,12 @@ internal class KeyedHashSignatureAlgorithm : SignatureAlgorithm
 
         validatedSecretKey.ExportPrivateKey(ref privateKeyWriter);
 
-        using var privateKeySpanLease = privateKeyBuffer.GetSpanLease(isSensitive: true);
-        var privateKeySpan = privateKeySpanLease.Span;
-
-        return KeyedHashFunction(privateKeySpan, inputData, signature, out bytesWritten);
+        return KeyedHashFunction(
+            privateKeyBuffer.WrittenSpan,
+            inputData,
+            signature,
+            out bytesWritten
+        );
     }
 
     /// <inheritdoc />

@@ -8,14 +8,10 @@ using NCode.Buffers;
 using NCode.Encoders;
 using NCode.Identity.Secrets.KeyWrapping;
 using NCode.Identity.Secrets.Persistence.Options;
-using LoadedKey = (System.IDisposable Lease, System.ReadOnlyMemory<byte> Key);
 using LoadedKeys = (
-    System.ReadOnlyMemory<byte> CurrentKey,
+    NCode.Buffers.Secret<byte> CurrentKey,
     string CurrentKeyId,
-    System.Collections.Generic.Dictionary<
-        string,
-        (System.IDisposable Lease, System.ReadOnlyMemory<byte> Key)
-    > KeysById
+    System.Collections.Generic.Dictionary<string, NCode.Buffers.Secret<byte>> KeysById
 );
 
 namespace NCode.Identity.Secrets.Persistence.Protection;
@@ -79,7 +75,7 @@ internal class LocalKeyWrapper(IOptions<LocalKeyWrapperOptions> options) : IKeyW
 
         var ciphertext = string.Create(
             AesGcmKeyWrap.GetWrappedLength(key.Length),
-            (RootKey: currentKey, Key: key, Context: context),
+            (RootKey: currentKey.RevealMemory(), Key: key, Context: context),
             static (chars, state) =>
             {
                 var writer = chars.GetFixedBufferWriter();
@@ -133,7 +129,7 @@ internal class LocalKeyWrapper(IOptions<LocalKeyWrapperOptions> options) : IKeyW
         }
 
         AesGcmKeyWrap.Unwrap(
-            rootKey.Key.Span,
+            rootKey.Reveal(),
             wrappedKey.Ciphertext,
             context.Span,
             ref destination
@@ -153,18 +149,18 @@ internal class LocalKeyWrapper(IOptions<LocalKeyWrapperOptions> options) : IKeyW
 
         foreach (var rootKey in Keys.Value.KeysById.Values)
         {
-            rootKey.Lease.Dispose();
+            rootKey.Dispose();
         }
     }
 
     private static LoadedKeys LoadKeys(LocalKeyWrapperOptions options)
     {
-        var keysById = new Dictionary<string, LoadedKey>(StringComparer.Ordinal);
+        var keysById = new Dictionary<string, Secret<byte>>(StringComparer.Ordinal);
         var succeeded = false;
         try
         {
             var currentKey = LoadCurrentKey(options);
-            var currentKeyId = ComputeFingerprint(currentKey.Key);
+            var currentKeyId = ComputeFingerprint(currentKey.RevealMemory());
             keysById.Add(currentKeyId, currentKey);
 
             foreach (var path in options.PreviousKeyPaths)
@@ -173,15 +169,15 @@ internal class LocalKeyWrapper(IOptions<LocalKeyWrapperOptions> options) : IKeyW
                     path,
                     nameof(LocalKeyWrapperOptions.PreviousKeyPaths)
                 );
-                var previousKeyId = ComputeFingerprint(previousKey.Key);
+                var previousKeyId = ComputeFingerprint(previousKey.RevealMemory());
                 if (!keysById.TryAdd(previousKeyId, previousKey))
                 {
-                    previousKey.Lease.Dispose();
+                    previousKey.Dispose();
                 }
             }
 
             succeeded = true;
-            return (currentKey.Key, currentKeyId, keysById);
+            return (currentKey, currentKeyId, keysById);
         }
         finally
         {
@@ -189,7 +185,7 @@ internal class LocalKeyWrapper(IOptions<LocalKeyWrapperOptions> options) : IKeyW
             {
                 foreach (var rootKey in keysById.Values)
                 {
-                    rootKey.Lease.Dispose();
+                    rootKey.Dispose();
                 }
             }
         }
@@ -202,7 +198,7 @@ internal class LocalKeyWrapper(IOptions<LocalKeyWrapperOptions> options) : IKeyW
             static (chars, key) => AesGcmKeyWrap.ComputeFingerprint(key.Span, chars)
         );
 
-    private static LoadedKey LoadCurrentKey(LocalKeyWrapperOptions options)
+    private static Secret<byte> LoadCurrentKey(LocalKeyWrapperOptions options)
     {
         if (!string.IsNullOrWhiteSpace(options.Key) && string.IsNullOrWhiteSpace(options.KeyPath))
         {
@@ -223,7 +219,7 @@ internal class LocalKeyWrapper(IOptions<LocalKeyWrapperOptions> options) : IKeyW
         );
     }
 
-    private static LoadedKey ReadKeyFile(string path, string settingName)
+    private static Secret<byte> ReadKeyFile(string path, string settingName)
     {
         var source = $"The root key file '{path}' that '{SectionName}:{settingName}' names";
         try
@@ -278,7 +274,7 @@ internal class LocalKeyWrapper(IOptions<LocalKeyWrapperOptions> options) : IKeyW
         }
     }
 
-    private static LoadedKey DecodeUtf8Key(ReadOnlySpan<byte> encoded, string source)
+    private static Secret<byte> DecodeUtf8Key(ReadOnlySpan<byte> encoded, string source)
     {
         Span<byte> decoded = stackalloc byte[DecodeBufferSizeBytes];
         using var lifetime = decoded.GetSecureLifetime();
@@ -298,7 +294,7 @@ internal class LocalKeyWrapper(IOptions<LocalKeyWrapperOptions> options) : IKeyW
         };
     }
 
-    private static LoadedKey DecodeKey(string encoded, string source)
+    private static Secret<byte> DecodeKey(string encoded, string source)
     {
         Span<byte> decoded = stackalloc byte[DecodeBufferSizeBytes];
         using var lifetime = decoded.GetSecureLifetime();
@@ -320,16 +316,14 @@ internal class LocalKeyWrapper(IOptions<LocalKeyWrapperOptions> options) : IKeyW
         return CreateKey(decoded[..bytesWritten], source);
     }
 
-    private static LoadedKey CreateKey(ReadOnlySpan<byte> decoded, string source)
+    private static Secret<byte> CreateKey(ReadOnlySpan<byte> decoded, string source)
     {
         if (decoded.Length != RootKeySizeBytes)
         {
             throw InvalidKeyLength(source);
         }
 
-        var lease = BufferFactory.Rent(RootKeySizeBytes, isSensitive: true, out Memory<byte> key);
-        decoded.CopyTo(key.Span);
-        return (lease, key);
+        return Secret.Create(decoded);
     }
 
     private static InvalidOperationException InvalidBase64Url(string source) =>

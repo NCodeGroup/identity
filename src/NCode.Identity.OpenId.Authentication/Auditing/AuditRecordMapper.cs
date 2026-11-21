@@ -30,13 +30,11 @@ internal static class AuditRecordMapper
         ArgumentNullException.ThrowIfNull(auditEvent);
         ArgumentNullException.ThrowIfNull(cell);
 
-        using var buffer = BufferFactory.CreatePooledBufferWriter(isSensitive: false);
+        using var buffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
         using (var writer = new Utf8JsonWriter(buffer))
         {
             AuditRecordWriter.Write(auditEvent, writer);
         }
-
-        using var lease = buffer.GetSpanLease(isSensitive: false);
 
         var request = auditEvent.Request;
         return new PersistedAuditRecord
@@ -63,7 +61,7 @@ internal static class AuditRecordMapper
                     Id = Bounded(resource.Id, MaxLengths.ResourceId),
                 }),
             ],
-            Record = JsonElement.Parse(lease.Span),
+            Record = JsonElement.Parse(buffer.WrittenSpan),
         };
     }
 

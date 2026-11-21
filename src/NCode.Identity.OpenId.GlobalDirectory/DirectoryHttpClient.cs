@@ -6,6 +6,7 @@ using System.Net.Http.Headers;
 using System.Net.Mime;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
+using NCode.Buffers;
 using NCode.Identity.OpenId.Client;
 
 namespace NCode.Identity.OpenId.GlobalDirectory;
@@ -195,13 +196,13 @@ internal sealed class DirectoryHttpClient(
             );
 
         await using var stream = await content.ReadAsStreamAsync(cancellationToken);
-        using var buffer = new MemoryStream();
+        using var buffer = BufferFactory.CreatePooledStream(isSensitive: false);
         var chunk = new byte[ReadChunkBytes];
         while (true)
         {
             var read = await stream.ReadAsync(chunk, cancellationToken);
             if (read == 0)
-                return buffer.ToArray();
+                return buffer.WrittenSpan.ToArray();
 
             if (buffer.Length + read > DirectoryClientDefaults.MaxResponseBytes)
                 throw new DirectoryUnavailableException(

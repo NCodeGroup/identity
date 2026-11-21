@@ -109,7 +109,8 @@
   <!-- NCode building blocks (published separately on nuget.org) -->
   <ItemGroup>
     <PackageVersion Include="NCode.Base64Url" Version="2.0.1" />
-    <PackageVersion Include="NCode.Buffers" Version="4.1.0" />
+    <!-- NCode.Buffers is the family's own package: its newest release is taken without the three-day cooldown (project-template ADR-0009, decision 3). -->
+    <PackageVersion Include="NCode.Buffers" Version="5.3.2" />
     <PackageVersion Include="NCode.Collections.Providers" Version="1.0.0" />
     <PackageVersion Include="NCode.Collections.Providers.Abstractions" Version="1.0.0" />
     <PackageVersion Include="NCode.Disposables" Version="5.3.0" />
@@ -119,7 +120,7 @@
     <PackageVersion Include="NCode.PasswordGenerator" Version="1.0.1" />
     <PackageVersion Include="NCode.PropertyBag" Version="1.2.0" />
     <PackageVersion Include="NCode.PropertyBag.Abstractions" Version="1.2.0" />
-    <PackageVersion Include="Nerdbank.Streams" Version="2.14.405" />
+    <PackageVersion Include="Nerdbank.Streams" Version="2.14.411" />
   </ItemGroup>
 
   <!-- Remote-API forwarding (NCode.Identity.Bff): YARP's IHttpForwarder streams the request and response and handles

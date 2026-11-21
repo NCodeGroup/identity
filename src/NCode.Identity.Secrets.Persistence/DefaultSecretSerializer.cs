@@ -142,16 +142,18 @@ internal class DefaultSecretSerializer(
         };
 
         // A verifier is protected like key material, so a database backup alone yields not even the verifier.
-        using var verifierBuffer = BufferFactory.CreatePooledBufferWriter(isSensitive: true, 128);
+        using var verifierBuffer = BufferFactory.CreateContiguousBufferWriter(
+            isSensitive: true,
+            128
+        );
         IBufferWriter<byte> verifierWriter = verifierBuffer;
         ReadPrivateKeyMaterial(protector, persistedSecret, verifierWriter);
 
-        using var verifierSpanLease = verifierBuffer.GetSpanLease(isSensitive: true);
         if (
             !SecretVerifierFormat.TryParse(
                 SecretVerifierSchemeCatalog,
                 metadata,
-                verifierSpanLease.Span,
+                verifierBuffer.WrittenSpan,
                 out var verifier
             )
         )
@@ -220,7 +222,7 @@ internal class DefaultSecretSerializer(
         const bool keyMaterialIsSensitive = true;
 
         var keySizeBytes = persistedSecret.KeySizeBits >> 3;
-        using var keyMaterialBuffer = BufferFactory.CreatePooledBufferWriter(
+        using var keyMaterialBuffer = BufferFactory.CreateContiguousBufferWriter(
             keyMaterialIsSensitive,
             keySizeBytes
         );
@@ -244,12 +246,10 @@ internal class DefaultSecretSerializer(
             ReadPrivateKeyMaterial(protector, persistedSecret, keyMaterialWriter);
         }
 
-        using var keyMaterialSpanLease = keyMaterialBuffer.GetSpanLease(keyMaterialIsSensitive);
-
         var secretKey = descriptor.DeserializeKeyMaterial(
             metadata,
             readStoredPublicKey ? SecretEncodings.Spki : persistedSecret.SecretEncoding,
-            keyMaterialSpanLease.Span
+            keyMaterialBuffer.WrittenSpan
         );
 
         Debug.Assert(secretKey.KeySizeBits == persistedSecret.KeySizeBits);
@@ -296,21 +296,19 @@ internal class DefaultSecretSerializer(
             );
         }
 
-        using var publicKeyBuffer = BufferFactory.CreatePooledBufferWriter(
+        using var publicKeyBuffer = BufferFactory.CreateContiguousBufferWriter(
             isSensitive: false,
             persistedSecret.KeySizeBits >> 3
         );
         IBufferWriter<byte> publicKeyWriter = publicKeyBuffer;
         Base64Url.Decode(storedPublicKey, publicKeyWriter);
 
-        using var publicKeySpanLease = publicKeyBuffer.GetSpanLease(isSensitive: false);
-
         // The stored public key decides the size and curve that the mapping row must match.
         RemoteKeyAlgorithmSelector selector;
         var storedKey = descriptor.DeserializeKeyMaterial(
             metadata,
             SecretEncodings.Spki,
-            publicKeySpanLease.Span
+            publicKeyBuffer.WrittenSpan
         );
         try
         {
@@ -353,7 +351,7 @@ internal class DefaultSecretSerializer(
 
         try
         {
-            return RemoteKeyResolver.CreateKey(binding, metadata, publicKeySpanLease.Span);
+            return RemoteKeyResolver.CreateKey(binding, metadata, publicKeyBuffer.WrittenSpan);
         }
         catch (RemoteKeyRefusedException exception)
         {

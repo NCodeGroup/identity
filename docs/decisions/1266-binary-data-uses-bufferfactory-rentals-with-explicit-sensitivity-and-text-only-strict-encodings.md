@@ -71,6 +71,17 @@ become text, only through a strict encoding.
     request-delegate generator emits it. `TypedResults.Text` and `TypedResults.Content` stay allowed because one method
     symbol covers calls with and without an encoding, so review checks them.
 
+### Rental helpers
+
+11. **Rental helpers.** A buffer that is filled at once is rented through the helper for its source:
+    `BufferFactory.RentRandom` for random bytes, `RentBytes` and `RentChars` on a strict `Encoding` for text,
+    `BinaryTextEncoding.RentDecoded` and `RentEncoded` for standard Base64, Base64url and hexadecimal text, never a
+    `Rent` followed by a fill. A writer whose data is read as one span is
+    `BufferFactory.CreateContiguousBufferWriter(isSensitive:)`; a stream over one pooled buffer is
+    `CreatePooledStream(isSensitive:)`; sensitive text is built in a `PooledTextBuilder`; a secret held in a field is a
+    `Secret<T>`, whose `Reveal()` is the one way to read it. The strict JOSE decoders stay on
+    `NCode.Encoders.Base64Url`, because `BinaryTextFormat.Base64Url` accepts padding and whitespace.
+
 ### Implementation notes
 
 - A struct whose fields are one blittable type is viewed as a span with

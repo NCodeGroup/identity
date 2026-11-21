@@ -22,8 +22,7 @@ internal static class CompressionAlgorithmExtensions
                 return Disposable.Empty;
             }
 
-            // increase our chances of getting a single-segment buffer
-            var buffer = BufferFactory.CreatePooledBufferWriter(
+            var buffer = BufferFactory.CreateContiguousBufferWriter(
                 isSensitive: true,
                 Math.Min(uncompressedData.Length, 1024)
             );
@@ -33,7 +32,8 @@ internal static class CompressionAlgorithmExtensions
                 algorithm.Compress(uncompressedData, buffer);
                 header[JoseClaimNames.Header.Zip] = algorithm.Code;
 
-                return buffer.ConsumeAsContiguousSpan(isSensitive: true, out compressedData);
+                compressedData = buffer.WrittenSpan;
+                return buffer;
             }
             catch
             {

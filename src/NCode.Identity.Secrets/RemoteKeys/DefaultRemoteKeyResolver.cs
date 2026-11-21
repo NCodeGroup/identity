@@ -62,7 +62,7 @@ internal sealed class DefaultRemoteKeyResolver(
         CancellationToken cancellationToken
     )
     {
-        using var publicKeyBuffer = BufferFactory.CreatePooledBufferWriter(
+        using var publicKeyBuffer = BufferFactory.CreateContiguousBufferWriter(
             isSensitive: false,
             binding.Algorithm.KeySizeBits >> 3
         );
@@ -77,9 +77,8 @@ internal sealed class DefaultRemoteKeyResolver(
             cancellationToken
         );
 
-        // The span lease is read after the last await.
-        using var publicKeyLease = publicKeyBuffer.GetSpanLease(isSensitive: false);
-        return CreateKey(binding, metadata, publicKeyLease.Span);
+        // The written span is read after the last await.
+        return CreateKey(binding, metadata, publicKeyBuffer.WrittenSpan);
     }
 
     /// <inheritdoc />

@@ -266,7 +266,7 @@ public sealed class SecretProtectionCommandLine
         CancellationToken cancellationToken
     )
     {
-        // Both buffers are sensitive: they are zeroed when they are released, whether the rewrap succeeds or fails.
+        // The key is sensitive: it is zeroed when it is released, whether the rewrap succeeds or fails.
         using var lease = await ReadRecoveryPrivateKeyAsync(logger, cancellationToken);
         if (RecoveryPrivateKeyPath is not null && lease is null)
             return 1;
@@ -323,25 +323,18 @@ public sealed class SecretProtectionCommandLine
             }
 
             var size = (int)length;
-            var bytesLease = BufferFactory.Rent(size, isSensitive: true, out Memory<byte> bytes);
-            var charsLease = BufferFactory.Rent<char>(
+            using var bytesLease = BufferFactory.Rent(
                 size,
                 isSensitive: true,
-                out Memory<char> chars
+                out Memory<byte> bytes
             );
-            var lease = new RecoveryKeyLease(bytesLease, charsLease);
-            try
-            {
-                await stream.ReadExactlyAsync(bytes[..size], cancellationToken);
-                var written = SecureEncoding.ASCII.GetChars(bytes.Span[..size], chars.Span[..size]);
-                lease.Pem = chars[..written];
-                return lease;
-            }
-            catch
-            {
-                lease.Dispose();
-                throw;
-            }
+            await stream.ReadExactlyAsync(bytes, cancellationToken);
+            var pem = Secret.Create<char, ReadOnlyMemory<byte>>(
+                size,
+                bytes,
+                static (chars, source) => SecureEncoding.ASCII.GetChars(source.Span, chars)
+            );
+            return new RecoveryKeyLease(pem);
         }
         catch (Exception exception)
             when (exception is IOException or UnauthorizedAccessException or ArgumentException)

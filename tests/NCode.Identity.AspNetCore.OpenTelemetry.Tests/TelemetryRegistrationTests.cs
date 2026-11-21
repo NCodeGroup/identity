@@ -5,6 +5,7 @@ using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using NCode.Buffers;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
@@ -156,6 +157,26 @@ public sealed class TelemetryRegistrationTests
         );
         var tag = Assert.Single(own.Tags);
         Assert.Equal("http.request.method", tag.Key);
+    }
+
+    [Fact]
+    public void AddOpenTelemetryMetrics_WhenAMeterNamedNCodeBuffersRecords_CollectsIt()
+    {
+        var exporter = new CollectingExporter();
+        using var reader = new BaseExportingMetricReader(exporter);
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddOpenTelemetryMetrics(CreateConfiguration(otlpEndpoint: null));
+        serviceCollection.ConfigureOpenTelemetryMeterProvider(builder => builder.AddReader(reader));
+        using var serviceProvider = serviceCollection.BuildServiceProvider();
+        _ = serviceProvider.GetRequiredService<MeterProvider>();
+
+        using var bufferMeter = new Meter(BufferMetrics.MeterName);
+        bufferMeter.CreateCounter<long>("buffers.test.counter").Add(1);
+
+        var collected = reader.Collect();
+
+        Assert.True(collected);
+        Assert.Contains(exporter.Points, point => point.Name == "buffers.test.counter");
     }
 
     #endregion

@@ -32,12 +32,23 @@ internal class ClientSecretBasicClientAuthenticator(IClientKeyRingProvider keyRi
 
         var registration = context.Registration;
         var secret = SharedSecretReader.ReadSecret(KeyRingProvider, registration);
-        var credentials =
-            $"{WebUtility.UrlEncode(registration.ClientId)}:{WebUtility.UrlEncode(secret)}";
+
+        var encodedClientId = WebUtility.UrlEncode(registration.ClientId);
+        var encodedSecret = WebUtility.UrlEncode(secret);
+
+        using var text = new PooledTextBuilder(stackalloc char[256], isSensitive: true);
+        text.Append(encodedClientId);
+        text.Append(':');
+        text.Append(encodedSecret);
+        using var bytesLease = SecureEncoding.UTF8.RentBytes(
+            text.WrittenSpan,
+            isSensitive: true,
+            out Span<byte> bytes
+        );
 
         context.Request.Headers.Authorization = new AuthenticationHeaderValue(
             "Basic",
-            Convert.ToBase64String(SecureEncoding.UTF8.GetBytes(credentials))
+            Convert.ToBase64String(bytes)
         );
         return ValueTask.CompletedTask;
     }

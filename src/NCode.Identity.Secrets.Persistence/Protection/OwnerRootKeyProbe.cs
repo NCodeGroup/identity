@@ -42,12 +42,11 @@ internal static class OwnerRootKeyProbe
         ArgumentNullException.ThrowIfNull(wrapper);
         ArgumentNullException.ThrowIfNull(referencedKey);
 
-        using var probeLease = BufferFactory.Rent(
+        using var probeLease = BufferFactory.RentRandom(
             ProbeSizeBytes,
             isSensitive: true,
             out Memory<byte> probe
         );
-        RandomNumberGenerator.Fill(probe.Span);
 
         using var contextLease = BufferFactory.Rent(
             SecretProtectionFormat.GetProbeContextSize(owner),
@@ -65,7 +64,7 @@ internal static class OwnerRootKeyProbe
         {
             var wrapped = await wrapper.WrapAsync(referencedKey, probe, context, cancellationToken);
 
-            using var destination = BufferFactory.CreatePooledBufferWriter(
+            using var destination = BufferFactory.CreateContiguousBufferWriter(
                 isSensitive: true,
                 ProbeSizeBytes
             );
@@ -78,9 +77,7 @@ internal static class OwnerRootKeyProbe
                 await wrapper.UnwrapAsync(wrapped, context, destination, cancellationToken);
             }
 
-            using var unwrapped = destination.GetSpanLease(isSensitive: true);
-
-            return CryptographicOperations.FixedTimeEquals(probe.Span, unwrapped.Span)
+            return CryptographicOperations.FixedTimeEquals(probe.Span, destination.WrittenSpan)
                 ? null
                 : "the key unwrapped a value other than the one it wrapped";
         }

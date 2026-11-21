@@ -35,11 +35,10 @@ internal static class SharedSecretReader
                 $"The key ring '{keyRing}' of the client '{registration.ClientId}' has no symmetric key."
             );
 
-        using var buffer = BufferFactory.CreatePooledBufferWriter(isSensitive: true);
+        using var buffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: true);
         IBufferWriter<byte> writer = buffer;
         secretKey.ExportPrivateKey(ref writer);
 
-        using var spanLease = buffer.GetSpanLease(isSensitive: true);
-        return SecureEncoding.UTF8.GetString(spanLease.Span);
+        return SecureEncoding.UTF8.GetString(buffer.WrittenSpan);
     }
 }

@@ -130,19 +130,17 @@ internal static class DevelopmentKeyFile
         var bytesRead = RandomAccess.Read(handle, buffer, 0);
         var bytes = buffer[..bytesRead];
 
-        var charCount = SecureEncoding.UTF8.GetCharCount(bytes);
-        using var charsLease = BufferFactory.Rent(
-            charCount,
+        using var charsLease = SecureEncoding.UTF8.RentChars(
+            bytes,
             isSensitive: true,
             out Span<char> chars
         );
-        var charsWritten = SecureEncoding.UTF8.GetChars(bytes, chars);
 
         using var key = ECDsa.Create();
-        key.ImportFromPem(chars[..charsWritten]);
+        key.ImportFromPem(chars);
         var parameters = key.ExportParameters(includePrivateParameters: false);
 
-        var writer = BufferFactory.CreateArrayBufferWriter();
+        using var writer = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
         using (var json = new Utf8JsonWriter(writer))
         {
             json.WriteStartObject();

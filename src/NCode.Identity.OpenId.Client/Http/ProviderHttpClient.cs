@@ -5,9 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using NCode.Buffers;
-using NCode.Identity.Json;
 using NCode.Identity.OpenId.Client.Options;
-using Nerdbank.Streams;
 
 namespace NCode.Identity.OpenId.Client.Http;
 
@@ -53,14 +51,14 @@ internal class ProviderHttpClient(
                 token
             );
 
-            using var body = BufferFactory.CreatePooledBufferWriter(isSensitive: true);
+            using var body = BufferFactory.CreateContiguousBufferWriter(isSensitive: true);
             var withinLimit = await TryReadBodyAsync(response.Content, body, token);
             if (!withinLimit)
                 throw new OpenIdProviderException(
                     $"The response from '{request.RequestUri}' is larger than {Options.MaxResponseSizeBytes} bytes."
                 );
 
-            var content = body.AsReadOnlySequence;
+            var content = body.WrittenMemory;
 
             var dpopNonce = response.Headers.TryGetValues(
                 OpenIdProtocol.DPoP.NonceHeaderName,
@@ -95,7 +93,7 @@ internal class ProviderHttpClient(
                     DPoPNonce = dpopNonce,
                     MediaType = mediaType,
                     WwwAuthenticate = wwwAuthenticate,
-                    Jwt = SecureEncoding.UTF8.GetString(content).Trim(),
+                    Jwt = SecureEncoding.UTF8.GetString(content.Span).Trim(),
                 };
 
             if (
@@ -117,7 +115,7 @@ internal class ProviderHttpClient(
                     WwwAuthenticate = wwwAuthenticate,
                 };
 
-            var jsonElement = JsonElement.Parse(content);
+            var jsonElement = JsonElement.Parse(content.Span);
             return new ProviderHttpResponse((int)response.StatusCode, jsonElement)
             {
                 DPoPNonce = dpopNonce,
@@ -162,12 +160,12 @@ internal class ProviderHttpClient(
     /// the running total is checked again before each chunk is committed.
     /// </summary>
     /// <param name="content">The response content to read.</param>
-    /// <param name="destination">The sequence that receives the body's bytes.</param>
+    /// <param name="destination">The writer that receives the body's bytes.</param>
     /// <param name="cancellationToken">A token to observe while waiting for the body.</param>
     /// <returns><c>true</c> when the whole body was read; <c>false</c> when it exceeds the size limit.</returns>
     private async ValueTask<bool> TryReadBodyAsync(
         HttpContent content,
-        Sequence<byte> destination,
+        ContiguousBufferWriter<byte> destination,
         CancellationToken cancellationToken
     )
     {

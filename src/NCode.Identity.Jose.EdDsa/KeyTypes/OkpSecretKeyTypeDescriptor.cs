@@ -79,7 +79,7 @@ public sealed class OkpSecretKeyTypeDescriptor(
             Span<byte> publicKey = stackalloc byte[curve.PublicKeySize];
             curve.GeneratePublicKey(seed, publicKey);
 
-            using var subjectPublicKeyInfoBuffer = BufferFactory.CreatePooledBufferWriter(
+            using var subjectPublicKeyInfoBuffer = BufferFactory.CreateContiguousBufferWriter(
                 isSensitive: false
             );
             IBufferWriter<byte> subjectPublicKeyInfoWriter = subjectPublicKeyInfoBuffer;
@@ -88,9 +88,6 @@ public sealed class OkpSecretKeyTypeDescriptor(
                 publicKey,
                 ref subjectPublicKeyInfoWriter
             );
-            using var subjectPublicKeyInfo = subjectPublicKeyInfoBuffer.GetSpanLease(
-                isSensitive: false
-            );
 
             return new GeneratedSecretKeyMaterial
             {
@@ -98,7 +95,7 @@ public sealed class OkpSecretKeyTypeDescriptor(
                 KeySizeBits = curve.KeySizeBits,
                 SecretEncoding = SecretEncodings.Pkcs8,
                 SecretMaterial = null,
-                PublicKey = Base64Url.EncodeToString(subjectPublicKeyInfo.Span),
+                PublicKey = Base64Url.EncodeToString(subjectPublicKeyInfoBuffer.WrittenSpan),
             };
         }
         finally
@@ -124,8 +121,9 @@ public sealed class OkpSecretKeyTypeDescriptor(
             ),
         };
 
-        var buffer = BufferFactory.CreateArrayBufferWriter();
-        OkpKeyEncoder.WriteSubjectPublicKeyInfo(curve, publicKey, ref buffer);
+        using var buffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
+        IBufferWriter<byte> writer = buffer;
+        OkpKeyEncoder.WriteSubjectPublicKeyInfo(curve, publicKey, ref writer);
         return new ImportedSecretKeyMaterial
         {
             ProtectedKeyMaterial = protect(buffer.WrittenSpan),

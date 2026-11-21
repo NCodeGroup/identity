@@ -41,25 +41,25 @@ internal static class BffSessionCodec
         if (!TryGetStoreKey(handle, out var storeKey))
             throw new ArgumentException("The handle is not valid.", nameof(handle));
 
-        using var buffer = BufferFactory.CreatePooledBufferWriter(isSensitive: true);
+        using var buffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: true);
         using (var writer = new Utf8JsonWriter(buffer))
         {
             JsonSerializer.Serialize(writer, payload, BffJsonContext.Default.BffSessionPayload);
             writer.Flush();
         }
 
-        using var associatedData = BufferFactory.CreatePooledBufferWriter(isSensitive: false);
+        using var associatedData = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
         WriteAssociatedData(storeKey, version, metadata, associatedData);
 
-        using var lease = buffer.GetSpanLease(isSensitive: true);
-        using var associatedDataLease = associatedData.GetSpanLease(isSensitive: false);
         // The record owns its protected payload beyond this call, so it is an exactly sized array.
-        var protectedPayload = new byte[BffPayloadProtector.GetProtectedLength(lease.Span.Length)];
+        var protectedPayload = new byte[
+            BffPayloadProtector.GetProtectedLength(buffer.WrittenCount)
+        ];
         BffPayloadProtector.Protect(
             handle,
             BffKeyDerivation.SessionPayloadPurpose,
-            lease.Span,
-            associatedDataLease.Span,
+            buffer.WrittenSpan,
+            associatedData.WrittenSpan,
             protectedPayload
         );
 
@@ -77,27 +77,25 @@ internal static class BffSessionCodec
     {
         payload = null;
 
-        using var associatedData = BufferFactory.CreatePooledBufferWriter(isSensitive: false);
+        using var associatedData = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
         WriteAssociatedData(record.StoreKey, record.Version, record.Metadata, associatedData);
 
-        using var associatedDataLease = associatedData.GetSpanLease(isSensitive: false);
-        using var buffer = BufferFactory.CreatePooledBufferWriter(isSensitive: true);
+        using var buffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: true);
         if (
             !BffPayloadProtector.TryUnprotect(
                 handle,
                 BffKeyDerivation.SessionPayloadPurpose,
                 record.ProtectedPayload.Span,
-                associatedDataLease.Span,
+                associatedData.WrittenSpan,
                 buffer
             )
         )
             return false;
 
-        using var lease = buffer.GetSpanLease(isSensitive: true);
         try
         {
             payload = JsonSerializer.Deserialize(
-                lease.Span,
+                buffer.WrittenSpan,
                 BffJsonContext.Default.BffSessionPayload
             );
         }

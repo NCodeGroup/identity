@@ -48,17 +48,16 @@ internal partial class DefaultCoseSerializer
         RandomSource.Fill(nonce);
         unprotectedHeaders[CoseHeaderLabels.InitializationVector] = CoseValue.FromByteString(nonce);
 
-        using var keyBuffer = BufferFactory.CreatePooledBufferWriter(
+        using var keyBuffer = BufferFactory.CreateContiguousBufferWriter(
             isSensitive: true,
             key.KeySizeBytes
         );
         IBufferWriter<byte> keyWriter = keyBuffer;
         key.ExportPrivateKey(ref keyWriter);
-        using var keyLease = keyBuffer.GetSpanLease(isSensitive: true);
 
         var ciphertext = Encrypt(
             algorithm,
-            keyLease.Span,
+            keyBuffer.WrittenSpan,
             nonce,
             content,
             CoseStructures.Encrypt("Encrypt0", protectedBytes, options.ExternalAad.Span)
@@ -234,16 +233,21 @@ internal partial class DefaultCoseSerializer
 
         foreach (var candidate in candidates)
         {
-            using var keyBuffer = BufferFactory.CreatePooledBufferWriter(
+            using var keyBuffer = BufferFactory.CreateContiguousBufferWriter(
                 isSensitive: true,
                 candidate.KeySizeBytes
             );
             IBufferWriter<byte> keyWriter = keyBuffer;
             ((SymmetricSecretKey)candidate).ExportPrivateKey(ref keyWriter);
-            using var keyLease = keyBuffer.GetSpanLease(isSensitive: true);
 
             if (
-                TryDecrypt(algorithm, keyLease.Span, nonce.Span, ciphertext.Span, structure) is
+                TryDecrypt(
+                    algorithm,
+                    keyBuffer.WrittenSpan,
+                    nonce.Span,
+                    ciphertext.Span,
+                    structure
+                ) is
                 { } plaintext
             )
                 return new CoseVerifiedMessage

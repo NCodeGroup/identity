@@ -63,6 +63,9 @@ not flood the event pipeline, so it gets a direct instrument.
   `MetricCollector<T>`. A package's instruments live in one internal singleton `…Metrics` class that the factory's
   meter creates once; call sites call methods on it, never `Meter` APIs. `DefaultEventMetricsHandler` takes its meter
   from the factory too.
+- **One meter is not the family's:** the secure buffer pool of `NCode.Buffers` records on the static, process-wide meter
+  `NCode.Buffers` (`BufferMetrics.MeterName`), which the host registration subscribes to by name, because the wildcard
+  does not cover it and a factory does not scope it.
 - **Instrument and attribute names share the family namespace `ncode.identity.{area}.…`**, as ASP.NET Core's own
   instruments and their attributes share `aspnetcore.…`. An attribute that OpenTelemetry's semantic conventions already
   define (`error.type`, `http.route`, `http.response.status_code`) keeps its standard name.
@@ -153,7 +156,8 @@ the reference host and the directory host call, because host composition is a pa
 the only package that references the OpenTelemetry SDK, only a host references it, and the build fails any other
 shipping package whose references hold an OpenTelemetry package. It adds:
 
-- the OpenTelemetry SDK and the family's meters by the `NCode.Identity.*` wildcard;
+- the OpenTelemetry SDK and the family's meters by the `NCode.Identity.*` wildcard, and the `NCode.Buffers` meter by
+  name;
 - ASP.NET Core's hosting, Kestrel, routing and diagnostics meters, `System.Net.Http` and `System.Runtime`, all of which
   are built into .NET, so no instrumentation package is needed;
 - a view that keeps only bounded attributes on `System.Net.Http`'s instruments, dropping `server.address`,

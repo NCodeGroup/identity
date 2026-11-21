@@ -1,6 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers;
 using System.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -143,45 +144,75 @@ internal class ClientSecretBasicClientAuthenticationHandler(
         CancellationToken cancellationToken
     )
     {
-        // RFC 7617 encodes the user-id/password with standard Base64 (padded), not Base64Url. An upper bound of
-        // length*3/4 is always large enough for the decoded bytes regardless of padding.
-        var maxByteCount = encodedCredentials.Length * 3 / 4;
-        using var base64Lease = BufferFactory.Rent(
-            maxByteCount,
-            isSensitive: true,
-            out Span<byte> base64Buffer
+        // RFC 7617 encodes the user-id/password with standard Base64 (padded), not Base64Url.
+        // The credentials are untrusted input, so a malformed header is a failed authentication per RFC 6749 §5.2.
+        using var base64Lease = TryRentDecodedCredentials(
+            encodedCredentials.Span,
+            out var base64Bytes
         );
-
-        // The credentials are untrusted input, so a decode failure must be handled explicitly (never asserted, which
-        // is compiled out in Release); a malformed header is a failed authentication per RFC 6749 §5.2.
-        if (
-            !Convert.TryFromBase64Chars(
-                encodedCredentials.Span,
-                base64Buffer,
-                out var base64BytesWritten
-            )
-        )
-        {
+        if (base64Lease is null)
             return CreateInvalidClientResult(openIdContext);
-        }
 
-        var base64Bytes = base64Buffer[..base64BytesWritten];
-
-        var decodeCharCount = SecureEncoding.UTF8.GetCharCount(base64Bytes);
-        using var decodeLease = BufferFactory.Rent<char>(
-            decodeCharCount,
+        using var decodeLease = SecureEncoding.UTF8.RentChars(
+            base64Bytes,
             isSensitive: true,
             out Memory<char> decodeBuffer
         );
 
-        var decodeSpan = decodeBuffer.Span;
-
-        var decodeResult = SecureEncoding.UTF8.TryGetChars(
-            base64Bytes,
-            decodeSpan,
-            out var decodeCharsWritten
+        return await AuthenticateDecodedCredentialsAsync(
+            openIdContext,
+            decodeBuffer,
+            cancellationToken
         );
-        Debug.Assert(decodeResult && decodeCharsWritten == decodeCharCount);
+    }
+
+    /// <summary>
+    /// Decodes the standard Base64 text of the Basic credentials into a sensitive buffer.
+    /// </summary>
+    /// <param name="encodedCredentials">The Base64 text after the <c>Basic</c> scheme.</param>
+    /// <param name="credentialBytes">The decoded bytes, valid until the returned owner is disposed.</param>
+    /// <returns>
+    /// The owner of <paramref name="credentialBytes"/>, which the caller disposes, or <see langword="null"/> when the
+    /// text is not valid Base64.
+    /// </returns>
+    private static IMemoryOwner<byte>? TryRentDecodedCredentials(
+        ReadOnlySpan<char> encodedCredentials,
+        out Span<byte> credentialBytes
+    )
+    {
+        try
+        {
+            return BinaryTextEncoding.RentDecoded(
+                encodedCredentials,
+                BinaryTextFormat.Base64,
+                isSensitive: true,
+                out credentialBytes
+            );
+        }
+        catch (FormatException)
+        {
+            credentialBytes = default;
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Authenticates the client from its decoded <c>user-id:password</c> text.
+    /// </summary>
+    /// <param name="openIdContext">The <see cref="OpenIdContext"/> of the request.</param>
+    /// <param name="decodeBuffer">
+    /// The sensitive <c>user-id:password</c> text. The caller owns its lease, so it is valid only until the caller
+    /// disposes it.
+    /// </param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> that cancels the authentication.</param>
+    /// <returns>The <see cref="ClientAuthenticationResult"/> of the authentication.</returns>
+    private async ValueTask<ClientAuthenticationResult> AuthenticateDecodedCredentialsAsync(
+        OpenIdContext openIdContext,
+        Memory<char> decodeBuffer,
+        CancellationToken cancellationToken
+    )
+    {
+        var decodeSpan = decodeBuffer.Span;
 
         var indexOfColon = decodeSpan.IndexOf(':');
 

@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Buffers;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using NCode.Buffers;
@@ -84,7 +83,7 @@ internal class DefaultSectorIdentifierValidator(
         if (timeout > TimeSpan.Zero)
             timeoutCts.CancelAfter(timeout);
 
-        using var buffer = BufferFactory.CreatePooledBufferWriter(isSensitive: false);
+        using var buffer = BufferFactory.CreateContiguousBufferWriter(isSensitive: false);
         try
         {
             using var httpClient = HttpClientFactory.CreateClient(GuardedHttpClient.Name);
@@ -137,7 +136,7 @@ internal class DefaultSectorIdentifierValidator(
             return InvalidMetadata("The 'sector_identifier_uri' document could not be fetched.");
         }
 
-        if (!TryParseDocument(buffer.AsReadOnlySequence, out var documentUris))
+        if (!TryParseDocument(buffer.WrittenSpan, out var documentUris))
         {
             return InvalidMetadata(
                 "The 'sector_identifier_uri' document is not a JSON array of redirect URI strings."
@@ -158,10 +157,7 @@ internal class DefaultSectorIdentifierValidator(
         return null;
     }
 
-    private static bool TryParseDocument(
-        ReadOnlySequence<byte> content,
-        out List<string> redirectUris
-    )
+    private static bool TryParseDocument(ReadOnlySpan<byte> content, out List<string> redirectUris)
     {
         redirectUris = [];
 

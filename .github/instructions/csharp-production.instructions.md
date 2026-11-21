@@ -1216,6 +1216,10 @@ says for a pre-release project.
   that enters from configuration (already an unavoidable managed `string`) is supplied **pre-encoded** (Base64Url) and
   decoded straight into the secure buffer, so a raw process-memory snapshot does not expose the plaintext directly. See
   [ADR-1266](../../docs/decisions/1266-binary-data-uses-bufferfactory-rentals-with-explicit-sensitivity-and-text-only-strict-encodings.md).
+- 👁 **Use the rental helper for the source.** `BufferFactory.RentRandom`, `RentBytes`/`RentChars` on `SecureEncoding`,
+  `BinaryTextEncoding.RentDecoded`/`RentEncoded`, `CreatePooledStream` and `PooledTextBuilder` replace a rental
+  followed by a fill, encode, decode or copy; a secret kept in a field is a `Secret<T>`. See
+  [ADR-1266](../../docs/decisions/1266-binary-data-uses-bufferfactory-rentals-with-explicit-sensitivity-and-text-only-strict-encodings.md).
 - ✅ **Encode and decode text only through a strict encoding.** Use `SecureEncoding.UTF8` / `SecureEncoding.ASCII`
   (`NCode.Buffers`), which throw on invalid input, never `Encoding.UTF8`, `Encoding.ASCII` or `Encoding.Default`, which
   substitute `?` or U+FFFD silently. An overload that takes no encoding (`File.ReadAllText(path)`,
@@ -1228,12 +1232,13 @@ says for a pre-release project.
 IBufferWriter<byte>, allows ref struct` (as in `SymmetricSecretKey.ExportPrivateKey` /
   `AsymmetricSecretKey.ExportSubjectPublicKeyInfo`) — instead of returning a freshly-allocated `byte[]`; inputs are
   `ReadOnlySpan<byte>` / `ReadOnlyMemory<byte>`. Rent a pooled writer with
-  `BufferFactory.CreatePooledBufferWriter(isSensitive:)` (`NCode.Buffers` over `Nerdbank.Streams`), not a bare
-  `ArrayBufferWriter<byte>`, `ArrayPool<T>.Shared` or `MemoryPool<T>.Shared` — `isSensitive: true` for secrets (pinned,
-  zeroed `SecureMemoryPool`), `false` for non-secret bytes. `BufferFactory.CreateArrayBufferWriter()` is the writer
-  for output that is never secret (public keys, wrapped keys, a user's own document). `BannedSymbols.Buffers.txt`
-  fails the build (`RS0030`) on the bare pools, `ArrayBufferWriter<T>` and `Sequence<T>` constructors in every
-  project but the test projects. Read a multi-segment sequence segment by segment or with
+  `BufferFactory.CreateContiguousBufferWriter(isSensitive:)` when the data is read as one span, and
+  `BufferFactory.CreatePooledBufferWriter(isSensitive:)` when it is read segment by segment (`NCode.Buffers` over
+  `Nerdbank.Streams`), not a bare `ArrayBufferWriter<byte>`, `ArrayPool<T>.Shared` or `MemoryPool<T>.Shared` —
+  `isSensitive: true` for secrets (pinned, zeroed `SecureMemoryPool`), `false` for non-secret bytes.
+  `BufferFactory.CreateArrayBufferWriter()` is the writer for output that is never secret (public keys, wrapped keys, a
+  user's own document). `BannedSymbols.Buffers.txt` fails the build (`RS0030`) on the bare pools, `ArrayBufferWriter<T>`
+  and `Sequence<T>` constructors in every project but the test projects. Read a multi-segment sequence segment by segment or with
   `SequenceReader<byte>`, and take one contiguous span with `GetSpanLease(isSensitive:)` only when a consumer needs
   it — never manual concatenation or `.ToArray()`. This is the general convention for all byte-array/memory/buffer
   usage; existing `byte[]` surfaces migrate incrementally. See
