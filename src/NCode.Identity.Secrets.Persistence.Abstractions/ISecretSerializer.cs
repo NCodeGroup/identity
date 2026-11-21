@@ -79,8 +79,10 @@ public interface ISecretSerializer
     /// <summary>
     /// Deserializes a collection of <see cref="PersistedSecret"/> instances that hold one-way verifiers of shared
     /// secrets (<see cref="SecretEncodings.Verifier"/>) by unprotecting each verifier with a
-    /// <see cref="ISecretProtector"/> and reading it into a <see cref="SecretVerifier"/>. A verifier is not key material,
-    /// so <see cref="DeserializeSecrets(ISecretProtector, IReadOnlyCollection{PersistedSecret})"/> does not read it.
+    /// <see cref="ISecretProtector"/> and reading it into a <see cref="SecretVerifier"/>. A verifier is not key
+    /// material, so <see cref="DeserializeSecrets(ISecretProtector, IReadOnlyCollection{PersistedSecret})"/> does not
+    /// read it. The caller owns the verifiers and disposes each; when one cannot be read, the ones already read are
+    /// disposed before the exception leaves.
     /// </summary>
     /// <param name="protector">The <see cref="ISecretProtector"/> of the owner that the secrets belong to.</param>
     /// <param name="persistedSecrets">The <see cref="PersistedSecret"/> instances to deserialize, each with the

@@ -111,9 +111,22 @@ internal class DefaultSecretSerializer(
         }
 
         var verifiers = new List<SecretVerifier>(persistedSecrets.Count);
-        foreach (var persistedSecret in persistedSecrets)
+        try
         {
-            verifiers.Add(DeserializeVerifierCore(protector, persistedSecret));
+            foreach (var persistedSecret in persistedSecrets)
+            {
+                verifiers.Add(DeserializeVerifierCore(protector, persistedSecret));
+            }
+        }
+        // A caller receives no verifier when one cannot be read, so the ones read are disposed here.
+        catch
+        {
+            foreach (var verifier in verifiers)
+            {
+                verifier.Dispose();
+            }
+
+            throw;
         }
 
         return verifiers;
