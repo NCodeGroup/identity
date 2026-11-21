@@ -3,8 +3,6 @@
 
 using System.Text.Json;
 using Microsoft.Extensions.Options;
-using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.Jose.Exceptions;
 using NCode.Identity.Jose.SdJwt.Digests;
 using NCode.Identity.Jose.SdJwt.Options;
@@ -204,17 +202,11 @@ internal class DefaultSdJwtHolder(
         var encodedPayload = compactJwt.Segments[JwsPayloadSegment].Span;
         try
         {
-            var byteCount = Base64Url.GetByteCountForDecode(encodedPayload.Length);
-            using var lease = BufferFactory.Rent(
-                byteCount,
+            using var lease = StrictBase64Url.RentDecoded(
+                encodedPayload,
                 isSensitive: false,
                 out Span<byte> utf8Json
             );
-            if (
-                !Base64Url.TryDecode(encodedPayload, utf8Json, out var bytesWritten)
-                || bytesWritten != byteCount
-            )
-                throw new FormatException("The issuer-signed JWT payload is not valid base64url.");
 
             var payload = JsonElement.Parse(utf8Json);
             if (payload.ValueKind != JsonValueKind.Object)

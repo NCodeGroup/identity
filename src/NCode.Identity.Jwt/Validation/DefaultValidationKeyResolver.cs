@@ -155,7 +155,7 @@ internal static class DefaultValidationKeyResolver
             decoded =
                 encoded is not null
                 && encoded.Length == Base64Url.GetCharCountForEncode(digest.Length)
-                && Base64Url.TryDecode(encoded, digest, out bytesWritten);
+                && StrictBase64Url.TryDecode(encoded, digest, out bytesWritten);
         }
         catch (FormatException exception)
         {
