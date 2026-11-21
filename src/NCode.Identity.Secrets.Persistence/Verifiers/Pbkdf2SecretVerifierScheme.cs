@@ -117,13 +117,24 @@ internal sealed class Pbkdf2SecretVerifierScheme(
             return false;
         }
 
+        if (!SecretVerifierFormat.TryDecodeParameter(rest[..saltEnd], out var salt))
+        {
+            return false;
+        }
+
         if (
-            !SecretVerifierFormat.TryDecode(rest[..saltEnd], out var salt)
-            || salt.Length is < MinSaltByteCount or > MaxByteCount
-            || !SecretVerifierFormat.TryDecode(rest[(saltEnd + 1)..], out var derivedKey)
-            || derivedKey.Length is < MinDerivedKeyByteCount or > MaxByteCount
+            salt.Length is < MinSaltByteCount or > MaxByteCount
+            || !SecretVerifierFormat.TryDecodeParameter(rest[(saltEnd + 1)..], out var derivedKey)
         )
         {
+            salt.Dispose();
+            return false;
+        }
+
+        if (derivedKey.Length is < MinDerivedKeyByteCount or > MaxByteCount)
+        {
+            salt.Dispose();
+            derivedKey.Dispose();
             return false;
         }
 

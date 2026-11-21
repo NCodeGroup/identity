@@ -113,31 +113,6 @@ internal static class SecretVerifierFormat
         !text.IsEmpty && !text.ContainsAnyExceptInRange((byte)'0', (byte)'9');
 
     /// <summary>
-    /// Decodes a non-empty base64url parameter that holds no <c>$</c>.
-    /// </summary>
-    /// <param name="text">The parameter.</param>
-    /// <param name="bytes">When this method returns <see langword="true"/>, the decoded octets.</param>
-    /// <returns><see langword="true"/> when <paramref name="text"/> is valid base64url.</returns>
-    public static bool TryDecode(ReadOnlySpan<byte> text, [NotNullWhen(true)] out byte[]? bytes)
-    {
-        bytes = null;
-
-        if (text.IsEmpty || text.Contains(Separator) || !Base64Url.IsValid(text))
-        {
-            return false;
-        }
-
-        var decoded = new byte[Base64Url.GetMaxDecodedLength(text.Length)];
-        if (!Base64Url.TryDecodeFromUtf8(text, decoded, out var written))
-        {
-            return false;
-        }
-
-        bytes = written == decoded.Length ? decoded : decoded[..written];
-        return true;
-    }
-
-    /// <summary>
     /// Decodes a non-empty base64url parameter that holds no <c>$</c> into a <see cref="Secret{T}"/>, so the decoded
     /// octets are held in memory that is zeroed when the secret is disposed.
     /// </summary>
