@@ -17,7 +17,6 @@
         <PackageReference Include="JetBrains.Annotations" PrivateAssets="All" />
         <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
         <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" />
-        <PackageReference Include="NCode.Base64Url" />
         <PackageReference Include="NCode.Collections.Providers" />
         <PackageReference Include="NCode.Disposables" />
         <PackageReference Include="NCode.Mediator" />
