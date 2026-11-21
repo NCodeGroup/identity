@@ -3,6 +3,7 @@
 
 using System.Buffers;
 using System.Buffers.Text;
+using System.Diagnostics.CodeAnalysis;
 using JetBrains.Annotations;
 using NCode.Buffers;
 
@@ -14,6 +15,11 @@ namespace NCode.Identity.Json;
 /// unused bits are not zero is refused before anything is decoded, so a byte string has exactly one spelling.
 /// </summary>
 // See ADR-1266.
+[SuppressMessage(
+    "ApiDesign",
+    "RS0030:Do not use banned APIs",
+    Justification = "The family's one base64url decoder: it refuses what is not strict, then runs the .NET decoder."
+)]
 [PublicAPI]
 public static class StrictBase64Url
 {
