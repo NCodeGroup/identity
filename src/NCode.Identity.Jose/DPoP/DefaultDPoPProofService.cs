@@ -447,6 +447,11 @@ internal class DefaultDPoPProofService(
         return true;
     }
 
+    /// <summary>
+    /// Creates the <c>jti</c> of a proof.
+    /// </summary>
+    /// <returns>The base64url text, without padding, of <see cref="JtiSizeBytes"/> random bytes, which are not
+    /// sensitive because the proof publishes them.</returns>
     private static string CreateJti()
     {
         using var owner = BufferFactory.RentRandom(

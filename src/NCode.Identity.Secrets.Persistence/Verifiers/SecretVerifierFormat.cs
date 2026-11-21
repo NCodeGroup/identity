@@ -139,12 +139,12 @@ internal static class SecretVerifierFormat
             out Span<byte> decoded
         );
 
-        if (!StrictBase64Url.TryDecode(text, decoded, out var written))
+        if (!StrictBase64Url.TryDecode(text, decoded, out _))
         {
             return false;
         }
 
-        value = Secret.Create<byte>(decoded[..written]);
+        value = Secret.Create<byte>(decoded);
         return true;
     }
 

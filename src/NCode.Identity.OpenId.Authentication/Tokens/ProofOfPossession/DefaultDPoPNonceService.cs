@@ -20,6 +20,11 @@ internal sealed class DefaultDPoPNonceService(IExpiringKeySet keySet, TimeProvid
 
     private static TimeSpan NonceLifetime => TimeSpan.FromMinutes(5);
 
+    /// <summary>
+    /// Creates a DPoP nonce.
+    /// </summary>
+    /// <returns>The lowercase hexadecimal text of <see cref="NonceByteLength"/> random bytes, which are not sensitive
+    /// because the server hands the nonce to the client.</returns>
     private static string CreateNonce()
     {
         using var owner = BufferFactory.RentRandom(

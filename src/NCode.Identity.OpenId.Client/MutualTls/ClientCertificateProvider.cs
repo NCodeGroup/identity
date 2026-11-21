@@ -28,6 +28,21 @@ internal class ClientCertificateProvider(
     private const string ClientAuthenticationOid = "1.3.6.1.5.5.7.3.2";
     private const int PfxPasswordByteCount = 16;
 
+    /// <summary>
+    /// Creates the temporary password of the PFX that re-imports a private key.
+    /// </summary>
+    /// <returns>The uppercase hexadecimal text of <see cref="PfxPasswordByteCount"/> random bytes, which are rented as
+    /// sensitive and zeroed.</returns>
+    private static string CreatePfxPassword()
+    {
+        using var owner = BufferFactory.RentRandom(
+            PfxPasswordByteCount,
+            isSensitive: true,
+            out Span<byte> bytes
+        );
+        return Convert.ToHexString(bytes);
+    }
+
     private IClientKeyRingProvider KeyRingProvider { get; } = keyRingProvider;
     private TimeProvider TimeProvider { get; } = timeProvider;
     private ConcurrentDictionary<string, SelectedCertificate> Certificates { get; } =
@@ -248,16 +263,6 @@ internal class ClientCertificateProvider(
         {
             certificate.Dispose();
         }
-    }
-
-    private static string CreatePfxPassword()
-    {
-        using var owner = BufferFactory.RentRandom(
-            PfxPasswordByteCount,
-            isSensitive: true,
-            out Span<byte> bytes
-        );
-        return Convert.ToHexString(bytes);
     }
 
     private static void ZeroMemory(params byte[]?[] buffers)

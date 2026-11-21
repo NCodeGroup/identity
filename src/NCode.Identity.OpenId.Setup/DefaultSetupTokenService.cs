@@ -59,6 +59,11 @@ internal sealed class DefaultSetupTokenService(
     private static byte[]? HashConfiguredToken(string? token) =>
         string.IsNullOrWhiteSpace(token) ? null : HashToken(token);
 
+    /// <summary>
+    /// Hashes a setup token with SHA-256.
+    /// </summary>
+    /// <param name="token">The token to hash; its UTF-8 bytes are rented as sensitive and zeroed.</param>
+    /// <returns>The 32-byte SHA-256 hash of the token's UTF-8 bytes.</returns>
     private static byte[] HashToken(string token)
     {
         using var owner = SecureEncoding.UTF8.RentBytes(
@@ -69,6 +74,11 @@ internal sealed class DefaultSetupTokenService(
         return SHA256.HashData(bytes);
     }
 
+    /// <summary>
+    /// Generates a random setup token.
+    /// </summary>
+    /// <returns>The base64url text, without padding, of <see cref="GeneratedTokenByteLength"/> random bytes, which are
+    /// rented as sensitive and zeroed.</returns>
     private static string GenerateToken()
     {
         using var owner = BufferFactory.RentRandom(

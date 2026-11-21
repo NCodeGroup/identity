@@ -45,6 +45,11 @@ internal class PrivateKeyJwtClientAuthenticator(
         AlgorithmCodes.DigitalSignature.RsaSha512,
     ];
 
+    /// <summary>
+    /// Creates the <c>jti</c> of a client assertion.
+    /// </summary>
+    /// <returns>The base64url text, without padding, of <see cref="JtiByteCount"/> random bytes, which are not
+    /// sensitive because the assertion publishes them.</returns>
     private static string CreateJti()
     {
         using var owner = BufferFactory.RentRandom(

@@ -18,7 +18,7 @@ namespace NCode.Identity.Json;
 [SuppressMessage(
     "ApiDesign",
     "RS0030:Do not use banned APIs",
-    Justification = "The family's one base64url decoder: it refuses what is not strict, then runs the .NET decoder."
+    Justification = "StrictBase64Url is the family's one base64url decoder and the only type allowed to call the banned decode members; it refuses what is not strict, then runs the .NET decoder."
 )]
 [PublicAPI]
 public static class StrictBase64Url
@@ -126,7 +126,8 @@ public static class StrictBase64Url
     }
 
     /// <summary>
-    /// Decodes strict base64url <paramref name="text"/> into a new array.
+    /// Decodes strict base64url <paramref name="text"/> into a new array. The array is not zeroed, so use this overload
+    /// for non-secret material only; use <c>RentDecoded</c> with <c>isSensitive: true</c> for secrets.
     /// </summary>
     /// <param name="text">The text to decode.</param>
     /// <returns>The decoded bytes.</returns>
@@ -157,11 +158,12 @@ public static class StrictBase64Url
     }
 
     /// <summary>
-    /// Decodes strict base64url <paramref name="text"/> into a rented buffer.
+    /// Decodes strict base64url <paramref name="text"/> into a rented buffer. The decoded view is valid only until the
+    /// returned lease is disposed.
     /// </summary>
     /// <param name="text">The text to decode.</param>
     /// <param name="isSensitive">Whether the rented buffer is pinned and zeroed when it is disposed.</param>
-    /// <param name="bytes">The decoded bytes.</param>
+    /// <param name="bytes">The decoded bytes; valid only until the returned lease is disposed.</param>
     /// <returns>The lease that owns the buffer; the caller disposes it.</returns>
     /// <exception cref="FormatException">The text is not strict base64url.</exception>
     public static IMemoryOwner<byte> RentDecoded(
@@ -180,11 +182,12 @@ public static class StrictBase64Url
     }
 
     /// <summary>
-    /// Decodes strict base64url <paramref name="text"/> into a rented buffer.
+    /// Decodes strict base64url <paramref name="text"/> into a rented buffer. The decoded view is valid only until the
+    /// returned lease is disposed.
     /// </summary>
     /// <param name="text">The text to decode.</param>
     /// <param name="isSensitive">Whether the rented buffer is pinned and zeroed when it is disposed.</param>
-    /// <param name="bytes">The decoded bytes.</param>
+    /// <param name="bytes">The decoded bytes; valid only until the returned lease is disposed.</param>
     /// <returns>The lease that owns the buffer; the caller disposes it.</returns>
     /// <exception cref="FormatException">The text is not strict base64url.</exception>
     public static IMemoryOwner<byte> RentDecoded(

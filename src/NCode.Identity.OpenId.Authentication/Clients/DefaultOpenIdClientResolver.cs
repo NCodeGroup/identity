@@ -189,8 +189,8 @@ internal class DefaultOpenIdClientResolver(
         SplitVerifiers(liveSecrets, out var keySecrets, out var verifierSecrets);
         var secrets = SecretSerializer.DeserializeSecrets(protector, keySecrets);
         var verifiers = SecretSerializer.DeserializeVerifiers(protector, verifierSecrets);
-        // A verifier holds its parameters in memory that is zeroed when it is disposed, so each one is disposed when the
-        // request that resolved the client completes.
+        // A verifier holds its parameters in memory that is zeroed when it is disposed, so each one is disposed when
+        // the request that resolved the client completes.
         // See ADR-1391.
         foreach (var verifier in verifiers)
         {

@@ -407,6 +407,11 @@ internal partial class JoseSerializer(
         }
     }
 
+    /// <summary>
+    /// Writes the base64url text, without padding, of <paramref name="bytes"/> to <paramref name="writer"/>.
+    /// </summary>
+    /// <param name="bytes">The bytes to encode; the caller owns and zeroes them.</param>
+    /// <param name="writer">The writer that receives the characters.</param>
     private static void EncodeBase64Url(ReadOnlySpan<byte> bytes, IBufferWriter<char> writer)
     {
         var span = writer.GetSpan(Base64Url.GetEncodedLength(bytes.Length));

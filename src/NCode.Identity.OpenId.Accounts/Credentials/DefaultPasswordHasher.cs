@@ -191,6 +191,8 @@ internal sealed class DefaultPasswordHasher : IPasswordHasher
     )
     {
         // The stored salt and derived key are as sensitive as the computed key, so every buffer is zeroed.
+        // The buffers have the fixed size MaxByteCount, so the stack use of a verification does not depend on the stored
+        // text, and each result is sliced by the length the decoder wrote.
         Span<byte> saltBuffer = stackalloc byte[MaxByteCount];
         Span<byte> hashBuffer = stackalloc byte[MaxByteCount];
         try
