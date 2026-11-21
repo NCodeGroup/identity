@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers;
+using System.Buffers.Text;
 using Microsoft.Extensions.Options;
 using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.Secrets.Keys;
 using NCode.Identity.Secrets.KeyTypes;
 using NCode.Identity.Secrets.Persistence.DataContracts;
@@ -315,7 +315,7 @@ internal class DefaultSecretGenerator(
         IBufferWriter<byte> writer = buffer;
         key.ExportSubjectPublicKeyInfo(ref writer);
 
-        return Base64Url.Encode(buffer.WrittenSpan);
+        return Base64Url.EncodeToString(buffer.WrittenSpan);
     }
 
     /// <inheritdoc />
@@ -465,7 +465,7 @@ internal class DefaultSecretGenerator(
             out Span<byte> entropy
         );
 
-        return Base64Url.Encode(entropy);
+        return Base64Url.EncodeToString(entropy);
     }
 
     /// <summary>

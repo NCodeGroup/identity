@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers;
+using System.Buffers.Text;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -9,7 +10,6 @@ using Amazon.KeyManagementService;
 using Amazon.KeyManagementService.Model;
 using Microsoft.Extensions.Options;
 using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.Secrets.AwsKms.Facades;
 using NCode.Identity.Secrets.AwsKms.Options;
 using NCode.Identity.Secrets.KeyWrapping;
@@ -338,7 +338,7 @@ internal class AwsKmsKeyWrapper(
         new(StringComparer.Ordinal)
         {
             // The value is not secret, and the SDK requires a string.
-            [EncryptionContextKey] = Base64Url.Encode(context.Span),
+            [EncryptionContextKey] = Base64Url.EncodeToString(context.Span),
         };
 
     private static MemoryStream CreateStream(Memory<byte> rental, int length)
@@ -360,7 +360,7 @@ internal class AwsKmsKeyWrapper(
     {
         if (ciphertext.TryGetBuffer(out var segment))
         {
-            return Base64Url.Encode(segment.AsSpan());
+            return Base64Url.EncodeToString(segment.AsSpan());
         }
 
         ciphertext.Position = 0;
@@ -370,7 +370,7 @@ internal class AwsKmsKeyWrapper(
             out Span<byte> buffer
         );
         ciphertext.ReadExactly(buffer);
-        return Base64Url.Encode(buffer);
+        return Base64Url.EncodeToString(buffer);
     }
 
     private static void CopyPlaintext(MemoryStream plaintext, IBufferWriter<byte> destination)

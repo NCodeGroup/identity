@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers;
+using System.Buffers.Text;
 using System.Security.Cryptography;
 using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.Secrets.KeyWrapping;
 
 namespace NCode.Identity.Secrets.Persistence.Protection;
@@ -47,7 +47,7 @@ internal static class AesGcmKeyWrap
     {
         ArgumentOutOfRangeException.ThrowIfNegative(keyLength);
 
-        return Base64Url.GetCharCountForEncode(MinimumWrappedSizeBytes + keyLength);
+        return Base64Url.GetEncodedLength(MinimumWrappedSizeBytes + keyLength);
     }
 
     /// <summary>
@@ -89,7 +89,7 @@ internal static class AesGcmKeyWrap
         aes.Encrypt(nonce, key, ciphertext, tag, context);
 
         var chars = destination.GetSpan(GetWrappedLength(key.Length));
-        if (!Base64Url.TryEncode(wrapped, chars, out var charsWritten))
+        if (!Base64Url.TryEncodeToChars(wrapped, chars, out var charsWritten))
         {
             throw new InvalidOperationException(
                 "The destination did not provide the requested space."
@@ -179,7 +179,7 @@ internal static class AesGcmKeyWrap
         Span<byte> hash = stackalloc byte[SHA256.HashSizeInBytes];
         SHA256.HashData(rootKey, hash);
 
-        if (!Base64Url.TryEncode(hash, destination, out _))
+        if (!Base64Url.TryEncodeToChars(hash, destination, out _))
         {
             throw new ArgumentException(
                 "The destination is too small to hold the fingerprint.",

@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers;
+using System.Buffers.Text;
 using System.Collections.Frozen;
 using System.Security.Cryptography;
 using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.Json;
 
 namespace NCode.Identity.Secrets.Persistence.Protection;
@@ -53,9 +53,7 @@ internal class DefaultSecretProtector(
         ArgumentOutOfRangeException.ThrowIfNegative(plaintextLength);
 
         return SecretProtectionFormat.Prefix.Length
-            + Base64Url.GetCharCountForEncode(
-                SecretProtectionFormat.HeaderSizeBytes + plaintextLength
-            );
+            + Base64Url.GetEncodedLength(SecretProtectionFormat.HeaderSizeBytes + plaintextLength);
     }
 
     /// <inheritdoc />
@@ -156,7 +154,7 @@ internal class DefaultSecretProtector(
 
         SecretProtectionFormat.Prefix.CopyTo(chars);
         if (
-            !Base64Url.TryEncode(
+            !Base64Url.TryEncodeToChars(
                 envelope,
                 chars[SecretProtectionFormat.Prefix.Length..],
                 out var charsWritten
@@ -301,7 +299,7 @@ internal class DefaultSecretProtector(
         var chars = destination.GetSpan(protectedValue.Length);
         SecretProtectionFormat.Prefix.CopyTo(chars);
         if (
-            !Base64Url.TryEncode(
+            !Base64Url.TryEncodeToChars(
                 envelope,
                 chars[SecretProtectionFormat.Prefix.Length..],
                 out var charsWritten

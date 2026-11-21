@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers.Binary;
+using System.Buffers.Text;
 using System.Security.Cryptography;
 using System.Text;
 using JetBrains.Annotations;
 using NCode.Buffers;
-using NCode.Encoders;
 
 namespace NCode.Identity.SharedState;
 
@@ -52,7 +52,7 @@ public static class ExpiringKeys
         Span<byte> digest = stackalloc byte[SHA256.HashSizeInBytes];
         SHA256.HashData(buffer.WrittenSpan, digest);
 
-        var encodedDigest = Base64Url.Encode(digest);
+        var encodedDigest = Base64Url.EncodeToString(digest);
 
         return $"{purpose}:{{{tenantId}}}:{encodedDigest}";
     }

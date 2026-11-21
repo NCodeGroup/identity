@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers;
+using System.Buffers.Text;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Options;
 using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.Secrets.KeyWrapping;
 using NCode.Identity.Secrets.Persistence.Options;
 
@@ -79,7 +79,7 @@ internal class RecoveryKeyWrapper : IRecoveryKeyWrapper, IDisposable
         {
             RecoveryKeyId = ComputeRecoveryKeyId(publicKey);
             WrappedSizeBytes = (publicKey.KeySize + 7) / 8;
-            WrappedLength = Base64Url.GetCharCountForEncode(WrappedSizeBytes);
+            WrappedLength = Base64Url.GetEncodedLength(WrappedSizeBytes);
         }
     }
 
@@ -215,7 +215,7 @@ internal class RecoveryKeyWrapper : IRecoveryKeyWrapper, IDisposable
         }
 
         var chars = destination.GetSpan(WrappedLength);
-        if (!Base64Url.TryEncode(wrapped[..bytesWritten], chars, out var charsWritten))
+        if (!Base64Url.TryEncodeToChars(wrapped[..bytesWritten], chars, out var charsWritten))
         {
             throw new InvalidOperationException(
                 "The destination did not provide the requested space."
@@ -289,7 +289,7 @@ internal class RecoveryKeyWrapper : IRecoveryKeyWrapper, IDisposable
         SHA256.HashData(buffer[..bytesWritten], hash);
 
         // The identifier is persisted with each wrapped master key, which makes it a storage boundary.
-        return Base64Url.Encode(hash);
+        return Base64Url.EncodeToString(hash);
     }
 
     private static RSA ImportPublicKey(string pem)

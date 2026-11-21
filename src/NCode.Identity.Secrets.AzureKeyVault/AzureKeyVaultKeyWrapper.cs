@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers;
+using System.Buffers.Text;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Security.Cryptography;
@@ -9,7 +10,6 @@ using Azure;
 using Azure.Security.KeyVault.Keys.Cryptography;
 using Microsoft.Extensions.Options;
 using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.Secrets.AzureKeyVault.Facades;
 using NCode.Identity.Secrets.AzureKeyVault.Options;
 using NCode.Identity.Secrets.KeyWrapping;
@@ -267,7 +267,7 @@ internal class AzureKeyVaultKeyWrapper(
         {
             WrapperName = Name,
             KeyId = result.KeyId,
-            Ciphertext = Base64Url.Encode(result.EncryptedKey),
+            Ciphertext = Base64Url.EncodeToString(result.EncryptedKey),
         };
     }
 

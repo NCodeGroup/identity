@@ -1,10 +1,10 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Text;
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.Json;
 using NCode.Identity.Secrets.KeyWrapping;
 using NCode.Identity.Secrets.Persistence.DataContracts;
@@ -460,7 +460,7 @@ internal class MasterKeyFactory(
         Span<byte> keyCheck = stackalloc byte[SecretProtectionFormat.KeyCheckSizeBytes];
         SecretProtectionFormat.ComputeKeyCheck(material, keyId, owner, version, keyCheck);
 
-        return Base64Url.Encode(keyCheck);
+        return Base64Url.EncodeToString(keyCheck);
     }
 
     // Determines whether the key-check value of the row is the one that the unwrapped master key produces.

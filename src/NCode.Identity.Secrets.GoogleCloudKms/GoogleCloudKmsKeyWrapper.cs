@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers;
+using System.Buffers.Text;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -10,7 +11,6 @@ using Google.Protobuf;
 using Grpc.Core;
 using Microsoft.Extensions.Options;
 using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.Secrets.GoogleCloudKms.Facades;
 using NCode.Identity.Secrets.GoogleCloudKms.Options;
 using NCode.Identity.Secrets.KeyWrapping;
@@ -240,7 +240,7 @@ internal class GoogleCloudKmsKeyWrapper(
         {
             WrapperName = Name,
             KeyId = versionName,
-            Ciphertext = Base64Url.Encode(response.Ciphertext.Span),
+            Ciphertext = Base64Url.EncodeToString(response.Ciphertext.Span),
         };
     }
 

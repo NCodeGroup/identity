@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers.Binary;
+using System.Buffers.Text;
 using System.Security.Cryptography;
 using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.Json;
 
 namespace NCode.Identity.Secrets.Persistence.Protection;
@@ -390,7 +390,7 @@ internal static class SecretProtectionFormat
         WriteMasterKeyId(masterKeyId, bytes);
 
         Span<char> chars = stackalloc char[MasterKeyIdPrefixLength - Prefix.Length];
-        if (!Base64Url.TryEncode(bytes[..MasterKeyIdPrefixByteCount], chars, out _))
+        if (!Base64Url.TryEncodeToChars(bytes[..MasterKeyIdPrefixByteCount], chars, out _))
         {
             throw new InvalidOperationException("The master key identifier cannot be encoded.");
         }

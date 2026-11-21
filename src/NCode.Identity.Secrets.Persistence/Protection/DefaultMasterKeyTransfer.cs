@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers;
+using System.Buffers.Text;
 using System.Security.Cryptography;
 using System.Text.Json;
 using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.Jose;
 using NCode.Identity.Jose.Algorithms;
 using NCode.Identity.Jose.Credentials;
@@ -302,7 +302,7 @@ internal sealed class DefaultMasterKeyTransfer(
             keyCheck
         );
 
-        return Base64Url.Encode(keyCheck);
+        return Base64Url.EncodeToString(keyCheck);
     }
 
     // Reads the decrypted package. Every master key goes straight into sensitive memory, and the temporary array that
