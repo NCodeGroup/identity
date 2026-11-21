@@ -159,7 +159,7 @@ internal class AesGcmKeyManagementAlgorithm(string code, int kekSizeBits)
         int ivBytesWritten;
         try
         {
-            ivDecoded = Base64Url.TryDecode(ivString, iv, out ivBytesWritten);
+            ivDecoded = StrictBase64Url.TryDecode(ivString, iv, out ivBytesWritten);
         }
         catch (Exception exception)
         {
@@ -188,7 +188,7 @@ internal class AesGcmKeyManagementAlgorithm(string code, int kekSizeBits)
         int tagBytesWritten;
         try
         {
-            tagDecoded = Base64Url.TryDecode(tagString, tag, out tagBytesWritten);
+            tagDecoded = StrictBase64Url.TryDecode(tagString, tag, out tagBytesWritten);
         }
         catch (Exception exception)
         {

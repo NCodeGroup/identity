@@ -9,7 +9,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Text.Json;
 using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.Jose.Exceptions;
 using NCode.Identity.Json;
 using NCode.Identity.Jwk;
@@ -350,7 +349,7 @@ internal class EcdhKeyManagementAlgorithm : CommonKeyManagementAlgorithm
         // A value that is present but malformed fails closed rather than being read as empty.
         try
         {
-            return Base64Url.Decode(value);
+            return StrictBase64Url.Decode(value);
         }
         catch (Exception exception) when (exception is FormatException or ArgumentException)
         {

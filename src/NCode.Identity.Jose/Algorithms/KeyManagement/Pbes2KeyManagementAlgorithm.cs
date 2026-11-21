@@ -253,7 +253,7 @@ internal class Pbes2KeyManagementAlgorithm(
         int bytesWritten;
         try
         {
-            decoded = Base64Url.TryDecode(saltInputString, saltInput, out bytesWritten);
+            decoded = StrictBase64Url.TryDecode(saltInputString, saltInput, out bytesWritten);
         }
         catch (FormatException exception)
         {
