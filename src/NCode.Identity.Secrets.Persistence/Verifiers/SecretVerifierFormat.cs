@@ -5,6 +5,7 @@ using System.Buffers;
 using System.Buffers.Text;
 using System.Diagnostics.CodeAnalysis;
 using NCode.Buffers;
+using NCode.Identity.Json;
 using NCode.Identity.Secrets.Keys;
 using NCode.Identity.Secrets.Verifiers;
 
@@ -113,27 +114,37 @@ internal static class SecretVerifierFormat
         !text.IsEmpty && !text.ContainsAnyExceptInRange((byte)'0', (byte)'9');
 
     /// <summary>
-    /// Decodes a non-empty base64url parameter that holds no <c>$</c>.
+    /// Decodes a non-empty base64url parameter that holds no <c>$</c> into a <see cref="Secret{T}"/>, so the decoded
+    /// octets are held in memory that is zeroed when the secret is disposed.
     /// </summary>
     /// <param name="text">The parameter.</param>
-    /// <param name="bytes">When this method returns <see langword="true"/>, the decoded octets.</param>
+    /// <param name="value">When this method returns <see langword="true"/>, the secret that holds the decoded octets.
+    /// The caller owns it and disposes it.</param>
     /// <returns><see langword="true"/> when <paramref name="text"/> is valid base64url.</returns>
-    public static bool TryDecode(ReadOnlySpan<byte> text, [NotNullWhen(true)] out byte[]? bytes)
+    public static bool TryDecodeParameter(
+        ReadOnlySpan<byte> text,
+        [NotNullWhen(true)] out Secret<byte>? value
+    )
     {
-        bytes = null;
+        value = null;
 
-        if (text.IsEmpty || text.Contains(Separator) || !Base64Url.IsValid(text))
+        if (text.IsEmpty || !StrictBase64Url.IsValid(text))
         {
             return false;
         }
 
-        var decoded = new byte[Base64Url.GetMaxDecodedLength(text.Length)];
-        if (!Base64Url.TryDecodeFromUtf8(text, decoded, out var written))
+        using var lease = BufferFactory.Rent(
+            StrictBase64Url.GetDecodedLength(text.Length),
+            isSensitive: true,
+            out Span<byte> decoded
+        );
+
+        if (!StrictBase64Url.TryDecode(text, decoded, out _))
         {
             return false;
         }
 
-        bytes = written == decoded.Length ? decoded : decoded[..written];
+        value = Secret.Create<byte>(decoded);
         return true;
     }
 

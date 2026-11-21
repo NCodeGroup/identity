@@ -3,7 +3,7 @@
 
 using JetBrains.Annotations;
 using Microsoft.AspNetCore.Http;
-using NCode.Encoders;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId.Authentication.Clients;
 using NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Commands;
 using NCode.Identity.OpenId.Authentication.Endpoints.Authorization.Messages;
@@ -26,6 +26,8 @@ internal class DefaultValidateAuthorizationRequestHandler(
     ISecurityProfileCatalog securityProfileCatalog
 ) : ICommandHandler<ValidateAuthorizationRequestCommand>, ISupportMediatorPriority
 {
+    private const int Sha256ThumbprintLength = 43;
+
     private IClientScopeService ClientScopeService { get; } = clientScopeService;
     private ISecurityProfileCatalog SecurityProfileCatalog { get; } = securityProfileCatalog;
 
@@ -268,12 +270,12 @@ internal class DefaultValidateAuthorizationRequestHandler(
                 )
                 .AsException();
 
-        // dpop_jkt (RFC 9449 §10): a base64url-encoded SHA-256 JWK thumbprint (RFC 7638), i.e. exactly 32 bytes.
+        // dpop_jkt (RFC 9449 §10): a base64url-encoded SHA-256 JWK thumbprint (RFC 7638), i.e. exactly 32 bytes, which
+        // is 43 characters of unpadded base64url.
         var dpopJkt = request.DPoPJwkThumbprint;
         if (!string.IsNullOrEmpty(dpopJkt))
         {
-            Span<byte> buffer = stackalloc byte[Base64Url.GetByteCountForDecode(dpopJkt.Length)];
-            if (!Base64Url.TryDecode(dpopJkt, buffer, out var bytesWritten) || bytesWritten != 32)
+            if (dpopJkt.Length != Sha256ThumbprintLength || !StrictBase64Url.IsValid(dpopJkt))
                 throw errorFactory
                     .InvalidRequest(
                         "The 'dpop_jkt' parameter is not a valid base64url-encoded SHA-256 thumbprint."

@@ -1,11 +1,11 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Text;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.Json;
 using NCode.Identity.OpenId.Client.Http;
 using NCode.Identity.OpenId.Client.ProofOfPossession;
@@ -247,7 +247,7 @@ internal class DefaultAuthorizationRequestClient(
             isSensitive: true,
             out Span<byte> verifierBytes
         );
-        return Base64Url.Encode(SHA256.HashData(verifierBytes));
+        return Base64Url.EncodeToString(SHA256.HashData(verifierBytes));
     }
 
     private static string AddQuery(string endpoint, List<KeyValuePair<string, string>> parameters)

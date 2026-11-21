@@ -1,13 +1,13 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Text;
 using System.Net;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.OpenId.Integration.Tests.Infrastructure;
 using Xunit;
 
@@ -69,14 +69,14 @@ public class TokenEndpointClientAssertionTests
             ["exp"] = (expires ?? now.AddMinutes(5)).ToUnixTimeSeconds(),
         };
 
-        var encodedHeader = Base64Url.Encode(JsonSerializer.SerializeToUtf8Bytes(header));
-        var encodedPayload = Base64Url.Encode(JsonSerializer.SerializeToUtf8Bytes(payload));
+        var encodedHeader = Base64Url.EncodeToString(JsonSerializer.SerializeToUtf8Bytes(header));
+        var encodedPayload = Base64Url.EncodeToString(JsonSerializer.SerializeToUtf8Bytes(payload));
         var signingInput = $"{encodedHeader}.{encodedPayload}";
 
         using var hmac = new HMACSHA256(SecureEncoding.UTF8.GetBytes(clientSecret));
         var signature = hmac.ComputeHash(SecureEncoding.ASCII.GetBytes(signingInput));
 
-        return $"{signingInput}.{Base64Url.Encode(signature)}";
+        return $"{signingInput}.{Base64Url.EncodeToString(signature)}";
     }
 
     private static string BuildPrivateKeyJwt(
@@ -98,8 +98,8 @@ public class TokenEndpointClientAssertionTests
             ["exp"] = now.AddMinutes(5).ToUnixTimeSeconds(),
         };
 
-        var encodedHeader = Base64Url.Encode(JsonSerializer.SerializeToUtf8Bytes(header));
-        var encodedPayload = Base64Url.Encode(JsonSerializer.SerializeToUtf8Bytes(payload));
+        var encodedHeader = Base64Url.EncodeToString(JsonSerializer.SerializeToUtf8Bytes(header));
+        var encodedPayload = Base64Url.EncodeToString(JsonSerializer.SerializeToUtf8Bytes(payload));
         var signingInput = $"{encodedHeader}.{encodedPayload}";
 
         var signature = privateKey.SignData(
@@ -108,7 +108,7 @@ public class TokenEndpointClientAssertionTests
             RSASignaturePadding.Pkcs1
         );
 
-        return $"{signingInput}.{Base64Url.Encode(signature)}";
+        return $"{signingInput}.{Base64Url.EncodeToString(signature)}";
     }
 
     private static FormUrlEncodedContent ClientAssertionBody(string assertion) =>

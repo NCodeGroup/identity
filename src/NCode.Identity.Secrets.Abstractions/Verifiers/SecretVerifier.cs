@@ -9,11 +9,12 @@ namespace NCode.Identity.Secrets.Verifiers;
 /// <summary>
 /// Represents the one-way verifier of a shared secret, such as a <c>client_secret</c> that is only ever compared: it
 /// confirms that a presented secret is the secret it was made from, and that secret cannot be read back from it. A
-/// verifier is not a key; nothing is signed, authenticated, or encrypted with it.
+/// verifier is not a key; nothing is signed, authenticated, or encrypted with it. A verifier holds the material it
+/// compares in memory that is zeroed when it is disposed, and whoever reads a verifier owns it.
 /// </summary>
 // See ADR-1391.
 [PublicAPI]
-public abstract class SecretVerifier
+public abstract class SecretVerifier : IDisposable
 {
     /// <summary>
     /// Gets the metadata of the secret this verifier confirms.
@@ -60,4 +61,21 @@ public abstract class SecretVerifier
     /// <inheritdoc />
     public override string ToString() =>
         $"{nameof(SecretVerifier)} {{ KeyId = {(KeyId is null ? "(null)" : $"'{KeyId}'")}, Scheme = '{Scheme}' }}";
+
+    /// <summary>
+    /// Releases and zeroes the material the verifier holds. A disposed verifier compares nothing, and
+    /// <see cref="VerifyAsync"/> throws <see cref="ObjectDisposedException"/>. Calling it again has no effect.
+    /// </summary>
+    public void Dispose()
+    {
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Releases the material the verifier holds.
+    /// </summary>
+    /// <param name="disposing"><see langword="true"/> when a derived class releases the material it holds, such as a
+    /// <see cref="NCode.Buffers.Secret{T}"/>; otherwise, <see langword="false"/>.</param>
+    protected virtual void Dispose(bool disposing) { }
 }

@@ -9,3 +9,19 @@ M:System.Buffers.ArrayBufferWriter`1.#ctor(System.Int32);Use BufferFactory.Creat
 M:Nerdbank.Streams.Sequence`1.#ctor;Use BufferFactory.CreatePooledBufferWriter(isSensitive:) (ADR-1266).
 M:Nerdbank.Streams.Sequence`1.#ctor(System.Buffers.ArrayPool{`0});Use BufferFactory.CreatePooledBufferWriter(isSensitive:) (ADR-1266).
 M:Nerdbank.Streams.Sequence`1.#ctor(System.Buffers.MemoryPool{`0});Use BufferFactory.CreatePooledBufferWriter(isSensitive:) (ADR-1266).
+# Base64url text is decoded only through NCode.Identity.Json.StrictBase64Url, which refuses padding, whitespace and non-zero trailing bits (RS0030, ADR-1266).
+M:System.Buffers.Text.Base64Url.DecodeFromChars(System.ReadOnlySpan{System.Char});Decode base64url through StrictBase64Url (ADR-1266).
+M:System.Buffers.Text.Base64Url.DecodeFromChars(System.ReadOnlySpan{System.Char},System.Span{System.Byte});Decode base64url through StrictBase64Url (ADR-1266).
+M:System.Buffers.Text.Base64Url.DecodeFromChars(System.ReadOnlySpan{System.Char},System.Span{System.Byte},System.Int32@,System.Int32@,System.Boolean);Decode base64url through StrictBase64Url (ADR-1266).
+M:System.Buffers.Text.Base64Url.DecodeFromUtf8(System.ReadOnlySpan{System.Byte});Decode base64url through StrictBase64Url (ADR-1266).
+M:System.Buffers.Text.Base64Url.DecodeFromUtf8(System.ReadOnlySpan{System.Byte},System.Span{System.Byte});Decode base64url through StrictBase64Url (ADR-1266).
+M:System.Buffers.Text.Base64Url.DecodeFromUtf8(System.ReadOnlySpan{System.Byte},System.Span{System.Byte},System.Int32@,System.Int32@,System.Boolean);Decode base64url through StrictBase64Url (ADR-1266).
+M:System.Buffers.Text.Base64Url.DecodeFromUtf8InPlace(System.Span{System.Byte});Decode base64url through StrictBase64Url (ADR-1266).
+M:System.Buffers.Text.Base64Url.TryDecodeFromChars(System.ReadOnlySpan{System.Char},System.Span{System.Byte},System.Int32@);Decode base64url through StrictBase64Url (ADR-1266).
+M:System.Buffers.Text.Base64Url.TryDecodeFromUtf8(System.ReadOnlySpan{System.Byte},System.Span{System.Byte},System.Int32@);Decode base64url through StrictBase64Url (ADR-1266).
+M:System.Buffers.Text.Base64Url.IsValid(System.ReadOnlySpan{System.Char});Decode base64url through StrictBase64Url (ADR-1266).
+M:System.Buffers.Text.Base64Url.IsValid(System.ReadOnlySpan{System.Char},System.Int32@);Decode base64url through StrictBase64Url (ADR-1266).
+M:System.Buffers.Text.Base64Url.IsValid(System.ReadOnlySpan{System.Byte});Decode base64url through StrictBase64Url (ADR-1266).
+M:System.Buffers.Text.Base64Url.IsValid(System.ReadOnlySpan{System.Byte},System.Int32@);Decode base64url through StrictBase64Url (ADR-1266).
+# Random bytes are rented filled, never drawn into a new array (RS0030, ADR-1266).
+M:System.Security.Cryptography.RandomNumberGenerator.GetBytes(System.Int32);Rent with BufferFactory.RentRandom(..., isSensitive: ..., out ...) (ADR-1266).

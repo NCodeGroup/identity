@@ -1,9 +1,9 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Text;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Options;
-using NCode.Encoders;
 using NCode.Identity.Jose.SdJwt.Options;
 
 namespace NCode.Identity.Jose.SdJwt.Issuance;
@@ -28,7 +28,7 @@ internal sealed class DefaultSdJwtRandomSource(IOptions<SdJwtOptions> optionsAcc
                 ? stackalloc byte[SaltSizeBytes]
                 : new byte[SaltSizeBytes];
         RandomNumberGenerator.Fill(salt);
-        return Base64Url.Encode(salt);
+        return Base64Url.EncodeToString(salt);
     }
 
     /// <inheritdoc />

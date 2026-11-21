@@ -41,7 +41,7 @@ public interface ISecretVerifierScheme
     /// <param name="metadata">The metadata of the secret the verifier confirms.</param>
     /// <param name="parameters">The octets the stored text holds after <c>$&lt;name&gt;$</c>.</param>
     /// <param name="verifier">When this method returns <see langword="true"/>, the verifier; otherwise,
-    /// <see langword="null"/>.</param>
+    /// <see langword="null"/>. The caller owns it and disposes it.</param>
     /// <returns><see langword="true"/> when <paramref name="parameters"/> are valid parameters of this scheme;
     /// otherwise, <see langword="false"/>.</returns>
     bool TryReadParameters(

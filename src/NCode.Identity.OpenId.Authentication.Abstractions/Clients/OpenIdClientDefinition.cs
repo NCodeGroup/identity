@@ -38,7 +38,8 @@ public sealed class OpenIdClientDefinition
     public required IReadOnlyCollection<SecretKey> Secrets { get; init; }
 
     /// <summary>
-    /// Gets the one-way verifiers of the shared secrets the client presents that the server only compares.
+    /// Gets the one-way verifiers of the shared secrets the client presents that the server only compares. The request
+    /// that resolved the client owns them: they are disposed when it completes.
     /// </summary>
     public required IReadOnlyCollection<SecretVerifier> SecretVerifiers { get; init; }
 

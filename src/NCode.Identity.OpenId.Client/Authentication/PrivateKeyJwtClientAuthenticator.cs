@@ -1,10 +1,10 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Security.Cryptography;
+using System.Buffers.Text;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
-using NCode.Encoders;
+using NCode.Buffers;
 using NCode.Identity.Jose;
 using NCode.Identity.Jose.Algorithms;
 using NCode.Identity.Jose.Credentials;
@@ -28,6 +28,7 @@ internal class PrivateKeyJwtClientAuthenticator(
 ) : IClientAuthenticator
 {
     private const string NoneAlgorithm = "none";
+    private const int JtiByteCount = 16;
 
     private static TimeSpan AssertionLifetime { get; } = TimeSpan.FromSeconds(60);
 
@@ -43,6 +44,21 @@ internal class PrivateKeyJwtClientAuthenticator(
         AlgorithmCodes.DigitalSignature.RsaSha384,
         AlgorithmCodes.DigitalSignature.RsaSha512,
     ];
+
+    /// <summary>
+    /// Creates the <c>jti</c> of a client assertion.
+    /// </summary>
+    /// <returns>The base64url text, without padding, of <see cref="JtiByteCount"/> random bytes, which are not
+    /// sensitive because the assertion publishes them.</returns>
+    private static string CreateJti()
+    {
+        using var owner = BufferFactory.RentRandom(
+            JtiByteCount,
+            isSensitive: false,
+            out Span<byte> bytes
+        );
+        return Base64Url.EncodeToString(bytes);
+    }
 
     private TimeProvider TimeProvider { get; } = timeProvider;
     private IClientKeyRingProvider KeyRingProvider { get; } = keyRingProvider;
@@ -113,9 +129,7 @@ internal class PrivateKeyJwtClientAuthenticator(
                 ExtraPayloadClaims = new Dictionary<string, object>
                 {
                     [JoseClaimNames.Payload.Sub] = clientId,
-                    [JoseClaimNames.Payload.Jti] = Base64Url.Encode(
-                        RandomNumberGenerator.GetBytes(16)
-                    ),
+                    [JoseClaimNames.Payload.Jti] = CreateJti(),
                 },
             },
             cancellationToken

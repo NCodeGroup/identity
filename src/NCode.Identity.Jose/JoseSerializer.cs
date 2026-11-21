@@ -2,15 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers;
+using System.Buffers.Text;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using NCode.Buffers;
 using NCode.Disposables;
-using NCode.Encoders;
 using NCode.Identity.Jose.Algorithms;
 using NCode.Identity.Jose.Exceptions;
+using NCode.Identity.Json;
 using NCode.Identity.Secrets.Keys;
 
 namespace NCode.Identity.Jose;
@@ -42,11 +43,20 @@ internal partial class JoseSerializer(
         out ReadOnlySpan<byte> bytes
     )
     {
-        var byteCount = GetDecodedByteCount(chars);
-        var lease = BufferFactory.Rent(byteCount, isSensitive, out Span<byte> buffer);
-        DecodeInto(chars, buffer, lease);
-        bytes = buffer;
-        return lease;
+        try
+        {
+            var lease = StrictBase64Url.RentDecoded(
+                chars,
+                isSensitive,
+                out ReadOnlySpan<byte> decoded
+            );
+            bytes = decoded;
+            return lease;
+        }
+        catch (FormatException exception)
+        {
+            throw InvalidBase64Url(exception);
+        }
     }
 
     /// <summary>
@@ -64,48 +74,19 @@ internal partial class JoseSerializer(
         out ReadOnlyMemory<byte> bytes
     )
     {
-        var byteCount = GetDecodedByteCount(chars);
-        var lease = BufferFactory.Rent(byteCount, isSensitive, out Memory<byte> buffer);
-        DecodeInto(chars, buffer.Span, lease);
-        bytes = buffer;
-        return lease;
-    }
-
-    private static int GetDecodedByteCount(ReadOnlySpan<char> chars)
-    {
         try
         {
-            return Base64Url.GetByteCountForDecode(chars.Length);
+            var lease = StrictBase64Url.RentDecoded(
+                chars,
+                isSensitive,
+                out ReadOnlyMemory<byte> decoded
+            );
+            bytes = decoded;
+            return lease;
         }
         catch (FormatException exception)
         {
             throw InvalidBase64Url(exception);
-        }
-    }
-
-    private static void DecodeInto(ReadOnlySpan<char> chars, Span<byte> bytes, IDisposable lease)
-    {
-        try
-        {
-            // The data is read from a token, so data that does not decode whole is refused, never read from a buffer
-            // the decoder wrote only in part.
-            if (
-                !Base64Url.TryDecode(chars, bytes, out var bytesWritten)
-                || bytesWritten != bytes.Length
-            )
-            {
-                throw InvalidBase64Url();
-            }
-        }
-        catch (FormatException exception)
-        {
-            lease.Dispose();
-            throw InvalidBase64Url(exception);
-        }
-        catch
-        {
-            lease.Dispose();
-            throw;
         }
     }
 
@@ -119,7 +100,7 @@ internal partial class JoseSerializer(
     {
         try
         {
-            Base64Url.Decode(chars, writer);
+            StrictBase64Url.Decode(chars, writer);
         }
         catch (FormatException exception)
         {
@@ -129,8 +110,6 @@ internal partial class JoseSerializer(
 
     private const string InvalidBase64UrlMessage =
         "The JOSE token contains a segment that is not valid base64url.";
-
-    private static JoseException InvalidBase64Url() => new(InvalidBase64UrlMessage);
 
     private static JoseException InvalidBase64Url(FormatException exception) =>
         new(InvalidBase64UrlMessage, exception);
@@ -427,12 +406,24 @@ internal partial class JoseSerializer(
     {
         if (b64)
         {
-            Base64Url.Encode(bytes, writer);
+            using var lease = bytes.GetSpanLease(isSensitive: true);
+            EncodeBase64Url(lease.Span, writer);
         }
         else
         {
             SecureEncoding.UTF8.GetChars(bytes, writer);
         }
+    }
+
+    /// <summary>
+    /// Writes the base64url text, without padding, of <paramref name="bytes"/> to <paramref name="writer"/>.
+    /// </summary>
+    /// <param name="bytes">The bytes to encode; the caller owns and zeroes them.</param>
+    /// <param name="writer">The writer that receives the characters.</param>
+    private static void EncodeBase64Url(ReadOnlySpan<byte> bytes, IBufferWriter<char> writer)
+    {
+        var span = writer.GetSpan(Base64Url.GetEncodedLength(bytes.Length));
+        writer.Advance(Base64Url.EncodeToChars(bytes, span));
     }
 
     private IDisposable EncodeJose<T>(bool b64, T value, out ReadOnlySpan<char> chars)
@@ -459,10 +450,10 @@ internal partial class JoseSerializer(
         {
             if (b64)
             {
-                var charCount = Base64Url.GetCharCountForEncode(byteCount);
+                var charCount = Base64Url.GetEncodedLength(byteCount);
                 var span = buffer.GetSpan(charCount);
 
-                var result = Base64Url.TryEncode(bytes, span, out var charsWritten);
+                var result = Base64Url.TryEncodeToChars(bytes, span, out var charsWritten);
                 buffer.Advance(charsWritten);
                 Debug.Assert(result);
 
@@ -550,10 +541,10 @@ internal partial class JoseSerializer(
 
         if (b64)
         {
-            encodeCount = Base64Url.GetCharCountForEncode(byteCount);
+            encodeCount = Base64Url.GetEncodedLength(byteCount);
             chars = writer.GetSpan(encodeCount + dotLength);
 
-            var result = Base64Url.TryEncode(bytes, chars, out var charsWritten);
+            var result = Base64Url.TryEncodeToChars(bytes, chars, out var charsWritten);
             Debug.Assert(result && charsWritten == encodeCount);
         }
         else

@@ -1,13 +1,14 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Text;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using JetBrains.Annotations;
 using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.Jose.SdJwt.Digests;
 using NCode.Identity.Jose.SdJwt.Verification;
+using NCode.Identity.Json;
 
 namespace NCode.Identity.Jose.SdJwt;
 
@@ -240,7 +241,8 @@ public sealed class Disclosure
             writer.WriteEndArray();
         }
 
-        return Base64Url.Encode(buffer.AsReadOnlySequence);
+        using var lease = buffer.AsReadOnlySequence.GetSpanLease(isSensitive: false);
+        return Base64Url.EncodeToString(lease.Span);
     }
 
     /// <summary>
@@ -255,25 +257,12 @@ public sealed class Disclosure
         out ReadOnlySpan<byte> bytes
     )
     {
-        var byteCount = Base64Url.GetByteCountForDecode(chars.Length);
-        var lease = BufferFactory.Rent(byteCount, isSensitive: false, out Span<byte> buffer);
-        try
-        {
-            // The disclosure is wire input, so one that does not decode whole is refused rather than read from a
-            // buffer the decoder filled only in part.
-            if (
-                !Base64Url.TryDecode(chars, buffer, out var bytesWritten)
-                || bytesWritten != byteCount
-            )
-                throw new FormatException("The disclosure is not valid base64url.");
-        }
-        catch
-        {
-            lease.Dispose();
-            throw;
-        }
-
-        bytes = buffer;
+        var lease = StrictBase64Url.RentDecoded(
+            chars,
+            isSensitive: false,
+            out ReadOnlySpan<byte> decoded
+        );
+        bytes = decoded;
         return lease;
     }
 }

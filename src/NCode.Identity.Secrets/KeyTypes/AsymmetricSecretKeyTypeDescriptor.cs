@@ -1,7 +1,6 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Buffers.Text;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
@@ -303,7 +302,7 @@ public abstract class AsymmetricSecretKeyTypeDescriptor(ISecretKeyFactory secret
 
         try
         {
-            return Base64Url.DecodeFromChars(value);
+            return StrictBase64Url.Decode(value);
         }
         catch (FormatException exception)
         {

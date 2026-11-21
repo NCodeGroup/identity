@@ -1,12 +1,12 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Text;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.DependencyInjection;
-using NCode.Encoders;
 using NCode.Identity.Jose;
 using NCode.Identity.Secrets;
 using NCode.Identity.Secrets.Collections;
@@ -76,7 +76,7 @@ public sealed class DefaultValidationKeyResolverTests : IAsyncLifetime, IDisposa
         string hashAlgorithm
     )
     {
-        var thumbprint = Base64Url.Encode(
+        var thumbprint = Base64Url.EncodeToString(
             Certificate.GetCertHash(new HashAlgorithmName(hashAlgorithm))
         );
 

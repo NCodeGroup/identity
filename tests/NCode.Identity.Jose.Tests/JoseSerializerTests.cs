@@ -13,7 +13,7 @@ using NCode.Identity.Jose.Credentials;
 using NCode.Identity.Jose.Exceptions;
 using NCode.Identity.Secrets;
 using NCode.Identity.Secrets.Keys;
-using Base64Url = NCode.Encoders.Base64Url;
+using Base64Url = System.Buffers.Text.Base64Url;
 using JoseException = NCode.Identity.Jose.Exceptions.JoseException;
 
 namespace NCode.Identity.Jose.Tests;
@@ -527,7 +527,7 @@ public class JoseSerializerTests : BaseTests
         var expected = RandomNumberGenerator.GetBytes(33);
 
         using var lease = global::NCode.Identity.Jose.JoseSerializer.DecodeBase64Url(
-            Base64Url.Encode(expected),
+            Base64Url.EncodeToString(expected),
             isSensitive: false,
             out var bytes
         );
@@ -536,13 +536,15 @@ public class JoseSerializerTests : BaseTests
     }
 
     // A length no base64url value has, characters outside the base64url alphabet, and padding, which JOSE omits
-    // (RFC 7515 §2).
+    // (RFC 7515 §2), and a final character whose unused bits are not zero.
     [Theory]
     [InlineData("AAAAA")]
     [InlineData("!!!!")]
     [InlineData("AAA+")]
     [InlineData("AAA/")]
     [InlineData("AA==")]
+    [InlineData("AAB")]
+    [InlineData("AB")]
     public void DecodeBase64Url_WhenTheDataIsNotBase64Url_ThrowsJoseException(string chars)
     {
         var exception = Assert.Throws<JoseException>(() =>
@@ -579,7 +581,7 @@ public class JoseSerializerTests : BaseTests
     public async Task Decode_WhenTheJwsPayloadIsNotBase64Url_ThrowsJoseException()
     {
         var (controlKey, secretKey) = CreateRandomSymmetricKey("key-1", 256);
-        var encodedHeader = Base64Url.Encode(
+        var encodedHeader = Base64Url.EncodeToString(
             JsonSerializer.SerializeToUtf8Bytes(
                 new Dictionary<string, object> { ["alg"] = "HS256", ["kid"] = "key-1" }
             )
@@ -589,7 +591,7 @@ public class JoseSerializerTests : BaseTests
             (byte[])controlKey,
             SecureEncoding.ASCII.GetBytes(signingInput)
         );
-        var token = $"{signingInput}.{Base64Url.Encode(signature)}";
+        var token = $"{signingInput}.{Base64Url.EncodeToString(signature)}";
 
         var exception = await Assert.ThrowsAsync<JoseException>(async () =>
             await JoseSerializer.DecodeAsync(

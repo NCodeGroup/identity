@@ -1,10 +1,11 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Text;
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using NCode.Buffers;
-using NCode.Encoders;
+using NCode.Identity.Json;
 using NCode.Identity.Secrets.KeyWrapping;
 using NCode.Identity.Secrets.Persistence.DataContracts;
 
@@ -459,7 +460,7 @@ internal class MasterKeyFactory(
         Span<byte> keyCheck = stackalloc byte[SecretProtectionFormat.KeyCheckSizeBytes];
         SecretProtectionFormat.ComputeKeyCheck(material, keyId, owner, version, keyCheck);
 
-        return Base64Url.Encode(keyCheck);
+        return Base64Url.EncodeToString(keyCheck);
     }
 
     // Determines whether the key-check value of the row is the one that the unwrapped master key produces.
@@ -474,7 +475,7 @@ internal class MasterKeyFactory(
         // A remainder of one character is not a valid base64url length, and counting its bytes throws.
         if (
             persisted.Length % 4 == 1
-            || Base64Url.GetByteCountForDecode(persisted.Length)
+            || StrictBase64Url.GetDecodedLength(persisted.Length)
                 != SecretProtectionFormat.KeyCheckSizeBytes
         )
         {
@@ -485,7 +486,7 @@ internal class MasterKeyFactory(
         try
         {
             if (
-                !Base64Url.TryDecode(persisted, actual, out var bytesWritten)
+                !StrictBase64Url.TryDecode(persisted, actual, out var bytesWritten)
                 || bytesWritten != SecretProtectionFormat.KeyCheckSizeBytes
             )
             {

@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers.Binary;
+using System.Buffers.Text;
 using System.Security.Cryptography;
 using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.Bff.Sessions;
 using Xunit;
 
@@ -32,7 +32,7 @@ public class BffStoreKeysTests : BaseTests
         var layout = new List<byte>();
         AddLengthPrefixed(layout, issuer);
         AddLengthPrefixed(layout, subject);
-        var expected = "bff:sub:" + Base64Url.Encode(SHA256.HashData(layout.ToArray()));
+        var expected = "bff:sub:" + Base64Url.EncodeToString(SHA256.HashData(layout.ToArray()));
 
         var result = BffStoreKeys.SubjectIndex(issuer, subject);
 

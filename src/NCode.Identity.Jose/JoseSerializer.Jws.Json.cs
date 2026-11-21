@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers;
+using System.Buffers.Text;
 using System.Diagnostics;
 using System.Text.Json;
 using NCode.Buffers;
 using NCode.Disposables;
-using NCode.Encoders;
 using NCode.Identity.Jose.Exceptions;
 
 namespace NCode.Identity.Jose;
@@ -119,7 +119,7 @@ partial class JoseSerializer
         }
 
         var charCount = encodePayload
-            ? Base64Url.GetCharCountForEncode(byteCount)
+            ? Base64Url.GetEncodedLength(byteCount)
             : SecureEncoding.UTF8.GetMaxCharCount(byteCount);
 
         var lease = BufferFactory.Rent(charCount, isSensitive: true, out Memory<char> buffer);
@@ -128,7 +128,7 @@ partial class JoseSerializer
             int charsWritten;
             if (encodePayload)
             {
-                var result = Base64Url.TryEncode(payload, buffer.Span, out charsWritten);
+                var result = Base64Url.TryEncodeToChars(payload, buffer.Span, out charsWritten);
                 Debug.Assert(result);
             }
             else

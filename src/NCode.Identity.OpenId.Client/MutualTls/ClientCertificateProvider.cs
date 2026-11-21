@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Net.Security;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using NCode.Buffers;
 using NCode.Identity.Secrets.Keys;
 
 namespace NCode.Identity.OpenId.Client.MutualTls;
@@ -25,6 +26,22 @@ internal class ClientCertificateProvider(
 ) : IDisposable
 {
     private const string ClientAuthenticationOid = "1.3.6.1.5.5.7.3.2";
+    private const int PfxPasswordByteCount = 16;
+
+    /// <summary>
+    /// Creates the temporary password of the PFX that re-imports a private key.
+    /// </summary>
+    /// <returns>The uppercase hexadecimal text of <see cref="PfxPasswordByteCount"/> random bytes, which are rented as
+    /// sensitive and zeroed.</returns>
+    private static string CreatePfxPassword()
+    {
+        using var owner = BufferFactory.RentRandom(
+            PfxPasswordByteCount,
+            isSensitive: true,
+            out Span<byte> bytes
+        );
+        return Convert.ToHexString(bytes);
+    }
 
     private IClientKeyRingProvider KeyRingProvider { get; } = keyRingProvider;
     private TimeProvider TimeProvider { get; } = timeProvider;
@@ -299,7 +316,7 @@ internal class ClientCertificateProvider(
         // SChannel cannot use an ephemeral private key for TLS, so re-import the key as a persisted-style key set.
         using (withKey)
         {
-            var password = Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
+            var password = CreatePfxPassword();
             var pfx = withKey.Export(X509ContentType.Pkcs12, password);
             try
             {

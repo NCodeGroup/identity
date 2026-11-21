@@ -36,10 +36,10 @@ one adapter package named for the service, `NCode.Identity.Secrets.<Vendor>`.**
 1. **Contract and home.** `IKeyWrapper` (`Name`, `WrapAsync`, `UnwrapAsync`), the DTO `WrappedKey` (`WrapperName`,
    `KeyId`, `Ciphertext`), the name constants `KeyWrapperNames` and the decoder `WrappedKeyCiphertext` live in
    `NCode.Identity.Secrets.Abstractions`, folder `KeyWrapping/`, namespace `NCode.Identity.Secrets.KeyWrapping`. The
-   contract types need only the BCL, and `WrappedKeyCiphertext` uses `NCode.Base64Url`. `UnwrapAsync` writes the key
-   into a caller-supplied `IBufferWriter<byte>`, because a caller
-   cannot know an unwrapped key's length in advance; it advances the writer only on success and zeroes what it wrote on
-   failure ([ADR-1266](1266-binary-data-uses-bufferfactory-rentals-with-explicit-sensitivity-and-text-only-strict-encodings.md)).
+   contract types need only the BCL and the foundation package `NCode.Identity.Json`, whose `StrictBase64Url`
+   `WrappedKeyCiphertext` decodes through. `UnwrapAsync` writes the key into a caller-supplied `IBufferWriter<byte>`,
+   because a caller cannot know an unwrapped key's length in advance; it advances the writer only on success and zeroes
+   what it wrote on failure ([ADR-1266](1266-binary-data-uses-bufferfactory-rentals-with-explicit-sensitivity-and-text-only-strict-encodings.md)).
 2. **One vocabulary.** Implementations are `<Kind>KeyWrapper`, their options `<Kind>KeyWrapperOptions`, their
    registration `Add<Kind>KeyWrapper`, and the internal catalog is `IKeyWrapperCatalog`. The in-memory AES-GCM helper is
    `AesGcmKeyWrap`, matching JOSE's `IAesKeyWrap` and `DefaultAesKeyWrap`, because it is a primitive, not an
@@ -52,8 +52,9 @@ one adapter package named for the service, `NCode.Identity.Secrets.<Vendor>`.**
 4. **Built-in wrappers.** `EphemeralKeyWrapper` and `LocalKeyWrapper` are built into `NCode.Identity.Secrets.Persistence`
    over the AES-GCM primitive `AesGcmKeyWrap`. `WrappedKeyCiphertext` (`GetByteCount`, `Decode`) is the one decoder of a
    stored ciphertext that a wrapper writes as unpadded base64url, into a caller-supplied span or `IBufferWriter<byte>`.
-   It uses the strict `NCode.Base64Url`, which refuses padding and illegal characters, so the AES-GCM primitive, the
-   three adapters and third-party wrappers share one decoder and one set of messages: empty or invalid text throws
+   Wrappers encode with `System.Buffers.Text.Base64Url`, and it decodes through `StrictBase64Url`, which refuses
+   padding, whitespace, illegal characters and non-zero trailing bits, so the AES-GCM primitive, the three adapters and
+   third-party wrappers share one decoder and one set of messages: empty or invalid text throws
    `CryptographicException`, and a destination span that is too short throws `ArgumentException`. A format's own
    structural checks, such as AES-GCM's minimum length, and the encoding stay in each wrapper.
 5. **The recovery wrapper only wraps.** `RecoveryKeyWrapper` (`recovery-rsa-oaep-256`) implements the internal
@@ -107,8 +108,9 @@ one adapter package named for the service, `NCode.Identity.Secrets.<Vendor>`.**
 
 - **The contract in the persistence abstractions.** A remote JOSE key or another consumer would have to depend on
   persistence to use a contract that has nothing to do with persisted-secret data. Rejected.
-- **A new package for the contract.** Three small types that need only the BCL do not justify a package, and
-  `NCode.Identity.Secrets.Abstractions` is already the key-material vocabulary that JOSE depends on. Rejected.
+- **A new package for the contract.** Three small types that need only the BCL and the foundation `NCode.Identity.Json`
+  do not justify a package, and `NCode.Identity.Secrets.Abstractions` is already the key-material vocabulary that JOSE
+  depends on. Rejected.
 - **JOSE's `KeyManagementAlgorithm` as the contract.** It is synchronous over local key material with formats fixed by
   RFC 7518, whereas a wrapper is asynchronous, reaches a key it does not hold and returns storable text. Rejected.
 - **A marker interface for the root role.** The root is chosen by name through configuration, so any registered wrapper

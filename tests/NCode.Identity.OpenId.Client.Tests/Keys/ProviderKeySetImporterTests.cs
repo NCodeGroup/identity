@@ -1,11 +1,11 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Text;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
-using NCode.Encoders;
 using NCode.Identity.Jwk;
 using NCode.Identity.OpenId.Client.Keys;
 using NCode.Identity.Secrets;
@@ -72,7 +72,7 @@ public class ProviderKeySetImporterTests : BaseTests, IAsyncLifetime
         using var rsa1 = RSA.Create(2048);
         using var rsa2 = RSA.Create(2048);
         var privateKey = TestJwks.Rsa(rsa1, "k1");
-        privateKey["d"] = Base64Url.Encode(rsa1.ExportParameters(true).D!);
+        privateKey["d"] = Base64Url.EncodeToString(rsa1.ExportParameters(true).D!);
         var json = TestJwks.Set(TestJwks.Rsa(rsa2, "k2"), privateKey);
 
         var result = CreateImporter().TryImport(Parse(json), out var keys, out var error);

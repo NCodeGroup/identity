@@ -1,7 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using NCode.Encoders;
+using System.Buffers.Text;
 using NCode.Identity.Secrets.KeyMaterial;
 using NCode.Identity.Secrets.KeyTypes;
 using NCode.Identity.Secrets.Persistence.DataContracts;
@@ -51,7 +51,7 @@ internal sealed class DefaultSecretImporter(ISecretKeyTypeCatalog secretKeyTypeC
                 Format = request.Format,
                 KeyMaterial = request.KeyMaterial,
             },
-            static bytes => Base64Url.Encode(bytes)
+            static bytes => Base64Url.EncodeToString(bytes)
         );
 
         if (!SecretEncodings.IsPublic(material.SecretEncoding))

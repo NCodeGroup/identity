@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers;
+using System.Buffers.Text;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
 using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.Jose.Exceptions;
 using NCode.Identity.Json;
 using NCode.Identity.Secrets.KeyMaterial;
@@ -85,8 +85,8 @@ internal class AesGcmKeyManagementAlgorithm(string code, int kekSizeBits)
         key.Encrypt(iv, contentKey, encryptedContentKeySpan, tag);
         encryptedContentKeyWriter.Advance(spanLength);
 
-        header[JoseClaimNames.Header.Iv] = Base64Url.Encode(iv);
-        header[JoseClaimNames.Header.Tag] = Base64Url.Encode(tag);
+        header[JoseClaimNames.Header.Iv] = Base64Url.EncodeToString(iv);
+        header[JoseClaimNames.Header.Tag] = Base64Url.EncodeToString(tag);
     }
 
     /// <inheritdoc />
@@ -150,7 +150,7 @@ internal class AesGcmKeyManagementAlgorithm(string code, int kekSizeBits)
 
         // The header's values are base64url without padding (RFC 7515 §2), so a value's length shows its decoded size
         // without decoding it.
-        if (ivString.Length != Base64Url.GetCharCountForEncode(IvSizeBytes))
+        if (ivString.Length != Base64Url.GetEncodedLength(IvSizeBytes))
         {
             throw new JoseException("The 'iv' field in the JWT header has an invalid size.");
         }
@@ -159,7 +159,7 @@ internal class AesGcmKeyManagementAlgorithm(string code, int kekSizeBits)
         int ivBytesWritten;
         try
         {
-            ivDecoded = Base64Url.TryDecode(ivString, iv, out ivBytesWritten);
+            ivDecoded = StrictBase64Url.TryDecode(ivString, iv, out ivBytesWritten);
         }
         catch (Exception exception)
         {
@@ -179,7 +179,7 @@ internal class AesGcmKeyManagementAlgorithm(string code, int kekSizeBits)
             throw new JoseException("The JWT header is missing the 'tag' field.");
         }
 
-        if (tagString.Length != Base64Url.GetCharCountForEncode(TagSizeBytes))
+        if (tagString.Length != Base64Url.GetEncodedLength(TagSizeBytes))
         {
             throw new JoseException("The 'tag' field in the JWT header has an invalid size.");
         }
@@ -188,7 +188,7 @@ internal class AesGcmKeyManagementAlgorithm(string code, int kekSizeBits)
         int tagBytesWritten;
         try
         {
-            tagDecoded = Base64Url.TryDecode(tagString, tag, out tagBytesWritten);
+            tagDecoded = StrictBase64Url.TryDecode(tagString, tag, out tagBytesWritten);
         }
         catch (Exception exception)
         {

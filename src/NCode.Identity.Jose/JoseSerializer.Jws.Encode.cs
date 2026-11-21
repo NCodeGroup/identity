@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers;
+using System.Buffers.Text;
 using System.Diagnostics;
 using NCode.Buffers;
 using NCode.Disposables;
-using NCode.Encoders;
 using NCode.Identity.Jose.Algorithms;
 using NCode.Identity.Jose.Encoders;
 using NCode.Identity.Jose.Exceptions;
@@ -171,7 +171,7 @@ partial class JoseSerializer
     )
     {
         var payloadCharCount = signingOptions.EncodePayload
-            ? Base64Url.GetCharCountForEncode(payload.Length)
+            ? Base64Url.GetEncodedLength(payload.Length)
             : SecureEncoding.UTF8.GetCharCount(payload);
 
         IDisposable owner;
@@ -194,7 +194,11 @@ partial class JoseSerializer
 
         if (signingOptions.EncodePayload)
         {
-            var result = Base64Url.TryEncode(payload, workingPayload, out payloadCharsWritten);
+            var result = Base64Url.TryEncodeToChars(
+                payload,
+                workingPayload,
+                out payloadCharsWritten
+            );
             Debug.Assert(result && payloadCharsWritten == payloadCharCount);
         }
         else
@@ -286,6 +290,8 @@ partial class JoseSerializer
         );
         Debug.Assert(signatureBytesWritten == signatureByteCount);
 
-        return Base64Url.Encode((ReadOnlySpan<byte>)signatureBytes.Span[..signatureBytesWritten]);
+        return Base64Url.EncodeToString(
+            (ReadOnlySpan<byte>)signatureBytes.Span[..signatureBytesWritten]
+        );
     }
 }

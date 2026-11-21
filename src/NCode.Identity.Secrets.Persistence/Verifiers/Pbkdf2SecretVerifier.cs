@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Security.Cryptography;
+using NCode.Buffers;
 using NCode.Identity.Secrets.Keys;
 using NCode.Identity.Secrets.Verifiers;
 
@@ -17,14 +18,14 @@ namespace NCode.Identity.Secrets.Persistence.Verifiers;
 internal sealed class Pbkdf2SecretVerifier(
     KeyMetadata metadata,
     int iterations,
-    byte[] salt,
-    byte[] derivedKey,
+    Secret<byte> salt,
+    Secret<byte> derivedKey,
     ISecretVerificationGate gate
 ) : SecretVerifier
 {
     private int Iterations { get; } = iterations;
-    private byte[] Salt { get; } = salt;
-    private byte[] DerivedKey { get; } = derivedKey;
+    private Secret<byte> Salt { get; } = salt;
+    private Secret<byte> DerivedKey { get; } = derivedKey;
     private ISecretVerificationGate Gate { get; } = gate;
 
     /// <inheritdoc />
@@ -69,12 +70,30 @@ internal sealed class Pbkdf2SecretVerifier(
         Span<byte> computed = stackalloc byte[DerivedKey.Length];
         try
         {
-            Rfc2898DeriveBytes.Pbkdf2(secret, Salt, computed, Iterations, HashAlgorithmName.SHA256);
-            return CryptographicOperations.FixedTimeEquals(computed, DerivedKey);
+            Rfc2898DeriveBytes.Pbkdf2(
+                secret,
+                Salt.Reveal(),
+                computed,
+                Iterations,
+                HashAlgorithmName.SHA256
+            );
+            return DerivedKey.FixedTimeEquals(computed);
         }
         finally
         {
             CryptographicOperations.ZeroMemory(computed);
         }
+    }
+
+    /// <inheritdoc />
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            Salt.Dispose();
+            DerivedKey.Dispose();
+        }
+
+        base.Dispose(disposing);
     }
 }

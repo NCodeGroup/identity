@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers;
+using System.Buffers.Text;
 using System.Collections.Frozen;
 using System.Security.Cryptography;
 using NCode.Buffers;
-using NCode.Encoders;
+using NCode.Identity.Json;
 
 namespace NCode.Identity.Secrets.Persistence.Protection;
 
@@ -52,9 +53,7 @@ internal class DefaultSecretProtector(
         ArgumentOutOfRangeException.ThrowIfNegative(plaintextLength);
 
         return SecretProtectionFormat.Prefix.Length
-            + Base64Url.GetCharCountForEncode(
-                SecretProtectionFormat.HeaderSizeBytes + plaintextLength
-            );
+            + Base64Url.GetEncodedLength(SecretProtectionFormat.HeaderSizeBytes + plaintextLength);
     }
 
     /// <inheritdoc />
@@ -68,7 +67,7 @@ internal class DefaultSecretProtector(
             return 0;
         }
 
-        var envelopeLength = Base64Url.GetByteCountForDecode(encodedLength);
+        var envelopeLength = StrictBase64Url.GetDecodedLength(encodedLength);
         return Math.Max(0, envelopeLength - SecretProtectionFormat.HeaderSizeBytes);
     }
 
@@ -155,7 +154,7 @@ internal class DefaultSecretProtector(
 
         SecretProtectionFormat.Prefix.CopyTo(chars);
         if (
-            !Base64Url.TryEncode(
+            !Base64Url.TryEncodeToChars(
                 envelope,
                 chars[SecretProtectionFormat.Prefix.Length..],
                 out var charsWritten
@@ -300,7 +299,7 @@ internal class DefaultSecretProtector(
         var chars = destination.GetSpan(protectedValue.Length);
         SecretProtectionFormat.Prefix.CopyTo(chars);
         if (
-            !Base64Url.TryEncode(
+            !Base64Url.TryEncodeToChars(
                 envelope,
                 chars[SecretProtectionFormat.Prefix.Length..],
                 out var charsWritten
@@ -410,7 +409,7 @@ internal class DefaultSecretProtector(
             throw CreateUnrecognizedFormatException();
         }
 
-        var envelopeSize = Base64Url.GetByteCountForDecode(encodedLength);
+        var envelopeSize = StrictBase64Url.GetDecodedLength(encodedLength);
         if (envelopeSize < SecretProtectionFormat.HeaderSizeBytes)
         {
             throw CreateUnrecognizedFormatException();
@@ -425,7 +424,7 @@ internal class DefaultSecretProtector(
     {
         try
         {
-            return Base64Url.TryDecode(
+            return StrictBase64Url.TryDecode(
                     protectedValue[SecretProtectionFormat.Prefix.Length..],
                     envelope,
                     out var bytesWritten

@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers;
+using System.Buffers.Text;
 using System.Collections.Frozen;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.DataProtection;
 using Moq;
 using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.Secrets.KeyMaterial;
 using NCode.Identity.Secrets.Keys;
 using NCode.Identity.Secrets.KeyTypes;
@@ -674,7 +674,7 @@ public class DefaultSecretGeneratorTests : BaseTests
         Assert.NotNull(generated.Secret.PublicKey);
         Assert.Equal(
             writer.WrittenSpan.ToArray(),
-            System.Buffers.Text.Base64Url.DecodeFromChars(generated.Secret.PublicKey)
+            Base64Url.DecodeFromChars(generated.Secret.PublicKey)
         );
     }
 
@@ -798,11 +798,7 @@ public class DefaultSecretGeneratorTests : BaseTests
 
         // The stored text is the digest of the revealed secret's UTF-8 bytes, never the secret itself.
         var text = ReadVerifierText(protector, persisted);
-        Assert.Equal(
-            "$ncode-sha256$"
-                + System.Buffers.Text.Base64Url.EncodeToString(SHA256.HashData(expected)),
-            text
-        );
+        Assert.Equal("$ncode-sha256$" + Base64Url.EncodeToString(SHA256.HashData(expected)), text);
         Assert.DoesNotContain(generated.SecretMaterial, text, StringComparison.Ordinal);
 
         var verifier = ReadVerifier(protector, persisted);
@@ -1172,7 +1168,7 @@ public class DefaultSecretGeneratorTests : BaseTests
         Assert.Equal(SecretTypes.Rsa, secret.SecretType);
         Assert.Equal(SecretEncodings.Remote, secret.SecretEncoding);
         Assert.Equal("aws-kms:key-1", secret.EncodedValue);
-        Assert.Equal(Base64Url.Encode(spki), secret.PublicKey);
+        Assert.Equal(Base64Url.EncodeToString(spki), secret.PublicKey);
         Assert.Equal(2048, secret.KeySizeBits);
         Assert.Equal("RS256", secret.Algorithm);
         Assert.Equal("sig", secret.Use);
@@ -1198,7 +1194,7 @@ public class DefaultSecretGeneratorTests : BaseTests
         Assert.Equal(SecretTypes.Ecc, secret.SecretType);
         Assert.Equal(SecretEncodings.Remote, secret.SecretEncoding);
         Assert.Equal(256, secret.KeySizeBits);
-        Assert.Equal(Base64Url.Encode(spki), secret.PublicKey);
+        Assert.Equal(Base64Url.EncodeToString(spki), secret.PublicKey);
     }
 
     [Fact]
@@ -1306,7 +1302,7 @@ public class DefaultSecretGeneratorTests : BaseTests
         Assert.Equal(SecretKeyUses.Encryption, secret.Use);
         Assert.Equal("RSA-OAEP-256", secret.Algorithm);
         Assert.Equal(SecretEncodings.Remote, secret.SecretEncoding);
-        Assert.Equal(Base64Url.Encode(spki), secret.PublicKey);
+        Assert.Equal(Base64Url.EncodeToString(spki), secret.PublicKey);
     }
 
     [Theory]
@@ -1477,7 +1473,7 @@ public class DefaultSecretGeneratorTests : BaseTests
         Assert.Equal(SecretTypes.Rsa, secret.SecretType);
         Assert.Equal(SecretEncodings.Remote, secret.SecretEncoding);
         Assert.Equal("aws-kms:key-1", secret.EncodedValue);
-        Assert.Equal(Base64Url.Encode(spki), secret.PublicKey);
+        Assert.Equal(Base64Url.EncodeToString(spki), secret.PublicKey);
         Assert.Equal(2048, secret.KeySizeBits);
         Assert.Equal("RS256", secret.Algorithm);
         Assert.Equal("sig", secret.Use);
@@ -1503,7 +1499,7 @@ public class DefaultSecretGeneratorTests : BaseTests
         Assert.Equal(SecretTypes.Ecc, secret.SecretType);
         Assert.Equal(SecretEncodings.Remote, secret.SecretEncoding);
         Assert.Equal(256, secret.KeySizeBits);
-        Assert.Equal(Base64Url.Encode(spki), secret.PublicKey);
+        Assert.Equal(Base64Url.EncodeToString(spki), secret.PublicKey);
     }
 
     [Fact]
@@ -1520,7 +1516,7 @@ public class DefaultSecretGeneratorTests : BaseTests
         Assert.Equal(SecretKeyUses.Encryption, secret.Use);
         Assert.Equal("RSA-OAEP-256", secret.Algorithm);
         Assert.Equal(SecretEncodings.Remote, secret.SecretEncoding);
-        Assert.Equal(Base64Url.Encode(spki), secret.PublicKey);
+        Assert.Equal(Base64Url.EncodeToString(spki), secret.PublicKey);
         Assert.Equal(SecretOrigins.Supplied, secret.Origin);
     }
 

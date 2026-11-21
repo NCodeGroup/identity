@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers.Binary;
+using System.Buffers.Text;
 using System.Globalization;
 using System.Security.Cryptography;
 using NCode.Buffers;
-using NCode.Encoders;
 
 namespace NCode.Identity.Bff.Sessions;
 
@@ -151,6 +151,6 @@ internal static class BffStoreKeys
 
         Span<byte> hash = stackalloc byte[SHA256.HashSizeInBytes];
         SHA256.HashData(buffer, hash);
-        return Base64Url.Encode(hash);
+        return Base64Url.EncodeToString(hash);
     }
 }

@@ -5,7 +5,7 @@ using System.Buffers;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using NCode.Buffers;
-using NCode.Encoders;
+using NCode.Identity.Json;
 using NCode.Identity.Secrets.Collections;
 using NCode.Identity.Secrets.Keys;
 using NCode.Identity.Secrets.KeyTypes;
@@ -111,9 +111,22 @@ internal class DefaultSecretSerializer(
         }
 
         var verifiers = new List<SecretVerifier>(persistedSecrets.Count);
-        foreach (var persistedSecret in persistedSecrets)
+        try
         {
-            verifiers.Add(DeserializeVerifierCore(protector, persistedSecret));
+            foreach (var persistedSecret in persistedSecrets)
+            {
+                verifiers.Add(DeserializeVerifierCore(protector, persistedSecret));
+            }
+        }
+        // A caller receives no verifier when one cannot be read, so the ones read are disposed here.
+        catch
+        {
+            foreach (var verifier in verifiers)
+            {
+                verifier.Dispose();
+            }
+
+            throw;
         }
 
         return verifiers;
@@ -235,7 +248,7 @@ internal class DefaultSecretSerializer(
                 ?? throw new InvalidOperationException(
                     $"The secret '{persistedSecret.SecretId}' has no stored public key."
                 );
-            Base64Url.Decode(storedPublicKey, keyMaterialWriter);
+            StrictBase64Url.Decode(storedPublicKey, keyMaterialWriter);
         }
         else if (SecretEncodings.IsPublic(persistedSecret.SecretEncoding))
         {
@@ -301,7 +314,7 @@ internal class DefaultSecretSerializer(
             persistedSecret.KeySizeBits >> 3
         );
         IBufferWriter<byte> publicKeyWriter = publicKeyBuffer;
-        Base64Url.Decode(storedPublicKey, publicKeyWriter);
+        StrictBase64Url.Decode(storedPublicKey, publicKeyWriter);
 
         // The stored public key decides the size and curve that the mapping row must match.
         RemoteKeyAlgorithmSelector selector;
@@ -372,7 +385,7 @@ internal class DefaultSecretSerializer(
     private static void ReadPublicKeyMaterial(
         PersistedSecret persistedSecret,
         IBufferWriter<byte> destination
-    ) => Base64Url.Decode(persistedSecret.EncodedValue, destination);
+    ) => StrictBase64Url.Decode(persistedSecret.EncodedValue, destination);
 
     // Private and symmetric key material is stored as an envelope that is protected by the master key of its owner.
     private static void ReadPrivateKeyMaterial(

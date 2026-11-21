@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers;
+using System.Buffers.Text;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
 using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.Jose.Exceptions;
 using NCode.Identity.Json;
 using NCode.Identity.Secrets.KeyMaterial;
@@ -117,7 +117,7 @@ internal class Pbes2KeyManagementAlgorithm(
         RandomNumberGenerator.Fill(saltInput);
 
         header[JoseClaimNames.Header.P2c] = iterationCount;
-        header[JoseClaimNames.Header.P2s] = Base64Url.Encode(saltInput);
+        header[JoseClaimNames.Header.P2s] = Base64Url.EncodeToString(saltInput);
 
         using var privateKeyBuffer = BufferFactory.CreateContiguousBufferWriter(
             isSensitive: true,
@@ -179,7 +179,7 @@ internal class Pbes2KeyManagementAlgorithm(
 
         // The salt input is base64url without padding (RFC 7515 §2), so its length shows its decoded size without
         // decoding it.
-        if (saltInputString.Length != Base64Url.GetCharCountForEncode(SaltInputSizeBytes))
+        if (saltInputString.Length != Base64Url.GetEncodedLength(SaltInputSizeBytes))
         {
             throw new JoseException(
                 "The salt input ('p2s') does not have a valid size for this cryptographic algorithm."
@@ -253,7 +253,7 @@ internal class Pbes2KeyManagementAlgorithm(
         int bytesWritten;
         try
         {
-            decoded = Base64Url.TryDecode(saltInputString, saltInput, out bytesWritten);
+            decoded = StrictBase64Url.TryDecode(saltInputString, saltInput, out bytesWritten);
         }
         catch (FormatException exception)
         {

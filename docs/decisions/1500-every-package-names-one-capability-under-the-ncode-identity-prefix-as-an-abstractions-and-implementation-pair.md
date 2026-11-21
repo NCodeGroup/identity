@@ -31,11 +31,11 @@ any package may reference.**
    takes an `NCode.*` name of its own only when a second product consumes it, and then lives in a repository with its
    own versioning.
 2. **Pairs.** A capability's `.Abstractions` package holds contracts and data, and the form rules of the values its
-   contracts carry: pure checks and builders over the BCL and the family's `NCode.Buffers` and `NCode.Base64Url`
-   libraries, such as `TenantIdentifierRules`, `CellLabelRules`, `AbsoluteUri`, `DatabaseRoleNameRules` with the
-   Postgres identifier quoting and runtime-role grant statements built on it (`PostgresIdentifiers`,
-   `RuntimeRoleGrants`), and the `ExpiringKeys` key shape, so every implementation of a contract applies one rule; it
-   holds no service logic. The implementation shares its namespace, so a pair is one namespace across two assemblies.
+   contracts carry: pure checks and builders over the BCL and the family's `NCode.Buffers` library, such as
+   `TenantIdentifierRules`, `CellLabelRules`, `AbsoluteUri`, `DatabaseRoleNameRules` with the Postgres identifier
+   quoting and runtime-role grant statements built on it (`PostgresIdentifiers`, `RuntimeRoleGrants`), and the
+   `ExpiringKeys` key shape, so every implementation of a contract applies one rule; it holds no service logic. The
+   implementation shares its namespace, so a pair is one namespace across two assemblies.
 3. **Implementations depend on abstractions.** An implementation references `*.Abstractions`, foundation packages and
    the composition builders `NCode.Identity.Registration` and `NCode.Identity.Registration.AspNetCore`, and collaborates
    with other capabilities through abstractions resolved from DI. Apart from the composition roots and hosts below and

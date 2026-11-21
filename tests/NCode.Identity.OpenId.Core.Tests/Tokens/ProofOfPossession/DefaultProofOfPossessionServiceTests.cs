@@ -1,11 +1,11 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Text;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Microsoft.AspNetCore.Http;
 using Moq;
-using NCode.Encoders;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.OpenId.Authentication.ClientCertificates;
 using NCode.Identity.OpenId.Authentication.Clients;
@@ -266,7 +266,7 @@ public class DefaultProofOfPossessionServiceTests : BaseTests
             CancellationToken.None
         );
 
-        var expected = Base64Url.Encode(SHA256.HashData(certificate.RawData));
+        var expected = Base64Url.EncodeToString(SHA256.HashData(certificate.RawData));
         Assert.Equal(OpenIdProtocol.TokenTypes.Bearer, binding.TokenType);
         Assert.Equal(expected, binding.Confirmation.X509CertificateSha256Thumbprint);
     }
@@ -472,7 +472,7 @@ public class DefaultProofOfPossessionServiceTests : BaseTests
     {
         SetupRequestContext();
         using var certificate = CreateSelfSignedCertificate();
-        var thumbprint = Base64Url.Encode(SHA256.HashData(certificate.RawData));
+        var thumbprint = Base64Url.EncodeToString(SHA256.HashData(certificate.RawData));
         MockCertificateResolver
             .Setup(x =>
                 x.ResolveCertificateAsync(MockContext.Object, It.IsAny<CancellationToken>())

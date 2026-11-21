@@ -239,11 +239,13 @@ const NCode.Identity.Secrets.SecretEncodings.Verifier = "verifier" -> string!
 const NCode.Identity.Secrets.Verifiers.SecretVerifierSchemes.Pbkdf2Sha256 = "ncode-pbkdf2-sha256" -> string!
 const NCode.Identity.Secrets.Verifiers.SecretVerifierSchemes.Sha256 = "ncode-sha256" -> string!
 NCode.Identity.Secrets.Verifiers.SecretVerifier
+NCode.Identity.Secrets.Verifiers.SecretVerifier.Dispose() -> void
 NCode.Identity.Secrets.Verifiers.SecretVerifier.KeyId.get -> string?
 NCode.Identity.Secrets.Verifiers.SecretVerifier.SecretVerifier() -> void
 NCode.Identity.Secrets.Verifiers.SecretVerifierSchemes
 override NCode.Identity.Secrets.Verifiers.SecretVerifier.ToString() -> string!
 static NCode.Identity.Secrets.SecretEncodings.IsVerifier(string! secretEncoding) -> bool
+virtual NCode.Identity.Secrets.Verifiers.SecretVerifier.Dispose(bool disposing) -> void
 NCode.Identity.Secrets.Verifiers.ISecretVerifierScheme
 NCode.Identity.Secrets.Verifiers.ISecretVerifierScheme.Name.get -> string!
 NCode.Identity.Secrets.Verifiers.ISecretVerifierScheme.TryReadParameters(NCode.Identity.Secrets.Keys.KeyMetadata metadata, System.ReadOnlySpan<byte> parameters, out NCode.Identity.Secrets.Verifiers.SecretVerifier? verifier) -> bool

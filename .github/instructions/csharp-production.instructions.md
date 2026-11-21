@@ -1217,8 +1217,10 @@ says for a pre-release project.
   decoded straight into the secure buffer, so a raw process-memory snapshot does not expose the plaintext directly. See
   [ADR-1266](../../docs/decisions/1266-binary-data-uses-bufferfactory-rentals-with-explicit-sensitivity-and-text-only-strict-encodings.md).
 - 👁 **Use the rental helper for the source.** `BufferFactory.RentRandom`, `RentBytes`/`RentChars` on `SecureEncoding`,
-  `BinaryTextEncoding.RentDecoded`/`RentEncoded`, `CreatePooledStream` and `PooledTextBuilder` replace a rental
-  followed by a fill, encode, decode or copy; a secret kept in a field is a `Secret<T>`. See
+  `BinaryTextEncoding.RentDecoded`/`RentEncoded`, `CreatePooledStream` and `PooledTextBuilder` replace a rental followed
+  by a fill, encode, decode or copy; a secret kept in a field is a `Secret<T>`; base64url text is decoded only through
+  `StrictBase64Url` (`NCode.Identity.Json`), and random bytes are never drawn with
+  `RandomNumberGenerator.GetBytes(int)`. See
   [ADR-1266](../../docs/decisions/1266-binary-data-uses-bufferfactory-rentals-with-explicit-sensitivity-and-text-only-strict-encodings.md).
 - ✅ **Encode and decode text only through a strict encoding.** Use `SecureEncoding.UTF8` / `SecureEncoding.ASCII`
   (`NCode.Buffers`), which throw on invalid input, never `Encoding.UTF8`, `Encoding.ASCII` or `Encoding.Default`, which
@@ -1267,10 +1269,11 @@ IBufferWriter<byte>, allows ref struct` (as in `SymmetricSecretKey.ExportPrivate
   `MemoryExtensions.Split` into a `stackalloc Range[segmentCount + 1]` — never `string.Split` — and reject any count
   but `segmentCount`: the spare slot makes extra segments count past it instead of folding into the last range. The JWS
   signing input is the original text up to the end of the payload (`token.AsSpan(..ranges[1].End)`), never a
-  re-concatenated string. Decode each base64url segment into a `BufferFactory.Rent` buffer sized by
-  `Base64Url.GetByteCountForDecode`: `NCode.Base64Url` throws `FormatException` on an invalid length, an illegal
-  character, or `=` padding, so a successful decode fills that buffer exactly and needs no slice by `bytesWritten`. A
-  sync helper does the span work when the caller is `async` (`ClientAssertionClientAuthenticationHandler`). See
+  re-concatenated string. Decode each base64url segment with `StrictBase64Url.TryDecode` into a `BufferFactory.Rent`
+  buffer sized by `StrictBase64Url.GetDecodedLength`: `StrictBase64Url` throws `FormatException` on an invalid length,
+  an illegal character, `=` padding, whitespace or non-zero trailing bits, so a successful decode fills that buffer
+  exactly and needs no slice by `bytesWritten`. A sync helper does the span work when the caller is `async`
+  (`ClientAssertionClientAuthenticationHandler`). See
   [ADR-1266](../../docs/decisions/1266-binary-data-uses-bufferfactory-rentals-with-explicit-sensitivity-and-text-only-strict-encodings.md).
 - 👁 **Sensitive text is never a `string`.** Read a key or secret file as bytes into a secure buffer
   (`File.OpenHandle` + `RandomAccess.Read`) and decode it from UTF-8; write sensitive XML with an `XmlWriter` over a

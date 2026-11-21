@@ -326,7 +326,7 @@ public sealed class OkpSecretKeyTypeDescriptor(
         byte[] publicKey;
         try
         {
-            publicKey = Base64Url.DecodeFromChars(x);
+            publicKey = StrictBase64Url.Decode(x);
         }
         catch (FormatException exception)
         {

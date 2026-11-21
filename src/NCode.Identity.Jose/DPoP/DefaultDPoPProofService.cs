@@ -1,12 +1,12 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Text;
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.Jose.Algorithms;
 using NCode.Identity.Jose.Exceptions;
 using NCode.Identity.Json;
@@ -78,9 +78,7 @@ internal class DefaultDPoPProofService(
         {
             [JoseClaimNames.Payload.Htm] = options.HttpMethod,
             [JoseClaimNames.Payload.Htu] = htu,
-            [JoseClaimNames.Payload.Jti] = Base64Url.Encode(
-                RandomNumberGenerator.GetBytes(JtiSizeBytes)
-            ),
+            [JoseClaimNames.Payload.Jti] = CreateJti(),
             [JoseClaimNames.Payload.Iat] = TimeProvider.GetUtcNow().ToUnixTimeSeconds(),
         };
 
@@ -449,8 +447,23 @@ internal class DefaultDPoPProofService(
         return true;
     }
 
+    /// <summary>
+    /// Creates the <c>jti</c> of a proof.
+    /// </summary>
+    /// <returns>The base64url text, without padding, of <see cref="JtiSizeBytes"/> random bytes, which are not
+    /// sensitive because the proof publishes them.</returns>
+    private static string CreateJti()
+    {
+        using var owner = BufferFactory.RentRandom(
+            JtiSizeBytes,
+            isSensitive: false,
+            out Span<byte> bytes
+        );
+        return Base64Url.EncodeToString(bytes);
+    }
+
     private static string ComputeAccessTokenHash(string accessToken) =>
-        Base64Url.Encode(SHA256.HashData(SecureEncoding.ASCII.GetBytes(accessToken)));
+        Base64Url.EncodeToString(SHA256.HashData(SecureEncoding.ASCII.GetBytes(accessToken)));
 
     // Scheme, authority, and path, ignoring query and fragment (RFC 9449 §4.2, §4.3).
     private static bool TryGetRequestUri(string? value, [NotNullWhen(true)] out string? requestUri)

@@ -16,7 +16,7 @@ using NCode.Identity.Secrets;
 using NCode.Identity.Secrets.KeyMaterial;
 using NCode.Identity.Secrets.Keys;
 using NCode.Identity.Secrets.KeyTypes;
-using Base64Url = NCode.Encoders.Base64Url;
+using Base64Url = System.Buffers.Text.Base64Url;
 using JoseException = NCode.Identity.Jose.Exceptions.JoseException;
 
 namespace NCode.Identity.Jose.Tests.Algorithms.KeyManagement;
@@ -428,7 +428,7 @@ public class ContributedKeyTypeEcdhTests : BaseTests
             [XkpKeyType.PublicMember] = Assert.IsType<string>(
                 ((Dictionary<string, object>)header["epk"])[XkpKeyType.PublicMember]
             ),
-            [XkpKeyType.PrivateMember] = Base64Url.Encode(new byte[32]),
+            [XkpKeyType.PrivateMember] = Base64Url.EncodeToString(new byte[32]),
         };
         // Read without the contributed type's rules, 'sk' is not private: only those rules can refuse it.
         Assert.False(new JsonWebKey(epk.Deserialize<JsonElement>()).ContainsPrivateKeyMaterial);
@@ -462,8 +462,8 @@ public class ContributedKeyTypeEcdhTests : BaseTests
             {
                 ["kty"] = "EC",
                 ["crv"] = "P-256",
-                ["x"] = Base64Url.Encode(parameters.Q.X),
-                ["y"] = Base64Url.Encode(parameters.Q.Y),
+                ["x"] = Base64Url.EncodeToString(parameters.Q.X),
+                ["y"] = Base64Url.EncodeToString(parameters.Q.Y),
             },
         };
 

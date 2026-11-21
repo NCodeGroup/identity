@@ -1,9 +1,9 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Text;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Http;
-using NCode.Encoders;
 using NCode.Identity.OpenId.Authentication.ClientCertificates;
 using NCode.Identity.OpenId.Authentication.Clients;
 using NCode.Identity.OpenId.Authentication.Endpoints;
@@ -191,7 +191,9 @@ internal class DefaultProofOfPossessionService(
                 );
             }
 
-            var thumbprint = Base64Url.Encode(SHA256.HashData(certificate.Certificate.RawData));
+            var thumbprint = Base64Url.EncodeToString(
+                SHA256.HashData(certificate.Certificate.RawData)
+            );
             if (
                 !string.Equals(
                     thumbprint,
@@ -300,6 +302,6 @@ internal class DefaultProofOfPossessionService(
                 .AsException();
         }
 
-        return Base64Url.Encode(SHA256.HashData(certificate.Certificate.RawData));
+        return Base64Url.EncodeToString(SHA256.HashData(certificate.Certificate.RawData));
     }
 }

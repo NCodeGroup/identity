@@ -1,10 +1,11 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Text;
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using NCode.Buffers;
-using NCode.Encoders;
+using NCode.Identity.Json;
 
 namespace NCode.Identity.Bff.Sessions;
 
@@ -50,7 +51,7 @@ internal static class BffKeyDerivation
         RandomNumberGenerator.Fill(bytes);
         try
         {
-            return Base64Url.Encode(bytes);
+            return Base64Url.EncodeToString(bytes);
         }
         finally
         {
@@ -79,7 +80,7 @@ internal static class BffKeyDerivation
             int written;
             try
             {
-                if (!Base64Url.TryDecode(secret, buffer, out written))
+                if (!StrictBase64Url.TryDecode(secret, buffer, out written))
                     return false;
             }
             catch (FormatException)
@@ -149,7 +150,7 @@ internal static class BffKeyDerivation
                 return false;
             }
 
-            identifier = Base64Url.Encode(key);
+            identifier = Base64Url.EncodeToString(key);
             return true;
         }
         finally
@@ -172,6 +173,6 @@ internal static class BffKeyDerivation
 
         Span<byte> hash = stackalloc byte[SHA256.HashSizeInBytes];
         SHA256.HashData(bytes, hash);
-        return Base64Url.Encode(hash);
+        return Base64Url.EncodeToString(hash);
     }
 }

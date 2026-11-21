@@ -311,7 +311,7 @@ public sealed class AkpSecretKeyTypeDescriptor(
         byte[] publicKey;
         try
         {
-            publicKey = Base64Url.DecodeFromChars(pub);
+            publicKey = StrictBase64Url.Decode(pub);
         }
         catch (FormatException exception)
         {

@@ -4,6 +4,7 @@
 using System.Buffers.Text;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.DataProtection;
+using NCode.Buffers;
 using NCode.Identity.Secrets.KeyMaterial;
 using NCode.Identity.Secrets.Keys;
 using NCode.Identity.Secrets.KeyTypes;
@@ -52,6 +53,21 @@ internal sealed class DefaultTenantTransferKeyService(
     /// </summary>
     internal static TimeSpan Lifetime { get; } = TimeSpan.FromHours(1);
 
+    /// <summary>
+    /// Creates the <c>kid</c> of a transfer key.
+    /// </summary>
+    /// <returns>The base64url text, without padding, of <see cref="KeyIdSizeBytes"/> random bytes, which are not
+    /// sensitive because the key's public JWK publishes them.</returns>
+    private static string CreateKeyId()
+    {
+        using var owner = BufferFactory.RentRandom(
+            KeyIdSizeBytes,
+            isSensitive: false,
+            out Span<byte> bytes
+        );
+        return Base64Url.EncodeToString(bytes);
+    }
+
     private ISecretKeyFactory SecretKeyFactory { get; } = secretKeyFactory;
     private ISecretKeyTypeCatalog SecretKeyTypeCatalog { get; } = secretKeyTypeCatalog;
     private IDataProtector Protector { get; } =
@@ -66,7 +82,7 @@ internal sealed class DefaultTenantTransferKeyService(
         var pkcs8 = ecdh.ExportPkcs8PrivateKey();
         try
         {
-            var keyId = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(KeyIdSizeBytes));
+            var keyId = CreateKeyId();
             var secretKey = SecretKeyFactory.CreateEccPkcs8(CreateMetadata(keyId), pkcs8);
 
             if (

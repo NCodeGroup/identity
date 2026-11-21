@@ -5,7 +5,7 @@ using System.Buffers;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Options;
 using NCode.Buffers;
-using NCode.Encoders;
+using NCode.Identity.Json;
 using NCode.Identity.Secrets.KeyWrapping;
 using NCode.Identity.Secrets.Persistence.Options;
 using LoadedKeys = (
@@ -279,19 +279,21 @@ internal class LocalKeyWrapper(IOptions<LocalKeyWrapperOptions> options) : IKeyW
         Span<byte> decoded = stackalloc byte[DecodeBufferSizeBytes];
         using var lifetime = decoded.GetSecureLifetime();
 
-        var status = System.Buffers.Text.Base64Url.DecodeFromUtf8(
-            encoded,
-            decoded,
-            out _,
-            out var bytesWritten
-        );
-
-        return status switch
+        int bytesWritten;
+        try
         {
-            OperationStatus.Done => CreateKey(decoded[..bytesWritten], source),
-            OperationStatus.InvalidData => throw InvalidBase64Url(source),
-            _ => throw InvalidKeyLength(source),
-        };
+            if (!StrictBase64Url.TryDecode(encoded, decoded, out bytesWritten))
+            {
+                throw InvalidKeyLength(source);
+            }
+        }
+        catch (FormatException)
+        {
+            // The format error is not chained because its message might quote a part of the key.
+            throw InvalidBase64Url(source);
+        }
+
+        return CreateKey(decoded[..bytesWritten], source);
     }
 
     private static Secret<byte> DecodeKey(string encoded, string source)
@@ -302,7 +304,7 @@ internal class LocalKeyWrapper(IOptions<LocalKeyWrapperOptions> options) : IKeyW
         int bytesWritten;
         try
         {
-            if (!Base64Url.TryDecode(encoded, decoded, out bytesWritten))
+            if (!StrictBase64Url.TryDecode(encoded, decoded, out bytesWritten))
             {
                 throw InvalidKeyLength(source);
             }

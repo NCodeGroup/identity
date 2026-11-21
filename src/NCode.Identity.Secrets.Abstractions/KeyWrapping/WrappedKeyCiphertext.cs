@@ -4,7 +4,7 @@
 using System.Buffers;
 using System.Security.Cryptography;
 using JetBrains.Annotations;
-using NCode.Encoders;
+using NCode.Identity.Json;
 
 namespace NCode.Identity.Secrets.KeyWrapping;
 
@@ -32,7 +32,7 @@ public static class WrappedKeyCiphertext
         if (ciphertext.Length % 4 == 1)
             throw new CryptographicException(NotBase64UrlMessage);
 
-        return Base64Url.GetByteCountForDecode(ciphertext.Length);
+        return StrictBase64Url.GetDecodedLength(ciphertext.Length);
     }
 
     /// <summary>
@@ -51,7 +51,7 @@ public static class WrappedKeyCiphertext
         int bytesWritten;
         try
         {
-            decoded = Base64Url.TryDecode(ciphertext, destination, out bytesWritten);
+            decoded = StrictBase64Url.TryDecode(ciphertext, destination, out bytesWritten);
         }
         catch (FormatException exception)
         {

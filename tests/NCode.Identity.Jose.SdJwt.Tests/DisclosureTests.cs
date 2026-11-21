@@ -1,9 +1,9 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Text;
 using System.Text.Json;
 using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.Jose.SdJwt.Digests;
 using NCode.Identity.Jose.SdJwt.Verification;
 
@@ -12,7 +12,7 @@ namespace NCode.Identity.Jose.SdJwt.Tests;
 public class DisclosureTests
 {
     private static string EncodeJson(string json) =>
-        Base64Url.Encode(SecureEncoding.UTF8.GetBytes(json));
+        Base64Url.EncodeToString(SecureEncoding.UTF8.GetBytes(json));
 
     #region Parse Tests
 

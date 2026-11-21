@@ -59,8 +59,35 @@ internal sealed class DefaultSetupTokenService(
     private static byte[]? HashConfiguredToken(string? token) =>
         string.IsNullOrWhiteSpace(token) ? null : HashToken(token);
 
-    private static byte[] HashToken(string token) =>
-        SHA256.HashData(SecureEncoding.UTF8.GetBytes(token));
+    /// <summary>
+    /// Hashes a setup token with SHA-256.
+    /// </summary>
+    /// <param name="token">The token to hash; its UTF-8 bytes are rented as sensitive and zeroed.</param>
+    /// <returns>The 32-byte SHA-256 hash of the token's UTF-8 bytes.</returns>
+    private static byte[] HashToken(string token)
+    {
+        using var owner = SecureEncoding.UTF8.RentBytes(
+            token,
+            isSensitive: true,
+            out Span<byte> bytes
+        );
+        return SHA256.HashData(bytes);
+    }
+
+    /// <summary>
+    /// Generates a random setup token.
+    /// </summary>
+    /// <returns>The base64url text, without padding, of <see cref="GeneratedTokenByteLength"/> random bytes, which are
+    /// rented as sensitive and zeroed.</returns>
+    private static string GenerateToken()
+    {
+        using var owner = BufferFactory.RentRandom(
+            GeneratedTokenByteLength,
+            isSensitive: true,
+            out Span<byte> bytes
+        );
+        return Base64Url.EncodeToString(bytes);
+    }
 
     /// <inheritdoc />
     public async ValueTask EnsureTokenAsync(CancellationToken cancellationToken)
@@ -79,9 +106,7 @@ internal sealed class DefaultSetupTokenService(
         if (setup.TokenIssuedAt is { } storedIssuedAt && storedIssuedAt >= ProcessClock.StartedAt)
             return;
 
-        var token = Base64Url.EncodeToString(
-            RandomNumberGenerator.GetBytes(GeneratedTokenByteLength)
-        );
+        var token = GenerateToken();
         var issuedAt = TimeProvider.GetUtcNow();
         var expiresAt = issuedAt + GeneratedTokenLifetime;
 

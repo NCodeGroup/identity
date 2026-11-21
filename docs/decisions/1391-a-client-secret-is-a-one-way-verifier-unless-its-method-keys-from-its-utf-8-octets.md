@@ -98,6 +98,11 @@ A rotated secret overlaps its replacement as
 - `CommonClientAuthenticationHandler` checks a comparing method against verifiers only and a keying method against
   reversible secrets only. It checks verifiers without a work factor first (`SecretVerifier.HasWorkFactor`), compares
   with `FixedTimeEquals`, and names the match in `OpenIdConfidentialClient.CredentialId`.
+- A `SecretVerifier` is `IDisposable` and holds its parameters, the PBKDF2 salt and derived key or the SHA-256 digest,
+  in `Secret<byte>`, zeroed when it is disposed. Its reader owns it: `DeserializeVerifiers` disposes the verifiers it
+  read when a later one fails, and `DefaultOpenIdClientResolver` registers each verifier it reads with the response of
+  the request that resolved the client (`HttpResponse.RegisterForDispose`), so it is zeroed when that request
+  completes.
 
 ### Bounding the work factor
 
@@ -147,7 +152,8 @@ A rotated secret overlaps its replacement as
 ## References
 
 - `ISecretGenerator`, `SharedSecretRequest`, `SecretEncodings.Verifier`, `SecretOrigins`, `ISecretVerifierScheme`,
-  `ISecretVerifierSchemeCatalog`, `SecretVerifierSchemes`, `SharedSecretVerifierOptions`, `Pbkdf2SecretVerifierOptions`
+  `ISecretVerifierSchemeCatalog`, `SecretVerifierSchemes`, `SecretVerifier`, `SharedSecretVerifierOptions`,
+  `Pbkdf2SecretVerifierOptions`
 - `IClientSecretIssuer`, `ClientAuthenticationMethodDescriptor`, `ClientSecretKeyCoherenceRule`,
   `CommonClientAuthenticationHandler`, `ISecretVerificationGate`, `SecretVerificationGateOptions`
 - [project-template ADR-0146](project-template/0146-secrets-are-never-logged-compared-in-constant-time-and-shown-once.md)
