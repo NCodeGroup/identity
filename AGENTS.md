@@ -390,42 +390,39 @@ are separate: review any such entries individually rather than assuming the repo
 ## Landing
 
 How `/ship-plan` lands a reviewed plan; `/continue-plan`, `/run-issues`, `/address-feedback`, `/run-feedback` and
-`.githooks/pre-push` read it too.
-`integrate`: `pull-request` pushes the plan's branch and opens a pull request; `direct` pushes to the default branch.
-`release`: `none`; `tag` tags the plan's `Release:` version, or the next free one when another plan landed it first;
-`tag+release` also publishes a release from that version's section of `changelog`. On GitHub,
-`.github/workflows/tag-release.yml` tags and publishes it as the pull request merges, from the `Release:` line
+`.githooks/pre-push` read it too. `integrate`: `pull-request` pushes the plan's branch and opens a pull request;
+`direct` pushes to the default branch. `release`: `none`; `tag` tags the plan's `Release:` version, or the next free one
+when another plan landed it first; `tag+release` also publishes a release from that version's section of `changelog`. On
+GitHub, `.github/workflows/tag-release.yml` tags and publishes it as the pull request merges, from the `Release:` line
 `/ship-plan` writes in its description or the changelog's newest section; `/ship-plan` run after the merge does only
-what that workflow didn't. `pre-release`: `tracked`, the
-default, tracks every change from the first release; `untracked` keeps the project pre-release until a version tag of
-1.0.0 or later, so every text describes the product as it is, the changelog's `## [Unreleased]` is a catalog that
-each plan edits in place, and a breaking change needs no deprecation or migration path, as project-template ADR-0015
-says. `draft`: `no`; `yes` opens every
-pull request as a draft, as `/ship-plan draft` does. `follow-ups`: `issues` files a plan's follow-ups as issues in
-this repository, `<owner/repo>` in that repository, and `none` files none. `follow-up-label`: the label those issues
-get. `gate`: `none`; a command that `/ship-plan`, `/run-issues`, `/address-feedback` and `/run-feedback` run from the
-repository root before each push, stopping when it exits non-zero or changes a file. `protect`: `none`; `hook` makes
-`.githooks/pre-push` refuse any
-push to the default branch, for a host that can't require pull requests. `pr-format`: `none`; `<file>#<heading>`
-names the section that sets the title and description of the pull requests `/ship-plan` opens. `review-bots`: the review
-bots whose findings `/run-issues`, `/address-feedback` and `/run-feedback` may fix, or `none`. `max-review-rounds`:
-after that many rounds of review feedback, `/run-issues` and `/run-feedback` recommend the merge. `prelude`: `none`; one
-PowerShell command that sets up the shell the workflow's commands run in, which `/ship-plan`, `/run-issues`,
-`/address-feedback` and `/run-feedback` dot-source before the gate. Here the `main`
-ruleset already requires pull requests through the merge queue
-([ADR-1261](docs/decisions/1261-the-main-branch-takes-only-reviewed-pull-requests-squash-merged-by-the-merge-queue-past-required-checks.md)), so `protect`
-is `none`; releases are tagged on `release/vX.Y` lines, never one per plan
+what that workflow didn't. `pre-release`: `tracked`, the default, tracks every change from the first release;
+`untracked` keeps the project pre-release until a version tag of 1.0.0 or later, so every text describes the product as
+it is, the changelog's `## [Unreleased]` is a catalog that each plan edits in place, and a breaking change needs no
+deprecation or migration path, as project-template ADR-0015 says. `draft`: `no`; `yes` opens every pull request as a
+draft, as `/ship-plan draft` does. `follow-ups`: `issues` files a plan's follow-ups as issues in this repository,
+`<owner/repo>` in that repository, and `none` files none. `follow-up-label`: the label those issues get. `gate`: `none`;
+a command that `/ship-plan`, `/run-issues`, `/address-feedback` and `/run-feedback` run from the repository root before
+each push, stopping when it exits non-zero or changes a file. `protect`: `none`; `hook` makes `.githooks/pre-push`
+refuse any push to the default branch, for a host that can't require pull requests. `pr-format`: `none`;
+`<file>#<heading>` names the section that sets the title and description of the pull requests `/ship-plan` opens.
+`review-bots`: the review bots whose findings `/run-issues`, `/address-feedback` and `/run-feedback` may fix, or `none`;
+`/run-issues` and `/run-feedback` judge every NCode Review finding, whatever its severity, and fix each that holds.
+`max-review-rounds`: after that many rounds of review feedback, `/run-issues` and `/run-feedback` ask NCode Review for
+no further review and still fix and answer every finding. `prelude`: `none`; one PowerShell command that sets up the
+shell the workflow's commands run in, which `/ship-plan`, `/run-issues`, `/address-feedback` and `/run-feedback`
+dot-source before the gate. Here the `main` ruleset already requires pull requests through the merge queue
+([ADR-1261](docs/decisions/1261-the-main-branch-takes-only-reviewed-pull-requests-squash-merged-by-the-merge-queue-past-required-checks.md)),
+so `protect` is `none`; releases are tagged on `release/vX.Y` lines, never one per plan
 ([GOVERNANCE.md](GOVERNANCE.md#releases-branches--tags)), so `release` is `none` and `tag-release.yml` publishes
-nothing; the family has released nothing and
-stores nothing a reader must keep ([ADR-1025](docs/decisions/1025-the-family-is-greenfield-and-pre-release-tracks-its-public-api-and-models-auth0-parity-plus.md)), so
-`pre-release` is `untracked`; a pull request stays a draft until
-its author reviews it
+nothing; the family has released nothing and stores nothing a reader must keep
+([ADR-1025](docs/decisions/1025-the-family-is-greenfield-and-pre-release-tracks-its-public-api-and-models-auth0-parity-plus.md)),
+so `pre-release` is `untracked`; a pull request stays a draft until its author reviews it
 ([ADR-1261](docs/decisions/1261-the-main-branch-takes-only-reviewed-pull-requests-squash-merged-by-the-merge-queue-past-required-checks.md)),
 so `draft` is `yes`; `gate` is the push protocol's local pre-push gate
-([ADR-1263](docs/decisions/1263-branches-and-pull-requests-run-an-affected-gate-and-the-merge-queue-runs-the-full-gate.md)); NCode
-Review reviews every pull request (`.github/workflows/code-review.yml`), so `review-bots` is `ncode-review`; nothing
-needs a shell set up, so `prelude` is `none`; and a plan's title is already the conventional commit subject the squash
-merge takes, so `pr-format` is `none`.
+([ADR-1263](docs/decisions/1263-branches-and-pull-requests-run-an-affected-gate-and-the-merge-queue-runs-the-full-gate.md));
+NCode Review reviews every pull request (`.github/workflows/code-review.yml`), so `review-bots` is `ncode-review`;
+nothing needs a shell set up, so `prelude` is `none`; and a plan's title is already the conventional commit subject the
+squash merge takes, so `pr-format` is `none`.
 
 - integrate: pull-request
 - release: none
