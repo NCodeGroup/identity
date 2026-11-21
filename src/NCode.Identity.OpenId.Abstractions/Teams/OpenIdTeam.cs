@@ -59,6 +59,10 @@ public abstract class OpenIdTeam : IAsyncDisposable
     /// <summary>
     /// Gets the <see cref="IPropertyBag"/> that can provide additional user-defined information about the current instance or operation.
     /// </summary>
+    /// <remarks>
+    /// The default team's bag is a clone of its parent team's bag, or of the platform's for a top-level team, taken
+    /// when the team is created, and each of its tenants' bags is a clone of it.
+    /// </remarks>
     public abstract IPropertyBag PropertyBag { get; }
 
     /// <inheritdoc />

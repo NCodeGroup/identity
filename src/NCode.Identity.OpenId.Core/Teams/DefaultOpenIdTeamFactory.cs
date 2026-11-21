@@ -55,6 +55,11 @@ internal class DefaultOpenIdTeamFactory(
             ? parentTeam.Value.SettingsProvider
             : openIdPlatform.SettingsProvider;
 
+        // The team owns a clone of its parent's bag, as its settings layer over its parent's; the caller's bag serves this call only (ADR-1518).
+        var parentPropertyBag = parentTeam.IsActive
+            ? parentTeam.Value.PropertyBag
+            : openIdPlatform.PropertyBag;
+
         var initialSettings = EffectiveSettingsResolver.ReadScopeSettings(
             parentSettingsProvider.Collection,
             OpenIdSettingScopes.Team,
@@ -86,7 +91,7 @@ internal class DefaultOpenIdTeamFactory(
             TeamPaths.Format([.. persistedTeam.AncestorTeamIds, persistedTeam.TeamId]),
             settingsReference,
             parentTeam.IsActive ? parentTeam.AddReference() : default,
-            propertyBag
+            parentPropertyBag.Clone()
         );
 
         return team.AsSharedReference();
