@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers;
+using System.Buffers.Text;
 using System.Security.Cryptography;
 using System.Text.Json;
 using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.Jose.Algorithms.Compression;
 using NCode.Identity.Jose.Exceptions;
 
@@ -98,7 +98,7 @@ partial class JoseSerializer
                 );
                 keyManagementAlgorithm.WrapKey(secretKey, recipientHeader, cek, encryptedKeyBuffer);
 
-                encodedEncryptedKeys.Add(Base64Url.Encode(encryptedKeyBuffer.WrittenSpan));
+                encodedEncryptedKeys.Add(Base64Url.EncodeToString(encryptedKeyBuffer.WrittenSpan));
                 recipientHeaders.Add(recipientHeader);
             }
         }
@@ -124,7 +124,7 @@ partial class JoseSerializer
 
             recipientHeader.Remove(JoseClaimNames.Header.Enc);
 
-            encodedEncryptedKeys.Add(Base64Url.Encode(encryptedKeyBuffer.WrittenSpan));
+            encodedEncryptedKeys.Add(Base64Url.EncodeToString(encryptedKeyBuffer.WrittenSpan));
             recipientHeaders.Add(recipientHeader);
         }
 
@@ -175,9 +175,9 @@ partial class JoseSerializer
             tag
         );
 
-        var encodedIv = Base64Url.Encode(nonce);
-        var encodedTag = Base64Url.Encode(tag);
-        var encodedCiphertext = Base64Url.Encode((ReadOnlySpan<byte>)cipherText);
+        var encodedIv = Base64Url.EncodeToString(nonce);
+        var encodedTag = Base64Url.EncodeToString(tag);
+        var encodedCiphertext = Base64Url.EncodeToString((ReadOnlySpan<byte>)cipherText);
 
         using var jsonBuffer = BufferFactory.CreatePooledBufferWriter(isSensitive: false, 1024);
 
@@ -272,7 +272,7 @@ partial class JoseSerializer
             return Encode(SecureEncoding.ASCII, encodedProtected, out associatedData);
         }
 
-        encodedAad = Base64Url.Encode(additionalAuthenticatedData.Value.Span);
+        encodedAad = Base64Url.EncodeToString(additionalAuthenticatedData.Value.Span);
         var combined = string.Concat(encodedProtected, ".", encodedAad);
         return Encode(SecureEncoding.ASCII, combined.AsSpan(), out associatedData);
     }

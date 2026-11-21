@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers;
+using System.Buffers.Text;
 using System.Security.Cryptography;
 using System.Text;
 using JetBrains.Annotations;
 using NCode.Buffers;
-using NCode.Encoders;
 using NCode.Identity.Jose.Algorithms;
 
 namespace NCode.Identity.Jose.SdJwt.Digests;
@@ -80,6 +80,6 @@ public sealed class SdJwtDigestAlgorithm
                 "The hash function did not produce the expected number of bytes."
             );
 
-        return Base64Url.Encode(digest);
+        return Base64Url.EncodeToString(digest);
     }
 }

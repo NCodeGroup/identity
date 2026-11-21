@@ -1,7 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using NCode.Encoders;
+using System.Buffers.Text;
 
 namespace NCode.Identity.Cryptography;
 
@@ -14,5 +14,5 @@ internal sealed class Base64UrlBinaryEncoder : IBinaryEncoder
     public string Name => BinaryEncodings.Base64Url;
 
     /// <inheritdoc />
-    public string Encode(ReadOnlySpan<byte> data) => Base64Url.Encode(data);
+    public string Encode(ReadOnlySpan<byte> data) => Base64Url.EncodeToString(data);
 }

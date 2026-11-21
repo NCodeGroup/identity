@@ -1,11 +1,11 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Buffers.Text;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
-using NCode.Encoders;
 using NCode.Identity.Jose;
 using NCode.Identity.Json;
 using NCode.Identity.Secrets;
@@ -154,7 +154,7 @@ internal static class DefaultValidationKeyResolver
         {
             decoded =
                 encoded is not null
-                && encoded.Length == Base64Url.GetCharCountForEncode(digest.Length)
+                && encoded.Length == Base64Url.GetEncodedLength(digest.Length)
                 && StrictBase64Url.TryDecode(encoded, digest, out bytesWritten);
         }
         catch (FormatException exception)

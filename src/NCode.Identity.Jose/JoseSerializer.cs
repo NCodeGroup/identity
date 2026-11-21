@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers;
+using System.Buffers.Text;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using NCode.Buffers;
 using NCode.Disposables;
-using NCode.Encoders;
 using NCode.Identity.Jose.Algorithms;
 using NCode.Identity.Jose.Exceptions;
 using NCode.Identity.Json;
@@ -398,12 +398,31 @@ internal partial class JoseSerializer(
     {
         if (b64)
         {
-            Base64Url.Encode(bytes, writer);
+            if (bytes.IsSingleSegment)
+            {
+                EncodeBase64Url(bytes.FirstSpan, writer);
+            }
+            else
+            {
+                using var lease = BufferFactory.Rent(
+                    checked((int)bytes.Length),
+                    isSensitive: false,
+                    out Span<byte> copy
+                );
+                bytes.CopyTo(copy);
+                EncodeBase64Url(copy, writer);
+            }
         }
         else
         {
             SecureEncoding.UTF8.GetChars(bytes, writer);
         }
+    }
+
+    private static void EncodeBase64Url(ReadOnlySpan<byte> bytes, IBufferWriter<char> writer)
+    {
+        var span = writer.GetSpan(Base64Url.GetEncodedLength(bytes.Length));
+        writer.Advance(Base64Url.EncodeToChars(bytes, span));
     }
 
     private IDisposable EncodeJose<T>(bool b64, T value, out ReadOnlySpan<char> chars)
@@ -430,10 +449,10 @@ internal partial class JoseSerializer(
         {
             if (b64)
             {
-                var charCount = Base64Url.GetCharCountForEncode(byteCount);
+                var charCount = Base64Url.GetEncodedLength(byteCount);
                 var span = buffer.GetSpan(charCount);
 
-                var result = Base64Url.TryEncode(bytes, span, out var charsWritten);
+                var result = Base64Url.TryEncodeToChars(bytes, span, out var charsWritten);
                 buffer.Advance(charsWritten);
                 Debug.Assert(result);
 
@@ -521,10 +540,10 @@ internal partial class JoseSerializer(
 
         if (b64)
         {
-            encodeCount = Base64Url.GetCharCountForEncode(byteCount);
+            encodeCount = Base64Url.GetEncodedLength(byteCount);
             chars = writer.GetSpan(encodeCount + dotLength);
 
-            var result = Base64Url.TryEncode(bytes, chars, out var charsWritten);
+            var result = Base64Url.TryEncodeToChars(bytes, chars, out var charsWritten);
             Debug.Assert(result && charsWritten == encodeCount);
         }
         else
