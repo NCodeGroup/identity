@@ -1,7 +1,7 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Security.Cryptography;
+using NCode.Buffers;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.SharedState;
 
@@ -20,6 +20,16 @@ internal sealed class DefaultDPoPNonceService(IExpiringKeySet keySet, TimeProvid
 
     private static TimeSpan NonceLifetime => TimeSpan.FromMinutes(5);
 
+    private static string CreateNonce()
+    {
+        using var owner = BufferFactory.RentRandom(
+            NonceByteLength,
+            isSensitive: false,
+            out Span<byte> bytes
+        );
+        return Convert.ToHexStringLower(bytes);
+    }
+
     private IExpiringKeySet KeySet { get; } = keySet;
 
     private TimeProvider TimeProvider { get; } = timeProvider;
@@ -30,7 +40,7 @@ internal sealed class DefaultDPoPNonceService(IExpiringKeySet keySet, TimeProvid
         CancellationToken cancellationToken
     )
     {
-        var nonce = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(NonceByteLength));
+        var nonce = CreateNonce();
         var key = ExpiringKeys.Create(Purpose, openIdContext.Tenant.TenantId, nonce);
 
         // A key already present is a live nonce with this value, which validates just the same.

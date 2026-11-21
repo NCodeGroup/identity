@@ -4,6 +4,7 @@
 using System.Buffers.Text;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.DataProtection;
+using NCode.Buffers;
 using NCode.Identity.Secrets.KeyMaterial;
 using NCode.Identity.Secrets.Keys;
 using NCode.Identity.Secrets.KeyTypes;
@@ -66,7 +67,7 @@ internal sealed class DefaultTenantTransferKeyService(
         var pkcs8 = ecdh.ExportPkcs8PrivateKey();
         try
         {
-            var keyId = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(KeyIdSizeBytes));
+            var keyId = CreateKeyId();
             var secretKey = SecretKeyFactory.CreateEccPkcs8(CreateMetadata(keyId), pkcs8);
 
             if (
@@ -128,6 +129,16 @@ internal sealed class DefaultTenantTransferKeyService(
                 CryptographicOperations.ZeroMemory(pkcs8);
             }
         }
+    }
+
+    private static string CreateKeyId()
+    {
+        using var owner = BufferFactory.RentRandom(
+            KeyIdSizeBytes,
+            isSensitive: false,
+            out Span<byte> bytes
+        );
+        return Base64Url.EncodeToString(bytes);
     }
 
     private static KeyMetadata CreateMetadata(string keyId) =>

@@ -78,9 +78,7 @@ internal class DefaultDPoPProofService(
         {
             [JoseClaimNames.Payload.Htm] = options.HttpMethod,
             [JoseClaimNames.Payload.Htu] = htu,
-            [JoseClaimNames.Payload.Jti] = Base64Url.Encode(
-                RandomNumberGenerator.GetBytes(JtiSizeBytes)
-            ),
+            [JoseClaimNames.Payload.Jti] = CreateJti(),
             [JoseClaimNames.Payload.Iat] = TimeProvider.GetUtcNow().ToUnixTimeSeconds(),
         };
 
@@ -447,6 +445,16 @@ internal class DefaultDPoPProofService(
 
         error = null;
         return true;
+    }
+
+    private static string CreateJti()
+    {
+        using var owner = BufferFactory.RentRandom(
+            JtiSizeBytes,
+            isSensitive: false,
+            out Span<byte> bytes
+        );
+        return Base64Url.Encode(bytes);
     }
 
     private static string ComputeAccessTokenHash(string accessToken) =>
