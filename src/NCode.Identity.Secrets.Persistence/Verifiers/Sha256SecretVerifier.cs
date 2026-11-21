@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Security.Cryptography;
+using NCode.Buffers;
 using NCode.Identity.Secrets.Keys;
 using NCode.Identity.Secrets.Verifiers;
 
@@ -11,9 +12,10 @@ namespace NCode.Identity.Secrets.Persistence.Verifiers;
 /// Provides a <see cref="SecretVerifier"/> that holds the SHA-256 digest of a secret the server generated.
 /// </summary>
 // See ADR-1391.
-internal sealed class Sha256SecretVerifier(KeyMetadata metadata, byte[] digest) : SecretVerifier
+internal sealed class Sha256SecretVerifier(KeyMetadata metadata, Secret<byte> digest)
+    : SecretVerifier
 {
-    private byte[] Digest { get; } = digest;
+    private Secret<byte> Digest { get; } = digest;
 
     /// <inheritdoc />
     public override KeyMetadata Metadata { get; } = metadata;
@@ -44,11 +46,22 @@ internal sealed class Sha256SecretVerifier(KeyMetadata metadata, byte[] digest) 
         try
         {
             SHA256.HashData(secret, computed);
-            return CryptographicOperations.FixedTimeEquals(computed, Digest);
+            return Digest.FixedTimeEquals(computed);
         }
         finally
         {
             CryptographicOperations.ZeroMemory(computed);
         }
+    }
+
+    /// <inheritdoc />
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            Digest.Dispose();
+        }
+
+        base.Dispose(disposing);
     }
 }

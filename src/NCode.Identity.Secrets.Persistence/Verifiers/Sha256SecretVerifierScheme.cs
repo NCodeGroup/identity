@@ -44,11 +44,14 @@ internal sealed class Sha256SecretVerifierScheme : ISecretVerifierScheme
     {
         verifier = null;
 
-        if (
-            !SecretVerifierFormat.TryDecode(parameters, out var digest)
-            || digest.Length != SHA256.HashSizeInBytes
-        )
+        if (!SecretVerifierFormat.TryDecodeParameter(parameters, out var digest))
         {
+            return false;
+        }
+
+        if (digest.Length != SHA256.HashSizeInBytes)
+        {
+            digest.Dispose();
             return false;
         }
 

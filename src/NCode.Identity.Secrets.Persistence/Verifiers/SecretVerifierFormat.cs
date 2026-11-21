@@ -138,6 +138,41 @@ internal static class SecretVerifierFormat
     }
 
     /// <summary>
+    /// Decodes a non-empty base64url parameter that holds no <c>$</c> into a <see cref="Secret{T}"/>, so the decoded
+    /// octets are held in memory that is zeroed when the secret is disposed.
+    /// </summary>
+    /// <param name="text">The parameter.</param>
+    /// <param name="value">When this method returns <see langword="true"/>, the secret that holds the decoded octets.
+    /// The caller owns it and disposes it.</param>
+    /// <returns><see langword="true"/> when <paramref name="text"/> is valid base64url.</returns>
+    public static bool TryDecodeParameter(
+        ReadOnlySpan<byte> text,
+        [NotNullWhen(true)] out Secret<byte>? value
+    )
+    {
+        value = null;
+
+        if (text.IsEmpty || text.Contains(Separator) || !Base64Url.IsValid(text))
+        {
+            return false;
+        }
+
+        using var lease = BufferFactory.Rent(
+            Base64Url.GetMaxDecodedLength(text.Length),
+            isSensitive: true,
+            out Span<byte> decoded
+        );
+
+        if (!Base64Url.TryDecodeFromUtf8(text, decoded, out var written))
+        {
+            return false;
+        }
+
+        value = Secret.Create<byte>(decoded[..written]);
+        return true;
+    }
+
+    /// <summary>
     /// Writes the base64url encoding of the specified octets.
     /// </summary>
     /// <param name="value">The octets.</param>
