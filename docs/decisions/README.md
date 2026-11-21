@@ -182,6 +182,7 @@ The records are grouped by area; within an area they are in number order.
 | [1426](./1426-a-team-can-nest-beneath-a-parent-team-and-its-subtree-is-walked-depth-first.md) | A team can nest beneath a parent team, and its subtree is walked depth first | Accepted |
 | [1514](./1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md) | A tenant moves between cells of one region through an encrypted export and import | Accepted |
 | [1517](./1517-internal-surrogate-keys-are-uuidv7-minted-in-process-behind-one-seam-and-never-reach-a-caller.md) | Internal surrogate keys are UUIDv7 minted in-process behind one seam, and never reach a caller | Accepted |
+| [1518](./1518-a-long-lived-openid-object-owns-a-concurrent-property-bag-and-an-operation-layers-a-child-over-its-owners.md) | A long-lived OpenID object owns a concurrent property bag, and an operation layers a child over its owner's | Accepted |
 
 ### Management API
 
