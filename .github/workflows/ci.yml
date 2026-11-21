@@ -26,11 +26,15 @@ on:
     branches: [main, 'release/**']
   merge_group:
     types: [checks_requested]
+  # The template's tag-release.yml runs this workflow before it tags a release and grants it only contents: read:
+  # GitHub fails that run as it starts when a job here asks for more, whatever its if: says, so the Codecov upload
+  # runs in codecov-upload.yml, a workflow of its own (project-template ADR-0026, ADR-1143).
+  workflow_call:
   workflow_dispatch:
 
-# Least privilege: the gate job only reads the tree, and nothing here publishes. The one write-scoped permission —
-# `id-token: write`, to authenticate the Codecov upload over OIDC — belongs to the separate codecov job, never to the gate
-# job that executes third-party build and test code (ADR-1143).
+# Least privilege: the gate job only reads the tree, and no job here asks for more than contents: read. The Codecov
+# upload, which needs id-token: write, runs after this workflow in codecov-upload.yml, never beside the gate job
+# that executes third-party build and test code (ADR-1143).
 permissions:
   contents: read
 
@@ -133,18 +137,3 @@ jobs:
           path: artifacts/openapi/
           retention-days: 14
           if-no-files-found: warn
-
-  # Reporting, not gating: runs after the gate whatever its verdict (failed tests are still worth reporting), and is
-  # never a required check. Skipped in the merge queue: its run duplicates the coverage main's push uploads.
-  codecov:
-    name: Codecov
-    needs: definition-of-done
-    if: ${{ !cancelled() && github.event_name != 'merge_group' }}
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/codecov-upload.yml
-    with:
-      flag: dotnet
-      coverage-artifact: coverage
-      test-results-artifact: test-results
