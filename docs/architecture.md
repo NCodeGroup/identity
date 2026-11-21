@@ -8,7 +8,9 @@ requirements.
 
 ## Components
 
-Not described yet.
+The packages, hosts, analyzers and web apps, and the folder each lives in, are listed in
+[AGENTS.md](../AGENTS.md#layout). [capabilities/](capabilities/README.md) describes each capability's architecture, with
+the decisions and code behind it.
 
 ## Design Rules
 
@@ -19,8 +21,7 @@ Not described yet.
 
 ## Build and Release
 
-CI runs the project's commands on every pull request
-(`.github/workflows/ci.yml`). Releases are tagged when `AGENTS.md`'s Landing section sets `release: tag`, and published too with
-`tag+release`, as
-[ADR-0016](decisions/project-template/0016-releases-are-tagged-and-published-when-their-pull-request-merges.md)
-records.
+CI runs the Definition of Done, `./build/dod.ps1`, on every pull request, in the merge queue and on each push to `main`
+or a release line (`.github/workflows/ci.yml`), and `.github/workflows/frontend.yml` gates the web apps' workspace.
+Releases are cut from `release/vX.Y` lines and published as [GOVERNANCE.md](../GOVERNANCE.md#releases-branches--tags)
+describes; `AGENTS.md`'s Landing section says `release: none`, so no plan tags a release.
