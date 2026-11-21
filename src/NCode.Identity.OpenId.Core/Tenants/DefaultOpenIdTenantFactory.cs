@@ -220,7 +220,8 @@ public class DefaultOpenIdTenantFactory(
     )
     {
         var tenantId = resolvedTenant.TenantId;
-        var tenantPropertyBag = propertyBag.Clone();
+        // The materialization runs on a child of the caller's bag; the tenant owns a clone of its team's bag (ADR-1518).
+        var operationPropertyBag = propertyBag.CreateChild();
 
         // The team is checked before the tenant is seeded: a disabled team answers 404 without running the seed
         // pipeline, so a suspended customer's rows are not written and repeated requests cost no seed. A tenant never
@@ -229,7 +230,7 @@ public class DefaultOpenIdTenantFactory(
             openIdEnvironment,
             openIdPlatform,
             resolvedTenant,
-            tenantPropertyBag,
+            operationPropertyBag,
             cancellationToken
         );
 
@@ -246,7 +247,7 @@ public class DefaultOpenIdTenantFactory(
             openIdEnvironment,
             team.Value,
             persistedTenant,
-            tenantPropertyBag,
+            operationPropertyBag,
             cancellationToken
         );
 
@@ -254,7 +255,7 @@ public class DefaultOpenIdTenantFactory(
             httpContext,
             persistedTenant,
             tenantSettings,
-            tenantPropertyBag,
+            operationPropertyBag,
             cancellationToken
         );
 
@@ -263,7 +264,7 @@ public class DefaultOpenIdTenantFactory(
             persistedTenant,
             tenantIssuer,
             tenantSettings,
-            tenantPropertyBag,
+            operationPropertyBag,
             cancellationToken
         );
 
@@ -273,7 +274,7 @@ public class DefaultOpenIdTenantFactory(
             tenantIssuer,
             tenantBaseAddress,
             tenantSettings,
-            tenantPropertyBag,
+            operationPropertyBag,
             cancellationToken
         );
 
@@ -285,14 +286,14 @@ public class DefaultOpenIdTenantFactory(
             tenantBaseAddress,
             tenantSettings,
             tenantSecrets,
-            tenantPropertyBag,
+            operationPropertyBag,
             cancellationToken
         );
 
         await TenantCache.SetAsync(
             tenantId,
             newTenantReference,
-            tenantPropertyBag,
+            operationPropertyBag,
             cancellationToken
         );
 
@@ -314,13 +315,13 @@ public class DefaultOpenIdTenantFactory(
         // administrative operation acts on the tenant as it is stored now rather than as a request last cached it.
         var persistedTenant = await LoadPersistedTenantAsync(tenantId, cancellationToken);
 
-        var tenantPropertyBag = propertyBag.Clone();
+        var operationPropertyBag = propertyBag.CreateChild();
 
         await using var team = await GetEnabledTeamAsync(
             openIdEnvironment,
             openIdPlatform,
             persistedTenant,
-            tenantPropertyBag,
+            operationPropertyBag,
             cancellationToken
         );
 
@@ -329,7 +330,7 @@ public class DefaultOpenIdTenantFactory(
             openIdEnvironment,
             team.Value,
             persistedTenant,
-            tenantPropertyBag,
+            operationPropertyBag,
             cancellationToken
         );
 
@@ -338,7 +339,7 @@ public class DefaultOpenIdTenantFactory(
             httpContext,
             persistedTenant,
             tenantSettings,
-            tenantPropertyBag,
+            operationPropertyBag,
             cancellationToken
         );
 
@@ -347,7 +348,7 @@ public class DefaultOpenIdTenantFactory(
             persistedTenant,
             tenantIssuer,
             tenantSettings,
-            tenantPropertyBag,
+            operationPropertyBag,
             cancellationToken
         );
 
@@ -357,7 +358,7 @@ public class DefaultOpenIdTenantFactory(
             tenantIssuer,
             tenantBaseAddress,
             tenantSettings,
-            tenantPropertyBag,
+            operationPropertyBag,
             cancellationToken
         );
 
@@ -369,7 +370,7 @@ public class DefaultOpenIdTenantFactory(
             tenantBaseAddress,
             tenantSettings,
             tenantSecrets,
-            tenantPropertyBag,
+            operationPropertyBag,
             cancellationToken
         );
 
@@ -728,7 +729,7 @@ public class DefaultOpenIdTenantFactory(
             tenantSettings,
             tenantSecrets,
             team.AddReference(),
-            propertyBag
+            team.Value.PropertyBag.Clone()
         );
 
         return ValueTask.FromResult(tenant.AsSharedReference());
