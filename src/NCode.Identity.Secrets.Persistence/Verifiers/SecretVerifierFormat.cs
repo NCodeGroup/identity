@@ -5,6 +5,7 @@ using System.Buffers;
 using System.Buffers.Text;
 using System.Diagnostics.CodeAnalysis;
 using NCode.Buffers;
+using NCode.Identity.Json;
 using NCode.Identity.Secrets.Keys;
 using NCode.Identity.Secrets.Verifiers;
 
@@ -127,18 +128,18 @@ internal static class SecretVerifierFormat
     {
         value = null;
 
-        if (text.IsEmpty || text.Contains(Separator) || !Base64Url.IsValid(text))
+        if (text.IsEmpty || !StrictBase64Url.IsValid(text))
         {
             return false;
         }
 
         using var lease = BufferFactory.Rent(
-            Base64Url.GetMaxDecodedLength(text.Length),
+            StrictBase64Url.GetDecodedLength(text.Length),
             isSensitive: true,
             out Span<byte> decoded
         );
 
-        if (!Base64Url.TryDecodeFromUtf8(text, decoded, out var written))
+        if (!StrictBase64Url.TryDecode(text, decoded, out var written))
         {
             return false;
         }
