@@ -19,6 +19,7 @@ using NCode.Identity.Secrets;
 using NCode.Identity.Secrets.KeyMaterial;
 using NCode.Identity.Secrets.Keys;
 using NCode.Identity.Secrets.RemoteKeys;
+using NCode.PropertyBag;
 
 namespace NCode.Identity.Jwt.Validation;
 
@@ -364,6 +365,28 @@ public sealed class DefaultJwtValidatorTests : IAsyncLifetime, IDisposable
         Assert.False(result.IsValid);
         Assert.Contains("none", result.Exception.Message, StringComparison.Ordinal);
         Assert.Equal(JwtValidationFailureCodes.AlgorithmNotPermitted, result.FailureCode);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_WhenUnsecuredJws_CarriesAChildOfTheParametersBag()
+    {
+        JwtValidationParameters? parameters = null;
+
+        var result = await ValidateAsync(
+            CreateUnsecuredToken(),
+            x =>
+            {
+                parameters = x;
+                x.UseValidationKeys([SigningKey]);
+            },
+            CancellationToken.None
+        );
+
+        Assert.NotNull(parameters);
+        Assert.Same(
+            parameters.PropertyBag,
+            Assert.IsType<LayeredPropertyBag>(result.PropertyBag).Parent
+        );
     }
 
     [Fact]
