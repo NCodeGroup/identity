@@ -80,15 +80,16 @@ become text, only through a strict encoding.
     `BufferFactory.CreateContiguousBufferWriter(isSensitive:)`; a stream over one pooled buffer is
     `CreatePooledStream(isSensitive:)`; sensitive text is built in a `PooledTextBuilder`; a secret held in a field is a
     `Secret<T>`, whose `Reveal()` is the one way to read it.
-12. **One strict base64url decoder.** Base64url text is decoded only through `StrictBase64Url` in
-    `NCode.Identity.Json`, which accepts the canonical unpadded alphabet of RFC 4648 §5 and RFC 7515 §2, refuses
-    padding, whitespace, a one-character remainder and non-zero trailing bits, and then runs the .NET decoder that
-    `BinaryTextEncoding` runs; its `RentDecoded` delegates to `BinaryTextEncoding.RentDecoded`.
-    Base64url text is encoded with `System.Buffers.Text.Base64Url`, the one base64url implementation the family
-    references. `BannedSymbols.Buffers.txt` bans the decode and validation members of `System.Buffers.Text.Base64Url`,
-    and `RandomNumberGenerator.GetBytes(int)`, in every project that is not a test project, and only `StrictBase64Url`
-    suppresses `RS0030`. `BinaryTextEncoding.RentDecoded` with `BinaryTextFormat.Base64Url`, which accepts padding and
-    whitespace, is called only there; review checks it, because one method symbol covers every format.
+12. **One strict base64url decoder.** Base64url text is decoded only through `StrictBase64Url` in `NCode.Identity.Json`,
+    which accepts the canonical unpadded alphabet of RFC 4648 §5 and RFC 7515 §2, refuses padding, whitespace, a
+    one-character remainder and non-zero trailing bits, and then runs the .NET decoder; its `RentDecoded` decodes
+    through `BinaryTextEncoding.RentDecoded` with NCode.Buffers' `BinaryTextFormat.Base64UrlStrict`
+    ([NCodeGroup/Buffers ADR-1031](https://github.com/NCodeGroup/Buffers/blob/main/docs/decisions/1031-a-strict-base64url-format-decodes-only-the-canonical-unpadded-text-jose-requires.md)),
+    which refuses the same text. Base64url text is encoded with `System.Buffers.Text.Base64Url`, the one base64url
+    implementation the family references. `BannedSymbols.Buffers.txt` bans the decode and validation members of
+    `System.Buffers.Text.Base64Url`, and `RandomNumberGenerator.GetBytes(int)`, in every project that is not a test
+    project, and only `StrictBase64Url` suppresses `RS0030`. `BannedSymbols.Buffers.txt` also bans
+    `BinaryTextFormat.Base64Url`, which accepts padding and whitespace, so no rental decodes base64url leniently.
 
 ### Implementation notes
 
@@ -108,8 +109,9 @@ become text, only through a strict encoding.
   nothing, so tests are bound too. Rejected.
 - **Ban `HttpResponse.WriteAsync(string)`.** The request-delegate generator emits it, so the ban fails generated
   code. Rejected.
-- **A strict format in `NCode.Buffers`.** The strictness JOSE requires is the family's protocol rule, which its
-  foundation package owns beside the JSON value model of JOSE, and the guard runs the same .NET decoder. Rejected.
+- **Only NCode.Buffers' strict format.** `BinaryTextFormat.Base64UrlStrict` decodes char text into a rental; the family
+  also decodes UTF-8 segments, into caller buffers and into writers, so `StrictBase64Url` serves those and delegates its
+  rental to the format. Rejected.
 - **Rent every buffer from `BufferFactory`, state sensitivity at the call, and ban the lenient encodings in every
   project.** The analyzer enforces the encoding rule and the one rental API makes sensitivity visible. Chosen.
 
