@@ -855,6 +855,8 @@ public class DefaultSecretSerializerTests : BaseTests
 
         public string Name => SchemeName;
 
+        public List<PlainTextSecretVerifier> Created { get; } = [];
+
         public void WriteParameters(ReadOnlySpan<byte> secret, IBufferWriter<byte> destination) =>
             destination.Write(secret);
 
@@ -864,7 +866,9 @@ public class DefaultSecretSerializerTests : BaseTests
             [NotNullWhen(true)] out SecretVerifier? verifier
         )
         {
-            verifier = new PlainTextSecretVerifier(metadata, parameters.ToArray());
+            var created = new PlainTextSecretVerifier(metadata, parameters.ToArray());
+            Created.Add(created);
+            verifier = created;
             return true;
         }
     }
@@ -878,6 +882,18 @@ public class DefaultSecretSerializerTests : BaseTests
         public override string Scheme => PlainTextSecretVerifierScheme.SchemeName;
 
         public override bool HasWorkFactor => false;
+
+        public bool IsDisposed { get; private set; }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                IsDisposed = true;
+            }
+
+            base.Dispose(disposing);
+        }
 
         public override ValueTask<SecretVerificationResult> VerifyAsync(
             ReadOnlyMemory<byte> presented,
@@ -931,13 +947,33 @@ public class DefaultSecretSerializerTests : BaseTests
         var protector = CreateProtector();
         var persisted = CreateVerifierSecret(protector, "$test-plain$secret");
 
-        var verifier = Assert.Single(serializer.DeserializeVerifiers(protector, [persisted]));
+        using var verifier = Assert.Single(serializer.DeserializeVerifiers(protector, [persisted]));
 
         Assert.Equal("test-plain", verifier.Scheme);
         Assert.Equal(
             SecretVerificationResult.Success,
             await verifier.VerifyAsync("secret"u8.ToArray(), CancellationToken.None)
         );
+    }
+
+    [Fact]
+    public void DeserializeVerifiers_WhenALaterVerifierCannotBeRead_DisposesTheVerifiersItRead()
+    {
+        var scheme = new PlainTextSecretVerifierScheme();
+        var serializer = new DefaultSecretSerializer(
+            Catalog,
+            new DefaultSecretVerifierSchemeCatalog([scheme]),
+            new DefaultRemoteKeyResolver(Catalog, RemoteCatalog, RemoteDescriptorCatalog)
+        );
+        var protector = CreateProtector();
+        var first = CreateVerifierSecret(protector, "$test-plain$secret", "first");
+        var second = CreateVerifierSecret(protector, "$unknown-scheme$AAAA", "second");
+
+        Assert.Throws<FormatException>(() =>
+            serializer.DeserializeVerifiers(protector, [first, second])
+        );
+
+        Assert.True(Assert.Single(scheme.Created).IsDisposed);
     }
 
     [Fact]

@@ -90,7 +90,7 @@ public class SecretVerifierFormatTests
     [Fact]
     public async Task Write_WhenSha256_RoundTripsThroughTryParse()
     {
-        var verifier = Parse(Write(SecretVerifierSchemes.Sha256, Secret));
+        using var verifier = Parse(Write(SecretVerifierSchemes.Sha256, Secret));
 
         Assert.Equal(SecretVerifierSchemes.Sha256, verifier.Scheme);
         Assert.Equal("secret-1", verifier.KeyId);
@@ -135,7 +135,7 @@ public class SecretVerifierFormatTests
     [Fact]
     public async Task Write_WhenPbkdf2_RoundTripsThroughTryParse()
     {
-        var verifier = Parse(Write(SecretVerifierSchemes.Pbkdf2Sha256, Secret));
+        using var verifier = Parse(Write(SecretVerifierSchemes.Pbkdf2Sha256, Secret));
 
         Assert.Equal(SecretVerifierSchemes.Pbkdf2Sha256, verifier.Scheme);
         Assert.True(await VerifyAsync(verifier, Secret, CancellationToken.None));
@@ -150,7 +150,9 @@ public class SecretVerifierFormatTests
     public async Task TryParse_ReadsAPbkdf2VerifierOfTheFamilysPasswordHashFormatWithOtherParameters()
     {
         // The parameters come from the text, so a verifier made with other parameters keeps verifying.
-        var verifier = Parse(Pbkdf2Text(Secret, iterations: 1_234, saltLength: 32, keyLength: 64));
+        using var verifier = Parse(
+            Pbkdf2Text(Secret, iterations: 1_234, saltLength: 32, keyLength: 64)
+        );
 
         Assert.True(await VerifyAsync(verifier, Secret, CancellationToken.None));
         Assert.False(await VerifyAsync(verifier, OtherSecret, CancellationToken.None));
@@ -233,12 +235,43 @@ public class SecretVerifierFormatTests
     public void ToString_NamesTheKeyIdAndTheSchemeAndNothingElse()
     {
         var text = Sha256Text(Secret);
-        var verifier = Parse(text);
+        using var verifier = Parse(text);
 
         var formatted = verifier.ToString();
 
         Assert.Equal("SecretVerifier { KeyId = 'secret-1', Scheme = 'ncode-sha256' }", formatted);
         Assert.DoesNotContain(text["$ncode-sha256$".Length..], formatted, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_WhenTheSha256VerifierIsDisposed_ThrowsObjectDisposedException()
+    {
+        var verifier = Parse(Sha256Text(Secret));
+        verifier.Dispose();
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(async () =>
+            await verifier.VerifyAsync(Secret, CancellationToken.None)
+        );
+    }
+
+    [Fact]
+    public async Task VerifyAsync_WhenThePbkdf2VerifierIsDisposed_ThrowsObjectDisposedException()
+    {
+        var verifier = Parse(Pbkdf2Text(Secret, 1000, 16, 32));
+        verifier.Dispose();
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(async () =>
+            await verifier.VerifyAsync(Secret, CancellationToken.None)
+        );
+    }
+
+    [Fact]
+    public void Dispose_WhenCalledTwice_DoesNotThrow()
+    {
+        var verifier = Parse(Sha256Text(Secret));
+        verifier.Dispose();
+
+        verifier.Dispose();
     }
 
     #endregion
