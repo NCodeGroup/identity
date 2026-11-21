@@ -159,8 +159,8 @@ public static class StrictBase64Url
 
     /// <summary>
     /// Decodes strict base64url <paramref name="text"/> into a rented buffer. The decoded view is valid only until the
-    /// returned lease is disposed. It decodes through NCode.Buffers' <see cref="BinaryTextFormat.Base64UrlStrict"/>,
-    /// which refuses the same text as the other members.
+    /// returned lease is disposed. It accepts only canonical unpadded base64url and throws
+    /// <see cref="FormatException"/> for anything else.
     /// </summary>
     /// <param name="text">The text to decode.</param>
     /// <param name="isSensitive">Whether the rented buffer is pinned and zeroed when it is disposed.</param>
@@ -173,6 +173,7 @@ public static class StrictBase64Url
         out ReadOnlySpan<byte> bytes
     )
     {
+        // NCode.Buffers' Base64UrlStrict refuses the same text as the other members.
         var lease = BinaryTextEncoding.RentDecoded(
             text,
             BinaryTextFormat.Base64UrlStrict,
@@ -185,8 +186,8 @@ public static class StrictBase64Url
 
     /// <summary>
     /// Decodes strict base64url <paramref name="text"/> into a rented buffer. The decoded view is valid only until the
-    /// returned lease is disposed. It decodes through NCode.Buffers' <see cref="BinaryTextFormat.Base64UrlStrict"/>,
-    /// which refuses the same text as the other members.
+    /// returned lease is disposed. It accepts only canonical unpadded base64url and throws
+    /// <see cref="FormatException"/> for anything else.
     /// </summary>
     /// <param name="text">The text to decode.</param>
     /// <param name="isSensitive">Whether the rented buffer is pinned and zeroed when it is disposed.</param>
@@ -199,6 +200,7 @@ public static class StrictBase64Url
         out ReadOnlyMemory<byte> bytes
     )
     {
+        // NCode.Buffers' Base64UrlStrict refuses the same text as the other members.
         var lease = BinaryTextEncoding.RentDecoded(
             text,
             BinaryTextFormat.Base64UrlStrict,
