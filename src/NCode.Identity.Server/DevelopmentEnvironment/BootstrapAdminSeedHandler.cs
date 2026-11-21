@@ -4,8 +4,8 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using NCode.Buffers;
 using NCode.Identity.Cryptography;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId;
 using NCode.Identity.OpenId.Authentication.Clients;
 using NCode.Identity.OpenId.Management;
@@ -86,9 +86,8 @@ internal sealed class BootstrapAdminSeedHandler(
 
         // The configured secret is supplied Base64Url-encoded (not plaintext) so a raw process-memory snapshot does
         // not expose it directly; decode it straight into a pinned, zeroed-on-return buffer threaded as ReadOnlyMemory.
-        using var secretOwner = BinaryTextEncoding.RentDecoded(
+        using var secretOwner = StrictBase64Url.RentDecoded(
             clientSecret,
-            BinaryTextFormat.Base64Url,
             isSensitive: true,
             out Memory<byte> clientSecretBytes
         );

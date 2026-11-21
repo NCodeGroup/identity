@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using NCode.Buffers;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Jose;
+using NCode.Identity.Json;
 using NCode.Identity.OpenId;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
@@ -338,9 +339,8 @@ internal sealed class ConformanceSeedHandler(
     {
         // The secret is supplied Base64Url-encoded (not plaintext) so a raw process-memory snapshot does not expose it
         // directly; decode it straight into a pinned, zeroed-on-return buffer.
-        using var secretOwner = BinaryTextEncoding.RentDecoded(
+        using var secretOwner = StrictBase64Url.RentDecoded(
             encodedSecret,
-            BinaryTextFormat.Base64Url,
             isSensitive: true,
             out Span<byte> clientSecret
         );

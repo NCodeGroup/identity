@@ -1,8 +1,8 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Buffers.Text;
 using NCode.Buffers;
+using NCode.Identity.Json;
 
 namespace NCode.Identity.Server.DevelopmentEnvironment;
 
@@ -22,7 +22,7 @@ internal static class BootstrapAdminOptionsExtensions
         /// <returns>The decoded plaintext secret, or <c>null</c> when no secret is configured.</returns>
         public string? GetPresentableClientSecretOrDefault() =>
             options.ClientSecret is { Length: > 0 } encoded
-                ? SecureEncoding.UTF8.GetString(Base64Url.DecodeFromChars(encoded))
+                ? SecureEncoding.UTF8.GetString(StrictBase64Url.Decode(encoded))
                 : null;
     }
 }
