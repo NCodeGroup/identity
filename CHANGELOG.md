@@ -1027,7 +1027,6 @@ Until the first stable release, the [Unreleased] section describes the product a
   `WrappedKey.Ciphertext` stored as base64url into a caller-supplied span or `IBufferWriter<byte>` and throw
   `CryptographicException` for empty or malformed text; the AES-GCM, AWS KMS, Azure Key Vault and Google Cloud KMS
   wrappers decode through it, so every wrapper reports empty ciphertext as "The wrapped key is empty."
-  `NCode.Identity.Secrets.Abstractions` references `NCode.Base64Url`
   ([ADR-1260](docs/decisions/1260-a-key-wrapper-is-one-open-contract-and-each-key-management-service-has-one-adapter-package.md),
   [#373](https://github.com/NCodeGroup/identity/issues/373)).
 
@@ -5076,7 +5075,8 @@ Until the first stable release, the [Unreleased] section describes the product a
   `BinaryTextEncoding.RentDecoded`. Every JOSE, SD-JWT and client-assertion segment, every JWK and COSE key member, the
   JWE header members, `dpop_jkt`, the secret envelopes, the key wraps, the root key files, the verifiers, the stored
   password hashes, the page cursors and the configured client secrets are decoded through it, and any other base64url
-  decoder in code that is not a test fails the build ([#889](https://github.com/NCodeGroup/identity/issues/889),
+  decoder in code that is not a test fails the build. Base64url text is encoded with the .NET `Base64Url`, so the
+  family references one base64url implementation ([#889](https://github.com/NCodeGroup/identity/issues/889),
   [ADR-1266](docs/decisions/1266-binary-data-uses-bufferfactory-rentals-with-explicit-sensitivity-and-text-only-strict-encodings.md)).
 
 - **Decrypted JOSE payloads are zeroed when released.** A decrypted JWE payload, a payload serialized or compressed

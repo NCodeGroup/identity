@@ -31,8 +31,8 @@ configuration. No package of the client references an ASP.NET Core shared framew
    `SharedState.Abstractions`, `NCode.Identity.Json` and `NCode.Identity.Registration`
    ([ADR-1500](1500-every-package-names-one-capability-under-the-ncode-identity-prefix-as-an-abstractions-and-implementation-pair.md)),
    plus seven `Microsoft.Extensions.*` packages (`DependencyInjection.Abstractions`, `Diagnostics`,
-   `Hosting.Abstractions`, `Http`, `Logging.Abstractions`, `Options` and `Primitives`), `Polly.Core`, `NCode.Base64Url`,
-   `NCode.Buffers` and `Nerdbank.Streams`. The namespace is `NCode.Identity.OpenId.Client`, and the options are in
+   `Hosting.Abstractions`, `Http`, `Logging.Abstractions`, `Options` and `Primitives`), `Polly.Core`, `NCode.Buffers`
+   and `Nerdbank.Streams`. The namespace is `NCode.Identity.OpenId.Client`, and the options are in
    `NCode.Identity.OpenId.Client.Options`.
 2. **No ASP.NET Core runtime.** A console app or worker needs only `Microsoft.NETCore.App`. Status codes are the internal
    named `int` constants of `ProviderStatusCodes` (`Status200OK`, `Status201Created`) in

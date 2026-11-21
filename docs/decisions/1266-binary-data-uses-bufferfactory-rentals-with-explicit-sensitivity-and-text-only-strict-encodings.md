@@ -84,11 +84,11 @@ become text, only through a strict encoding.
     `NCode.Identity.Json`, which accepts the canonical unpadded alphabet of RFC 4648 §5 and RFC 7515 §2, refuses
     padding, whitespace, a one-character remainder and non-zero trailing bits, and then runs the .NET decoder that
     `BinaryTextEncoding` runs; its `RentDecoded` delegates to `BinaryTextEncoding.RentDecoded`.
-    `BannedSymbols.Buffers.txt` bans the decode and validation members of `System.Buffers.Text.Base64Url` and
-    `NCode.Encoders.Base64Url`, and `RandomNumberGenerator.GetBytes(int)`, in every project that is not a test project,
-    and only `StrictBase64Url` suppresses `RS0030`. `BinaryTextEncoding.RentDecoded` with `BinaryTextFormat.Base64Url`,
-    which accepts padding and whitespace, is called only there; review checks it, because one method symbol covers every
-    format.
+    Base64url text is encoded with `System.Buffers.Text.Base64Url`, the one base64url implementation the family
+    references. `BannedSymbols.Buffers.txt` bans the decode and validation members of `System.Buffers.Text.Base64Url`,
+    and `RandomNumberGenerator.GetBytes(int)`, in every project that is not a test project, and only `StrictBase64Url`
+    suppresses `RS0030`. `BinaryTextEncoding.RentDecoded` with `BinaryTextFormat.Base64Url`, which accepts padding and
+    whitespace, is called only there; review checks it, because one method symbol covers every format.
 
 ### Implementation notes
 
