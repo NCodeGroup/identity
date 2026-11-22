@@ -58,9 +58,9 @@ public interface ILocalAccountValidator
     );
 
     /// <summary>
-    /// Validates that the staged local account may be created. The default implementation reports 400 when the display
-    /// name is empty or longer than <see cref="AccountMaxLengths.DisplayName"/>, and 409 when another account holds the
-    /// username.
+    /// Validates that the staged local account may be created. The default implementation reports 400 when the username
+    /// is empty or longer than <see cref="AccountMaxLengths.UserName"/>, or when the display name is empty or longer
+    /// than <see cref="AccountMaxLengths.DisplayName"/>, and 409 when another account holds the username.
     /// </summary>
     /// <param name="account">The staged <see cref="PersistedLocalAccount"/> to be created, its display name defaulted and trimmed.</param>
     /// <param name="storeManager">The <see cref="IStoreManager"/> for the current unit of work.</param>
@@ -74,8 +74,8 @@ public interface ILocalAccountValidator
 
     /// <summary>
     /// Validates that the specified local account may be updated. The default implementation reports 400 when the
-    /// display name is empty or longer than <see cref="AccountMaxLengths.DisplayName"/>, and 409 when another account
-    /// holds the username.
+    /// username is empty or longer than <see cref="AccountMaxLengths.UserName"/>, or when the display name is empty or
+    /// longer than <see cref="AccountMaxLengths.DisplayName"/>, and 409 when another account holds the username.
     /// </summary>
     /// <param name="account">The current <see cref="PersistedLocalAccount"/> being updated.</param>
     /// <param name="model">The proposed (patched) profile, its display name trimmed.</param>

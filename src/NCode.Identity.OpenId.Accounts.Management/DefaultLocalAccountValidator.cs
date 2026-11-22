@@ -22,6 +22,34 @@ internal class DefaultLocalAccountValidator(IAuthorizationService authorizationS
         ILocalAccountValidator
 {
     /// <summary>
+    /// Checks the username, which identifies the account at sign-in, so it is required and bounded.
+    /// </summary>
+    /// <param name="userName">The proposed username.</param>
+    /// <returns>A <see cref="ManagementError"/> describing the refusal, or <c>null</c> when valid.</returns>
+    private static ManagementError? GetUserNameErrorOrDefault(string? userName)
+    {
+        if (string.IsNullOrWhiteSpace(userName))
+        {
+            return new ManagementError
+            {
+                StatusCode = StatusCodes.Status400BadRequest,
+                Detail = "The username is required.",
+            };
+        }
+
+        if (userName.Length > AccountMaxLengths.UserName)
+        {
+            return new ManagementError
+            {
+                StatusCode = StatusCodes.Status400BadRequest,
+                Detail = $"The username must be at most {AccountMaxLengths.UserName} characters.",
+            };
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Checks the display name, which is the source of the account's name claim, so it is required and bounded.
     /// </summary>
     /// <param name="displayName">The proposed display name, already trimmed.</param>
@@ -146,6 +174,11 @@ internal class DefaultLocalAccountValidator(IAuthorizationService authorizationS
         CancellationToken cancellationToken
     )
     {
+        if (GetUserNameErrorOrDefault(account.UserName) is { } userNameError)
+        {
+            return ValueTask.FromResult<ManagementError?>(userNameError);
+        }
+
         if (GetDisplayNameErrorOrDefault(account.DisplayName) is { } displayNameError)
         {
             return ValueTask.FromResult<ManagementError?>(displayNameError);
@@ -178,6 +211,11 @@ internal class DefaultLocalAccountValidator(IAuthorizationService authorizationS
         )
         {
             return ValueTask.FromResult<ManagementError?>(preconditionError);
+        }
+
+        if (GetUserNameErrorOrDefault(model.UserName) is { } userNameError)
+        {
+            return ValueTask.FromResult<ManagementError?>(userNameError);
         }
 
         if (GetDisplayNameErrorOrDefault(model.DisplayName) is { } displayNameError)
