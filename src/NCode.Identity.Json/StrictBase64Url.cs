@@ -151,7 +151,8 @@ public static class StrictBase64Url
         ArgumentNullException.ThrowIfNull(destination);
         ThrowIfInvalid(text);
 
-        var span = destination.GetSpan(GetDecodedLength(text.Length));
+        var decodedLength = GetDecodedLength(text.Length);
+        var span = destination.GetSpan(decodedLength);
         var written = Base64Url.DecodeFromChars(text, span);
         destination.Advance(written);
         return written;

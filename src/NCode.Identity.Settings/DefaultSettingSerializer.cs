@@ -151,7 +151,11 @@ internal class DefaultSettingSerializer(
 
         if (settingsJson.ValueKind != JsonValueKind.Object)
         {
-            errors.Add(new SettingError(string.Empty, "The settings must be a JSON object."));
+            var settingsError = new SettingError(
+                string.Empty,
+                "The settings must be a JSON object."
+            );
+            errors.Add(settingsError);
             return;
         }
 
@@ -161,18 +165,22 @@ internal class DefaultSettingSerializer(
             var settingName = jsonProperty.Name;
             if (!descriptors.TryGet(settingName, out var descriptor))
             {
-                errors.Add(
-                    new SettingError(settingName, $"'{settingName}' is not a registered setting.")
+                var notRegisteredError = new SettingError(
+                    settingName,
+                    $"'{settingName}' is not a registered setting."
                 );
+                errors.Add(notRegisteredError);
                 continue;
             }
 
             // A setting the scope never reads would be stored without effect, whatever its value (ADR-1149).
             if (!scopes.AppliesWithin(descriptor, scopeName, out var scopeFailure))
             {
-                errors.Add(
-                    new SettingError(settingName, $"The setting '{settingName}' {scopeFailure}.")
+                var scopeError = new SettingError(
+                    settingName,
+                    $"The setting '{settingName}' {scopeFailure}."
                 );
+                errors.Add(scopeError);
                 continue;
             }
 
@@ -183,16 +191,20 @@ internal class DefaultSettingSerializer(
                     jsonProperty.Value.ValueKind == JsonValueKind.Null
                         ? $"The setting '{settingName}' has no default, so it must be {expected}, not null."
                         : $"The setting '{settingName}' must be {expected}.";
-                errors.Add(new SettingError(settingName, message));
+                var valueTypeError = new SettingError(settingName, message);
+                errors.Add(valueTypeError);
                 continue;
             }
 
             // A value of the right type is still rejected when it is outside the setting's domain (ADR-1140).
-            if (!descriptor.TryValidate(setting.GetValue(), out var failure))
+            var settingValue = setting.GetValue();
+            if (!descriptor.TryValidate(settingValue, out var failure))
             {
-                errors.Add(
-                    new SettingError(settingName, $"The setting '{settingName}' {failure}.")
+                var domainError = new SettingError(
+                    settingName,
+                    $"The setting '{settingName}' {failure}."
                 );
+                errors.Add(domainError);
                 continue;
             }
 

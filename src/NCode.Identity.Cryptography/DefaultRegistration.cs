@@ -29,15 +29,18 @@ public static class DefaultRegistration
 
             var newBuilder = serviceCollection.NewBuilder<CryptographyLibrary>();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IBinaryEncoder, Base64UrlBinaryEncoder>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IBinaryEncoder, Base64BinaryEncoder>()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IBinaryEncoder, HexBinaryEncoder>()
-            );
+            var base64UrlBinaryEncoder = ServiceDescriptor.Singleton<
+                IBinaryEncoder,
+                Base64UrlBinaryEncoder
+            >();
+            serviceCollection.TryAddEnumerable(base64UrlBinaryEncoder);
+            var base64BinaryEncoder = ServiceDescriptor.Singleton<
+                IBinaryEncoder,
+                Base64BinaryEncoder
+            >();
+            serviceCollection.TryAddEnumerable(base64BinaryEncoder);
+            var hexBinaryEncoder = ServiceDescriptor.Singleton<IBinaryEncoder, HexBinaryEncoder>();
+            serviceCollection.TryAddEnumerable(hexBinaryEncoder);
             serviceCollection.TryAddSingleton<ICryptoService, DefaultCryptoService>();
 
             return newBuilder;

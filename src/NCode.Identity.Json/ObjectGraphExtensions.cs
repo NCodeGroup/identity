@@ -134,15 +134,22 @@ public static class ObjectGraphExtensions
     private static bool TryConvertFromReal<T>(object source, [MaybeNullWhen(false)] out T value)
     {
         if (IsType<T, float>())
-            return Boxed(Convert.ToSingle(source, CultureInfo.InvariantCulture), out value);
+        {
+            var single = Convert.ToSingle(source, CultureInfo.InvariantCulture);
+            return Boxed(single, out value);
+        }
         if (IsType<T, double>())
-            return Boxed(Convert.ToDouble(source, CultureInfo.InvariantCulture), out value);
+        {
+            var real = Convert.ToDouble(source, CultureInfo.InvariantCulture);
+            return Boxed(real, out value);
+        }
 
         if (IsType<T, decimal>())
         {
             try
             {
-                return Boxed(Convert.ToDecimal(source, CultureInfo.InvariantCulture), out value);
+                var number = Convert.ToDecimal(source, CultureInfo.InvariantCulture);
+                return Boxed(number, out value);
             }
             catch (OverflowException)
             {
