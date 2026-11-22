@@ -4666,6 +4666,13 @@ Until the first stable release, the [Unreleased] section describes the product a
   ([#573](https://github.com/NCodeGroup/identity/issues/573),
   [ADR-1428](docs/decisions/1428-a-package-translates-the-exceptions-it-owns-into-protocol-errors-through-registered-translators.md)).
 
+- **An endpoint decides who may reach it before it reads the request.** `IEndpointGate` and
+  `AddEndpointGate<TBuilder, TGate>()` (`NCode.Identity.AspNetCore`) run a gate, created per request from the request's
+  services, before minimal APIs bind the endpoint's parameters and before its filters, a route group's gates before a
+  route's; a gate answers the request with a result or lets the endpoint run
+  ([#863](https://github.com/NCodeGroup/identity/issues/863),
+  [ADR-1520](docs/decisions/1520-a-caller-is-authenticated-before-its-request-body-is-read.md)).
+
 - **Every merge to `main` and every release tag publishes the host image, the management console image, the directory
   image, the chart and the host's OpenAPI document.** The five artifacts share one version on GHCR, are signed and
   carry build provenance, and a verification job pulls them anonymously; a stable version also tags every image
@@ -4783,15 +4790,24 @@ Until the first stable release, the [Unreleased] section describes the product a
 - **A management route's caller is only the principal its management access token authenticates.** On every management
   route `HttpContext.User` is the principal a valid management access token authenticates, or an anonymous principal
   whatever another authentication scheme set, such as a session cookie the host's default scheme reads, and
-  `IManagementCallerFeature` carries the authenticated caller. `GET /api/capabilities`, `GET /api/me`,
-  `GET /api/me/teams` and `GET /api/me/tenants` answer only that caller and answer anyone else `401` with a problem, so
-  the deployment's secret types, algorithms and key management services and a caller's role assignments stay
-  undisclosed to anonymous callers
+  `IManagementCallerFeature` carries the authenticated caller. A request without a valid management access token is
+  answered `401` before the route binds its parameters, so an anonymous request costs no more than its headers, and
+  `POST /api/tenant-imports` checks the caller's update authority at the platform node before it reads its body.
+  `GET /api/capabilities`, `GET /api/me`, `GET /api/me/teams` and `GET /api/me/tenants` answer only that caller and
+  answer anyone else `401` with a problem, so the deployment's secret types, algorithms and key management services and
+  a caller's role assignments stay undisclosed to anonymous callers
   ([#707](https://github.com/NCodeGroup/identity/issues/707),
   [#715](https://github.com/NCodeGroup/identity/issues/715),
   [#716](https://github.com/NCodeGroup/identity/issues/716),
+  [#863](https://github.com/NCodeGroup/identity/issues/863),
   [ADR-1067](docs/decisions/1067-secret-key-types-form-one-catalog-and-authenticated-management-callers-discover-the-deployments-capabilities.md),
-  [ADR-1044](docs/decisions/1044-the-management-api-authenticates-its-own-access-tokens-and-a-configured-client-bootstraps-the-first-globaladmin.md)).
+  [ADR-1044](docs/decisions/1044-the-management-api-authenticates-its-own-access-tokens-and-a-configured-client-bootstraps-the-first-globaladmin.md),
+  [ADR-1520](docs/decisions/1520-a-caller-is-authenticated-before-its-request-body-is-read.md)).
+
+- **The directory API and the control-plane authority API authenticate a caller before they read its request.**
+  `DirectoryAuthenticationGate` and `ControlPlaneAuthenticationGate` answer a request without a valid access token
+  before its parameters bind ([#863](https://github.com/NCodeGroup/identity/issues/863),
+  [ADR-1520](docs/decisions/1520-a-caller-is-authenticated-before-its-request-body-is-read.md)).
 
 - **No administrator raises the limits set on its scope.** A limit in a scope's settings is written only by the
   authority above that scope, so a team's administrators cannot lift the plan tier the platform sets, nor a child
