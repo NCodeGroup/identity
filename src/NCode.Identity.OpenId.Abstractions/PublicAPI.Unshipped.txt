@@ -999,6 +999,7 @@ NCode.Identity.OpenId.Tenants.ITenantEnvironmentType.IsProduction.get -> bool
 NCode.Identity.OpenId.Tenants.ITenantEnvironmentType.SecurityProfiles.get -> System.Collections.Generic.IReadOnlyCollection<string!>!
 NCode.Identity.OpenId.Tenants.ITenantEnvironmentType.TypeName.get -> string!
 const NCode.Identity.OpenId.OpenIdConstants.EndpointTags.AuditRecords = "AuditRecords" -> string!
+const NCode.Identity.OpenId.OpenIdConstants.EndpointTags.AuditStreams = "AuditStreams" -> string!
 const NCode.Identity.OpenId.Tenants.RootTenantOptions.DefaultTeamDisplayName = "Platform" -> string!
 const NCode.Identity.OpenId.Tenants.RootTenantOptions.DefaultTeamId = "platform" -> string!
 NCode.Identity.OpenId.Tenants.RootTenantOptions.TeamDisplayName.get -> string!

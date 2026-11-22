@@ -233,6 +233,11 @@ public static partial class OpenIdConstants
         public const string AuditRecords = "AuditRecords";
 
         /// <summary>
+        /// Contains the OpenAPI tag applied to the <c>audit streams</c> management endpoints.
+        /// </summary>
+        public const string AuditStreams = "AuditStreams";
+
+        /// <summary>
         /// Contains the OpenAPI tag applied to the <c>sessions</c> management endpoints.
         /// </summary>
         public const string Sessions = "Sessions";
