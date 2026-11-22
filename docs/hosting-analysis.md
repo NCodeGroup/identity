@@ -1270,9 +1270,9 @@ sovereignty and bank exit plans ask for a regional, sovereign or dedicated cell 
 | Gap | Tracked by |
 |---|---|
 | A dedicated cell's tenants need DNS records that take precedence over the wildcard | [#755](https://github.com/NCodeGroup/identity/issues/755) |
-| A shared cell has no priority by plan: under load, nothing sheds free traffic before paid traffic | Not tracked |
-| No capacity rating for a dedicated cell, because there is no load-test data on dedicated-CPU nodes | Not tracked ([§3](#3-compute-sizing)) |
-| Telemetry per cell can outgrow Grafana Cloud's free 10k active series | Not tracked |
+| A shared cell has no priority by plan: under load, nothing sheds free traffic before paid traffic | [#906](https://github.com/NCodeGroup/identity/issues/906) |
+| No capacity rating for a dedicated cell, because there is no load-test data on dedicated-CPU nodes | [#907](https://github.com/NCodeGroup/identity/issues/907) ([§3](#3-compute-sizing)) |
+| Telemetry per cell can outgrow Grafana Cloud's free 10k active series | [#908](https://github.com/NCodeGroup/identity/issues/908) |
 | Infrastructure automation that stamps out one cell, with its node pool, database and DNS, and manages the fleet | [#845](https://github.com/NCodeGroup/identity/issues/845) |
 
 ## 13. Open decisions
