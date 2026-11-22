@@ -98,6 +98,6 @@ the only source of the certificate, and a value that cannot be decoded fails the
 - [ADR-1137](1137-configuration-binds-strictly-and-every-option-timer-period-and-retention-is-validated-at-startup.md) — configuration is validated when the
   host starts.
 - [ADR-1150](1150-vocabularies-are-open-unless-provably-closed.md) — vocabularies are open unless provably closed.
-- [Hosting analysis §8](../hosting-analysis.md#8-traefik-mtls-and-tenant-pki) — Traefik's forwarded format.
+- [Hosting analysis §6](../hosting-analysis.md#6-traefik-mtls-and-tenant-pki) — Traefik's forwarded format.
 - [Envoy `x-forwarded-client-cert`](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_conn_man/headers#x-forwarded-client-cert)
   and [Traefik `passTLSClientCert`](https://doc.traefik.io/traefik/middlewares/http/passtlsclientcert/).

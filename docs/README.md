@@ -35,9 +35,10 @@ them.
 
 ## Hosting
 
-[`hosting-analysis.md`](./hosting-analysis.md) compares entry-level hosting vendors (Kubernetes, load balancer,
-PostgreSQL, Valkey, KMS) with verified monthly pricing, compute sizing and capacity, the production region, Traefik mTLS
-guidance, the AWS growth path, and the shared and dedicated cells the hosted platform runs.
+[`hosting-analysis.md`](./hosting-analysis.md) describes the hosted platform's topology — production on Akamai, the lab
+on OCI, and the stages from the developer plan to paid and dedicated cells — with the record that decides each part, the
+compute sizing and capacity, the prices of the platform's vendors, Traefik mTLS guidance, the AWS growth path and the
+decisions still open.
 
 [`platform-bootstrap.md`](./platform-bootstrap.md) is the step-by-step runbook for the manual operations that create the
 hosted platform from scratch — accounts, the infrastructure repository, credentials, and registrar delegation.
