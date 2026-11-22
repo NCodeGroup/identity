@@ -20,6 +20,9 @@ namespace NCode.Identity.Jose.Algorithms.KeyManagement;
 // See ADR-1389.
 internal sealed class EccEcdhKeyAgreement : IEcdhKeyAgreement
 {
+    private const string NotOnRecipientCurve =
+        "The ephemeral public key is not on the curve of the recipient's key.";
+
     // RFC 7518 §4.6 names ECDH-ES over the NIST curves, which the curve catalog also seeds (ADR-1068).
     private static EccCurveSpecification[] SupportedCurves { get; } =
     [EccCurveSpecification.P256, EccCurveSpecification.P384, EccCurveSpecification.P521];
@@ -90,18 +93,14 @@ internal sealed class EccEcdhKeyAgreement : IEcdhKeyAgreement
 
         if (ephemeralPublicKey is not EccSecretKey ephemeralEccSecretKey)
         {
-            throw new JoseException(
-                "The ephemeral public key is not on the curve of the recipient's key."
-            );
+            throw new JoseException(NotOnRecipientCurve);
         }
 
         var ephemeralCurve = ephemeralEccSecretKey.GetECCurve();
         var recipientCurve = eccSecretKey.GetECCurve();
         if (!EccCurveSpecification.IsSameNamedCurve(ephemeralCurve, recipientCurve))
         {
-            throw new JoseException(
-                "The ephemeral public key is not on the curve of the recipient's key."
-            );
+            throw new JoseException(NotOnRecipientCurve);
         }
 
         using var recipient = eccSecretKey.ExportECDiffieHellman();

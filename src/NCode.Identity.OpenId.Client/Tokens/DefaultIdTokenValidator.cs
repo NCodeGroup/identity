@@ -65,16 +65,15 @@ internal class DefaultIdTokenValidator(
         var header = decodedJwt.Header;
         var payload = decodedJwt.Payload;
 
+        string? subValue = null;
         if (
-            !payload.TryGetProperty(JoseClaimNames.Payload.Sub, out var sub)
-            || sub.ValueKind != JsonValueKind.String
+            payload.TryGetProperty(JoseClaimNames.Payload.Sub, out var sub)
+            && sub.ValueKind == JsonValueKind.String
         )
-            return Fail(
-                TokenValidationFailureCodes.InvalidClaim,
-                "The ID token has no 'sub' claim."
-            );
+        {
+            subValue = sub.GetString();
+        }
 
-        var subValue = sub.GetString();
         if (string.IsNullOrEmpty(subValue))
             return Fail(
                 TokenValidationFailureCodes.InvalidClaim,
@@ -92,13 +91,7 @@ internal class DefaultIdTokenValidator(
 
         if (payload.TryGetProperty(JoseClaimNames.Payload.Azp, out var azp))
         {
-            if (azp.ValueKind != JsonValueKind.String)
-                return Fail(
-                    TokenValidationFailureCodes.InvalidAudience,
-                    "The 'azp' claim of the ID token does not match the client."
-                );
-
-            var azpValue = azp.GetString();
+            var azpValue = azp.ValueKind == JsonValueKind.String ? azp.GetString() : null;
             if (!string.Equals(azpValue, registration.ClientId, StringComparison.Ordinal))
                 return Fail(
                     TokenValidationFailureCodes.InvalidAudience,
@@ -108,16 +101,15 @@ internal class DefaultIdTokenValidator(
 
         if (request.Nonce is { } expectedNonce)
         {
+            string? nonceValue = null;
             if (
-                !payload.TryGetProperty(JoseClaimNames.Payload.Nonce, out var nonce)
-                || nonce.ValueKind != JsonValueKind.String
+                payload.TryGetProperty(JoseClaimNames.Payload.Nonce, out var nonce)
+                && nonce.ValueKind == JsonValueKind.String
             )
-                return Fail(
-                    TokenValidationFailureCodes.NonceMismatch,
-                    "The 'nonce' claim of the ID token does not match the request."
-                );
+            {
+                nonceValue = nonce.GetString();
+            }
 
-            var nonceValue = nonce.GetString();
             if (!string.Equals(nonceValue, expectedNonce, StringComparison.Ordinal))
                 return Fail(
                     TokenValidationFailureCodes.NonceMismatch,

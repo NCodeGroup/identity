@@ -33,6 +33,9 @@ internal class DefaultUserInfoClient(
     /// </summary>
     internal const string AuthenticationType = "UserInfo";
 
+    private const string IssuerMismatch =
+        "The UserInfo response names another issuer than the provider.";
+
     private IProviderMetadataResolver MetadataResolver { get; } = metadataResolver;
     private ClientRequestSender Sender { get; } = sender;
     private ProviderHttpClient ProviderHttpClient { get; } = providerHttpClient;
@@ -256,17 +259,11 @@ internal class DefaultUserInfoClient(
         if (claimSet.TryGetProperty(JoseClaimNames.Payload.Iss, out var iss))
         {
             if (iss.ValueKind != JsonValueKind.String)
-                return new UserInfoResult(
-                    UserInfoFailureCodes.InvalidIssuer,
-                    "The UserInfo response names another issuer than the provider."
-                );
+                return new UserInfoResult(UserInfoFailureCodes.InvalidIssuer, IssuerMismatch);
 
             var issValue = iss.GetString();
             if (!string.Equals(issValue, metadata.Issuer, StringComparison.Ordinal))
-                return new UserInfoResult(
-                    UserInfoFailureCodes.InvalidIssuer,
-                    "The UserInfo response names another issuer than the provider."
-                );
+                return new UserInfoResult(UserInfoFailureCodes.InvalidIssuer, IssuerMismatch);
         }
 
         var identity = ClaimsIdentityFactory.CreateClaimsIdentity(

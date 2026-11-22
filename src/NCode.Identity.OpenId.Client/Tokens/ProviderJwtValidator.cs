@@ -152,13 +152,7 @@ internal class ProviderJwtValidator(
 
         if (result.DecodedJwt.Header.TryGetProperty(JoseClaimNames.Header.Typ, out var typ))
         {
-            if (typ.ValueKind != JsonValueKind.String)
-                return ProviderJwtValidationResult.Fail(
-                    TokenValidationFailureCodes.InvalidTokenType,
-                    $"The 'typ' header of the {profile.TokenName} is not {profile.TokenType}."
-                );
-
-            var typValue = typ.GetString();
+            var typValue = typ.ValueKind == JsonValueKind.String ? typ.GetString() : null;
             if (!JoseTokenTypes.AreSame(typValue, profile.TokenType))
                 return ProviderJwtValidationResult.Fail(
                     TokenValidationFailureCodes.InvalidTokenType,

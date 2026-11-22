@@ -68,13 +68,7 @@ internal class DefaultLogoutTokenValidator(
         string? sub = null;
         if (payload.TryGetProperty(JoseClaimNames.Payload.Sub, out var subElement))
         {
-            if (subElement.ValueKind != JsonValueKind.String)
-                return Fail(
-                    TokenValidationFailureCodes.InvalidClaim,
-                    "The 'sub' claim of the logout token is not a non-empty string."
-                );
-
-            sub = subElement.GetString();
+            sub = subElement.ValueKind == JsonValueKind.String ? subElement.GetString() : null;
             if (string.IsNullOrEmpty(sub))
                 return Fail(
                     TokenValidationFailureCodes.InvalidClaim,
@@ -85,13 +79,7 @@ internal class DefaultLogoutTokenValidator(
         string? sid = null;
         if (payload.TryGetProperty(JoseClaimNames.Payload.Sid, out var sidElement))
         {
-            if (sidElement.ValueKind != JsonValueKind.String)
-                return Fail(
-                    TokenValidationFailureCodes.InvalidClaim,
-                    "The 'sid' claim of the logout token is not a non-empty string."
-                );
-
-            sid = sidElement.GetString();
+            sid = sidElement.ValueKind == JsonValueKind.String ? sidElement.GetString() : null;
             if (string.IsNullOrEmpty(sid))
                 return Fail(
                     TokenValidationFailureCodes.InvalidClaim,
