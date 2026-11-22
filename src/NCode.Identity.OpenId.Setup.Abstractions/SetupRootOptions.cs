@@ -17,6 +17,11 @@ public sealed class SetupRootOptions
     public string? UserName { get; set; }
 
     /// <summary>
+    /// Gets or sets the root administrator's display name, or <c>null</c> to use the username.
+    /// </summary>
+    public string? DisplayName { get; set; }
+
+    /// <summary>
     /// Gets or sets the root administrator's email address, or <c>null</c> when none is recorded.
     /// </summary>
     public string? Email { get; set; }

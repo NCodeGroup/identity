@@ -34,9 +34,9 @@ namespace NCode.Identity.Server.ConformanceEnvironment;
 /// A seeded client's settings come from configuration, so the document is validated against the registered setting
 /// descriptors before it is stored: a value the server cannot honor stops the seeding with an error naming the client,
 /// rather than storing a client that fails every request that loads it. Its key set is imported under the client-key
-/// policy a dynamically registered <c>jwks</c> follows, and a key set the policy refuses stops the seeding the same way.
-/// So does a setting that a client coherence rule refuses. The test user's password must meet the tenant's password
-/// policy, and a refused one stops the seeding with an error naming the test user.
+/// policy a dynamically registered <c>jwks</c> follows, and a key set the policy refuses stops the seeding the same
+/// way. So does a setting that a client coherence rule refuses. The test user's password must meet the tenant's
+/// password policy, and a refused one stops the seeding with an error naming the test user.
 /// </remarks>
 // See ADR-1140.
 internal sealed class ConformanceSeedHandler(
@@ -242,6 +242,7 @@ internal sealed class ConformanceSeedHandler(
             TenantId = tenantId,
             LocalAccountId = Guid.NewGuid().ToString("N"),
             UserName = userName,
+            DisplayName = BuildTestUserDisplayName(userName),
             Email = Options.TestUserEmail,
             EmailVerified = true,
             IsEnabled = true,
@@ -270,6 +271,24 @@ internal sealed class ConformanceSeedHandler(
         Logger.ConformanceTestUserSeeded(userName, tenantId);
     }
 
+    /// <summary>
+    /// Composes the test user's display name, which the <c>name</c> claim carries, from the configured given and family
+    /// names.
+    /// </summary>
+    /// <param name="userName">The test user's username, the display name when no name part is configured.</param>
+    /// <returns>
+    /// The configured name parts joined by a space, or <paramref name="userName"/> when none is configured.
+    /// </returns>
+    // The conformance suite's EnsureUserInfoContainsName check (a 'profile' scope request) always finds a name.
+    private string BuildTestUserDisplayName(string userName)
+    {
+        var nameParts = new[] { Options.TestUserGivenName, Options.TestUserFamilyName }.Where(
+            part => !string.IsNullOrEmpty(part)
+        );
+        var displayName = string.Join(' ', nameParts);
+        return displayName.Length > 0 ? displayName : userName;
+    }
+
     private List<PersistedLocalAccountClaim> BuildTestUserProfileClaims()
     {
         var givenName = Options.TestUserGivenName;
@@ -288,12 +307,6 @@ internal sealed class ConformanceSeedHandler(
 
         Add(JoseClaimNames.Payload.GivenName, givenName);
         Add(JoseClaimNames.Payload.FamilyName, familyName);
-
-        // Compose the displayed 'name' from whichever name parts are configured so the suite's EnsureUserInfoContainsName
-        // check (a 'profile' scope request) always finds one.
-        var nameParts = new[] { givenName, familyName }.Where(part => !string.IsNullOrEmpty(part));
-        var displayName = string.Join(' ', nameParts);
-        Add(JoseClaimNames.Payload.Name, displayName);
 
         // Seed the full standard 'profile', 'address', and 'phone' scope claim sets with deterministic values so the
         // suite's VerifyScopesReturnedInUserInfoClaims check finds every scope-mapped claim in the UserInfo response

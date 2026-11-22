@@ -75,6 +75,7 @@ public sealed class LocalAccountTenantRemovalTests : IDisposable
             TenantId = tenantId,
             LocalAccountId = localAccountId,
             UserName = userName,
+            DisplayName = "Alice Example",
             Email = null,
             EmailVerified = false,
             SecurityStamp = "stamp",

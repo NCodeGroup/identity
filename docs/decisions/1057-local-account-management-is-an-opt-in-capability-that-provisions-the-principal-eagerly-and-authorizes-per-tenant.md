@@ -55,10 +55,14 @@ to a group it does not own with no change to that group. It is mapped at `/api/t
 the OpenAPI tag `LocalAccounts`. The routes are:
 
 - `POST` and `GET` on the collection;
-- `GET`, `PATCH` and `DELETE` on `/{localAccountId}`;
+- `GET`, `PATCH` and `DELETE` on `/{localAccountId}`, where the update is a JSON Patch of `displayName`, `userName`,
+  `email` and `emailVerified`;
 - `POST` on `/{localAccountId}/enable`, `/disable` and `/password`;
 - `GET` and `PUT` on `/{localAccountId}/claims`;
 - `GET` and `PATCH` on `/{localAccountId}/metadata`.
+
+The control-plane cell also maps `GET` and `POST` on `/api/platform/local-accounts`, which list and create the
+control-plane tenant's accounts and authorize as that tenant's routes do.
 
 ### Shared building blocks are public abstractions
 

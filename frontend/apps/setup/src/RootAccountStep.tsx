@@ -7,6 +7,7 @@ import Typography from '@mui/material/Typography';
 
 /** The root administrator's account, as the operator entered it. */
 export type RootAccount = {
+  readonly displayName: string;
   readonly userName: string;
   readonly email?: string;
   readonly password: string;
@@ -24,6 +25,7 @@ export type RootAccountStepProps = {
  * confirmation stay in the component's state; the next step creates the account.
  */
 export function RootAccountStep({ minimumPasswordLength, onContinue }: RootAccountStepProps) {
+  const [displayName, setDisplayName] = useState('');
   const [userName, setUserName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -31,6 +33,11 @@ export function RootAccountStep({ minimumPasswordLength, onContinue }: RootAccou
   const [error, setError] = useState<string | undefined>(undefined);
 
   function submit(): void {
+    const trimmedDisplayName = displayName.trim();
+    if (!trimmedDisplayName) {
+      setError('The display name is required.');
+      return;
+    }
     if (password.length < minimumPasswordLength) {
       setError(`The password must have at least ${String(minimumPasswordLength)} characters.`);
       return;
@@ -43,6 +50,7 @@ export function RootAccountStep({ minimumPasswordLength, onContinue }: RootAccou
     setError(undefined);
     const trimmedEmail = email.trim();
     onContinue({
+      displayName: trimmedDisplayName,
       userName: userName.trim(),
       ...(trimmedEmail ? { email: trimmedEmail } : {}),
       password,
@@ -67,6 +75,20 @@ export function RootAccountStep({ minimumPasswordLength, onContinue }: RootAccou
       {error ? <Alert severity="error">{error}</Alert> : null}
 
       <TextField
+        id="display-name"
+        name="display-name"
+        label="Display name"
+        autoComplete="name"
+        helperText="The name the management console and your applications show."
+        value={displayName}
+        onChange={(event) => {
+          setDisplayName(event.target.value);
+        }}
+        autoFocus
+        required
+        fullWidth
+      />
+      <TextField
         id="username"
         name="username"
         label="User name"
@@ -75,7 +97,6 @@ export function RootAccountStep({ minimumPasswordLength, onContinue }: RootAccou
         onChange={(event) => {
           setUserName(event.target.value);
         }}
-        autoFocus
         required
         fullWidth
       />

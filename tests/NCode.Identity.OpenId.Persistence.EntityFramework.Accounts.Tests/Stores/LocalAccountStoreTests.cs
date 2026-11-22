@@ -66,6 +66,7 @@ public sealed class LocalAccountStoreTests : IDisposable
             TenantId = TenantId,
             LocalAccountId = localAccountId,
             UserName = userName,
+            DisplayName = "Alice Example",
             Email = email,
             EmailVerified = false,
             SecurityStamp = "stamp",
@@ -146,6 +147,17 @@ public sealed class LocalAccountStoreTests : IDisposable
         Assert.Equal("alice@example.com", loaded.Email);
         Assert.True(loaded.IsEnabled);
         Assert.NotEmpty(loaded.ConcurrencyToken);
+    }
+
+    [Fact]
+    public async Task AddAsync_ThenGetById_ReturnsTheDisplayName()
+    {
+        await AddAndDetachAsync(CreateAccount("account-1", "alice"), CancellationToken.None);
+
+        var loaded = await Store.GetByIdOrDefaultAsync("account-1", CancellationToken.None);
+
+        Assert.NotNull(loaded);
+        Assert.Equal("Alice Example", loaded.DisplayName);
     }
 
     [Fact]
@@ -444,6 +456,24 @@ public sealed class LocalAccountStoreTests : IDisposable
         Assert.NotNull(loaded);
         Assert.Equal("renamed@example.com", loaded.Email);
         Assert.False(loaded.IsEnabled);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_PersistsTheDisplayName()
+    {
+        await AddAndDetachAsync(CreateAccount("account-1", "alice"), CancellationToken.None);
+
+        var account = await Store.GetByIdOrDefaultAsync("account-1", CancellationToken.None);
+        Assert.NotNull(account);
+        account.DisplayName = "Alice Renamed";
+
+        await Store.UpdateAsync(account, CancellationToken.None);
+        await DbContext.SaveChangesAsync();
+        DbContext.ChangeTracker.Clear();
+
+        var loaded = await Store.GetByIdOrDefaultAsync("account-1", CancellationToken.None);
+        Assert.NotNull(loaded);
+        Assert.Equal("Alice Renamed", loaded.DisplayName);
     }
 
     [Fact]

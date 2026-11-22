@@ -5,6 +5,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using NCode.Identity.OpenId.Accounts.DataContracts;
+using NCode.Identity.OpenId.Accounts.Management.Contracts;
 using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.OpenId.Management.Authorization;
@@ -17,6 +18,8 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
     private const string TenantId = "tenant-1";
     private const string LocalAccountId = "account-1";
     private const string UserName = "alice";
+    private const string DisplayName = "Alice";
+    private const string ConcurrencyToken = "account-ct";
 
     private MockRepository MockRepository { get; }
     private Mock<IAuthorizationService> MockAuthorizationService { get; }
@@ -51,20 +54,27 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
 
     private static PersistedLocalAccount CreateAccount(
         string localAccountId = LocalAccountId,
-        string userName = UserName
+        string userName = UserName,
+        string displayName = DisplayName
     ) =>
         new()
         {
             TenantId = TenantId,
             LocalAccountId = localAccountId,
             UserName = userName,
+            DisplayName = displayName,
             Email = null,
             EmailVerified = false,
             SecurityStamp = "stamp",
             IsEnabled = true,
             Claims = [],
-            ConcurrencyToken = "account-ct",
+            ConcurrencyToken = ConcurrencyToken,
         };
+
+    private static UpdateLocalAccountRequest CreateModel(
+        string userName = UserName,
+        string displayName = DisplayName
+    ) => new() { UserName = userName, DisplayName = displayName };
 
     private void SetupAuthorization(AuthorizationResult result)
     {
@@ -102,14 +112,14 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
         return () => authorizedResource;
     }
 
-    private void SetupUserNameLookup(PersistedLocalAccount? existing)
+    private void SetupUserNameLookup(PersistedLocalAccount? existing, string userName = UserName)
     {
         MockStoreManager
             .Setup(x => x.GetStore<ILocalAccountStore>())
             .Returns(MockLocalAccountStore.Object)
             .Verifiable();
         MockLocalAccountStore
-            .Setup(x => x.GetByUserNameOrDefaultAsync(UserName, It.IsAny<CancellationToken>()))
+            .Setup(x => x.GetByUserNameOrDefaultAsync(userName, It.IsAny<CancellationToken>()))
             .ReturnsAsync(existing)
             .Verifiable();
     }
@@ -308,9 +318,10 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
     public async Task ValidateCreateAsync_WhenUserNameTaken_Returns409()
     {
         SetupUserNameLookup(CreateAccount());
+        var account = CreateAccount();
 
         var error = await Validator.ValidateCreateAsync(
-            UserName,
+            account,
             MockStoreManager.Object,
             CancellationToken.None
         );
@@ -323,9 +334,130 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
     public async Task ValidateCreateAsync_WhenValid_ReturnsNull()
     {
         SetupUserNameLookup(existing: null);
+        var account = CreateAccount();
 
         var error = await Validator.ValidateCreateAsync(
-            UserName,
+            account,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.Null(error);
+    }
+
+    [Fact]
+    public async Task ValidateCreateAsync_WhenDisplayNameIsBlank_Returns400()
+    {
+        var account = CreateAccount(displayName: "   ");
+
+        var error = await Validator.ValidateCreateAsync(
+            account,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(error);
+        Assert.Equal(StatusCodes.Status400BadRequest, error.StatusCode);
+        Assert.Equal("The display name is required.", error.Detail);
+    }
+
+    [Fact]
+    public async Task ValidateCreateAsync_WhenDisplayNameIsTooLong_Returns400()
+    {
+        var displayName = new string('a', AccountMaxLengths.DisplayName + 1);
+        var account = CreateAccount(displayName: displayName);
+
+        var error = await Validator.ValidateCreateAsync(
+            account,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(error);
+        Assert.Equal(StatusCodes.Status400BadRequest, error.StatusCode);
+        Assert.Equal(
+            $"The display name must be at most {AccountMaxLengths.DisplayName} characters.",
+            error.Detail
+        );
+    }
+
+    [Fact]
+    public async Task ValidateCreateAsync_WhenDisplayNameIsAtTheMaximumLength_ReturnsNull()
+    {
+        SetupUserNameLookup(existing: null);
+        var displayName = new string('a', AccountMaxLengths.DisplayName);
+        var account = CreateAccount(displayName: displayName);
+
+        var error = await Validator.ValidateCreateAsync(
+            account,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.Null(error);
+    }
+
+    [Fact]
+    public async Task ValidateCreateAsync_WhenUserNameIsNull_Returns400()
+    {
+        var account = CreateAccount(userName: null!);
+
+        var error = await Validator.ValidateCreateAsync(
+            account,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(error);
+        Assert.Equal(StatusCodes.Status400BadRequest, error.StatusCode);
+        Assert.Equal("The username is required.", error.Detail);
+    }
+
+    [Fact]
+    public async Task ValidateCreateAsync_WhenUserNameIsBlank_Returns400()
+    {
+        var account = CreateAccount(userName: "   ");
+
+        var error = await Validator.ValidateCreateAsync(
+            account,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(error);
+        Assert.Equal(StatusCodes.Status400BadRequest, error.StatusCode);
+        Assert.Equal("The username is required.", error.Detail);
+    }
+
+    [Fact]
+    public async Task ValidateCreateAsync_WhenUserNameIsTooLong_Returns400()
+    {
+        var userName = new string('a', AccountMaxLengths.UserName + 1);
+        var account = CreateAccount(userName: userName);
+
+        var error = await Validator.ValidateCreateAsync(
+            account,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(error);
+        Assert.Equal(StatusCodes.Status400BadRequest, error.StatusCode);
+        Assert.Equal(
+            $"The username must be at most {AccountMaxLengths.UserName} characters.",
+            error.Detail
+        );
+    }
+
+    [Fact]
+    public async Task ValidateCreateAsync_WhenUserNameIsAtTheMaximumLength_ReturnsNull()
+    {
+        var userName = new string('a', AccountMaxLengths.UserName);
+        SetupUserNameLookup(existing: null, userName);
+        var account = CreateAccount(userName: userName);
+
+        var error = await Validator.ValidateCreateAsync(
+            account,
             MockStoreManager.Object,
             CancellationToken.None
         );
@@ -340,10 +472,12 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
     [Fact]
     public async Task ValidateUpdateAsync_WhenIfMatchMismatch_Returns412()
     {
+        var account = CreateAccount();
+        var model = CreateModel();
+
         var error = await Validator.ValidateUpdateAsync(
-            LocalAccountId,
-            UserName,
-            concurrencyToken: "current-ct",
+            account,
+            model,
             ifMatch: "stale-ct",
             MockStoreManager.Object,
             CancellationToken.None
@@ -357,12 +491,13 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
     public async Task ValidateUpdateAsync_WhenIfMatchIsTheQuotedEntityTag_ReturnsNull()
     {
         SetupUserNameLookup(existing: null);
+        var account = CreateAccount();
+        var model = CreateModel();
 
         var error = await Validator.ValidateUpdateAsync(
-            LocalAccountId,
-            UserName,
-            concurrencyToken: "current-ct",
-            ifMatch: "\"current-ct\"",
+            account,
+            model,
+            ifMatch: "\"account-ct\"",
             MockStoreManager.Object,
             CancellationToken.None
         );
@@ -374,12 +509,13 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
     public async Task ValidateUpdateAsync_WhenUserNameTakenByAnotherAccount_Returns409()
     {
         SetupUserNameLookup(CreateAccount(localAccountId: "other-account"));
+        var account = CreateAccount();
+        var model = CreateModel();
 
         var error = await Validator.ValidateUpdateAsync(
-            LocalAccountId,
-            UserName,
-            concurrencyToken: "current-ct",
-            ifMatch: "current-ct",
+            account,
+            model,
+            ifMatch: ConcurrencyToken,
             MockStoreManager.Object,
             CancellationToken.None
         );
@@ -392,17 +528,121 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
     public async Task ValidateUpdateAsync_WhenUserNameUnchangedOnSameAccount_ReturnsNull()
     {
         SetupUserNameLookup(CreateAccount(localAccountId: LocalAccountId));
+        var account = CreateAccount();
+        var model = CreateModel();
 
         var error = await Validator.ValidateUpdateAsync(
-            LocalAccountId,
-            UserName,
-            concurrencyToken: "current-ct",
+            account,
+            model,
             ifMatch: null,
             MockStoreManager.Object,
             CancellationToken.None
         );
 
         Assert.Null(error);
+    }
+
+    [Fact]
+    public async Task ValidateUpdateAsync_WhenDisplayNameIsBlank_Returns400()
+    {
+        var account = CreateAccount();
+        var model = CreateModel(displayName: string.Empty);
+
+        var error = await Validator.ValidateUpdateAsync(
+            account,
+            model,
+            ifMatch: null,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(error);
+        Assert.Equal(StatusCodes.Status400BadRequest, error.StatusCode);
+        Assert.Equal("The display name is required.", error.Detail);
+    }
+
+    [Fact]
+    public async Task ValidateUpdateAsync_WhenDisplayNameIsTooLong_Returns400()
+    {
+        var account = CreateAccount();
+        var displayName = new string('a', AccountMaxLengths.DisplayName + 1);
+        var model = CreateModel(displayName: displayName);
+
+        var error = await Validator.ValidateUpdateAsync(
+            account,
+            model,
+            ifMatch: null,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(error);
+        Assert.Equal(StatusCodes.Status400BadRequest, error.StatusCode);
+        Assert.Equal(
+            $"The display name must be at most {AccountMaxLengths.DisplayName} characters.",
+            error.Detail
+        );
+    }
+
+    [Fact]
+    public async Task ValidateUpdateAsync_WhenDisplayNameIsAtTheMaximumLength_ReturnsNull()
+    {
+        SetupUserNameLookup(existing: null);
+        var account = CreateAccount();
+        var displayName = new string('a', AccountMaxLengths.DisplayName);
+        var model = CreateModel(displayName: displayName);
+
+        var error = await Validator.ValidateUpdateAsync(
+            account,
+            model,
+            ifMatch: null,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.Null(error);
+    }
+
+    [Fact]
+    public async Task ValidateUpdateAsync_WhenUserNameIsNull_Returns400()
+    {
+        var account = CreateAccount();
+        var model = CreateModel(userName: null!);
+
+        var error = await Validator.ValidateUpdateAsync(
+            account,
+            model,
+            ifMatch: null,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(error);
+        Assert.Equal(StatusCodes.Status400BadRequest, error.StatusCode);
+        Assert.Equal("The username is required.", error.Detail);
+    }
+
+    [Fact]
+    public async Task ValidateUpdateAsync_WhenUserNameIsTooLong_Returns400()
+    {
+        var account = CreateAccount();
+        var userName = new string('a', AccountMaxLengths.UserName + 1);
+        var model = CreateModel(userName: userName);
+
+        var error = await Validator.ValidateUpdateAsync(
+            account,
+            model,
+            ifMatch: null,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(error);
+        Assert.Equal(StatusCodes.Status400BadRequest, error.StatusCode);
+        Assert.Equal(
+            $"The username must be at most {AccountMaxLengths.UserName} characters.",
+            error.Detail
+        );
     }
 
     #endregion
@@ -412,8 +652,10 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
     [Fact]
     public async Task ValidateDeleteAsync_ReturnsNull()
     {
+        var account = CreateAccount();
+
         var error = await Validator.ValidateDeleteAsync(
-            LocalAccountId,
+            account,
             MockStoreManager.Object,
             CancellationToken.None
         );
