@@ -170,11 +170,11 @@ The recorder states the actor explicitly for each event, so the actor does not d
 
 | `actor.type`    | `actor.id`                                 | Used by                                                                                                                                                                                   |
 | --------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `end_user`      | The subject id                             | `authorization.granted`, `authorization.denied`, `session.created`, and `subject.authentication` on success. With no subject these events use `anonymous`.                                |
+| `end_user`      | The subject id                             | `authorization.granted`, `authorization.denied`, `session.created`, and `subject.authentication` on success; `password.change`, `email.verification` and `subject.second_factor`, and `password.reset_request` and `password.reset` when the request names a subject. With no subject these events use `anonymous`. |
 | `client`        | The client id                              | `token.issued`, `token.revoked`, `token.refresh.replay`, `token.refresh.retry`, `client.authentication` and `userinfo.accessed`. `userinfo.accessed` with no client uses `anonymous`. Also every management event a client makes acting for itself (its token's subject is the client's own principal). |
 | `administrator` | The administrator's subject id, when known | Every management event an end user makes (a rekey through the management API (`master_key.rotated`) and a tenant's root key set, removed or validated through it (`root_key.*`) included). The subject id is read with the server-default claim types, not the request tenant's setting. |
 | `system`        | None                                       | `session.terminated`, whose `details.termination_reason` says why, and the `tenant.key.*`, background `master_key.*`, background `root_key.*` and `remote_key.*` events, whose `details.reason` says why. No caller acted.         |
-| `anonymous`     | None                                       | `subject.authentication` on failure, `openid.error` and `userinfo.accessed` on `denied` with no client: the caller is not identified.                                                     |
+| `anonymous`     | None                                       | `subject.authentication` on failure, `openid.error`, `password.reset_request` and `password.reset` with no subject, and `userinfo.accessed` on `denied` with no client: the caller is not identified. |
 
 ### Resource types
 
@@ -217,7 +217,7 @@ One row for each event the library publishes. In a cell, `none` means the member
 | `authorization.granted`  | `authorization`  | `openid` | `success`            | `info`                                  | `end_user`, or `anonymous` with no subject    | none                  | none                                                                                                                                         | none                                                  |
 | `authorization.denied`   | `authorization`  | `openid` | `denied`             | `info`                                  | `end_user`, or `anonymous` with no subject    | none                  | The error code; `access_denied` by default                                                                                                   | none                                                  |
 | `client.authentication`  | `authentication` | `openid` | `failure`            | `warning`                               | `client`                                      | none                  | The error code: `invalid_client` by default, `attempt_limit_reached` at the limit of failed client authentications                           | `authentication_method`                               |
-| `subject.authentication` | `authentication` | `openid` | `success`, `failure` | `info` on success, `warning` on failure | `end_user` on success, `anonymous` on failure | none                  | Failure only: `authentication_failed`, the bearer token error's code, `subject_id_missing`, `invalid_credentials` or `attempt_limit_reached` | `attempted_username`, on a failure that presented one |
+| `subject.authentication` | `authentication` | `openid` | `success`, `failure` | `info` on success, `warning` on failure | `end_user` on success, `anonymous` on failure | none                  | Failure only: `authentication_failed`, the bearer token error's code, `subject_id_missing`, `invalid_credentials`, `second_factor_required` or `attempt_limit_reached` | `attempted_username`, on a failure that presented one |
 | `password.change`        | `authentication` | `openid` | `success`, `failure` | `info` on success, `warning` on failure | `end_user`                                    | `local_account`       | Failure only: `invalid_current_password` or a password policy code                                                                           | none                                                  |
 | `password.reset_request` | `authentication` | `openid` | `success`, `failure` | `info` on success, `warning` on failure | `end_user`, or `anonymous` with no subject    | `local_account`, when known | Failure only: `account_not_eligible` or `too_many_codes`                                                                               | `attempted_username`, on a failure                    |
 | `password.reset`         | `authentication` | `openid` | `success`, `failure` | `info` on success, `warning` on failure | `end_user`, or `anonymous` with no subject    | `local_account`, when known | Failure only: `invalid_code` or a password policy code                                                                                 | none                                                  |
@@ -239,11 +239,12 @@ Notes on the protocol events:
   is `denied` when the code is `access_denied` and `failure` otherwise.
 - `subject.authentication` failure codes: `authentication_failed` (the session cookie could not be authenticated), the
   code of the bearer token error (such as `invalid_token`), `subject_id_missing` (the authenticated principal has no
-  subject id), `invalid_credentials` (the password grant refused the credentials) and `attempt_limit_reached` (the
-  account reached its limit of failed password attempts). The `error.message` carries the prose that describes the
-  failure. A request that presents no credentials is not audited. A failure that presented a user name, such as a
-  refused password grant, writes it as `details.attempted_username` and leaves `subject_id` absent, so `subject_id` only
-  ever holds a verified subject id.
+  subject id), `invalid_credentials` (the password grant refused the credentials), `second_factor_required` (the
+  password grant refused the request because the tenant requires a second factor the grant cannot carry) and
+  `attempt_limit_reached` (the account reached its limit of failed password attempts). The `error.message` carries the
+  prose that describes the failure. A request that presents no credentials is not audited. A failure that presented a
+  user name, such as a refused password grant, writes it as `details.attempted_username` and leaves `subject_id` absent,
+  so `subject_id` only ever holds a verified subject id.
 - The self-service events, `password.change`, `password.reset_request`, `password.reset`, `email.verification` and
   `subject.second_factor`, come from the local-account capability's implementations of the interactive seams; none
   writes a password, a code or an email address. An unknown username's reset request is recorded as a failure with

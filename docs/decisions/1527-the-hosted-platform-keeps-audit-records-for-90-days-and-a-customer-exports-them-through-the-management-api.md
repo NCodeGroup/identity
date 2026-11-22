@@ -81,5 +81,4 @@ the management API.**
 - [ADR-1534](1534-a-tenants-audit-records-stream-to-its-endpoints-read-forward-from-the-audit-store-and-signed-as-standard-webhooks.md):
   audit streams.
 - [Audit records](../audit-records.md): how to read and operate them.
-- Issues [#25](https://github.com/NCodeGroup/identity/issues/25) and
-  [#910](https://github.com/NCodeGroup/identity/issues/910).
+- Issue [#910](https://github.com/NCodeGroup/identity/issues/910).
