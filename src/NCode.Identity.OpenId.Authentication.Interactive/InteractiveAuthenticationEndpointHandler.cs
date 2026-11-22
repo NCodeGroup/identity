@@ -45,6 +45,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     IContinueRefusalService continueRefusalService,
     IInteractivePasswordChanger passwordChanger,
     IInteractivePasswordResetter passwordResetter,
+    IInteractiveSignInCodeChallenge signInCodeChallenge,
     ISessionService sessionService,
     IPostCommitSecurityEffects postCommitSecurityEffects,
     TimeProvider timeProvider,
@@ -73,12 +74,24 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     private const string FlowQueryName = "flow";
     private const string ReturnUrlName = "ReturnUrl";
 
+    // The `status` query value the sign-in code page reads back to tell the end user that a new code is sent, and the
+    // `action` form value that asks the page for it; any other value verifies the code.
+    private const string CodeSentStatusValue = "sent";
+    private const string ResendAction = "resend";
+
+    // The items the pending sign-in cookie carries beside the principal: the handle of the code's flow, the local URL
+    // the sign-in returns to and the language tag of the page the end user signed in on.
+    private const string EmailCodeFlowItem = "email_code_flow";
+    private const string ReturnUrlItem = "return_url";
+    private const string UiLocalesItem = InteractiveAuthenticationPageRenderer.UiLocalesFieldName;
+
     private IInteractiveCredentialVerifier CredentialVerifier { get; } = credentialVerifier;
     private IPrincipalResolver PrincipalResolver { get; } = principalResolver;
     private IConsentService ConsentService { get; } = consentService;
     private IContinueRefusalService ContinueRefusalService { get; } = continueRefusalService;
     private IInteractivePasswordChanger PasswordChanger { get; } = passwordChanger;
     private IInteractivePasswordResetter PasswordResetter { get; } = passwordResetter;
+    private IInteractiveSignInCodeChallenge SignInCodeChallenge { get; } = signInCodeChallenge;
     private ISessionService SessionService { get; } = sessionService;
     private IPostCommitSecurityEffects PostCommitSecurityEffects { get; } =
         postCommitSecurityEffects;
@@ -155,6 +168,8 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             InteractiveAuthenticationDefaults.PasswordResetPath,
             PostResetPasswordAsync
         );
+        surface.MapGet(InteractiveAuthenticationDefaults.LoginCodePath, GetSignInCodePageAsync);
+        surface.MapPost(InteractiveAuthenticationDefaults.LoginCodePath, PostSignInCodeAsync);
     }
 
     /// <summary>
@@ -422,6 +437,22 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
                 safeReturnUrl,
                 languageTag,
                 standing.Error,
+                httpContext.RequestAborted
+            );
+        }
+
+        // A tenant that requires the email second factor keeps the end user, whose password is verified, in the pending
+        // sign-in cookie: no session is created until the mailed code is right.
+        // See ADR-1533.
+        var settings = openIdContext.Tenant.SettingsProvider.Collection;
+        if (settings.GetValue(OpenIdSettingKeys.EmailMfaRequired))
+        {
+            return await BeginSignInCodeAsync(
+                httpContext,
+                openIdContext,
+                principal,
+                safeReturnUrl,
+                languageTag,
                 httpContext.RequestAborted
             );
         }
@@ -1461,6 +1492,305 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             (ReturnUrlName, carriedReturnUrl),
             (ErrorQueryName, error)
         );
+    }
+
+    /// <summary>
+    /// Serves the sign-in code page, where an end user whose password is verified presents the code mailed to the
+    /// account's address. The server renders a working no-JavaScript form carrying the antiforgery token. A request
+    /// without a pending sign-in is redirected to the login page.
+    /// </summary>
+    // See ADR-1533.
+    public async ValueTask<IResult> GetSignInCodePageAsync(HttpContext httpContext)
+    {
+        var pending = await httpContext.AuthenticateAsync(
+            InteractiveAuthenticationDefaults.PendingSignInSchemeName
+        );
+        if (!pending.Succeeded)
+        {
+            return RedirectToSurfacePage(
+                httpContext,
+                InteractiveAuthenticationDefaults.LoginPath,
+                languageTag: null
+            );
+        }
+
+        var tokens = IssueAntiforgeryTokens(httpContext);
+        var query = httpContext.Request.Query;
+        var branding = ReadBranding(httpContext);
+        var security = InteractivePageSecurity.Create(branding);
+        var frame = await CreatePageFrameAsync(
+            httpContext,
+            branding,
+            security,
+            httpContext.RequestAborted
+        );
+        var html = InteractiveHtmlResult.CreateBuffer();
+        var errorQueryValue = query[ErrorQueryName].ToString();
+        var errorMessage = DescribeEmailCodeError(errorQueryValue, frame.Locale.Messages);
+        var statusQueryValue = query[StatusQueryName].ToString();
+        var statusMessage = string.Equals(
+            statusQueryValue,
+            CodeSentStatusValue,
+            StringComparison.Ordinal
+        )
+            ? frame.Locale.Messages.CodeSentStatus
+            : null;
+        InteractiveAuthenticationPageRenderer.RenderSignInCodePage(
+            html,
+            frame,
+            tokens.FormFieldName,
+            tokens.RequestToken ?? string.Empty,
+            errorMessage,
+            statusMessage
+        );
+        return new InteractiveHtmlResult(html, security.Policy);
+    }
+
+    /// <summary>
+    /// Completes or repeats the second factor of a sign-in from the sign-in code form. The <c>resend</c> action mails a
+    /// new code and redirects back to the page with <c>?status=sent</c>, or with <c>?error=</c> and the reason the code
+    /// is refused. Otherwise the code is verified: a refusal redirects back to the page with <c>?error=</c>, and a
+    /// right code adds the <c>otp</c> and <c>mfa</c> authentication methods to the end user, creates the session and
+    /// redirects to the return URL the sign-in began with. A request without a pending sign-in is redirected to the
+    /// login page.
+    /// </summary>
+    // See ADR-1533.
+    public async ValueTask<IResult> PostSignInCodeAsync(
+        HttpContext httpContext,
+        [FromForm(Name = "code")] string? code,
+        [FromForm(Name = "action")] string? action
+    )
+    {
+        var pending = await httpContext.AuthenticateAsync(
+            InteractiveAuthenticationDefaults.PendingSignInSchemeName
+        );
+        if (!pending.Succeeded || pending.Properties is null)
+        {
+            return RedirectToSurfacePage(
+                httpContext,
+                InteractiveAuthenticationDefaults.LoginPath,
+                languageTag: null
+            );
+        }
+
+        var principal = pending.Principal;
+        var properties = pending.Properties;
+        var flowId = ReadPendingItem(properties, EmailCodeFlowItem);
+        var storedReturnUrl = ReadPendingItem(properties, ReturnUrlItem);
+        var returnUrl = ResolveSafeReturnUrl(httpContext, storedReturnUrl);
+        var storedUiLocales = ReadPendingItem(properties, UiLocalesItem);
+        var languageTag = LocaleSelector.GetCarriedLanguageTag(storedUiLocales);
+        var identity = principal.Identities.FirstOrDefault(candidate => candidate.IsAuthenticated);
+        if (string.IsNullOrEmpty(flowId) || identity is null)
+        {
+            await httpContext.SignOutAsync(
+                InteractiveAuthenticationDefaults.PendingSignInSchemeName
+            );
+            return RedirectToSurfacePage(
+                httpContext,
+                InteractiveAuthenticationDefaults.LoginPath,
+                languageTag
+            );
+        }
+
+        var openIdContext = httpContext.GetOpenIdContext();
+        if (string.Equals(action, ResendAction, StringComparison.Ordinal))
+        {
+            var locale = SelectLocale(httpContext);
+            var sent = await SignInCodeChallenge.SendSignInCodeAsync(
+                openIdContext,
+                principal,
+                locale,
+                httpContext.RequestAborted
+            );
+            if (!sent.IsAccepted || sent.FlowId is null)
+            {
+                return RedirectToSurfacePage(
+                    httpContext,
+                    InteractiveAuthenticationDefaults.LoginCodePath,
+                    languageTag,
+                    (ErrorQueryName, sent.Error ?? InteractiveEmailCodeErrors.TooManyCodes)
+                );
+            }
+
+            var renewedProperties = CreatePendingSignInProperties(
+                sent.FlowId,
+                returnUrl,
+                languageTag
+            );
+            await httpContext.SignInAsync(
+                InteractiveAuthenticationDefaults.PendingSignInSchemeName,
+                principal,
+                renewedProperties
+            );
+            return RedirectToSurfacePage(
+                httpContext,
+                InteractiveAuthenticationDefaults.LoginCodePath,
+                languageTag,
+                (StatusQueryName, CodeSentStatusValue)
+            );
+        }
+
+        if (string.IsNullOrEmpty(code))
+        {
+            return RedirectToSurfacePage(
+                httpContext,
+                InteractiveAuthenticationDefaults.LoginCodePath,
+                languageTag,
+                (ErrorQueryName, InteractivePasswordChangeErrors.InvalidRequest)
+            );
+        }
+
+        var verified = await SignInCodeChallenge.VerifySignInCodeAsync(
+            openIdContext,
+            principal,
+            flowId,
+            code,
+            httpContext.RequestAborted
+        );
+        if (!verified.IsAccepted)
+        {
+            return RedirectToSurfacePage(
+                httpContext,
+                InteractiveAuthenticationDefaults.LoginCodePath,
+                languageTag,
+                (ErrorQueryName, verified.Error)
+            );
+        }
+
+        // The mailed code is a one-time password, and with the password it is a second factor.
+        AddAuthenticationMethod(identity, OpenIdProtocol.AuthenticationMethods.OneTimePassword);
+        AddAuthenticationMethod(
+            identity,
+            OpenIdProtocol.AuthenticationMethods.MultiFactorAuthentication
+        );
+
+        // The end user's standing is validated again, since it may have changed while the code was on its way.
+        var standing = await ValidateStandingAsync(
+            openIdContext,
+            principal,
+            httpContext.RequestAborted
+        );
+        if (standing.HasError)
+        {
+            await httpContext.SignOutAsync(
+                InteractiveAuthenticationDefaults.PendingSignInSchemeName
+            );
+            return await RefuseSignInAsync(
+                httpContext,
+                openIdContext,
+                returnUrl,
+                languageTag,
+                standing.Error,
+                httpContext.RequestAborted
+            );
+        }
+
+        await EstablishSessionAsync(openIdContext, principal, httpContext.RequestAborted);
+        await httpContext.SignInAsync(
+            InteractiveAuthenticationDefaults.CookieSchemeName,
+            principal
+        );
+        await httpContext.SignOutAsync(InteractiveAuthenticationDefaults.PendingSignInSchemeName);
+        return TypedResults.Redirect(returnUrl);
+    }
+
+    // Mails the end user whose password is verified the code that completes the sign-in and holds the principal in the
+    // pending sign-in cookie. A tenant that allows no more codes sends the end user back to the login page with that
+    // error; an account that cannot receive a code is refused as an account whose standing is refused.
+    // See ADR-1533.
+    private async ValueTask<IResult> BeginSignInCodeAsync(
+        HttpContext httpContext,
+        OpenIdContext openIdContext,
+        ClaimsPrincipal principal,
+        string safeReturnUrl,
+        string? languageTag,
+        CancellationToken cancellationToken
+    )
+    {
+        var locale = SelectLocale(httpContext);
+        var sent = await SignInCodeChallenge.SendSignInCodeAsync(
+            openIdContext,
+            principal,
+            locale,
+            cancellationToken
+        );
+        if (!sent.IsAccepted || sent.FlowId is null)
+        {
+            if (
+                string.Equals(
+                    sent.Error,
+                    InteractiveEmailCodeErrors.TooManyCodes,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                var tooManyCodesRedirect = BuildLoginRedirect(
+                    httpContext,
+                    safeReturnUrl,
+                    InteractiveEmailCodeErrors.TooManyCodes,
+                    languageTag
+                );
+                return TypedResults.Redirect(tooManyCodesRedirect);
+            }
+
+            var accessDenied = openIdContext.ErrorFactory.AccessDenied(
+                "The tenant requires a second factor this account cannot receive."
+            );
+            return await RefuseSignInAsync(
+                httpContext,
+                openIdContext,
+                safeReturnUrl,
+                languageTag,
+                accessDenied,
+                cancellationToken
+            );
+        }
+
+        var pendingProperties = CreatePendingSignInProperties(
+            sent.FlowId,
+            safeReturnUrl,
+            languageTag
+        );
+        await httpContext.SignInAsync(
+            InteractiveAuthenticationDefaults.PendingSignInSchemeName,
+            principal,
+            pendingProperties
+        );
+        return RedirectToSurfacePage(
+            httpContext,
+            InteractiveAuthenticationDefaults.LoginCodePath,
+            languageTag
+        );
+    }
+
+    private static AuthenticationProperties CreatePendingSignInProperties(
+        string flowId,
+        string returnUrl,
+        string? languageTag
+    )
+    {
+        var properties = new AuthenticationProperties();
+        properties.Items[EmailCodeFlowItem] = flowId;
+        properties.Items[ReturnUrlItem] = returnUrl;
+        if (!string.IsNullOrEmpty(languageTag))
+        {
+            properties.Items[UiLocalesItem] = languageTag;
+        }
+
+        return properties;
+    }
+
+    private static string? ReadPendingItem(AuthenticationProperties properties, string name) =>
+        properties.Items.TryGetValue(name, out var value) ? value : null;
+
+    private static void AddAuthenticationMethod(ClaimsIdentity identity, string method)
+    {
+        if (!identity.HasClaim(JoseClaimNames.Payload.Amr, method))
+        {
+            var claim = new Claim(JoseClaimNames.Payload.Amr, method);
+            identity.AddClaim(claim);
+        }
     }
 
     // The forgot-password and reset-password pages exist only while the tenant lets its end users reset a password.
