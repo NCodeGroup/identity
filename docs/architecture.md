@@ -15,9 +15,10 @@ the decisions and code behind it.
 ## Design Rules
 
 - Decisions the design rests on are recorded in [decisions/](decisions/README.md).
-- Warnings are errors ([ADR-0100](decisions/project-template/0100-warnings-are-errors-in-every-project.md)), and
-  disallowed APIs are banned at build time
-  ([ADR-0102](decisions/project-template/0102-disallowed-apis-are-banned-at-build-time.md)).
+- Warnings are errors
+  ([project-template ADR-0100](decisions/project-template/0100-warnings-are-errors-in-every-project.md)), and disallowed
+  APIs are banned at build time
+  ([project-template ADR-0102](decisions/project-template/0102-disallowed-apis-are-banned-at-build-time.md)).
 
 ## Build and Release
 

@@ -66,9 +66,9 @@ summary and in Codecov alike.**
    and `frontend.yml`, downloads the artifacts that run's gate job left, and uploads coverage and test results with a
    commit-SHA-pinned action under `id-token: write`, naming the run's commit, branch and pull request; a fork's branch
    carries its owner's name. It runs the default branch's copy in the base repository's context, checks out nothing,
-   reads the commit's tracked files into an index without writing them to disk, executes nothing from the artifacts,
-   and stores no secret. No job of `ci.yml` asks for more than `contents: read`, because the template's
-   `tag-release.yml` calls `ci.yml` with that alone and GitHub fails the whole run when a called job asks for more
+   reads the commit's tracked files into an index without writing them to disk, executes nothing from the artifacts, and
+   stores no secret. No job of `ci.yml` asks for more than `contents: read`, because the template's `tag-release.yml`
+   calls `ci.yml` with that alone and GitHub fails the whole run when a called job asks for more
    ([project-template ADR-0026](project-template/0026-tests-gate-coverage-at-the-gold-thresholds-and-a-release-waits-for-them.md)).
 6. **Gate jobs cannot leak the job token.** Gate jobs are `contents: read`, and every checkout sets
    `persist-credentials: false`, so the job token never lands in `.git/config` where build, test and third-party code
@@ -127,7 +127,8 @@ summary and in Codecov alike.**
 - Codecov shows coverage history, per-line coverage on pull-request diffs, flaky and failed-test analytics, and the
   README badge. The repository must be activated on codecov.io and the Codecov GitHub App installed on the organization
   for uploads, statuses and comments to work; without it the upload job logs a non-fatal failure.
-- A Dependabot run that gets no OIDC token may lack Codecov data, which is accepted because Codecov is not a gate.
+- A Dependabot or fork pull request's run uploads to Codecov like any other, because the upload's OIDC token comes from
+  `codecov-upload.yml`'s own `workflow_run` context, never from the run that tested the code.
 - The job summary and Codecov report the same scope and the same line counting, and the merged report names no file
   under `obj/` or `Migrations/`.
 - `./build/dod.ps1 -Fast` collects no coverage, so the coverage setting affects only the full gate that CI runs.

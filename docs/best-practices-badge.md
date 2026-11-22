@@ -10,13 +10,16 @@ three levels to the answer to expect and its evidence, and holds the prompt that
 
 ## The Badge
 
+The badge goes into [README.md](../README.md) once the project is registered, with its number in place of `PROJECT_ID`;
+until then it links to no project.
+
 ```html
 <a href="https://www.bestpractices.dev/projects/PROJECT_ID"><img alt="OpenSSF Best Practices"
   src="https://www.bestpractices.dev/projects/PROJECT_ID/badge"></a>
 ```
 
 OpenSSF Scorecard's CII-Best-Practices check scores the badge level: in progress 2, passing 5, silver 7, gold 10
-([ADR-0020](decisions/project-template/0020-github-projects-are-scored-by-openssf-scorecard.md)).
+([project-template ADR-0020](decisions/project-template/0020-github-projects-are-scored-by-openssf-scorecard.md)).
 
 ## Toward Silver
 
@@ -37,7 +40,8 @@ The silver criteria that need a document point to these:
 
 [//]: # "Maintainers: once registered, say which level the site shows and what keeps the next one from being earned, naming the criteria, not a percentage."
 
-Not registered yet. With one maintainer, silver stops below 100%: `access_continuity` is a MUST that only a second owner meets.
+Not registered yet. With one maintainer, silver stops below 100%: `access_continuity` is a MUST that only a second owner
+meets.
 
 ## Needs a Person
 
@@ -46,12 +50,12 @@ Not registered yet. With one maintainer, silver stops below 100%: `access_contin
 - `bus_factor` (silver SHOULD, gold MUST): a bus factor of 2 or more, which the same second owner gives.
 - `two_person_review` (gold MUST): a second maintainer.
 - `contributors_unassociated` (gold MUST): two significant contributors from different organizations.
-- `require_2FA` (gold MUST) and `secure_2FA` (gold SHOULD): the GitHub organization requires two-factor authentication, with
-  secure methods only, which only an owner can set and confirm.
+- `require_2FA` (gold MUST) and `secure_2FA` (gold SHOULD): the GitHub organization requires two-factor authentication,
+  with secure methods only, which only an owner can set and confirm.
 - `security_review` (gold MUST): a security review in the last five years, recorded in
   [assurance-case.md](assurance-case.md#security-reviews).
 - `dco` (silver SHOULD): unmet. The project doesn't ask for `Signed-off-by`
-  ([ADR-0023](decisions/project-template/0023-a-project-ships-the-documents-the-best-practices-silver-level-asks-for.md)).
+  ([project-template ADR-0023](decisions/project-template/0023-a-project-ships-the-documents-the-best-practices-silver-level-asks-for.md)).
 
 ## Also Supported
 

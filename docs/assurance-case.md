@@ -1,7 +1,7 @@
 # Assurance Case
 
-This page states NCode.Identity's security requirements, the threats it considers, and why the design and the way it
-is built meet them. [architecture.md](architecture.md) describes the components; [README.md](../README.md) is the
+This page states NCode.Identity's security requirements, the threats it considers, and why the design and the way it is
+built meet them. [architecture.md](architecture.md) describes the components; [README.md](../README.md) is the
 user-facing summary.
 
 ## Security Requirements
@@ -34,22 +34,24 @@ Not written yet.
 [//]: # "Maintainers: add the tests and the coverage the project keeps."
 
 - **Gate:** `./build/dod.ps1` builds in Release with warnings as errors
-  ([ADR-0100](decisions/project-template/0100-warnings-are-errors-in-every-project.md)), runs the analyzers and the
-  banned-API list in `build/BannedSymbols.txt`
-  ([ADR-0102](decisions/project-template/0102-disallowed-apis-are-banned-at-build-time.md)), and runs the tests; CI runs
-  the commands on every pull request.
+  ([project-template ADR-0100](decisions/project-template/0100-warnings-are-errors-in-every-project.md)), runs the
+  analyzers and the banned-API list in `build/BannedSymbols.txt`
+  ([project-template ADR-0102](decisions/project-template/0102-disallowed-apis-are-banned-at-build-time.md)), and runs
+  the tests; CI runs the commands on every pull request.
 - **Static analysis:** with CodeQL's default setup configured and analyzing at least one language, the repository
   ruleset blocks a pull request that adds a CodeQL alert at warning level or above, or a security alert of any severity
-  ([ADR-0005](decisions/project-template/0005-the-default-branch-accepts-changes-only-through-pull-requests.md),
-  [ADR-0030](decisions/project-template/0030-the-code-scanning-rule-is-added-only-where-codeql-analyzes-a-language.md)).
+  ([project-template ADR-0005](decisions/project-template/0005-the-default-branch-accepts-changes-only-through-pull-requests.md),
+  [project-template ADR-0030](decisions/project-template/0030-the-code-scanning-rule-is-added-only-where-codeql-analyzes-a-language.md)).
 - **Review:** every change reaches the default branch through a pull request with passing CI and every conversation
   resolved, and the ruleset refuses force pushes and deletion
-  ([ADR-0005](decisions/project-template/0005-the-default-branch-accepts-changes-only-through-pull-requests.md),
-  [ADR-0014](decisions/project-template/0014-every-pull-request-discussion-is-remediated-and-replied-to-before-it-merges.md)).
+  ([project-template ADR-0005](decisions/project-template/0005-the-default-branch-accepts-changes-only-through-pull-requests.md),
+  [project-template ADR-0014](decisions/project-template/0014-every-pull-request-discussion-is-remediated-and-replied-to-before-it-merges.md)).
 - **Dependencies:** pinned, and moved by reviewed updates
-  ([ADR-0008](decisions/project-template/0008-external-inputs-are-pinned-and-kept-current.md)) that wait three days for
-  a new version ([ADR-0009](decisions/project-template/0009-new-dependency-versions-wait-a-cooldown.md)). Dependabot proposes the updates. Central package management keeps one version of each package
-  ([ADR-0101](decisions/project-template/0101-central-package-management.md)).
+  ([project-template ADR-0008](decisions/project-template/0008-external-inputs-are-pinned-and-kept-current.md)) that
+  wait three days for a new version
+  ([project-template ADR-0009](decisions/project-template/0009-new-dependency-versions-wait-a-cooldown.md)). Dependabot
+  proposes the updates. Central package management keeps one version of each package
+  ([project-template ADR-0101](decisions/project-template/0101-central-package-management.md)).
 - **Response:** [SECURITY.md](../SECURITY.md) defines private reporting, coordinated disclosure and credit.
 
 ## Security Reviews
