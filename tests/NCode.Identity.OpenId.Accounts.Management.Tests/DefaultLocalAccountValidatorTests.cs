@@ -17,6 +17,7 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
     private const string TenantId = "tenant-1";
     private const string LocalAccountId = "account-1";
     private const string UserName = "alice";
+    private const string DisplayName = "Alice";
 
     private MockRepository MockRepository { get; }
     private Mock<IAuthorizationService> MockAuthorizationService { get; }
@@ -58,6 +59,7 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
             TenantId = TenantId,
             LocalAccountId = localAccountId,
             UserName = userName,
+            DisplayName = "Alice",
             Email = null,
             EmailVerified = false,
             SecurityStamp = "stamp",
@@ -311,6 +313,7 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
 
         var error = await Validator.ValidateCreateAsync(
             UserName,
+            DisplayName,
             MockStoreManager.Object,
             CancellationToken.None
         );
@@ -326,11 +329,40 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
 
         var error = await Validator.ValidateCreateAsync(
             UserName,
+            DisplayName,
             MockStoreManager.Object,
             CancellationToken.None
         );
 
         Assert.Null(error);
+    }
+
+    [Fact]
+    public async Task ValidateCreateAsync_WhenDisplayNameIsBlank_Returns400()
+    {
+        var error = await Validator.ValidateCreateAsync(
+            UserName,
+            "   ",
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(error);
+        Assert.Equal(StatusCodes.Status400BadRequest, error.StatusCode);
+    }
+
+    [Fact]
+    public async Task ValidateCreateAsync_WhenDisplayNameIsTooLong_Returns400()
+    {
+        var error = await Validator.ValidateCreateAsync(
+            UserName,
+            new string('a', AccountMaxLengths.DisplayName + 1),
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(error);
+        Assert.Equal(StatusCodes.Status400BadRequest, error.StatusCode);
     }
 
     #endregion
@@ -343,7 +375,8 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
         var error = await Validator.ValidateUpdateAsync(
             LocalAccountId,
             UserName,
-            concurrencyToken: "current-ct",
+            DisplayName,
+            "current-ct",
             ifMatch: "stale-ct",
             MockStoreManager.Object,
             CancellationToken.None
@@ -361,7 +394,8 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
         var error = await Validator.ValidateUpdateAsync(
             LocalAccountId,
             UserName,
-            concurrencyToken: "current-ct",
+            DisplayName,
+            "current-ct",
             ifMatch: "\"current-ct\"",
             MockStoreManager.Object,
             CancellationToken.None
@@ -378,7 +412,8 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
         var error = await Validator.ValidateUpdateAsync(
             LocalAccountId,
             UserName,
-            concurrencyToken: "current-ct",
+            DisplayName,
+            "current-ct",
             ifMatch: "current-ct",
             MockStoreManager.Object,
             CancellationToken.None
@@ -396,13 +431,31 @@ public sealed class DefaultLocalAccountValidatorTests : IDisposable
         var error = await Validator.ValidateUpdateAsync(
             LocalAccountId,
             UserName,
-            concurrencyToken: "current-ct",
+            DisplayName,
+            "current-ct",
             ifMatch: null,
             MockStoreManager.Object,
             CancellationToken.None
         );
 
         Assert.Null(error);
+    }
+
+    [Fact]
+    public async Task ValidateUpdateAsync_WhenDisplayNameIsBlank_Returns400()
+    {
+        var error = await Validator.ValidateUpdateAsync(
+            LocalAccountId,
+            UserName,
+            string.Empty,
+            "current-ct",
+            ifMatch: null,
+            MockStoreManager.Object,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(error);
+        Assert.Equal(StatusCodes.Status400BadRequest, error.StatusCode);
     }
 
     #endregion

@@ -29,6 +29,7 @@ using NCode.Identity.OpenId.Settings;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Settings;
 using NCode.Mediator;
+using SystemTextJsonPatch;
 
 namespace NCode.Identity.OpenId.Accounts.Management;
 
@@ -38,6 +39,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
     private const string TeamId = "team-1";
     private const string LocalAccountId = "account-1";
     private const string UserName = "alice";
+    private const string DisplayName = "Alice";
     private const string Password = "a-long-unlisted-passphrase";
     private const string PrincipalIdNotChecked = "<principal id not checked>";
 
@@ -400,6 +402,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         {
             TenantId = TenantId,
             LocalAccountId = localAccountId,
+            DisplayName = DisplayName,
             UserName = UserName,
             Email = null,
             EmailVerified = false,
@@ -407,6 +410,33 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             Claims = [],
             ConcurrencyToken = "account-ct",
         };
+
+    private static JsonPatchDocument<UpdateLocalAccountRequest> CreatePatch()
+    {
+        var patch = new JsonPatchDocument<UpdateLocalAccountRequest>();
+        patch.Replace(x => x.UserName, UserName);
+        return patch;
+    }
+
+    private void SetupUpdateValidated(string displayName)
+    {
+        MockLocalAccountValidator
+            .Setup(x =>
+                x.ValidateUpdateAsync(
+                    LocalAccountId,
+                    UserName,
+                    displayName,
+                    "account-ct",
+                    null,
+                    MockStoreManager.Object,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(
+                new ManagementError { StatusCode = StatusCodes.Status409Conflict, Detail = "stop" }
+            )
+            .Verifiable();
+    }
 
     private static PersistedTenant CreateTenant() =>
         new PersistedTenantBuilder
@@ -744,6 +774,27 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
     }
 
+    [Fact]
+    public async Task SetClaimsAsync_WithANameClaim_Returns400()
+    {
+        SetupAuthorizeUpdate(error: null);
+        SetupAccount(CreateAccount());
+
+        var result = await Handler.SetClaimsAsync(
+            CreateHttpContext(),
+            TenantId,
+            LocalAccountId,
+            new SetLocalAccountClaimsRequest
+            {
+                Claims = [new LocalAccountClaim { Type = "name", Value = "Someone" }],
+            },
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+    }
+
     #endregion
 
     #region SetMetadataAsync Tests
@@ -797,6 +848,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         MockLocalAccountValidator
             .Setup(x =>
                 x.ValidateCreateAsync(
+                    UserName,
                     UserName,
                     MockStoreManager.Object,
                     It.IsAny<CancellationToken>()
@@ -986,6 +1038,24 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         Assert.Null(json.Value.PrincipalId);
     }
 
+    [Fact]
+    public async Task GetLocalAccountAsync_ReturnsTheDisplayName()
+    {
+        SetupAuthorizationSucceeds();
+        SetupAccountForGet(CreateAccount());
+        SetupNoSelfIssuedIdentity();
+
+        var result = await Handler.GetLocalAccountAsync(
+            CreateHttpContext(),
+            TenantId,
+            LocalAccountId,
+            CancellationToken.None
+        );
+
+        var json = Assert.IsType<JsonHttpResult<LocalAccountResource>>(result);
+        Assert.Equal(DisplayName, json.Value?.DisplayName);
+    }
+
     #endregion
 
     #region UpdateLocalAccountAsync Tests
@@ -999,7 +1069,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             CreateHttpContext(),
             TenantId,
             LocalAccountId,
-            new UpdateLocalAccountRequest { UserName = UserName },
+            CreatePatch(),
             CancellationToken.None
         );
 
@@ -1017,6 +1087,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
                 x.ValidateUpdateAsync(
                     LocalAccountId,
                     UserName,
+                    DisplayName,
                     "account-ct",
                     null,
                     MockStoreManager.Object,
@@ -1038,7 +1109,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             CreateHttpContext(),
             TenantId,
             LocalAccountId,
-            new UpdateLocalAccountRequest { UserName = UserName },
+            CreatePatch(),
             CancellationToken.None
         );
 
@@ -1056,6 +1127,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
                 x.ValidateUpdateAsync(
                     LocalAccountId,
                     UserName,
+                    DisplayName,
                     "account-ct",
                     null,
                     MockStoreManager.Object,
@@ -1088,12 +1160,74 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             CreateHttpContext(),
             TenantId,
             LocalAccountId,
-            new UpdateLocalAccountRequest { UserName = UserName },
+            CreatePatch(),
             CancellationToken.None
         );
 
         Assert.IsType<NoContent>(result);
         Assert.Equal(["identity", "update", "save", "audit"], Calls);
+    }
+
+    [Fact]
+    public async Task UpdateLocalAccountAsync_AppliesTheJsonPatchToTheDisplayName()
+    {
+        SetupAuthorizeUpdate(error: null);
+        SetupAccount(CreateAccount());
+        SetupUpdateValidated("Alice Liddell");
+        var patch = new JsonPatchDocument<UpdateLocalAccountRequest>();
+        patch.Replace(x => x.DisplayName, "  Alice Liddell ");
+
+        var result = await Handler.UpdateLocalAccountAsync(
+            CreateHttpContext(),
+            TenantId,
+            LocalAccountId,
+            patch,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateLocalAccountAsync_WhenThePatchSetsTheDisplayNameToNull_ValidatesAnEmptyDisplayName()
+    {
+        SetupAuthorizeUpdate(error: null);
+        SetupAccount(CreateAccount());
+        SetupUpdateValidated(string.Empty);
+        var patch = new JsonPatchDocument<UpdateLocalAccountRequest>();
+        patch.Replace(x => x.DisplayName, null!);
+
+        var result = await Handler.UpdateLocalAccountAsync(
+            CreateHttpContext(),
+            TenantId,
+            LocalAccountId,
+            patch,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateLocalAccountAsync_WhenThePatchCannotBeApplied_Returns400()
+    {
+        SetupAuthorizeUpdate(error: null);
+        SetupAccount(CreateAccount());
+        var patch = new JsonPatchDocument<UpdateLocalAccountRequest>();
+        patch.Test(x => x.UserName, "not-the-user-name");
+
+        var result = await Handler.UpdateLocalAccountAsync(
+            CreateHttpContext(),
+            TenantId,
+            LocalAccountId,
+            patch,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
     }
 
     #endregion

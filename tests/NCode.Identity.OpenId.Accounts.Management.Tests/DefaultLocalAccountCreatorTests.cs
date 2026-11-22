@@ -66,12 +66,13 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
 
     #region Helpers
 
-    private void SetupUserNameValidated(ManagementError? error)
+    private void SetupUserNameValidated(ManagementError? error, string displayName = UserName)
     {
         MockLocalAccountValidator
             .Setup(x =>
                 x.ValidateCreateAsync(
                     UserName,
+                    displayName,
                     MockStoreManager.Object,
                     It.IsAny<CancellationToken>()
                 )
@@ -220,6 +221,71 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
         Assert.Equal("principal-1", stagedIdentity.PrincipalId);
         Assert.Equal(AccountConstants.SelfIssuer, stagedIdentity.Issuer);
         Assert.Equal("account-1", stagedIdentity.Subject);
+    }
+
+    [Fact]
+    public async Task StageAsync_WithoutDisplayName_UsesTheUserName()
+    {
+        var conflict = new ManagementError { StatusCode = StatusCodes.Status409Conflict, Detail = "stop" };
+        SetupUserNameValidated(conflict, displayName: UserName);
+
+        var creation = await Creator.StageAsync(
+            MockStoreManager.Object,
+            TenantId,
+            new CreateLocalAccountRequest
+            {
+                UserName = UserName,
+                DisplayName = "  ",
+                Password = Password,
+            },
+            CancellationToken.None
+        );
+
+        Assert.Same(conflict, creation.Error);
+    }
+
+    [Fact]
+    public async Task StageAsync_TrimsTheDisplayName()
+    {
+        var conflict = new ManagementError { StatusCode = StatusCodes.Status409Conflict, Detail = "stop" };
+        SetupUserNameValidated(conflict, displayName: "Alice Liddell");
+
+        var creation = await Creator.StageAsync(
+            MockStoreManager.Object,
+            TenantId,
+            new CreateLocalAccountRequest
+            {
+                UserName = UserName,
+                DisplayName = "  Alice Liddell ",
+                Password = Password,
+            },
+            CancellationToken.None
+        );
+
+        Assert.Same(conflict, creation.Error);
+    }
+
+    [Fact]
+    public async Task StageAsync_WithANameClaim_Returns400AndStagesNothing()
+    {
+        SetupUserNameValidated(error: null);
+
+        var creation = await Creator.StageAsync(
+            MockStoreManager.Object,
+            TenantId,
+            new CreateLocalAccountRequest
+            {
+                UserName = UserName,
+                Password = Password,
+                Claims = [new LocalAccountClaim { Type = "name", Value = "Someone" }],
+            },
+            CancellationToken.None
+        );
+
+        Assert.False(creation.Succeeded);
+        Assert.Equal(StatusCodes.Status400BadRequest, creation.Error.StatusCode);
+        Assert.Null(creation.PrincipalId);
+        Assert.Null(creation.Account);
     }
 
     [Fact]
