@@ -138,7 +138,8 @@ internal class BffAuthenticationHandler(
             frontend.Options.PathPrefix + BffEndpointPaths.Login
         );
         var escaped = Uri.EscapeDataString(returnUrl);
-        Response.Redirect($"{loginUrl}?returnUrl={escaped}");
+        var location = $"{loginUrl}?returnUrl={escaped}";
+        BffNavigation.RedirectLocal(Response, location);
         return Task.CompletedTask;
     }
 

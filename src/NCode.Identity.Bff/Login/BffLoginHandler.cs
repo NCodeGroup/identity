@@ -209,7 +209,7 @@ internal class BffLoginHandler(
     {
         await AuditRecorder.LoginFailedAsync(httpContext, reason, cancellationToken);
         var errorUrl = BffNavigation.ErrorUrl(httpContext.Request, options, reason);
-        httpContext.Response.Redirect(errorUrl);
+        BffNavigation.RedirectLocal(httpContext.Response, errorUrl);
     }
 
     private static ValueTask WriteInvalidRequestAsync(

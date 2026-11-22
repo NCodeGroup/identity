@@ -96,4 +96,55 @@ public class BffNavigationTests : BaseTests
     }
 
     #endregion
+
+    #region RedirectLocal Tests
+
+    [Fact]
+    public void RedirectLocal_WithALocalUrl_RedirectsToIt()
+    {
+        var httpContext = CreateHttpContext();
+
+        BffNavigation.RedirectLocal(httpContext.Response, "/base/app");
+
+        Assert.Equal(StatusCodes.Status302Found, httpContext.Response.StatusCode);
+        Assert.Equal("/base/app", httpContext.Response.Headers.Location.ToString());
+    }
+
+    [Fact]
+    public void RedirectLocal_WithAProtocolRelativeUrl_Throws()
+    {
+        var httpContext = CreateHttpContext();
+
+        Assert.Throws<InvalidOperationException>(() =>
+            BffNavigation.RedirectLocal(httpContext.Response, "//evil.example/")
+        );
+
+        Assert.False(httpContext.Response.Headers.ContainsKey("Location"));
+    }
+
+    [Fact]
+    public void RedirectLocal_WithAnAbsoluteUrl_Throws()
+    {
+        var httpContext = CreateHttpContext();
+
+        Assert.Throws<InvalidOperationException>(() =>
+            BffNavigation.RedirectLocal(httpContext.Response, "https://evil.example/")
+        );
+
+        Assert.False(httpContext.Response.Headers.ContainsKey("Location"));
+    }
+
+    [Fact]
+    public void RedirectLocal_WithABackslashUrl_Throws()
+    {
+        var httpContext = CreateHttpContext();
+
+        Assert.Throws<InvalidOperationException>(() =>
+            BffNavigation.RedirectLocal(httpContext.Response, "/\\evil.example")
+        );
+
+        Assert.False(httpContext.Response.Headers.ContainsKey("Location"));
+    }
+
+    #endregion
 }

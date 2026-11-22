@@ -100,7 +100,7 @@ internal class BffLogoutHandler(
         if (session is null)
         {
             var localUrl = BffNavigation.LocalUrl(request, returnUrl);
-            httpContext.Response.Redirect(localUrl);
+            BffNavigation.RedirectLocal(httpContext.Response, localUrl);
             return;
         }
 
@@ -134,7 +134,7 @@ internal class BffLogoutHandler(
             when (BffProviderFailures.IsUnavailable(exception, cancellationToken))
         {
             var localUrl = BffNavigation.LocalUrl(request, returnUrl);
-            httpContext.Response.Redirect(localUrl);
+            BffNavigation.RedirectLocal(httpContext.Response, localUrl);
             return;
         }
 
@@ -142,7 +142,7 @@ internal class BffLogoutHandler(
         if (endpoint is null)
         {
             var localUrl = BffNavigation.LocalUrl(request, returnUrl);
-            httpContext.Response.Redirect(localUrl);
+            BffNavigation.RedirectLocal(httpContext.Response, localUrl);
             return;
         }
 
