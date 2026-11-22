@@ -61,6 +61,55 @@ public class NestedCallArgumentAnalyzerTests
     )
     {
         var source = Wrap(body);
+        await AssertSourceReportsAsync(source, expectedTexts, cancellationToken);
+    }
+
+    private static string WrapMembers(string members) =>
+        $$"""
+            using System;
+            using System.Diagnostics;
+            using System.Linq.Expressions;
+
+            class Item { }
+
+            class B
+            {
+                public B(Item item) { }
+            }
+
+            class C
+            {
+                static Item Make() => new Item();
+
+                static int Make(int value) => value;
+
+                static int Use(object? value) => 0;
+
+                static bool Check(object? value) => true;
+
+                [Conditional("DEBUG")]
+                static void Trace(object? value) { }
+
+            {{members}}
+            }
+            """;
+
+    private static async ValueTask AssertMembersReportAsync(
+        string members,
+        string[] expectedTexts,
+        CancellationToken cancellationToken
+    )
+    {
+        var source = WrapMembers(members);
+        await AssertSourceReportsAsync(source, expectedTexts, cancellationToken);
+    }
+
+    private static async ValueTask AssertSourceReportsAsync(
+        string source,
+        string[] expectedTexts,
+        CancellationToken cancellationToken
+    )
+    {
         var diagnostics = await AnalyzeAsync(source, cancellationToken);
 
         var ordered = diagnostics
@@ -177,6 +226,45 @@ public class NestedCallArgumentAnalyzerTests
     public async Task Initialize_NoNestedCall_ReportsNothing(string body)
     {
         await AssertReportsAsync(body, [], CancellationToken.None);
+    }
+
+    [Theory]
+    [InlineData("    int P { get; } = Use(Make());")]
+    [InlineData("    static int F = Use(Make());")]
+    [InlineData("    class D : B { public D() : base(Make()) { } }")]
+    [InlineData("    class D() : B(Make()) { }")]
+    [InlineData("    static void Test() { Expression<Func<int, int>> e = x => Use(Make(x)); }")]
+    [InlineData("    static void Test() { Debug.Assert(Check(Make())); }")]
+    [InlineData("    static void Test() { Trace(Make()); }")]
+    [InlineData(
+        "    static void Test() { try { } catch (Exception e) when (Check(e.Message.Trim())) { } }"
+    )]
+    [InlineData(
+        "    static void Test(int value) { switch (value) { case int i when Check(Make()): break; } }"
+    )]
+    public async Task Initialize_PlaceThatCannotDeclareLocal_ReportsNothing(string members)
+    {
+        await AssertMembersReportAsync(members, [], CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Initialize_ExpressionBodiedMember_ReportsCall()
+    {
+        await AssertMembersReportAsync(
+            "    static int M() => Use(Make());",
+            ["Make()"],
+            CancellationToken.None
+        );
+    }
+
+    [Fact]
+    public async Task Initialize_DelegateLambdaWithArguments_ReportsCall()
+    {
+        await AssertMembersReportAsync(
+            "    static void Test() { Func<int, int> f = x => Use(Make(x)); }",
+            ["Make(x)"],
+            CancellationToken.None
+        );
     }
 
     #endregion
