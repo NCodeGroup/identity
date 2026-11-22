@@ -75,6 +75,24 @@ export const PASSWORD_FORGOT_PATH = 'password/forgot';
  */
 export const PASSWORD_RESET_PATH = 'password/reset';
 
+/**
+ * The sign-in code page, where an end-user whose password is verified presents the code mailed to the account's
+ * address; its form posts to it.
+ */
+export const LOGIN_CODE_PATH = 'login/code';
+
+/** The self-service email page, where the end-user verifies the account's email address. */
+export const EMAIL_PATH = 'email';
+
+/** The surface JSON endpoint returning the account's email address and whether it is verified. */
+export const EMAIL_STATUS_ENDPOINT = 'email/status';
+
+/** The surface path the email page posts to in order to mail a verification code. */
+export const EMAIL_SEND_ACTION = 'email/send';
+
+/** The surface path the email page posts the flow and the mailed code to in order to verify the address. */
+export const EMAIL_VERIFY_ACTION = 'email/verify';
+
 /** The path that renders the consent page (every other path renders login). */
 export const CONSENT_PATH = 'consent';
 
@@ -149,6 +167,16 @@ export function isPasswordForgotPath(
 /** True when the given path should render the reset-password page. */
 export function isPasswordResetPath(pathname: string, baseUri: string = document.baseURI): boolean {
   return isSurfacePath(pathname, PASSWORD_RESET_PATH, baseUri);
+}
+
+/** True when the given path should render the sign-in code page. */
+export function isLoginCodePath(pathname: string, baseUri: string = document.baseURI): boolean {
+  return isSurfacePath(pathname, LOGIN_CODE_PATH, baseUri);
+}
+
+/** True when the given path should render the email page. */
+export function isEmailPath(pathname: string, baseUri: string = document.baseURI): boolean {
+  return isSurfacePath(pathname, EMAIL_PATH, baseUri);
 }
 
 /** True when the given path should render the logout confirmation page. */

@@ -117,6 +117,38 @@ describe('AccountPage', () => {
     );
   });
 
+  it('offers email verification when the tenant lets the end-user verify the address', async () => {
+    renderPage({
+      antiforgeryToken: 'the-token',
+      loadSession: () => Promise.resolve({ subject: 'user-123', emailVerification: true }),
+    });
+
+    expect(await screen.findByTestId('account-session')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Verify your email address' })).toHaveAttribute(
+      'href',
+      '/account/email',
+    );
+  });
+
+  it.each([
+    ['disabled', { subject: 'user-123', emailVerification: false }],
+    ['not reported', { subject: 'user-123' }],
+  ])('offers no email verification when it is %s', async (_label, session) => {
+    renderPage({ antiforgeryToken: 'the-token', loadSession: () => Promise.resolve(session) });
+
+    expect(await screen.findByTestId('account-session')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Verify your email address' })).toBeNull();
+  });
+
+  it('offers no email verification until the session resolves', () => {
+    renderPage({
+      antiforgeryToken: 'the-token',
+      loadSession: () => new Promise<AccountSession | null>(() => {}),
+    });
+
+    expect(screen.queryByRole('link', { name: 'Verify your email address' })).toBeNull();
+  });
+
   it('shows a loading state until the session resolves, and keeps sign-out available', () => {
     renderPage({
       antiforgeryToken: 'the-token',

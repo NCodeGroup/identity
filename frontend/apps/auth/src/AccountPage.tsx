@@ -9,6 +9,7 @@ import Typography from '@mui/material/Typography';
 import {
   ACCOUNT_PATH,
   ANTIFORGERY_FIELD,
+  EMAIL_PATH,
   LOGIN_ACTION,
   LOGOUT_ACTION,
   ME_ENDPOINT,
@@ -27,6 +28,8 @@ export type AccountSession = {
   readonly amr?: readonly string[];
   readonly idp?: string | null;
   readonly sessionId?: string | null;
+  /** Whether the tenant lets the end-user verify the account's email address. */
+  readonly emailVerification?: boolean;
 };
 
 export type AccountPageProps = {
@@ -159,6 +162,12 @@ export function AccountPage({
             <Button href={resolveSurfacePath(PASSWORD_PATH)} variant="text">
               {text.changePassword}
             </Button>
+
+            {session?.emailVerification ? (
+              <Button href={resolveSurfacePath(EMAIL_PATH)} variant="text">
+                {text.verifyEmail}
+              </Button>
+            ) : null}
           </Stack>
         </CardContent>
       </Card>

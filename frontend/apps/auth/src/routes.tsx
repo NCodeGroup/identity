@@ -6,16 +6,20 @@ import { LoginForm } from './LoginForm.js';
 import { LogoutConfirmPage } from './LogoutConfirmPage.js';
 import { AccountPage } from './AccountPage.js';
 import { AuthorizedAppsPage } from './AuthorizedAppsPage.js';
+import { EmailPage } from './EmailPage.js';
 import { ForgotPasswordPage } from './ForgotPasswordPage.js';
 import { PasswordPage } from './PasswordPage.js';
 import { ResetPasswordPage } from './ResetPasswordPage.js';
 import { SessionsPage } from './SessionsPage.js';
+import { SignInCodePage } from './SignInCodePage.js';
 import {
   describeEmailCodeError,
   describePasswordError,
   isAccountPath,
   isApplicationsPath,
   isConsentPath,
+  isEmailPath,
+  isLoginCodePath,
   isLogoutConfirmPath,
   isPasswordForgotPath,
   isPasswordPath,
@@ -92,6 +96,28 @@ const ROUTES: readonly Route[] = [
         antiforgeryToken={antiforgeryToken}
         flow={flow ?? ''}
         errorMessage={describeEmailCodeError(errorCode ?? null, messages)}
+      />
+    ),
+  },
+  {
+    match: isLoginCodePath,
+    render: ({ antiforgeryToken, errorCode, status, messages }) => (
+      <SignInCodePage
+        antiforgeryToken={antiforgeryToken}
+        errorMessage={describeEmailCodeError(errorCode ?? null, messages)}
+        sent={status === 'sent'}
+      />
+    ),
+  },
+  {
+    match: isEmailPath,
+    render: ({ antiforgeryToken, branding, errorCode, flow, status, messages }) => (
+      <EmailPage
+        antiforgeryToken={antiforgeryToken}
+        flow={flow ?? null}
+        status={status ?? null}
+        errorMessage={describeEmailCodeError(errorCode ?? null, messages)}
+        {...productNameOf(branding)}
       />
     ),
   },

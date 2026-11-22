@@ -155,6 +155,55 @@ describe('resolveRoute', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(en.emailCodeErrors.invalidCode);
   });
 
+  it('renders the sign-in code surface for the sign-in code path', () => {
+    const { container } = renderRoute({ ...baseContext, pathname: '/account/login/code' });
+    expect(container.querySelector('form')?.getAttribute('action')).toBe('/account/login/code');
+    expect(container.querySelector('#verify-code')).not.toBeNull();
+    expect(container.querySelector('#resend-code')).not.toBeNull();
+    expect(container.querySelector('#login')).toBeNull();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('confirms a sent code on the sign-in code surface', () => {
+    renderRoute({ ...baseContext, pathname: '/account/login/code', status: 'sent' });
+    expect(screen.getByRole('alert')).toHaveTextContent(en.signInCode.sent);
+  });
+
+  it('shows no confirmation on the sign-in code surface for any other status', () => {
+    renderRoute({ ...baseContext, pathname: '/account/login/code', status: 'other' });
+    expect(screen.queryByText(en.signInCode.sent)).not.toBeInTheDocument();
+  });
+
+  it('maps the email-code error code on the sign-in code surface', () => {
+    renderRoute({
+      ...baseContext,
+      pathname: '/account/login/code',
+      errorCode: 'too_many_codes',
+    });
+    expect(screen.getByRole('alert')).toHaveTextContent(en.emailCodeErrors.tooManyCodes);
+  });
+
+  it('renders the email surface for the email path', async () => {
+    renderRoute({ ...baseContext, pathname: '/account/email' });
+    expect(screen.getByTestId('email-loading')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('/account/email/status', expect.anything()),
+    );
+  });
+
+  it('carries the flow, the status and the error code to the email surface', () => {
+    renderRoute({
+      ...baseContext,
+      pathname: '/account/email',
+      flow: 'handle-1',
+      status: 'verified',
+      errorCode: 'invalid_code',
+    });
+    expect(screen.getByTestId('email-verified-status')).toBeInTheDocument();
+    expect(screen.getByText(en.emailCodeErrors.invalidCode)).toBeInTheDocument();
+  });
+
   it('links the login surface to the forgot-password page the server page offers', () => {
     renderRoute({
       ...baseContext,
@@ -243,6 +292,7 @@ describe('resolveRoute', () => {
     ['/account/applications', 'Acme — authorized applications'],
     ['/account/sessions', 'Acme — active sessions'],
     ['/account/password', 'Acme — change password'],
+    ['/account/email', 'Email address for Acme'],
   ])('titles %s with the tenant display name', (pathname, title) => {
     renderRoute({ ...baseContext, pathname, branding: { displayName: 'Acme' } });
     expect(screen.getByText(title)).toBeInTheDocument();

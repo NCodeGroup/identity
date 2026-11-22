@@ -8,6 +8,8 @@ import {
   isAccountPath,
   isApplicationsPath,
   isConsentPath,
+  isEmailPath,
+  isLoginCodePath,
   isLogoutConfirmPath,
   isPasswordForgotPath,
   isPasswordPath,
@@ -145,6 +147,32 @@ describe('isPasswordResetPath', () => {
   it('does not match the change-password or forgot-password paths', () => {
     expect(isPasswordResetPath('/account/password')).toBe(false);
     expect(isPasswordResetPath('/account/password/forgot')).toBe(false);
+  });
+});
+
+describe('isLoginCodePath', () => {
+  it('matches the sign-in code path with trailing slashes', () => {
+    expect(isLoginCodePath('/account/login/code')).toBe(true);
+    expect(isLoginCodePath('/account/login/code/')).toBe(true);
+    expect(isLoginCodePath('/acme/account/login/code', TENANT_BASE)).toBe(true);
+  });
+
+  it('does not match the login path or other paths', () => {
+    expect(isLoginCodePath('/account/login')).toBe(false);
+    expect(isLoginCodePath('/account/email')).toBe(false);
+  });
+});
+
+describe('isEmailPath', () => {
+  it('matches the email path with trailing slashes', () => {
+    expect(isEmailPath('/account/email')).toBe(true);
+    expect(isEmailPath('/account/email/')).toBe(true);
+    expect(isEmailPath('/acme/account/email', TENANT_BASE)).toBe(true);
+  });
+
+  it('does not match the account root or the email endpoints', () => {
+    expect(isEmailPath('/account')).toBe(false);
+    expect(isEmailPath('/account/email/status')).toBe(false);
   });
 });
 
