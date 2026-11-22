@@ -48,7 +48,7 @@ internal sealed class TeamChangeBroadcastHandler(
     /// <inheritdoc />
     public async ValueTask HandleAsync(string message, CancellationToken cancellationToken)
     {
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         // The team's tenants are evicted even when the team's removal fails, and the failure still propagates.
         try
@@ -64,7 +64,7 @@ internal sealed class TeamChangeBroadcastHandler(
     /// <inheritdoc />
     public async ValueTask HandleMissedMessagesAsync(CancellationToken cancellationToken)
     {
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         var staleTeamIds = await GetStaleTeamIdsAsync(propertyBag, cancellationToken);
         if (staleTeamIds is null)
