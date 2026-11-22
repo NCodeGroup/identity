@@ -26,10 +26,10 @@ values used by the NCode hosted platform are listed once here.
 ([ADR-1495](decisions/1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md)).
 
 **Region choice.** The AWS account keeps the platform's state, backups and vendor tokens in `us-west-2`, a different
-geography from the production cluster in Washington, DC — a regional outage can't take both. Production's region is chosen for its
-customers ([hosting-analysis.md](hosting-analysis.md#the-production-region)); only the lab is placed near the operator.
-OCI has no Oregon region; Phoenix is the closest OCI region to Denver and has three availability domains to spread the
-lab's nodes across.
+geography from the production cluster in Washington, DC — a regional outage can't take both. Production's region is
+chosen for its customers ([hosting-analysis.md](hosting-analysis.md#the-production-region)); only the lab is placed near
+the operator. OCI has no Oregon region; Phoenix is the closest OCI region to Denver and has three availability domains
+to spread the lab's nodes across.
 
 ## 0. Before you start
 
@@ -191,9 +191,9 @@ lab needs it — the bootstrap stack (section 6) doesn't touch OCI — so it can
 only gets the sign-up verification out of the way.
 
 1. **Sign up** with `<recovery-email>`; choose home region **`<oci-region>`** — it **cannot** be changed later.
-2. **Upgrade to Pay As You Go** (Billing → Upgrade). It keeps the Always Free resources, the monthly Ampere A1
-   allowance among them (1,500 OCPU-hours and 9,000 GB-hours, ≈ 2 OCPU / 12 GB always-on, which the lab's two nodes use
-   whole), and exempts the tenancy from idle-resource reclamation.
+2. **Upgrade to Pay As You Go** (Billing → Upgrade). It keeps the Always Free resources, the monthly Ampere A1 allowance
+   among them (1,500 OCPU-hours and 9,000 GB-hours, ≈ 2 OCPU / 12 GB always-on, which the lab's two nodes use whole),
+   and exempts the tenancy from idle-resource reclamation.
 3. Enable **MFA** for your console user (Identity → Domains → Default → Security → MFA).
 4. Create an **API signing key** for the OCI CLI: Profile → *API keys* → *Add API key* → generate, download the
    private key to `~/.oci/`, and paste the shown configuration into `~/.oci/config` (or run `oci setup config`).
