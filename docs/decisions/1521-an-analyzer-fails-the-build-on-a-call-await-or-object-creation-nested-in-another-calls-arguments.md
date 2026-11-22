@@ -36,8 +36,11 @@ another call's arguments in production code, and nothing suppresses it.**
    object) that is an argument of a method call, a delegate call or an object creation, directly or anywhere inside the
    argument's expression, such as `Use(1 + Make())` or `Use($"{Make()}")`. It reports the outermost such expression of
    the argument, so one hoist fixes the argument: `Use(Wrap(Make()))` reports `Wrap(Make())` and not `Make()` twice
-   over. The receiver of a call is never its argument, so `Make().Use(value)` is not reported. Each diagnostic is at
-   the expression, and its message names the kind: call, await or object creation.
+   over. The receiver of a call is never its argument, so `Make().Use(value)` is not reported. Each diagnostic is at the
+   expression, and its message names the kind: call, await or object creation. The rule binds a call's arguments only,
+   so a collection expression passed as an argument (which is neither a call, an `await` nor an object creation), a call
+   in an object or collection initializer's member value, a `with` expression and a cast are outside it, as the
+   template's rule is.
 2. **The analyzer does not report what a local cannot hold or what a hoist would change:**
    - a lambda or anonymous-method argument itself, because the rule applies inside its body, as `Run(() => Use(Make()))`
      reports `Make()`;
