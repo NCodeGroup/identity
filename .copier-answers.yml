@@ -18,6 +18,7 @@ project_owned_files:
 - Directory.Packages.props
 - global.json
 - build/dod.ps1
+- .vscode/settings.json
 stack: dotnet
 test_command: ./build/dod.ps1 -Fast
 uses_node: false
