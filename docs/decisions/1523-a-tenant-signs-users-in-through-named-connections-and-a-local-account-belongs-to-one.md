@@ -54,14 +54,14 @@ the connections it accepts.**
 
 ### 1. A connection is a tenant-scoped resource
 
-| Member         | Meaning                                                                                                        |
-| -------------- | -------------------------------------------------------------------------------------------------------------- |
-| `ConnectionId` | Opaque, server-minted with `ICryptoService.GenerateResourceId()` ([ADR-1014](1014-management-resources-carry-opaque-server-identifiers-and-list-one-keyset-page-at-a-time.md)), never reissued |
-| `Name`         | Operator-chosen, unique per tenant, validated like a resource identifier; what clients, requests and the sign-in page name |
-| `Strategy`     | A registered strategy name: `local`, and [#64](https://github.com/NCodeGroup/identity/issues/64)'s `oidc`, `saml` and `wsfed`                                       |
+| Member         | Meaning                                                                                                                                                                                                                        |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ConnectionId` | Opaque, server-minted with `ICryptoService.GenerateResourceId()` ([ADR-1014](1014-management-resources-carry-opaque-server-identifiers-and-list-one-keyset-page-at-a-time.md)), never reissued                                 |
+| `Name`         | Operator-chosen, unique per tenant, validated like a resource identifier; what clients, requests and the sign-in page name                                                                                                     |
+| `Strategy`     | A registered strategy name: `local`, and [#64](https://github.com/NCodeGroup/identity/issues/64)'s `oidc`, `saml` and `wsfed`                                                                                                  |
 | `IsEnabled`    | A disabled connection signs no one in and its identities fail subject validation, as a disabled account does ([ADR-1229](1229-a-blocked-disabled-or-deleted-end-user-loses-its-sessions-and-is-refused-with-access-denied.md)) |
-| `Options`      | The strategy's own payload, validated by its descriptor and stored with the schema-versioned serializer        |
-| `Settings`     | A settings document at the `connection` scope (see 5)                                                          |
+| `Options`      | The strategy's own payload, validated by its descriptor and stored with the schema-versioned serializer                                                                                                                        |
+| `Settings`     | A settings document at the `connection` scope (see 5)                                                                                                                                                                          |
 
 A strategy is an `IConnectionStrategy` descriptor, contributed through `ICollectionDataSource<>` like settings and
 scopes. It names its kind, validates its `Options`, and says how a sign-in through it is verified. Composition rejects
@@ -93,11 +93,11 @@ subject or issuer is not provisioned today
 
 `LocalAccountEntity` carries its connection, and its indexes are:
 
-| Index                                         | Unique | Purpose                                        |
-| --------------------------------------------- | ------ | ---------------------------------------------- |
-| `(tenant, LocalAccountId)`                    | yes    | The opaque id is the subject and the management address |
-| `(tenant, connection, NormalizedUserName)`    | yes    | Sign-in by user name within the connection     |
-| `(tenant, connection, NormalizedEmail)`       | yes    | Sign-in by email and one account per email within the connection |
+| Index                                      | Unique | Purpose                                                          |
+| ------------------------------------------ | ------ | ---------------------------------------------------------------- |
+| `(tenant, LocalAccountId)`                 | yes    | The opaque id is the subject and the management address          |
+| `(tenant, connection, NormalizedUserName)` | yes    | Sign-in by user name within the connection                       |
+| `(tenant, connection, NormalizedEmail)`    | yes    | Sign-in by email and one account per email within the connection |
 
 Both name columns are nullable and a null never conflicts, so a connection may do without user names or without emails.
 The connection setting `local_account_identifier` is `email`, `user_name` or `email_or_user_name`, and decides which
@@ -129,7 +129,9 @@ merge. A sign-in reads its connection's effective settings.
 ### 6. A client enables connections
 
 - `allowed_connections` applies to clients, lists connection names and merges with `Intersect`. Unset, it allows every
-  enabled connection; set, it allows only those it lists, fail-closed
+  enabled connection; set, it allows only those it lists, fail-closed. It is a client's only allow-list of the
+  authorities it accepts: no other setting names identity providers, and subject validation, the interactive surface and
+  the password grant all read it
   ([ADR-1010](1010-settings-merge-as-ceilings-and-floors-unset-lists-restrict-nothing-and-a-secure-baseline-supplies-defaults.md)).
 - `default_connection` applies to tenants and clients and names the connection used when a request names none.
 - An authorization request selects a connection with the `connection` parameter or an `idp:<name>` value in
@@ -147,15 +149,15 @@ through Google and a local account keeps linking by verified email. `sub` is the
 
 ## Options considered
 
-| Force                               | A. One namespace per tenant | B. Local databases only | C. Connections keyed by issuer | D. Connections keyed by connection |
-| ----------------------------------- | --------------------------- | ----------------------- | ------------------------------ | ---------------------------------- |
-| Groups with their own policy        | Only as separate tenants    | Yes                     | Yes                            | Yes                                |
-| Several backends in a tenant        | No                          | Yes                     | Yes                            | Yes                                |
-| Enablement per client               | No                          | A second list beside `allowed_identity_providers` | Yes | Yes                     |
-| Two connections to one upstream issuer | n/a                      | n/a                     | Merge, or need a made-up issuer | Separate                          |
-| [#64](https://github.com/NCodeGroup/identity/issues/64) builds on it                    | Needs its own model         | Needs its own model     | Yes                            | Yes                                |
-| Connection read from an upstream claim | n/a                      | n/a                     | The issuer claim chooses it    | Never                              |
-| Configuration for a one-group tenant | None                       | None, with a default    | None, with a default           | None, with a default               |
+| Force                                                                | A. One namespace per tenant | B. Local databases only                           | C. Connections keyed by issuer  | D. Connections keyed by connection |
+| -------------------------------------------------------------------- | --------------------------- | ------------------------------------------------- | ------------------------------- | ---------------------------------- |
+| Groups with their own policy                                         | Only as separate tenants    | Yes                                               | Yes                             | Yes                                |
+| Several backends in a tenant                                         | No                          | Yes                                               | Yes                             | Yes                                |
+| Enablement per client                                                | No                          | A second list beside `allowed_identity_providers` | Yes                             | Yes                                |
+| Two connections to one upstream issuer                               | n/a                         | n/a                                               | Merge, or need a made-up issuer | Separate                           |
+| [#64](https://github.com/NCodeGroup/identity/issues/64) builds on it | Needs its own model         | Needs its own model                               | Yes                             | Yes                                |
+| Connection read from an upstream claim                               | n/a                         | n/a                                               | The issuer claim chooses it     | Never                              |
+| Configuration for a one-group tenant                                 | None                        | None, with a default                              | None, with a default            | None, with a default               |
 
 - **A. Keep one namespace per tenant.** Rejected. A second tenant does separate two groups, but it duplicates every
   client, resource server, role and key the groups share, gives no per-client choice, and leaves
