@@ -46,7 +46,8 @@ internal class FrontendToolchainGuard(string frontendDirectory)
         {
             "The frontend toolchain is not ready, so the frontend resources would fail to start:",
         };
-        lines.AddRange(problems.Select(problem => $"- {problem}"));
+        var problemLines = problems.Select(problem => $"- {problem}");
+        lines.AddRange(problemLines);
         lines.Add($"Run {RepairCommand} to repair it, then start the AppHost again.");
 
         return string.Join("\n", lines);
@@ -64,11 +65,10 @@ internal class FrontendToolchainGuard(string frontendDirectory)
         if (!OperatingSystem.IsWindows())
             return null;
 
-        var root = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "nvs",
-            "node"
+        var localApplicationData = Environment.GetFolderPath(
+            Environment.SpecialFolder.LocalApplicationData
         );
+        var root = Path.Combine(localApplicationData, "nvs", "node");
 
         return Directory.Exists(root) ? root : null;
     }
@@ -116,7 +116,8 @@ internal class FrontendToolchainGuard(string frontendDirectory)
             };
             process.BeginOutputReadLine();
 
-            if (!process.WaitForExit(TimeSpan.FromSeconds(10)))
+            var exitTimeout = TimeSpan.FromSeconds(10);
+            if (!process.WaitForExit(exitTimeout))
             {
                 process.Kill(entireProcessTree: true);
                 return null;
@@ -157,7 +158,8 @@ internal class FrontendToolchainGuard(string frontendDirectory)
             );
         }
 
-        problems.AddRange(WorkspaceInstall.FindProblems(frontendDirectory, pins.PnpmVersion));
+        var workspaceProblems = WorkspaceInstall.FindProblems(frontendDirectory, pins.PnpmVersion);
+        problems.AddRange(workspaceProblems);
 
         return problems;
     }
@@ -177,14 +179,17 @@ internal class FrontendToolchainGuard(string frontendDirectory)
             var nodeDirectory = NvsNode.FindDirectory(nvsNodeRoot, pins.NodeMajor);
             if (nodeDirectory is not null)
             {
-                SetPath(PrependToPath(GetPath(), nodeDirectory));
+                var currentPath = GetPath();
+                var updatedPath = PrependToPath(currentPath, nodeDirectory);
+                SetPath(updatedPath);
             }
         }
 
         var problems = FindProblems(pins);
         if (problems.Count > 0)
         {
-            throw new InvalidOperationException(FormatMessage(problems));
+            var message = FormatMessage(problems);
+            throw new InvalidOperationException(message);
         }
     }
 }

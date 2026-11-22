@@ -34,9 +34,9 @@ using NCode.Identity.SharedState.Valkey;
 // command-line configuration provider would read as configuration.
 var secretProtectionCommand = SecretProtectionCommandLine.Parse(args);
 var instanceSetupCommand = InstanceSetupCommandLine.Parse(args);
-var builder = WebApplication.CreateBuilder(
-    InstanceSetupCommandLine.GetHostArguments(SecretProtectionCommandLine.GetHostArguments(args))
-);
+var secretProtectionHostArguments = SecretProtectionCommandLine.GetHostArguments(args);
+var hostArguments = InstanceSetupCommandLine.GetHostArguments(secretProtectionHostArguments);
+var builder = WebApplication.CreateBuilder(hostArguments);
 
 var configuration = builder.Configuration;
 var hostEnvironment = builder.Environment;

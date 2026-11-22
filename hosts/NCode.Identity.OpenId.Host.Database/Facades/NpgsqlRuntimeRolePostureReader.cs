@@ -44,10 +44,14 @@ internal sealed class NpgsqlRuntimeRolePostureReader(string connectionString)
         if (!await reader.ReadAsync(cancellationToken))
             return null;
 
+        var isSuperuser = reader.GetBoolean(0);
+        var bypassesRls = reader.GetBoolean(1);
+        var ownsTenantTables = reader.GetBoolean(2);
+
         return new RuntimeRolePostureRow(
-            IsSuperuser: reader.GetBoolean(0),
-            BypassesRls: reader.GetBoolean(1),
-            OwnsTenantTables: reader.GetBoolean(2)
+            IsSuperuser: isSuperuser,
+            BypassesRls: bypassesRls,
+            OwnsTenantTables: ownsTenantTables
         );
     }
 }

@@ -28,13 +28,14 @@ internal static class NvsNode
         return Directory
             .EnumerateDirectories(nvsNodeRoot, $"{major}.*")
             .Select(versionDir =>
-                (
+            {
+                var versionName = Path.GetFileName(versionDir);
+
+                return (
                     VersionDir: versionDir,
-                    Version: Version.TryParse(Path.GetFileName(versionDir), out var version)
-                        ? version
-                        : null
-                )
-            )
+                    Version: Version.TryParse(versionName, out var version) ? version : null
+                );
+            })
             .Where(install => install.Version?.Major == major)
             .OrderByDescending(install => install.Version)
             .Select(install => Path.Combine(install.VersionDir, "x64"))

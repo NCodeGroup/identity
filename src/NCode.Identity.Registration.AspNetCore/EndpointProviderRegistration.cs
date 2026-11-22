@@ -25,9 +25,8 @@ public static class EndpointProviderRegistration
         >()
             where T : class, IEndpointProvider
         {
-            builder.ServiceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IEndpointProvider, T>()
-            );
+            var descriptor = ServiceDescriptor.Singleton<IEndpointProvider, T>();
+            builder.ServiceCollection.TryAddEnumerable(descriptor);
         }
 
         /// <summary>
@@ -41,10 +40,10 @@ public static class EndpointProviderRegistration
             where T : class, IEndpointGroup, new()
         {
             var root = new T();
-            builder.ServiceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IEndpointGroup>(root)
-            );
-            root.ConfigureServices(new EndpointGroupBuilder(builder, root.Name));
+            var descriptor = ServiceDescriptor.Singleton<IEndpointGroup>(root);
+            builder.ServiceCollection.TryAddEnumerable(descriptor);
+            var rootBuilder = new EndpointGroupBuilder(builder, root.Name);
+            root.ConfigureServices(rootBuilder);
         }
     }
 }

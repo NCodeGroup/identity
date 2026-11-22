@@ -32,9 +32,10 @@ internal static class RuntimeRoleRegistration
             await server.ConnectionStringExpression.GetValueAsync(cancellationToken)
             ?? throw new InvalidOperationException("The Postgres server has no connection string.");
 
-        await using var connection = new NpgsqlConnection(
-            LocalDatabase.MaintenanceConnectionString(serverConnectionString)
+        var maintenanceConnectionString = LocalDatabase.MaintenanceConnectionString(
+            serverConnectionString
         );
+        await using var connection = new NpgsqlConnection(maintenanceConnectionString);
         await connection.OpenAsync(cancellationToken);
 
         await using var command = new NpgsqlCommand(script, connection);

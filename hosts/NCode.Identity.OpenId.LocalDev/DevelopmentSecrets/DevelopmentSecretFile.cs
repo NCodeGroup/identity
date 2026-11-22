@@ -26,15 +26,15 @@ internal static class DevelopmentSecretFile
     /// Gets the directory beside which every development secret of this machine is kept.
     /// </summary>
     /// <returns>The <c>NCode.Identity/LocalDev</c> directory under the local application data of the user.</returns>
-    internal static string GetDefaultDirectory() =>
-        Path.Combine(
-            Environment.GetFolderPath(
-                Environment.SpecialFolder.LocalApplicationData,
-                Environment.SpecialFolderOption.Create
-            ),
-            "NCode.Identity",
-            "LocalDev"
+    internal static string GetDefaultDirectory()
+    {
+        var localApplicationData = Environment.GetFolderPath(
+            Environment.SpecialFolder.LocalApplicationData,
+            Environment.SpecialFolderOption.Create
         );
+
+        return Path.Combine(localApplicationData, "NCode.Identity", "LocalDev");
+    }
 
     /// <summary>
     /// Makes sure the development secret file exists, generating it on the first run.
@@ -63,7 +63,8 @@ internal static class DevelopmentSecretFile
                 return path;
         }
 
-        var temporaryPath = Path.Combine(directory, $"{fileName}.{Guid.NewGuid():N}.tmp");
+        var temporaryId = Guid.NewGuid();
+        var temporaryPath = Path.Combine(directory, $"{fileName}.{temporaryId:N}.tmp");
 
         Span<byte> key = stackalloc byte[32];
         Span<byte> text = stackalloc byte[43];

@@ -30,9 +30,8 @@ internal sealed class EndpointGroupBuilder(IServiceBuilder serviceBuilder, strin
     >()
         where T : class, IEndpointProvider
     {
-        ServiceCollection.TryAddEnumerable(
-            ServiceDescriptor.KeyedSingleton<IEndpointProvider, T>(groupName)
-        );
+        var descriptor = ServiceDescriptor.KeyedSingleton<IEndpointProvider, T>(groupName);
+        ServiceCollection.TryAddEnumerable(descriptor);
     }
 
     /// <inheritdoc />
@@ -42,9 +41,9 @@ internal sealed class EndpointGroupBuilder(IServiceBuilder serviceBuilder, strin
         where T : class, IEndpointGroup, new()
     {
         var child = new T();
-        ServiceCollection.TryAddEnumerable(
-            ServiceDescriptor.KeyedSingleton<IEndpointGroup>(groupName, child)
-        );
-        child.ConfigureServices(new EndpointGroupBuilder(serviceBuilder, child.Name));
+        var descriptor = ServiceDescriptor.KeyedSingleton<IEndpointGroup>(groupName, child);
+        ServiceCollection.TryAddEnumerable(descriptor);
+        var childBuilder = new EndpointGroupBuilder(serviceBuilder, child.Name);
+        child.ConfigureServices(childBuilder);
     }
 }
