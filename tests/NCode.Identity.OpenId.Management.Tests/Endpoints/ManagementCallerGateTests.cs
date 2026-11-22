@@ -203,6 +203,8 @@ public sealed class ManagementCallerGateTests : IDisposable
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status401Unauthorized, problem.StatusCode);
+        string[] expectedChallenges = ["Bearer", "DPoP"];
+        Assert.Equal(expectedChallenges, HttpContext.Response.Headers.WWWAuthenticate.ToArray());
         Assert.Null(HttpContext.Features.Get<IManagementCallerFeature>());
     }
 

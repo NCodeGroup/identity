@@ -9,6 +9,7 @@ using NCode.Identity.Jose;
 using NCode.Identity.OpenId.Authentication.Tokens.Commands;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.GlobalDirectory;
+using NCode.Identity.OpenId.Management.Endpoints;
 using NCode.Mediator;
 
 namespace NCode.Identity.OpenId.Management.ControlPlane;
@@ -18,7 +19,8 @@ namespace NCode.Identity.OpenId.Management.ControlPlane;
 /// runs before the route binds its body, materializes the control-plane environment for the request, authenticates the
 /// bearer or DPoP access token of the request for the control-plane audience, and requires the <c>control-plane</c>
 /// scope and a <c>client_id</c> that names a cell's machine client. A request without a valid token is answered
-/// <c>401 Unauthorized</c> and a request whose token lacks the scope or names another client is answered
+/// <c>401 Unauthorized</c> that challenges with both schemes the gate accepts, <c>Bearer</c> and <c>DPoP</c>, in
+/// <c>WWW-Authenticate</c>, and a request whose token lacks the scope or names another client is answered
 /// <c>403 Forbidden</c>, never allowed. A request refused here costs no more than its headers.
 /// </summary>
 // See ADR-1520, ADR-1411 and ADR-1466.
@@ -87,15 +89,8 @@ internal sealed class ControlPlaneAuthenticationGate(
         return null;
     }
 
-    private static ProblemHttpResult Unauthorized(HttpContext httpContext)
-    {
-        httpContext.Response.Headers.WWWAuthenticate = "Bearer";
-        return TypedResults.Problem(
-            title: "Unauthorized",
-            detail: "A valid access token for the control plane is required.",
-            statusCode: StatusCodes.Status401Unauthorized
-        );
-    }
+    private static ProblemHttpResult Unauthorized(HttpContext httpContext) =>
+        ManagementProblems.AuthenticationRequired(httpContext);
 
     private static bool TryGetBearerToken(HttpContext httpContext, out string token)
     {

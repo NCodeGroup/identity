@@ -279,7 +279,7 @@ internal class CallerApiEndpointHandler(
     {
         var caller = httpContext.Features.Get<IManagementCallerFeature>()?.Caller;
         if (caller is null)
-            return ManagementProblems.AuthenticationRequired();
+            return ManagementProblems.AuthenticationRequired(httpContext);
 
         var openIdContext = httpContext.GetOpenIdContext();
 

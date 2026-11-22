@@ -3,6 +3,7 @@
 
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.Jose;
 using NCode.Identity.OpenId.Authentication.Tokens.Commands;
@@ -134,15 +135,17 @@ public sealed class ControlPlaneAuthenticationGateTests : IDisposable
         var result = await Gate.InvokeAsync(HttpContext, CancellationToken.None);
 
         Assert.Equal(StatusCodes.Status401Unauthorized, StatusCodeOf(result));
-        Assert.Equal("Bearer", HttpContext.Response.Headers.WWWAuthenticate.ToString());
+        string[] expectedChallenges = ["Bearer error=\"invalid_token\"", "DPoP"];
+        Assert.Equal(expectedChallenges, HttpContext.Response.Headers.WWWAuthenticate.ToArray());
     }
 
     [Theory]
-    [InlineData(null)]
-    [InlineData("Basic access-token")]
-    [InlineData("Bearer  ")]
+    [InlineData(null, new[] { "Bearer", "DPoP" })]
+    [InlineData("Basic access-token", new[] { "Bearer", "DPoP" })]
+    [InlineData("Bearer  ", new[] { "Bearer error=\"invalid_token\"", "DPoP" })]
     public async Task InvokeAsync_WithoutABearerToken_Answers401WithAChallenge(
-        string? authorization
+        string? authorization,
+        string[] expectedChallenges
     )
     {
         SetupMaterialization();
@@ -152,7 +155,7 @@ public sealed class ControlPlaneAuthenticationGateTests : IDisposable
         var result = await Gate.InvokeAsync(HttpContext, CancellationToken.None);
 
         Assert.Equal(StatusCodes.Status401Unauthorized, StatusCodeOf(result));
-        Assert.Equal("Bearer", HttpContext.Response.Headers.WWWAuthenticate.ToString());
+        Assert.Equal(expectedChallenges, HttpContext.Response.Headers.WWWAuthenticate.ToArray());
     }
 
     [Fact]
@@ -164,8 +167,11 @@ public sealed class ControlPlaneAuthenticationGateTests : IDisposable
 
         var result = await Gate.InvokeAsync(HttpContext, CancellationToken.None);
 
-        Assert.Equal(StatusCodes.Status401Unauthorized, StatusCodeOf(result));
-        Assert.Equal("Bearer", HttpContext.Response.Headers.WWWAuthenticate.ToString());
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status401Unauthorized, problem.StatusCode);
+        Assert.Equal("Authentication is required.", problem.ProblemDetails.Detail);
+        string[] expectedChallenges = ["Bearer error=\"invalid_token\"", "DPoP"];
+        Assert.Equal(expectedChallenges, HttpContext.Response.Headers.WWWAuthenticate.ToArray());
     }
 
     [Fact]

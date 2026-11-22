@@ -75,7 +75,7 @@ internal sealed class ManagementCallerGate(
 
         if (validation.Principal is not { } caller)
         {
-            return ManagementProblems.AuthenticationRequired();
+            return ManagementProblems.AuthenticationRequired(httpContext);
         }
 
         httpContext.User = caller;

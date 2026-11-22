@@ -72,7 +72,7 @@ public abstract class ManagementApiEndpointHandler
                 detail: "The caller is not authorized for this operation.",
                 statusCode: StatusCodes.Status403Forbidden
             )
-            : ManagementProblems.AuthenticationRequired();
+            : ManagementProblems.AuthenticationRequired(httpContext);
     }
 
     /// <summary>

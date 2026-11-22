@@ -48,7 +48,7 @@ internal class CapabilitiesApiEndpointHandler : IEndpointProvider
     )
     {
         if (httpContext.Features.Get<IManagementCallerFeature>() is null)
-            return ManagementProblems.AuthenticationRequired();
+            return ManagementProblems.AuthenticationRequired(httpContext);
 
         var openIdContext = httpContext.GetOpenIdContext();
 

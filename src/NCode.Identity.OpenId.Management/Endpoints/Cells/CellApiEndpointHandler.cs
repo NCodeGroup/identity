@@ -80,7 +80,7 @@ internal class CellApiEndpointHandler(
     )
     {
         if (httpContext.Features.Get<IManagementCallerFeature>() is null)
-            return ManagementProblems.AuthenticationRequired();
+            return ManagementProblems.AuthenticationRequired(httpContext);
 
         try
         {

@@ -10,13 +10,34 @@ public class ManagementProblemsTests
     #region AuthenticationRequired Tests
 
     [Fact]
-    public void AuthenticationRequired_Always_ReturnsAnUnauthorizedProblem()
+    public void AuthenticationRequired_WithoutAnHttpContext_Throws()
     {
-        var result = ManagementProblems.AuthenticationRequired();
+        Assert.Throws<ArgumentNullException>(() =>
+            ManagementProblems.AuthenticationRequired(null!)
+        );
+    }
+
+    [Theory]
+    [InlineData(null, new[] { "Bearer", "DPoP" })]
+    [InlineData("Basic abc", new[] { "Bearer", "DPoP" })]
+    [InlineData("Bearer abc", new[] { "Bearer error=\"invalid_token\"", "DPoP" })]
+    [InlineData("bearer abc", new[] { "Bearer error=\"invalid_token\"", "DPoP" })]
+    [InlineData("DPoP abc", new[] { "Bearer", "DPoP error=\"invalid_token\"" })]
+    public void AuthenticationRequired_Always_ReturnsAnUnauthorizedProblemWithOneChallengePerScheme(
+        string? authorization,
+        string[] expectedChallenges
+    )
+    {
+        var httpContext = new DefaultHttpContext();
+        if (authorization is not null)
+            httpContext.Request.Headers.Authorization = authorization;
+
+        var result = ManagementProblems.AuthenticationRequired(httpContext);
 
         Assert.Equal(StatusCodes.Status401Unauthorized, result.StatusCode);
         Assert.Equal(StatusCodes.Status401Unauthorized, result.ProblemDetails.Status);
         Assert.Equal("Authentication is required.", result.ProblemDetails.Detail);
+        Assert.Equal(expectedChallenges, httpContext.Response.Headers.WWWAuthenticate.ToArray());
     }
 
     #endregion
