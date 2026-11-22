@@ -111,6 +111,27 @@
     />
   </Target>
 
+  <!-- Every package of the .NET release resolves on the target framework's band: its major version is the framework's, so a host runs one release's Microsoft.Extensions, ASP.NET Core and EF Core assemblies (ADR-1519). -->
+  <Target
+    Name="RequireRuntimeBand"
+    AfterTargets="ResolveReferences"
+    Condition="'$(TargetFrameworkIdentifier)' == '.NETCoreApp'"
+  >
+    <PropertyGroup>
+      <_RuntimeBandMajor>$([System.Version]::Parse('$(TargetFrameworkVersion.TrimStart(`v`))').Major)</_RuntimeBandMajor>
+    </PropertyGroup>
+    <ItemGroup>
+      <_OffBandReference
+        Include="@(ReferencePath)"
+        Condition="'%(ReferencePath.NuGetPackageId)' != '' And ($([System.String]::Copy('%(ReferencePath.NuGetPackageId)').StartsWith('Microsoft.Extensions.')) Or $([System.String]::Copy('%(ReferencePath.NuGetPackageId)').StartsWith('Microsoft.AspNetCore.')) Or $([System.String]::Copy('%(ReferencePath.NuGetPackageId)').StartsWith('Microsoft.EntityFrameworkCore')) Or '%(ReferencePath.NuGetPackageId)' == 'Npgsql.EntityFrameworkCore.PostgreSQL' Or '%(ReferencePath.NuGetPackageId)' == 'System.Formats.Cbor' Or '%(ReferencePath.NuGetPackageId)' == 'System.Security.Cryptography.Xml' Or '%(ReferencePath.NuGetPackageId)' == 'System.Text.Json') And !$([System.String]::Copy('%(ReferencePath.NuGetPackageVersion)').StartsWith('$(_RuntimeBandMajor).')) And !$([System.String]::Copy(';$(RuntimeBandExceptions);').Contains(';%(ReferencePath.NuGetPackageId);'))"
+      />
+    </ItemGroup>
+    <Error
+      Condition="'@(_OffBandReference)' != ''"
+      Text="$(MSBuildProjectName) targets .NET $(_RuntimeBandMajor), so every Microsoft.Extensions, ASP.NET Core and EF Core package and the .NET release's System packages resolve at major $(_RuntimeBandMajor): @(_OffBandReference->'%(NuGetPackageId) %(NuGetPackageVersion)', ', '). Take the dependency that raises them from a release on this band, or list them in RuntimeBandExceptions beside the issue that tracks that release (ADR-1519)."
+    />
+  </Target>
+
   <!-- A project's top-level folder says whether it ships (ADR-1501): every project under src/ packs, and none outside it does. -->
   <Target Name="RequirePackingFollowsFolder" AfterTargets="ResolveReferences">
     <PropertyGroup>

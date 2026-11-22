@@ -3,7 +3,7 @@
 
 <#
 .SYNOPSIS
-    Checks the guards of Directory.Build.targets (ADR-1197, ADR-1385, ADR-1501) against fixture projects.
+    Checks the guards of Directory.Build.targets (ADR-1197, ADR-1385, ADR-1501, ADR-1519) against fixture projects.
 
 .DESCRIPTION
     Copies the repository's Directory.Build.targets into a temporary folder and writes SDK-less projects under its src/
@@ -83,6 +83,21 @@ try {
     Assert-Refuses 'a src project that disables the logging generator is refused' $target 'src' @($disable) 'ADR-1385'
     Assert-Passes 'a src project that keeps the logging generator passes' $target 'src' @()
     Assert-Passes 'a tests project may carry the telemetry analyzer' $target 'tests' @('<PropertyGroup><IsPackable>false</IsPackable></PropertyGroup>', $analyzer)
+
+    $net10 = '<PropertyGroup><TargetFrameworkIdentifier>.NETCoreApp</TargetFrameworkIdentifier><TargetFrameworkVersion>v10.0</TargetFrameworkVersion></PropertyGroup>'
+    $diAbstractions11 = '<ItemGroup><ReferencePath Include="x.dll" NuGetPackageId="Microsoft.Extensions.DependencyInjection.Abstractions" NuGetPackageVersion="11.0.0" /></ItemGroup>'
+    $systemTextJson11 = '<ItemGroup><ReferencePath Include="y.dll" NuGetPackageId="System.Text.Json" NuGetPackageVersion="11.0.0" /></ItemGroup>'
+    $target = 'RequireRuntimeBand'
+    Assert-Refuses 'a src project on a band package of another major is refused' $target 'src' @($net10, $diAbstractions11) 'ADR-1519'
+    Assert-Refuses 'a src project on System.Text.Json of another major is refused' $target 'src' @($net10, $systemTextJson11) 'ADR-1519'
+    Assert-Passes 'a src project on the band passes' $target 'src' @($net10, '<ItemGroup><ReferencePath Include="x.dll" NuGetPackageId="Microsoft.Extensions.DependencyInjection.Abstractions" NuGetPackageVersion="10.0.15" /></ItemGroup>')
+    Assert-Passes 'a dotnet/extensions package keeps its own minor' $target 'src' @($net10, '<ItemGroup><ReferencePath Include="x.dll" NuGetPackageId="Microsoft.Extensions.TimeProvider.Testing" NuGetPackageVersion="10.11.0" /></ItemGroup>')
+    Assert-Passes 'a package outside the band may be of another major' $target 'src' @($net10, '<ItemGroup><ReferencePath Include="x.dll" NuGetPackageId="NCode.PropertyBag" NuGetPackageVersion="11.0.0" /></ItemGroup>')
+    Assert-Passes 'a reference that is no package passes' $target 'src' @($net10, '<ItemGroup><ReferencePath Include="x.dll" /></ItemGroup>')
+    Assert-Passes 'a project that is not .NETCoreApp passes' $target 'src' @('<PropertyGroup><TargetFrameworkIdentifier>.NETStandard</TargetFrameworkIdentifier><TargetFrameworkVersion>v2.0</TargetFrameworkVersion></PropertyGroup>', $diAbstractions11)
+    $exceptions = '<PropertyGroup><RuntimeBandExceptions>Microsoft.Extensions.DependencyInjection;Microsoft.Extensions.DependencyInjection.Abstractions</RuntimeBandExceptions></PropertyGroup>'
+    Assert-Passes 'a listed exception may be off the band' $target 'src' @($net10, $exceptions, $diAbstractions11)
+    Assert-Refuses 'a package the exceptions do not list is refused' $target 'src' @($net10, $exceptions, $diAbstractions11, $systemTextJson11) 'ADR-1519'
 
     $notPackable = '<PropertyGroup><IsPackable>false</IsPackable></PropertyGroup>'
     $target = 'RequirePackingFollowsFolder'
