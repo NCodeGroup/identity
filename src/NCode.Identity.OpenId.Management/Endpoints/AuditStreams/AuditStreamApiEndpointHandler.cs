@@ -642,7 +642,7 @@ internal class AuditStreamApiEndpointHandler(
             cancellationToken
         );
 
-        var secretBytes = new byte[SigningSecretByteLength];
+        Span<byte> secretBytes = stackalloc byte[SigningSecretByteLength];
         try
         {
             CryptoService.GenerateBytes(secretBytes);

@@ -5,7 +5,6 @@ using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Net.Http.Headers;
-using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NCode.Buffers;
@@ -119,7 +118,7 @@ internal sealed class DefaultAuditStreamDeliverer(
 
         try
         {
-            List<byte[]> secrets;
+            UnprotectedSigningSecrets secrets;
             try
             {
                 secrets = await UnprotectCurrentSecretsAsync(stream, cancellationToken);
@@ -138,7 +137,7 @@ internal sealed class DefaultAuditStreamDeliverer(
                 return;
             }
 
-            try
+            using (secrets)
             {
                 var leaseDeadline = GetLeaseDeadline(state);
                 var outcome = await DeliverBatchesAsync(
@@ -159,13 +158,6 @@ internal sealed class DefaultAuditStreamDeliverer(
                     saved => FinishDelivery(saved, outcome.Error),
                     cancellationToken
                 );
-            }
-            finally
-            {
-                foreach (var secret in secrets)
-                {
-                    CryptographicOperations.ZeroMemory(secret);
-                }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -227,7 +219,7 @@ internal sealed class DefaultAuditStreamDeliverer(
         PersistedAuditStreamState handed,
         PersistedAuditStream stream,
         PersistedAuditStreamState current,
-        List<byte[]> secrets,
+        UnprotectedSigningSecrets secrets,
         DateTimeOffset leaseDeadline,
         CancellationToken cancellationToken
     )
@@ -355,7 +347,7 @@ internal sealed class DefaultAuditStreamDeliverer(
         string tenantId,
         PersistedAuditStream stream,
         AuditRecordStreamPage page,
-        List<byte[]> secrets,
+        UnprotectedSigningSecrets secrets,
         CancellationToken cancellationToken
     )
     {
@@ -367,9 +359,9 @@ internal sealed class DefaultAuditStreamDeliverer(
         var messageId = page.Items[0].EventId.ToString("D");
         var body = AuditStreamPayloadWriter.Write(tenantId, page.Items, timestamp);
         var signatures = new List<string>(secrets.Count);
-        foreach (var secret in secrets)
+        for (var index = 0; index < secrets.Count; index++)
         {
-            var signature = AuditStreamSignature.Sign(secret, messageId, unixTime, body);
+            var signature = AuditStreamSignature.Sign(secrets[index], messageId, unixTime, body);
             signatures.Add(signature);
         }
 
@@ -410,7 +402,7 @@ internal sealed class DefaultAuditStreamDeliverer(
         }
     }
 
-    private async ValueTask<List<byte[]>> UnprotectCurrentSecretsAsync(
+    private async ValueTask<UnprotectedSigningSecrets> UnprotectCurrentSecretsAsync(
         PersistedAuditStream stream,
         CancellationToken cancellationToken
     )
@@ -420,20 +412,20 @@ internal sealed class DefaultAuditStreamDeliverer(
             .SigningSecrets.Where(secret => secret.ExpiryTime is null || secret.ExpiryTime > now)
             .ToList();
 
-        var secrets = new List<byte[]>(current.Count);
-        if (current.Count == 0)
-            return secrets;
-
-        var owner = SecretOwner.ForTenant(stream.TenantId);
-        var protectedValues = current.ConvertAll(secret => secret.ProtectedValue);
-        var protector = await SecretProtectorProvider.GetProtectorAsync(
-            owner,
-            protectedValues,
-            cancellationToken
-        );
-
+        var secrets = new UnprotectedSigningSecrets();
         try
         {
+            if (current.Count == 0)
+                return secrets;
+
+            var owner = SecretOwner.ForTenant(stream.TenantId);
+            var protectedValues = current.ConvertAll(secret => secret.ProtectedValue);
+            var protector = await SecretProtectorProvider.GetProtectorAsync(
+                owner,
+                protectedValues,
+                cancellationToken
+            );
+
             foreach (var secret in current)
             {
                 using var plaintext = BufferFactory.CreateContiguousBufferWriter(isSensitive: true);
@@ -442,21 +434,16 @@ internal sealed class DefaultAuditStreamDeliverer(
                 var context = SecretProtectionContext.ForAuditStreamSigningSecret(secret.SecretId);
                 protector.Unprotect(secret.ProtectedValue, context, ref writer);
 
-                var bytes = plaintext.WrittenSpan.ToArray();
-                secrets.Add(bytes);
+                secrets.Add(plaintext.WrittenSpan);
             }
+
+            return secrets;
         }
         catch
         {
-            foreach (var secret in secrets)
-            {
-                CryptographicOperations.ZeroMemory(secret);
-            }
-
+            secrets.Dispose();
             throw;
         }
-
-        return secrets;
     }
 
     private DateTimeOffset GetLeaseDeadline(PersistedAuditStreamState state)
