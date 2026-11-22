@@ -880,10 +880,10 @@ residency is US-only (one US region) — EU customers need a regional cell
 an SLA no higher than a single-datacenter platform supports (~99.9%), until cells run across availability zones
 ([§11](#11-growth-path-aws)); an incident-response runbook.
 
-**Outbound email (future):** verification, password reset, and email MFA need a sending provider — OCI Email Delivery
-(3,000 emails/month free) or Cloudflare Email Sending (Workers Paid, $5/month; its SMTP endpoint also lets the owner
-reply as `security@` from an existing mailbox). Transactional mail sends only from `mail.ncodeid.net`, which isolates its reputation; add
-the provider's SPF include and DKIM keys, and keep DMARC at `p=reject`.
+**Outbound email:** verification, password reset, and email MFA need a sending provider — OCI Email Delivery (3,000
+emails/month free) or Cloudflare Email Sending (Workers Paid, $5/month; its SMTP endpoint also lets the owner reply as
+`security@` from an existing mailbox). Transactional mail sends only from `mail.ncodeid.net`, which isolates its
+reputation; add the provider's SPF include and DKIM keys, and keep DMARC at `p=reject`.
 
 ## 11. Growth path: AWS
 
@@ -1287,3 +1287,6 @@ Everything else on this page is decided in the record its section names.
    ([#845](https://github.com/NCodeGroup/identity/issues/845)).
 3. **A dedicated cell's capacity rating** — it needs a load test on dedicated-CPU nodes ([§3](#3-compute-sizing),
    [Gaps for dedicated cells](#gaps-for-dedicated-cells)).
+4. **The launch work** — what [§10](#10-pre-launch-considerations) lists under Operations, Security hardening, Business
+   and legal, and Outbound email, among them the restore drill's RPO and RTO targets, audit-event retention and customer
+   export, and the outbound email provider.
