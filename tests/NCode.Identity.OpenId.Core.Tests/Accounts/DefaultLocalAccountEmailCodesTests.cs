@@ -1,0 +1,348 @@
+// Copyright © NCode Group
+// SPDX-License-Identifier: Apache-2.0
+
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using Microsoft.Extensions.Time.Testing;
+using Moq;
+using NCode.Identity.Cryptography;
+using NCode.Identity.Mail;
+using NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
+using NCode.Identity.OpenId.Accounts.DataContracts;
+using NCode.Identity.OpenId.Authentication.Interactive;
+using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.Settings;
+using NCode.Identity.OpenId.Tenants;
+using NCode.Identity.Settings;
+using NCode.Identity.SharedState;
+using Xunit;
+
+namespace NCode.Identity.OpenId.Core.Tests.Accounts;
+
+public partial class DefaultLocalAccountEmailCodesTests : BaseTests
+{
+    private const string TenantId = "tenant-1";
+    private const string LocalAccountId = "account-1";
+    private const string Email = "user@example.com";
+    private const string FlowId = "flow-1";
+    private const string Code = "123456";
+    private const string Purpose = EmailCodePurposes.ResetPassword;
+
+    private static DateTimeOffset Now { get; } = new(2026, 11, 22, 12, 0, 0, TimeSpan.Zero);
+    private static TimeSpan Lifetime { get; } = TimeSpan.FromMinutes(10);
+
+    private Mock<IExpiringValueSet> MockValueSet { get; }
+    private Mock<IExpiringCounterSet> MockCounterSet { get; }
+    private Mock<IMailSender> MockMailSender { get; }
+    private Mock<ICryptoService> MockCryptoService { get; }
+    private FakeTimeProvider TimeProvider { get; } = new(Now);
+    private DefaultLocalAccountEmailCodes EmailCodes { get; }
+
+    public DefaultLocalAccountEmailCodesTests()
+    {
+        MockValueSet = CreateStrictMock<IExpiringValueSet>();
+        MockCounterSet = CreateStrictMock<IExpiringCounterSet>();
+        MockMailSender = CreateStrictMock<IMailSender>();
+        MockCryptoService = CreateStrictMock<ICryptoService>();
+        EmailCodes = new DefaultLocalAccountEmailCodes(
+            MockValueSet.Object,
+            MockCounterSet.Object,
+            MockMailSender.Object,
+            MockCryptoService.Object,
+            TimeProvider
+        );
+    }
+
+    #region Scaffolding
+
+    private static string FlowKey { get; } =
+        DefaultLocalAccountEmailCodes.CreateFlowKey(TenantId, Purpose, FlowId);
+
+    private static string SendsKey { get; } =
+        ExpiringKeys.Create(
+            DefaultLocalAccountEmailCodes.SendsKeyPurpose,
+            TenantId,
+            Purpose,
+            LocalAccountId
+        );
+
+    private Mock<OpenIdContext> CreateContext(Mock<IReadOnlySettingCollection>? mockSettings)
+    {
+        var mockTenant = CreateStrictMock<OpenIdTenant>();
+        mockTenant.Setup(x => x.TenantId).Returns(TenantId).Verifiable();
+
+        if (mockSettings is not null)
+        {
+            var mockProvider = CreateStrictMock<IReadOnlySettingCollectionProvider>();
+            mockProvider.Setup(x => x.Collection).Returns(mockSettings.Object).Verifiable();
+            mockTenant.Setup(x => x.SettingsProvider).Returns(mockProvider.Object).Verifiable();
+        }
+
+        var mockContext = CreateStrictMock<OpenIdContext>();
+        mockContext.Setup(x => x.Tenant).Returns(mockTenant.Object).Verifiable();
+        return mockContext;
+    }
+
+    private Mock<IReadOnlySettingCollection> CreateSettings(int sendsPerHour)
+    {
+        var mockSettings = CreateStrictMock<IReadOnlySettingCollection>();
+        mockSettings
+            .Setup(x => x.GetValue(OpenIdSettingKeys.EmailCodeSendsPerHour))
+            .Returns(sendsPerHour)
+            .Verifiable();
+        return mockSettings;
+    }
+
+    private void SetupSends(long count) =>
+        MockCounterSet
+            .Setup(x =>
+                x.IncrementAsync(
+                    SendsKey,
+                    Now + TimeSpan.FromHours(1),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(count)
+            .Verifiable();
+
+    private static PersistedLocalAccount Account() =>
+        new()
+        {
+            TenantId = TenantId,
+            LocalAccountId = LocalAccountId,
+            UserName = "user",
+            Email = Email,
+            EmailVerified = false,
+            IsEnabled = true,
+            Claims = [],
+            ConcurrencyToken = string.Empty,
+        };
+
+    private static byte[] Serialize(int failedAttempts) =>
+        JsonSerializer.SerializeToUtf8Bytes(
+            new EmailCodeState(
+                LocalAccountId,
+                DefaultLocalAccountEmailCodes.HashCode(FlowId, Code),
+                failedAttempts,
+                Now + Lifetime
+            ),
+            EmailCodeJsonContext.Default.EmailCodeState
+        );
+
+    private static EmailCodeState Deserialize(byte[] bytes) =>
+        JsonSerializer.Deserialize(bytes, EmailCodeJsonContext.Default.EmailCodeState)!;
+
+    private void SetupGet(byte[]? bytes) =>
+        MockValueSet
+            .Setup(x => x.GetAsync(FlowKey, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(bytes is null ? null : new ExpiringValue(bytes, Version: 3))
+            .Verifiable();
+
+    [GeneratedRegex(@"\d{6}")]
+    private static partial Regex SixDigits();
+
+    #endregion
+
+    #region SendAsync Tests
+
+    [Fact]
+    public async Task SendAsync_WithinTheHourlyLimit_StoresOnlyAHashOfTheCodeAndMailsIt()
+    {
+        var mockSettings = CreateSettings(sendsPerHour: 5);
+        mockSettings
+            .Setup(x => x.GetValue(OpenIdSettingKeys.EmailCodeLifetime))
+            .Returns(Lifetime)
+            .Verifiable();
+        mockSettings
+            .Setup(x => x.GetValue(InteractiveSettingKeys.BrandingDisplayName))
+            .Returns("Acme")
+            .Verifiable();
+        var mockContext = CreateContext(mockSettings);
+        SetupSends(count: 5);
+        MockCryptoService
+            .Setup(x => x.GenerateKey(32, BinaryEncodings.Base64Url))
+            .Returns(FlowId)
+            .Verifiable();
+
+        byte[]? storedBytes = null;
+        MockValueSet
+            .Setup(x =>
+                x.TryAddAsync(
+                    FlowKey,
+                    It.IsAny<ReadOnlyMemory<byte>>(),
+                    Now + Lifetime,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Callback<string, ReadOnlyMemory<byte>, DateTimeOffset, CancellationToken>(
+                (_, value, _, _) => storedBytes = value.ToArray()
+            )
+            .ReturnsAsync(true)
+            .Verifiable();
+
+        MailMessage? message = null;
+        MockMailSender
+            .Setup(x => x.SendAsync(It.IsAny<MailMessage>(), It.IsAny<CancellationToken>()))
+            .Callback<MailMessage, CancellationToken>((sent, _) => message = sent)
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+        var flowId = await EmailCodes.SendAsync(
+            mockContext.Object,
+            Purpose,
+            Account(),
+            LocalAccountMailComposerTests.CreateLocale(),
+            CancellationToken.None
+        );
+
+        Assert.Equal(FlowId, flowId);
+        Assert.NotNull(message);
+        Assert.Equal(Email, message.To);
+        Assert.Equal("Acme", message.FromDisplayName);
+        Assert.Equal("Reset subject", message.Subject);
+
+        var match = SixDigits().Match(message.TextBody);
+        Assert.True(match.Success);
+        Assert.Contains("within 10 minutes", message.TextBody);
+
+        Assert.NotNull(storedBytes);
+        var state = Deserialize(storedBytes);
+        Assert.Equal(LocalAccountId, state.LocalAccountId);
+        Assert.Equal(0, state.FailedAttempts);
+        Assert.Equal(Now + Lifetime, state.ExpiresWhen);
+        Assert.Equal(DefaultLocalAccountEmailCodes.HashCode(FlowId, match.Value), state.CodeHash);
+    }
+
+    [Fact]
+    public async Task SendAsync_PastTheHourlyLimit_SendsNothing()
+    {
+        var mockSettings = CreateSettings(sendsPerHour: 5);
+        var mockContext = CreateContext(mockSettings);
+        SetupSends(count: 6);
+
+        var flowId = await EmailCodes.SendAsync(
+            mockContext.Object,
+            Purpose,
+            Account(),
+            LocalAccountMailComposerTests.CreateLocale(),
+            CancellationToken.None
+        );
+
+        Assert.Null(flowId);
+    }
+
+    #endregion
+
+    #region VerifyAsync Tests
+
+    [Fact]
+    public async Task VerifyAsync_WithTheCode_ReturnsTheAccountAndKeepsTheFlow()
+    {
+        var mockContext = CreateContext(mockSettings: null);
+        SetupGet(Serialize(failedAttempts: 2));
+
+        var accountId = await EmailCodes.VerifyAsync(
+            mockContext.Object,
+            Purpose,
+            FlowId,
+            Code,
+            CancellationToken.None
+        );
+
+        Assert.Equal(LocalAccountId, accountId);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_WithAWrongCode_CountsTheAttempt()
+    {
+        var mockContext = CreateContext(mockSettings: null);
+        SetupGet(Serialize(failedAttempts: 2));
+
+        byte[]? replacedBytes = null;
+        MockValueSet
+            .Setup(x =>
+                x.TryReplaceAsync(
+                    FlowKey,
+                    3,
+                    It.IsAny<ReadOnlyMemory<byte>>(),
+                    Now + Lifetime,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Callback<string, long, ReadOnlyMemory<byte>, DateTimeOffset, CancellationToken>(
+                (_, _, value, _, _) => replacedBytes = value.ToArray()
+            )
+            .ReturnsAsync(true)
+            .Verifiable();
+
+        var accountId = await EmailCodes.VerifyAsync(
+            mockContext.Object,
+            Purpose,
+            FlowId,
+            "000000",
+            CancellationToken.None
+        );
+
+        Assert.Null(accountId);
+        Assert.NotNull(replacedBytes);
+        var state = Deserialize(replacedBytes);
+        Assert.Equal(3, state.FailedAttempts);
+        Assert.Equal(LocalAccountId, state.LocalAccountId);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_AtTheFifthWrongCode_EndsTheFlow()
+    {
+        var mockContext = CreateContext(mockSettings: null);
+        SetupGet(Serialize(failedAttempts: DefaultLocalAccountEmailCodes.MaxFailedAttempts - 1));
+        MockValueSet
+            .Setup(x => x.RemoveAsync(FlowKey, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+        var accountId = await EmailCodes.VerifyAsync(
+            mockContext.Object,
+            Purpose,
+            FlowId,
+            "000000",
+            CancellationToken.None
+        );
+
+        Assert.Null(accountId);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_ForAnUnknownFlow_ReturnsNull()
+    {
+        var mockContext = CreateContext(mockSettings: null);
+        SetupGet(bytes: null);
+
+        var accountId = await EmailCodes.VerifyAsync(
+            mockContext.Object,
+            Purpose,
+            FlowId,
+            Code,
+            CancellationToken.None
+        );
+
+        Assert.Null(accountId);
+    }
+
+    #endregion
+
+    #region CompleteAsync Tests
+
+    [Fact]
+    public async Task CompleteAsync_Always_RemovesTheFlow()
+    {
+        var mockContext = CreateContext(mockSettings: null);
+        MockValueSet
+            .Setup(x => x.RemoveAsync(FlowKey, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+        await EmailCodes.CompleteAsync(mockContext.Object, Purpose, FlowId, CancellationToken.None);
+    }
+
+    #endregion
+}
