@@ -25,7 +25,6 @@ on:
       - 'frontend/**'
       - 'brand/vendor-brand.mjs'
       - '.github/workflows/frontend.yml'
-      - '.github/workflows/codecov-upload.yml'
       - '.github/actions/install-dotnet/**'
       - 'build/Get-TestRuntimes.ps1'
       - 'build/test-report.ps1'
@@ -39,8 +38,8 @@ on:
     types: [checks_requested]
   workflow_dispatch:
 
-# The frontend job only reads the tree; `id-token: write` (the Codecov OIDC upload) belongs to the separate codecov job
-# alone (ADR-1143).
+# The frontend job only reads the tree; the Codecov upload, which needs id-token: write, runs after this workflow in
+# codecov-upload.yml (ADR-1143).
 permissions:
   contents: read
 
@@ -84,7 +83,7 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha }}
         run: |
           if [ "$EVENT" != "pull_request" ]; then echo "frontend=true" >> "$GITHUB_OUTPUT"; exit 0; fi
-          pattern='^(frontend/|brand/vendor-brand\.mjs$|\.github/workflows/frontend\.yml$|\.github/workflows/codecov-upload\.yml$|\.github/actions/install-dotnet/|build/Get-TestRuntimes\.ps1$|build/test-report\.ps1$|build/coverage-report\.ps1$|\.config/dotnet-tools\.json$|src/NCode\.Identity\.OpenId\.Authentication\.Interactive/|tests/NCode\.Identity\.OpenId\.Authentication\.Interactive\.Tests/)'
+          pattern='^(frontend/|brand/vendor-brand\.mjs$|\.github/workflows/frontend\.yml$|\.github/actions/install-dotnet/|build/Get-TestRuntimes\.ps1$|build/test-report\.ps1$|build/coverage-report\.ps1$|\.config/dotnet-tools\.json$|src/NCode\.Identity\.OpenId\.Authentication\.Interactive/|tests/NCode\.Identity\.OpenId\.Authentication\.Interactive\.Tests/)'
           # Capture the list first: piping into `grep -q` under pipefail fails on a large diff, because grep exits at
           # the first match and `git diff` then dies of SIGPIPE, which reads as "no frontend change".
           changed="$(git diff --name-only "$BASE" HEAD)"
@@ -230,19 +229,3 @@ jobs:
           path: artifacts/frontend-coverage/
           retention-days: 14
           if-no-files-found: warn
-
-  # Reporting, not gating — see ci.yml.
-  codecov:
-    name: Codecov
-    needs: frontend
-    # A skipped frontend job leaves nothing to upload, and the merge queue's run duplicates the coverage main's push
-    # uploads.
-    if: ${{ !cancelled() && needs.frontend.result != 'skipped' && github.event_name != 'merge_group' }}
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/codecov-upload.yml
-    with:
-      flag: frontend
-      coverage-artifact: frontend-coverage
-      test-results-artifact: frontend-test-results

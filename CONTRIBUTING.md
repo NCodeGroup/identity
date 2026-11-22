@@ -1,7 +1,9 @@
 # Contributing to NCode.Identity
 
-Thanks for helping improve NCode.Identity. These are security-relevant libraries built for publication, so they hold to an explicit,
-enforced quality bar.
+Thanks for helping improve NCode.Identity. These are security-relevant libraries built for publication, so they hold to
+an explicit, enforced quality bar. Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md);
+[GOVERNANCE.md](GOVERNANCE.md) says who decides what, and [ROADMAP.md](ROADMAP.md) where the family is going. Issues
+labeled `good first issue` are small, self-contained tasks for a first contribution.
 
 ## Prerequisites
 
@@ -163,8 +165,9 @@ marked tool-enforced or review-only. Every rule lives in one of them, once. The 
 1. Open (or find) a GitHub issue describing the problem or proposal. A change that affects the **public outcome**
    (semantics, public surface, validation/security posture) should reach agreement on the issue — and be recorded as an
    ADR under [`docs/decisions/`](docs/decisions/) — before the pull request.
-2. Work on a short-lived branch from `main`. Keep the public surface deliberate; from the first stable release, a
-   breaking change to the public API is a **major** version bump.
+2. Work on a short-lived branch from `main`. A change that adds or changes behavior adds or updates the automated tests
+   that cover it. Keep the public surface deliberate; from the first stable release, a breaking change to the public API
+   is a **major** version bump.
 3. Keep [`CHANGELOG.md`](CHANGELOG.md) matching the code. While `AGENTS.md`'s Landing section says
    `pre-release: untracked` and no version tag of 1.0.0 or later exists, its `## [Unreleased]` section describes the
    family as it is, under `### Added` and `### Security` only: edit the entry a change adds, reshapes or removes
@@ -189,6 +192,22 @@ Copilot CLI or Claude Code. The workflow files come from the project template; u
 [ADR-1170](docs/decisions/1170-agent-work-is-planned-on-claude-opus-and-executed-step-by-step-on-claude-sonnet.md).
 
 See [GOVERNANCE.md](GOVERNANCE.md) for ownership, the release lifecycle, and how versions map onto tags.
+
+## Review requirements
+
+Every change is reviewed in its pull request before it merges. A reviewer checks that:
+
+- the change does what its issue asks, and nothing the issue doesn't;
+- tests cover the behavior it adds or changes, and CI passes;
+- the documents it affects, the changelog and, for a change consumers can observe, its decision record change in the
+  same pull request;
+- it follows the conventions [AGENTS.md](AGENTS.md) indexes, and adds no secret, credential or unpinned dependency.
+
+A pull request is acceptable once CI passes, a maintainer has reviewed it, and every discussion on it has been fixed or
+answered with why not and replied to
+([project-template ADR-0014](docs/decisions/project-template/0014-every-pull-request-discussion-is-remediated-and-replied-to-before-it-merges.md));
+the merge queue then runs the full gate and squash-merges it
+([ADR-1261](docs/decisions/1261-the-main-branch-takes-only-reviewed-pull-requests-squash-merged-by-the-merge-queue-past-required-checks.md)).
 
 ## Commit attribution
 
@@ -218,6 +237,10 @@ dotnet csharpier check .    # verify formatting (what CI runs; fails if anything
 ```
 
 The version is pinned with `rollForward: false` so formatting output never drifts between CSharpier versions.
+
+A reformat or a large move brings back the CodeQL alerts dismissed on the code it moves, since a dismissal follows the
+alert's location, not the code: dismiss each again, with its reason. When that reason isn't obvious from the code, put
+it in a comment beside the code, so the next dismissal takes a minute.
 
 ## Package versions — Central Package Management (CPM)
 

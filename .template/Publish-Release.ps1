@@ -15,10 +15,15 @@
     /ship-plan names it, unless the remote's version tags have no v. Its section, without the heading, is the release's
     notes: up to the next `## ` heading or the link reference definitions that end a Keep a Changelog file. When the
     merged pull request's description also has a `Release:` line, which /ship-plan writes, that names another version,
-    it fails. With pre-release: untracked and no release heading, the version is the pull request's `Release:` line and
-    the notes are the `## [Unreleased]` section. With no such line, or with pre-release: tracked and no release
-    heading, it publishes nothing and leaves the release to /ship-plan. The merged pull request is the one GitHub's
-    commits/<sha>/pulls endpoint returns whose merge_commit_sha is -Commit.
+    it fails. When the commit has a version.json whose version isn't the release's, or that Git can't read, it fails
+    without tagging. With pre-release: untracked and no release heading, the version is the pull request's `Release:`
+    line and the notes are the `## [Unreleased]` section. With no such line, or with pre-release: tracked and no
+    release heading, it publishes nothing and leaves the release to /ship-plan. The merged pull request is the one
+    GitHub's commits/<sha>/pulls endpoint returns whose merge_commit_sha is -Commit. A pull request without a Release:
+    line, such as a plan's that changes nothing a release ships, tags and publishes nothing once the newest section's
+    release is done, its tag on the remote and its GitHub release published, and its changelog entries wait under
+    ## [Unreleased] for the next release. When that earlier release's tag or GitHub release is still missing, such as
+    after its own run failed, a later merge's run tags or publishes it, as any run does.
 
     It tags -Commit, the commit the pull request merged as, with an annotated tag, and only when the version is newer
     than every version tag the remote has, so an edit to an older section tags nothing. It's safe to run again: a tag the
@@ -45,6 +50,10 @@
     on any other value. .github/workflows/tag-release.yml runs it in a job that can only read, and runs the job that
     tags and publishes only for tag or tag+release.
 
+.PARAMETER Sign
+    Sign the tag, with git tag -s and the signing program Git is set up with, such as the gitsign that tag-release.yml
+    sets up in a public repository (the template's ADR-0028). Without it the tag is annotated and unsigned.
+
 .EXAMPLE
     ./.template/Publish-Release.ps1 -Commit $env:GITHUB_SHA
 
@@ -59,7 +68,8 @@ param(
     [string]$Commit = 'HEAD',
     [string]$Remote = 'origin',
     [string]$Gh = 'gh',
-    [switch]$Policy
+    [switch]$Policy,
+    [switch]$Sign
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -175,9 +185,20 @@ if ($tags -ccontains $version) {
         "The release is $version, but $Remote has $(($newer | Sort-Object { [version]($_ -replace '^v') } | Select-Object -Last 1)) already: nothing to tag."
         exit 0
     }
+    # A .NET library's packages take their version from version.json (ADR-0138): a tag whose commit holds another would publish none.
+    # Only a commit without the file skips the check; one whose file Git can't list or read stops the release, because a tag is never moved.
+    $listed = @(& git ls-tree --name-only $sha -- version.json)
+    if ($LASTEXITCODE) { throw "git ls-tree couldn't list $sha (exit $LASTEXITCODE), so version.json can't be checked: nothing is tagged." }
+    if ($listed -contains 'version.json') {
+        $versionJson = & git show "${sha}:version.json" 2>$null
+        if ($LASTEXITCODE) { throw "version.json at $sha can't be read (git show exited $LASTEXITCODE): nothing is tagged." }
+        $held = try { "$((($versionJson -join "`n") | ConvertFrom-Json).version)" } catch { '' }
+        if ($held -ne $number) { throw "version.json at $sha holds version '$held', but the release is ${number}: set its version to $number in a pull request, whose merge tags the release." }
+    }
     if ($PSCmdlet.ShouldProcess("$sha on $Remote", "Tag $version")) {
-        & git tag -a $version -m $version $sha
-        if ($LASTEXITCODE) { throw "git tag -a $version exited $LASTEXITCODE." }
+        $tagFlag = if ($Sign) { '-s' } else { '-a' }
+        & git tag $tagFlag $version -m $version $sha
+        if ($LASTEXITCODE) { throw "git tag $tagFlag $version exited $LASTEXITCODE." }
         & git push $Remote "refs/tags/$version"
         if ($LASTEXITCODE) {
             & git tag -d $version | Out-Null
@@ -186,7 +207,7 @@ if ($tags -ccontains $version) {
             if (-not ((Get-RemoteTag $Remote) -ccontains $version)) { throw "Pushing the tag $version to $Remote failed." }
             "$Remote got the tag $version from another run meanwhile."
         } else {
-            "Tagged $sha as $version and pushed it to $Remote."
+            "Tagged $sha as $version$(if ($Sign) { ', signed,' }) and pushed it to $Remote."
         }
     }
 }

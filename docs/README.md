@@ -15,6 +15,14 @@ Architecturally significant decisions are captured as ADRs under [`decisions/`](
 template's general decisions in [`decisions/project-template/`](./decisions/project-template/README.md). See the
 [ADR index](./decisions/README.md) for the list and the process we follow.
 
+## Architecture and assurance
+
+[`architecture.md`](./architecture.md) and [`assurance-case.md`](./assurance-case.md) give the components and the rules
+the design keeps, and why the design meets its security requirements.
+[`best-practices-badge.md`](./best-practices-badge.md) says where the repository meets each OpenSSF Best Practices
+criterion that needs a document, and [`best-practices-criteria.md`](./best-practices-criteria.md), which the project
+template owns, maps every criterion of the three levels to its answer and evidence.
+
 ## Audit records
 
 [`audit-records.md`](./audit-records.md) documents the audit record: its JSON fields, the vocabularies of its values, the

@@ -61,10 +61,15 @@ summary and in Codecov alike.**
 
 ### Codecov
 
-5. **Uploads run in a separate job, over OIDC.** The reusable
-   [`codecov-upload.yml`](../../.github/workflows/codecov-upload.yml) job, called by `ci.yml` and `frontend.yml` with
-   `id-token: write`, never runs inside a gate job. It uploads coverage and test results with a commit-SHA-pinned
-   action, stores no secret, and fork pull requests use Codecov's tokenless path.
+5. **Uploads run in a workflow of their own, over OIDC.**
+   [`codecov-upload.yml`](../../.github/workflows/codecov-upload.yml) runs on `workflow_run` after each run of `ci.yml`
+   and `frontend.yml`, downloads the artifacts that run's gate job left, and uploads coverage and test results with a
+   commit-SHA-pinned action under `id-token: write`, naming the run's commit, branch and pull request; a fork's branch
+   carries its owner's name. It runs the default branch's copy in the base repository's context, checks out nothing,
+   reads the commit's tracked files into an index without writing them to disk, executes nothing from the artifacts, and
+   stores no secret. No job of `ci.yml` asks for more than `contents: read`, because the template's `tag-release.yml`
+   calls `ci.yml` with that alone and GitHub fails the whole run when a called job asks for more
+   ([project-template ADR-0026](project-template/0026-tests-gate-coverage-at-the-gold-thresholds-and-a-release-waits-for-them.md)).
 6. **Gate jobs cannot leak the job token.** Gate jobs are `contents: read`, and every checkout sets
    `persist-credentials: false`, so the job token never lands in `.git/config` where build, test and third-party code
    could read it. The exceptions are the checkouts of jobs that push with that token: `backport.yml` and the template's
@@ -101,7 +106,10 @@ summary and in Codecov alike.**
   from forks do not get without splitting the workflow into a privileged `workflow_run` follow-up. Rejected: job
   summaries and annotations cover the same need with no write permission at all.
 - **A token-authenticated Codecov upload inside the gate job.** Rejected: it stores a long-lived secret and exposes the
-  token, or an OIDC-minting permission, to third-party build code. A separate job with OIDC has neither exposure.
+  token, or an OIDC-minting permission, to third-party build code. A separate workflow with OIDC has neither exposure.
+- **A Codecov job inside each CI workflow, called after its gate job.** Rejected: `ci.yml` would ask for
+  `id-token: write`, so the template's `tag-release.yml`, which calls `ci.yml` with only `contents: read`, would fail as
+  it starts on every push to `main`.
 - **Per-package Vitest HTML** with a hand-built table. Rejected: it yields a separate HTML report per package and a
   second presentation style. Installing .NET in the frontend job purely to run ReportGenerator is the price of one
   merged report rendered the same way as the .NET tier's.
@@ -109,7 +117,7 @@ summary and in Codecov alike.**
   equal, while excluding at collection gives both presenters the same input from one list.
 - **Excluding the host assemblies from the headline.** Rejected: the host is shipped code, so leaving it out hides a gap
   that matters.
-- **Chosen: native job summaries and annotations from one in-house reporter, a separate OIDC Codecov job that never
+- **Chosen: native job summaries and annotations from one in-house reporter, a separate OIDC Codecov workflow that never
   gates, and generated code excluded once at collection.**
 
 ## Consequences
@@ -119,7 +127,8 @@ summary and in Codecov alike.**
 - Codecov shows coverage history, per-line coverage on pull-request diffs, flaky and failed-test analytics, and the
   README badge. The repository must be activated on codecov.io and the Codecov GitHub App installed on the organization
   for uploads, statuses and comments to work; without it the upload job logs a non-fatal failure.
-- A Dependabot run that gets no OIDC token may lack Codecov data, which is accepted because Codecov is not a gate.
+- A Dependabot or fork pull request's run uploads to Codecov like any other, because the upload's OIDC token comes from
+  `codecov-upload.yml`'s own `workflow_run` context, never from the run that tested the code.
 - The job summary and Codecov report the same scope and the same line counting, and the merged report names no file
   under `obj/` or `Migrations/`.
 - `./build/dod.ps1 -Fast` collects no coverage, so the coverage setting affects only the full gate that CI runs.

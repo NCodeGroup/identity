@@ -11,6 +11,19 @@ any one host feature.
 - Ownership is a team fact. Path-scoped required reviewers (a `CODEOWNERS` file) are a future improvement, not needed
   while the maintainer set is small.
 
+## Continuity
+
+The repository, its issues, decision records, build, release automation and documentation all live in the `NCodeGroup`
+GitHub organization, so anyone given access to it can carry the project on with no knowledge held elsewhere. Prerelease
+packages reach nuget.org through trusted publishing, which keeps no stored API key to hand over, and the images and the
+chart reach GHCR through the repository's own workflows.
+
+Access continuity, the OpenSSF Best Practices criterion `access_continuity`, needs at least two people who can
+administer the GitHub organization and the nuget.org packages under the `NCode` prefix; the same second owner gives the
+bus factor of 2 that `bus_factor` asks for. The NCode Group has one maintainer, so continuity is incomplete, and the
+silver level can't be claimed until a second owner exists
+([docs/best-practices-badge.md](docs/best-practices-badge.md)).
+
 ## Scope
 
 - **In scope:** the OpenID Connect / OAuth 2.0 protocol model and server building blocks — JOSE/JWT, cryptographic
@@ -96,8 +109,8 @@ See [ADR-1502](docs/decisions/1502-code-a-self-hoster-could-use-is-public-and-id
 - **Tags.** A release is an annotated (ideally signed) tag `vMAJOR.MINOR.PATCH` (prereleases `-rc.N` / `-alpha`) on a
   release line. A tag is immutable — one tag = one published package set; the ruleset `release-tags` forbids deleting or
   moving a `v*` tag. Only a **major** is gated behind a release candidate; minors and patches ship straight to GA.
-  The template's `Release` workflow (`.github/workflows/tag-release.yml`) runs on each push to `main` and tags
-  nothing, because the [Landing](AGENTS.md#landing) section of `AGENTS.md` says `release: none`.
+  The template's `Tag and publish release` workflow (`.github/workflows/tag-release.yml`) runs on each push to `main`
+  and tags nothing, because the [Landing](AGENTS.md#landing) section of `AGENTS.md` says `release: none`.
 - **Servicing** is upstream-first. A fix merges to `main` first; a backport pull request cherry-picks it
   (`git cherry-pick -x`) onto a branch `backport/<pr>-vX.Y` cut from `release/vX.Y` and targets that line. Label the
   fix's pull request `backport vX.Y`, before or after it merges, and the `Backport` workflow

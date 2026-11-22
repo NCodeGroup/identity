@@ -3,11 +3,6 @@
   <Import Project="$(MSBuildThisFileDirectory)build/ProjectTemplate.props" />
 
   <PropertyGroup>
-    <Authors>NCode Group</Authors>
-    <Company>NCode Group</Company>
-    <Product>NCode.Identity</Product>
-    <Year>$([System.DateTime]::Now.Year)</Year>
-    <Copyright>Copyright © $(Company) $(Year)</Copyright>
     <PackageProjectUrl>https://github.com/NCodeGroup/identity</PackageProjectUrl>
     <RepositoryUrl>https://github.com/NCodeGroup/identity</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
