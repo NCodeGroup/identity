@@ -98,8 +98,8 @@ cluster; the lab runs on OCI OKE Basic in Phoenix inside the free allowance; AWS
 ## Consequences
 
 - Every tier of production is redundant inside one datacenter, so a datacenter outage takes the cell down and an SLA
-  stays at or below about 99.9% until cells run across availability zones on AWS. These are the single points of failure
-  ADR-1134 accepts.
+  stays at or below about 99.9% until cells run across availability zones on AWS. The datacenter is one of the two
+  single points of failure ADR-1134 accepts; the developer-plan cluster's control plane is the other.
 - The developer-plan cluster's control plane pauses deploys and recovery when it fails; the paid cluster's HA control
   plane costs $60 a month.
 - The developer-plan bill is about $98–99 a month: production $95, the lab $0, KMS keys about $2–3 and S3 about $1.
