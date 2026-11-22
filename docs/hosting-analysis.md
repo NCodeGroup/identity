@@ -1294,3 +1294,6 @@ Everything else on this page is decided in the record its section names.
 4. **The launch work** — what [§10](#10-pre-launch-considerations) lists under Operations, Security hardening, Business
    and legal, and Outbound email, among them the restore drill's RPO and RTO targets, audit-event retention and customer
    export, and the outbound email provider.
+5. **How the clusters that host paid cells scale** — the cap on cells per cluster, and whether those clusters run LKE
+   Enterprise once Akamai offers it in their region
+   ([The cluster that hosts paid cells](#the-cluster-that-hosts-paid-cells)).
