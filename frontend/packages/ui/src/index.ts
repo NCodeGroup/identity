@@ -101,6 +101,10 @@ export {
   type LocalAccountFormValues,
 } from './components/LocalAccountFormDialog.js';
 export {
+  LocalAccountPasswordDialog,
+  type LocalAccountPasswordDialogProps,
+} from './components/LocalAccountPasswordDialog.js';
+export {
   TeamUsageTable,
   type TeamUsageRow,
   type TeamUsageTableProps,
