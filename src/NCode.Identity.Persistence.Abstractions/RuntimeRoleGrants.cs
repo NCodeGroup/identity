@@ -75,7 +75,10 @@ public static class RuntimeRoleGrants
 
         var statements = new List<string>();
         foreach (var schema in schemas)
-            statements.Add($"GRANT USAGE ON SCHEMA {PostgresIdentifiers.Quote(schema)} TO {role}");
+        {
+            var quotedSchema = PostgresIdentifiers.Quote(schema);
+            statements.Add($"GRANT USAGE ON SCHEMA {quotedSchema} TO {role}");
+        }
 
         foreach (var table in tablesInOrder)
         {

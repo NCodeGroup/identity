@@ -29,14 +29,13 @@ internal sealed class InProcessJobQueue
         Logger = logger;
 
         var value = options.Value;
-        Channel = System.Threading.Channels.Channel.CreateBounded<DispatchWorkItem>(
-            new BoundedChannelOptions(value.QueueCapacity)
-            {
-                FullMode = value.FullMode,
-                SingleReader = false,
-                SingleWriter = false,
-            }
-        );
+        var channelOptions = new BoundedChannelOptions(value.QueueCapacity)
+        {
+            FullMode = value.FullMode,
+            SingleReader = false,
+            SingleWriter = false,
+        };
+        Channel = System.Threading.Channels.Channel.CreateBounded<DispatchWorkItem>(channelOptions);
     }
 
     /// <summary>

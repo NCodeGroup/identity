@@ -46,12 +46,11 @@ public static class DispatchLibraryRegistration
             if (configureOptions is not null)
                 optionsBuilder.Configure(configureOptions);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<InProcessJobDispatcherOptions>,
-                    InProcessJobDispatcherOptionsValidator
-                >()
-            );
+            var validatorDescriptor = ServiceDescriptor.Singleton<
+                IValidateOptions<InProcessJobDispatcherOptions>,
+                InProcessJobDispatcherOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(validatorDescriptor);
 
             serviceCollection.TryAddSingleton<InProcessJobQueue>();
             serviceCollection.TryAddSingleton<IJobDispatcher, DefaultInProcessJobDispatcher>();
@@ -72,9 +71,8 @@ public static class DispatchLibraryRegistration
             where TJob : class, IDispatchJob
             where THandler : class, IDispatchJobHandler<TJob>
         {
-            builder.ServiceCollection.TryAddEnumerable(
-                ServiceDescriptor.Scoped<IDispatchJobHandler<TJob>, THandler>()
-            );
+            var handlerDescriptor = ServiceDescriptor.Scoped<IDispatchJobHandler<TJob>, THandler>();
+            builder.ServiceCollection.TryAddEnumerable(handlerDescriptor);
 
             return builder;
         }

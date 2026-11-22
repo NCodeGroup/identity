@@ -235,8 +235,11 @@ public class SettingDescriptor<TValue> : SettingDescriptor
     /// <param name="current">The current <see cref="Setting{TValue}"/> instance to merge.</param>
     /// <param name="other">The other <see cref="Setting{TValue}"/> instance to merge.</param>
     /// <returns>The <see cref="Setting{TValue}"/> instance from the result of the merge.</returns>
-    public virtual Setting<TValue> Merge(Setting<TValue> current, Setting<TValue> other) =>
-        OnCreate(this, OnMerge(current.Value, other.Value));
+    public virtual Setting<TValue> Merge(Setting<TValue> current, Setting<TValue> other)
+    {
+        var mergedValue = OnMerge(current.Value, other.Value);
+        return OnCreate(this, mergedValue);
+    }
 
     /// <inheritdoc />
     public override object Format(Setting setting) => Format((Setting<TValue>)setting);
