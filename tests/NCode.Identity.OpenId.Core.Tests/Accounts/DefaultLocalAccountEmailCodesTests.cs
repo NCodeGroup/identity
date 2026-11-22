@@ -121,13 +121,13 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
             ConcurrencyToken = string.Empty,
         };
 
-    private static byte[] Serialize(int failedAttempts) =>
+    private static byte[] Serialize(int attempts) =>
         JsonSerializer.SerializeToUtf8Bytes(
             new EmailCodeState(
                 LocalAccountId,
                 Email,
                 DefaultLocalAccountEmailCodes.HashCode(FlowId, Code),
-                failedAttempts,
+                attempts,
                 Now + Lifetime
             ),
             EmailCodeJsonContext.Default.EmailCodeState
@@ -136,10 +136,33 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
     private static EmailCodeState Deserialize(byte[] bytes) =>
         JsonSerializer.Deserialize(bytes, EmailCodeJsonContext.Default.EmailCodeState)!;
 
-    private void SetupGet(byte[]? bytes) =>
+    private void SetupGet(byte[]? bytes, long version = 3) =>
         MockValueSet
             .Setup(x => x.GetAsync(FlowKey, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(bytes is null ? null : new ExpiringValue(bytes, Version: 3))
+            .ReturnsAsync(bytes is null ? null : new ExpiringValue(bytes, version))
+            .Verifiable();
+
+    private void SetupReplace(long version, bool replaced, Action<byte[]>? onReplace = null) =>
+        MockValueSet
+            .Setup(x =>
+                x.TryReplaceAsync(
+                    FlowKey,
+                    version,
+                    It.IsAny<ReadOnlyMemory<byte>>(),
+                    Now + Lifetime,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Callback<string, long, ReadOnlyMemory<byte>, DateTimeOffset, CancellationToken>(
+                (_, _, value, _, _) => onReplace?.Invoke(value.ToArray())
+            )
+            .ReturnsAsync(replaced)
+            .Verifiable();
+
+    private void SetupRemove() =>
+        MockValueSet
+            .Setup(x => x.RemoveAsync(FlowKey, It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
     [GeneratedRegex(@"\d{6}")]
@@ -213,7 +236,7 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
         var state = Deserialize(storedBytes);
         Assert.Equal(LocalAccountId, state.LocalAccountId);
         Assert.Equal(Email, state.Email);
-        Assert.Equal(0, state.FailedAttempts);
+        Assert.Equal(0, state.Attempts);
         Assert.Equal(Now + Lifetime, state.ExpiresWhen);
         Assert.Equal(DefaultLocalAccountEmailCodes.HashCode(FlowId, match.Value), state.CodeHash);
     }
@@ -234,6 +257,45 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
         );
 
         Assert.Null(flowId);
+    }
+
+    [Fact]
+    public async Task SendAsync_WhenTheFlowHandleExists_Throws()
+    {
+        var mockSettings = CreateSettings(sendsPerHour: 5);
+        mockSettings
+            .Setup(x => x.GetValue(OpenIdSettingKeys.EmailCodeLifetime))
+            .Returns(Lifetime)
+            .Verifiable();
+        var mockContext = CreateContext(mockSettings);
+        SetupSends(count: 1);
+        MockCryptoService
+            .Setup(x => x.GenerateKey(32, BinaryEncodings.Base64Url))
+            .Returns(FlowId)
+            .Verifiable();
+        MockValueSet
+            .Setup(x =>
+                x.TryAddAsync(
+                    FlowKey,
+                    It.IsAny<ReadOnlyMemory<byte>>(),
+                    Now + Lifetime,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(false)
+            .Verifiable();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await EmailCodes.SendAsync(
+                mockContext.Object,
+                Purpose,
+                Account(),
+                LocalAccountMailComposerTests.CreateLocale(),
+                CancellationToken.None
+            )
+        );
+
+        MockMailSender.VerifyNoOtherCalls();
     }
 
     #endregion
@@ -292,7 +354,7 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
         Assert.Equal(FlowId, flowId);
         Assert.NotNull(storedBytes);
         var state = Deserialize(storedBytes);
-        Assert.Equal(0, state.FailedAttempts);
+        Assert.Equal(0, state.Attempts);
         Assert.Equal(DecoyExpiry, state.ExpiresWhen);
         for (var number = 0; number < 1_000; ++number)
         {
@@ -409,6 +471,42 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
         Assert.Equal(latest, Deserialize(storedBytes).ExpiresWhen);
     }
 
+    [Fact]
+    public async Task SendDecoyAsync_WhenTheFlowHandleExists_Throws()
+    {
+        var mockContext = CreateContext(mockSettings: null);
+        MockCounterSet
+            .Setup(x =>
+                x.IncrementAsync(DecoyKeyFor("user"), DecoyExpiry, It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(1)
+            .Verifiable();
+        MockCryptoService
+            .Setup(x => x.GenerateKey(32, BinaryEncodings.Base64Url))
+            .Returns(FlowId)
+            .Verifiable();
+        MockValueSet
+            .Setup(x =>
+                x.TryAddAsync(
+                    FlowKey,
+                    It.IsAny<ReadOnlyMemory<byte>>(),
+                    DecoyExpiry,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(false)
+            .Verifiable();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await EmailCodes.SendDecoyAsync(
+                mockContext.Object,
+                Purpose,
+                "user",
+                CancellationToken.None
+            )
+        );
+    }
+
     #endregion
 
     #region VerifyAsync Tests
@@ -417,7 +515,8 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
     public async Task VerifyAsync_WhenTheCodeIsRight_ReturnsTheAccountAndTheAddress()
     {
         var mockContext = CreateContext(mockSettings: null);
-        SetupGet(Serialize(failedAttempts: 2));
+        SetupGet(Serialize(attempts: 2));
+        SetupReplace(version: 3, replaced: true);
 
         var match = await EmailCodes.VerifyAsync(
             mockContext.Object,
@@ -433,27 +532,46 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
     }
 
     [Fact]
-    public async Task VerifyAsync_WithAWrongCode_CountsTheAttempt()
+    public async Task VerifyAsync_Always_CountsTheGuessBeforeJudgingIt()
     {
         var mockContext = CreateContext(mockSettings: null);
-        SetupGet(Serialize(failedAttempts: 2));
+        SetupGet(Serialize(attempts: 2));
 
         byte[]? replacedBytes = null;
-        MockValueSet
-            .Setup(x =>
+        SetupReplace(version: 3, replaced: true, onReplace: bytes => replacedBytes = bytes);
+
+        var match = await EmailCodes.VerifyAsync(
+            mockContext.Object,
+            Purpose,
+            FlowId,
+            Code,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(match);
+        Assert.NotNull(replacedBytes);
+        Assert.Equal(3, Deserialize(replacedBytes).Attempts);
+        MockValueSet.Verify(
+            x =>
                 x.TryReplaceAsync(
                     FlowKey,
                     3,
                     It.IsAny<ReadOnlyMemory<byte>>(),
                     Now + Lifetime,
                     It.IsAny<CancellationToken>()
-                )
-            )
-            .Callback<string, long, ReadOnlyMemory<byte>, DateTimeOffset, CancellationToken>(
-                (_, _, value, _, _) => replacedBytes = value.ToArray()
-            )
-            .ReturnsAsync(true)
-            .Verifiable();
+                ),
+            Times.Once
+        );
+    }
+
+    [Fact]
+    public async Task VerifyAsync_WithAWrongCode_CountsTheAttempt()
+    {
+        var mockContext = CreateContext(mockSettings: null);
+        SetupGet(Serialize(attempts: 2));
+
+        byte[]? replacedBytes = null;
+        SetupReplace(version: 3, replaced: true, onReplace: bytes => replacedBytes = bytes);
 
         var accountId = await EmailCodes.VerifyAsync(
             mockContext.Object,
@@ -466,19 +584,76 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
         Assert.Null(accountId);
         Assert.NotNull(replacedBytes);
         var state = Deserialize(replacedBytes);
-        Assert.Equal(3, state.FailedAttempts);
+        Assert.Equal(3, state.Attempts);
         Assert.Equal(LocalAccountId, state.LocalAccountId);
     }
 
     [Fact]
-    public async Task VerifyAsync_AtTheFifthWrongCode_EndsTheFlow()
+    public async Task VerifyAsync_WhenTheFlowHasUsedItsAttempts_RefusesTheRightCodeAndEndsTheFlow()
     {
         var mockContext = CreateContext(mockSettings: null);
-        SetupGet(Serialize(failedAttempts: DefaultLocalAccountEmailCodes.MaxFailedAttempts - 1));
+        SetupGet(Serialize(attempts: DefaultLocalAccountEmailCodes.MaxAttempts));
+        SetupRemove();
+
+        var match = await EmailCodes.VerifyAsync(
+            mockContext.Object,
+            Purpose,
+            FlowId,
+            Code,
+            CancellationToken.None
+        );
+
+        Assert.Null(match);
+        MockValueSet.Verify(
+            x =>
+                x.TryReplaceAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<long>(),
+                    It.IsAny<ReadOnlyMemory<byte>>(),
+                    It.IsAny<DateTimeOffset>(),
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Never
+        );
+    }
+
+    [Fact]
+    public async Task VerifyAsync_WhenAnotherGuessChangedTheFlow_ReadsItAgainAndCountsAtTheNewVersion()
+    {
+        var mockContext = CreateContext(mockSettings: null);
         MockValueSet
-            .Setup(x => x.RemoveAsync(FlowKey, It.IsAny<CancellationToken>()))
-            .Returns(ValueTask.CompletedTask)
-            .Verifiable();
+            .SetupSequence(x => x.GetAsync(FlowKey, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExpiringValue(Serialize(attempts: 1), Version: 3))
+            .ReturnsAsync(new ExpiringValue(Serialize(attempts: 2), Version: 4));
+        SetupReplace(version: 3, replaced: false);
+
+        byte[]? replacedBytes = null;
+        SetupReplace(version: 4, replaced: true, onReplace: bytes => replacedBytes = bytes);
+
+        var match = await EmailCodes.VerifyAsync(
+            mockContext.Object,
+            Purpose,
+            FlowId,
+            Code,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(match);
+        Assert.NotNull(replacedBytes);
+        Assert.Equal(3, Deserialize(replacedBytes).Attempts);
+        MockValueSet.Verify(
+            x => x.GetAsync(FlowKey, It.IsAny<CancellationToken>()),
+            Times.Exactly(2)
+        );
+    }
+
+    [Fact]
+    public async Task VerifyAsync_WhenTheFifthGuessIsWrong_EndsTheFlow()
+    {
+        var mockContext = CreateContext(mockSettings: null);
+        SetupGet(Serialize(attempts: DefaultLocalAccountEmailCodes.MaxAttempts - 1));
+        SetupReplace(version: 3, replaced: true);
+        SetupRemove();
 
         var accountId = await EmailCodes.VerifyAsync(
             mockContext.Object,
@@ -518,7 +693,7 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
         var mockContext = CreateContext(mockSettings: null);
         MockValueSet
             .Setup(x => x.TryTakeAsync(FlowKey, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ExpiringValue(Serialize(failedAttempts: 0), Version: 3))
+            .ReturnsAsync(new ExpiringValue(Serialize(attempts: 0), Version: 3))
             .Verifiable();
 
         var consumed = await EmailCodes.ConsumeAsync(

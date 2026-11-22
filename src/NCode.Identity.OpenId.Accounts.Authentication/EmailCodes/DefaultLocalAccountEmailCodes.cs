@@ -18,8 +18,9 @@ namespace NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
 /// <summary>
 /// Provides the default <see cref="ILocalAccountEmailCodes"/>. It keeps each flow's state in the shared
 /// <see cref="IExpiringValueSet"/>, so any replica of the cell can verify a code another replica sent, and it counts
-/// the codes sent to an account in the shared <see cref="IExpiringCounterSet"/>. A flow stores only a SHA-256 hash of
-/// its handle and code, and a store that throws propagates the exception, so a flow fails closed.
+/// the codes sent to an account in the shared <see cref="IExpiringCounterSet"/>. A flow keeps the code only as a
+/// SHA-256 hash of the handle and the code, and it also holds the account identifier and the address the code was
+/// mailed to. A store that throws propagates the exception, so a flow fails closed.
 /// </summary>
 // See ADR-1533.
 internal sealed class DefaultLocalAccountEmailCodes(
@@ -31,9 +32,9 @@ internal sealed class DefaultLocalAccountEmailCodes(
 ) : ILocalAccountEmailCodes
 {
     /// <summary>
-    /// The number of wrong codes after which a flow ends.
+    /// The number of guesses after which a flow ends.
     /// </summary>
-    internal const int MaxFailedAttempts = 5;
+    internal const int MaxAttempts = 5;
 
     /// <summary>
     /// The purpose of the key of a flow's state.
@@ -49,6 +50,15 @@ internal sealed class DefaultLocalAccountEmailCodes(
     /// The purpose of the key of the counter of the decoy flows started for an identifier.
     /// </summary>
     internal const string DecoySendsKeyPurpose = "email-code-decoy-sends";
+
+    private const string DuplicateFlowMessage = "An email code flow with the same handle exists.";
+
+    private const int CodeDigits = 6;
+
+    private static int CodeUpperBound { get; } = (int)Math.Pow(10, CodeDigits);
+
+    private static string CodeFormat { get; } =
+        string.Create(CultureInfo.InvariantCulture, $"D{CodeDigits}");
 
     private static TimeSpan SendsWindow { get; } = TimeSpan.FromHours(1);
 
@@ -99,15 +109,15 @@ internal sealed class DefaultLocalAccountEmailCodes(
 
         var flowId = CryptoService.GenerateUrlSafeKey();
         var code = RandomNumberGenerator
-            .GetInt32(1_000_000)
-            .ToString("D6", CultureInfo.InvariantCulture);
+            .GetInt32(CodeUpperBound)
+            .ToString(CodeFormat, CultureInfo.InvariantCulture);
 
         var codeHash = HashCode(flowId, code);
         var state = new EmailCodeState(
             account.LocalAccountId,
             account.Email,
             codeHash,
-            FailedAttempts: 0,
+            Attempts: 0,
             expiresWhen
         );
         var flowKey = CreateFlowKey(tenant.TenantId, purpose, flowId);
@@ -118,7 +128,7 @@ internal sealed class DefaultLocalAccountEmailCodes(
         var added = await ValueSet.TryAddAsync(flowKey, stateBytes, expiresWhen, cancellationToken);
         if (!added)
         {
-            throw new InvalidOperationException("An email code flow with the same handle exists.");
+            throw new InvalidOperationException(DuplicateFlowMessage);
         }
 
         var displayName = settings.GetValue(InteractiveSettingKeys.BrandingDisplayName);
@@ -175,7 +185,7 @@ internal sealed class DefaultLocalAccountEmailCodes(
             identifierHash,
             Email: string.Empty,
             codeHash,
-            FailedAttempts: 0,
+            Attempts: 0,
             expiresWhen
         );
         var flowKey = CreateFlowKey(tenant.TenantId, purpose, flowId);
@@ -186,7 +196,7 @@ internal sealed class DefaultLocalAccountEmailCodes(
         var added = await ValueSet.TryAddAsync(flowKey, stateBytes, expiresWhen, cancellationToken);
         if (!added)
         {
-            throw new InvalidOperationException("An email code flow with the same handle exists.");
+            throw new InvalidOperationException(DuplicateFlowMessage);
         }
 
         return flowId;
@@ -204,8 +214,8 @@ internal sealed class DefaultLocalAccountEmailCodes(
         var key = CreateFlowKey(openIdContext.Tenant.TenantId, purpose, flowId);
         var presentedHash = HashCode(flowId, code);
 
-        // A guess is counted with the version the state was read at, and a lost race reloads the state, so concurrent
-        // guesses on several replicas are each counted.
+        // Each guess is counted before it is judged, so at most five guesses are compared against one flow however
+        // many race, and a lost swap reads the flow again.
         while (true)
         {
             var stored = await ValueSet.GetAsync(key, cancellationToken);
@@ -223,19 +233,14 @@ internal sealed class DefaultLocalAccountEmailCodes(
                 return null;
             }
 
-            if (CryptographicOperations.FixedTimeEquals(state.CodeHash, presentedHash))
-            {
-                return new EmailCodeMatch(state.LocalAccountId, state.Email);
-            }
-
-            var failedAttempts = state.FailedAttempts + 1;
-            if (failedAttempts >= MaxFailedAttempts)
+            if (state.Attempts >= MaxAttempts)
             {
                 await ValueSet.RemoveAsync(key, cancellationToken);
                 return null;
             }
 
-            var updatedState = state with { FailedAttempts = failedAttempts };
+            var attempts = state.Attempts + 1;
+            var updatedState = state with { Attempts = attempts };
             var updatedBytes = JsonSerializer.SerializeToUtf8Bytes(
                 updatedState,
                 EmailCodeJsonContext.Default.EmailCodeState
@@ -247,10 +252,22 @@ internal sealed class DefaultLocalAccountEmailCodes(
                 state.ExpiresWhen,
                 cancellationToken
             );
-            if (replaced)
+            if (!replaced)
             {
-                return null;
+                continue;
             }
+
+            if (CryptographicOperations.FixedTimeEquals(state.CodeHash, presentedHash))
+            {
+                return new EmailCodeMatch(state.LocalAccountId, state.Email);
+            }
+
+            if (attempts >= MaxAttempts)
+            {
+                await ValueSet.RemoveAsync(key, cancellationToken);
+            }
+
+            return null;
         }
     }
 
