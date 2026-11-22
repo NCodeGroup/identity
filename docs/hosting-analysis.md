@@ -1296,33 +1296,19 @@ sovereignty and bank exit plans ask for a regional, sovereign or dedicated cell 
 | Gap | Tracked by |
 |---|---|
 | A dedicated cell's tenants need DNS records that take precedence over the wildcard | [#755](https://github.com/NCodeGroup/identity/issues/755) |
-| A shared cell has no priority by plan: under load, nothing sheds free traffic before paid traffic | [#906](https://github.com/NCodeGroup/identity/issues/906) |
-| No capacity rating for a dedicated cell, because there is no load-test data on dedicated-CPU nodes | [#907](https://github.com/NCodeGroup/identity/issues/907) ([§3](#3-compute-sizing)) |
-| Telemetry per cell can outgrow Grafana Cloud's free 10k active series | [#908](https://github.com/NCodeGroup/identity/issues/908) |
+| A dedicated cell's capacity rating comes from the load test's run on its dedicated-CPU nodes, which [§3](#3-compute-sizing) records | [ADR-1524](decisions/1524-a-dedicated-cells-capacity-rating-is-measured-by-the-repositorys-k6-test-on-dedicated-cpu-nodes.md) |
 | Infrastructure automation that stamps out one cell, with its node pool, database and DNS, and manages the fleet | [#845](https://github.com/NCodeGroup/identity/issues/845) |
 
 ## 13. Open decisions
 
 Everything else on this page is decided in the record its section names.
 
-1. **When to place cells on AWS, and in which shape** — EKS with spot above an on-demand floor, or ECS on Fargate, which
-   runs outside the chart and so needs its own record
-   ([ADR-1133](decisions/1133-the-hosted-platform-runs-only-the-published-artifacts-it-offers-self-hosters.md)); see
-   [§11](#11-growth-path-aws) and [#914](https://github.com/NCodeGroup/identity/issues/914).
-2. **The fleet model** — the cell inventory, the cell module, the release channels and the version-skew rule, where
+1. **The fleet model** — the cell inventory, the cell module, the release channels and the version-skew rule, where
    fleet telemetry lives, and operator access, recorded before the fleet is built
    ([#845](https://github.com/NCodeGroup/identity/issues/845)).
-3. **A shared cell's priority by plan, each cell's telemetry budget and a dedicated cell's capacity rating** — under
-   load nothing sheds free traffic before paid traffic, each cell adds series toward Grafana Cloud's free 10k active
-   series, and a capacity rating needs a load test on dedicated-CPU nodes
-   ([#906](https://github.com/NCodeGroup/identity/issues/906),
-   [#908](https://github.com/NCodeGroup/identity/issues/908), [#907](https://github.com/NCodeGroup/identity/issues/907);
-   [§3](#3-compute-sizing), [Gaps for dedicated cells](#gaps-for-dedicated-cells)).
-4. **The launch work** — what [§10](#10-pre-launch-considerations) lists under Operations, Security hardening, Business
-   and legal, and Outbound email, among them the restore drill's RPO and RTO targets
-   ([#845](https://github.com/NCodeGroup/identity/issues/845)), audit-event retention and customer export
-   ([#910](https://github.com/NCodeGroup/identity/issues/910)), and the outbound email provider
-   ([#911](https://github.com/NCodeGroup/identity/issues/911)).
-5. **How the clusters that host paid cells scale** — the cap on cells per cluster, and whether those clusters run LKE
-   Enterprise once Akamai offers it in their region ([#915](https://github.com/NCodeGroup/identity/issues/915);
-   [The cluster that hosts paid cells](#the-cluster-that-hosts-paid-cells)).
+2. **The launch work** — what [§10](#10-pre-launch-considerations) lists under Operations, Security hardening, Business
+   and legal, and Outbound email that is still to build, among them the restore drill's RPO and RTO targets
+   ([#845](https://github.com/NCodeGroup/identity/issues/845)), a dedicated cell's first capacity rating
+   ([ADR-1524](decisions/1524-a-dedicated-cells-capacity-rating-is-measured-by-the-repositorys-k6-test-on-dedicated-cpu-nodes.md))
+   and counsel's review of the [legal documents](legal/README.md)
+   ([ADR-1529](decisions/1529-the-hosted-platforms-terms-dpa-and-privacy-policy-are-public-documents-built-on-common-papers-standard-terms.md)).

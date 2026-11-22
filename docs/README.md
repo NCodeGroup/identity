@@ -43,6 +43,14 @@ decisions still open.
 [`platform-bootstrap.md`](./platform-bootstrap.md) is the step-by-step runbook for the manual operations that create the
 hosted platform from scratch — accounts, the infrastructure repository, credentials, and registrar delegation.
 
+[`incident-response.md`](./incident-response.md) is the hosted platform's incident-response runbook: severities, paging,
+triage, containment playbooks, customer communication, evidence and review.
+
+[`legal/`](./legal/README.md) holds the hosted platform's terms of service, data processing agreement and privacy
+policy.
+
+[`benchmarks/load/`](../benchmarks/load/README.md) holds the k6 load test that rates a cell's capacity.
+
 [`first-deployed-instance.md`](./first-deployed-instance.md) walks the first use of a deployed instance: the
 prerequisites, the install, the schema, the root administrator that setup creates, the management console, the grants
 and the removal of the setup Secrets.
