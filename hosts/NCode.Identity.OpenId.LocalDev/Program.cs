@@ -93,6 +93,16 @@ var openIdDb = postgres.AddDatabase(LocalDatabase.DatabaseName);
 // within minutes. WithReference injects the 'valkey' connection string (with the generated password).
 var valkey = builder.AddValkey("valkey");
 
+// The local stack's mail goes to Mailpit, which keeps every message for the developer to read at its web page and
+// delivers none (ADR-1532). It speaks SMTP without TLS, which only a host with LocalDevelopment:Enabled accepts.
+var mailpit = builder
+    .AddContainer("mailpit", "axllent/mailpit", "v1.34.0")
+    .WithHttpEndpoint(targetPort: 8025, name: "http")
+    .WithEndpoint(targetPort: 1025, name: "smtp", scheme: "tcp");
+var mailpitSmtpEndpoint = mailpit.GetEndpoint("smtp");
+var mailpitSmtpHost = mailpitSmtpEndpoint.Property(EndpointProperty.Host);
+var mailpitSmtpPort = mailpitSmtpEndpoint.Property(EndpointProperty.Port);
+
 // Dedicated migration resource (issue #144): applies the Npgsql migrations for both contexts, then exits. Dependents
 // WaitForCompletion on it, so a migration failure surfaces as a failed dashboard resource that blocks the api — it
 // never manifests as an api crash. WaitFor(postgres) holds it until the database is accepting connections and the
@@ -116,6 +126,7 @@ var migrations = builder
 // string.
 // The SecretProtection__ variables select the `local` root key provider and point it at the development root key file.
 // The BootstrapAdmin__ and DeveloperInteractiveSeed__ variables hand it the per-machine development credentials.
+// The Mail__Smtp__ variables point it at Mailpit.
 var api = builder
     .AddProject<Projects.NCode_Identity_OpenId_Host>("api")
     .WithHttpHealthCheck("/health/ready")
@@ -126,7 +137,12 @@ var api = builder
     .WithEnvironment("BootstrapAdmin__ClientSecret", bootstrapAdminClientSecret)
     .WithEnvironment("DeveloperInteractiveSeed__AdminPassword", adminPassword)
     .WithEnvironment("DeveloperInteractiveSeed__BffClients__0__Jwks", consoleClientJwks)
+    .WithEnvironment("Mail__Smtp__Host", mailpitSmtpHost)
+    .WithEnvironment("Mail__Smtp__Port", mailpitSmtpPort)
+    .WithEnvironment("Mail__Smtp__Tls", "None")
+    .WithEnvironment("Mail__Smtp__From", "no-reply@identity.localhost")
     .WaitFor(valkey)
+    .WaitFor(mailpit)
     .WaitForCompletion(migrations)
     .WithExternalHttpEndpoints();
 
