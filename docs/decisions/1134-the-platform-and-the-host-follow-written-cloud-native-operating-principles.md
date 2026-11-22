@@ -77,7 +77,7 @@ a principle by number.
   offers CIBA push or back-channel logout.
 - The accepted single points of failure are a cell's one datacenter and the developer-plan cluster's single-replica
   control plane
-  ([ADR-1520](1520-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md)).
+  ([ADR-1521](1521-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md)).
 - A reviewer cites a principle by number instead of re-arguing it.
 - A cell is the unit of release, restore and failure, so an incident, a bad release or a restore touches one cell and
   one region's tenants.

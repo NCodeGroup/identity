@@ -1,4 +1,4 @@
-# 1520. The hosted platform runs production on Akamai LKE in Washington, DC, and its lab on OCI OKE Basic in Phoenix
+# 1521. The hosted platform runs production on Akamai LKE in Washington, DC, and its lab on OCI OKE Basic in Phoenix
 
 - **Status:** Accepted
 - **Date:** 2026-11-21

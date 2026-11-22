@@ -1,7 +1,7 @@
 # Hosting — the hosted platform's topology, capacity and growth path
 
 - **Status:** Decided.
-  [ADR-1520](decisions/1520-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md)
+  [ADR-1521](decisions/1521-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md)
   records the topology, and each section names the record that decides it; [§13](#13-open-decisions) lists the decisions
   still open.
 - **Prices captured:** 2026-10-18, list **monthly USD, excluding tax**, from each vendor's live pricing page or public
@@ -18,7 +18,7 @@ decisions still open.
 ## 1. Topology
 
 Decided in
-[ADR-1520](decisions/1520-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md).
+[ADR-1521](decisions/1521-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md).
 
 | Environment | Where it runs | What runs there |
 | --- | --- | --- |
@@ -35,7 +35,7 @@ control plane ([Stages](#stages)). The root key costs about a dollar a month
 ### The production region
 
 Production runs in Washington, DC (`us-iad`)
-([ADR-1520](decisions/1520-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md)).
+([ADR-1521](decisions/1521-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md)).
 Production serves customers, not the operator, so its region is chosen on four things, in order:
 
 1. **The region's capabilities.** Akamai prices every US region the same: its public API lists regional price
@@ -110,7 +110,7 @@ Decided in [ADR-1495](decisions/1495-the-hosted-platform-runs-customer-environme
 ### Stages
 
 The platform grows in stages, decided in
-[ADR-1520](decisions/1520-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md).
+[ADR-1521](decisions/1521-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md).
 The starting budget is about **$100/month all-in**, for the lab and a production platform that offers only the free,
 non-production developer plan; paid plans, and the availability they need, are paid for by the plans that need them.
 
@@ -441,7 +441,7 @@ No production load data exists yet, so these are **planning estimates**; confirm
 
 - **Size for N-1:** after one node fails, the remaining nodes must still fit every pod.
 - **Production: 4 × Linode 2 GB** (1 shared vCPU and 2 GB each,
-  [ADR-1520](decisions/1520-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md)).
+  [ADR-1521](decisions/1521-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md)).
   With one node lost, about 4–4.5 GB is left for workloads, which need about 4 GB
   ([Capacity of the launch cluster](#capacity-of-the-launch-cluster)).
 - **CPU is not the constraint.** A token issuance is a few DB round-trips plus one or two signatures (ES256 ≪ 1 ms,
@@ -508,7 +508,7 @@ probably takes tens to a few hundred KB, which is unmeasured.
 ## 4. What HA means and what it costs
 
 Decided in
-[ADR-1520](decisions/1520-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md).
+[ADR-1521](decisions/1521-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md).
 
 | Layer             | Production (LKE)                                                                                                                                                     | Lab (OKE Basic)                     |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
@@ -526,7 +526,7 @@ Decided in
 ## 5. Vendor prices
 
 The prices of the vendors the platform runs on
-([ADR-1520](decisions/1520-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md)),
+([ADR-1521](decisions/1521-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md)),
 verified 2026-10-18 unless a row says otherwise. AWS's are in [§11](#11-growth-path-aws), Azure's in
 [§8](#8-devtest-and-conformance-on-azure-visual-studio-credit) and the key management services' in
 [§7](#7-root-key-and-remote-keys-kms).
@@ -567,7 +567,7 @@ datacenter** as the cluster.
 | **Akamai managed**              | 4 GB dedicated **$59**             | 3-node **$176**                      | Not entry-level; Valkey is in limited availability (Akamai docs, 2026-10-14) — re-verify plans |
 
 **Valkey runs in the cluster**
-([ADR-1520](decisions/1520-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md)).
+([ADR-1521](decisions/1521-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md)).
 Valkey backs the shared-state port that records DPoP nonces and the single-use DPoP-proof and client-assertion `jti`s
 ([ADR-1164](decisions/1164-replicas-share-expiring-keys-values-and-indexes-through-ports-with-in-process-and-valkey-adapters.md));
 losing it on restart only reopens a replay window bounded by the proof and assertion lifetimes. Enable AOF persistence
@@ -1082,7 +1082,7 @@ a vendor is a placement choice per cell, made in `NCodeGroup/identity-platform` 
 move is gradual:
 
 1. **Production starts on Akamai**, in Washington, DC
-   ([ADR-1520](decisions/1520-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md));
+   ([ADR-1521](decisions/1521-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md));
    AWS keeps the state, backups and root key.
 2. **Place the first cells on AWS when a customer needs it:** a dedicated cluster or a dedicated cell that asks for AWS,
    several availability zones, PrivateLink or Marketplace billing ([§12](#12-shared-and-dedicated-cells)).
@@ -1103,7 +1103,7 @@ isolated, guaranteed capacity gets a **dedicated cell**, never a reserved slice 
 Cells are decided in
 [ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
 their placement on clusters in
-[ADR-1520](decisions/1520-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md),
+[ADR-1521](decisions/1521-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md),
 and the automation that provisions and runs them is [#845](https://github.com/NCodeGroup/identity/issues/845).
 
 ### The cell and its placement

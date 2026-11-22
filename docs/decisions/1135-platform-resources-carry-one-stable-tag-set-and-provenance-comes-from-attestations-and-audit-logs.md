@@ -7,7 +7,7 @@
 ## Context
 
 The platform spans several vendors (AWS, Cloudflare, OCI, Akamai, GitHub and Kubernetes,
-[ADR-1520](1520-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md)),
+[ADR-1521](1521-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md)),
 each with its own tagging model: AWS and OCI use key/value maps, Akamai and Cloudflare DNS records use plain `key:value`
 strings, Kubernetes uses labels (no `@` allowed in values) and annotations, and GitHub only has repository topics.
 Without one strategy, every component invents its own keys and nobody can answer, from a resource alone, who owns it,
