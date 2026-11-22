@@ -764,13 +764,19 @@ The plain nightly [#124](https://github.com/NCodeGroup/identity/issues/124) run 
 in an `if: always()` step. Add a subscription budget alert, tag every resource with an expiry, and run a scheduled
 janitor that destroys anything older than a few hours — that also keeps every VM well under the 120-hour limit.
 
-## 11. IaC and delivery
+## 9. IaC and delivery
 
-- **Terraform/OpenTofu providers** exist for every shortlisted vendor (see §6) plus `aiven/aiven`, `hashicorp/azurerm`,
-  `hashicorp/aws`, `cloudflare/cloudflare` (DNS, Email Routing), and `integrations/github`. Manual steps are limited to
-  account creation and 2FA, short-lived bootstrap credentials, and the registrar delegation; a bootstrap stack creates
-  the buckets, OIDC roles, zone, and vendor tokens (§3). Prefer **OpenTofu** for client-side **state and plan
-  encryption** (state and plans contain connection strings and keys).
+Decided in
+[ADR-1132](decisions/1132-platform-infrastructure-code-is-public-on-github-and-its-state-and-backups-live-in-aws.md) and
+[ADR-1133](decisions/1133-the-hosted-platform-runs-only-the-published-artifacts-it-offers-self-hosters.md); publishing
+the stacks and components is [#87](https://github.com/NCodeGroup/identity/issues/87).
+
+- **OpenTofu providers** exist for each of the platform's vendors: `linode/linode` (Akamai), `oracle/oci`,
+  `hashicorp/aws`, `hashicorp/azurerm`, `cloudflare/cloudflare` (DNS, Email Routing) and `integrations/github`. Manual
+  steps are limited to account creation and 2FA, short-lived bootstrap credentials, and the registrar delegation; a
+  bootstrap stack creates the buckets, OIDC roles, zones, and vendor tokens ([Domains and DNS](#domains-and-dns)).
+  OpenTofu, pinned by the infrastructure repository's `.opentofu-version`, encrypts state and plans client-side, because
+  they contain connection strings and keys.
 - **Repository:** the public `NCodeGroup/identity-platform`, with the guardrails in
   [ADR-1132](decisions/1132-platform-infrastructure-code-is-public-on-github-and-its-state-and-backups-live-in-aws.md) — no secrets in Git (push protection,
   `gitleaks`), no credentials for untrusted pull requests, no plans in public logs or artifacts, operator-specific values
@@ -778,7 +784,7 @@ janitor that destroys anything older than a few hours — that also keeps every 
 - **Same artifacts as self-hosters** ([ADR-1133](decisions/1133-the-hosted-platform-runs-only-the-published-artifacts-it-offers-self-hosters.md)): the host's
   Helm chart ships from the library repository as a signed OCI chart. `NCodeGroup/identity-platform` layers small
   **component modules** (`modules/`: e.g. `cloudflare-zone`, `aws-state-backend`, `akamai-lke`, `akamai-postgres`,
-  `oci-k3s`, `flux-bootstrap`) and **in-cluster components** (`kubernetes/components/`: `traefik`, `cert-manager`,
+  `oci-oke`, `flux-bootstrap`) and **in-cluster components** (`kubernetes/components/`: `traefik`, `cert-manager`,
   `valkey`, `identity`) under opinionated **stacks** (`stacks/akamai`, `stacks/oci`) — pick a component, a whole stack,
   or fork a stack. Releases are semver-versioned and immutable (protected tags, signed OCI artifacts on GHCR); the
   platform's `live/` and `clusters/` consume them only by released version, and a CI check rejects local sources there.
@@ -792,21 +798,21 @@ janitor that destroys anything older than a few hours — that also keeps every 
   state (Traefik, cert-manager, Valkey, CloudNativePG, the identity server) is reconciled by **Flux** from the same
   repository, pulling signed images by digest from GHCR — so no deploy credential flows from the library repository.
 
-## 13. Pre-launch considerations
+## 10. Pre-launch considerations
 
-**Must-do before customers (code and composition, tracked as issues):**
+**In the product, each decided in its record:**
 
-- **Stored secrets must be protected by a root key outside the database.** The host persists signing keys, client
-  secrets and the Data Protection key ring in the same Postgres database, so a backup would otherwise hold everything
-  needed to use them. Every private value is encrypted under a per-owner master key wrapped by a root key held in a key
-  management service, and a host without `LocalDevelopment:Enabled` refuses to start without a real root key and a
-  recovery decision
-  ([ADR-1235](decisions/1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md); pairs with
-  [#165](https://github.com/NCodeGroup/identity/issues/165)).
-- **Kubernetes deployment artifacts** — issue [#85](https://github.com/NCodeGroup/identity/issues/85), done. `NCode.Identity.OpenId.Host` already trusts forwarded headers
-  only from configured proxies (set `ForwardedHeaders:KnownNetworks` to the pod CIDR so Traefik's `X-Forwarded-Proto` /
-  `Host` are honored) and, unless `LocalDevelopment:Enabled` is set, refuses development-only settings (developer keys,
-  wildcard `AllowedHosts`,
+- **Stored secrets are protected by a root key outside the database.** The host persists signing keys, client secrets
+  and the Data Protection key ring in the same Postgres database, so a backup would otherwise hold everything needed to
+  use them. Every private value is encrypted under a per-owner master key wrapped by a root key held in a key management
+  service, and a host without `LocalDevelopment:Enabled` refuses to start without a real root key and a recovery
+  decision
+  ([ADR-1235](decisions/1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md); remote keys
+  [ADR-1471](decisions/1471-a-tenants-signing-and-encryption-keys-can-be-held-in-a-key-management-service.md)).
+- **Kubernetes deployment artifacts.** `NCode.Identity.OpenId.Host` trusts forwarded headers only from configured proxies
+  ([ADR-1447](decisions/1447-each-host-composes-forwarded-header-trust-and-strict-transport-security-from-one-general-package.md);
+  set `ForwardedHeaders:KnownNetworks` to the pod CIDR so Traefik's `X-Forwarded-Proto` / `Host` are honored) and,
+  unless `LocalDevelopment:Enabled` is set, refuses development-only settings (developer keys, wildcard `AllowedHosts`,
   developer CORS, seeders). Its image is chiseled, runs non-root, serves HTTPS only on port 8443, is built for amd64 and
   arm64, and carries the login bundle
   ([ADR-1248](decisions/1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)). Its Helm
@@ -817,10 +823,10 @@ janitor that destroys anything older than a few hours — that also keeps every 
   working ([ADR-1180](decisions/1180-each-host-contexts-migrations-run-before-the-rollout-and-only-expand-the-schema.md)). Every
   merge to `main` publishes the image, the chart and the OpenAPI document
   ([ADR-1505](decisions/1505-every-merge-to-main-publishes-the-host-console-and-directory-images-the-chart-and-the-openapi-document-at-one-prerelease-version.md)).
-- **Per-tenant rate limits and quotas** — issues [#84](https://github.com/NCodeGroup/identity/issues/84) and [#118](https://github.com/NCodeGroup/identity/issues/118), done
+- **Per-tenant rate limits and quotas**
   ([ADR-1246](decisions/1246-rate-limits-are-registered-descriptors-counted-in-a-shared-expiring-counter-set.md),
-  [ADR-1198](decisions/1198-a-daily-quota-counts-a-utc-day-and-a-tier-may-admit-a-bounded-billed-overage.md)); the mTLS work ([#82](https://github.com/NCodeGroup/identity/issues/82), [#83](https://github.com/NCodeGroup/identity/issues/83),
-  [#86](https://github.com/NCodeGroup/identity/issues/86), and [#117](https://github.com/NCodeGroup/identity/issues/117)) is done.
+  [ADR-1198](decisions/1198-a-daily-quota-counts-a-utc-day-and-a-tier-may-admit-a-bounded-billed-overage.md)), and
+  **mutual TLS behind the proxy** ([§6](#6-traefik-mtls-and-tenant-pki)).
 
 **Operations:**
 
@@ -858,8 +864,9 @@ janitor that destroys anything older than a few hours — that also keeps every 
   points to [`SECURITY.md`](../SECURITY.md).
 
 **Business and legal (before onboarding customers):** privacy policy, terms, a DPA and subprocessor list (Akamai,
-Cloudflare, Grafana Labs, and the key-vault provider); data residency is US-only (one US region) — EU customers need a
-regional cell ([ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)); an SLA no higher than a
+Cloudflare, Grafana Labs and AWS, listed per region in [#859](https://github.com/NCodeGroup/identity/issues/859)); data
+residency is US-only (one US region) — EU customers need a regional cell
+([ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md)); an SLA no higher than a
 single-datacenter platform supports (~99.9%), until cells run across availability zones ([§15](#15-growth-path-aws)); an incident-response runbook.
 
 **Outbound email (future):** verification, password reset, and email MFA need a sending provider — OCI Email Delivery
