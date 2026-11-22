@@ -45,8 +45,11 @@ public static class OpenIdMetricAttributes
     {
         ArgumentNullException.ThrowIfNull(httpContext);
 
-        httpContext
-            .Features.Get<IHttpMetricsTagsFeature>()
-            ?.Tags.Add(new KeyValuePair<string, object?>(name, value));
+        var tagsFeature = httpContext.Features.Get<IHttpMetricsTagsFeature>();
+        if (tagsFeature is not null)
+        {
+            var tag = new KeyValuePair<string, object?>(name, value);
+            tagsFeature.Tags.Add(tag);
+        }
     }
 }

@@ -202,13 +202,12 @@ public sealed class TenantPromotionContext
         if (settingNames.Count == 0)
             return;
 
-        ChangedLimitList.Add(
-            new TenantPromotionLimitChange
-            {
-                AuthorityAbove = authorityAbove,
-                SettingNames = [.. settingNames],
-            }
-        );
+        var limitChange = new TenantPromotionLimitChange
+        {
+            AuthorityAbove = authorityAbove,
+            SettingNames = [.. settingNames],
+        };
+        ChangedLimitList.Add(limitChange);
     }
 
     /// <summary>

@@ -63,7 +63,8 @@ public class StringSetParser : ParameterParser<HashSet<string>>
             foreach (var range in stringSpan.Split(OpenIdProtocol.ParameterSeparatorChar))
             {
                 var part = stringSpan[range];
-                results.Add(part.ToString());
+                var partString = part.ToString();
+                results.Add(partString);
             }
         }
 

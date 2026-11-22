@@ -143,7 +143,11 @@ public abstract class ManagementApiEndpointHandler
             authorizationResource,
             authorizationRequirement,
             readAsync,
-            (value, _) => ValueTask.FromResult(mapper(value)),
+            (value, _) =>
+            {
+                var response = mapper(value);
+                return ValueTask.FromResult(response);
+            },
             cancellationToken
         );
 
@@ -259,8 +263,11 @@ public abstract class ManagementApiEndpointHandler
         var page = await fetchPageAsync();
 
         var items = page.Items.Select(mapper).ToList();
-        return TypedResults.Json(
-            new CollectionResource<TResource> { Items = items, ContinuationToken = page.NextCursor }
-        );
+        var collectionResource = new CollectionResource<TResource>
+        {
+            Items = items,
+            ContinuationToken = page.NextCursor,
+        };
+        return TypedResults.Json(collectionResource);
     }
 }

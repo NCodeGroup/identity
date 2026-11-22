@@ -117,7 +117,8 @@ internal static class DistinguishedNameParser
             if (position == start)
                 return false;
 
-            var encodedValue = Convert.FromHexString(value.AsSpan(start, position - start));
+            var hexValue = value.AsSpan(start, position - start);
+            var encodedValue = Convert.FromHexString(hexValue);
             attribute = DistinguishedNameAttribute.FromEncodedValue(oid, encodedValue);
             return true;
         }
@@ -206,7 +207,9 @@ internal static class DistinguishedNameParser
             if (position + 2 >= value.Length || !char.IsAsciiHexDigit(value[position + 2]))
                 return false;
 
-            pendingBytes.Add(Convert.ToByte(value.Substring(position + 1, 2), 16));
+            var hexByte = value.Substring(position + 1, 2);
+            var pendingByte = Convert.ToByte(hexByte, 16);
+            pendingBytes.Add(pendingByte);
             position += 3;
             return true;
         }
@@ -225,7 +228,9 @@ internal static class DistinguishedNameParser
         if (pendingBytes.Count == 0)
             return;
 
-        builder.Append(SecureEncoding.UTF8.GetString(pendingBytes.ToArray()));
+        var pendingBytesArray = pendingBytes.ToArray();
+        var pendingText = SecureEncoding.UTF8.GetString(pendingBytesArray);
+        builder.Append(pendingText);
         pendingBytes.Clear();
     }
 
