@@ -1140,7 +1140,11 @@ Inside one cell, every tenant shares the same process threads, the password-hash
 rate limits and quotas are **ceilings, not reservations**: they stop one tenant from taking too much, but they set
 nothing aside for anyone. Shared-vCPU nodes can also be slowed by other customers of the cloud vendor on the same
 physical host (CPU steal). So guaranteed capacity exists only where nothing in the request path is shared and the CPU is
-dedicated.
+dedicated. Under load, each replica sheds free tenants' requests first: the free tier's `admission_capacity_percent` of
+60 lets free requests fill at most 60% of a replica's `OpenId:Admission:ConcurrencyLimit`, so the rest serves paid
+tenants
+([ADR-1523](decisions/1523-a-replica-sheds-a-tenants-protocol-requests-once-its-in-flight-requests-fill-the-tenants-share-of-its-capacity.md)).
+That orders who is refused first; it still reserves nothing for any one tenant.
 
 ### Kinds of cells and where they run
 
@@ -1148,7 +1152,7 @@ From the least to the most isolated; infrastructure costs are Akamai list prices
 
 | Cell | Customers | Placement | What it can promise | Infrastructure |
 |---|---|---|---|---|
-| **Shared cell** | Many, free and entry plans | A shared node pool | Best effort; limits and quotas protect against noisy neighbors | Part of the production cluster |
+| **Shared cell** | Many, free and entry plans | A shared node pool | Best effort; limits and quotas protect against noisy neighbors, and free traffic is shed before paid traffic | Part of the production cluster |
 | **Paid-only shared cell** | Many, paid plans only | Its own node pool; cluster B once the paying base grows | Headroom, not a reservation: run at ≤50% utilization, with no free tenants able to load it | ~$75–110/mo (a 3-node pool and its own 3-node PostgreSQL) |
 | **Dedicated cell on a shared cluster** | One | Its own dedicated-CPU node pool on the paid cells' cluster | Committed throughput at a stated p95 latency; 99.9% availability | ~$150–250/mo (3 dedicated-CPU nodes, a 3-node PostgreSQL, its own NodeBalancer, KMS and backups) |
 | **Dedicated cluster** | One | Its own cluster, optionally in its own datacenter or region | As above, plus its own maintenance windows and region | ~$220–350/mo (the above plus an HA control plane) |

@@ -1627,3 +1627,12 @@ The image writes one JSON object per line to standard output, with a UTC timesta
 and its exception in one record
 ([ADR-1248](../../docs/decisions/1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)). Set
 `Logging__Console__FormatterName=simple` in `extraEnv` to write text instead.
+
+### Load shedding
+
+`admission.concurrencyLimit` sets `OpenId:Admission:ConcurrencyLimit`, the most metered protocol requests one replica
+serves at once. A tenant's requests may fill the share of it that the tenant setting `admission_capacity_percent` gives,
+100% when unset; a request past it is answered `503` with `Retry-After`, before any rate limit counts it, and discovery
+and the JSON Web Key Set are never shed. Leave it unset, the default, to shed nothing; set it from a load test of the
+release on the nodes it runs on
+([ADR-1523](../../docs/decisions/1523-a-replica-sheds-a-tenants-protocol-requests-once-its-in-flight-requests-fill-the-tenants-share-of-its-capacity.md)).

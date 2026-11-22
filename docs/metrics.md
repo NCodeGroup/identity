@@ -71,6 +71,16 @@ them.
 | `ncode.identity.rate_limiting.result`    | `admitted`, `overage`, `rejected`, `store_unavailable` (fail open)                                                                                    |
 | `ncode.identity.tenant.environment_type` | The tenant's registered environment type, such as `production` or `development` (a bounded value, never the tenant's free-form `environment_name`)    |
 
+### `ncode.identity.admission.shed`
+
+Counter, unit `{request}`, meter `NCode.Identity.OpenId.Authentication`. Recorded once for each metered protocol request
+a replica sheds because its in-flight requests fill the share of its capacity the request's tenant may fill
+([ADR-1523](decisions/1523-a-replica-sheds-a-tenants-protocol-requests-once-its-in-flight-requests-fill-the-tenants-share-of-its-capacity.md)).
+
+| Attribute                                | Values                                                                                                                                             |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ncode.identity.tenant.environment_type` | The tenant's registered environment type, such as `production` or `development` (a bounded value, never the tenant's free-form `environment_name`) |
+
 ### `ncode.identity.events.published`
 
 Counter, unit `{event}`, meter `NCode.Identity.Events`. Recorded once for each event published through the event seam
