@@ -63,6 +63,13 @@ spec:
                   name: {{ $job.existingSecret }}
                   key: {{ $job.emailKey | quote }}
                   optional: true
+            # The display name is optional: the Secret may omit its key.
+            - name: Setup__Root__DisplayName
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $job.existingSecret }}
+                  key: {{ $job.displayNameKey | quote }}
+                  optional: true
             - name: Setup__Root__Password
               valueFrom:
                 secretKeyRef:
