@@ -242,6 +242,7 @@ internal sealed class ConformanceSeedHandler(
             TenantId = tenantId,
             LocalAccountId = Guid.NewGuid().ToString("N"),
             UserName = userName,
+            DisplayName = BuildTestUserDisplayName(userName),
             Email = Options.TestUserEmail,
             EmailVerified = true,
             IsEnabled = true,
@@ -270,6 +271,17 @@ internal sealed class ConformanceSeedHandler(
         Logger.ConformanceTestUserSeeded(userName, tenantId);
     }
 
+    // Compose the account's display name, which the 'name' claim carries, from whichever name parts are configured so the
+    // suite's EnsureUserInfoContainsName check (a 'profile' scope request) always finds one.
+    private string BuildTestUserDisplayName(string userName)
+    {
+        var nameParts = new[] { Options.TestUserGivenName, Options.TestUserFamilyName }.Where(part =>
+            !string.IsNullOrEmpty(part)
+        );
+        var displayName = string.Join(' ', nameParts);
+        return displayName.Length > 0 ? displayName : userName;
+    }
+
     private List<PersistedLocalAccountClaim> BuildTestUserProfileClaims()
     {
         var givenName = Options.TestUserGivenName;
@@ -288,12 +300,6 @@ internal sealed class ConformanceSeedHandler(
 
         Add(JoseClaimNames.Payload.GivenName, givenName);
         Add(JoseClaimNames.Payload.FamilyName, familyName);
-
-        // Compose the displayed 'name' from whichever name parts are configured so the suite's EnsureUserInfoContainsName
-        // check (a 'profile' scope request) always finds one.
-        var nameParts = new[] { givenName, familyName }.Where(part => !string.IsNullOrEmpty(part));
-        var displayName = string.Join(' ', nameParts);
-        Add(JoseClaimNames.Payload.Name, displayName);
 
         // Seed the full standard 'profile', 'address', and 'phone' scope claim sets with deterministic values so the
         // suite's VerifyScopesReturnedInUserInfoClaims check finds every scope-mapped claim in the UserInfo response
