@@ -220,7 +220,7 @@ internal class LocalAccountApiEndpointHandler(
     /// Creates a local account in a tenant, together with the principal and the self-issued identity that it resolves to.
     /// </summary>
     /// <response code="201">The created local account.</response>
-    /// <response code="400">The display name is longer than allowed, the claims include the reserved <c>name</c> claim, or the password does not meet the tenant's password policy.</response>
+    /// <response code="400">The username is missing or longer than allowed, the display name is longer than allowed, the claims include the reserved <c>name</c> claim, or the password does not meet the tenant's password policy.</response>
     /// <response code="404">The tenant does not exist.</response>
     /// <response code="409">A local account with the username already exists in the tenant.</response>
     internal virtual async ValueTask<IResult> CreateLocalAccountAsync(
@@ -367,7 +367,7 @@ internal class LocalAccountApiEndpointHandler(
     /// Creates a local account of the platform, in the control-plane tenant.
     /// </summary>
     /// <response code="201">The created local account.</response>
-    /// <response code="400">The display name is longer than allowed, the claims include the reserved <c>name</c> claim, or the password does not meet the tenant's password policy.</response>
+    /// <response code="400">The username is missing or longer than allowed, the display name is longer than allowed, the claims include the reserved <c>name</c> claim, or the password does not meet the tenant's password policy.</response>
     /// <response code="404">The control-plane tenant does not exist.</response>
     /// <response code="409">A local account with the username already exists in the control-plane tenant.</response>
     internal virtual async ValueTask<IResult> CreatePlatformLocalAccountAsync(
@@ -425,7 +425,7 @@ internal class LocalAccountApiEndpointHandler(
     /// Updates the display name, the username and the email of a local account by applying a JSON Patch document.
     /// </summary>
     /// <response code="204">The local account was updated.</response>
-    /// <response code="400">The JSON Patch document cannot be applied, or the display name is missing or longer than allowed.</response>
+    /// <response code="400">The JSON Patch document cannot be applied, or the username or the display name is missing or longer than allowed.</response>
     /// <response code="404">The local account does not exist.</response>
     /// <response code="409">Another local account in the tenant already has the username.</response>
     internal virtual async ValueTask<IResult> UpdateLocalAccountAsync(
@@ -476,7 +476,6 @@ internal class LocalAccountApiEndpointHandler(
         }
 
         model.DisplayName = model.DisplayName?.Trim() ?? string.Empty;
-        model.UserName ??= string.Empty;
 
         var ifMatch = httpContext.Request.Headers.IfMatch.ToString();
         var expectedConcurrencyToken = string.IsNullOrEmpty(ifMatch) ? null : ifMatch;
