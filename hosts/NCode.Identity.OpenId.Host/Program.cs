@@ -3,6 +3,7 @@
 
 using NCode.Identity.AspNetCore;
 using NCode.Identity.AspNetCore.OpenTelemetry;
+using NCode.Identity.Mail.Smtp;
 using NCode.Identity.OpenId.Accounts.Authentication;
 using NCode.Identity.OpenId.Accounts.Credentials;
 using NCode.Identity.OpenId.Accounts.Management;
@@ -130,6 +131,10 @@ identityServer.AddFrontendBootstrap(configuration);
 // goes to Valkey when the 'valkey' connection string is configured (the AppHost injects it), and otherwise stays
 // in-process, which is correct only for a single replica (ADR-1164).
 identityServer.SharedStateLibraryBuilder.AddValkey(configuration);
+
+// Mail — verification, password-reset and sign-in codes — goes to the SMTP server the 'Mail:Smtp' section names;
+// without the section the host sends no mail, and each failed delivery is logged (ADR-1532).
+identityServer.MailLibraryBuilder.AddSmtpMailTransport(configuration);
 
 var entityFrameworkPersistence =
     serviceCollection.AddEntityFrameworkCorePersistence<OpenIdDbContext>();

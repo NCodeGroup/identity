@@ -601,6 +601,37 @@ public class DeploymentSafetyRegistrationTests
         Assert.Contains("GlobalAdmin", violation.Problem);
     }
 
+    [Fact]
+    public void FindViolations_WhenSmtpTlsIsNone_ReportsIt()
+    {
+        var violations = DeploymentSafetyRegistration.FindViolations(
+            CreateDeploymentConfiguration(
+                ("AllowedHosts", "op.example.com"),
+                ("Mail:Smtp:Tls", "None")
+            )
+        );
+
+        var violation = Assert.Single(violations);
+        Assert.Equal("Mail:Smtp:Tls", violation.ConfigurationKey);
+        Assert.Contains("clear text", violation.Problem);
+    }
+
+    [Fact]
+    public void FindViolations_WhenSmtpTlsIsStartTls_ReportsNoSmtpViolation()
+    {
+        var violations = DeploymentSafetyRegistration.FindViolations(
+            CreateDeploymentConfiguration(
+                ("AllowedHosts", "op.example.com"),
+                ("Mail:Smtp:Tls", "StartTls")
+            )
+        );
+
+        Assert.DoesNotContain(
+            violations,
+            violation => violation.ConfigurationKey == "Mail:Smtp:Tls"
+        );
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]

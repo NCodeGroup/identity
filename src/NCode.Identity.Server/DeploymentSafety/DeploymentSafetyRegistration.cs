@@ -34,6 +34,8 @@ public static class DeploymentSafetyRegistration
 {
     private const string AllowedHostsConfigurationKey = "AllowedHosts";
 
+    private const string SmtpTlsConfigurationKey = "Mail:Smtp:Tls";
+
     private const string RootKeyProviderConfigurationKey = "SecretProtection:RootKeyProvider";
 
     private const string LocalRootKeyConfigurationKey =
@@ -86,6 +88,24 @@ public static class DeploymentSafetyRegistration
                     ? "is not set, so every Host header is accepted."
                     : "'*' accepts every Host header.",
                 "List this deployment's host names explicitly."
+            );
+            violations.Add(violation);
+        }
+
+        // Mail carries one-time codes, so it is never submitted in clear text; the setting exists for a local mail
+        // catcher (ADR-1532).
+        if (
+            string.Equals(
+                configuration[SmtpTlsConfigurationKey],
+                "None",
+                StringComparison.OrdinalIgnoreCase
+            )
+        )
+        {
+            var violation = new DeploymentSafetyViolation(
+                SmtpTlsConfigurationKey,
+                "'None' sends mail, and the codes it carries, in clear text.",
+                "Set it to 'StartTls' or 'ImplicitTls'."
             );
             violations.Add(violation);
         }
