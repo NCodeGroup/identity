@@ -112,8 +112,8 @@ cluster; the lab runs on OCI OKE Basic in Phoenix inside the free allowance; AWS
 - The lab is arm64 with CloudNativePG and production is amd64 with managed PostgreSQL, so the images are multi-arch
   ([ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md))
   and each release is verified on the `canary` tenant (ADR-1495).
-- The subprocessors are Akamai (with Aiven behind its managed PostgreSQL), Cloudflare, Grafana Labs and AWS
-  ([#859](https://github.com/NCodeGroup/identity/issues/859)).
+- The subprocessors are Akamai (with Aiven behind its managed PostgreSQL), Cloudflare, Grafana Labs, AWS, and Oracle
+  when OCI Email Delivery sends the platform's mail ([#859](https://github.com/NCodeGroup/identity/issues/859)).
 - The hosting analysis keeps the sizing, the capacity, the chosen vendors' prices and the AWS growth path.
 
 ## References

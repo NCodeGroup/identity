@@ -875,9 +875,9 @@ the stacks and components is [#87](https://github.com/NCodeGroup/identity/issues
   points to [`SECURITY.md`](../SECURITY.md).
 
 **Business and legal (before onboarding customers):** privacy policy, terms, a DPA and subprocessor list (Akamai and the
-Aiven service behind its managed PostgreSQL, Cloudflare, Grafana Labs and AWS, listed per region in
-[#859](https://github.com/NCodeGroup/identity/issues/859)); data residency is US-only (one US region) — EU customers
-need a regional cell
+Aiven service behind its managed PostgreSQL, Cloudflare, Grafana Labs, AWS, and Oracle when OCI Email Delivery sends the
+platform's mail, listed per region in [#859](https://github.com/NCodeGroup/identity/issues/859)); data residency is
+US-only (one US region) — EU customers need a regional cell
 ([ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md));
 an SLA no higher than a single-datacenter platform supports (~99.9%), until cells run across availability zones
 ([§11](#11-growth-path-aws)); an incident-response runbook.
