@@ -22,6 +22,7 @@ using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Contracts.Tenants;
 using NCode.Identity.OpenId.Management.Transfers;
 using NCode.Identity.OpenId.Persistence.Stores;
+using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Registration.AspNetCore;
 using NCode.Identity.Secrets;
@@ -46,10 +47,11 @@ POST api/tenants/{tenantId}/release-moved
 /// region, the name of the target cell, the tenant's identifier, the section of every
 /// <see cref="ITenantTransferContributor"/> in order, and the tenant's master keys sealed to the same key. Before it
 /// seals the package, the export records in the global directory the offer of the tenant to the target cell, which only
-/// that cell's move consumes. The tenant must be disabled so that nothing changes while it moves. The release removes
-/// the tenant's rows from this cell once the global directory places the tenant in another cell; it destroys no remote
-/// key and retires nothing. The caller needs the update operation on the platform node. The export's response is never
-/// logged.
+/// that cell's move consumes. The tenant must be disabled so that nothing changes while it moves. A tenant the
+/// deployment requires (<see cref="ITenantResolver.IsRequiredTenant"/>) is neither exported nor released, because it
+/// never leaves its cell. The release removes the tenant's rows from this cell once the global directory places the
+/// tenant in another cell; it destroys no remote key and retires nothing. The caller needs the update operation on the
+/// platform node. The export's response is never logged.
 /// </summary>
 // See ADR-1514.
 internal class TenantTransferApiEndpointHandler(
@@ -63,6 +65,7 @@ internal class TenantTransferApiEndpointHandler(
     IJoseSerializer joseSerializer,
     IAlgorithmCollectionProvider algorithmCollectionProvider,
     ITenantDirectory tenantDirectory,
+    ITenantResolver tenantResolver,
     IManagementAuditRecorder managementAuditRecorder,
     IOptions<CellOptions> cellOptions,
     TimeProvider timeProvider
@@ -87,6 +90,12 @@ internal class TenantTransferApiEndpointHandler(
     private IAlgorithmCollectionProvider AlgorithmCollectionProvider { get; } =
         algorithmCollectionProvider;
     private ITenantDirectory TenantDirectory { get; } = tenantDirectory;
+
+    /// <summary>
+    /// Gets the resolver that says which tenants the deployment requires.
+    /// </summary>
+    private ITenantResolver TenantResolver { get; } = tenantResolver;
+
     private IManagementAuditRecorder ManagementAuditRecorder { get; } = managementAuditRecorder;
     private CellOptions CellOptions { get; } = cellOptions.Value;
     private TimeProvider TimeProvider { get; } = timeProvider;
@@ -137,7 +146,7 @@ internal class TenantTransferApiEndpointHandler(
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="204">The tenant is released from this cell.</response>
     /// <response code="404">The tenant does not exist in this cell.</response>
-    /// <response code="409">The global directory does not place the tenant in another cell.</response>
+    /// <response code="409">The tenant is required by the deployment, or the global directory does not place the tenant in another cell.</response>
     /// <response code="503">The global directory is unavailable; nothing is released.</response>
     [EndpointName("api/tenants/release-moved/create")]
     internal virtual async ValueTask<IResult> ReleaseMovedTenantAsync(
@@ -166,6 +175,17 @@ internal class TenantTransferApiEndpointHandler(
         if (tenant is null)
         {
             return ManagementProblems.ResourceNotFound();
+        }
+
+        // A required tenant never leaves its cell, so a placement of its identifier in another cell names another
+        // cell's tenant, such as the control-plane cell's root tenant beside this cell's own root tenant that has no
+        // issuer.
+        if (TenantResolver.IsRequiredTenant(tenantId))
+        {
+            return TypedResults.Problem(
+                detail: "The tenant is required by the deployment (the root tenant, or the static strategy's tenant) and cannot be released, because it never leaves its cell.",
+                statusCode: StatusCodes.Status409Conflict
+            );
         }
 
         TenantPlacement? placement;
@@ -229,7 +249,7 @@ internal class TenantTransferApiEndpointHandler(
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="200">The export, a compact <c>JWE</c> to the recipient key, which names the target cell.</response>
     /// <response code="404">The tenant does not exist.</response>
-    /// <response code="409">The tenant is not disabled, or the directory refuses to record the offer of the tenant to the target cell; when the directory places the tenant in another cell, the problem's <c>placedCell</c> names that cell.</response>
+    /// <response code="409">The tenant is required by the deployment or is not disabled, or the directory refuses to record the offer of the tenant to the target cell; when the directory places the tenant in another cell, the problem's <c>placedCell</c> names that cell.</response>
     /// <response code="422">The target cell is not a valid cell name, the recipient key is refused, it is not an elliptic curve key on <c>P-256</c> for encryption, or the tenant's package is over the 64 MiB ceiling of a tenant move.</response>
     /// <response code="503">The global directory is unavailable; nothing is exported.</response>
     [EndpointName("api/tenants/export/create")]
@@ -278,6 +298,14 @@ internal class TenantTransferApiEndpointHandler(
         if (tenant is null)
         {
             return ManagementProblems.ResourceNotFound();
+        }
+
+        if (TenantResolver.IsRequiredTenant(tenantId))
+        {
+            return TypedResults.Problem(
+                detail: "The tenant is required by the deployment (the root tenant, or the static strategy's tenant) and cannot be exported, because it never leaves its cell.",
+                statusCode: StatusCodes.Status409Conflict
+            );
         }
 
         if (!tenant.IsDisabled)

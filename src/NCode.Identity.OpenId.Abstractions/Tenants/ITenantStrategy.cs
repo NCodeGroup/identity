@@ -116,8 +116,9 @@ public interface ITenantStrategy
 
     /// <summary>
     /// Determines whether the deployment requires the specified tenant: one that is created on demand — the root tenant
-    /// under every strategy, and the configured tenant under the static single-tenant strategy. A required tenant cannot
-    /// be deleted, because retired tenant identifiers are never reissued and the next request would fail to recreate it.
+    /// under every strategy, and the configured tenant under the static single-tenant strategy. A required tenant
+    /// cannot be deleted, because retired tenant identifiers are never reissued and the next request would fail to
+    /// recreate it, and it never moves to another cell, because it is part of its cell's deployment.
     /// </summary>
     /// <param name="tenantId">The identifier of the tenant.</param>
     /// <returns><see langword="true"/> when the deployment requires the tenant; otherwise, <see langword="false"/>.</returns>
