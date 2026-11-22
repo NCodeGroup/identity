@@ -212,6 +212,18 @@ apiReference:
 admission:
   concurrencyLimit: null
 
+# Outbound mail (Mail:Smtp): the SMTP server the host submits its mail to, such as Amazon SES's endpoint in the
+# cell's region. Unset sends no mail. from is required with host; existingSecret names a Secret holding the keys
+# username and password. tls is StartTls (port 587) or ImplicitTls (port 465).
+mail:
+  smtp:
+    host: ""
+    port: 587
+    tls: StartTls
+    from: ""
+    fromName: ""
+    existingSecret: ""
+
 # The Postgres database (ConnectionStrings:openiddb) the pods read, as the runtime role. It also persists the Data
 # Protection key ring. Required: name either existingSecret, a Secret holding the finished Npgsql connection string, or
 # parts.existingSecret, a Secret holding the connection's parts, as a Postgres operator writes it; never both. The role

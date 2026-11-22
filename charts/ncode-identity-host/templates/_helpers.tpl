@@ -763,6 +763,32 @@ same configuration the pods it rewraps keys for read.
 - name: OpenId__Admission__ConcurrencyLimit
   value: {{ .Values.admission.concurrencyLimit | quote }}
 {{- end }}
+{{- if .Values.mail.smtp.host }}
+- name: Mail__Smtp__Host
+  value: {{ .Values.mail.smtp.host | quote }}
+- name: Mail__Smtp__Port
+  value: {{ .Values.mail.smtp.port | quote }}
+- name: Mail__Smtp__Tls
+  value: {{ .Values.mail.smtp.tls | quote }}
+- name: Mail__Smtp__From
+  value: {{ .Values.mail.smtp.from | quote }}
+{{- with .Values.mail.smtp.fromName }}
+- name: Mail__Smtp__FromName
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.mail.smtp.existingSecret }}
+- name: Mail__Smtp__UserName
+  valueFrom:
+    secretKeyRef:
+      name: {{ . | quote }}
+      key: username
+- name: Mail__Smtp__Password
+  valueFrom:
+    secretKeyRef:
+      name: {{ . | quote }}
+      key: password
+{{- end }}
+{{- end }}
 {{ include "identity-host.databaseEnv" (dict "scope" .Values.database "defaults" .Values.database) | trim }}
 {{- if $valkey }}
 {{ include "identity-host.valkeyEnv" (dict "scope" .Values.valkey "defaults" .Values.valkey) | trim }}
