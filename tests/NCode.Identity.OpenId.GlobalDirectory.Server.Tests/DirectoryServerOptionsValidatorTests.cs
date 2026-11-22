@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using NCode.Identity.OpenId.GlobalDirectory.Server.Options;
+using NCode.Identity.OpenId.Tenants;
 using Xunit;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server;
@@ -9,6 +10,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 public class DirectoryServerOptionsValidatorTests
 {
     private const string ControlPlaneCell = "control";
+
+    private const string ControlPlaneTenantId = "root";
 
     private const string DisallowedIssuerMessage =
         "DirectoryServer:Issuer must be an absolute https URL (or http on a loopback host) of at most 1000 characters with no user information, query or fragment.";
@@ -20,6 +23,15 @@ public class DirectoryServerOptionsValidatorTests
             "cell-",
             "control--plane",
             new string('a', CellLabelRules.MaxLabelLength + 1),
+        ];
+
+    public static TheoryData<string> NonTenantIdentifierControlPlaneTenantIds =>
+        [
+            "Root",
+            "-root",
+            "root-",
+            "root tenant",
+            new string('a', TenantIdentifierRules.MaxTenantIdLength + 1),
         ];
 
     private static DirectoryServerOptionsValidator CreateValidator() => new();
@@ -41,6 +53,7 @@ public class DirectoryServerOptionsValidatorTests
         {
             Issuer = issuer,
             ControlPlaneCell = ControlPlaneCell,
+            ControlPlaneTenantId = ControlPlaneTenantId,
         };
 
         var result = CreateValidator().Validate(null, options);
@@ -57,6 +70,7 @@ public class DirectoryServerOptionsValidatorTests
         {
             Issuer = issuer,
             ControlPlaneCell = ControlPlaneCell,
+            ControlPlaneTenantId = ControlPlaneTenantId,
         };
 
         var result = CreateValidator().Validate(null, options);
@@ -73,6 +87,7 @@ public class DirectoryServerOptionsValidatorTests
         {
             Issuer = issuer,
             ControlPlaneCell = ControlPlaneCell,
+            ControlPlaneTenantId = ControlPlaneTenantId,
         };
 
         var result = CreateValidator().Validate(null, options);
@@ -89,6 +104,7 @@ public class DirectoryServerOptionsValidatorTests
         {
             Issuer = null!,
             ControlPlaneCell = ControlPlaneCell,
+            ControlPlaneTenantId = ControlPlaneTenantId,
         };
 
         var result = CreateValidator().Validate(null, options);
@@ -114,6 +130,7 @@ public class DirectoryServerOptionsValidatorTests
         {
             Issuer = issuer,
             ControlPlaneCell = ControlPlaneCell,
+            ControlPlaneTenantId = ControlPlaneTenantId,
         };
 
         var result = CreateValidator().Validate(null, options);
@@ -132,6 +149,7 @@ public class DirectoryServerOptionsValidatorTests
         {
             Issuer = issuer,
             ControlPlaneCell = ControlPlaneCell,
+            ControlPlaneTenantId = ControlPlaneTenantId,
         };
 
         var result = CreateValidator().Validate(null, options);
@@ -148,6 +166,7 @@ public class DirectoryServerOptionsValidatorTests
         {
             Issuer = "https://user:secret@auth.example",
             ControlPlaneCell = ControlPlaneCell,
+            ControlPlaneTenantId = ControlPlaneTenantId,
         };
 
         var result = CreateValidator().Validate(null, options);
@@ -165,6 +184,7 @@ public class DirectoryServerOptionsValidatorTests
         {
             Issuer = CreateIssuerOfLength(DirectoryLimits.MaxIssuerLength + 1),
             ControlPlaneCell = ControlPlaneCell,
+            ControlPlaneTenantId = ControlPlaneTenantId,
         };
 
         var result = CreateValidator().Validate(null, options);
@@ -181,6 +201,7 @@ public class DirectoryServerOptionsValidatorTests
         {
             Issuer = CreateIssuerOfLength(DirectoryLimits.MaxIssuerLength),
             ControlPlaneCell = ControlPlaneCell,
+            ControlPlaneTenantId = ControlPlaneTenantId,
         };
 
         var result = CreateValidator().Validate(null, options);
@@ -195,6 +216,7 @@ public class DirectoryServerOptionsValidatorTests
         {
             Issuer = "ftp://auth.example",
             ControlPlaneCell = string.Empty,
+            ControlPlaneTenantId = ControlPlaneTenantId,
         };
 
         var result = CreateValidator().Validate(null, options);
@@ -215,6 +237,7 @@ public class DirectoryServerOptionsValidatorTests
         {
             Issuer = "https://auth.example",
             ControlPlaneCell = controlPlaneCell,
+            ControlPlaneTenantId = ControlPlaneTenantId,
         };
 
         var result = CreateValidator().Validate(null, options);
@@ -231,6 +254,7 @@ public class DirectoryServerOptionsValidatorTests
         {
             Issuer = "https://auth.example",
             ControlPlaneCell = null!,
+            ControlPlaneTenantId = ControlPlaneTenantId,
         };
 
         var result = CreateValidator().Validate(null, options);
@@ -250,6 +274,7 @@ public class DirectoryServerOptionsValidatorTests
         {
             Issuer = "https://auth.example",
             ControlPlaneCell = controlPlaneCell,
+            ControlPlaneTenantId = ControlPlaneTenantId,
         };
 
         var result = CreateValidator().Validate(null, options);
@@ -259,6 +284,64 @@ public class DirectoryServerOptionsValidatorTests
         Assert.Equal(
             $"DirectoryServer:ControlPlaneCell must be a cell name: {CellLabelRules.Description}.",
             failure
+        );
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Validate_EmptyControlPlaneTenantId_FailsAsRequired(string controlPlaneTenantId)
+    {
+        var options = new DirectoryServerOptions
+        {
+            Issuer = "https://auth.example",
+            ControlPlaneCell = ControlPlaneCell,
+            ControlPlaneTenantId = controlPlaneTenantId,
+        };
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        var failure = Assert.Single(result.Failures);
+        Assert.Equal("DirectoryServer:ControlPlaneTenantId is required.", failure);
+    }
+
+    [Fact]
+    public void Validate_NullControlPlaneTenantId_FailsAsRequired()
+    {
+        var options = new DirectoryServerOptions
+        {
+            Issuer = "https://auth.example",
+            ControlPlaneCell = ControlPlaneCell,
+            ControlPlaneTenantId = null!,
+        };
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        var failure = Assert.Single(result.Failures);
+        Assert.Equal("DirectoryServer:ControlPlaneTenantId is required.", failure);
+    }
+
+    [Theory]
+    [MemberData(nameof(NonTenantIdentifierControlPlaneTenantIds))]
+    public void Validate_NonTenantIdentifierControlPlaneTenantId_Fails(string controlPlaneTenantId)
+    {
+        var options = new DirectoryServerOptions
+        {
+            Issuer = "https://auth.example",
+            ControlPlaneCell = ControlPlaneCell,
+            ControlPlaneTenantId = controlPlaneTenantId,
+        };
+
+        var result = CreateValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        var failure = Assert.Single(result.Failures);
+        Assert.StartsWith(
+            "DirectoryServer:ControlPlaneTenantId must be a tenant identifier",
+            failure,
+            StringComparison.Ordinal
         );
     }
 

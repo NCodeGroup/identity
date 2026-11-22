@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Microsoft.Extensions.Options;
+using NCode.Identity.OpenId.Tenants;
 
 namespace NCode.Identity.OpenId.GlobalDirectory.Server.Options;
 
@@ -11,8 +12,9 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server.Options;
 /// <see cref="DirectoryLimits.MaxIssuerLength"/> characters with no user information, query or fragment, because the
 /// directory calls the issuer's discovery endpoint to validate a bearer token. The directory also names the
 /// control-plane cell, which alone writes the platform and team documents, by a cell name of the form
-/// <see cref="CellLabelRules"/> describes. Every failure is reported at once, and no message repeats a configured
-/// issuer, which could carry a credential.
+/// <see cref="CellLabelRules"/> describes. It also names that cell's root tenant by an identifier that
+/// <see cref="TenantIdentifierRules.IsValidTenantId"/> accepts, which the directory holds for that cell. Every failure
+/// is reported at once, and no message repeats a configured issuer, which could carry a credential.
 /// </summary>
 internal sealed class DirectoryServerOptionsValidator : IValidateOptions<DirectoryServerOptions>
 {
@@ -21,6 +23,9 @@ internal sealed class DirectoryServerOptionsValidator : IValidateOptions<Directo
 
     private static string ControlPlaneCellKey =>
         $"{DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.ControlPlaneCell)}";
+
+    private static string ControlPlaneTenantIdKey =>
+        $"{DirectoryServerOptions.SectionName}:{nameof(DirectoryServerOptions.ControlPlaneTenantId)}";
 
     /// <inheritdoc />
     public ValidateOptionsResult Validate(string? name, DirectoryServerOptions options)
@@ -48,6 +53,18 @@ internal sealed class DirectoryServerOptionsValidator : IValidateOptions<Directo
         {
             failures.Add(
                 $"{ControlPlaneCellKey} must be a cell name: {CellLabelRules.Description}."
+            );
+        }
+
+        var controlPlaneTenantId = options.ControlPlaneTenantId;
+        if (string.IsNullOrWhiteSpace(controlPlaneTenantId))
+        {
+            failures.Add($"{ControlPlaneTenantIdKey} is required.");
+        }
+        else if (!TenantIdentifierRules.IsValidTenantId(controlPlaneTenantId))
+        {
+            failures.Add(
+                $"{ControlPlaneTenantIdKey} must be a tenant identifier: 1 to {TenantIdentifierRules.MaxTenantIdLength} lowercase letters, digits or hyphens that start and end with a letter or digit."
             );
         }
 
