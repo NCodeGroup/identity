@@ -42,7 +42,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   per-response CSP nonce, and the wizard asks for the setup token, reads it from the URL fragment (`#token=`, beside the
   optional `consoleUrl` and `consoleClientId`) and strips them from the address bar, checks the token through
   `POST /setup/api/token` before it moves on, so a wrong token keeps the operator on the token step, then creates the
-  root administrator (`UserName`, optional `Email`, `Password`) through `POST /setup/api/root`. The done page lists the
+  root administrator (`DisplayName`, `UserName`, optional `Email`, `Password`) through `POST /setup/api/root`. The done page lists the
   instance's addresses as links with copy buttons (the management console, the issuer, the discovery document, the
   management API and the API reference when it is served, all computed from the control-plane tenant's issuer), shows
   the root user and the tenant, and lists the remaining configuration with a link to `docs/first-deployed-instance.md`,
@@ -51,7 +51,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   the initialized mark of the `InstanceSetup` row are saved together, so one setup creates one root.
   `NCode.Identity.OpenId.Setup.Abstractions` holds `SetupOptions` (the `Setup` section: `Token`, at least 32 characters
   or unset to have the host generate one; `GeneratedTokenLifetime`, 1 hour by default and between 1 minute and 24 hours;
-  `BundleRootPath`, `/app/setup` in the host image; and `Root` with `UserName`, `Email` and `Password`, where `UserName`
+  `BundleRootPath`, `/app/setup` in the host image; and `Root` with `UserName`, `DisplayName` (the username when unset), `Email` and `Password`, where `UserName`
   and `Password` are set both or neither), the wire contracts, whose unknown members round-trip, `IInstanceSetupService`
   and `ISetupTokenService`; `NCode.Identity.OpenId.Setup` implements them over the abstractions and registers through
   `AddInstanceSetup` on the management library builder. The root password is at least 15 characters and satisfies the
@@ -2662,9 +2662,11 @@ Until the first stable release, the [Unreleased] section describes the product a
   [#289](https://github.com/NCodeGroup/identity/issues/289)).
 
 - **Local-account management is an opt-in capability of the management API.** The `local-accounts` resource family under
-  `/api/tenants/{tenantId}/local-accounts` lets a tenant or global administrator create, list, get, update, delete,
-  disable and enable a local account, reset its credential, manage its profile claims, and read and set its server-owned
-  metadata. Creating an account provisions its owning `FederatedPrincipal` and its one-to-one self-issued
+  `/api/tenants/{tenantId}/local-accounts` lets a tenant or global administrator create, list, get, update (a JSON
+  Patch of `displayName`, `userName`, `email` and `emailVerified`), delete, disable and enable a local account, reset
+  its credential, manage its profile claims, and read and set its server-owned metadata. On the control-plane cell,
+  `GET` and `POST /api/platform/local-accounts` list and create the control-plane tenant's accounts, where the root
+  administrator lives. Creating an account provisions its owning `FederatedPrincipal` and its one-to-one self-issued
   `FederatedIdentity` in the same unit of work, so principal-level metadata (`ProfileMetadata` / `SystemMetadata`) has a
   target from the moment the account exists; `LocalAccountResource.principalId` carries that principal's identifier in
   the create, get and list answers (`null` for an account without a self-issued identity), so an account is granted a
@@ -2687,6 +2689,19 @@ Until the first stable release, the [Unreleased] section describes the product a
   [ADR-1057](docs/decisions/1057-local-account-management-is-an-opt-in-capability-that-provisions-the-principal-eagerly-and-authorizes-per-tenant.md),
   [ADR-1051](docs/decisions/1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md) and
   issue [#781](https://github.com/NCodeGroup/identity/issues/781).
+
+- **Every local account has a display name, which is its `name` claim.** `PersistedLocalAccount.DisplayName` (at most
+  300 characters) is required; a create that gives none stores the username. The cookie principal, the password-grant
+  subject and UserInfo (under the `profile` scope) carry it as `name`, and a `name` profile claim is refused with `400`,
+  so the management console's header and every relying party show the person's name. The ASP.NET Core Identity adapter
+  stores it through `ITenantBoundUser.DisplayName`, and a tenant transfer carries it
+  ([ADR-1051](docs/decisions/1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md)).
+
+- **The management console manages users.** A Users tab in every tenant and in the platform scope lists local accounts
+  by display name, username, email, principal identifier and status, and creates, edits, disables and enables, resets
+  the password of and deletes them
+  ([ADR-1255](docs/decisions/1255-the-management-consoles-url-is-its-navigation-state-and-every-scopes-surface-has-its-own-address.md),
+  [ADR-1057](docs/decisions/1057-local-account-management-is-an-opt-in-capability-that-provisions-the-principal-eagerly-and-authorizes-per-tenant.md)).
 
 - **The management API looks up audit records.** `GET api/tenants/{tenantId}/audit-records` lists the tenant's records
   from the audit store, newest first by event time with ties broken by id, filtered by `startTime`/`endTime`,
