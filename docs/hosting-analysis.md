@@ -1234,16 +1234,17 @@ pods: ~10 of its own (the identity server ×3, Valkey with a replica and Sentine
 every node runs (the CNI, kube-proxy, the CSI driver, a monitoring agent). So on standard LKE the **pod limit binds
 first**: one cluster holds roughly **35–40 dedicated cells**, against about 75 by the node limit.
 
-**Growing past one cluster.**
+**Growing past one cluster**, decided in
+[ADR-1531](decisions/1531-the-clusters-that-host-paid-cells-are-standard-lke-clusters-with-the-ha-control-plane-and-at-most-15-cells.md):
 
-1. **Cap cells per cluster below the limits**, for blast radius rather than capacity — for example 10–20 dedicated
-   cells. Every cell on a cluster shares its control plane, add-ons, upgrades and cluster-admin credentials.
-2. **Add clusters B1, B2, … as the cap is reached.** Placement is a platform choice and a cell moves between clusters
-   without changing its tenants (above), so adding clusters needs no product change.
-3. **Consider LKE Enterprise for the paid clusters once it is offered in the region:** a dedicated HA control plane, 500
-   nodes and 5,000 pods, VPC-isolated pod networking, Premium NodeBalancers, longer Kubernetes version support and full
-   control over when upgrades start. It is in limited availability through Akamai sales, at an extra monthly fee
-   _(verify)_.
+1. **At most 15 cells per cluster**, for blast radius rather than capacity: every cell on a cluster shares its control
+   plane, add-ons, upgrades and cluster-admin credentials, and 15 dedicated cells use about 330 pods, a third of the pod
+   limit.
+2. **Clusters B1, B2, … as each reaches the cap**, each created with the HA control plane. A new cell goes on the newest
+   cluster with room. Placement is a platform choice and a cell moves between clusters without changing its tenants
+   (above), so adding clusters needs no product change.
+3. **Standard LKE, not LKE Enterprise.** Enterprise's larger limits don't move a cap set by blast radius, and its own
+   control plane and upgrade control are what a dedicated cluster sells.
 
 **Upgrades.** A Kubernetes version upgrade covers the whole cluster and recycles every node pool, so it touches every
 dedicated cell on it. Each cell needs its pod disruption budget and spread replicas to ride through it. A dedicated cell
