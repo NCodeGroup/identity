@@ -151,6 +151,34 @@ public sealed class StaticSingleTenantStrategyTests
 
     #endregion
 
+    #region GetControlPlaneTenantDisplayName Tests
+
+    [Fact]
+    public void GetControlPlaneTenantDisplayName_WhenADisplayNameIsConfigured_ReturnsIt()
+    {
+        var mocks = new MockRepository(MockBehavior.Strict);
+        var strategy = CreateStrategy(
+            mocks.Create<IStoreManagerFactory>().Object,
+            new StaticSingleTenantOptions { TenantId = "tenant-1", DisplayName = "Tenant One" }
+        );
+
+        Assert.Equal("Tenant One", strategy.GetControlPlaneTenantDisplayName());
+    }
+
+    [Fact]
+    public void GetControlPlaneTenantDisplayName_WhenNoneIsConfigured_ReturnsTheDefaultDisplayName()
+    {
+        var mocks = new MockRepository(MockBehavior.Strict);
+        var strategy = CreateStrategy(mocks.Create<IStoreManagerFactory>().Object);
+
+        Assert.Equal(
+            StaticSingleTenantOptions.DefaultDisplayName,
+            strategy.GetControlPlaneTenantDisplayName()
+        );
+    }
+
+    #endregion
+
     #region ResolveControlPlaneTenantAsync Tests
 
     [Fact]
@@ -194,12 +222,9 @@ public sealed class StaticSingleTenantStrategyTests
 
     [Theory]
     [InlineData("tenant-1", true)]
-    [InlineData(RootTenantOptions.DefaultTenantId, true)]
+    [InlineData(RootTenantOptions.DefaultTenantId, false)]
     [InlineData("tenant-2", false)]
-    public void IsRequiredTenant_RequiresTheConfiguredAndRootTenantsOnly(
-        string tenantId,
-        bool expected
-    )
+    public void IsRequiredTenant_RequiresTheConfiguredTenantOnly(string tenantId, bool expected)
     {
         var mocks = new MockRepository(MockBehavior.Strict);
         var strategy = CreateStrategy(
@@ -235,7 +260,8 @@ public sealed class StaticSingleTenantStrategyTests
     {
         var mocks = new MockRepository(MockBehavior.Strict);
 
-        // Not even the root tenant's configured issuer: the strategy does not serve the root tenant.
+        // Not even a configured Root:Issuer, which the strategy refuses at startup: it serves only its configured
+        // tenant.
         var strategy = new StaticSingleTenantStrategy(
             mocks.Create<IStoreManagerFactory>().Object,
             Options.Create(
@@ -292,7 +318,8 @@ public sealed class StaticSingleTenantStrategyTests
     {
         var mocks = new MockRepository(MockBehavior.Strict);
 
-        // Not even the root tenant's configured alias: the strategy does not serve the root tenant.
+        // Not even a configured Root:MtlsEndpointAliasAuthority, which the strategy refuses at startup: it serves only
+        // its configured tenant.
         var strategy = new StaticSingleTenantStrategy(
             mocks.Create<IStoreManagerFactory>().Object,
             Options.Create(
@@ -382,9 +409,9 @@ public sealed class StaticSingleTenantStrategyTests
             new StaticSingleTenantOptions { TenantId = "tenant-1" }
         );
 
-        // The root tenant is not served by a static strategy whose tenant is another, so it needs no address.
+        // A tenant the strategy does not serve needs no address.
         var failures = await strategy.ValidateTenantAsync(
-            RootTenantOptions.DefaultTenantId,
+            "tenant-2",
             issuer: null,
             null,
             mocks.Create<IStoreManager>().Object,

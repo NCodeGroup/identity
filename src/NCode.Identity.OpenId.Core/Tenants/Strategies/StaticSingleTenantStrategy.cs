@@ -12,7 +12,7 @@ namespace NCode.Identity.OpenId.Tenants.Strategies;
 
 /// <summary>
 /// Provides a tenant-selection strategy that always resolves the same single, statically-configured tenant, creating it
-/// on first use when it does not yet exist.
+/// on first use when it does not yet exist. The configured tenant is the root (control-plane) tenant.
 /// </summary>
 internal class StaticSingleTenantStrategy(
     IStoreManagerFactory storeManagerFactory,
@@ -36,6 +36,14 @@ internal class StaticSingleTenantStrategy(
             : tenantId;
     }
 
+    private string ResolveConfiguredDisplayName()
+    {
+        var displayName = Options.DisplayName;
+        return string.IsNullOrEmpty(displayName)
+            ? StaticSingleTenantOptions.DefaultDisplayName
+            : displayName;
+    }
+
     private bool IsConfiguredTenant(string tenantId)
     {
         var configuredTenantId = ResolveConfiguredTenantId();
@@ -54,8 +62,8 @@ internal class StaticSingleTenantStrategy(
 
     /// <inheritdoc />
     /// <remarks>
-    /// The configured tenant's default issuer is its configured issuer. The strategy serves no other tenant, so it
-    /// assigns no other tenant an issuer — the root tenant included, unless it is the configured tenant.
+    /// The configured tenant's default issuer is its configured issuer. The strategy serves only its configured tenant,
+    /// the root tenant, so it assigns no other tenant an issuer.
     /// </remarks>
     public override ValueTask<string?> GetDefaultIssuerAsync(
         string tenantId,
@@ -69,7 +77,8 @@ internal class StaticSingleTenantStrategy(
 
     /// <inheritdoc />
     /// <remarks>
-    /// The configured tenant's default alias is its configured alias; the strategy assigns no other tenant one.
+    /// The configured tenant's default alias is its configured alias. The strategy serves only its configured tenant,
+    /// the root tenant, so it assigns no other tenant one.
     /// </remarks>
     public override ValueTask<string?> GetDefaultMtlsEndpointAliasAuthorityAsync(
         string tenantId,
@@ -83,13 +92,6 @@ internal class StaticSingleTenantStrategy(
 
     /// <inheritdoc />
     /// <remarks>
-    /// The strategy also requires its configured tenant, which it creates on first use.
-    /// </remarks>
-    public override bool IsRequiredTenant(string tenantId) =>
-        base.IsRequiredTenant(tenantId) || IsConfiguredTenant(tenantId);
-
-    /// <inheritdoc />
-    /// <remarks>
     /// The strategy serves only the configured tenant, so only it needs an issuer.
     /// </remarks>
     protected override bool RequiresIssuer(string tenantId) => IsConfiguredTenant(tenantId);
@@ -100,6 +102,9 @@ internal class StaticSingleTenantStrategy(
     /// therefore the control-plane tenant.
     /// </remarks>
     public override string GetControlPlaneTenantId() => ResolveConfiguredTenantId();
+
+    /// <inheritdoc />
+    public override string GetControlPlaneTenantDisplayName() => ResolveConfiguredDisplayName();
 
     /// <inheritdoc />
     /// <remarks>
@@ -119,9 +124,7 @@ internal class StaticSingleTenantStrategy(
     {
         var tenantId = ResolveConfiguredTenantId();
 
-        var displayName = Options.DisplayName;
-        if (string.IsNullOrEmpty(displayName))
-            displayName = StaticSingleTenantOptions.DefaultDisplayName;
+        var displayName = GetControlPlaneTenantDisplayName();
 
         // The configured tenant is created on first resolution, with its configured issuer; the caller that
         // materializes it seeds it (ADR-1166). The provisioner is scoped (its mediator is request-scoped), so it is
