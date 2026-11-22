@@ -29,6 +29,7 @@ the only package that references the OpenTelemetry SDK. It adds:
 | `NCode.Identity.OpenId.Authentication` | `NCode.Identity.OpenId.Authentication` | `OpenIdAuthenticationMetrics.MeterName` |
 | `NCode.Identity.Events`                | `NCode.Identity.Events`                | `EventMetrics.MeterName`                |
 | `NCode.Identity.SharedState.Valkey`    | `NCode.Identity.SharedState.Valkey`    | `ValkeyMetrics.MeterName`               |
+| `NCode.Identity.Mail`                  | `NCode.Identity.Mail`                  | `MailMetrics.MeterName`                 |
 | `NCode.Identity.Bff`                   | `NCode.Identity.Bff`                   | `BffTelemetry.MeterName`                |
 | `NCode.Identity.OpenId.Client`         | `NCode.Identity.OpenId.Client`         | `OpenIdClientMetrics.MeterName`         |
 | `NCode.Buffers`                        | `NCode.Buffers`                        | `BufferMetrics.MeterName`               |
@@ -111,6 +112,15 @@ server. The in-process adapter records nothing: a dictionary operation in memory
 | `ncode.identity.shared_state.operation` | `counter.increment`, `counter.increment_until_exceeded`, `counter.get`, `counter.remove`, `key_set.try_add`, `key_set.contains`, `broadcast.publish`, `value_set.try_add`, `value_set.get`, `value_set.try_replace`, `value_set.try_take`, `value_set.remove`, `value_set.try_remove`, `index_set.add_member`, `index_set.get_members`, `index_set.remove_member`, `index_set.remove` |
 | `ncode.identity.shared_state.adapter`   | `valkey`, or the name another networked adapter declares                                                                                                                                                                                                                                                                                                                              |
 | `error.type`                            | On failure only: the full type name of the exception                                                                                                                                                                                                                                                                                                                                  |
+
+### `ncode.identity.mail.messages`
+
+Counter, unit `{message}`, meter `NCode.Identity.Mail`. Recorded once for each delivery attempt of a queued mail message
+([ADR-1532](decisions/1532-outbound-mail-is-a-port-that-queues-each-message-for-a-replaceable-transport-and-smtp-is-its-adapter.md)).
+
+| Attribute                    | Values                                                  |
+| ---------------------------- | ------------------------------------------------------- |
+| `ncode.identity.mail.result` | `delivered`, `failed` (the transport raised an error)   |
 
 ### `ncode.identity.bff.token.refresh.duration`
 

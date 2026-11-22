@@ -1636,3 +1636,16 @@ serves at once. A tenant's requests may fill the share of it that the tenant set
 and the JSON Web Key Set are never shed. Leave it unset, the default, to shed nothing; set it from a load test of the
 release on the nodes it runs on
 ([ADR-1523](../../docs/decisions/1523-a-replica-sheds-a-tenants-protocol-requests-once-its-in-flight-requests-fill-the-tenants-share-of-its-capacity.md)).
+
+### Outbound mail
+
+`mail.smtp.*` sets the host's `Mail:Smtp` section, the SMTP server that the host mails its email codes to, such as
+Amazon SES's SMTP endpoint in the cell's region
+([ADR-1532](../../docs/decisions/1532-outbound-mail-is-a-port-that-queues-each-message-for-a-replaceable-transport-and-smtp-is-its-adapter.md)).
+The chart renders the section only while `mail.smtp.host` is set; unset, the host sends no mail. `mail.smtp.from` is
+required with the host and is the address every message is sent from, which the provider authorizes. `mail.smtp.port` is
+`587` by default and `mail.smtp.tls` is `StartTls` or `ImplicitTls`: the chart refuses `None`, which sends in clear.
+`mail.smtp.fromName` sets the sender's display name. `mail.smtp.existingSecret` names a Secret in the release namespace
+whose `username` and `password` keys hold the credentials the connection authenticates with; leave it empty for a server
+that needs none. The Secret is read when a pod starts. A setting beyond these, such as `Mail__Smtp__Timeout`, goes
+through `extraEnv`.

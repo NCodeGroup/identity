@@ -58,7 +58,9 @@ a sending provider. Forces:
 - The subprocessors stay Akamai with Aiven, Cloudflare, Grafana Labs and AWS.
 - SES's production access is requested for `us-east-1` before the first customer.
 - The mail records belong to the `ncodeid.net` zone's OpenTofu.
-- The product needs a mail port with an SMTP adapter before it can send.
+- The host sends through its SMTP transport
+  ([ADR-1532](1532-outbound-mail-is-a-port-that-queues-each-message-for-a-replaceable-transport-and-smtp-is-its-adapter.md)),
+  pointed at SES's SMTP endpoint in the cell's region.
 
 ## References
 
@@ -70,6 +72,8 @@ a sending provider. Forces:
   the subprocessors.
 - [ADR-1526](1526-the-platforms-cluster-secrets-reach-each-cluster-from-aws-parameter-store-through-external-secrets-operator.md):
   the cell secret that holds the SMTP credentials.
+- [ADR-1532](1532-outbound-mail-is-a-port-that-queues-each-message-for-a-replaceable-transport-and-smtp-is-its-adapter.md):
+  the mail port and its SMTP adapter.
 - Issues [#750](https://github.com/NCodeGroup/identity/issues/750),
   [#859](https://github.com/NCodeGroup/identity/issues/859) and
   [#911](https://github.com/NCodeGroup/identity/issues/911).

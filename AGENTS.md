@@ -92,7 +92,10 @@ compiles it, no gate runs it as tests, and a `.Tests` project of its own unit-te
 - **Interactive login and consent** — `NCode.Identity.OpenId.Authentication.Interactive(.Abstractions)`: the opt-in
   sign-in, consent and account surface that the OP serves from the `apps/auth` bundle, with a pluggable credential
   verifier
-  ([ADR-1062](docs/decisions/1062-the-op-serves-an-opt-in-interactive-sign-in-and-consent-surface-with-a-pluggable-credential-verifier.md))
+  ([ADR-1062](docs/decisions/1062-the-op-serves-an-opt-in-interactive-sign-in-and-consent-surface-with-a-pluggable-credential-verifier.md));
+  the surface verifies email addresses, resets passwords and requires an email second factor through seams the
+  local-account capability implements
+  ([ADR-1533](docs/decisions/1533-an-end-user-verifies-an-email-address-resets-a-password-and-signs-in-with-a-second-factor-through-one-time-email-codes.md))
 - **Instance setup** — `NCode.Identity.OpenId.Setup(.Abstractions)`: the one-time `/setup` wizard and `setup` command
   that create the root administrator
   ([ADR-1512](docs/decisions/1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md))
@@ -129,8 +132,11 @@ compiles it, no gate runs it as tests, and a `.Tests` project of its own unit-te
 - **Persistence** — `NCode.Identity.Persistence.Abstractions` (every persistence contract, and the UUIDv7 default of the
   surrogate key generator)
 - **Infrastructure ports** — `NCode.Identity.Dispatch(.Abstractions)` (background jobs),
-  `NCode.Identity.Events(.Abstractions)`, `NCode.Identity.SharedState(.Abstractions)` (state every replica sees) and its
-  opt-in `NCode.Identity.SharedState.Valkey` adapter
+  `NCode.Identity.Events(.Abstractions)`, `NCode.Identity.Mail(.Abstractions)` (outbound mail) and its opt-in
+  `NCode.Identity.Mail.Smtp` adapter
+  ([ADR-1532](docs/decisions/1532-outbound-mail-is-a-port-that-queues-each-message-for-a-replaceable-transport-and-smtp-is-its-adapter.md)),
+  `NCode.Identity.SharedState(.Abstractions)` (state every replica sees) and its opt-in
+  `NCode.Identity.SharedState.Valkey` adapter
   ([ADR-1164](docs/decisions/1164-replicas-share-expiring-keys-values-and-indexes-through-ports-with-in-process-and-valkey-adapters.md))
 - **Composition** — `NCode.Identity.Registration` (the `IServiceBuilder<TMarker>` builder) and
   `NCode.Identity.Registration.AspNetCore` (endpoint registration), `NCode.Identity.Server` (`AddIdentityServer()`), and

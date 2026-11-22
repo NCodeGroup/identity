@@ -15,6 +15,7 @@ truth.
 | 🗝️ [Remote Keys](./remote-keys.md) | A tenant's signing and encryption keys can stay inside AWS KMS, Azure Key Vault or Google Cloud KMS: every token is signed there, every content key sent to the tenant is unwrapped there, and the private key never reaches the server. |
 | 🪪 [Selective Disclosure (SD-JWT)](./selective-disclosure.md) | A credential is issued once over salted claim digests, its holder reveals only the claims a verifier needs, and a presentation is bound to the holder's key.                             |
 | 🧾 [COSE and CWT](./cose-and-cwt.md) | CBOR Object Signing and Encryption and CBOR Web Tokens run on the JOSE algorithms and keys, and a message is read strictly, its work is bounded, and its claims are readable only once it verifies. |
+| 📧 [Email Codes](./email-codes.md) | An end user verifies an email address, resets a forgotten password and signs in with a second factor, each with a six-digit code mailed to the account, hashed at rest, limited in guesses and sends, and off until the tenant turns it on. |
 
 ## Adding a capability
 

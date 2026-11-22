@@ -315,6 +315,43 @@ The script auto-detects Docker or Podman and removes the `ncode-identity-openidd
 `docker volume rm ncode-identity-openiddb-data`). This is the only reset needed — the provisioned signing keys and the
 DataProtection key ring are in the same database and are purged with it.
 
+## Outbound mail
+
+The host mails the one-time codes that verify an email address, reset a forgotten password and complete an email second
+factor. The mail goes to the SMTP server that the optional `Mail:Smtp` section names
+([ADR-1532](../../docs/decisions/1532-outbound-mail-is-a-port-that-queues-each-message-for-a-replaceable-transport-and-smtp-is-its-adapter.md)).
+The section is bound strictly and validated when the host starts.
+
+| Setting              | Default       | Meaning                                                                                              |
+|----------------------|---------------|------------------------------------------------------------------------------------------------------|
+| `Mail:Smtp:Host`     | none          | The SMTP server's host name; required when the section exists                                        |
+| `Mail:Smtp:Port`     | `587`         | The server's port, between 1 and 65535                                                               |
+| `Mail:Smtp:Tls`      | `StartTls`    | `StartTls` refuses a server that offers no STARTTLS, `ImplicitTls` connects over TLS, `None` is clear |
+| `Mail:Smtp:UserName` | none          | The user the connection authenticates as; set with `Password` or not at all                          |
+| `Mail:Smtp:Password` | none          | The password the connection authenticates with; set with `UserName` or not at all                    |
+| `Mail:Smtp:From`     | none          | The address every message is sent from, which the provider authorizes; required                      |
+| `Mail:Smtp:FromName` | none          | The display name of the sender                                                                       |
+| `Mail:Smtp:Timeout`  | 30 seconds    | How long a connection or a command waits for the server, between one second and five minutes         |
+
+Without the section the host registers no transport: every delivery fails and is logged, and no mail is sent, so leave
+the three settings below off. `Tls=None` sends in clear and exists for the local stack's Mailpit; only a host with
+`LocalDevelopment:Enabled` uses it, and the deployment-safety gate and the Helm chart refuse it. The host queues each
+message through the job dispatcher, so the in-process dispatcher loses the messages a stopping replica holds
+([#25](https://github.com/NCodeGroup/identity/issues/25)).
+
+A tenant turns the flows on with these tenant settings, each under `OpenId:Platform:Settings`:
+
+| Setting                      | Default    | Merge     | Meaning                                                                              |
+|------------------------------|------------|-----------|--------------------------------------------------------------------------------------|
+| `password_reset_enabled`     | `false`    | `Replace` | The login page links "Forgot your password?" and a local account resets by email code |
+| `email_verification_enabled` | `false`    | `Replace` | The account page links the email page, which verifies the account's address           |
+| `email_mfa_required`         | `false`    | `Or`      | A local account's sign-in is completed with an email code; a tenant can't lift a team's |
+| `email_code_lifetime`        | 10 minutes | `Min`     | How long a code is accepted, between 1 minute and 1 hour                              |
+| `email_code_sends_per_hour`  | `5`        | `Min`     | The most codes one account receives in an hour for one purpose, between 1 and 20      |
+
+See [Email Codes](../../docs/capabilities/email-codes.md). The Helm chart sets the section through `mail.smtp.*`; see
+the [chart's README](../../charts/ncode-identity-host/README.md#outbound-mail).
+
 ## API reference
 
 The host serves its OpenAPI document at `/openapi/v1.json` and its Scalar API reference page at `/scalar/v1`, each
