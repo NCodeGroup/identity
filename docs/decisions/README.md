@@ -187,6 +187,7 @@ The records are grouped by area; within an area they are in number order.
 | [1519](./1519-every-microsoft-extensions-aspnet-core-and-ef-core-package-is-on-the-target-frameworks-release-band.md) | Every Microsoft.Extensions, ASP.NET Core and EF Core package is on the target framework's release band | Accepted |
 | [1520](./1520-a-caller-is-authenticated-before-its-request-body-is-read.md) | A caller is authenticated before its request body is read | Accepted |
 | [1522](./1522-an-analyzer-fails-the-build-on-a-call-await-or-object-creation-nested-in-another-calls-arguments.md) | An analyzer fails the build on a call, await or object creation nested in another call's arguments | Accepted |
+| [1523](./1523-a-replica-sheds-a-tenants-protocol-requests-once-its-in-flight-requests-fill-the-tenants-share-of-its-capacity.md) | A replica sheds a tenant's protocol requests once its in-flight requests fill the tenant's share of its capacity | Accepted |
 
 ### Management API
 
