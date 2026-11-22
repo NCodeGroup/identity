@@ -1193,7 +1193,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task UpdateLocalAccountAsync_AppliesTheJsonPatchToTheDisplayName()
+    public async Task UpdateLocalAccountAsync_ValidatesThePatchedDisplayName()
     {
         SetupAuthorizeUpdate(error: null);
         SetupAccount(CreateAccount());
@@ -1359,7 +1359,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task CreatePlatformLocalAccountAsync_CreatesInTheControlPlaneTenant()
+    public async Task CreatePlatformLocalAccountAsync_AuthorizesInTheControlPlaneTenant()
     {
         SetupControlPlaneScope();
         MockLocalAccountValidator
