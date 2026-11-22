@@ -10,11 +10,11 @@ import {
  * second, so the platform ↔ team ↔ tenant boundaries (ADR-1064) stay explicit in every address:
  *
  * - `/home` — the caller's home: the places it holds authority (ADR-1465);
- * - `/teams`, `/clients`, `/settings`, `/encryption-keys` — the platform scope's surfaces;
+ * - `/teams`, `/clients`, `/users`, `/settings`, `/encryption-keys` — the platform scope's surfaces;
  * - `/teams/{teamId}/{surface}` — a team scope's surfaces (`tenants`, `teams`, `clients`, `settings`, `access`,
  *   `encryption-keys` and `usage`), the team id percent-encoded as one segment;
- * - `/tenants/{tenantId}/{surface}` — a tenant scope's surfaces (`clients`, `resource-servers`, `grants`, `secrets`,
- *   `encryption-keys`, `settings`, `access` and `usage`), the tenant id percent-encoded as one segment (ADR-1255);
+ * - `/tenants/{tenantId}/{surface}` — a tenant scope's surfaces (`clients`, `resource-servers`, `grants`, `users`,
+ *   `secrets`, `encryption-keys`, `settings`, `access` and `usage`), the tenant id percent-encoded as one segment (ADR-1255);
  * - `/cells/{cell}/tenants/{tenantId}/{surface}` — the same tenant surfaces of a tenant that lives in a named cell, the
  *   cell percent-encoded as one segment; a tenant path without a cell addresses the control plane.
  *
@@ -22,7 +22,7 @@ import {
  */
 
 /** The surfaces of the platform scope, in tab order. */
-export const PLATFORM_SURFACES = ['teams', 'clients', 'settings', 'encryption-keys'] as const;
+export const PLATFORM_SURFACES = ['teams', 'clients', 'users', 'settings', 'encryption-keys'] as const;
 
 /** The surfaces of a team scope, in tab order. */
 export const TEAM_SURFACES = [
@@ -40,6 +40,7 @@ export const TENANT_SURFACES = [
   'clients',
   'resource-servers',
   'grants',
+  'users',
   'secrets',
   'encryption-keys',
   'settings',

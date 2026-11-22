@@ -52,6 +52,9 @@ const ResourceServersPage = lazy(() =>
 const GrantsPage = lazy(() =>
   import('./containers/GrantsPage.js').then((m) => ({ default: m.GrantsPage })),
 );
+const UsersPage = lazy(() =>
+  import('./containers/UsersPage.js').then((m) => ({ default: m.UsersPage })),
+);
 const TenantDetailPage = lazy(() =>
   import('./containers/TenantDetailPage.js').then((m) => ({ default: m.TenantDetailPage })),
 );
@@ -63,9 +66,9 @@ const surfaceFallback = <CircularProgress aria-label="Loading" data-testid="surf
  * active management scope (the platform, team or tenant security boundary) and, within it, the active surface. The home
  * lists the places the caller holds authority (ADR-1465); once that access is known, a caller without platform
  * authority is sent home from a platform route, and the team and tenant back controls lead to a place the caller can
- * open. In the platform scope that is the teams, the platform's machine clients, its settings or its encryption keys;
+ * open. In the platform scope that is the teams, the platform's machine clients, its users, its settings or its encryption keys;
  * within a team it is the team's tenants, child teams, machine clients, settings, access, encryption keys or usage;
- * within a tenant it is clients, resource servers, grants, or one of the tenant's own surfaces: secrets, encryption
+ * within a tenant it is clients, resource servers, grants, users, or one of the tenant's own surfaces: secrets, encryption
  * keys, settings, access, or usage (ADR-1255). All data fetching lives in the child containers; this component only
  * maps the route to a surface and tab changes to navigation.
  */
@@ -155,6 +158,7 @@ export function App() {
           >
             <Tab value="teams" label="Teams" data-testid="platform-tab-teams" />
             <Tab value="clients" label="Clients" data-testid="platform-tab-clients" />
+            <Tab value="users" label="Users" data-testid="platform-tab-users" />
             <Tab value="settings" label="Settings" data-testid="platform-tab-settings" />
             <Tab
               value="encryption-keys"
@@ -167,6 +171,8 @@ export function App() {
               <TeamsPage onOpenTeam={openTeam} />
             ) : route.surface === 'clients' ? (
               <MachineClientsPage owner={{ kind: 'platform' }} />
+            ) : route.surface === 'users' ? (
+              <UsersPage owner={{ kind: 'platform' }} />
             ) : route.surface === 'settings' ? (
               <PlatformSettingsPage />
             ) : (
@@ -222,6 +228,7 @@ export function App() {
               data-testid="tenant-tab-resource-servers"
             />
             <Tab value="grants" label="Grants" data-testid="tenant-tab-grants" />
+            <Tab value="users" label="Users" data-testid="tenant-tab-users" />
             <Tab value="secrets" label="Secrets" data-testid="tenant-tab-secrets" />
             <Tab
               value="encryption-keys"
@@ -239,6 +246,8 @@ export function App() {
               <ResourceServersPage tenantId={route.tenantId} />
             ) : route.surface === 'grants' ? (
               <GrantsPage tenantId={route.tenantId} />
+            ) : route.surface === 'users' ? (
+              <UsersPage owner={{ kind: 'tenant', tenantId: route.tenantId }} />
             ) : (
               <TenantDetailPage
                 tenantId={route.tenantId}

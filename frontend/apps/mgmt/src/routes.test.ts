@@ -45,6 +45,16 @@ describe('routePath', () => {
     expect(parseRoute('/clients')).toEqual(platformRoute('clients'));
   });
 
+  it('formats the platform users surface as /users', () => {
+    expect(routePath(platformRoute('users'))).toBe('/users');
+    expect(parseRoute('/users')).toEqual(platformRoute('users'));
+  });
+
+  it('nests the users surface under its tenant', () => {
+    expect(routePath(tenantRoute('acme', 'users'))).toBe('/tenants/acme/users');
+    expect(parseRoute('/tenants/acme/users')).toEqual(tenantRoute('acme', 'users'));
+  });
+
   it('nests the clients surface under its team', () => {
     expect(routePath(teamRoute('acme', 'clients'))).toBe('/teams/acme/clients');
     expect(parseRoute('/teams/acme/clients')).toEqual(teamRoute('acme', 'clients'));
