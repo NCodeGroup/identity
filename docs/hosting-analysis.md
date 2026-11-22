@@ -177,7 +177,8 @@ pipeline runs, with the test user's password kept as a secret.
 | Homelab: the developer's own hardware, already running | $0 |
 | AWS KMS root keys, one per deployment (2 × $1, plus $1 for each of a key's first two yearly rotations) | ~$2–3 |
 | AWS S3 for OpenTofu state and backups | ~$1 |
-| GitHub, Cloudflare DNS, Let's Encrypt, Grafana Cloud Free, the Azure credit, and OCI Email Delivery if it sends the platform's mail (Cloudflare Email Sending costs $5; [§13](#13-open-decisions)) | $0 |
+| GitHub, Cloudflare DNS, Let's Encrypt, Grafana Cloud Free and the Azure credit | $0 |
+| Amazon SES for the platform's mail, at $0.10 per 1,000 emails _(verify)_ | ~$0–1 |
 | Domains (prepaid for ten years at registration) | $0 |
 | **Total** | **~$98–99** |
 
@@ -200,7 +201,7 @@ node adds ~$7.30. Watch Grafana Cloud's free 10k active series across production
 | Root key (ADR-1235)                            | AWS KMS (the platform's account)              | $1 per key per month (plus $1 for each of the first two yearly rotations) and $0.03 per 10,000 requests, 20,000 requests per month free _(verify)_ |
 | Key Vault experiments, ephemeral conformance   | Azure via the Visual Studio credit            | $50/month, dev/test only ([§8](#8-devtest-and-conformance-on-azure-visual-studio-credit))                               |
 | Inbound email (`security@`, vendor accounts)   | Cloudflare Email Routing                      | Free; receive-and-forward only (sending needs Workers Paid)                                                              |
-| Outbound email (provider open, [§13](#13-open-decisions)) | OCI Email Delivery or Cloudflare Email Sending ([§10](#10-pre-launch-considerations)) | OCI: 3,000 emails/month; Cloudflare: needs Workers Paid ($5/month) |
+| Outbound email ([§10](#10-pre-launch-considerations)) | Amazon SES in the cell's AWS region ([ADR-1528](decisions/1528-the-hosted-platform-sends-its-mail-through-amazon-ses-in-each-cells-region-from-mail-ncodeid-net.md)) | No free allowance assumed: $0.10 per 1,000 emails _(verify)_ |
 
 ## 2. Reference architecture
 
@@ -887,18 +888,18 @@ the stacks and components is [#87](https://github.com/NCodeGroup/identity/issues
 
 **Business and legal (before onboarding customers):** privacy policy, terms and a DPA
 ([#912](https://github.com/NCodeGroup/identity/issues/912)), and a subprocessor list (Akamai and the Aiven service
-behind its managed PostgreSQL, Cloudflare, Grafana Labs, AWS, and Oracle when OCI Email Delivery sends the platform's
-mail, listed per region in [#859](https://github.com/NCodeGroup/identity/issues/859)); data residency is US-only (one US
+behind its managed PostgreSQL, Cloudflare, Grafana Labs, and AWS, whose Amazon SES also sends the platform's mail,
+listed per region in [#859](https://github.com/NCodeGroup/identity/issues/859)); data residency is US-only (one US
 region) — EU customers need a regional cell
 ([ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md));
 an SLA no higher than a single-datacenter platform supports (~99.9%), until cells run across availability zones
 ([§11](#11-growth-path-aws)); an incident-response runbook ([#913](https://github.com/NCodeGroup/identity/issues/913)).
 
-**Outbound email:** verification, password reset, and email MFA need a sending provider
-([#911](https://github.com/NCodeGroup/identity/issues/911)) — OCI Email Delivery (3,000 emails/month free) or Cloudflare
-Email Sending (Workers Paid, $5/month; its SMTP endpoint also lets the owner reply as `security@` from an existing
-mailbox). Transactional mail sends only from `mail.ncodeid.net`, which isolates its reputation; add the provider's SPF
-include and DKIM keys, and keep DMARC at `p=reject`.
+**Outbound email:** verification, password reset and email MFA send through Amazon SES in the cell's AWS region
+(`us-east-1` for production), over SMTP from `mail.ncodeid.net`, with Easy DKIM, a custom MAIL FROM domain so SPF aligns
+as well, and DMARC at `p=reject`. SES charges $0.10 per 1,000 emails _(verify)_ and adds no subprocessor, because AWS
+already is one
+([ADR-1528](decisions/1528-the-hosted-platform-sends-its-mail-through-amazon-ses-in-each-cells-region-from-mail-ncodeid-net.md)).
 
 ## 11. Growth path: AWS
 
