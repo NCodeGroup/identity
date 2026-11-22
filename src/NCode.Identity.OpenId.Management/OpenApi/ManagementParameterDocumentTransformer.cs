@@ -138,15 +138,14 @@ internal sealed partial class ManagementParameterDocumentTransformer : IOpenApiD
 
         // A route-group-bound path parameter (the tenant id) is not a handler argument, so the framework never
         // emits it; declare it here so the operation's path template is fully described.
-        operation.Parameters.Add(
-            new OpenApiParameter
-            {
-                Name = name,
-                In = ParameterLocation.Path,
-                Required = true,
-                Description = description,
-                Schema = new OpenApiSchema { Type = JsonSchemaType.String },
-            }
-        );
+        var pathParameter = new OpenApiParameter
+        {
+            Name = name,
+            In = ParameterLocation.Path,
+            Required = true,
+            Description = description,
+            Schema = new OpenApiSchema { Type = JsonSchemaType.String },
+        };
+        operation.Parameters.Add(pathParameter);
     }
 }

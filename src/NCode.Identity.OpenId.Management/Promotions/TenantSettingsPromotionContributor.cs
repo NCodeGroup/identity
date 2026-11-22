@@ -39,15 +39,14 @@ internal class TenantSettingsPromotionContributor(
 
         foreach (var settingName in promoted.RefusedSettingNames)
         {
-            context.AddError(
-                new TenantPromotionErrorResource
-                {
-                    ResourceType = ManagementResourceTypes.Tenant,
-                    ResourceId = targetTenantId,
-                    Detail =
-                        $"The setting '{settingName}' is not bound to the environment, so the request cannot supply it.",
-                }
-            );
+            var refusedError = new TenantPromotionErrorResource
+            {
+                ResourceType = ManagementResourceTypes.Tenant,
+                ResourceId = targetTenantId,
+                Detail =
+                    $"The setting '{settingName}' is not bound to the environment, so the request cannot supply it.",
+            };
+            context.AddError(refusedError);
         }
 
         var settingErrors = SettingSerializer.ValidateSettings(
@@ -57,51 +56,44 @@ internal class TenantSettingsPromotionContributor(
         );
         foreach (var settingError in settingErrors)
         {
-            context.AddError(
-                new TenantPromotionErrorResource
-                {
-                    ResourceType = ManagementResourceTypes.Tenant,
-                    ResourceId = targetTenantId,
-                    Detail = settingError.Message,
-                }
-            );
+            var settingResourceError = new TenantPromotionErrorResource
+            {
+                ResourceType = ManagementResourceTypes.Tenant,
+                ResourceId = targetTenantId,
+                Detail = settingError.Message,
+            };
+            context.AddError(settingResourceError);
         }
 
         context.TargetTenantSettings = document;
 
         var isUpdated = !JsonElement.DeepEquals(document, targetDocument);
-        context.AddChange(
-            new TenantPromotionChangeResource
-            {
-                ResourceType = ManagementResourceTypes.Tenant,
-                ResourceId = targetTenantId,
-                Action = isUpdated
-                    ? TenantPromotionActions.Updated
-                    : TenantPromotionActions.Unchanged,
-            }
-        );
+        var changeResource = new TenantPromotionChangeResource
+        {
+            ResourceType = ManagementResourceTypes.Tenant,
+            ResourceId = targetTenantId,
+            Action = isUpdated ? TenantPromotionActions.Updated : TenantPromotionActions.Unchanged,
+        };
+        context.AddChange(changeResource);
 
         if (isUpdated)
         {
-            context.AddChangedLimits(
-                context.TeamNode,
-                SettingSerializer.GetChangedLimits(targetDocument, document)
-            );
+            var changedLimits = SettingSerializer.GetChangedLimits(targetDocument, document);
+            context.AddChangedLimits(context.TeamNode, changedLimits);
         }
 
         foreach (var settingName in promoted.UnsetSettingNames)
         {
-            context.AddNote(
-                new TenantPromotionNoteResource
-                {
-                    ResourceType = ManagementResourceTypes.Tenant,
-                    ResourceId = targetTenantId,
-                    Code = TenantPromotionNoteCodes.EnvironmentSettingUnset,
-                    Detail =
-                        $"The source tenant sets '{settingName}', which belongs to its environment, and the promoted settings do not.",
-                    SettingName = settingName,
-                }
-            );
+            var unsetNote = new TenantPromotionNoteResource
+            {
+                ResourceType = ManagementResourceTypes.Tenant,
+                ResourceId = targetTenantId,
+                Code = TenantPromotionNoteCodes.EnvironmentSettingUnset,
+                Detail =
+                    $"The source tenant sets '{settingName}', which belongs to its environment, and the promoted settings do not.",
+                SettingName = settingName,
+            };
+            context.AddNote(unsetNote);
         }
 
         return ValueTask.CompletedTask;
@@ -137,30 +129,30 @@ internal class TenantSettingsPromotionContributor(
             Settings = tenantSettings.Value,
         };
 
-        context.AddAuditEvent(
-            new TenantChangedAuditEvent
-            {
-                EventSource = AuditEventSources.Management,
-                TenantId = targetTenant.TenantId,
-                TeamId = targetTenant.TeamId,
-                ResourceId = targetTenant.TenantId,
-                ChangeType = ResourceChangeTypes.SettingsUpdated,
-                ResourceValues = JsonSerializer.SerializeToElement(
-                    resource,
-                    JsonSerializerOptions.Web
-                ),
-                Outcome = AuditOutcome.Success,
-            }
-        );
+        var resourceValues = JsonSerializer.SerializeToElement(resource, JsonSerializerOptions.Web);
+        var auditEvent = new TenantChangedAuditEvent
+        {
+            EventSource = AuditEventSources.Management,
+            TenantId = targetTenant.TenantId,
+            TeamId = targetTenant.TeamId,
+            ResourceId = targetTenant.TenantId,
+            ChangeType = ResourceChangeTypes.SettingsUpdated,
+            ResourceValues = resourceValues,
+            Outcome = AuditOutcome.Success,
+        };
+        context.AddAuditEvent(auditEvent);
     }
 
-    private PromotedSettings Compose(TenantPromotionContext context) =>
-        PromotedSettingsComposer.Compose(
+    private PromotedSettings Compose(TenantPromotionContext context)
+    {
+        var environmentSettings = context.GetEnvironmentSettingsOrDefault(
+            ManagementResourceTypes.Tenant,
+            context.TargetTenant.TenantId
+        );
+        return PromotedSettingsComposer.Compose(
             context.Source.Settings,
             context.TargetTenant.Settings.Value,
-            context.GetEnvironmentSettingsOrDefault(
-                ManagementResourceTypes.Tenant,
-                context.TargetTenant.TenantId
-            )
+            environmentSettings
         );
+    }
 }

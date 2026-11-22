@@ -37,7 +37,8 @@ internal class DefaultAuthorityChainResolver(IAmbientTenantAccessor ambientTenan
 
         if (IsGloballyUniqueNodeType(node.ResourceType))
         {
-            nodes.Add((node.ResourceType, Normalize(node.ResourceId)));
+            var normalizedResourceId = Normalize(node.ResourceId);
+            nodes.Add((node.ResourceType, normalizedResourceId));
         }
 
         string? teamId = null;
@@ -49,7 +50,8 @@ internal class DefaultAuthorityChainResolver(IAmbientTenantAccessor ambientTenan
             !string.Equals(node.ResourceType, ResourceNodeTypes.Platform, StringComparison.Ordinal)
         )
         {
-            nodes.Add((ResourceNodeTypes.Tenant, Normalize(node.TenantId)));
+            var tenantNodeId = Normalize(node.TenantId);
+            nodes.Add((ResourceNodeTypes.Tenant, tenantNodeId));
 
             // An unknown tenant adds no team node.
             var tenantStore = storeManager.GetStore<ITenantStore>();
@@ -108,7 +110,8 @@ internal class DefaultAuthorityChainResolver(IAmbientTenantAccessor ambientTenan
         CancellationToken cancellationToken
     )
     {
-        nodes.Add((ResourceNodeTypes.Team, Normalize(teamId)));
+        var normalizedTeamId = Normalize(teamId);
+        nodes.Add((ResourceNodeTypes.Team, normalizedTeamId));
 
         // Authority at a team reaches every team beneath it, so each team above this one joins the chain.
         var teamStore = storeManager.GetStore<ITeamStore>();
@@ -117,7 +120,8 @@ internal class DefaultAuthorityChainResolver(IAmbientTenantAccessor ambientTenan
         {
             foreach (var ancestorTeamId in team.AncestorTeamIds)
             {
-                nodes.Add((ResourceNodeTypes.Team, Normalize(ancestorTeamId)));
+                var normalizedAncestorId = Normalize(ancestorTeamId);
+                nodes.Add((ResourceNodeTypes.Team, normalizedAncestorId));
             }
         }
     }

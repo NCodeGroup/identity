@@ -74,12 +74,11 @@ public static class DefaultRegistration
             );
 
             // Answers every bodyless error under the management prefix as a problem, in every host (ADR-1483).
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IStartupFilter,
-                    ManagementProblemResponseStartupFilter
-                >()
-            );
+            var startupFilterDescriptor = ServiceDescriptor.Singleton<
+                IStartupFilter,
+                ManagementProblemResponseStartupFilter
+            >();
+            serviceCollection.TryAddEnumerable(startupFilterDescriptor);
 
             serviceCollection.TryAddSingleton<
                 IResourceOwnershipService,
@@ -141,26 +140,23 @@ public static class DefaultRegistration
             >();
 
             // Carries a tenant's core records between cells (ADR-1514).
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ITenantTransferContributor,
-                    CoreTenantTransferContributor
-                >()
-            );
+            var transferContributorDescriptor = ServiceDescriptor.Singleton<
+                ITenantTransferContributor,
+                CoreTenantTransferContributor
+            >();
+            serviceCollection.TryAddEnumerable(transferContributorDescriptor);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<SeedTenantCommand>,
-                    ManagementResourceServerSeedHandler
-                >()
-            );
+            var managementSeedDescriptor = ServiceDescriptor.Singleton<
+                ICommandHandler<SeedTenantCommand>,
+                ManagementResourceServerSeedHandler
+            >();
+            serviceCollection.TryAddEnumerable(managementSeedDescriptor);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<SeedTenantCommand>,
-                    ControlPlaneResourceServerSeedHandler
-                >()
-            );
+            var controlPlaneSeedDescriptor = ServiceDescriptor.Singleton<
+                ICommandHandler<SeedTenantCommand>,
+                ControlPlaneResourceServerSeedHandler
+            >();
+            serviceCollection.TryAddEnumerable(controlPlaneSeedDescriptor);
 
             // The root group declares its own endpoints and child groups (ADR-1086); registering it wires the whole
             // /api tree.

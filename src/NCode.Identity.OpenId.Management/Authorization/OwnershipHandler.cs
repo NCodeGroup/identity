@@ -102,13 +102,14 @@ internal sealed class OwnershipHandler(
         var teamIds = await GetTeamIdsAsync(node, storeManager, cancellationToken);
         foreach (var teamId in teamIds)
         {
+            var authorityRequest = new ControlPlaneAuthorityRequest
+            {
+                Subject = subject,
+                ClientId = clientId,
+                TeamId = teamId,
+            };
             var authority = await ControlPlaneAuthority.GetAsync(
-                new ControlPlaneAuthorityRequest
-                {
-                    Subject = subject,
-                    ClientId = clientId,
-                    TeamId = teamId,
-                },
+                authorityRequest,
                 cancellationToken
             );
 

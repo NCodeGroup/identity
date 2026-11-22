@@ -38,7 +38,8 @@ internal class DefaultPromotedSettingsComposer(
                 continue;
             }
 
-            result[member.Name] = JsonNode.Parse(member.Value.GetRawText());
+            var rawText = member.Value.GetRawText();
+            result[member.Name] = JsonNode.Parse(rawText);
         }
 
         if (targetSettings.HasValue)
@@ -47,7 +48,8 @@ internal class DefaultPromotedSettingsComposer(
             {
                 if (IsEnvironmentBound(descriptors, member.Name))
                 {
-                    result[member.Name] = JsonNode.Parse(member.Value.GetRawText());
+                    var rawText = member.Value.GetRawText();
+                    result[member.Name] = JsonNode.Parse(rawText);
                 }
             }
         }
@@ -59,7 +61,8 @@ internal class DefaultPromotedSettingsComposer(
             {
                 if (IsEnvironmentBound(descriptors, member.Name))
                 {
-                    result[member.Name] = JsonNode.Parse(member.Value.GetRawText());
+                    var rawText = member.Value.GetRawText();
+                    result[member.Name] = JsonNode.Parse(rawText);
                 }
                 else
                 {

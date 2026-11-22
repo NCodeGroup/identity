@@ -82,12 +82,11 @@ internal class CoreTenantTransferContributor(
         var clientGrants = new List<PersistedClientGrant>();
         foreach (var client in clients)
         {
-            clientGrants.AddRange(
-                await ReadAllAsync(
-                    (page, token) => grantStore.GetPageAsync(client.ClientId, page, token),
-                    cancellationToken
-                )
+            var grantRows = await ReadAllAsync(
+                (page, token) => grantStore.GetPageAsync(client.ClientId, page, token),
+                cancellationToken
             );
+            clientGrants.AddRange(grantRows);
         }
 
         var roleAssignments = await storeManager
@@ -188,22 +187,21 @@ internal class CoreTenantTransferContributor(
         var roleAssignmentStore = storeManager.GetStore<IRoleAssignmentStore>();
         foreach (var assignment in roleAssignments)
         {
-            await roleAssignmentStore.AddAsync(
-                new PersistedRoleAssignment
-                {
-                    TenantId = tenantId,
-                    AssignmentId = assignment.AssignmentId,
-                    PrincipalId = principalIds.GetValueOrDefault(
-                        assignment.PrincipalId,
-                        assignment.PrincipalId
-                    ),
-                    RoleName = assignment.RoleName,
-                    ResourceType = assignment.ResourceType,
-                    ResourceId = assignment.ResourceId,
-                    ConcurrencyToken = string.Empty,
-                },
-                cancellationToken
+            var principalId = principalIds.GetValueOrDefault(
+                assignment.PrincipalId,
+                assignment.PrincipalId
             );
+            var roleAssignment = new PersistedRoleAssignment
+            {
+                TenantId = tenantId,
+                AssignmentId = assignment.AssignmentId,
+                PrincipalId = principalId,
+                RoleName = assignment.RoleName,
+                ResourceType = assignment.ResourceType,
+                ResourceId = assignment.ResourceId,
+                ConcurrencyToken = string.Empty,
+            };
+            await roleAssignmentStore.AddAsync(roleAssignment, cancellationToken);
         }
 
         await storeManager.SaveChangesAsync(cancellationToken);
@@ -233,10 +231,8 @@ internal class CoreTenantTransferContributor(
         string? cursor = null;
         do
         {
-            var page = await readPage(
-                new PageRequest { Cursor = cursor, Limit = PageLimit },
-                cancellationToken
-            );
+            var pageRequest = new PageRequest { Cursor = cursor, Limit = PageLimit };
+            var page = await readPage(pageRequest, cancellationToken);
             items.AddRange(page.Items);
             cursor = page.NextCursor;
         } while (cursor is not null);

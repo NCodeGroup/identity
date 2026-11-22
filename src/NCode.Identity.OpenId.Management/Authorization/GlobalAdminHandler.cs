@@ -41,8 +41,13 @@ internal sealed class GlobalAdminHandler(
             return;
         }
 
+        var authorityRequest = new ControlPlaneAuthorityRequest
+        {
+            Subject = subject,
+            ClientId = clientId,
+        };
         var authority = await ControlPlaneAuthority.GetAsync(
-            new ControlPlaneAuthorityRequest { Subject = subject, ClientId = clientId },
+            authorityRequest,
             HttpContextAccessor.HttpContext?.RequestAborted ?? CancellationToken.None
         );
 

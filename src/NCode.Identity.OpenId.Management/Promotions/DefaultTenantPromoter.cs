@@ -73,14 +73,13 @@ internal class DefaultTenantPromoter(
         {
             if (!seen.Add((entry.ResourceType, entry.ResourceId)))
             {
-                context.AddError(
-                    new TenantPromotionErrorResource
-                    {
-                        ResourceType = entry.ResourceType,
-                        ResourceId = entry.ResourceId,
-                        Detail = "The environment settings entry is listed more than once.",
-                    }
-                );
+                var duplicateError = new TenantPromotionErrorResource
+                {
+                    ResourceType = entry.ResourceType,
+                    ResourceId = entry.ResourceId,
+                    Detail = "The environment settings entry is listed more than once.",
+                };
+                context.AddError(duplicateError);
                 continue;
             }
 
@@ -91,15 +90,14 @@ internal class DefaultTenantPromoter(
 
             if (!isChanged)
             {
-                context.AddError(
-                    new TenantPromotionErrorResource
-                    {
-                        ResourceType = entry.ResourceType,
-                        ResourceId = entry.ResourceId,
-                        Detail =
-                            "The environment settings entry names a resource the promotion does not write.",
-                    }
-                );
+                var unwrittenError = new TenantPromotionErrorResource
+                {
+                    ResourceType = entry.ResourceType,
+                    ResourceId = entry.ResourceId,
+                    Detail =
+                        "The environment settings entry names a resource the promotion does not write.",
+                };
+                context.AddError(unwrittenError);
             }
         }
     }

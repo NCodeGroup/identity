@@ -53,10 +53,12 @@ internal class DefaultResourceOwnershipService(
             return null;
         }
 
-        var authority = await ControlPlaneAuthority.GetAsync(
-            new ControlPlaneAuthorityRequest { Subject = subject, ClientId = clientId },
-            cancellationToken
-        );
+        var authorityRequest = new ControlPlaneAuthorityRequest
+        {
+            Subject = subject,
+            ClientId = clientId,
+        };
+        var authority = await ControlPlaneAuthority.GetAsync(authorityRequest, cancellationToken);
         var principalId = authority.PrincipalId;
 
         // A caller that resolves to no principal becomes no owner.

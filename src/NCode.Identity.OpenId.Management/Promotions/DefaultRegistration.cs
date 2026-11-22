@@ -43,30 +43,29 @@ internal static class DefaultRegistration
             >();
             serviceCollection.TryAddSingleton<IClientJwksUriChecker, DefaultClientJwksUriChecker>();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ITenantPromotionContributor,
-                    TenantSettingsPromotionContributor
-                >()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ITenantPromotionContributor,
-                    ResourceServerPromotionContributor
-                >()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ITenantPromotionContributor,
-                    ClientPromotionContributor
-                >()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ITenantPromotionContributor,
-                    ClientGrantPromotionContributor
-                >()
-            );
+            var tenantSettingsDescriptor = ServiceDescriptor.Singleton<
+                ITenantPromotionContributor,
+                TenantSettingsPromotionContributor
+            >();
+            serviceCollection.TryAddEnumerable(tenantSettingsDescriptor);
+
+            var resourceServerDescriptor = ServiceDescriptor.Singleton<
+                ITenantPromotionContributor,
+                ResourceServerPromotionContributor
+            >();
+            serviceCollection.TryAddEnumerable(resourceServerDescriptor);
+
+            var clientDescriptor = ServiceDescriptor.Singleton<
+                ITenantPromotionContributor,
+                ClientPromotionContributor
+            >();
+            serviceCollection.TryAddEnumerable(clientDescriptor);
+
+            var clientGrantDescriptor = ServiceDescriptor.Singleton<
+                ITenantPromotionContributor,
+                ClientGrantPromotionContributor
+            >();
+            serviceCollection.TryAddEnumerable(clientGrantDescriptor);
         }
     }
 }

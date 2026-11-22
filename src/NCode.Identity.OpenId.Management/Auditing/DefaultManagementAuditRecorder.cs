@@ -501,7 +501,8 @@ internal class DefaultManagementAuditRecorder(
         }
         catch (Exception exception)
         {
-            Logger.AuditPublishFailed(exception, auditEvent.GetType().Name);
+            var auditEventName = auditEvent.GetType().Name;
+            Logger.AuditPublishFailed(exception, auditEventName);
         }
     }
 
