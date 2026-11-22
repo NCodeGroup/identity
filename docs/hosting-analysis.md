@@ -668,9 +668,9 @@ services compared below inform which one holds a cell's keys in its region
 Every deployment needs one root key in a key management service (ADR-1235); it wraps the master keys that protect stored
 secrets and is called only when a replica first meets an owner. Remote signing, where a tenant's signing keys stay in a
 key management service (ADR-1471), is the separate, per-request use priced below. The root key lives in AWS KMS, in the
-account that already holds the platform's OpenTofu state key. A cluster reaches it through web identity federation,
-which needs the cluster's service-account issuer to be publicly discoverable, because AWS IAM fetches the issuer's
-discovery document and JWKS; a cluster whose issuer is private needs IAM Roles Anywhere (issue
+account that also holds the platform's OpenTofu state key. A cluster reaches it through web identity federation, which
+needs the cluster's service-account issuer to be publicly discoverable, because AWS IAM fetches the issuer's discovery
+document and JWKS; a cluster whose issuer is private needs IAM Roles Anywhere (issue
 [#177](https://github.com/NCodeGroup/identity/issues/177)) or the `local` provider. Google Cloud KMS, by contrast,
 accepts an uploaded JWKS, so a private issuer is no obstacle there. The `azure-key-vault` and `google-cloud-kms`
 providers
