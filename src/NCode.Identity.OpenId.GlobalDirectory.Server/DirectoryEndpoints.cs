@@ -26,7 +26,7 @@ namespace NCode.Identity.OpenId.GlobalDirectory.Server;
 /// calling cell: the platform and team writes need the control-plane cell
 /// (<see cref="DirectoryServerOptions.ControlPlaneCell"/>), and a tenant write needs the cell that holds the tenant.
 /// </summary>
-// See ADR-1411. DirectoryAuthenticationEndpointFilter checks the token.
+// See ADR-1411. DirectoryAuthenticationGate checks the token before the route binds its body.
 [PublicAPI]
 public static class DirectoryEndpoints
 {
@@ -1242,7 +1242,7 @@ public static class DirectoryEndpoints
 
             var group = endpoints
                 .MapGroup(RoutePrefix)
-                .AddEndpointFilter<DirectoryAuthenticationEndpointFilter>()
+                .AddEndpointGate<RouteGroupBuilder, DirectoryAuthenticationGate>()
                 .WithConfidentialBodies()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
