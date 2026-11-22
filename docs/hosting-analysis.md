@@ -31,8 +31,10 @@ Production costs $95 a month at the developer plan, and $60 more once the cluste
 control plane ([Stages](#stages)). The root key costs about a dollar a month
 ([ADR-1235](decisions/1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md)).
 
-### Choosing the region
+### The production region
 
+Production runs in Washington, DC (`us-iad`)
+([ADR-1520](decisions/1520-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md)).
 Production serves customers, not the operator, so its region is chosen on four things, in order:
 
 1. **The region's capabilities.** Akamai prices every US region the same: its public API lists regional price
@@ -62,15 +64,23 @@ Production serves customers, not the operator, so its region is chosen on four t
    ([§15](#15-growth-path-aws)), whose largest region is `us-east-1`, so an eastern Akamai region keeps latency the same
    when cells later move there.
 
-**Recommendation: Washington, DC (`us-iad`)**, with Chicago (`us-ord`) as the equal-cost, equal-capability
-alternative. Dallas is nearer Denver, but it is one of Akamai's older regions, without VPCs,
-Premium plans, Premium NodeBalancers or LKE Enterprise. Only the lab sits near Denver: OCI Phoenix, and Azure West
-Central US for ephemeral runs ([§10](#10-devtest-and-conformance-on-azure-visual-studio-credit)).
+Chicago (`us-ord`) is the equal-cost, equal-capability alternative. Dallas is nearer Denver, but it is one of Akamai's
+older regions, without VPCs, Premium plans, Premium NodeBalancers or LKE Enterprise. Only the lab sits near Denver,
+where the operator works: OCI Phoenix, and Azure West Central US for ephemeral runs
+([§8](#8-devtest-and-conformance-on-azure-visual-studio-credit)).
 
-**Not recommended at this budget:** Hetzner US (3 × CPX21 + LB11 = $122.76, all self-managed, plans showing
-"unavailable"); Hostinger (Boston only, 24-month prepay, no LB or private network); always-on Azure (the Visual Studio
-credit forbids it; paid ≈ 3 × B2pls v2 $88.26 + Standard LB $18.25 + IP $3.65 + PostgreSQL B1ms ~$19.37 ≈ **$130**);
-Neon / Aiven free tiers as the always-on database (wrong region, scale-to-zero, or power-off).
+**Latency from where customers are** (typical ranges, not measurements):
+
+| Cluster region                       | AWS `us-east-1` (most SaaS backends) | East-coast users | West-coast users |
+| ------------------------------------ | ------------------------------------ | ---------------- | ---------------- |
+| Washington, DC (Akamai `us-iad`)     | ~1–2 ms                              | ~5–20 ms         | ~60–70 ms        |
+| Chicago (Akamai `us-ord`)            | ~15–20 ms                            | ~15–25 ms        | ~45–55 ms        |
+| Dallas (Akamai `us-central`)         | ~30–35 ms                            | ~30–40 ms        | ~35–45 ms        |
+| Seattle or Los Angeles (Akamai)      | ~60–70 ms                            | ~60–75 ms        | ~5–25 ms         |
+
+A token request from a backend is one round trip plus server time, and an interactive sign-in is a few round trips, so
+the backend column weighs most. Once customers exist, measure from where their requests come from (Grafana synthetic
+checks from several US probes) before adding a second region.
 
 ### Environment model
 
@@ -791,41 +801,6 @@ janitor that destroys anything older than a few hours — that also keeps every 
 - **Layering:** OpenTofu owns cloud resources (VMs or managed cluster, LB, firewall, managed DBs, DNS); in-cluster
   state (Traefik, cert-manager, Valkey, CloudNativePG, the identity server) is reconciled by **Flux** from the same
   repository, pulling signed images by digest from GHCR — so no deploy credential flows from the library repository.
-
-## 12. Latency (estimates — measure before deciding)
-
-The latency that matters for production is from **customers' users and backends** to the cluster, not from the
-operator ([§1](#1-requirements)). The latency from Denver matters only for the lab and the ephemeral test environments,
-which the operator uses.
-
-**Production — from where customers are** (typical ranges, not measurements):
-
-| Cluster region                       | AWS `us-east-1` (most SaaS backends) | East-coast users | West-coast users |
-| ------------------------------------ | ------------------------------------ | ---------------- | ---------------- |
-| Washington, DC (Akamai `us-iad`)     | ~1–2 ms                              | ~5–20 ms         | ~60–70 ms        |
-| Chicago (Akamai `us-ord`)            | ~15–20 ms                            | ~15–25 ms        | ~45–55 ms        |
-| Dallas (Akamai `us-central`)         | ~30–35 ms                            | ~30–40 ms        | ~35–45 ms        |
-| Seattle or Los Angeles (Akamai)      | ~60–70 ms                            | ~60–75 ms        | ~5–25 ms         |
-
-A token request from a backend is one round trip plus server time, and an interactive sign-in is a few round trips, so
-the backend column weighs most. Once customers exist, measure from where their requests come from (Grafana synthetic
-checks from several US probes) before adding a second region.
-
-**The lab and ephemeral environments — from Denver:**
-
-| Metro                                    | Vendors                         | Est. RTT from Denver |
-| ---------------------------------------- | ------------------------------- | -------------------- |
-| Cheyenne, WY                             | Azure West Central US (dev/test only) | ~3–8 ms        |
-| Kansas City                              | DigitalOcean MKC1               | ~10–15 ms            |
-| Dallas                                   | Vultr, Akamai                   | ~15–20 ms            |
-| Phoenix                                  | OCI (the lab)                   | ~15–20 ms            |
-| Chicago                                  | Vultr, Akamai, OCI              | ~20–28 ms            |
-| LA / Silicon Valley / Fremont            | Vultr, Akamai, DO (SFO)         | ~25–32 ms            |
-| Seattle / Hillsboro                      | Vultr, Akamai, Hetzner          | ~30–35 ms            |
-| East coast (NYC / NJ / Boston / Ashburn) | Civo, Hostinger, Hetzner, DO, … | ~35–45 ms            |
-
-These are typical RTT ranges, not measurements. Before committing, ping each candidate's published looking-glass /
-speed-test endpoint from the network the traffic comes from.
 
 ## 13. Pre-launch considerations
 
