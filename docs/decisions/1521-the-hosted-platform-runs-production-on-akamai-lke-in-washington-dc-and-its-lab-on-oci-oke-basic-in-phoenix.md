@@ -109,8 +109,9 @@ cluster; the lab runs on OCI OKE Basic in Phoenix inside the free allowance; AWS
 - The developer-plan bill is about $98–99 a month: production $95, the lab $0, KMS keys about $2–3 and S3 about $1.
 - `NCodeGroup/identity-platform` builds the `akamai` and `oci` stacks from the LKE, Akamai PostgreSQL, OKE and Flux
   components ([#87](https://github.com/NCodeGroup/identity/issues/87)). The fleet's cell module serves Akamai first and
-  AWS next ([#845](https://github.com/NCodeGroup/identity/issues/845)). Under ADR-1133's support tiers, the Akamai and
-  OCI components are the supported ones.
+  AWS next ([#845](https://github.com/NCodeGroup/identity/issues/845)). Under ADR-1133's support tiers, Akamai and OCI
+  are the cluster vendors whose components are supported, beside the components of the platform's other vendors, such as
+  AWS and Cloudflare.
 - The lab is arm64 with CloudNativePG and production is amd64 with managed PostgreSQL, so the images are multi-arch
   ([ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md))
   and each release is verified on the `canary` tenant (ADR-1495).
