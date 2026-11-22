@@ -39,7 +39,7 @@ public sealed class DefaultOpenIdTeamTests : BaseTests
             "/acme/",
             owner,
             default,
-            PropertyBagFactory.Create()
+            new PropertyBagDictionary()
         );
 
         return (team, () => Volatile.Read(ref releases));
@@ -70,7 +70,7 @@ public sealed class DefaultOpenIdTeamTests : BaseTests
             "/acme/acme-web/",
             settingsOwner,
             parentOwner.AddReference(),
-            PropertyBagFactory.Create()
+            new PropertyBagDictionary()
         );
 
         Assert.Same(parent.Object, team.Parent);
@@ -137,7 +137,7 @@ public sealed class DefaultOpenIdTeamTests : BaseTests
             "/acme/acme-web/",
             settingsOwner,
             parentOwner.AddReference(),
-            PropertyBagFactory.Create()
+            new PropertyBagDictionary()
         );
 
         await parentOwner.DisposeAsync();

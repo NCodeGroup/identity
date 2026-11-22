@@ -78,7 +78,7 @@ public sealed class DefaultOpenIdTeamCacheTests : BaseTests
     public async Task TryGetAsync_AfterSetAsync_ReturnsTheCachedTeam()
     {
         var mockTeam = CreateMockTeam();
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         await using var owner = AsyncSharedReference.Create(mockTeam.Object);
         await Cache.SetAsync(TeamId, owner, propertyBag, CancellationToken.None);
@@ -96,7 +96,7 @@ public sealed class DefaultOpenIdTeamCacheTests : BaseTests
     [Fact]
     public async Task TryGetAsync_WhenTheTeamIsNotCached_ReturnsAnInactiveLease()
     {
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         await using var lease = await Cache.TryGetAsync(
             TeamId,
@@ -117,7 +117,7 @@ public sealed class DefaultOpenIdTeamCacheTests : BaseTests
         var disposed = CreateCompletionSource();
         var mockTeam = CreateMockTeam();
         SetupDisposal(mockTeam, disposed);
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         // Only the cache and the handed-out lease hold the team once the creator releases its own reference.
         AsyncSharedReferenceLease<OpenIdTeam> handedOut;
@@ -150,7 +150,7 @@ public sealed class DefaultOpenIdTeamCacheTests : BaseTests
         var disposed = CreateCompletionSource();
         var mockTeam = CreateMockTeam();
         SetupDisposal(mockTeam, disposed);
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         await using (var owner = AsyncSharedReference.Create(mockTeam.Object))
         {
@@ -172,7 +172,7 @@ public sealed class DefaultOpenIdTeamCacheTests : BaseTests
     [Fact]
     public async Task RemoveAsync_WhenTheTeamIsNotCached_DoesNothing()
     {
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         await Cache.RemoveAsync(TeamId, propertyBag, CancellationToken.None);
 
@@ -197,7 +197,7 @@ public sealed class DefaultOpenIdTeamCacheTests : BaseTests
             parent: CreateMockParentTeam(TeamId, "parent-ct")
         );
         SetupDisposal(childTeam, childDisposed);
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         await using (var parentOwner = AsyncSharedReference.Create(parentTeam.Object))
         await using (var childOwner = AsyncSharedReference.Create(childTeam.Object))
@@ -231,7 +231,7 @@ public sealed class DefaultOpenIdTeamCacheTests : BaseTests
             childTeamId,
             parent: CreateMockParentTeam(TeamId, "parent-ct")
         );
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         await using var parentOwner = AsyncSharedReference.Create(parentTeam.Object);
         await using var childOwner = AsyncSharedReference.Create(childTeam.Object);
@@ -270,7 +270,7 @@ public sealed class DefaultOpenIdTeamCacheTests : BaseTests
         SetupDisposal(firstTeam, firstDisposed);
         var secondTeam = CreateMockTeam(otherTeamId);
         SetupDisposal(secondTeam, secondDisposed);
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         // Only the cache holds the teams once the creators release their own references.
         await using (var first = AsyncSharedReference.Create(firstTeam.Object))
@@ -301,7 +301,7 @@ public sealed class DefaultOpenIdTeamCacheTests : BaseTests
     public async Task ClearAsync_KeepsATeamCachedAfterIt()
     {
         var mockTeam = CreateMockTeam();
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         await Cache.ClearAsync(propertyBag, CancellationToken.None);
 
@@ -326,7 +326,7 @@ public sealed class DefaultOpenIdTeamCacheTests : BaseTests
     public async Task SetAsync_WhenTheLifetimeElapses_EvictsTheTeam()
     {
         var mockTeam = CreateMockTeam();
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
         var options = new OpenIdOptions
         {
             Team = { TeamCacheLifetime = TimeSpan.FromMilliseconds(50) },
@@ -365,7 +365,7 @@ public sealed class DefaultOpenIdTeamCacheTests : BaseTests
     public async Task SetAsync_ReadsTheLifetimeFromTheOptionsOnUse()
     {
         var mockTeam = CreateMockTeam();
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
         var options = new OpenIdOptions();
 
         using var memoryCache = new MemoryCache(new MemoryCacheOptions());
@@ -406,7 +406,7 @@ public sealed class DefaultOpenIdTeamCacheTests : BaseTests
     {
         var firstTeam = CreateMockTeam("first", "first-ct");
         var secondTeam = CreateMockTeam("second", "second-ct");
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         await using var firstOwner = AsyncSharedReference.Create(firstTeam.Object);
         await using var secondOwner = AsyncSharedReference.Create(secondTeam.Object);
@@ -426,7 +426,7 @@ public sealed class DefaultOpenIdTeamCacheTests : BaseTests
         var disposed = CreateCompletionSource();
         var mockTeam = CreateMockTeam();
         SetupDisposal(mockTeam, disposed);
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         await using (var owner = AsyncSharedReference.Create(mockTeam.Object))
         {
@@ -450,7 +450,7 @@ public sealed class DefaultOpenIdTeamCacheTests : BaseTests
         var replacedTeam = CreateMockTeam(concurrencyToken: "replaced-ct");
         SetupDisposal(replacedTeam, replacedDisposed);
         var replacementTeam = CreateMockTeam(concurrencyToken: "replacement-ct");
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         await using var replacementOwner = AsyncSharedReference.Create(replacementTeam.Object);
         await using (var replacedOwner = AsyncSharedReference.Create(replacedTeam.Object))
@@ -476,7 +476,7 @@ public sealed class DefaultOpenIdTeamCacheTests : BaseTests
             "child-ct",
             parent: CreateMockParentTeam(TeamId, "parent-ct")
         );
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         // Only the child is cached; its revision lists the parent it was materialized over.
         await using var owner = AsyncSharedReference.Create(childTeam.Object);

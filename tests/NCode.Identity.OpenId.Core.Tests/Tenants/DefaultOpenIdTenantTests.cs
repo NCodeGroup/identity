@@ -57,7 +57,7 @@ public sealed class DefaultOpenIdTenantTests
             settings,
             secrets,
             team.AddReference(),
-            PropertyBagFactory.Create()
+            new PropertyBagDictionary()
         );
 
         return (tenant, () => Volatile.Read(ref teamReleases));
@@ -99,7 +99,7 @@ public sealed class DefaultOpenIdTenantTests
             settings,
             secrets,
             team.AddReference(),
-            PropertyBagFactory.Create()
+            new PropertyBagDictionary()
         );
 
         Assert.Same(teamInstance, tenant.Team);
