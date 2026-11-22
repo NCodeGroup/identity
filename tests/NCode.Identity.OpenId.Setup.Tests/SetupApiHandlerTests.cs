@@ -142,6 +142,7 @@ public sealed class SetupApiHandlerTests : IDisposable
                 TenantId = "control-plane",
                 PrincipalId = "principal-1",
                 UserName = UserName,
+                DisplayName = UserName,
                 Issuer = "https://id.example.test/",
                 DiscoveryUrl = "https://id.example.test/.well-known/openid-configuration",
                 ManagementApiUrl = "https://id.example.test/api",
@@ -474,6 +475,42 @@ public sealed class SetupApiHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task CreateRootAsync_WithADisplayName_PassesItToTheSetup()
+    {
+        SetupIsServed(true);
+        SetupVerify(true);
+        MockInstanceSetupService
+            .Setup(x =>
+                x.SetUpAsync(
+                    It.Is<InstanceSetupRequest>(request =>
+                        request.Root.DisplayName == "Root Administrator"
+                    ),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(CreateSuccess())
+            .Verifiable();
+        var handler = CreateHandler();
+        var body = JsonSerializer.Serialize(
+            new CreateRootRequest
+            {
+                Token = Token,
+                UserName = UserName,
+                DisplayName = "Root Administrator",
+                Password = Password,
+            },
+            JsonSerializerOptions.Web
+        );
+
+        var result = await handler.CreateRootAsync(
+            CreateHttpContext(body: body),
+            CancellationToken.None
+        );
+
+        Assert.IsType<JsonHttpResult<CreateRootResponse>>(result);
+    }
+
+    [Fact]
     public async Task CreateRootAsync_WhenCreated_AnswersTheSetupResultsRoot()
     {
         var success = new InstanceSetupResult
@@ -483,6 +520,7 @@ public sealed class SetupApiHandlerTests : IDisposable
                 TenantId = "control-plane",
                 PrincipalId = "principal-1",
                 UserName = UserName,
+                DisplayName = UserName,
                 Issuer = "https://id.example.test/",
                 DiscoveryUrl = "https://id.example.test/.well-known/openid-configuration",
                 ManagementApiUrl = "https://id.example.test/api",
@@ -540,6 +578,7 @@ public sealed class SetupApiHandlerTests : IDisposable
                         TenantId = created.TenantId,
                         PrincipalId = created.PrincipalId,
                         UserName = created.UserName,
+                        DisplayName = created.DisplayName,
                         Issuer = created.Issuer,
                         DiscoveryUrl = created.DiscoveryUrl,
                         ManagementApiUrl = created.ManagementApiUrl,

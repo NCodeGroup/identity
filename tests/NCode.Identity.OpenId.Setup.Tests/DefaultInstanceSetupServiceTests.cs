@@ -32,6 +32,7 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
     private const string AssignmentId = "assignment-1";
     private const string UserName = "root";
     private const string Email = "root@example.com";
+    private const string DisplayName = "Root Administrator";
     private const string Password = "a-root-password-of-15-or-more";
     private const string ConsoleClientId = "mgmt-console";
     private const string AutomationClientId = "automation";
@@ -102,24 +103,27 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
 
     private static SetupRootOptions CreateRoot(
         string? userName = UserName,
-        string? password = Password
+        string? password = Password,
+        string? displayName = null
     ) =>
         new()
         {
             UserName = userName,
             Email = Email,
             Password = password,
+            DisplayName = displayName,
         };
 
     private static InstanceSetupRequest CreateRequest(
         string? userName = UserName,
         string? password = Password,
         SetupManagementConsoleOptions? managementConsole = null,
-        SetupAutomationOptions? automation = null
+        SetupAutomationOptions? automation = null,
+        string? displayName = null
     ) =>
         new()
         {
-            Root = CreateRoot(userName, password),
+            Root = CreateRoot(userName, password, displayName),
             ManagementConsole = managementConsole,
             Automation = automation,
         };
@@ -223,7 +227,7 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
             ConcurrencyToken = Guid.NewGuid().ToString("N"),
         };
 
-    private static LocalAccountCreation CreateCreation() =>
+    private static LocalAccountCreation CreateCreation(string displayName = UserName) =>
         new()
         {
             PrincipalId = PrincipalId,
@@ -232,6 +236,7 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
                 TenantId = TenantId,
                 LocalAccountId = "account-1",
                 UserName = UserName,
+                DisplayName = displayName,
                 Email = Email,
                 EmailVerified = false,
                 IsEnabled = true,
@@ -301,7 +306,10 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
         MockTenantScope.Setup(x => x.Dispose()).Verifiable(Times.Once());
     }
 
-    private void SetupCreator(LocalAccountCreation creation)
+    private void SetupCreator(
+        LocalAccountCreation creation,
+        Action<CreateLocalAccountRequest>? onStaged = null
+    )
     {
         MockAmbientTenantAccessor
             .Setup(x => x.BeginScope(TenantId))
@@ -328,7 +336,13 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
                     It.IsAny<CancellationToken>()
                 )
             )
-            .Callback(() => CallLog.Add("account"))
+            .Callback<IStoreManager, string, CreateLocalAccountRequest, CancellationToken>(
+                (_, _, request, _) =>
+                {
+                    CallLog.Add("account");
+                    onStaged?.Invoke(request);
+                }
+            )
             .ReturnsAsync(creation)
             .Verifiable(Times.Once());
     }
@@ -587,6 +601,57 @@ public sealed class DefaultInstanceSetupServiceTests : IDisposable
         Assert.Equal(PrincipalId, state["PrincipalId"]);
         Assert.Equal(TenantId, state["TenantId"]);
         Assert.DoesNotContain(state.Values, value => Equals(value, Password));
+    }
+
+    [Fact]
+    public async Task SetUpAsync_WithADisplayName_StoresItAndReturnsIt()
+    {
+        var row = CreateRow();
+        CreateLocalAccountRequest? staged = null;
+        var state = new Dictionary<string, object?>();
+
+        SetupTenantScope();
+        SetupStoreManagers(1);
+        SetupInstanceSetupStore(1);
+        SetupRead(row);
+        SetupCreator(CreateCreation(DisplayName), request => staged = request);
+        SetupAssignment(_ => { });
+        SetupUpdate(row);
+        SetupSave();
+        SetupLogged(LogLevel.Information, EventIds.RootAdministratorCreated, state);
+
+        var result = await CreateService()
+            .SetUpAsync(CreateRequest(displayName: DisplayName), CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.NotNull(staged);
+        Assert.Equal(DisplayName, staged.DisplayName);
+        Assert.Equal(DisplayName, result.Root.DisplayName);
+    }
+
+    [Fact]
+    public async Task SetUpAsync_WithoutADisplayName_UsesTheUserName()
+    {
+        var row = CreateRow();
+        CreateLocalAccountRequest? staged = null;
+        var state = new Dictionary<string, object?>();
+
+        SetupTenantScope();
+        SetupStoreManagers(1);
+        SetupInstanceSetupStore(1);
+        SetupRead(row);
+        SetupCreator(CreateCreation(), request => staged = request);
+        SetupAssignment(_ => { });
+        SetupUpdate(row);
+        SetupSave();
+        SetupLogged(LogLevel.Information, EventIds.RootAdministratorCreated, state);
+
+        var result = await CreateService().SetUpAsync(CreateRequest(), CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.NotNull(staged);
+        Assert.Null(staged.DisplayName);
+        Assert.Equal(UserName, result.Root.DisplayName);
     }
 
     [Theory]
