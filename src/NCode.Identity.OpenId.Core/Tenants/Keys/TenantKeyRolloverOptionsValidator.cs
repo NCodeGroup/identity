@@ -39,8 +39,9 @@ internal sealed class TenantKeyRolloverOptionsValidator(
 
         if (!TimerPeriod.IsValid(rollover.Interval))
         {
+            var intervalPath = Path(nameof(OpenIdTenantKeyRolloverOptions.Interval));
             failures.Add(
-                $"{Path(nameof(OpenIdTenantKeyRolloverOptions.Interval))} must be between {TimerPeriod.MinValue} and {TimerPeriod.MaxValue}, the periods a timer accepts; it is {rollover.Interval}."
+                $"{intervalPath} must be between {TimerPeriod.MinValue} and {TimerPeriod.MaxValue}, the periods a timer accepts; it is {rollover.Interval}."
             );
         }
 

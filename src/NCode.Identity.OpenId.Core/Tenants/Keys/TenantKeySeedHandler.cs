@@ -71,9 +71,9 @@ internal class TenantKeySeedHandler(
         var resolution = TenantKeyPolicy.ResolveSpecifications(Options);
         if (resolution.Errors.Count > 0)
         {
+            var errors = string.Join(" ", resolution.Errors);
             throw new InvalidOperationException(
-                "The tenant key provisioning options cannot be honored: "
-                    + string.Join(" ", resolution.Errors)
+                "The tenant key provisioning options cannot be honored: " + errors
             );
         }
 
@@ -82,12 +82,8 @@ internal class TenantKeySeedHandler(
         var held = tenant.Secrets.Value;
         var settings = await GetEffectiveSettingsAsync(tenant, cancellationToken);
 
-        var plan = Planner.Plan(
-            resolution.Specifications,
-            held,
-            settings,
-            TimeProvider.GetUtcNow()
-        );
+        var now = TimeProvider.GetUtcNow();
+        var plan = Planner.Plan(resolution.Specifications, held, settings, now);
         if (plan.IsEmpty)
         {
             return;
@@ -104,8 +100,9 @@ internal class TenantKeySeedHandler(
             return;
         }
 
+        var tenantStore = context.StoreManager.GetStore<ITenantStore>();
         var result = await Rollover.ApplyAsync(
-            context.StoreManager.GetStore<ITenantStore>(),
+            tenantStore,
             tenant.TenantId,
             held,
             plan,

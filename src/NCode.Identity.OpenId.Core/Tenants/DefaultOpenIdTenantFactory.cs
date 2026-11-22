@@ -480,8 +480,9 @@ public class DefaultOpenIdTenantFactory(
             persistedTenant.Settings.Value
         );
 
+        var refreshState = new RefreshSettingsState(openIdEnvironment, openIdTeam, persistedTenant);
         var periodicPollingSource = CollectionDataSourceFactory.CreatePeriodicPolling(
-            new RefreshSettingsState(openIdEnvironment, openIdTeam, persistedTenant),
+            refreshState,
             initialSettings,
             OpenIdOptions.Tenant.SettingsPeriodicRefreshInterval,
             RefreshSettingsAsync
@@ -495,7 +496,8 @@ public class DefaultOpenIdTenantFactory(
 
         var provider = SettingCollectionProviderFactory.Create(dataSources, owns: true);
 
-        return ValueTask.FromResult(provider.AsSharedReference());
+        var sharedProvider = provider.AsSharedReference();
+        return ValueTask.FromResult(sharedProvider);
     }
 
     private readonly record struct RefreshSettingsState(
@@ -560,7 +562,11 @@ public class DefaultOpenIdTenantFactory(
         AsyncSharedReferenceLease<IReadOnlySettingCollectionProvider> tenantSettings,
         IPropertyBag propertyBag,
         CancellationToken cancellationToken
-    ) => ValueTask.FromResult(GetRequiredTenantIssuer(persistedTenant));
+    )
+    {
+        var tenantIssuer = GetRequiredTenantIssuer(persistedTenant);
+        return ValueTask.FromResult(tenantIssuer);
+    }
 
     /// <summary>
     /// Used to get the tenant's base address, the <see cref="UriDescriptor"/> every absolute URL the server publishes for
@@ -583,7 +589,11 @@ public class DefaultOpenIdTenantFactory(
         AsyncSharedReferenceLease<IReadOnlySettingCollectionProvider> tenantSettings,
         IPropertyBag propertyBag,
         CancellationToken cancellationToken
-    ) => ValueTask.FromResult(ParseBaseAddress(tenantIssuer));
+    )
+    {
+        var baseAddress = ParseBaseAddress(tenantIssuer);
+        return ValueTask.FromResult(baseAddress);
+    }
 
     /// <summary>
     /// Used to get the tenant's <see cref="ISecretKeyCollectionProvider"/> instance.
@@ -638,8 +648,9 @@ public class DefaultOpenIdTenantFactory(
     {
         try
         {
+            var owner = SecretOwner.ForTenant(persistedTenant.TenantId);
             var protector = await SecretProtectorProvider.GetProtectorForSecretsAsync(
-                SecretOwner.ForTenant(persistedTenant.TenantId),
+                owner,
                 persistedTenant.Secrets.Value,
                 cancellationToken
             );
@@ -680,8 +691,9 @@ public class DefaultOpenIdTenantFactory(
         if (string.Equals(prevConcurrencyToken, newConcurrencyToken, StringComparison.Ordinal))
             return RefreshCollectionResultFactory.Unchanged<SecretKey>();
 
+        var owner = SecretOwner.ForTenant(tenantId);
         var protector = await SecretProtectorProvider.GetProtectorForSecretsAsync(
-            SecretOwner.ForTenant(tenantId),
+            owner,
             newSecrets.Value,
             cancellationToken
         );
@@ -720,6 +732,8 @@ public class DefaultOpenIdTenantFactory(
         CancellationToken cancellationToken
     )
     {
+        var teamReference = team.AddReference();
+        var teamPropertyBag = team.Value.PropertyBag.Clone();
         OpenIdTenant tenant = new DefaultOpenIdTenant(
             persistedTenant.TenantId,
             persistedTenant.TeamId,
@@ -730,10 +744,11 @@ public class DefaultOpenIdTenantFactory(
             tenantBaseAddress,
             tenantSettings,
             tenantSecrets,
-            team.AddReference(),
-            team.Value.PropertyBag.Clone()
+            teamReference,
+            teamPropertyBag
         );
 
-        return ValueTask.FromResult(tenant.AsSharedReference());
+        var sharedTenant = tenant.AsSharedReference();
+        return ValueTask.FromResult(sharedTenant);
     }
 }

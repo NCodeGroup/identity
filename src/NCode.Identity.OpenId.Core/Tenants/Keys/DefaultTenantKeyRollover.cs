@@ -67,15 +67,14 @@ internal sealed class DefaultTenantKeyRollover(
             await tenantStore.RemoveSecretAsync(tenantId, removed.SecretId, cancellationToken);
             secrets.Remove(removed.SecretId);
             removedSecrets.Add(removed);
-            auditEvents.Add(
-                CreateAuditEvent(
-                    tenantId,
-                    removed,
-                    TenantKeyChanges.Removed,
-                    TenantKeyChangeReasons.Expired,
-                    plan.Now
-                )
+            var auditEvent = CreateAuditEvent(
+                tenantId,
+                removed,
+                TenantKeyChanges.Removed,
+                TenantKeyChangeReasons.Expired,
+                plan.Now
             );
+            auditEvents.Add(auditEvent);
         }
 
         foreach (var retirement in plan.Retirements)
@@ -88,15 +87,14 @@ internal sealed class DefaultTenantKeyRollover(
             );
             await tenantStore.UpdateSecretAsync(tenantId, retired, cancellationToken);
             secrets[retired.SecretId] = retired;
-            auditEvents.Add(
-                CreateAuditEvent(
-                    tenantId,
-                    retired,
-                    TenantKeyChanges.Retired,
-                    retirement.Reason,
-                    plan.Now
-                )
+            var auditEvent = CreateAuditEvent(
+                tenantId,
+                retired,
+                TenantKeyChanges.Retired,
+                retirement.Reason,
+                plan.Now
             );
+            auditEvents.Add(auditEvent);
         }
 
         foreach (var activation in plan.Activations)
@@ -110,15 +108,14 @@ internal sealed class DefaultTenantKeyRollover(
             );
             await tenantStore.UpdateSecretAsync(tenantId, activated, cancellationToken);
             secrets[activated.SecretId] = activated;
-            auditEvents.Add(
-                CreateAuditEvent(
-                    tenantId,
-                    activated,
-                    TenantKeyChanges.Activated,
-                    TenantKeyChangeReasons.NoActiveKey,
-                    plan.Now
-                )
+            var auditEvent = CreateAuditEvent(
+                tenantId,
+                activated,
+                TenantKeyChanges.Activated,
+                TenantKeyChangeReasons.NoActiveKey,
+                plan.Now
             );
+            auditEvents.Add(auditEvent);
         }
 
         foreach (var extension in plan.Extensions)
@@ -132,15 +129,14 @@ internal sealed class DefaultTenantKeyRollover(
             );
             await tenantStore.UpdateSecretAsync(tenantId, extended, cancellationToken);
             secrets[extended.SecretId] = extended;
-            auditEvents.Add(
-                CreateAuditEvent(
-                    tenantId,
-                    extended,
-                    TenantKeyChanges.Extended,
-                    TenantKeyChangeReasons.RetirementGraceRaised,
-                    plan.Now
-                )
+            var auditEvent = CreateAuditEvent(
+                tenantId,
+                extended,
+                TenantKeyChanges.Extended,
+                TenantKeyChangeReasons.RetirementGraceRaised,
+                plan.Now
             );
+            auditEvents.Add(auditEvent);
         }
 
         // The tenant's master key is loaded only when a local key has to be generated, so a pass that generates
@@ -161,26 +157,29 @@ internal sealed class DefaultTenantKeyRollover(
             }
             else
             {
-                protector ??= await SecretProtectorProvider.GetProtectorAsync(
-                    SecretOwner.ForTenant(tenantId),
-                    [],
-                    cancellationToken
-                );
+                if (protector is null)
+                {
+                    var owner = SecretOwner.ForTenant(tenantId);
+                    protector = await SecretProtectorProvider.GetProtectorAsync(
+                        owner,
+                        [],
+                        cancellationToken
+                    );
+                }
 
                 generated = Generate(protector, generation, plan.Now);
             }
 
             await tenantStore.AddSecretAsync(tenantId, generated, cancellationToken);
             secrets[generated.SecretId] = generated;
-            auditEvents.Add(
-                CreateAuditEvent(
-                    tenantId,
-                    generated,
-                    TenantKeyChanges.Generated,
-                    generation.Reason,
-                    plan.Now
-                )
+            var auditEvent = CreateAuditEvent(
+                tenantId,
+                generated,
+                TenantKeyChanges.Generated,
+                generation.Reason,
+                plan.Now
             );
+            auditEvents.Add(auditEvent);
         }
 
         return new TenantKeyRolloverResult
@@ -202,24 +201,22 @@ internal sealed class DefaultTenantKeyRollover(
     )
     {
         var specification = generation.Specification;
-        return await SecretGenerator.GenerateRemoteSecretAsync(
-            new GenerateRemoteSecretRequest
-            {
-                SecretId = CryptoService.GenerateResourceId(),
-                Owner = SecretOwner.ForTenant(tenantId),
-                Provider = provider,
-                SecretType = specification.SecretType,
-                KeySizeBits = specification.KeySizeBits,
-                Curve = specification.Curve,
-                Algorithm = specification.Algorithm,
-                CreatedWhen = now,
-                ActivatesWhen = generation.ActivatesWhen,
-                RetiresWhen = generation.RetiresWhen,
-                ExpiresWhen = generation.ExpiresWhen,
-                ManagedBy = SecretManagers.TenantKeyRollover,
-            },
-            cancellationToken
-        );
+        var request = new GenerateRemoteSecretRequest
+        {
+            SecretId = CryptoService.GenerateResourceId(),
+            Owner = SecretOwner.ForTenant(tenantId),
+            Provider = provider,
+            SecretType = specification.SecretType,
+            KeySizeBits = specification.KeySizeBits,
+            Curve = specification.Curve,
+            Algorithm = specification.Algorithm,
+            CreatedWhen = now,
+            ActivatesWhen = generation.ActivatesWhen,
+            RetiresWhen = generation.RetiresWhen,
+            ExpiresWhen = generation.ExpiresWhen,
+            ManagedBy = SecretManagers.TenantKeyRollover,
+        };
+        return await SecretGenerator.GenerateRemoteSecretAsync(request, cancellationToken);
     }
 
     private PersistedSecret Generate(
@@ -229,28 +226,24 @@ internal sealed class DefaultTenantKeyRollover(
     )
     {
         var specification = generation.Specification;
-        return SecretGenerator
-            .GenerateSecret(
-                protector,
-                new GenerateSecretRequest
-                {
-                    SecretId = CryptoService.GenerateResourceId(),
-                    SecretType = specification.SecretType,
-                    GenerationParameters = new SecretKeyGenerationParameters
-                    {
-                        KeySizeBits = specification.KeySizeBits,
-                        Curve = specification.Curve,
-                    },
-                    Use = specification.Use,
-                    Algorithm = specification.Algorithm,
-                    CreatedWhen = now,
-                    ActivatesWhen = generation.ActivatesWhen,
-                    RetiresWhen = generation.RetiresWhen,
-                    ExpiresWhen = generation.ExpiresWhen,
-                    ManagedBy = SecretManagers.TenantKeyRollover,
-                }
-            )
-            .Secret;
+        var request = new GenerateSecretRequest
+        {
+            SecretId = CryptoService.GenerateResourceId(),
+            SecretType = specification.SecretType,
+            GenerationParameters = new SecretKeyGenerationParameters
+            {
+                KeySizeBits = specification.KeySizeBits,
+                Curve = specification.Curve,
+            },
+            Use = specification.Use,
+            Algorithm = specification.Algorithm,
+            CreatedWhen = now,
+            ActivatesWhen = generation.ActivatesWhen,
+            RetiresWhen = generation.RetiresWhen,
+            ExpiresWhen = generation.ExpiresWhen,
+            ManagedBy = SecretManagers.TenantKeyRollover,
+        };
+        return SecretGenerator.GenerateSecret(protector, request).Secret;
     }
 
     // Only the instants of the lifecycle change; the key's material and identity stay what they are, and the instants

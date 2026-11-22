@@ -314,10 +314,13 @@ internal sealed class TenantKeyRolloverService(
                 await PostCommitWork.RunAsync(
                     TimeProvider,
                     static (state, token) =>
-                        state.Mediator.SendAsync(
-                            new TenantChangedCommand(state.TenantId, SettingsChanged: false),
-                            token
-                        ),
+                    {
+                        var command = new TenantChangedCommand(
+                            state.TenantId,
+                            SettingsChanged: false
+                        );
+                        return state.Mediator.SendAsync(command, token);
+                    },
                     (Mediator: mediator, TenantId: tenantId)
                 );
             }
@@ -375,7 +378,8 @@ internal sealed class TenantKeyRolloverService(
             tenantSettings.Value
         );
 
-        var plan = Planner.Plan(specifications, secrets.Value, settings, TimeProvider.GetUtcNow());
+        var now = TimeProvider.GetUtcNow();
+        var plan = Planner.Plan(specifications, secrets.Value, settings, now);
         if (plan.IsEmpty)
             return null;
 

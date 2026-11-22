@@ -23,12 +23,12 @@ internal class TenantKeyProvisioningOptionsValidator(ITenantKeyPolicy tenantKeyP
 
         var resolution = TenantKeyPolicy.ResolveSpecifications(options.Tenant.KeyProvisioning);
 
-        return resolution.Errors.Count == 0
-            ? ValidateOptionsResult.Success
-            : ValidateOptionsResult.Fail(
-                resolution.Errors.Select(error =>
-                    $"{nameof(OpenIdOptions.Tenant)}:{nameof(OpenIdTenantOptions.KeyProvisioning)}: {error}"
-                )
-            );
+        if (resolution.Errors.Count == 0)
+            return ValidateOptionsResult.Success;
+
+        var messages = resolution.Errors.Select(error =>
+            $"{nameof(OpenIdOptions.Tenant)}:{nameof(OpenIdTenantOptions.KeyProvisioning)}: {error}"
+        );
+        return ValidateOptionsResult.Fail(messages);
     }
 }

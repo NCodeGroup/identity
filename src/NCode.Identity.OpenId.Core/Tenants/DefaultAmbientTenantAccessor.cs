@@ -32,7 +32,8 @@ internal sealed class DefaultAmbientTenantAccessor : IAmbientTenantAccessor
     {
         ArgumentNullException.ThrowIfNull(tenantId);
 
-        return Begin(new AmbientTenantScopeState(tenantId, IsUnscoped: false, Reason: null));
+        var state = new AmbientTenantScopeState(tenantId, IsUnscoped: false, Reason: null);
+        return Begin(state);
     }
 
     /// <inheritdoc />
@@ -40,7 +41,8 @@ internal sealed class DefaultAmbientTenantAccessor : IAmbientTenantAccessor
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
 
-        return Begin(new AmbientTenantScopeState(TenantId: null, IsUnscoped: true, reason));
+        var state = new AmbientTenantScopeState(TenantId: null, IsUnscoped: true, reason);
+        return Begin(state);
     }
 
     /// <summary>

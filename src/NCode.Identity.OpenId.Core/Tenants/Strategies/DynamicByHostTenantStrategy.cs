@@ -88,15 +88,14 @@ internal class DynamicByHostTenantStrategy(
         CancellationToken cancellationToken
     )
     {
-        var failures = new List<TenantValidationFailure>(
-            await base.ValidateTenantAsync(
-                tenantId,
-                issuer,
-                mtlsEndpointAliasAuthority,
-                storeManager,
-                cancellationToken
-            )
+        var baseFailures = await base.ValidateTenantAsync(
+            tenantId,
+            issuer,
+            mtlsEndpointAliasAuthority,
+            storeManager,
+            cancellationToken
         );
+        var failures = new List<TenantValidationFailure>(baseFailures);
 
         if (issuer is not null)
         {
@@ -118,14 +117,13 @@ internal class DynamicByHostTenantStrategy(
                 && string.Equals(aliasHost, issuer.Host, StringComparison.OrdinalIgnoreCase)
             )
             {
-                failures.Add(
-                    new TenantValidationFailure
-                    {
-                        Detail =
-                            $"The mTLS endpoint alias host '{aliasHost}' must differ from the issuer host: the alias "
-                            + "exists to serve the tenant's endpoints on a host of its own.",
-                    }
-                );
+                var aliasHostFailure = new TenantValidationFailure
+                {
+                    Detail =
+                        $"The mTLS endpoint alias host '{aliasHost}' must differ from the issuer host: the alias "
+                        + "exists to serve the tenant's endpoints on a host of its own.",
+                };
+                failures.Add(aliasHostFailure);
             }
             else
             {
@@ -155,14 +153,13 @@ internal class DynamicByHostTenantStrategy(
         var mappedHost = TenantAddressRules.MapToIssuerHost(IssuerHostRegex, host);
         if (!string.Equals(mappedHost, host, StringComparison.OrdinalIgnoreCase))
         {
-            failures.Add(
-                new TenantValidationFailure
-                {
-                    Detail =
-                        $"The {hostKind} '{host}' does not reach the tenant: the configured host pattern maps it to "
-                        + $"'{mappedHost}'.",
-                }
-            );
+            var unmappedHostFailure = new TenantValidationFailure
+            {
+                Detail =
+                    $"The {hostKind} '{host}' does not reach the tenant: the configured host pattern maps it to "
+                    + $"'{mappedHost}'.",
+            };
+            failures.Add(unmappedHostFailure);
         }
 
         // The lookup matches issuer hosts and alias hosts alike, so a host is judged against both kinds at once. It
@@ -175,15 +172,14 @@ internal class DynamicByHostTenantStrategy(
             )
         )
         {
-            failures.Add(
-                new TenantValidationFailure
-                {
-                    Detail =
-                        $"Another tenant already serves the host '{host}', and tenants served by host must each have "
-                        + "hosts of their own.",
-                    IsConflict = true,
-                }
-            );
+            var sharedHostFailure = new TenantValidationFailure
+            {
+                Detail =
+                    $"Another tenant already serves the host '{host}', and tenants served by host must each have "
+                    + "hosts of their own.",
+                IsConflict = true,
+            };
+            failures.Add(sharedHostFailure);
         }
     }
 

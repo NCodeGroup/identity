@@ -50,7 +50,8 @@ internal sealed class DefaultTenantEnvironmentCatalog(
     {
         ArgumentNullException.ThrowIfNull(settings);
 
-        return GetRequiredType(settings.GetValue(OpenIdSettingKeys.EnvironmentType));
+        var environmentType = settings.GetValue(OpenIdSettingKeys.EnvironmentType);
+        return GetRequiredType(environmentType);
     }
 
     /// <inheritdoc />

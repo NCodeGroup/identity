@@ -42,11 +42,13 @@ internal class TenantKeyProviderSettingDescriptorDataSource(
             // tenant's keys.
             // Empty by default, which keeps them in the server's store; a platform or team document carries the
             // value to its tenants. Override (Replace): a child fully replaces the parent value.
+            var oneOfProviders = SettingRules.OneOf(providerNames);
+            var providerRule = SettingRules.EmptyOr(oneOfProviders);
             yield return new SettingDescriptor<string>
             {
                 Name = OpenIdSettingNames.TenantKeyProvider,
                 AppliesTo = [OpenIdSettingScopes.Tenant],
-                Rule = SettingRules.EmptyOr(SettingRules.OneOf(providerNames)),
+                Rule = providerRule,
                 Default = string.Empty,
 
                 IsDiscoverable = false,

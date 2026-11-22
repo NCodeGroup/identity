@@ -66,23 +66,21 @@ internal class DefaultOpenIdTenantCache(
             )
         )
         {
-            RevisionsByTenantId.TryRemove(
-                new KeyValuePair<string, (object Entry, string ConcurrencyToken)>(
-                    tenantId,
-                    (entry, concurrencyToken)
-                )
+            var tenantItem = new KeyValuePair<string, (object Entry, string ConcurrencyToken)>(
+                tenantId,
+                (entry, concurrencyToken)
             );
+            RevisionsByTenantId.TryRemove(tenantItem);
 
             foreach (var revision in lineage)
             {
                 if (TenantIdsByTeam.TryGetValue(revision.TeamId, out var tenantIds))
                 {
-                    tenantIds.TryRemove(
-                        new KeyValuePair<string, (object Entry, string TeamConcurrencyToken)>(
-                            tenantId,
-                            (entry, revision.ConcurrencyToken)
-                        )
-                    );
+                    var teamItem = new KeyValuePair<
+                        string,
+                        (object Entry, string TeamConcurrencyToken)
+                    >(tenantId, (entry, revision.ConcurrencyToken));
+                    tenantIds.TryRemove(teamItem);
                 }
             }
         }
@@ -179,7 +177,8 @@ internal class DefaultOpenIdTenantCache(
     )
     {
         // The eviction callback releases the cache's reference; a lease already handed out keeps the tenant alive.
-        MemoryCache.Remove(GetCacheKey(tenantId));
+        var cacheKey = GetCacheKey(tenantId);
+        MemoryCache.Remove(cacheKey);
 
         return ValueTask.CompletedTask;
     }

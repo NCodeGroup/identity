@@ -76,15 +76,16 @@ internal class DefaultTenantKeyPolicy(
         // See ADR-1389, ADR-1392 and ADR-1398: two curves can share a key size, so the key is generated on the
         // configured curve, or on the one curve the algorithm accepts that has the configured size, never on whichever
         // curve the key type picks for the size; a size two of the algorithm's curves share is refused.
+        var generationDeclaration = new KeyGenerationDeclaration
+        {
+            KeyClrType = descriptor.KeyClrType,
+            KeySizeBits = key.KeySizeBits,
+            Curve = key.Curve,
+            Algorithm = algorithmCode,
+        };
         if (
             !collection.TryResolveKeyGeneration(
-                new KeyGenerationDeclaration
-                {
-                    KeyClrType = descriptor.KeyClrType,
-                    KeySizeBits = key.KeySizeBits,
-                    Curve = key.Curve,
-                    Algorithm = algorithmCode,
-                },
+                generationDeclaration,
                 out var resolved,
                 out var resolutionError
             )
@@ -94,13 +95,12 @@ internal class DefaultTenantKeyPolicy(
             return false;
         }
 
-        var generationError = descriptor.ValidateGeneration(
-            new SecretKeyGenerationParameters
-            {
-                KeySizeBits = resolved.KeySizeBits,
-                Curve = resolved.Curve,
-            }
-        );
+        var generationParameters = new SecretKeyGenerationParameters
+        {
+            KeySizeBits = resolved.KeySizeBits,
+            Curve = resolved.Curve,
+        };
+        var generationError = descriptor.ValidateGeneration(generationParameters);
         if (generationError is not null)
         {
             error =
@@ -170,14 +170,13 @@ internal class DefaultTenantKeyPolicy(
             ISecretKeyTypeDescriptor Descriptor
         )> keyTypes,
         Func<AlgorithmKeyType, string> formatAccepted
-    ) =>
-        string.Join(
-            "; ",
-            keyTypes.Select(keyType =>
-                formatAccepted(keyType.AlgorithmKeyType)
-                + $" for '{keyType.Descriptor.KeyType}' keys"
-            )
+    )
+    {
+        var acceptedKeys = keyTypes.Select(keyType =>
+            formatAccepted(keyType.AlgorithmKeyType) + $" for '{keyType.Descriptor.KeyType}' keys"
         );
+        return string.Join("; ", acceptedKeys);
+    }
 
     // The curves a key type accepts, each with its size, or no curve for a key type without curves, which a
     // configured curve never fits.
@@ -186,16 +185,22 @@ internal class DefaultTenantKeyPolicy(
 
     // The curves a key type accepts, each with its size, which a configured size selects among, or the sizes of a key
     // type without curves.
-    private static string FormatAcceptedSizes(AlgorithmKeyType algorithmKeyType) =>
-        algorithmKeyType.Curves.Count > 0
-            ? FormatCurves(algorithmKeyType)
-            : string.Join(", ", algorithmKeyType.KeyBitSizes.Select(FormatKeySizes));
+    private static string FormatAcceptedSizes(AlgorithmKeyType algorithmKeyType)
+    {
+        if (algorithmKeyType.Curves.Count > 0)
+            return FormatCurves(algorithmKeyType);
 
-    private static string FormatCurves(AlgorithmKeyType algorithmKeyType) =>
-        string.Join(
-            ", ",
-            algorithmKeyType.Curves.Select(curve => $"'{curve.Name}' ({curve.KeySizeBits} bits)")
+        var keySizes = algorithmKeyType.KeyBitSizes.Select(FormatKeySizes);
+        return string.Join(", ", keySizes);
+    }
+
+    private static string FormatCurves(AlgorithmKeyType algorithmKeyType)
+    {
+        var curves = algorithmKeyType.Curves.Select(curve =>
+            $"'{curve.Name}' ({curve.KeySizeBits} bits)"
         );
+        return string.Join(", ", curves);
+    }
 
     private static string FormatKeySizes(KeySizes keySizes) =>
         keySizes.MinSize == keySizes.MaxSize ? $"{keySizes.MinSize} bits"
@@ -362,13 +367,14 @@ internal class DefaultTenantKeyPolicy(
             return false;
         }
 
+        var declaration = new KeyAlgorithmDeclaration
+        {
+            Key = publicKey,
+            Use = secret.Use,
+            Algorithm = specification.Algorithm,
+        };
         var declarationError = AlgorithmCollectionProvider.Collection.ValidateKeyAlgorithm(
-            new KeyAlgorithmDeclaration
-            {
-                Key = publicKey,
-                Use = secret.Use,
-                Algorithm = specification.Algorithm,
-            }
+            declaration
         );
         return declarationError is null;
     }
@@ -456,26 +462,26 @@ internal class DefaultTenantKeyPolicy(
         {
             if (!SecretKeyTypeCatalog.TryGet(secretType, out var descriptor))
             {
+                var registeredKeyTypes = SecretKeyTypeCatalog.Descriptors.Select(candidate =>
+                    candidate.KeyType
+                );
                 error =
                     $"The secret type '{secretType}' is not a registered secret key type; expected "
-                    + FormatList(
-                        SecretKeyTypeCatalog.Descriptors.Select(candidate => candidate.KeyType)
-                    )
+                    + FormatList(registeredKeyTypes)
                     + ".";
                 return false;
             }
 
             if (!algorithm.TryGetKeyType(descriptor.KeyClrType, out _))
             {
+                var acceptedKeyTypes = SecretKeyTypeCatalog
+                    .Descriptors.Where(candidate =>
+                        algorithm.TryGetKeyType(candidate.KeyClrType, out _)
+                    )
+                    .Select(candidate => candidate.KeyType);
                 error =
                     $"The algorithm '{algorithmCode}' does not accept '{secretType}' keys; expected "
-                    + FormatList(
-                        SecretKeyTypeCatalog
-                            .Descriptors.Where(candidate =>
-                                algorithm.TryGetKeyType(candidate.KeyClrType, out _)
-                            )
-                            .Select(candidate => candidate.KeyType)
-                    )
+                    + FormatList(acceptedKeyTypes)
                     + ".";
                 return false;
             }
