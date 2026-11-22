@@ -18,6 +18,7 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     EventId = table.Column<Guid>(type: "uuid", nullable: false),
                     EventTime = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    StoredTime = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     EventName = table.Column<string>(type: "character varying(100)", unicode: false, maxLength: 100, nullable: false),
                     EventCategory = table.Column<string>(type: "character varying(100)", unicode: false, maxLength: 100, nullable: false),
                     Outcome = table.Column<string>(type: "character varying(100)", unicode: false, maxLength: 100, nullable: false),
@@ -320,6 +321,31 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 });
 
             migrationBuilder.CreateTable(
+                name: "AuditStreams",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
+                    NormalizedTenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
+                    StreamId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
+                    DisplayName = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
+                    Endpoint = table.Column<string>(type: "character varying(1000)", unicode: false, maxLength: 1000, nullable: false),
+                    IsEnabled = table.Column<bool>(type: "boolean", nullable: false),
+                    CreatedTime = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    ConcurrencyToken = table.Column<string>(type: "character varying(50)", unicode: false, maxLength: 50, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AuditStreams", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_AuditStreams_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "FederatedPrincipals",
                 columns: table => new
                 {
@@ -454,6 +480,73 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_TenantSecrets_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AuditStreamSigningSecrets",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
+                    NormalizedTenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
+                    AuditStreamId = table.Column<Guid>(type: "uuid", nullable: false),
+                    SecretId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
+                    ProtectedValue = table.Column<string>(type: "character varying(8000)", unicode: false, maxLength: 8000, nullable: false),
+                    CreatedTime = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    ExpiryTime = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    ConcurrencyToken = table.Column<string>(type: "character varying(50)", unicode: false, maxLength: 50, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AuditStreamSigningSecrets", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_AuditStreamSigningSecrets_AuditStreams_AuditStreamId",
+                        column: x => x.AuditStreamId,
+                        principalTable: "AuditStreams",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AuditStreamSigningSecrets_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AuditStreamStates",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
+                    NormalizedTenantId = table.Column<string>(type: "character varying(300)", unicode: false, maxLength: 300, nullable: false),
+                    AuditStreamId = table.Column<Guid>(type: "uuid", nullable: false),
+                    PositionStoredTime = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    PositionEventId = table.Column<Guid>(type: "uuid", nullable: false),
+                    NextAttemptTime = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    ConsecutiveFailures = table.Column<int>(type: "integer", nullable: false),
+                    LastDeliveryTime = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    LastFailureTime = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    LastError = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    LeaseHolder = table.Column<string>(type: "character varying(64)", unicode: false, maxLength: 64, nullable: true),
+                    LeaseExpiryTime = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    ConcurrencyToken = table.Column<string>(type: "character varying(50)", unicode: false, maxLength: 50, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AuditStreamStates", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_AuditStreamStates_AuditStreams_AuditStreamId",
+                        column: x => x.AuditStreamId,
+                        principalTable: "AuditStreams",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AuditStreamStates_Tenants_TenantId",
                         column: x => x.TenantId,
                         principalTable: "Tenants",
                         principalColumn: "Id",
@@ -818,9 +911,47 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 columns: new[] { "TenantId", "EventTime", "Id" });
 
             migrationBuilder.CreateIndex(
+                name: "IX_AuditRecords_TenantId_StoredTime_EventId",
+                table: "AuditRecords",
+                columns: new[] { "TenantId", "StoredTime", "EventId" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_AuditRecords_TraceId",
                 table: "AuditRecords",
                 column: "TraceId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AuditStreams_TenantId_StreamId",
+                table: "AuditStreams",
+                columns: new[] { "TenantId", "StreamId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AuditStreamSigningSecrets_AuditStreamId_SecretId",
+                table: "AuditStreamSigningSecrets",
+                columns: new[] { "AuditStreamId", "SecretId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AuditStreamSigningSecrets_TenantId",
+                table: "AuditStreamSigningSecrets",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AuditStreamStates_AuditStreamId",
+                table: "AuditStreamStates",
+                column: "AuditStreamId",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AuditStreamStates_NextAttemptTime",
+                table: "AuditStreamStates",
+                column: "NextAttemptTime");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AuditStreamStates_TenantId",
+                table: "AuditStreamStates",
+                column: "TenantId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_ClientGrants_ClientId",
@@ -1228,6 +1359,12 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 name: "AuditRecordResources");
 
             migrationBuilder.DropTable(
+                name: "AuditStreamSigningSecrets");
+
+            migrationBuilder.DropTable(
+                name: "AuditStreamStates");
+
+            migrationBuilder.DropTable(
                 name: "ClientGrants");
 
             migrationBuilder.DropTable(
@@ -1289,6 +1426,9 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
 
             migrationBuilder.DropTable(
                 name: "AuditRecords");
+
+            migrationBuilder.DropTable(
+                name: "AuditStreams");
 
             migrationBuilder.DropTable(
                 name: "FederatedPrincipals");
