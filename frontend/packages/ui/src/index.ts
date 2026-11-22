@@ -33,7 +33,12 @@ export {
 } from './components/TenantEnvironmentFilter.js';
 export { ClientTable, type ClientRow, type ClientTableProps } from './components/ClientTable.js';
 export { TeamTable, type TeamRow, type TeamTableProps } from './components/TeamTable.js';
-export { GrantTable, type GrantRow, type GrantTableProps } from './components/GrantTable.js';
+export {
+  LocalAccountTable,
+  type LocalAccountRow,
+  type LocalAccountTableProps,
+} from './components/LocalAccountTable.js';
+export { GrantTable,type GrantRow, type GrantTableProps } from './components/GrantTable.js';
 export {
   ResourceServerTable,
   type ResourceServerRow,
