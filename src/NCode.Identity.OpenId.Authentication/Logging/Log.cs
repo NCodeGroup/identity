@@ -755,7 +755,7 @@ internal static partial class Log
     [LoggerMessage(
         EventId = EventIds.AuditStreamStateConflict,
         Level = LogLevel.Information,
-        Message = "Audit stream {StreamId} of tenant {TenantId} changed while it was delivered; its last batch will be sent again."
+        Message = "Audit stream {StreamId} of tenant {TenantId} lost its lease or was removed while it was delivered; this replica stops delivering it."
     )]
     internal static partial void AuditStreamStateConflict(
         this ILogger logger,
@@ -770,4 +770,17 @@ internal static partial class Log
         Message = "Audit streams could not be delivered; delivery runs again at the next interval."
     )]
     internal static partial void AuditStreamPollFailed(this ILogger logger, Exception exception);
+
+    // See ADR-1534.
+    [LoggerMessage(
+        EventId = EventIds.AuditStreamDeliveryErrored,
+        Level = LogLevel.Error,
+        Message = "Audit stream {StreamId} of tenant {TenantId} could not be delivered; it is attempted again after its retry delay."
+    )]
+    internal static partial void AuditStreamDeliveryErrored(
+        this ILogger logger,
+        string streamId,
+        string tenantId,
+        Exception exception
+    );
 }

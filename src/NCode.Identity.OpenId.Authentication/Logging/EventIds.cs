@@ -89,7 +89,24 @@ internal static class EventIds
     public const int SectorIdentifierUriFetchFailed = Base + 76;
     public const int BackChannelLogoutDeliveryFailed = Base + 77;
     public const int CibaDeliveryFailed = Base + 78;
+
+    /// <summary>
+    /// Identifies the warning that an audit stream's endpoint refused a delivery or could not be reached.
+    /// </summary>
     public const int AuditStreamDeliveryFailed = Base + 79;
+
+    /// <summary>
+    /// Identifies the information that an audit stream lost its lease or was removed while it was delivered.
+    /// </summary>
     public const int AuditStreamStateConflict = Base + 80;
+
+    /// <summary>
+    /// Identifies the error that the audit streams due could not be read.
+    /// </summary>
     public const int AuditStreamPollFailed = Base + 81;
+
+    /// <summary>
+    /// Identifies the error that an audit stream's delivery failed for a reason other than its endpoint.
+    /// </summary>
+    public const int AuditStreamDeliveryErrored = Base + 82;
 }

@@ -647,9 +647,10 @@ batch again. A delivery is therefore at least once, and a receiver deduplicates 
 **Retries and status.** Any other status, a refused connection or a timeout keeps the position, and the stream attempts
 again after `StreamRetryDelay`, which doubles with each failure in a row up to `StreamMaxRetryDelay`. The stream's
 `delivery` member reports `lastDeliveryTime`, `lastFailureTime`, `lastError` (`http_<status>`, `request_failed`,
-`timeout` or `no_signing_secret`), `consecutiveFailures` and `nextAttemptTime`. A stream that is disabled delivers
-nothing and resumes from its position when it is enabled. A stream that falls behind by more than the retention loses
-the records the prune removes.
+`timeout`, `no_signing_secret`, `signing_secret_unavailable` or `delivery_error`), `consecutiveFailures` and
+`nextAttemptTime`. A failure of one stream's delivery never stops the others, and a replica that stops releases the
+streams it holds. A stream that is disabled delivers nothing and resumes from its position when it is enabled. A stream
+that falls behind by more than the retention loses the records the prune removes.
 
 **Rotating the secret.** `POST api/tenants/{tenantId}/audit-streams/{streamId}/signing-secrets` returns a new secret in
 a `201` response, shown once as `signingSecret`. The previous secrets keep signing for 24 hours beside it, so a receiver

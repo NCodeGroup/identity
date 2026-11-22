@@ -57,13 +57,16 @@ once the endpoint accepts them.**
    `{id}.{timestamp}.{body}` per active secret, separated by spaces. A secret is 32 random bytes shown once, as `whsec_`
    + base64, when the stream is created and when its secret rotates. A rotated secret keeps signing beside its successor
    for 24 hours. Each secret is stored protected under the tenant's master key and rewrapped with it.
-6. **Failures.** Any answer but `2xx`, a timeout or a refused connection keeps the position, and the next attempt waits
-   `StreamRetryDelay` × 2^(failures − 1), at most `StreamMaxRetryDelay` (10 seconds, 1 hour). The resource reports the
-   last delivery, the last failure and its code, the consecutive failures and the next attempt. A stream that falls
-   behind by more than the retention loses what the prune removes.
+6. **Failures.** Any answer but `2xx`, a timeout or a refused connection keeps the position, and so does a failure of
+   any other kind: a signing secret that cannot be unprotected is recorded as `signing_secret_unavailable`, and any
+   other failure of the delivery as `delivery_error`. The next attempt waits `StreamRetryDelay` × 2^(failures − 1), at
+   most `StreamMaxRetryDelay` (10 seconds, 1 hour). The resource reports the last delivery, the last failure and its
+   code, the consecutive failures and the next attempt. A stream that falls behind by more than the retention loses what
+   the prune removes. A failure is that stream's alone: it is logged with the stream and the tenant, and the next due
+   stream is still delivered.
 7. **The lease.** A stream's state row holds its lease holder and expiry (`StreamLeaseDuration`, 2 minutes), claimed
    with optimistic concurrency, so one replica sends a stream at a time and its order holds. A lease whose replica stops
-   expires.
+   expires, and a replica that stops releases the leases it holds, on a token of its own bounded by 10 seconds.
 8. **Telemetry.** As
    [ADR-1197](1197-telemetry-has-one-owner-per-signal-bounded-attributes-and-spans-that-mirror-their-histograms.md)
    requires: `ncode.identity.audit_stream.deliveries` by `ncode.identity.audit_stream.result` (`delivered`, `failed`)

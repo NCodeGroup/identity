@@ -16,8 +16,8 @@ namespace NCode.Identity.OpenId.Authentication.Auditing.Streams;
 /// Delivers the audit records of every tenant's audit streams every
 /// <see cref="AuditRecordOptions.StreamPollInterval"/>. Each poll reads the streams whose delivery is due, and for each
 /// one in turn takes its lease in a unit of work of its own, so that only one replica delivers a stream, just before
-/// handing the stream to the <see cref="IAuditStreamDeliverer"/>. A poll that fails is logged and run again at the next
-/// interval.
+/// handing the stream to the <see cref="IAuditStreamDeliverer"/>. A stream whose claim or delivery fails is logged and
+/// the poll goes on with the next one. A poll that fails is logged and run again at the next interval.
 /// </summary>
 // See ADR-1534.
 internal sealed class AuditStreamDeliveryService(
@@ -84,14 +84,29 @@ internal sealed class AuditStreamDeliveryService(
             // Each lease is taken just before its delivery, so a stream late in the list has its whole lease.
             foreach (var state in due)
             {
-                if (await TryClaimAsync(state, cancellationToken))
+                try
                 {
-                    await Deliverer.DeliverAsync(state, cancellationToken);
+                    if (await TryClaimAsync(state, cancellationToken))
+                    {
+                        await Deliverer.DeliverAsync(state, cancellationToken);
+                    }
+                }
+                catch (Exception exception)
+                    when (exception is not OperationCanceledException
+                        || !cancellationToken.IsCancellationRequested
+                    )
+                {
+                    // One stream's failure never stops the streams after it.
+                    Logger.AuditStreamDeliveryErrored(state.StreamId, state.TenantId, exception);
                 }
             }
         }
-        // A timeout throws OperationCanceledException with the token untouched; only a cancelled token is shutdown.
-        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        // A timeout throws OperationCanceledException with the token untouched; only a cancelled token is shutdown, and
+        // a failure while stopping is still logged.
+        catch (Exception exception)
+            when (exception is not OperationCanceledException
+                || !cancellationToken.IsCancellationRequested
+            )
         {
             Logger.AuditStreamPollFailed(exception);
         }

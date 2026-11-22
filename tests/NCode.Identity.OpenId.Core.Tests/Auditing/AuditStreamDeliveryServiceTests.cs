@@ -250,6 +250,90 @@ public sealed class AuditStreamDeliveryServiceTests : BaseTests
     }
 
     [Fact]
+    public async Task PollAsync_WhenOneStreamFails_DeliversTheStreamsAfterIt()
+    {
+        var cancellationToken = CancellationToken.None;
+        var first = CreateState("stream-1");
+        var second = CreateState("stream-2");
+        var failure = new InvalidOperationException("unreachable");
+        SetupStores();
+        SetupDue([first, second], cancellationToken);
+        MockAuditStreamStore
+            .Setup(x =>
+                x.UpdateStateAsync(It.IsAny<PersistedAuditStreamState>(), cancellationToken)
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Exactly(2));
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(cancellationToken))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Exactly(2));
+        MockDeliverer
+            .Setup(x => x.DeliverAsync(first, cancellationToken))
+            .ThrowsAsync(failure)
+            .Verifiable(Times.Once);
+        MockDeliverer
+            .Setup(x => x.DeliverAsync(second, cancellationToken))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
+
+        await Service.PollAsync(cancellationToken);
+
+        var logged = Assert.Single(
+            Logger.Collector.GetSnapshot(),
+            record => record.Id.Id == EventIds.AuditStreamDeliveryErrored
+        );
+        Assert.Equal(LogLevel.Error, logged.Level);
+        Assert.Equal("stream-1", logged.GetStructuredStateValue("StreamId"));
+        Assert.Equal("tenant-1", logged.GetStructuredStateValue("TenantId"));
+        Assert.Same(failure, logged.Exception);
+        Assert.DoesNotContain(
+            Logger.Collector.GetSnapshot(),
+            record => record.Id.Id == EventIds.AuditStreamPollFailed
+        );
+    }
+
+    [Fact]
+    public async Task PollAsync_WhenAClaimFails_LogsTheStreamAndContinues()
+    {
+        var cancellationToken = CancellationToken.None;
+        var first = CreateState("stream-1");
+        var second = CreateState("stream-2");
+        var failure = new InvalidOperationException("unreachable");
+        SetupStores();
+        SetupDue([first, second], cancellationToken);
+        MockAuditStreamStore
+            .Setup(x => x.UpdateStateAsync(first, cancellationToken))
+            .ThrowsAsync(failure)
+            .Verifiable(Times.Once);
+        MockAuditStreamStore
+            .Setup(x => x.UpdateStateAsync(second, cancellationToken))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(cancellationToken))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
+        MockDeliverer
+            .Setup(x => x.DeliverAsync(first, cancellationToken))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Never);
+        MockDeliverer
+            .Setup(x => x.DeliverAsync(second, cancellationToken))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Once);
+
+        await Service.PollAsync(cancellationToken);
+
+        var logged = Assert.Single(
+            Logger.Collector.GetSnapshot(),
+            record => record.Id.Id == EventIds.AuditStreamDeliveryErrored
+        );
+        Assert.Equal("stream-1", logged.GetStructuredStateValue("StreamId"));
+        Assert.Same(failure, logged.Exception);
+    }
+
+    [Fact]
     public async Task PollAsync_WhenTheStoreFails_LogsAndReturns()
     {
         var cancellationToken = CancellationToken.None;

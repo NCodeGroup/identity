@@ -4,6 +4,7 @@
 using System.Diagnostics.Metrics;
 using System.Globalization;
 using System.Net;
+using System.Security.Cryptography;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.Metrics.Testing;
 using Microsoft.Extensions.Logging.Testing;
@@ -131,6 +132,13 @@ public sealed class DefaultAuditStreamDelivererTests : BaseTests
             Responses.Enqueue(() => new HttpResponseMessage(statusCode));
 
         public void EnqueueFailure(Exception exception) => Responses.Enqueue(() => throw exception);
+
+        public void EnqueueCancellation(CancellationTokenSource source) =>
+            Responses.Enqueue(() =>
+            {
+                source.Cancel();
+                throw new OperationCanceledException(source.Token);
+            });
 
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
@@ -341,20 +349,25 @@ public sealed class DefaultAuditStreamDelivererTests : BaseTests
             Limit = RecordOptions.StreamBatchSize,
         };
 
+    private void SetupRecordStore()
+    {
+        if (RecordStoreIsSetUp)
+            return;
+
+        RecordStoreIsSetUp = true;
+        MockStoreManager
+            .Setup(x => x.GetStore<IAuditRecordStore>())
+            .Returns(MockRecordStore.Object)
+            .Verifiable(Times.AtLeastOnce);
+    }
+
     private void SetupPage(
         DateTimeOffset afterStoredTime,
         Guid afterEventId,
         AuditRecordStreamPage page
     )
     {
-        if (!RecordStoreIsSetUp)
-        {
-            RecordStoreIsSetUp = true;
-            MockStoreManager
-                .Setup(x => x.GetStore<IAuditRecordStore>())
-                .Returns(MockRecordStore.Object)
-                .Verifiable(Times.AtLeastOnce);
-        }
+        SetupRecordStore();
 
         MockRecordStore
             .Setup(x =>
@@ -364,6 +377,25 @@ public sealed class DefaultAuditStreamDelivererTests : BaseTests
                 )
             )
             .ReturnsAsync(page)
+            .Verifiable();
+    }
+
+    private void SetupPageFailure(
+        DateTimeOffset afterStoredTime,
+        Guid afterEventId,
+        Exception exception
+    )
+    {
+        SetupRecordStore();
+
+        MockRecordStore
+            .Setup(x =>
+                x.GetStreamPageAsync(
+                    CreateRequest(afterStoredTime, afterEventId),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ThrowsAsync(exception)
             .Verifiable();
     }
 
@@ -559,6 +591,91 @@ public sealed class DefaultAuditStreamDelivererTests : BaseTests
 
         Assert.Empty(Handler.Requests);
         Assert.Equal("no_signing_secret", Stored.LastError);
+    }
+
+    [Fact]
+    public async Task DeliverAsync_WhenTheSigningSecretsCannotBeUnprotected_RecordsTheFailureAndReleasesTheLease()
+    {
+        var position = Stored.PositionStoredTime;
+        var failure = new CryptographicException("The master key cannot unwrap the secret.");
+        SetupScope();
+        SetupStores(updates: 1);
+        MockSecretProtectorProvider
+            .Setup(x =>
+                x.GetProtectorAsync(
+                    SecretOwner.ForTenant(TenantId),
+                    It.IsAny<IReadOnlyCollection<string>>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Throws(failure)
+            .Verifiable();
+
+        await Deliverer.DeliverAsync(Copy(Stored), CancellationToken.None);
+
+        Assert.Empty(Handler.Requests);
+        Assert.Equal(position, Stored.PositionStoredTime);
+        Assert.Equal(1, Stored.ConsecutiveFailures);
+        Assert.Equal("signing_secret_unavailable", Stored.LastError);
+        Assert.Equal(Now, Stored.LastFailureTime);
+        Assert.Equal(Now + RecordOptions.StreamRetryDelay, Stored.NextAttemptTime);
+        Assert.Null(Stored.LeaseHolder);
+        Assert.Null(Stored.LeaseExpiryTime);
+        var logged = Assert.Single(
+            Logger.Collector.GetSnapshot(),
+            record => record.Id.Id == EventIds.AuditStreamDeliveryErrored
+        );
+        Assert.Equal(StreamId, logged.GetStructuredStateValue("StreamId"));
+        Assert.Same(failure, logged.Exception);
+    }
+
+    [Fact]
+    public async Task DeliverAsync_WhenTheStoreFailsMidDelivery_RecordsADeliveryError()
+    {
+        var position = Stored.PositionStoredTime;
+        SetupScope();
+        SetupStores(updates: 1);
+        SetupProtector();
+        SetupPageFailure(position, Guid.Empty, new InvalidOperationException("unreachable"));
+
+        await Deliverer.DeliverAsync(Copy(Stored), CancellationToken.None);
+
+        Assert.Empty(Handler.Requests);
+        Assert.Equal(position, Stored.PositionStoredTime);
+        Assert.Equal(1, Stored.ConsecutiveFailures);
+        Assert.Equal("delivery_error", Stored.LastError);
+        Assert.Equal(Now + RecordOptions.StreamRetryDelay, Stored.NextAttemptTime);
+        Assert.Null(Stored.LeaseHolder);
+        Assert.Single(
+            Logger.Collector.GetSnapshot(),
+            record => record.Id.Id == EventIds.AuditStreamDeliveryErrored
+        );
+    }
+
+    [Fact]
+    public async Task DeliverAsync_WhenTheHostStops_ReleasesTheLeaseAndRethrows()
+    {
+        var position = Stored.PositionStoredTime;
+        using var cancellationSource = new CancellationTokenSource();
+        SetupScope();
+        SetupStores(updates: 1);
+        SetupProtector();
+        SetupHttpClient();
+        SetupPage(
+            position,
+            Guid.Empty,
+            CreatePage(Now.AddMinutes(-5), CreateRecord(Guid.CreateVersion7()))
+        );
+        Handler.EnqueueCancellation(cancellationSource);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            Deliverer.DeliverAsync(Copy(Stored), cancellationSource.Token).AsTask()
+        );
+
+        Assert.Equal(position, Stored.PositionStoredTime);
+        Assert.Equal(0, Stored.ConsecutiveFailures);
+        Assert.Null(Stored.LeaseHolder);
+        Assert.Null(Stored.LeaseExpiryTime);
     }
 
     [Fact]

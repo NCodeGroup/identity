@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
@@ -54,6 +55,16 @@ internal sealed class DefaultAuditStreamDeliverer(
     /// </summary>
     internal const string TimeoutError = "timeout";
 
+    /// <summary>
+    /// The error of a delivery whose signing secrets could not be unprotected.
+    /// </summary>
+    internal const string SigningSecretUnavailableError = "signing_secret_unavailable";
+
+    /// <summary>
+    /// The error of a delivery that failed for a reason other than its endpoint.
+    /// </summary>
+    internal const string DeliveryError = "delivery_error";
+
     private const string WebhookIdHeader = "webhook-id";
 
     private const string WebhookTimestampHeader = "webhook-timestamp";
@@ -61,6 +72,11 @@ internal sealed class DefaultAuditStreamDeliverer(
     private const string WebhookSignatureHeader = "webhook-signature";
 
     private const string JsonContentType = "application/json";
+
+    /// <summary>
+    /// Gets how long a stopping replica may take to release the lease of the stream it was delivering.
+    /// </summary>
+    private static TimeSpan LeaseReleaseTimeout { get; } = TimeSpan.FromSeconds(10);
 
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
 
@@ -101,35 +117,109 @@ internal sealed class DefaultAuditStreamDeliverer(
             return;
         }
 
-        var secrets = await UnprotectCurrentSecretsAsync(stream, cancellationToken);
         try
         {
-            var leaseDeadline = GetLeaseDeadline(state);
-            var outcome = await DeliverBatchesAsync(
-                state,
-                stream,
-                current,
-                secrets,
-                leaseDeadline,
-                cancellationToken
-            );
-
-            // The replica lost the lease, so it has nothing to release.
-            if (!outcome.HoldsLease)
-                return;
-
-            await TrySaveStateAsync(
-                state,
-                saved => FinishDelivery(saved, outcome.Error),
-                cancellationToken
-            );
-        }
-        finally
-        {
-            foreach (var secret in secrets)
+            List<byte[]> secrets;
+            try
             {
-                CryptographicOperations.ZeroMemory(secret);
+                secrets = await UnprotectCurrentSecretsAsync(stream, cancellationToken);
             }
+            catch (Exception exception)
+                when (exception is not OperationCanceledException
+                    || !cancellationToken.IsCancellationRequested
+                )
+            {
+                await RecordFailureAsync(
+                    state,
+                    SigningSecretUnavailableError,
+                    exception,
+                    cancellationToken
+                );
+                return;
+            }
+
+            try
+            {
+                var leaseDeadline = GetLeaseDeadline(state);
+                var outcome = await DeliverBatchesAsync(
+                    state,
+                    stream,
+                    current,
+                    secrets,
+                    leaseDeadline,
+                    cancellationToken
+                );
+
+                // The replica lost the lease, so it has nothing to release.
+                if (!outcome.HoldsLease)
+                    return;
+
+                await TrySaveStateAsync(
+                    state,
+                    saved => FinishDelivery(saved, outcome.Error),
+                    cancellationToken
+                );
+            }
+            finally
+            {
+                foreach (var secret in secrets)
+                {
+                    CryptographicOperations.ZeroMemory(secret);
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // The host is stopping, so the lease is released for the replica that delivers the stream next.
+            await ReleaseOnStopAsync(state);
+            throw;
+        }
+        catch (Exception exception)
+            when (exception is not OperationCanceledException
+                || !cancellationToken.IsCancellationRequested
+            )
+        {
+            await RecordFailureAsync(state, DeliveryError, exception, cancellationToken);
+        }
+    }
+
+    // Counts and logs a failure of this stream's delivery, then backs the stream off like a refused delivery.
+    private async ValueTask RecordFailureAsync(
+        PersistedAuditStreamState state,
+        string error,
+        Exception exception,
+        CancellationToken cancellationToken
+    )
+    {
+        Metrics.AuditStreamFailed();
+        Logger.AuditStreamDeliveryErrored(state.StreamId, state.TenantId, exception);
+        await TrySaveStateAsync(state, saved => FinishDelivery(saved, error), cancellationToken);
+    }
+
+    /// <summary>
+    /// Releases the lease of a stream whose delivery the stopping host cancelled, in a unit of work of its own bounded
+    /// by <see cref="LeaseReleaseTimeout"/>. A failure to release is logged and not thrown, so that the cancellation of
+    /// the host is what propagates.
+    /// </summary>
+    /// <param name="state">The state of the stream whose lease this replica holds.</param>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
+    // The stop's own cancellation reaches the host's token but not the release, which runs on a bounded token of its
+    // own, so a replica that stops hands its lease back instead of leaving it to expire. See ADR-1534 and ADR-1496.
+    [SuppressMessage(
+        "Design",
+        "NCID0003",
+        Justification = "The release runs on its own bounded token because the host's token is already cancelled, so no caller can pass a token that drops it (ADR-1534, ADR-1496)."
+    )]
+    private async ValueTask ReleaseOnStopAsync(PersistedAuditStreamState state)
+    {
+        using var releaseSource = new CancellationTokenSource(LeaseReleaseTimeout, TimeProvider);
+        try
+        {
+            await TrySaveStateAsync(state, ReleaseLease, releaseSource.Token);
+        }
+        catch (Exception exception)
+        {
+            Logger.AuditStreamDeliveryErrored(state.StreamId, state.TenantId, exception);
         }
     }
 
