@@ -554,6 +554,16 @@ WHERE r."TenantId" = $1
 ORDER BY r."EventTime";
 ```
 
+## Exporting a tenant's records
+
+The store keeps a record for `OpenId:AuditRecords:Retention` (90 days by default), and the hosted platform keeps that
+default
+([ADR-1527](decisions/1527-the-hosted-platform-keeps-audit-records-for-90-days-and-a-customer-exports-them-through-the-management-api.md)).
+To keep a longer history, page `GET api/tenants/{tenantId}/audit-records?startTime=<from>&endTime=<to>&limit=<n>` as a
+client authorized for the tenant, passing each page's `continuationToken` back as `cursor` until a page has none. Run it
+on a schedule with each window overlapping the last one, and drop the records whose `eventId` you already hold. Each
+item carries the envelope and the whole `record`.
+
 ## Incident runbook
 
 Each entry names when to use it and gives one query. The queries are KQL over the log entries and filter on the category

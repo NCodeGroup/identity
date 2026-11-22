@@ -861,9 +861,10 @@ the stacks and components is [#87](https://github.com/NCodeGroup/identity/issues
   the developer plan runs and on Pro from the first paid plan
   ([ADR-1525](decisions/1525-each-cluster-and-cell-keeps-its-metrics-within-a-series-budget-on-grafana-cloud-free-then-pro.md)).
 - **Audit events**
-  ([ADR-1047](decisions/1047-observation-is-a-fault-isolated-event-seam-that-audit-specializes-and-protocol-errors-reach-once.md)):
-  their retention and customer export are open ([#910](https://github.com/NCodeGroup/identity/issues/910)), and they
-  contain PII.
+  ([ADR-1047](decisions/1047-observation-is-a-fault-isolated-event-seam-that-audit-specializes-and-protocol-errors-reach-once.md))
+  contain personal data: each cell's audit store keeps them 90 days, its logs for the Grafana Cloud plan's log retention
+  and its encrypted backups up to 13 months, and a customer exports its tenants' records through the management API
+  ([ADR-1527](decisions/1527-the-hosted-platform-keeps-audit-records-for-90-days-and-a-customer-exports-them-through-the-management-api.md)).
 - **Cost guardrails:** billing alerts on every vendor, an Azure budget alert, and bandwidth-overage alerts.
 
 **Security hardening:**
