@@ -61,7 +61,8 @@ a retired identifier or issuer is never reissued.**
    leftmost label of a host, so the name works under every built-in strategy, and a path tenant's issuer
    (`https://op.example/acme`) is known before the tenant exists: a tenant is created with its address in one request.
 3. **It is validated wherever it enters:** the management API through the seam below, and the configured identifiers
-   (`TenantResolution:Root:TenantId`, `TenantResolution:StaticSingle:TenantId`) when the host starts.
+   (`TenantResolution:Root:TenantId` under the host and path strategies, `TenantResolution:StaticSingle:TenantId` under
+   the static strategy) when the host starts.
 
 ### One seam judges the address
 
@@ -130,8 +131,8 @@ a retired identifier or issuer is never reissued.**
     directory changes the placement, and the source cell deletes the tenant without retiring its identifiers. Across
     regions a new tenant is created under a new identifier.
 15. **A required tenant cannot be deleted.** `ITenantStrategy.IsRequiredTenant`, which `ITenantResolver` delegates to,
-    names the tenants the deployment needs (the root tenant, the static strategy's tenant), and the management API
-    answers `409` to deleting one, before it checks dependents. A custom strategy names its own.
+    names the tenants the deployment needs (the root tenant, which is the static strategy's tenant under that strategy),
+    and the management API answers `409` to deleting one, before it checks dependents. A custom strategy names its own.
 
 ## Options considered
 

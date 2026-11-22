@@ -40,16 +40,17 @@ stored on the tenant.
    from the base address parsed from it. The request contributes nothing.
 2. Every tenant a strategy serves has a stored issuer. The tenant factory takes the issuer and the base address from it
    alone on every path and fails closed for a stored tenant that has none. The static strategy requires
-   `TenantResolution:StaticSingle:Issuer`; the root tenant it does not serve needs none.
+   `TenantResolution:StaticSingle:Issuer` for its tenant, which is the root tenant, and serves no other.
 3. An issuer is the base address exactly: nothing is appended. A static issuer must end with the tenant path, which a
    startup check enforces, and a mounting path base may precede it. The authority omits the default port.
 4. The tenant route is the protocol group's prefix. `IEndpointGroup.GetPrefix(IServiceProvider)` resolves at map time,
    and `OpenIdEndpointGroup` returns `ITenantResolver.GetTenantRoute()`, for example `/{tenantId}/oauth2/token`. Links
    take the request's route values as ambient values, which never become query parameters.
 5. `ITenantStrategy.GetDefaultIssuerAsync`, exposed by `ITenantResolver`, gives a tenant written without an issuer its
-   default. The answer is `TenantResolution:Root:Issuer` for the root tenant, `StaticSingle:Issuer` for the static
-   strategy, and otherwise `DynamicByHost:IssuerTemplate` or `DynamicByPath:IssuerTemplate`. A template is an RFC 6570
-   level-1 template with one variable, `{tenantId}`, substituted without escaping.
+   default. The answer is `TenantResolution:Root:Issuer` for the root tenant under the host and path strategies,
+   `StaticSingle:Issuer` for the static strategy's tenant, and otherwise `DynamicByHost:IssuerTemplate` or
+   `DynamicByPath:IssuerTemplate`. A template is an RFC 6570 level-1 template with one variable, `{tenantId}`,
+   substituted without escaping.
 6. Every write path, management create and update and `EnsureCreatedAsync`, applies `issuer ??= default` and then
    `ValidateTenantAsync`. Clearing the issuer restores the derived one. The derived issuer is stored, so a change to a
    template never moves a tenant.

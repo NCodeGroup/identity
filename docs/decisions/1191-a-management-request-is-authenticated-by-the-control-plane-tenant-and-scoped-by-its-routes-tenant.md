@@ -54,12 +54,14 @@ are independent: the first is the security domain that issued the caller's token
    `NCode.Identity.OpenId.Client`. A token bound by `cnf.jkt` needs a `DPoP` proof for the request made with that key.
    The remote adapter builds the principal from the token's claims (`sub`, `client_id`, `scope`), and a token it cannot
    validate fails the request; it never falls back to a local decision.
-3. **The strategy names the control-plane tenant.** `ITenantStrategy.GetControlPlaneTenantId` names it from
-   configuration alone, without reading the store, and `ITenantStrategy.ResolveControlPlaneTenantAsync` resolves it.
-   `ITenantResolver` delegates both to the selected strategy. A dynamic strategy (`DynamicByPath`, `DynamicByHost`)
-   answers the root tenant (`OpenId:TenantResolution:Root:TenantId`), creating it on demand like a request that reaches
-   the root tenant's address, and answers `404` when it is disabled. `StaticSingle` answers its own tenant, because it
-   serves no other and no other tenant can issue the caller's token. A custom strategy overrides both members together.
+3. **The strategy names the control-plane tenant.** `ITenantStrategy.GetControlPlaneTenantId` and
+   `GetControlPlaneTenantDisplayName` name it from configuration alone, without reading the store, and
+   `ITenantStrategy.ResolveControlPlaneTenantAsync` resolves it. `ITenantResolver` delegates all three to the selected
+   strategy. A dynamic strategy (`DynamicByPath`, `DynamicByHost`) answers the root tenant
+   (`OpenId:TenantResolution:Root:TenantId`, default `root`), creating it on demand like a request that reaches the root
+   tenant's address, and answers `404` when it is disabled. `StaticSingle` answers its own tenant, which is the root
+   tenant, because it serves no other and no other tenant can issue the caller's token. A custom strategy overrides the
+   three members together.
 4. **The control-plane tenant is materialized like a request's tenant.**
    `IOpenIdTenantFactory.CreateControlPlaneTenantAsync` probes the shared tenant cache with `GetControlPlaneTenantId`
    before any store read and, on a miss, seeds and materializes the tenant as `CreateTenantForRequestAsync` does
@@ -92,7 +94,7 @@ are independent: the first is the security domain that issued the caller's token
   from protocol resolution.
 - **A management option naming the authenticating tenant.** Rejected: the root tenant's identifier is already
   configuration, and under `StaticSingle` a tenant other than the served one cannot issue a token, so a second setting
-  is redundant or wrong. A strategy that needs another answer overrides both control-plane members.
+  is redundant or wrong. A strategy that needs another answer overrides the three control-plane members.
 - **Serve the API beneath the root tenant's route or host.** Rejected: it ties the API's reachability to the strategy
   and to one tenant's address, while one `/api` group authenticates by the control-plane tenant on whichever host or
   path reaches it (under `DynamicByPath` it is beneath no tenant route).
@@ -121,7 +123,7 @@ are independent: the first is the security domain that issued the caller's token
   cross-tenant row is materialized.
 - A control-plane route that reads across tenants states so with an unscoped scope, and a route that forgets one
   returns nothing instead of leaking rows.
-- A custom `ITenantStrategy` implements both control-plane members.
+- A custom `ITenantStrategy` implements the three control-plane members.
 
 ## References
 
