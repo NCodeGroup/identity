@@ -124,7 +124,10 @@ internal class AwsKmsRemoteKeyProvider(
         var created = await ClientFactory.ExecuteWithoutRetryAsync(
             region,
             (client, token) =>
-                new ValueTask<CreateKeyResponse>(client.CreateKeyAsync(createRequest, token)),
+            {
+                var createKeyTask = client.CreateKeyAsync(createRequest, token);
+                return new ValueTask<CreateKeyResponse>(createKeyTask);
+            },
             cancellationToken
         );
 
@@ -176,9 +179,10 @@ internal class AwsKmsRemoteKeyProvider(
             region,
             access: null,
             (client, token) =>
-                new ValueTask<GetPublicKeyResponse>(
-                    client.GetPublicKeyAsync(publicKeyRequest, token)
-                ),
+            {
+                var publicKeyTask = client.GetPublicKeyAsync(publicKeyRequest, token);
+                return new ValueTask<GetPublicKeyResponse>(publicKeyTask);
+            },
             cancellationToken
         );
 
@@ -192,9 +196,8 @@ internal class AwsKmsRemoteKeyProvider(
         var expectedUsage = GetKeyUsage(row);
         if (publicKey.KeyUsage != expectedUsage)
         {
-            throw new CryptographicException(
-                $"AWS KMS key '{keyId}' is not a {GetKindName(row)} key."
-            );
+            var kindName = GetKindName(row);
+            throw new CryptographicException($"AWS KMS key '{keyId}' is not a {kindName} key.");
         }
 
         if (publicKey.KeySpec?.Value != row.KeySpec)
@@ -226,8 +229,9 @@ internal class AwsKmsRemoteKeyProvider(
 
         if (supported is null || !supported.Contains(serviceAlgorithm, StringComparer.Ordinal))
         {
+            var kindName = GetKindName(row);
             throw new CryptographicException(
-                $"AWS KMS key '{keyId}' does not support the {GetKindName(row)} algorithm '{serviceAlgorithm}'."
+                $"AWS KMS key '{keyId}' does not support the {kindName} algorithm '{serviceAlgorithm}'."
             );
         }
 
@@ -237,7 +241,8 @@ internal class AwsKmsRemoteKeyProvider(
         }
 
         var length = checked((int)stream.Length);
-        stream.ReadExactly(subjectPublicKeyInfo.GetSpan(length)[..length]);
+        var destinationBuffer = subjectPublicKeyInfo.GetSpan(length)[..length];
+        stream.ReadExactly(destinationBuffer);
         subjectPublicKeyInfo.Advance(length);
     }
 
@@ -272,10 +277,16 @@ internal class AwsKmsRemoteKeyProvider(
         var region = AwsKmsKeyArn.GetRegion(keyId);
 
         // The SDK takes the message as a stream, so an array-backed input is wrapped without a copy.
-        var message =
-            MemoryMarshal.TryGetArray(request.Data, out var segment) && segment.Array is { } array
-                ? new MemoryStream(array, segment.Offset, segment.Count, writable: false)
-                : new MemoryStream(request.Data.ToArray());
+        MemoryStream message;
+        if (MemoryMarshal.TryGetArray(request.Data, out var segment) && segment.Array is { } array)
+        {
+            message = new MemoryStream(array, segment.Offset, segment.Count, writable: false);
+        }
+        else
+        {
+            var data = request.Data.ToArray();
+            message = new MemoryStream(data);
+        }
 
         // A row that names no digest has the service receive the whole signing input.
         var signRequest = new SignRequest
@@ -291,7 +302,11 @@ internal class AwsKmsRemoteKeyProvider(
         var response = await ClientFactory.ExecuteAsync(
             region,
             access: null,
-            (client, token) => new ValueTask<SignResponse>(client.SignAsync(signRequest, token)),
+            (client, token) =>
+            {
+                var signTask = client.SignAsync(signRequest, token);
+                return new ValueTask<SignResponse>(signTask);
+            },
             cancellationToken
         );
 
@@ -372,7 +387,10 @@ internal class AwsKmsRemoteKeyProvider(
                 region,
                 access: null,
                 (client, token) =>
-                    new ValueTask<DecryptResponse>(client.DecryptAsync(decryptRequest, token)),
+                {
+                    var decryptTask = client.DecryptAsync(decryptRequest, token);
+                    return new ValueTask<DecryptResponse>(decryptTask);
+                },
                 cancellationToken
             );
         }
@@ -463,9 +481,10 @@ internal class AwsKmsRemoteKeyProvider(
                 region,
                 access: null,
                 (client, token) =>
-                    new ValueTask<DeriveSharedSecretResponse>(
-                        client.DeriveSharedSecretAsync(deriveRequest, token)
-                    ),
+                {
+                    var deriveTask = client.DeriveSharedSecretAsync(deriveRequest, token);
+                    return new ValueTask<DeriveSharedSecretResponse>(deriveTask);
+                },
                 cancellationToken
             );
         }
@@ -511,10 +530,16 @@ internal class AwsKmsRemoteKeyProvider(
         }
     }
 
-    private static MemoryStream CreateReadOnlyStream(ReadOnlyMemory<byte> data) =>
-        MemoryMarshal.TryGetArray(data, out var segment) && segment.Array is { } array
-            ? new MemoryStream(array, segment.Offset, segment.Count, writable: false)
-            : new MemoryStream(data.ToArray());
+    private static MemoryStream CreateReadOnlyStream(ReadOnlyMemory<byte> data)
+    {
+        if (MemoryMarshal.TryGetArray(data, out var segment) && segment.Array is { } array)
+        {
+            return new MemoryStream(array, segment.Offset, segment.Count, writable: false);
+        }
+
+        var copy = data.ToArray();
+        return new MemoryStream(copy);
+    }
 
     private static int CopyResult(MemoryStream? source, Memory<byte> destination, string subject)
     {
@@ -538,7 +563,8 @@ internal class AwsKmsRemoteKeyProvider(
     {
         if (stream is not null && stream.TryGetBuffer(out var buffer))
         {
-            CryptographicOperations.ZeroMemory(buffer.AsSpan());
+            var bufferSpan = buffer.AsSpan();
+            CryptographicOperations.ZeroMemory(bufferSpan);
         }
     }
 
@@ -595,9 +621,10 @@ internal class AwsKmsRemoteKeyProvider(
                 region,
                 access: null,
                 (client, token) =>
-                    new ValueTask<ScheduleKeyDeletionResponse>(
-                        client.ScheduleKeyDeletionAsync(deletionRequest, token)
-                    ),
+                {
+                    var scheduleTask = client.ScheduleKeyDeletionAsync(deletionRequest, token);
+                    return new ValueTask<ScheduleKeyDeletionResponse>(scheduleTask);
+                },
                 cancellationToken
             );
         }
@@ -627,7 +654,10 @@ internal class AwsKmsRemoteKeyProvider(
             region,
             access: null,
             (client, token) =>
-                new ValueTask<DescribeKeyResponse>(client.DescribeKeyAsync(describeRequest, token)),
+            {
+                var describeTask = client.DescribeKeyAsync(describeRequest, token);
+                return new ValueTask<DescribeKeyResponse>(describeTask);
+            },
             cancellationToken
         );
 
@@ -668,7 +698,10 @@ internal class AwsKmsRemoteKeyProvider(
                 region,
                 access: null,
                 (client, token) =>
-                    new ValueTask<TagResourceResponse>(client.TagResourceAsync(tagRequest, token)),
+                {
+                    var tagTask = client.TagResourceAsync(tagRequest, token);
+                    return new ValueTask<TagResourceResponse>(tagTask);
+                },
                 cancellationToken
             );
         }
@@ -684,9 +717,13 @@ internal class AwsKmsRemoteKeyProvider(
         ArgumentNullException.ThrowIfNull(keyId);
 
         var region = ProviderOptions.Value.Region;
-        return !string.IsNullOrEmpty(region)
-            && AwsKmsKeyArn.IsValid(keyId)
-            && string.Equals(AwsKmsKeyArn.GetRegion(keyId), region, StringComparison.Ordinal);
+        if (string.IsNullOrEmpty(region) || !AwsKmsKeyArn.IsValid(keyId))
+        {
+            return false;
+        }
+
+        var keyRegion = AwsKmsKeyArn.GetRegion(keyId);
+        return string.Equals(keyRegion, region, StringComparison.Ordinal);
     }
 
     /// <inheritdoc />
@@ -716,7 +753,10 @@ internal class AwsKmsRemoteKeyProvider(
                 region,
                 access: null,
                 (client, token) =>
-                    new ValueTask<ListKeysResponse>(client.ListKeysAsync(listRequest, token)),
+                {
+                    var listTask = client.ListKeysAsync(listRequest, token);
+                    return new ValueTask<ListKeysResponse>(listTask);
+                },
                 cancellationToken
             );
 
@@ -767,9 +807,10 @@ internal class AwsKmsRemoteKeyProvider(
                 region,
                 access: null,
                 (client, token) =>
-                    new ValueTask<ListResourceTagsResponse>(
-                        client.ListResourceTagsAsync(tagsRequest, token)
-                    ),
+                {
+                    var tagsTask = client.ListResourceTagsAsync(tagsRequest, token);
+                    return new ValueTask<ListResourceTagsResponse>(tagsTask);
+                },
                 cancellationToken
             );
         }
@@ -798,7 +839,8 @@ internal class AwsKmsRemoteKeyProvider(
             return null;
         }
 
-        if (!string.Equals(FindTag(tags, DeploymentTagKey), deployment, StringComparison.Ordinal))
+        var deploymentTag = FindTag(tags, DeploymentTagKey);
+        if (!string.Equals(deploymentTag, deployment, StringComparison.Ordinal))
         {
             return null;
         }
@@ -808,7 +850,10 @@ internal class AwsKmsRemoteKeyProvider(
             region,
             access: null,
             (client, token) =>
-                new ValueTask<DescribeKeyResponse>(client.DescribeKeyAsync(describeRequest, token)),
+            {
+                var describeTask = client.DescribeKeyAsync(describeRequest, token);
+                return new ValueTask<DescribeKeyResponse>(describeTask);
+            },
             cancellationToken
         );
 
@@ -822,11 +867,12 @@ internal class AwsKmsRemoteKeyProvider(
             return null;
         }
 
+        var creationTime = DateTime.SpecifyKind(creationDate, DateTimeKind.Utc);
         return new RemoteKeyListing
         {
             KeyId = keyArn,
             GroupName = groupName,
-            CreatedWhen = new DateTimeOffset(DateTime.SpecifyKind(creationDate, DateTimeKind.Utc)),
+            CreatedWhen = new DateTimeOffset(creationTime),
             OwnerId = FindTag(tags, OwnerTagKey),
             SecretId = FindTag(tags, SecretTagKey),
         };

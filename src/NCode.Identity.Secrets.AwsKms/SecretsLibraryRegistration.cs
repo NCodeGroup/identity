@@ -59,34 +59,33 @@ public static class SecretsLibraryRegistration
                 )
                 .ValidateOnStart();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<AwsKmsRemoteKeyProviderOptions>,
-                    AwsKmsRemoteKeyProviderOptionsValidator
-                >()
-            );
+            var validatorDescriptor = ServiceDescriptor.Singleton<
+                IValidateOptions<AwsKmsRemoteKeyProviderOptions>,
+                AwsKmsRemoteKeyProviderOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(validatorDescriptor);
 
             // The provider creates keys only in the cloud regions the composition names for the deployment's keys.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IPostConfigureOptions<AwsKmsRemoteKeyProviderOptions>,
-                    AwsKmsKeyResidencyOptionsSetup
-                >()
-            );
+            var residencyDescriptor = ServiceDescriptor.Singleton<
+                IPostConfigureOptions<AwsKmsRemoteKeyProviderOptions>,
+                AwsKmsKeyResidencyOptionsSetup
+            >();
+            serviceCollection.TryAddEnumerable(residencyDescriptor);
 
             serviceCollection.TryAddSingleton(TimeProvider.System);
             serviceCollection.TryAddSingleton<IAwsKmsClientFactory, DefaultAwsKmsClientFactory>();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IRemoteKeyProvider, AwsKmsRemoteKeyProvider>()
-            );
+            var providerDescriptor = ServiceDescriptor.Singleton<
+                IRemoteKeyProvider,
+                AwsKmsRemoteKeyProvider
+            >();
+            serviceCollection.TryAddEnumerable(providerDescriptor);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IRemoteKeyDescriptorSource,
-                    AwsKmsRemoteKeyDescriptors
-                >()
-            );
+            var descriptorSourceDescriptor = ServiceDescriptor.Singleton<
+                IRemoteKeyDescriptorSource,
+                AwsKmsRemoteKeyDescriptors
+            >();
+            serviceCollection.TryAddEnumerable(descriptorSourceDescriptor);
 
             return builder;
         }

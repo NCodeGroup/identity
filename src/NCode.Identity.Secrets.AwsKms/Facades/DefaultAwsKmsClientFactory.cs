@@ -65,12 +65,17 @@ internal sealed class DefaultAwsKmsClientFactory(TimeProvider timeProvider)
 
         if (access is null)
         {
-            return operation(GetRegionClient(region), cancellationToken);
+            var regionClient = GetRegionClient(region);
+            return operation(regionClient, cancellationToken);
         }
 
         return AssumedRoleClients.UseAsync(
             $"{region}|{access.Identity}|{access.Binding}",
-            _ => ValueTask.FromResult(AssumedRoleKmsClient.Create(region, access)),
+            _ =>
+            {
+                var assumedRole = AssumedRoleKmsClient.Create(region, access);
+                return ValueTask.FromResult(assumedRole);
+            },
             (assumedRole, token) => operation(assumedRole.Client, token),
             cancellationToken
         );
@@ -85,7 +90,8 @@ internal sealed class DefaultAwsKmsClientFactory(TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(operation);
 
-        return operation(GetNoRetryRegionClient(region), cancellationToken);
+        var noRetryRegionClient = GetNoRetryRegionClient(region);
+        return operation(noRetryRegionClient, cancellationToken);
     }
 
     private AmazonKeyManagementServiceClient GetRegionClient(string region) =>
@@ -94,9 +100,10 @@ internal sealed class DefaultAwsKmsClientFactory(TimeProvider timeProvider)
                 region,
                 static name => new Lazy<AmazonKeyManagementServiceClient>(
                     () =>
-                        new AmazonKeyManagementServiceClient(
-                            AwsKmsClientConfiguration.Create(name)
-                        ),
+                    {
+                        var config = AwsKmsClientConfiguration.Create(name);
+                        return new AmazonKeyManagementServiceClient(config);
+                    },
                     LazyThreadSafetyMode.PublicationOnly
                 )
             )
@@ -108,9 +115,10 @@ internal sealed class DefaultAwsKmsClientFactory(TimeProvider timeProvider)
                 region,
                 static name => new Lazy<AmazonKeyManagementServiceClient>(
                     () =>
-                        new AmazonKeyManagementServiceClient(
-                            AwsKmsClientConfiguration.CreateWithoutRetry(name)
-                        ),
+                    {
+                        var config = AwsKmsClientConfiguration.CreateWithoutRetry(name);
+                        return new AmazonKeyManagementServiceClient(config);
+                    },
                     LazyThreadSafetyMode.PublicationOnly
                 )
             )

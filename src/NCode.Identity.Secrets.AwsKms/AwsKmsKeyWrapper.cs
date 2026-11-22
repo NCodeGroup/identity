@@ -87,12 +87,8 @@ internal class AwsKmsKeyWrapper(
             );
         }
 
-        return await WrapUnderAsync(
-            new ReferencedKey(keyArn, Access: null),
-            key,
-            context,
-            cancellationToken
-        );
+        var referencedKey = new ReferencedKey(keyArn, Access: null);
+        return await WrapUnderAsync(referencedKey, key, context, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -109,17 +105,15 @@ internal class AwsKmsKeyWrapper(
         }
 
         var allowedRegions = RootKeyOptions.Value.AllowedRegions;
-        if (
-            allowedRegions.Count > 0
-            && !allowedRegions.Contains(
-                AwsKmsKeyArn.GetRegion(keyReference),
-                StringComparer.Ordinal
-            )
-        )
+        if (allowedRegions.Count > 0)
         {
-            failure =
-                $"must be the ARN of a KMS key or alias in one of the allowed AWS regions: {string.Join(", ", allowedRegions)}";
-            return false;
+            var region = AwsKmsKeyArn.GetRegion(keyReference);
+            if (!allowedRegions.Contains(region, StringComparer.Ordinal))
+            {
+                failure =
+                    $"must be the ARN of a KMS key or alias in one of the allowed AWS regions: {string.Join(", ", allowedRegions)}";
+                return false;
+            }
         }
 
         failure = null;
@@ -208,7 +202,11 @@ internal class AwsKmsKeyWrapper(
         var response = await ClientFactory.ExecuteAsync(
             region,
             referencedKey.Access,
-            (client, token) => new ValueTask<EncryptResponse>(client.EncryptAsync(request, token)),
+            (client, token) =>
+            {
+                var encryptTask = client.EncryptAsync(request, token);
+                return new ValueTask<EncryptResponse>(encryptTask);
+            },
             cancellationToken
         );
 
@@ -283,8 +281,9 @@ internal class AwsKmsKeyWrapper(
 
         var text = wrappedKey.Ciphertext;
 
+        var byteCount = WrappedKeyCiphertext.GetByteCount(text);
         using var ciphertextLease = BufferFactory.Rent(
-            WrappedKeyCiphertext.GetByteCount(text),
+            byteCount,
             isSensitive: false,
             out Memory<byte> ciphertext
         );
@@ -309,7 +308,10 @@ internal class AwsKmsKeyWrapper(
                 region,
                 access,
                 (client, token) =>
-                    new ValueTask<DecryptResponse>(client.DecryptAsync(request, token)),
+                {
+                    var decryptTask = client.DecryptAsync(request, token);
+                    return new ValueTask<DecryptResponse>(decryptTask);
+                },
                 cancellationToken
             );
         }
@@ -360,7 +362,8 @@ internal class AwsKmsKeyWrapper(
     {
         if (ciphertext.TryGetBuffer(out var segment))
         {
-            return Base64Url.EncodeToString(segment.AsSpan());
+            var segmentSpan = segment.AsSpan();
+            return Base64Url.EncodeToString(segmentSpan);
         }
 
         ciphertext.Position = 0;
@@ -381,7 +384,8 @@ internal class AwsKmsKeyWrapper(
             var source = segment.AsSpan();
             using var lifetime = source.GetSecureLifetime();
 
-            source.CopyTo(destination.GetSpan(source.Length));
+            var destinationSpan = destination.GetSpan(source.Length);
+            source.CopyTo(destinationSpan);
             destination.Advance(source.Length);
             return;
         }
@@ -389,7 +393,8 @@ internal class AwsKmsKeyWrapper(
         // The SDK did not expose its buffer, so the key is read straight into the destination.
         plaintext.Position = 0;
         var length = checked((int)plaintext.Length);
-        plaintext.ReadExactly(destination.GetSpan(length)[..length]);
+        var destinationBuffer = destination.GetSpan(length)[..length];
+        plaintext.ReadExactly(destinationBuffer);
         destination.Advance(length);
     }
 }
