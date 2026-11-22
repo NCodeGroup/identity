@@ -642,6 +642,26 @@ public sealed class DefaultTenantResolverTests
 
     #endregion
 
+    #region GetControlPlaneTenantDisplayName Tests
+
+    [Fact]
+    public void GetControlPlaneTenantDisplayName_DelegatesToTheSelectedStrategy()
+    {
+        var mocks = new MockRepository(MockBehavior.Strict);
+        var strategy = CreateStrategy(mocks);
+        strategy
+            .Setup(x => x.GetControlPlaneTenantDisplayName())
+            .Returns("Control Plane")
+            .Verifiable();
+
+        var result = CreateResolver(strategy.Object).GetControlPlaneTenantDisplayName();
+
+        Assert.Equal("Control Plane", result);
+        mocks.Verify();
+    }
+
+    #endregion
+
     #region ResolveControlPlaneTenantAsync Tests
 
     [Fact]

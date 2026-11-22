@@ -100,7 +100,11 @@ internal abstract class TenantStrategy(
     /// management API is reached on any host or path, not beneath the tenant that issued the caller's token.
     /// </remarks>
     // See ADR-1191 (the management API authenticates against the control-plane tenant).
-    public virtual string GetControlPlaneTenantId() => RootOptions.TenantId;
+    public virtual string GetControlPlaneTenantId() => RootTenantRules.GetTenantId(RootOptions);
+
+    /// <inheritdoc />
+    public virtual string GetControlPlaneTenantDisplayName() =>
+        RootTenantRules.GetDisplayName(RootOptions);
 
     /// <inheritdoc />
     /// <remarks>
@@ -167,8 +171,7 @@ internal abstract class TenantStrategy(
     /// <remarks>
     /// The base implementation requires the root tenant, which every strategy can create on demand.
     /// </remarks>
-    public virtual bool IsRequiredTenant(string tenantId) =>
-        string.Equals(tenantId, RootOptions.TenantId, StringComparison.Ordinal);
+    public virtual bool IsRequiredTenant(string tenantId) => IsRootTenant(tenantId);
 
     /// <inheritdoc />
     /// <remarks>
@@ -260,8 +263,11 @@ internal abstract class TenantStrategy(
     /// </summary>
     /// <param name="tenantId">The identifier of the tenant.</param>
     /// <returns><see langword="true"/> when it is the root tenant's identifier; otherwise, <see langword="false"/>.</returns>
-    protected bool IsRootTenant(string tenantId) =>
-        string.Equals(tenantId, RootOptions.TenantId, StringComparison.Ordinal);
+    protected bool IsRootTenant(string tenantId)
+    {
+        var controlPlaneTenantId = GetControlPlaneTenantId();
+        return string.Equals(tenantId, controlPlaneTenantId, StringComparison.Ordinal);
+    }
 
     /// <summary>
     /// Creates the root tenant, which configuration defines, when it does not exist yet. A request that reaches the root
@@ -279,10 +285,12 @@ internal abstract class TenantStrategy(
     {
         // The provisioner is scoped (its mediator is request-scoped), so it is resolved from the request's services.
         var provisioner = httpContext.RequestServices.GetRequiredService<ITenantProvisioner>();
+        var controlPlaneTenantId = GetControlPlaneTenantId();
+        var controlPlaneDisplayName = GetControlPlaneTenantDisplayName();
         return await provisioner.EnsureCreatedAsync(
             RootOptions.TeamId,
-            RootOptions.TenantId,
-            RootOptions.DisplayName,
+            controlPlaneTenantId,
+            controlPlaneDisplayName,
             cancellationToken
         );
     }

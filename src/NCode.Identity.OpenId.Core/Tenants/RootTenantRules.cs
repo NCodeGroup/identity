@@ -34,4 +34,30 @@ internal static class RootTenantRules
         var controlPlaneTenantId = tenantResolver.GetControlPlaneTenantId();
         return string.Equals(tenantId, controlPlaneTenantId, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Gets the identifier of the root tenant, which is the configured identifier or the default when none is
+    /// configured.
+    /// </summary>
+    /// <param name="root">The options of the root tenant.</param>
+    /// <returns>The identifier of the root tenant.</returns>
+    public static string GetTenantId(RootTenantOptions root)
+    {
+        var tenantId = root.TenantId;
+        return string.IsNullOrEmpty(tenantId) ? RootTenantOptions.DefaultTenantId : tenantId;
+    }
+
+    /// <summary>
+    /// Gets the display name of the root tenant, which is the configured display name or the default when none is
+    /// configured.
+    /// </summary>
+    /// <param name="root">The options of the root tenant.</param>
+    /// <returns>The display name of the root tenant.</returns>
+    public static string GetDisplayName(RootTenantOptions root)
+    {
+        var displayName = root.DisplayName;
+        return string.IsNullOrEmpty(displayName)
+            ? RootTenantOptions.DefaultDisplayName
+            : displayName;
+    }
 }
