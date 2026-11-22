@@ -81,7 +81,8 @@ jobs:
           bedrock-api-key: ${{ secrets.AWS_BEARER_TOKEN_BEDROCK }}
           # A review that leaves no blocker or should-fix finding open approves the pull request.
           approve: true
-          # The NCode Review Approver submits the approval, so it can meet a required approval; the key is a secret of the code-review environment, which only the default branch can deploy to.
+          # NCode Review v1.5.0 and later submit the approval as the NCode Review Approver, so it can meet a required
+          # approval; the key is a secret of the code-review environment, which only the default branch can deploy to.
           approver-private-key: ${{ secrets.NCODE_REVIEW_APPROVER_PRIVATE_KEY }}
 
   outcomes:
