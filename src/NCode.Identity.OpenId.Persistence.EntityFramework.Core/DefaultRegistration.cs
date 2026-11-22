@@ -51,6 +51,9 @@ public static class DefaultRegistration
             // one serializer of the payloads stored at rest. TryAdd keeps a serializer registered first.
             serviceCollection.AddPersistedPayloadSerializer();
 
+            // The audit record store stamps the time it stores each batch. TryAdd keeps a clock registered first.
+            serviceCollection.TryAddSingleton(TimeProvider.System);
+
             serviceCollection.AddStore<TDbContext, IPlatformStore, PlatformStore>();
             serviceCollection.AddStore<TDbContext, IInstanceSetupStore, InstanceSetupStore>();
             serviceCollection.AddStore<

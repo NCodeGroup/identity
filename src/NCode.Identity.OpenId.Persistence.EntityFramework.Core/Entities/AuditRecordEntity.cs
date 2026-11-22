@@ -20,6 +20,7 @@ namespace NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities;
 [Index(nameof(EventId), IsUnique = true)]
 [Index(nameof(EventTime))]
 [Index(nameof(TenantId), nameof(EventTime), nameof(Id))]
+[Index(nameof(TenantId), nameof(StoredTime), nameof(EventId))]
 [Index(nameof(Cell), nameof(EventTime))]
 [Index(nameof(EventName), nameof(EventTime))]
 [Index(nameof(SubjectId), nameof(EventTime))]
@@ -44,6 +45,12 @@ public sealed class AuditRecordEntity
     /// Gets the time at which the audited operation occurred.
     /// </summary>
     public required DateTimeOffset EventTime { get; init; }
+
+    /// <summary>
+    /// Gets the time the store stored the record, which orders a forward read.
+    /// </summary>
+    // See ADR-1534.
+    public required DateTimeOffset StoredTime { get; init; }
 
     /// <summary>
     /// Gets the dotted name of the audited operation.

@@ -544,6 +544,27 @@ NCode.Identity.OpenId.Persistence.Stores.AuditRecordFilter.StartTime.init -> voi
 NCode.Identity.OpenId.Persistence.Stores.AuditRecordFilter.TenantId.get -> string!
 NCode.Identity.OpenId.Persistence.Stores.AuditRecordFilter.TenantId.init -> void
 NCode.Identity.OpenId.Persistence.Stores.IAuditRecordStore.GetPageAsync(NCode.Identity.OpenId.Persistence.Stores.AuditRecordFilter filter, NCode.Identity.Persistence.Stores.PageRequest page, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.Persistence.Stores.PagedResult<NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditRecord!>!>
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamPage
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamPage.AuditRecordStreamPage() -> void
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamPage.Items.get -> System.Collections.Generic.IReadOnlyList<NCode.Identity.OpenId.Persistence.DataContracts.PersistedAuditRecord!>!
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamPage.Items.init -> void
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamPage.LastEventId.get -> System.Guid?
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamPage.LastEventId.init -> void
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamPage.LastStoredTime.get -> System.DateTimeOffset?
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamPage.LastStoredTime.init -> void
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamRequest
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamRequest.AfterEventId.get -> System.Guid
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamRequest.AfterEventId.init -> void
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamRequest.AfterStoredTime.get -> System.DateTimeOffset
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamRequest.AfterStoredTime.init -> void
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamRequest.AuditRecordStreamRequest() -> void
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamRequest.Limit.get -> int
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamRequest.Limit.init -> void
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamRequest.StoredBefore.get -> System.DateTimeOffset
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamRequest.StoredBefore.init -> void
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamRequest.TenantId.get -> string!
+NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamRequest.TenantId.init -> void
+NCode.Identity.OpenId.Persistence.Stores.IAuditRecordStore.GetStreamPageAsync(NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamRequest request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Persistence.Stores.AuditRecordStreamPage!>
 abstract NCode.Identity.OpenId.Persistence.DataContracts.BasePersistedTeamResource.ResourceType.get -> string!
 const NCode.Identity.OpenId.Persistence.DataContracts.BasePersistedTeamResource.ResourceTypePrefix = "team" -> string!
 const NCode.Identity.OpenId.Persistence.OpenIdResourceTypes.Team = "team" -> string!

@@ -531,6 +531,8 @@ NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.AuditRecordEntit
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.AuditRecordEntity.Severity.init -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.AuditRecordEntity.SourceIp.get -> string?
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.AuditRecordEntity.SourceIp.init -> void
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.AuditRecordEntity.StoredTime.get -> System.DateTimeOffset
+NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.AuditRecordEntity.StoredTime.init -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.AuditRecordEntity.SubjectId.get -> string?
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.AuditRecordEntity.SubjectId.init -> void
 NCode.Identity.OpenId.Persistence.EntityFramework.Core.Entities.AuditRecordEntity.TenantId.get -> string?

@@ -22,7 +22,8 @@ internal sealed class AuditRecordStore(
     IStoreProvider storeProvider,
     ISurrogateKeyGenerator keyGenerator,
     IPageCursorProtector cursorProtector,
-    OpenIdDbContext openIdDbContext
+    OpenIdDbContext openIdDbContext,
+    TimeProvider timeProvider
 ) : IAuditRecordStore
 {
     /// <summary>
@@ -48,6 +49,8 @@ internal sealed class AuditRecordStore(
 
     private OpenIdDbContext DbContext { get; } = openIdDbContext;
 
+    private TimeProvider TimeProvider { get; } = timeProvider;
+
     /// <inheritdoc />
     public object? GetService(Type serviceType) => StoreProvider.GetService(serviceType);
 
@@ -70,6 +73,10 @@ internal sealed class AuditRecordStore(
             .ToListAsync(cancellationToken);
         var skipped = held.ToHashSet();
 
+        // One time for the whole batch, so the records of a batch share a position in a forward read.
+        // See ADR-1534.
+        var storedTime = TimeProvider.GetUtcNow();
+
         var added = 0;
         foreach (var record in records)
         {
@@ -77,7 +84,7 @@ internal sealed class AuditRecordStore(
             if (!skipped.Add(record.EventId))
                 continue;
 
-            var auditRecord = CreateEntity(record);
+            var auditRecord = CreateEntity(record, storedTime);
             await DbContext.AuditRecords.AddAsync(auditRecord, cancellationToken);
             added++;
         }
@@ -85,13 +92,14 @@ internal sealed class AuditRecordStore(
         return added;
     }
 
-    private AuditRecordEntity CreateEntity(PersistedAuditRecord record)
+    private AuditRecordEntity CreateEntity(PersistedAuditRecord record, DateTimeOffset storedTime)
     {
         var entity = new AuditRecordEntity
         {
             Id = KeyGenerator.CreateKey(),
             EventId = record.EventId,
             EventTime = record.EventTime.ToUniversalTime(),
+            StoredTime = storedTime,
             EventName = record.EventName,
             EventCategory = record.EventCategory,
             Outcome = record.Outcome,
@@ -166,6 +174,44 @@ internal sealed class AuditRecordStore(
             : null;
 
         return new PagedResult<PersistedAuditRecord> { Items = items, NextCursor = nextCursor };
+    }
+
+    /// <inheritdoc />
+    // See ADR-1534.
+    public async ValueTask<AuditRecordStreamPage> GetStreamPageAsync(
+        AuditRecordStreamRequest request,
+        CancellationToken cancellationToken
+    )
+    {
+        ArgumentException.ThrowIfNullOrEmpty(request.TenantId, nameof(request));
+
+        var tenantId = request.TenantId;
+        var afterStoredTime = request.AfterStoredTime.ToUniversalTime();
+        var afterEventId = request.AfterEventId;
+        var storedBefore = request.StoredBefore.ToUniversalTime();
+
+        var entities = await DbContext
+            .AuditRecords.Include(entity => entity.Resources)
+            .Where(entity => entity.TenantId == tenantId)
+            .Where(entity => entity.StoredTime < storedBefore)
+            .Where(entity =>
+                entity.StoredTime > afterStoredTime
+                || (entity.StoredTime == afterStoredTime && entity.EventId > afterEventId)
+            )
+            .OrderBy(entity => entity.StoredTime)
+            .ThenBy(entity => entity.EventId)
+            .Take(request.Limit)
+            .ToListAsync(cancellationToken);
+
+        var items = entities.Select(MapFromEntity).ToList();
+        var last = entities.Count > 0 ? entities[^1] : null;
+
+        return new AuditRecordStreamPage
+        {
+            Items = items,
+            LastStoredTime = last?.StoredTime,
+            LastEventId = last?.EventId,
+        };
     }
 
     private static IQueryable<AuditRecordEntity> ApplyFilter(
