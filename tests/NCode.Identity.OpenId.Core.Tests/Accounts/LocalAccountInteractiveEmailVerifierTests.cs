@@ -160,18 +160,21 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
             )
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
+        SetupConsume(mockContext, consumed: true);
+    }
+
+    private void SetupConsume(Mock<OpenIdContext> mockContext, bool consumed) =>
         MockEmailCodes
             .Setup(x =>
-                x.CompleteAsync(
+                x.ConsumeAsync(
                     mockContext.Object,
                     EmailCodePurposes.VerifyEmail,
                     FlowId,
                     It.IsAny<CancellationToken>()
                 )
             )
-            .Returns(ValueTask.CompletedTask)
+            .ReturnsAsync(consumed)
             .Verifiable();
-    }
 
     private void SetupVerify(string? localAccountId) =>
         MockEmailCodes
@@ -402,6 +405,37 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
             Times.Once
         );
         MockAuditEventRecorder.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task VerifyEmailAsync_WhenAnotherRequestTookTheCode_RefusesAndVerifiesNothing()
+    {
+        var mockContext = CreateContext(isVerificationEnabled: true);
+        var account = Account();
+        SetupAccount(account);
+        SetupVerify(LocalAccountId);
+        SetupConsume(mockContext, consumed: false);
+        SetupRecordedFailure();
+
+        var result = await Verifier.VerifyEmailAsync(
+            mockContext.Object,
+            Principal,
+            FlowId,
+            Code,
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsAccepted);
+        Assert.Equal(InteractiveEmailCodeErrors.InvalidCode, result.Error);
+        Assert.False(account.EmailVerified);
+        MockLocalAccountStore.Verify(
+            x => x.UpdateAsync(It.IsAny<PersistedLocalAccount>(), It.IsAny<CancellationToken>()),
+            Times.Never
+        );
+        MockStoreManager.Verify(
+            x => x.SaveChangesAsync(It.IsAny<CancellationToken>()),
+            Times.Never
+        );
     }
 
     [Fact]

@@ -188,7 +188,7 @@ internal sealed class DefaultLocalAccountEmailCodes(
     }
 
     /// <inheritdoc />
-    public ValueTask CompleteAsync(
+    public async ValueTask<bool> ConsumeAsync(
         OpenIdContext openIdContext,
         string purpose,
         string flowId,
@@ -196,7 +196,8 @@ internal sealed class DefaultLocalAccountEmailCodes(
     )
     {
         var key = CreateFlowKey(openIdContext.Tenant.TenantId, purpose, flowId);
-        return ValueSet.RemoveAsync(key, cancellationToken);
+        var taken = await ValueSet.TryTakeAsync(key, cancellationToken);
+        return taken is not null;
     }
 
     internal static string CreateFlowKey(string tenantId, string purpose, string flowId) =>

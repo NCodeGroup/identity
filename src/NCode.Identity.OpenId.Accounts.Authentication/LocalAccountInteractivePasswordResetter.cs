@@ -209,6 +209,26 @@ internal sealed class LocalAccountInteractivePasswordResetter(
             return InteractivePasswordChangeResult.Refused(policyResult.Error);
         }
 
+        // The code is spent after every check has passed and before its effect, with one atomic take, so two requests
+        // that present the right code cannot both reset the password. See ADR-1533.
+        var consumed = await EmailCodes.ConsumeAsync(
+            openIdContext,
+            EmailCodePurposes.ResetPassword,
+            flowId,
+            cancellationToken
+        );
+        if (!consumed)
+        {
+            await AuditEventRecorder.RecordPasswordResetFailedAsync(
+                openIdContext,
+                principal?.PrincipalId,
+                localAccountId,
+                InteractiveEmailCodeErrors.InvalidCode,
+                cancellationToken
+            );
+            return InteractivePasswordChangeResult.Refused(InteractiveEmailCodeErrors.InvalidCode);
+        }
+
         // Encode the password into a pinned, zeroed-on-return buffer so it never lingers on the GC heap.
         using var newOwner = SecureEncoding.UTF8.RentBytes(
             newPassword,
@@ -223,13 +243,6 @@ internal sealed class LocalAccountInteractivePasswordResetter(
             openIdContext,
             principal?.PrincipalId,
             localAccountId,
-            cancellationToken
-        );
-
-        await EmailCodes.CompleteAsync(
-            openIdContext,
-            EmailCodePurposes.ResetPassword,
-            flowId,
             cancellationToken
         );
 

@@ -10,7 +10,7 @@ namespace NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
 /// <summary>
 /// Sends one-time codes to a local account's email address and checks the codes that come back, for every purpose in
 /// <see cref="EmailCodePurposes"/>. A flow is named by a handle that is unguessable and bound to one account; the code
-/// is kept only as a hash, and a flow ends after too many wrong codes or when it is completed, so a code is used once.
+/// is kept only as a hash, and a flow ends after too many wrong codes or when it is spent, so a code is used once.
 /// </summary>
 // See ADR-1533.
 internal interface ILocalAccountEmailCodes
@@ -37,7 +37,7 @@ internal interface ILocalAccountEmailCodes
 
     /// <summary>
     /// Checks a code against a flow, counting a wrong code against the flow and ending the flow at the fifth. A right
-    /// code keeps the flow, so the caller completes it only after the work the code authorizes has succeeded.
+    /// code keeps the flow, so the caller spends it with <see cref="ConsumeAsync"/> after its other checks pass.
     /// </summary>
     /// <param name="openIdContext">The <see cref="OpenIdContext"/> of the tenant the flow belongs to.</param>
     /// <param name="purpose">The purpose of the code, one of the <see cref="EmailCodePurposes"/>.</param>
@@ -57,14 +57,18 @@ internal interface ILocalAccountEmailCodes
     );
 
     /// <summary>
-    /// Ends a flow, so its code is used once.
+    /// Spends a flow with one atomic take, so its code is used once. The caller takes the flow after every check has
+    /// passed and before the work the code authorizes.
     /// </summary>
     /// <param name="openIdContext">The <see cref="OpenIdContext"/> of the tenant the flow belongs to.</param>
     /// <param name="purpose">The purpose of the code, one of the <see cref="EmailCodePurposes"/>.</param>
     /// <param name="flowId">The handle that <see cref="SendAsync"/> returned.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>A <see cref="ValueTask"/> that completes when the flow no longer exists.</returns>
-    ValueTask CompleteAsync(
+    /// <returns>
+    /// <see langword="true"/> when this call took the flow; or <see langword="false"/> when the flow was gone because
+    /// another request took it or it expired.
+    /// </returns>
+    ValueTask<bool> ConsumeAsync(
         OpenIdContext openIdContext,
         string purpose,
         string flowId,

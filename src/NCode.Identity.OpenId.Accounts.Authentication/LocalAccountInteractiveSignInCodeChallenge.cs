@@ -158,12 +158,25 @@ internal sealed class LocalAccountInteractiveSignInCodeChallenge(
             return InteractiveEmailCodeResult.Refused(InteractiveEmailCodeErrors.InvalidCode);
         }
 
-        await EmailCodes.CompleteAsync(
+        // The code is spent after every check has passed and before its effect, with one atomic take. See ADR-1533.
+        var consumed = await EmailCodes.ConsumeAsync(
             openIdContext,
             EmailCodePurposes.SignIn,
             flowId,
             cancellationToken
         );
+        if (!consumed)
+        {
+            await AuditEventRecorder.RecordSecondFactorFailedAsync(
+                openIdContext,
+                subjectId,
+                account.LocalAccountId,
+                AuditCredentialFactors.EmailCode,
+                InteractiveEmailCodeErrors.InvalidCode,
+                cancellationToken
+            );
+            return InteractiveEmailCodeResult.Refused(InteractiveEmailCodeErrors.InvalidCode);
+        }
 
         if (!account.EmailVerified)
         {

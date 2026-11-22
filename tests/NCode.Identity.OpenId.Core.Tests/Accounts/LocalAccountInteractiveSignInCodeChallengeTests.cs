@@ -119,17 +119,7 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
         SetupAccount(Account());
         SetupVerify(LocalAccountId);
         SetupRecordedSuccess();
-        MockEmailCodes
-            .Setup(x =>
-                x.CompleteAsync(
-                    MockContext.Object,
-                    EmailCodePurposes.SignIn,
-                    FlowId,
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .Returns(ValueTask.CompletedTask)
-            .Verifiable();
+        SetupConsume(consumed: true);
         MockLocalAccountStore
             .Setup(x =>
                 x.UpdateAsync(
@@ -144,6 +134,19 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
     }
+
+    private void SetupConsume(bool consumed) =>
+        MockEmailCodes
+            .Setup(x =>
+                x.ConsumeAsync(
+                    MockContext.Object,
+                    EmailCodePurposes.SignIn,
+                    FlowId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(consumed)
+            .Verifiable();
 
     private void SetupVerify(string? localAccountId) =>
         MockEmailCodes
@@ -359,6 +362,36 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
             Times.Once
         );
         MockAuditEventRecorder.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task VerifySignInCodeAsync_WhenAnotherRequestTookTheCode_RefusesAndCreatesNoSession()
+    {
+        var account = Account();
+        SetupAccount(account);
+        SetupVerify(LocalAccountId);
+        SetupConsume(consumed: false);
+        SetupRecordedFailure(InteractiveEmailCodeErrors.InvalidCode);
+
+        var result = await Challenge.VerifySignInCodeAsync(
+            MockContext.Object,
+            Principal,
+            FlowId,
+            Code,
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsAccepted);
+        Assert.Equal(InteractiveEmailCodeErrors.InvalidCode, result.Error);
+        Assert.False(account.EmailVerified);
+        MockLocalAccountStore.Verify(
+            x => x.UpdateAsync(It.IsAny<PersistedLocalAccount>(), It.IsAny<CancellationToken>()),
+            Times.Never
+        );
+        MockStoreManager.Verify(
+            x => x.SaveChangesAsync(It.IsAny<CancellationToken>()),
+            Times.Never
+        );
     }
 
     [Fact]

@@ -158,6 +158,25 @@ internal sealed class LocalAccountInteractiveEmailVerifier(
             return InteractiveEmailCodeResult.Refused(InteractiveEmailCodeErrors.InvalidCode);
         }
 
+        // The code is spent after every check has passed and before its effect, with one atomic take. See ADR-1533.
+        var consumed = await EmailCodes.ConsumeAsync(
+            openIdContext,
+            EmailCodePurposes.VerifyEmail,
+            flowId,
+            cancellationToken
+        );
+        if (!consumed)
+        {
+            await AuditEventRecorder.RecordEmailVerificationFailedAsync(
+                openIdContext,
+                subjectId,
+                account.LocalAccountId,
+                InteractiveEmailCodeErrors.InvalidCode,
+                cancellationToken
+            );
+            return InteractiveEmailCodeResult.Refused(InteractiveEmailCodeErrors.InvalidCode);
+        }
+
         account.EmailVerified = true;
         await storeManager.GetStore<ILocalAccountStore>().UpdateAsync(account, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
@@ -166,13 +185,6 @@ internal sealed class LocalAccountInteractiveEmailVerifier(
             openIdContext,
             subjectId,
             account.LocalAccountId,
-            cancellationToken
-        );
-
-        await EmailCodes.CompleteAsync(
-            openIdContext,
-            EmailCodePurposes.VerifyEmail,
-            flowId,
             cancellationToken
         );
 

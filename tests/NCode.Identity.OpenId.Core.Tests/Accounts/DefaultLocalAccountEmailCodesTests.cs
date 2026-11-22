@@ -330,18 +330,44 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
 
     #endregion
 
-    #region CompleteAsync Tests
+    #region ConsumeAsync Tests
 
     [Fact]
-    public async Task CompleteAsync_Always_RemovesTheFlow()
+    public async Task ConsumeAsync_WhenTheFlowExists_TakesItAndReturnsTrue()
     {
         var mockContext = CreateContext(mockSettings: null);
         MockValueSet
-            .Setup(x => x.RemoveAsync(FlowKey, It.IsAny<CancellationToken>()))
-            .Returns(ValueTask.CompletedTask)
+            .Setup(x => x.TryTakeAsync(FlowKey, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExpiringValue(Serialize(failedAttempts: 0), Version: 3))
             .Verifiable();
 
-        await EmailCodes.CompleteAsync(mockContext.Object, Purpose, FlowId, CancellationToken.None);
+        var consumed = await EmailCodes.ConsumeAsync(
+            mockContext.Object,
+            Purpose,
+            FlowId,
+            CancellationToken.None
+        );
+
+        Assert.True(consumed);
+    }
+
+    [Fact]
+    public async Task ConsumeAsync_WhenTheFlowIsGone_ReturnsFalse()
+    {
+        var mockContext = CreateContext(mockSettings: null);
+        MockValueSet
+            .Setup(x => x.TryTakeAsync(FlowKey, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ExpiringValue?)null)
+            .Verifiable();
+
+        var consumed = await EmailCodes.ConsumeAsync(
+            mockContext.Object,
+            Purpose,
+            FlowId,
+            CancellationToken.None
+        );
+
+        Assert.False(consumed);
     }
 
     #endregion

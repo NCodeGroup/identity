@@ -89,7 +89,8 @@ expiring value set, so a code is never stored, and every replica sees it. The fl
 on the page that started the flow. The `email_code_lifetime` setting (10 minutes by default, from 1 minute to 1 hour)
 sets how long a code is accepted, and `email_code_sends_per_hour` (5 by default, from 1 to 20) bounds how many codes one
 account receives for one purpose in an hour. Both merge with `Min`, so a narrower scope may only shorten the lifetime or
-lower the count.
+lower the count. A flow is spent by one atomic take of its value, after every check has passed and before its effect, so
+two requests that present the right code at once never both run the effect.
 
 > [!TIP]
 > [ADR-1533](../decisions/1533-an-end-user-verifies-an-email-address-resets-a-password-and-signs-in-with-a-second-factor-through-one-time-email-codes.md),
