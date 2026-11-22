@@ -125,6 +125,7 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
         JsonSerializer.SerializeToUtf8Bytes(
             new EmailCodeState(
                 LocalAccountId,
+                Email,
                 DefaultLocalAccountEmailCodes.HashCode(FlowId, Code),
                 failedAttempts,
                 Now + Lifetime
@@ -211,6 +212,7 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
         Assert.NotNull(storedBytes);
         var state = Deserialize(storedBytes);
         Assert.Equal(LocalAccountId, state.LocalAccountId);
+        Assert.Equal(Email, state.Email);
         Assert.Equal(0, state.FailedAttempts);
         Assert.Equal(Now + Lifetime, state.ExpiresWhen);
         Assert.Equal(DefaultLocalAccountEmailCodes.HashCode(FlowId, match.Value), state.CodeHash);
@@ -376,12 +378,12 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
     #region VerifyAsync Tests
 
     [Fact]
-    public async Task VerifyAsync_WithTheCode_ReturnsTheAccountAndKeepsTheFlow()
+    public async Task VerifyAsync_WhenTheCodeIsRight_ReturnsTheAccountAndTheAddress()
     {
         var mockContext = CreateContext(mockSettings: null);
         SetupGet(Serialize(failedAttempts: 2));
 
-        var accountId = await EmailCodes.VerifyAsync(
+        var match = await EmailCodes.VerifyAsync(
             mockContext.Object,
             Purpose,
             FlowId,
@@ -389,7 +391,9 @@ public partial class DefaultLocalAccountEmailCodesTests : BaseTests
             CancellationToken.None
         );
 
-        Assert.Equal(LocalAccountId, accountId);
+        Assert.NotNull(match);
+        Assert.Equal(LocalAccountId, match.LocalAccountId);
+        Assert.Equal(Email, match.Email);
     }
 
     [Fact]

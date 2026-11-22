@@ -38,7 +38,9 @@ off until the tenant turns it on.**
    `email_code_sends_per_hour` codes for one purpose (5 by default, 1 to 20, a narrower scope may only lower it), so an
    attacker gets at most 25 guesses an hour at a space of a million.
 2. **A 256-bit flow handle names the flow.** The handle is random and rides on the page that started the flow, so the
-   code alone opens nothing.
+   code alone opens nothing. A code is also bound to the address it was mailed to and authorizes nothing once the
+   account's address differs, so an administrator who changes the address while a code is outstanding leaves the old
+   mailbox unable to verify the new address, reset the password or pass the second factor.
 3. **A reset is `password_reset_enabled`, off by default.** The login page links "Forgot your password?", and the form
    asks for the username. Whatever the username names, the next page is the same, and a code goes only to an enabled
    account's verified address. The password policy judges the new password

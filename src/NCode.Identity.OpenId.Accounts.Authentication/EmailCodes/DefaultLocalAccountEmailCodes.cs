@@ -100,6 +100,7 @@ internal sealed class DefaultLocalAccountEmailCodes(
         var codeHash = HashCode(flowId, code);
         var state = new EmailCodeState(
             account.LocalAccountId,
+            account.Email,
             codeHash,
             FailedAttempts: 0,
             expiresWhen
@@ -168,7 +169,13 @@ internal sealed class DefaultLocalAccountEmailCodes(
             out Span<byte> randomBytes
         );
         var codeHash = SHA256.HashData(randomBytes);
-        var state = new EmailCodeState(identifierHash, codeHash, FailedAttempts: 0, expiresWhen);
+        var state = new EmailCodeState(
+            identifierHash,
+            Email: string.Empty,
+            codeHash,
+            FailedAttempts: 0,
+            expiresWhen
+        );
         var flowKey = CreateFlowKey(tenant.TenantId, purpose, flowId);
         var stateBytes = JsonSerializer.SerializeToUtf8Bytes(
             state,
@@ -184,7 +191,7 @@ internal sealed class DefaultLocalAccountEmailCodes(
     }
 
     /// <inheritdoc />
-    public async ValueTask<string?> VerifyAsync(
+    public async ValueTask<EmailCodeMatch?> VerifyAsync(
         OpenIdContext openIdContext,
         string purpose,
         string flowId,
@@ -216,7 +223,7 @@ internal sealed class DefaultLocalAccountEmailCodes(
 
             if (CryptographicOperations.FixedTimeEquals(state.CodeHash, presentedHash))
             {
-                return state.LocalAccountId;
+                return new EmailCodeMatch(state.LocalAccountId, state.Email);
             }
 
             var failedAttempts = state.FailedAttempts + 1;

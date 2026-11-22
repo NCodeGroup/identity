@@ -133,7 +133,7 @@ internal sealed class LocalAccountInteractiveSignInCodeChallenge(
             return InteractiveEmailCodeResult.Refused(InteractiveEmailCodeErrors.NotSupported);
         }
 
-        var localAccountId = await EmailCodes.VerifyAsync(
+        var match = await EmailCodes.VerifyAsync(
             openIdContext,
             EmailCodePurposes.SignIn,
             flowId,
@@ -145,7 +145,16 @@ internal sealed class LocalAccountInteractiveSignInCodeChallenge(
         var subjectId = openIdContext.GetSubjectId(principal);
         ArgumentException.ThrowIfNullOrEmpty(subjectId);
 
-        if (!string.Equals(localAccountId, account.LocalAccountId, StringComparison.Ordinal))
+        // A code authorizes nothing once the account's address differs from the one it was mailed to. See ADR-1533.
+        if (
+            match is null
+            || !string.Equals(
+                match.LocalAccountId,
+                account.LocalAccountId,
+                StringComparison.Ordinal
+            )
+            || !string.Equals(match.Email, account.Email, StringComparison.OrdinalIgnoreCase)
+        )
         {
             await AuditEventRecorder.RecordSecondFactorFailedAsync(
                 openIdContext,

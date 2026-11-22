@@ -154,14 +154,14 @@ internal sealed class LocalAccountInteractivePasswordResetter(
             return InteractivePasswordChangeResult.NotSupported;
         }
 
-        var localAccountId = await EmailCodes.VerifyAsync(
+        var match = await EmailCodes.VerifyAsync(
             openIdContext,
             EmailCodePurposes.ResetPassword,
             flowId,
             code,
             cancellationToken
         );
-        if (localAccountId is null)
+        if (match is null)
         {
             // The end user's reset is audited as the password grant's authentication is (ADR-1533).
             await AuditEventRecorder.RecordPasswordResetFailedAsync(
@@ -174,11 +174,26 @@ internal sealed class LocalAccountInteractivePasswordResetter(
             return InteractivePasswordChangeResult.Refused(InteractiveEmailCodeErrors.InvalidCode);
         }
 
+        var localAccountId = match.LocalAccountId;
+
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
 
         var accountStore = storeManager.GetStore<ILocalAccountStore>();
         var account = await accountStore.GetByIdOrDefaultAsync(localAccountId, cancellationToken);
         if (account is not { IsEnabled: true })
+        {
+            await AuditEventRecorder.RecordPasswordResetFailedAsync(
+                openIdContext,
+                subjectId: null,
+                localAccountId: null,
+                InteractiveEmailCodeErrors.InvalidCode,
+                cancellationToken
+            );
+            return InteractivePasswordChangeResult.Refused(InteractiveEmailCodeErrors.InvalidCode);
+        }
+
+        // A code authorizes nothing once the account's address differs from the one it was mailed to. See ADR-1533.
+        if (!string.Equals(account.Email, match.Email, StringComparison.OrdinalIgnoreCase))
         {
             await AuditEventRecorder.RecordPasswordResetFailedAsync(
                 openIdContext,

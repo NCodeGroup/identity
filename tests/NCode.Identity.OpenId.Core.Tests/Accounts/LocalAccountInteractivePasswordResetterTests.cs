@@ -294,7 +294,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
             .ReturnsAsync(consumed)
             .Verifiable();
 
-    private void SetupVerify(string? localAccountId) =>
+    private void SetupVerify(string? localAccountId, string email = Email) =>
         MockEmailCodes
             .Setup(x =>
                 x.VerifyAsync(
@@ -305,7 +305,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
                     It.IsAny<CancellationToken>()
                 )
             )
-            .ReturnsAsync(localAccountId)
+            .ReturnsAsync(localAccountId is null ? null : new EmailCodeMatch(localAccountId, email))
             .Verifiable();
 
     private static PersistedLocalAccount Account(
@@ -729,6 +729,55 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
 
         Assert.False(result.IsChanged);
         Assert.Equal(InteractiveEmailCodeErrors.InvalidCode, result.Error);
+        MockLocalAccountStore.Verify(
+            x =>
+                x.SetPasswordAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<ReadOnlyMemory<byte>>(),
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Never
+        );
+        MockStoreManager.Verify(
+            x => x.SaveChangesAsync(It.IsAny<CancellationToken>()),
+            Times.Never
+        );
+    }
+
+    [Fact]
+    public async Task ResetPasswordAsync_WhenTheAddressChangedSinceTheCodeWasSent_RefusesAndChangesNothing()
+    {
+        var mockContext = CreateContext(isResetEnabled: true);
+        SetupVerify(LocalAccountId, email: "old@example.com");
+        SetupStoreManager();
+        SetupLookupById(Account());
+        SetupResetFailed(
+            mockContext,
+            subjectId: null,
+            localAccountId: null,
+            InteractiveEmailCodeErrors.InvalidCode
+        );
+
+        var result = await Resetter.ResetPasswordAsync(
+            mockContext.Object,
+            FlowId,
+            Code,
+            NewPassword,
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsChanged);
+        Assert.Equal(InteractiveEmailCodeErrors.InvalidCode, result.Error);
+        MockEmailCodes.Verify(
+            x =>
+                x.ConsumeAsync(
+                    It.IsAny<OpenIdContext>(),
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Never
+        );
         MockLocalAccountStore.Verify(
             x =>
                 x.SetPasswordAsync(

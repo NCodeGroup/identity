@@ -176,7 +176,7 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
             .ReturnsAsync(consumed)
             .Verifiable();
 
-    private void SetupVerify(string? localAccountId) =>
+    private void SetupVerify(string? localAccountId, string email = Email) =>
         MockEmailCodes
             .Setup(x =>
                 x.VerifyAsync(
@@ -187,7 +187,7 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
                     It.IsAny<CancellationToken>()
                 )
             )
-            .ReturnsAsync(localAccountId)
+            .ReturnsAsync(localAccountId is null ? null : new EmailCodeMatch(localAccountId, email))
             .Verifiable();
 
     private static PersistedLocalAccount Account(
@@ -428,6 +428,46 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
         Assert.False(result.IsAccepted);
         Assert.Equal(InteractiveEmailCodeErrors.InvalidCode, result.Error);
         Assert.False(account.EmailVerified);
+        MockLocalAccountStore.Verify(
+            x => x.UpdateAsync(It.IsAny<PersistedLocalAccount>(), It.IsAny<CancellationToken>()),
+            Times.Never
+        );
+        MockStoreManager.Verify(
+            x => x.SaveChangesAsync(It.IsAny<CancellationToken>()),
+            Times.Never
+        );
+    }
+
+    [Fact]
+    public async Task VerifyEmailAsync_WhenTheAddressChangedSinceTheCodeWasSent_RefusesAndVerifiesNothing()
+    {
+        var mockContext = CreateContext(isVerificationEnabled: true);
+        var account = Account();
+        SetupAccount(account);
+        SetupVerify(LocalAccountId, email: "old@example.com");
+        SetupRecordedFailure();
+
+        var result = await Verifier.VerifyEmailAsync(
+            mockContext.Object,
+            Principal,
+            FlowId,
+            Code,
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsAccepted);
+        Assert.Equal(InteractiveEmailCodeErrors.InvalidCode, result.Error);
+        Assert.False(account.EmailVerified);
+        MockEmailCodes.Verify(
+            x =>
+                x.ConsumeAsync(
+                    It.IsAny<OpenIdContext>(),
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Never
+        );
         MockLocalAccountStore.Verify(
             x => x.UpdateAsync(It.IsAny<PersistedLocalAccount>(), It.IsAny<CancellationToken>()),
             Times.Never

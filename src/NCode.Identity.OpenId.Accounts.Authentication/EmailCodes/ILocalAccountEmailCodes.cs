@@ -64,10 +64,10 @@ internal interface ILocalAccountEmailCodes
     /// <param name="code">The code the end user presented.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>
-    /// The identifier of the account the flow was started for; or <see langword="null"/> when the flow is unknown,
-    /// expired or ended, or the code is wrong.
+    /// The account the flow was started for and the address the code was mailed to; or <see langword="null"/> when the
+    /// flow is unknown, expired or ended, or the code is wrong.
     /// </returns>
-    ValueTask<string?> VerifyAsync(
+    ValueTask<EmailCodeMatch?> VerifyAsync(
         OpenIdContext openIdContext,
         string purpose,
         string flowId,

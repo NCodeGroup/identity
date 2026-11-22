@@ -90,7 +90,10 @@ on the page that started the flow. The `email_code_lifetime` setting (10 minutes
 sets how long a code is accepted, and `email_code_sends_per_hour` (5 by default, from 1 to 20) bounds how many codes one
 account receives for one purpose in an hour. Both merge with `Min`, so a narrower scope may only shorten the lifetime or
 lower the count. A flow is spent by one atomic take of its value, after every check has passed and before its effect, so
-two requests that present the right code at once never both run the effect.
+two requests that present the right code at once never both run the effect. A code is bound to the address it was
+mailed to, which the flow's state records, and it authorizes nothing once the account's address differs, so an
+administrator who changes the address while a code is outstanding leaves the old mailbox unable to verify the new
+address, reset the password or pass the second factor.
 
 > [!TIP]
 > [ADR-1533](../decisions/1533-an-end-user-verifies-an-email-address-resets-a-password-and-signs-in-with-a-second-factor-through-one-time-email-codes.md),
