@@ -1,69 +1,35 @@
-# Hosting analysis — entry-level production hosting
+# Hosting — the hosted platform's topology, capacity and growth path
 
-- **Status:** Research / pre-decision (no vendor chosen yet)
+- **Status:** Decided. [ADR-1520](decisions/1520-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md)
+  records the topology, and each section names the record that decides it; [§13](#13-open-decisions) lists the
+  decisions still open.
 - **Prices captured:** 2026-10-18, list **monthly USD, excluding tax**, from each vendor's live pricing page or public
-  read-only API (Vultr `api.vultr.com/v2/plans`, Akamai `api.linode.com/v4/*`); Akamai's US regions, their
-  capabilities and regional prices re-checked 2026-11-14. Prices drift — re-verify in the vendor
-  console before purchase. Anything not verified live is marked _(verify)_.
+  read-only API (Akamai `api.linode.com/v4/*`); Akamai's US regions, their capabilities and regional prices re-checked
+  2026-11-14. Prices drift — re-verify in the vendor console before purchase. Anything not verified live is marked
+  _(verify)_.
 
-## 1. Requirements
+The hosted platform is built to its operating principles — cattle not pets, immutable artifacts, everything as code,
+stateless services, redundancy by default, proven recoverability, and secure by default
+([ADR-1134](decisions/1134-the-platform-and-the-host-follow-written-cloud-native-operating-principles.md)). This page
+holds the topology the records decide, the sizing, capacity and prices behind it, and the analysis that informs the
+decisions still open.
 
-| Must-have                                                                 | Nice-to-have                                                    |
-| ------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| 100% IaC with Terraform/OpenTofu, applied from GitHub Actions             | Lab near Denver, CO                                             |
-| Low latency to customers' users and backends                              | Managed control plane (self-managed k3s is acceptable)          |
-| Containerized services (Kubernetes / k3s)                                 | TLS + mTLS termination **and** pass-through                     |
-| ≥ 3 nodes for service HA                                                  | Traefik sourcing tenant PKI / mTLS config from our datastores   |
-| Traefik as the load balancer, with mTLS                                   | Mix-and-match vendors (compute, Postgres, Valkey, KMS)          |
-| Entry-level, shared CPU OK, monthly billing                               |                                                                 |
-| Backing services: **PostgreSQL** (EF Core / Npgsql) and **Valkey** (cache) | Root key in a KMS (ADR-1235); remote signing — issue [#165](https://github.com/NCodeGroup/identity/issues/165)    |
+## 1. Topology
 
-**Location.** Production serves customers, so it may run in any US region; it is placed for its customers' users and
-backends and for the region's capabilities, never for the operator's location. Only the platform's lab and its
-ephemeral test environments sit near Denver, CO, where the operator works
-([§12](#12-latency-estimates--measure-before-deciding)).
+Decided in
+[ADR-1520](decisions/1520-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md).
 
-Every option is judged against the platform's operating principles — cattle not pets, immutable artifacts, everything as
-code, stateless services, redundancy by default, proven recoverability, and secure by default
-([ADR-1134](decisions/1134-the-platform-and-the-host-follow-written-cloud-native-operating-principles.md)).
+| Environment | Where it runs | What runs there |
+| --- | --- | --- |
+| **Production** | Akamai, Washington, DC (`us-iad`) | LKE on 4 × Linode 2 GB, control plane managed by Akamai; a NodeBalancer (L4, PROXY protocol v2) in front of Traefik; Akamai managed PostgreSQL, 3 × 1 GB nodes in the same datacenter; Valkey in the cluster (primary, replica and Sentinels); the root key in AWS KMS through web identity federation ([#177](https://github.com/NCodeGroup/identity/issues/177)) |
+| **Lab** | OCI, Phoenix (`us-phoenix-1`) | OKE Basic on 2 × Ampere A1 (1 OCPU / 6 GB) in two availability domains, inside the free allowance; the free network load balancer; CloudNativePG and Valkey in the cluster; arm64 |
+| **Daily development** | The developer's machine or a LAN-only homelab | The Aspire stack, or a k3s cluster that Flux runs; never under `ncodeid.net` |
+| **Ephemeral runs** | Azure, on the Visual Studio credit | Conformance, load and topology runs, created and destroyed per run ([§8](#8-devtest-and-conformance-on-azure-visual-studio-credit)) |
+| **Shared foundations** | AWS `us-west-2`, Cloudflare, GitHub | State, backups and vendor tokens ([ADR-1132](decisions/1132-platform-infrastructure-code-is-public-on-github-and-its-state-and-backups-live-in-aws.md)), DNS ([ADR-1495](decisions/1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md)), source, CI and images ([ADR-1133](decisions/1133-the-hosted-platform-runs-only-the-published-artifacts-it-offers-self-hosters.md)) |
 
-## 2. Summary and ranked recommendations
-
-**Goal:** the most reliability and capacity per dollar for an **all-in budget of about $100/month** — always-on, dev/test
-first, production-ready without re-platforming. Vendors may differ per service, and free, reliable third-party services
-fill every gap they can. Every topology meets the must-haves (OpenTofu from GitHub Actions, containers on ≥ 3 nodes,
-Traefik behind one L4 load balancer). Ranking weighs, in order: HA of the tiers the service depends on (database
-first — it is the system of record), how much of that is managed, capacity, the region's capabilities and its
-nearness to customers' users and backends ([§1](#1-requirements)), and budget headroom.
-
-### Ranked topologies at ~$100/month
-
-| Rank  | Topology                                   | What runs where                                                                                                                                                                                                                         | Monthly total                                                    | What the money buys                                                                                     | Trade-offs                                                                                                                                                       |
-| ----- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **1** | **Akamai Washington, DC — managed HA**     | **Kubernetes:** LKE (`us-iad`), 4 × Linode 2 GB (4 vCPU / 8 GB, workers only — control plane is managed) · **LB:** NodeBalancer · **Postgres:** Akamai managed, **3-node HA**, same DC · **Valkey:** in-cluster, primary + replica + Sentinel · **Keys:** AWS KMS root key, us-west-2 (web identity federation — no stored credential) | 4 × $12 + NB $10 + PG $37 = **$95**; **+$60** HA control plane once it hosts paying customers | HA in every tier; managed failover, backups, and patching for the database; the newer region's VPCs, Premium plans and NodeBalancers, and LKE Enterprise readiness _(verify)_; ~1–2 ms to AWS us-east-1 | x86; 2 GB nodes leave modest headroom. Variants: 3 × 4 GB + HA DB = $119, or 3 × 4 GB + single-node DB = $98. Chicago (`us-ord`) is the equal-cost, equal-feature alternative. |
-| **2** | **OCI Phoenix — maximum capacity**         | **Kubernetes:** k3s HA (3 servers, embedded etcd) on 3 × Ampere A1 (2 OCPU / 12 GB each = 6 vCPU / 36 GB), one per availability domain · **LB:** OCI Network LB (free) · **Postgres:** CloudNativePG, 3 instances, backups → S3 (Object Lock) or OCI Object Storage · **Valkey:** in-cluster HA · **Keys:** OCI Vault (instance principal, no secret) | A1 beyond the free 2 OCPU / 12 GB: 4 OCPU $29.20 + 24 GB $26.28 + block storage ~$1–4 = **~$57–60** | ~3× rank 1's capacity; HA in every tier **including** the control plane, spread across 3 availability domains; 10 TB free egress | You operate k3s and Postgres; arm64 images; A1 capacity can be scarce; home region fixed at sign-up (the free A1 allowance applies only there, and the lab's tenancy is Phoenix). A 2 × 1 OCPU / 6 GB cluster fits the free allowance ($0); 3 × 1 OCPU / 4 GB is ~$7. |
-| **3** | **Vultr — lean nodes, HA DB**              | **Kubernetes:** VKE in a US region with managed databases (Chicago or New Jersey _(verify)_), 3 × 1 vCPU / 2 GB · **LB:** Vultr LB · **Postgres:** Vultr managed, 2 GB + 1 replica · **Valkey:** in-cluster · **Keys:** AWS KMS root key, us-west-2 | $30 + LB $10 + PG $50 = **$90**                                  | Managed control plane and HA database                                                                  | One fewer node and a 2-node (not 3-node) database vs. rank 1 for about the same money; VKE HA control-plane price unpublished. Variant: k3s on 3 × 2 vCPU / 4 GB + single-node DB = $97.    |
-| **4** | **Civo NYC1 — free egress**                | **Kubernetes:** Civo managed k3s, 3 × 4 GB · **LB:** Civo LB · **Postgres:** CloudNativePG in-cluster · **Valkey:** in-cluster · **Keys:** AWS KMS root key, us-west-2                                                                           | $65.19 + LB $10.86 = **~$76**                                    | 6 cores / 12 GB; unlimited free egress; close to the east-coast concentration of users and AWS us-east-1 | You operate Postgres (Civo's managed PG starts at $43.45 → ~$119); one US region only; no published HA control plane.                                |
-| **5** | **DigitalOcean NYC — managed, no DB HA**   | **Kubernetes:** DOKS, 3 × 2 GiB Regular · **LB:** DO LB · **Postgres:** DO managed, 1 GiB single node · **Valkey:** in-cluster · **Keys:** AWS KMS root key, us-west-2                                                                            | $36 + LB $12 + PG $15.15 = **~$63**                              | Managed control plane and database for the least money                                                 | **No database HA within budget** (2 GiB + standby is $60.90 → ~$111); 1 vCPU per node.                                                                            |
-
-Every row adds the shared free services below. The root key is excluded: one key and a few requests per replica start
-cost about a dollar a month (ADR-1235).
-
-**Why this order:**
-
-- **Rank 1** spends the budget where an identity provider needs it most — a managed, replicated system of record — and
-  leaves nothing important as a single point of failure. A managed control plane also frees each node of the ~0.6–0.9
-  GiB k3s server overhead, so 4 × 2 GB carries the [§4](#4-compute-sizing) workload with N-1 headroom.
-- **Washington, DC rather than Dallas.** Every Akamai US region has the same prices, so the region is chosen on
-  capabilities and placement ([Choosing the region](#choosing-the-region)). Dallas is one of Akamai's older regions,
-  without VPCs, Premium plans, Premium NodeBalancers or LKE Enterprise; Washington, DC has all of them.
-- **The HA control plane comes with the first paying customer.** The default LKE control plane is a single replica
-  of each component, and Akamai enables HA on an existing cluster only by replacing every node, irreversibly. So the
-  cluster that hosts paying customers is created with it ([§16](#the-cluster-that-hosts-paid-cells)).
-- **Rank 2** delivers the most for the least and is the only multi-AD option, but makes you the database operator.
-  Pick it over rank 1 if you're comfortable running CloudNativePG, or to bank budget.
-- **Ranks 3–5** each give up something rank 1 keeps: a node and a database replica (3), managed Postgres (4), or
-  database HA (5).
+Production costs $95 a month at the developer plan, and $60 more once the cluster that hosts paid plans runs the HA
+control plane ([Stages](#stages)). The root key costs about a dollar a month
+([ADR-1235](decisions/1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md)).
 
 ### Choosing the region
 
