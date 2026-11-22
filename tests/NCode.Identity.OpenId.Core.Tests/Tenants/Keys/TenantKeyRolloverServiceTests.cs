@@ -48,6 +48,7 @@ public sealed class TenantKeyRolloverServiceTests : BaseTests
     private Mock<ITenantKeyPolicy> MockPolicy { get; }
     private Mock<ITenantKeyRolloverPlanner> MockPlanner { get; }
     private Mock<ITenantKeyRollover> MockRollover { get; }
+    private Mock<ITenantKeyPlacementGuard> MockPlacementGuard { get; }
     private Mock<IEffectiveSettingsResolver> MockEffectiveSettingsResolver { get; }
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }
     private Mock<IStoreManager> MockStoreManager { get; }
@@ -72,6 +73,12 @@ public sealed class TenantKeyRolloverServiceTests : BaseTests
         MockPolicy = CreateStrictMock<ITenantKeyPolicy>();
         MockPlanner = CreateStrictMock<ITenantKeyRolloverPlanner>();
         MockRollover = CreateStrictMock<ITenantKeyRollover>();
+        MockPlacementGuard = CreateStrictMock<ITenantKeyPlacementGuard>();
+
+        // A tenant the directory places in this cell, or in no cell, may change its keys.
+        MockPlacementGuard
+            .Setup(x => x.MayChangeKeysAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
         MockEffectiveSettingsResolver = CreateStrictMock<IEffectiveSettingsResolver>();
         MockStoreManagerFactory = CreateStrictMock<IStoreManagerFactory>();
         MockStoreManager = CreateStrictMock<IStoreManager>();
@@ -106,6 +113,7 @@ public sealed class TenantKeyRolloverServiceTests : BaseTests
             MockPolicy.Object,
             MockPlanner.Object,
             MockRollover.Object,
+            MockPlacementGuard.Object,
             MockEffectiveSettingsResolver.Object,
             MockStoreManagerFactory.Object,
             MockAmbientTenantAccessor.Object,
@@ -436,6 +444,29 @@ public sealed class TenantKeyRolloverServiceTests : BaseTests
         MockStoreManager
             .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .ThrowsAsync(new StoreConcurrencyException("lost"))
+            .Verifiable(Times.Once);
+
+        await Service.RollOverAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task RollOverAsync_WhenTheDirectoryPlacesTheTenantInAnotherCell_LeavesItsKeysUnchanged()
+    {
+        // Rollover, the destroyer, the publisher and the mediator are strict with no setup: applying the plan,
+        // saving, announcing or destroying a key fails the test.
+        SetupSpecifications();
+        SetupLease(acquired: true);
+        SetupTeam();
+        SetupStoreManager();
+        SetupTenantPage(cursor: null, nextCursor: null, FirstTenantId);
+
+        var first = CreateSecret("first");
+        SetupTenantSettings(FirstTenantId);
+        SetupSecrets(FirstTenantId, [first]);
+        SetupPlan([first], empty: false);
+        MockPlacementGuard
+            .Setup(x => x.MayChangeKeysAsync(FirstTenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false)
             .Verifiable(Times.Once);
 
         await Service.RollOverAsync(CancellationToken.None);
