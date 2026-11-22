@@ -8,6 +8,7 @@ using NCode.Identity.OpenId.Accounts.Authentication;
 using NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
+using NCode.Identity.OpenId.Authentication.Auditing;
 using NCode.Identity.OpenId.Authentication.Interactive;
 using NCode.Identity.OpenId.Authentication.Passwords;
 using NCode.Identity.OpenId.Authentication.Sessions;
@@ -43,6 +44,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
     private Mock<ILocalAccountEmailCodes> MockEmailCodes { get; }
     private Mock<ICryptoService> MockCryptoService { get; }
     private Mock<IPostCommitSecurityEffects> MockPostCommitSecurityEffects { get; }
+    private Mock<IAuditEventRecorder> MockAuditEventRecorder { get; }
     private LocalAccountInteractivePasswordResetter Resetter { get; }
 
     public LocalAccountInteractivePasswordResetterTests()
@@ -55,12 +57,14 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
         MockEmailCodes = CreateStrictMock<ILocalAccountEmailCodes>();
         MockCryptoService = CreateStrictMock<ICryptoService>();
         MockPostCommitSecurityEffects = CreateStrictMock<IPostCommitSecurityEffects>();
+        MockAuditEventRecorder = CreateStrictMock<IAuditEventRecorder>();
         Resetter = new LocalAccountInteractivePasswordResetter(
             MockStoreManagerFactory.Object,
             MockPasswordPolicy.Object,
             MockEmailCodes.Object,
             MockCryptoService.Object,
-            MockPostCommitSecurityEffects.Object
+            MockPostCommitSecurityEffects.Object,
+            MockAuditEventRecorder.Object
         );
     }
 
@@ -123,6 +127,137 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
             .Setup(x => x.GetByIdOrDefaultAsync(LocalAccountId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(account)
             .Verifiable();
+
+    private void SetupFederatedIdentity()
+    {
+        MockStoreManager
+            .Setup(x => x.GetStore<IFederatedIdentityStore>())
+            .Returns(MockFederatedIdentityStore.Object)
+            .Verifiable();
+        MockFederatedIdentityStore
+            .Setup(x =>
+                x.GetByIssuerSubjectAsync(
+                    AccountConstants.SelfIssuer,
+                    LocalAccountId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(SelfIssuedIdentity())
+            .Verifiable();
+    }
+
+    private void SetupRequested(Mock<OpenIdContext> mockContext) =>
+        MockAuditEventRecorder
+            .Setup(x =>
+                x.RecordPasswordResetRequestedAsync(
+                    mockContext.Object,
+                    PrincipalId,
+                    LocalAccountId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+    private void SetupRequestFailed(Mock<OpenIdContext> mockContext, string errorCode) =>
+        MockAuditEventRecorder
+            .Setup(x =>
+                x.RecordPasswordResetRequestFailedAsync(
+                    mockContext.Object,
+                    errorCode,
+                    UserName,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+    private void SetupResetFailed(
+        Mock<OpenIdContext> mockContext,
+        string? subjectId,
+        string? localAccountId,
+        string errorCode
+    ) =>
+        MockAuditEventRecorder
+            .Setup(x =>
+                x.RecordPasswordResetFailedAsync(
+                    mockContext.Object,
+                    subjectId,
+                    localAccountId,
+                    errorCode,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+    private void SetupSuccessfulReset(Mock<OpenIdContext> mockContext)
+    {
+        SetupVerify(LocalAccountId);
+        SetupStoreManager();
+        SetupLookupById(Account());
+        MockPasswordPolicy
+            .Setup(x =>
+                x.ValidateAsync(
+                    It.Is<PasswordPolicyContext>(c => c.UserName == UserName),
+                    It.IsAny<ReadOnlyMemory<char>>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(PasswordPolicyResult.Accepted)
+            .Verifiable();
+        SetupFederatedIdentity();
+        MockLocalAccountStore
+            .Setup(x =>
+                x.SetPasswordAsync(
+                    LocalAccountId,
+                    It.IsAny<ReadOnlyMemory<byte>>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockAuditEventRecorder
+            .Setup(x =>
+                x.RecordPasswordResetAsync(
+                    mockContext.Object,
+                    PrincipalId,
+                    LocalAccountId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockEmailCodes
+            .Setup(x =>
+                x.CompleteAsync(
+                    mockContext.Object,
+                    EmailCodePurposes.ResetPassword,
+                    FlowId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockPostCommitSecurityEffects
+            .Setup(x =>
+                x.TerminateSessionsAsync(
+                    mockContext.Object,
+                    PrincipalId,
+                    SessionTerminationReasons.PasswordReset
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockPostCommitSecurityEffects
+            .Setup(x => x.ResetPasswordAttemptsAsync(TenantId, UserName))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+    }
 
     private void SetupVerify(string? localAccountId) =>
         MockEmailCodes
@@ -188,11 +323,28 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
     }
 
     [Fact]
+    public async Task SendResetCodeAsync_WhenResetIsDisabled_RecordsNothing()
+    {
+        var mockContext = CreateContext(isResetEnabled: false);
+        SetupHandle();
+
+        await Resetter.SendResetCodeAsync(
+            mockContext.Object,
+            UserName,
+            Locale,
+            CancellationToken.None
+        );
+
+        MockAuditEventRecorder.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public async Task SendResetCodeAsync_ForAnUnknownUserName_ReturnsAHandleAndSendsNothing()
     {
         var mockContext = CreateContext(isResetEnabled: true);
         SetupStoreManager();
         SetupLookupByUserName(account: null);
+        SetupRequestFailed(mockContext, "account_not_eligible");
         SetupHandle();
 
         var flowId = await Resetter.SendResetCodeAsync(
@@ -206,11 +358,41 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
     }
 
     [Fact]
+    public async Task SendResetCodeAsync_ForAnUnknownUserName_RecordsTheFailureWithTheUserName()
+    {
+        var mockContext = CreateContext(isResetEnabled: true);
+        SetupStoreManager();
+        SetupLookupByUserName(account: null);
+        SetupRequestFailed(mockContext, "account_not_eligible");
+        SetupHandle();
+
+        await Resetter.SendResetCodeAsync(
+            mockContext.Object,
+            UserName,
+            Locale,
+            CancellationToken.None
+        );
+
+        MockAuditEventRecorder.Verify(
+            x =>
+                x.RecordPasswordResetRequestFailedAsync(
+                    mockContext.Object,
+                    "account_not_eligible",
+                    UserName,
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Once
+        );
+        MockAuditEventRecorder.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public async Task SendResetCodeAsync_ForAnUnverifiedAddress_ReturnsAHandleAndSendsNothing()
     {
         var mockContext = CreateContext(isResetEnabled: true);
         SetupStoreManager();
         SetupLookupByUserName(Account(emailVerified: false));
+        SetupRequestFailed(mockContext, "account_not_eligible");
         SetupHandle();
 
         var flowId = await Resetter.SendResetCodeAsync(
@@ -221,6 +403,50 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
         );
 
         Assert.Equal(HandleOfNoFlow, flowId);
+    }
+
+    [Fact]
+    public async Task SendResetCodeAsync_PastTheHourlyLimit_RecordsTheFailureWithTheUserName()
+    {
+        var mockContext = CreateContext(isResetEnabled: true);
+        var account = Account();
+        SetupStoreManager();
+        SetupLookupByUserName(account);
+        SetupFederatedIdentity();
+        MockEmailCodes
+            .Setup(x =>
+                x.SendAsync(
+                    mockContext.Object,
+                    EmailCodePurposes.ResetPassword,
+                    account,
+                    Locale,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((string?)null)
+            .Verifiable();
+        SetupRequestFailed(mockContext, InteractiveEmailCodeErrors.TooManyCodes);
+        SetupHandle();
+
+        var flowId = await Resetter.SendResetCodeAsync(
+            mockContext.Object,
+            UserName,
+            Locale,
+            CancellationToken.None
+        );
+
+        Assert.Equal(HandleOfNoFlow, flowId);
+        MockAuditEventRecorder.Verify(
+            x =>
+                x.RecordPasswordResetRequestFailedAsync(
+                    mockContext.Object,
+                    InteractiveEmailCodeErrors.TooManyCodes,
+                    UserName,
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Once
+        );
+        MockAuditEventRecorder.VerifyNoOtherCalls();
     }
 
     [Fact]
@@ -230,6 +456,8 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
         var account = Account();
         SetupStoreManager();
         SetupLookupByUserName(account);
+        SetupFederatedIdentity();
+        SetupRequested(mockContext);
         MockEmailCodes
             .Setup(x =>
                 x.SendAsync(
@@ -251,6 +479,48 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
         );
 
         Assert.Equal(FlowId, flowId);
+    }
+
+    [Fact]
+    public async Task SendResetCodeAsync_ForAVerifiedAddress_RecordsTheRequest()
+    {
+        var mockContext = CreateContext(isResetEnabled: true);
+        var account = Account();
+        SetupStoreManager();
+        SetupLookupByUserName(account);
+        SetupFederatedIdentity();
+        SetupRequested(mockContext);
+        MockEmailCodes
+            .Setup(x =>
+                x.SendAsync(
+                    mockContext.Object,
+                    EmailCodePurposes.ResetPassword,
+                    account,
+                    Locale,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(FlowId)
+            .Verifiable();
+
+        await Resetter.SendResetCodeAsync(
+            mockContext.Object,
+            UserName,
+            Locale,
+            CancellationToken.None
+        );
+
+        MockAuditEventRecorder.Verify(
+            x =>
+                x.RecordPasswordResetRequestedAsync(
+                    mockContext.Object,
+                    PrincipalId,
+                    LocalAccountId,
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Once
+        );
+        MockAuditEventRecorder.VerifyNoOtherCalls();
     }
 
     #endregion
@@ -278,6 +548,12 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
     {
         var mockContext = CreateContext(isResetEnabled: true);
         SetupVerify(localAccountId: null);
+        SetupResetFailed(
+            mockContext,
+            subjectId: null,
+            localAccountId: null,
+            InteractiveEmailCodeErrors.InvalidCode
+        );
 
         var result = await Resetter.ResetPasswordAsync(
             mockContext.Object,
@@ -292,12 +568,48 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
     }
 
     [Fact]
+    public async Task ResetPasswordAsync_WithAWrongCode_RecordsInvalidCode()
+    {
+        var mockContext = CreateContext(isResetEnabled: true);
+        SetupVerify(localAccountId: null);
+        SetupResetFailed(
+            mockContext,
+            subjectId: null,
+            localAccountId: null,
+            InteractiveEmailCodeErrors.InvalidCode
+        );
+
+        await Resetter.ResetPasswordAsync(
+            mockContext.Object,
+            FlowId,
+            Code,
+            NewPassword,
+            CancellationToken.None
+        );
+
+        MockAuditEventRecorder.Verify(
+            x =>
+                x.RecordPasswordResetFailedAsync(
+                    mockContext.Object,
+                    null,
+                    null,
+                    InteractiveEmailCodeErrors.InvalidCode,
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Once
+        );
+        MockAuditEventRecorder.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public async Task ResetPasswordAsync_WhenThePolicyRefuses_KeepsTheFlowAndRefusesWithThePolicyError()
     {
         var mockContext = CreateContext(isResetEnabled: true);
         SetupVerify(LocalAccountId);
         SetupStoreManager();
         SetupLookupById(Account());
+        SetupFederatedIdentity();
+        SetupResetFailed(mockContext, PrincipalId, LocalAccountId, PasswordPolicyErrors.TooShort);
         MockPasswordPolicy
             .Setup(x =>
                 x.ValidateAsync(
@@ -325,72 +637,7 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
     public async Task ResetPasswordAsync_WithTheCode_SetsThePasswordEndsTheSessionsAndClearsTheAttempts()
     {
         var mockContext = CreateContext(isResetEnabled: true, needsTenantId: true);
-        SetupVerify(LocalAccountId);
-        SetupStoreManager();
-        SetupLookupById(Account());
-        MockPasswordPolicy
-            .Setup(x =>
-                x.ValidateAsync(
-                    It.Is<PasswordPolicyContext>(c => c.UserName == UserName),
-                    It.IsAny<ReadOnlyMemory<char>>(),
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .ReturnsAsync(PasswordPolicyResult.Accepted)
-            .Verifiable();
-        MockStoreManager
-            .Setup(x => x.GetStore<IFederatedIdentityStore>())
-            .Returns(MockFederatedIdentityStore.Object)
-            .Verifiable();
-        MockFederatedIdentityStore
-            .Setup(x =>
-                x.GetByIssuerSubjectAsync(
-                    AccountConstants.SelfIssuer,
-                    LocalAccountId,
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .ReturnsAsync(SelfIssuedIdentity())
-            .Verifiable();
-        MockLocalAccountStore
-            .Setup(x =>
-                x.SetPasswordAsync(
-                    LocalAccountId,
-                    It.IsAny<ReadOnlyMemory<byte>>(),
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .Returns(ValueTask.CompletedTask)
-            .Verifiable();
-        MockStoreManager
-            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
-            .Returns(ValueTask.CompletedTask)
-            .Verifiable();
-        MockEmailCodes
-            .Setup(x =>
-                x.CompleteAsync(
-                    mockContext.Object,
-                    EmailCodePurposes.ResetPassword,
-                    FlowId,
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .Returns(ValueTask.CompletedTask)
-            .Verifiable();
-        MockPostCommitSecurityEffects
-            .Setup(x =>
-                x.TerminateSessionsAsync(
-                    mockContext.Object,
-                    PrincipalId,
-                    SessionTerminationReasons.PasswordReset
-                )
-            )
-            .Returns(ValueTask.CompletedTask)
-            .Verifiable();
-        MockPostCommitSecurityEffects
-            .Setup(x => x.ResetPasswordAttemptsAsync(TenantId, UserName))
-            .Returns(ValueTask.CompletedTask)
-            .Verifiable();
+        SetupSuccessfulReset(mockContext);
 
         var result = await Resetter.ResetPasswordAsync(
             mockContext.Object,
@@ -401,6 +648,33 @@ public class LocalAccountInteractivePasswordResetterTests : BaseTests
         );
 
         Assert.Equal(InteractivePasswordChangeResult.Changed, result);
+    }
+
+    [Fact]
+    public async Task ResetPasswordAsync_WithTheCode_RecordsTheReset()
+    {
+        var mockContext = CreateContext(isResetEnabled: true, needsTenantId: true);
+        SetupSuccessfulReset(mockContext);
+
+        await Resetter.ResetPasswordAsync(
+            mockContext.Object,
+            FlowId,
+            Code,
+            NewPassword,
+            CancellationToken.None
+        );
+
+        MockAuditEventRecorder.Verify(
+            x =>
+                x.RecordPasswordResetAsync(
+                    mockContext.Object,
+                    PrincipalId,
+                    LocalAccountId,
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Once
+        );
+        MockAuditEventRecorder.VerifyNoOtherCalls();
     }
 
     #endregion

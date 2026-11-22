@@ -5,6 +5,7 @@ using System.Security.Claims;
 using NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
+using NCode.Identity.OpenId.Authentication.Auditing;
 using NCode.Identity.OpenId.Authentication.Interactive;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Settings;
@@ -16,16 +17,19 @@ namespace NCode.Identity.OpenId.Accounts.Authentication;
 /// Provides the local-account implementation of the <see cref="IInteractiveEmailVerifier"/> seam, backed by the
 /// configured <see cref="ILocalAccountStore"/>. It resolves the signed-in end user's single enabled local account,
 /// mails a one-time code to the account's address when the tenant allows verification, and marks the address verified
-/// when the end user presents the code. A code that belongs to another account verifies nothing.
+/// when the end user presents the code. A code that belongs to another account verifies nothing. It audits each attempt
+/// to verify.
 /// </summary>
 // See ADR-1533.
 internal sealed class LocalAccountInteractiveEmailVerifier(
     IStoreManagerFactory storeManagerFactory,
-    ILocalAccountEmailCodes emailCodes
+    ILocalAccountEmailCodes emailCodes,
+    IAuditEventRecorder auditEventRecorder
 ) : IInteractiveEmailVerifier
 {
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private ILocalAccountEmailCodes EmailCodes { get; } = emailCodes;
+    private IAuditEventRecorder AuditEventRecorder { get; } = auditEventRecorder;
 
     /// <inheritdoc />
     public async ValueTask<InteractiveEmailStatus?> GetStatusAsync(
@@ -137,14 +141,33 @@ internal sealed class LocalAccountInteractiveEmailVerifier(
             code,
             cancellationToken
         );
+
+        // The end user's verification is audited as the password grant's authentication is (ADR-1533).
+        var subjectId = openIdContext.GetSubjectId(principal);
+        ArgumentException.ThrowIfNullOrEmpty(subjectId);
+
         if (!string.Equals(localAccountId, account.LocalAccountId, StringComparison.Ordinal))
         {
+            await AuditEventRecorder.RecordEmailVerificationFailedAsync(
+                openIdContext,
+                subjectId,
+                account.LocalAccountId,
+                InteractiveEmailCodeErrors.InvalidCode,
+                cancellationToken
+            );
             return InteractiveEmailCodeResult.Refused(InteractiveEmailCodeErrors.InvalidCode);
         }
 
         account.EmailVerified = true;
         await storeManager.GetStore<ILocalAccountStore>().UpdateAsync(account, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
+
+        await AuditEventRecorder.RecordEmailVerifiedAsync(
+            openIdContext,
+            subjectId,
+            account.LocalAccountId,
+            cancellationToken
+        );
 
         await EmailCodes.CompleteAsync(
             openIdContext,

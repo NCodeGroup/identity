@@ -1,11 +1,13 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using NCode.Buffers;
 using NCode.Identity.Cryptography;
 using NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
+using NCode.Identity.OpenId.Authentication.Auditing;
 using NCode.Identity.OpenId.Authentication.Interactive;
 using NCode.Identity.OpenId.Authentication.Passwords;
 using NCode.Identity.OpenId.Authentication.Sessions;
@@ -23,7 +25,7 @@ namespace NCode.Identity.OpenId.Accounts.Authentication;
 /// account whose tenant allows resets, and it hands back a flow handle in every other case, so the answer never tells
 /// whether an account exists. A reset judges the new password with the password policy before it spends the code,
 /// replaces the password in one unit of work, ends the sessions of the account's principal and clears its failed
-/// password attempts.
+/// password attempts. It audits each request for a code and each attempt to reset.
 /// </summary>
 // See ADR-1533.
 internal sealed class LocalAccountInteractivePasswordResetter(
@@ -31,15 +33,22 @@ internal sealed class LocalAccountInteractivePasswordResetter(
     IPasswordPolicy passwordPolicy,
     ILocalAccountEmailCodes emailCodes,
     ICryptoService cryptoService,
-    IPostCommitSecurityEffects postCommitSecurityEffects
+    IPostCommitSecurityEffects postCommitSecurityEffects,
+    IAuditEventRecorder auditEventRecorder
 ) : IInteractivePasswordResetter
 {
+    private const string AccountNotEligible = "account_not_eligible";
+
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IPasswordPolicy PasswordPolicy { get; } = passwordPolicy;
     private ILocalAccountEmailCodes EmailCodes { get; } = emailCodes;
     private ICryptoService CryptoService { get; } = cryptoService;
     private IPostCommitSecurityEffects PostCommitSecurityEffects { get; } =
         postCommitSecurityEffects;
+    private IAuditEventRecorder AuditEventRecorder { get; } = auditEventRecorder;
+
+    private static bool IsEligible([NotNullWhen(true)] PersistedLocalAccount? account) =>
+        account is { IsEnabled: true, EmailVerified: true, Email: { Length: > 0 } };
 
     /// <inheritdoc />
     public async ValueTask<string> SendResetCodeAsync(
@@ -56,15 +65,35 @@ internal sealed class LocalAccountInteractivePasswordResetter(
         }
 
         PersistedLocalAccount? account;
+        string? principalId = null;
         await using (var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken))
         {
             account = await storeManager
                 .GetStore<ILocalAccountStore>()
                 .GetByUserNameOrDefaultAsync(userName, cancellationToken);
+
+            if (IsEligible(account))
+            {
+                var principal = await storeManager
+                    .GetStore<IFederatedIdentityStore>()
+                    .GetByIssuerSubjectAsync(
+                        AccountConstants.SelfIssuer,
+                        account.LocalAccountId,
+                        cancellationToken
+                    );
+                principalId = principal?.PrincipalId;
+            }
         }
 
-        if (account is not { IsEnabled: true, EmailVerified: true, Email: { Length: > 0 } })
+        // The end user's request is audited as the password grant's authentication is (ADR-1533).
+        if (!IsEligible(account))
         {
+            await AuditEventRecorder.RecordPasswordResetRequestFailedAsync(
+                openIdContext,
+                AccountNotEligible,
+                userName,
+                cancellationToken
+            );
             return CryptoService.GenerateUrlSafeKey();
         }
 
@@ -75,7 +104,24 @@ internal sealed class LocalAccountInteractivePasswordResetter(
             locale,
             cancellationToken
         );
-        return flowId ?? CryptoService.GenerateUrlSafeKey();
+        if (flowId is null)
+        {
+            await AuditEventRecorder.RecordPasswordResetRequestFailedAsync(
+                openIdContext,
+                InteractiveEmailCodeErrors.TooManyCodes,
+                userName,
+                cancellationToken
+            );
+            return CryptoService.GenerateUrlSafeKey();
+        }
+
+        await AuditEventRecorder.RecordPasswordResetRequestedAsync(
+            openIdContext,
+            principalId,
+            account.LocalAccountId,
+            cancellationToken
+        );
+        return flowId;
     }
 
     /// <inheritdoc />
@@ -102,6 +148,14 @@ internal sealed class LocalAccountInteractivePasswordResetter(
         );
         if (localAccountId is null)
         {
+            // The end user's reset is audited as the password grant's authentication is (ADR-1533).
+            await AuditEventRecorder.RecordPasswordResetFailedAsync(
+                openIdContext,
+                subjectId: null,
+                localAccountId: null,
+                InteractiveEmailCodeErrors.InvalidCode,
+                cancellationToken
+            );
             return InteractivePasswordChangeResult.Refused(InteractiveEmailCodeErrors.InvalidCode);
         }
 
@@ -111,8 +165,23 @@ internal sealed class LocalAccountInteractivePasswordResetter(
         var account = await accountStore.GetByIdOrDefaultAsync(localAccountId, cancellationToken);
         if (account is not { IsEnabled: true })
         {
+            await AuditEventRecorder.RecordPasswordResetFailedAsync(
+                openIdContext,
+                subjectId: null,
+                localAccountId: null,
+                InteractiveEmailCodeErrors.InvalidCode,
+                cancellationToken
+            );
             return InteractivePasswordChangeResult.Refused(InteractiveEmailCodeErrors.InvalidCode);
         }
+
+        var principal = await storeManager
+            .GetStore<IFederatedIdentityStore>()
+            .GetByIssuerSubjectAsync(
+                AccountConstants.SelfIssuer,
+                localAccountId,
+                cancellationToken
+            );
 
         // The new password is judged before the code is spent, so a password the policy refuses leaves the flow for
         // another try. See ADR-1236.
@@ -130,16 +199,15 @@ internal sealed class LocalAccountInteractivePasswordResetter(
         );
         if (policyResult.IsRejected)
         {
-            return InteractivePasswordChangeResult.Refused(policyResult.Error);
-        }
-
-        var principal = await storeManager
-            .GetStore<IFederatedIdentityStore>()
-            .GetByIssuerSubjectAsync(
-                AccountConstants.SelfIssuer,
+            await AuditEventRecorder.RecordPasswordResetFailedAsync(
+                openIdContext,
+                principal?.PrincipalId,
                 localAccountId,
+                policyResult.Error,
                 cancellationToken
             );
+            return InteractivePasswordChangeResult.Refused(policyResult.Error);
+        }
 
         // Encode the password into a pinned, zeroed-on-return buffer so it never lingers on the GC heap.
         using var newOwner = SecureEncoding.UTF8.RentBytes(
@@ -150,6 +218,13 @@ internal sealed class LocalAccountInteractivePasswordResetter(
 
         await accountStore.SetPasswordAsync(localAccountId, newBuffer, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
+
+        await AuditEventRecorder.RecordPasswordResetAsync(
+            openIdContext,
+            principal?.PrincipalId,
+            localAccountId,
+            cancellationToken
+        );
 
         await EmailCodes.CompleteAsync(
             openIdContext,

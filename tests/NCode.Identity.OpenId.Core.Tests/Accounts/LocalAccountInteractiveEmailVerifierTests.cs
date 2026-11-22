@@ -8,6 +8,7 @@ using NCode.Identity.OpenId.Accounts.Authentication;
 using NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
+using NCode.Identity.OpenId.Authentication.Auditing;
 using NCode.Identity.OpenId.Authentication.Interactive;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Persistence.DataContracts;
@@ -35,6 +36,7 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
     private Mock<IFederatedIdentityStore> MockFederatedIdentityStore { get; }
     private Mock<ILocalAccountStore> MockLocalAccountStore { get; }
     private Mock<ILocalAccountEmailCodes> MockEmailCodes { get; }
+    private Mock<IAuditEventRecorder> MockAuditEventRecorder { get; }
     private LocalAccountInteractiveEmailVerifier Verifier { get; }
 
     public LocalAccountInteractiveEmailVerifierTests()
@@ -44,9 +46,11 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
         MockFederatedIdentityStore = CreateStrictMock<IFederatedIdentityStore>();
         MockLocalAccountStore = CreateStrictMock<ILocalAccountStore>();
         MockEmailCodes = CreateStrictMock<ILocalAccountEmailCodes>();
+        MockAuditEventRecorder = CreateStrictMock<IAuditEventRecorder>();
         Verifier = new LocalAccountInteractiveEmailVerifier(
             MockStoreManagerFactory.Object,
-            MockEmailCodes.Object
+            MockEmailCodes.Object,
+            MockAuditEventRecorder.Object
         );
     }
 
@@ -111,6 +115,61 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
         MockLocalAccountStore
             .Setup(x => x.GetByIdOrDefaultAsync(LocalAccountId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(account)
+            .Verifiable();
+    }
+
+    private void SetupRecordedFailure() =>
+        MockAuditEventRecorder
+            .Setup(x =>
+                x.RecordEmailVerificationFailedAsync(
+                    It.IsAny<OpenIdContext>(),
+                    PrincipalId,
+                    LocalAccountId,
+                    InteractiveEmailCodeErrors.InvalidCode,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+    private void SetupSuccessfulVerification(Mock<OpenIdContext> mockContext)
+    {
+        SetupAccount(Account());
+        SetupVerify(LocalAccountId);
+        MockLocalAccountStore
+            .Setup(x =>
+                x.UpdateAsync(
+                    It.Is<PersistedLocalAccount>(a => a.EmailVerified),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockAuditEventRecorder
+            .Setup(x =>
+                x.RecordEmailVerifiedAsync(
+                    mockContext.Object,
+                    PrincipalId,
+                    LocalAccountId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockEmailCodes
+            .Setup(x =>
+                x.CompleteAsync(
+                    mockContext.Object,
+                    EmailCodePurposes.VerifyEmail,
+                    FlowId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
             .Verifiable();
     }
 
@@ -301,6 +360,7 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
         var mockContext = CreateContext(isVerificationEnabled: true);
         SetupAccount(Account());
         SetupVerify("account-2");
+        SetupRecordedFailure();
 
         var result = await Verifier.VerifyEmailAsync(
             mockContext.Object,
@@ -315,36 +375,40 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
     }
 
     [Fact]
+    public async Task VerifyEmailAsync_WithAnotherAccountsFlow_RecordsInvalidCode()
+    {
+        var mockContext = CreateContext(isVerificationEnabled: true);
+        SetupAccount(Account());
+        SetupVerify("account-2");
+        SetupRecordedFailure();
+
+        await Verifier.VerifyEmailAsync(
+            mockContext.Object,
+            Principal,
+            FlowId,
+            Code,
+            CancellationToken.None
+        );
+
+        MockAuditEventRecorder.Verify(
+            x =>
+                x.RecordEmailVerificationFailedAsync(
+                    mockContext.Object,
+                    PrincipalId,
+                    LocalAccountId,
+                    InteractiveEmailCodeErrors.InvalidCode,
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Once
+        );
+        MockAuditEventRecorder.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public async Task VerifyEmailAsync_WithTheCode_MarksTheAddressVerified()
     {
         var mockContext = CreateContext(isVerificationEnabled: true);
-        var account = Account();
-        SetupAccount(account);
-        SetupVerify(LocalAccountId);
-        MockLocalAccountStore
-            .Setup(x =>
-                x.UpdateAsync(
-                    It.Is<PersistedLocalAccount>(a => a.EmailVerified),
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .Returns(ValueTask.CompletedTask)
-            .Verifiable();
-        MockStoreManager
-            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
-            .Returns(ValueTask.CompletedTask)
-            .Verifiable();
-        MockEmailCodes
-            .Setup(x =>
-                x.CompleteAsync(
-                    mockContext.Object,
-                    EmailCodePurposes.VerifyEmail,
-                    FlowId,
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .Returns(ValueTask.CompletedTask)
-            .Verifiable();
+        SetupSuccessfulVerification(mockContext);
 
         var result = await Verifier.VerifyEmailAsync(
             mockContext.Object,
@@ -355,7 +419,33 @@ public class LocalAccountInteractiveEmailVerifierTests : BaseTests
         );
 
         Assert.Equal(InteractiveEmailCodeResult.Verified, result);
-        Assert.True(account.EmailVerified);
+    }
+
+    [Fact]
+    public async Task VerifyEmailAsync_WithTheCode_RecordsTheVerification()
+    {
+        var mockContext = CreateContext(isVerificationEnabled: true);
+        SetupSuccessfulVerification(mockContext);
+
+        await Verifier.VerifyEmailAsync(
+            mockContext.Object,
+            Principal,
+            FlowId,
+            Code,
+            CancellationToken.None
+        );
+
+        MockAuditEventRecorder.Verify(
+            x =>
+                x.RecordEmailVerifiedAsync(
+                    mockContext.Object,
+                    PrincipalId,
+                    LocalAccountId,
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Once
+        );
+        MockAuditEventRecorder.VerifyNoOtherCalls();
     }
 
     #endregion

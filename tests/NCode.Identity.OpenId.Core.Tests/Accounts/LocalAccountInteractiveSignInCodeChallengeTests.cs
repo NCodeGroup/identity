@@ -8,6 +8,7 @@ using NCode.Identity.OpenId.Accounts.Authentication;
 using NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
 using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
+using NCode.Identity.OpenId.Authentication.Auditing;
 using NCode.Identity.OpenId.Authentication.Interactive;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.Persistence.DataContracts;
@@ -33,6 +34,7 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
     private Mock<ILocalAccountStore> MockLocalAccountStore { get; }
     private Mock<ILocalAccountEmailCodes> MockEmailCodes { get; }
     private Mock<OpenIdContext> MockContext { get; }
+    private Mock<IAuditEventRecorder> MockAuditEventRecorder { get; }
     private LocalAccountInteractiveSignInCodeChallenge Challenge { get; }
 
     public LocalAccountInteractiveSignInCodeChallengeTests()
@@ -44,9 +46,11 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
         MockEmailCodes = CreateStrictMock<ILocalAccountEmailCodes>();
         MockContext = CreateStrictMock<OpenIdContext>();
         MockContext.Setup(x => x.GetSubjectId(Principal)).Returns(PrincipalId).Verifiable();
+        MockAuditEventRecorder = CreateStrictMock<IAuditEventRecorder>();
         Challenge = new LocalAccountInteractiveSignInCodeChallenge(
             MockStoreManagerFactory.Object,
-            MockEmailCodes.Object
+            MockEmailCodes.Object,
+            MockAuditEventRecorder.Object
         );
     }
 
@@ -78,6 +82,66 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
         MockLocalAccountStore
             .Setup(x => x.GetByIdOrDefaultAsync(LocalAccountId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(account)
+            .Verifiable();
+    }
+
+    private void SetupRecordedFailure(string errorCode) =>
+        MockAuditEventRecorder
+            .Setup(x =>
+                x.RecordSecondFactorFailedAsync(
+                    MockContext.Object,
+                    PrincipalId,
+                    LocalAccountId,
+                    AuditCredentialFactors.EmailCode,
+                    errorCode,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+    private void SetupRecordedSuccess() =>
+        MockAuditEventRecorder
+            .Setup(x =>
+                x.RecordSecondFactorVerifiedAsync(
+                    MockContext.Object,
+                    PrincipalId,
+                    LocalAccountId,
+                    AuditCredentialFactors.EmailCode,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+    private void SetupSuccessfulVerification()
+    {
+        SetupAccount(Account());
+        SetupVerify(LocalAccountId);
+        SetupRecordedSuccess();
+        MockEmailCodes
+            .Setup(x =>
+                x.CompleteAsync(
+                    MockContext.Object,
+                    EmailCodePurposes.SignIn,
+                    FlowId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockLocalAccountStore
+            .Setup(x =>
+                x.UpdateAsync(
+                    It.Is<PersistedLocalAccount>(a => a.EmailVerified),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
             .Verifiable();
     }
 
@@ -131,6 +195,7 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
     public async Task SendSignInCodeAsync_WithoutAnAddress_RefusesNoEmail()
     {
         SetupAccount(Account(email: null));
+        SetupRecordedFailure(InteractiveEmailCodeErrors.NoEmail);
 
         var result = await Challenge.SendSignInCodeAsync(
             MockContext.Object,
@@ -141,6 +206,77 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
 
         Assert.False(result.IsAccepted);
         Assert.Equal(InteractiveEmailCodeErrors.NoEmail, result.Error);
+    }
+
+    [Fact]
+    public async Task SendSignInCodeAsync_WithoutAnAddress_RecordsTheFailure()
+    {
+        SetupAccount(Account(email: null));
+        SetupRecordedFailure(InteractiveEmailCodeErrors.NoEmail);
+
+        await Challenge.SendSignInCodeAsync(
+            MockContext.Object,
+            Principal,
+            Locale,
+            CancellationToken.None
+        );
+
+        MockAuditEventRecorder.Verify(
+            x =>
+                x.RecordSecondFactorFailedAsync(
+                    MockContext.Object,
+                    PrincipalId,
+                    LocalAccountId,
+                    AuditCredentialFactors.EmailCode,
+                    InteractiveEmailCodeErrors.NoEmail,
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Once
+        );
+        MockAuditEventRecorder.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task SendSignInCodeAsync_PastTheHourlyLimit_RecordsTooManyCodes()
+    {
+        var account = Account();
+        SetupAccount(account);
+        MockEmailCodes
+            .Setup(x =>
+                x.SendAsync(
+                    MockContext.Object,
+                    EmailCodePurposes.SignIn,
+                    account,
+                    Locale,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((string?)null)
+            .Verifiable();
+        SetupRecordedFailure(InteractiveEmailCodeErrors.TooManyCodes);
+
+        var result = await Challenge.SendSignInCodeAsync(
+            MockContext.Object,
+            Principal,
+            Locale,
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsAccepted);
+        Assert.Equal(InteractiveEmailCodeErrors.TooManyCodes, result.Error);
+        MockAuditEventRecorder.Verify(
+            x =>
+                x.RecordSecondFactorFailedAsync(
+                    MockContext.Object,
+                    PrincipalId,
+                    LocalAccountId,
+                    AuditCredentialFactors.EmailCode,
+                    InteractiveEmailCodeErrors.TooManyCodes,
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Once
+        );
+        MockAuditEventRecorder.VerifyNoOtherCalls();
     }
 
     [Fact]
@@ -181,6 +317,7 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
     {
         SetupAccount(Account());
         SetupVerify(null);
+        SetupRecordedFailure(InteractiveEmailCodeErrors.InvalidCode);
 
         var result = await Challenge.VerifySignInCodeAsync(
             MockContext.Object,
@@ -195,35 +332,39 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
     }
 
     [Fact]
+    public async Task VerifySignInCodeAsync_WithAWrongCode_RecordsInvalidCode()
+    {
+        SetupAccount(Account());
+        SetupVerify(null);
+        SetupRecordedFailure(InteractiveEmailCodeErrors.InvalidCode);
+
+        await Challenge.VerifySignInCodeAsync(
+            MockContext.Object,
+            Principal,
+            FlowId,
+            Code,
+            CancellationToken.None
+        );
+
+        MockAuditEventRecorder.Verify(
+            x =>
+                x.RecordSecondFactorFailedAsync(
+                    MockContext.Object,
+                    PrincipalId,
+                    LocalAccountId,
+                    AuditCredentialFactors.EmailCode,
+                    InteractiveEmailCodeErrors.InvalidCode,
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Once
+        );
+        MockAuditEventRecorder.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public async Task VerifySignInCodeAsync_WithTheCode_MarksTheAddressVerified()
     {
-        var account = Account();
-        SetupAccount(account);
-        SetupVerify(LocalAccountId);
-        MockEmailCodes
-            .Setup(x =>
-                x.CompleteAsync(
-                    MockContext.Object,
-                    EmailCodePurposes.SignIn,
-                    FlowId,
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .Returns(ValueTask.CompletedTask)
-            .Verifiable();
-        MockLocalAccountStore
-            .Setup(x =>
-                x.UpdateAsync(
-                    It.Is<PersistedLocalAccount>(a => a.EmailVerified),
-                    It.IsAny<CancellationToken>()
-                )
-            )
-            .Returns(ValueTask.CompletedTask)
-            .Verifiable();
-        MockStoreManager
-            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
-            .Returns(ValueTask.CompletedTask)
-            .Verifiable();
+        SetupSuccessfulVerification();
 
         var result = await Challenge.VerifySignInCodeAsync(
             MockContext.Object,
@@ -234,7 +375,33 @@ public class LocalAccountInteractiveSignInCodeChallengeTests : BaseTests
         );
 
         Assert.Equal(InteractiveEmailCodeResult.Verified, result);
-        Assert.True(account.EmailVerified);
+    }
+
+    [Fact]
+    public async Task VerifySignInCodeAsync_WithTheCode_RecordsTheSecondFactor()
+    {
+        SetupSuccessfulVerification();
+
+        await Challenge.VerifySignInCodeAsync(
+            MockContext.Object,
+            Principal,
+            FlowId,
+            Code,
+            CancellationToken.None
+        );
+
+        MockAuditEventRecorder.Verify(
+            x =>
+                x.RecordSecondFactorVerifiedAsync(
+                    MockContext.Object,
+                    PrincipalId,
+                    LocalAccountId,
+                    AuditCredentialFactors.EmailCode,
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Once
+        );
+        MockAuditEventRecorder.VerifyNoOtherCalls();
     }
 
     #endregion
