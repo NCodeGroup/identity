@@ -41,6 +41,7 @@ public sealed class TenantKeySeedHandlerTests : BaseTests
     private Mock<ITenantKeyPolicy> MockPolicy { get; }
     private Mock<ITenantKeyRolloverPlanner> MockPlanner { get; }
     private Mock<ITenantKeyRollover> MockRollover { get; }
+    private Mock<ITenantKeyPlacementGuard> MockPlacementGuard { get; }
     private Mock<IEffectiveSettingsResolver> MockEffectiveSettingsResolver { get; }
     private Mock<IEventPublisher> MockEventPublisher { get; }
     private Mock<IRemoteSecretDestroyer> MockRemoteSecretDestroyer { get; }
@@ -54,6 +55,12 @@ public sealed class TenantKeySeedHandlerTests : BaseTests
         MockPolicy = CreateStrictMock<ITenantKeyPolicy>();
         MockPlanner = CreateStrictMock<ITenantKeyRolloverPlanner>();
         MockRollover = CreateStrictMock<ITenantKeyRollover>();
+        MockPlacementGuard = CreateStrictMock<ITenantKeyPlacementGuard>();
+
+        // A tenant the directory places in this cell, or in no cell, may change its keys.
+        MockPlacementGuard
+            .Setup(x => x.MayChangeKeysAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
         MockEffectiveSettingsResolver = CreateStrictMock<IEffectiveSettingsResolver>();
         MockEventPublisher = CreateStrictMock<IEventPublisher>();
         MockRemoteSecretDestroyer = CreateStrictMock<IRemoteSecretDestroyer>();
@@ -66,6 +73,7 @@ public sealed class TenantKeySeedHandlerTests : BaseTests
             MockPolicy.Object,
             MockPlanner.Object,
             MockRollover.Object,
+            MockPlacementGuard.Object,
             MockEffectiveSettingsResolver.Object,
             MockEventPublisher.Object,
             MockRemoteSecretDestroyer.Object,
@@ -105,6 +113,29 @@ public sealed class TenantKeySeedHandlerTests : BaseTests
         await Handler.HandleAsync(command, CancellationToken.None);
 
         Assert.Same(original, tenant.Secrets);
+        Assert.Empty(command.Context.PostCommitSteps);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenTheDirectoryPlacesTheTenantInAnotherCell_LeavesItsKeysUnchanged()
+    {
+        // The rollover is strict with no setup: applying the plan fails the test.
+        var held = CreateSecret("held");
+        var tenant = CreateTenant([held]);
+        var original = tenant.Secrets;
+        SetupSpecifications(Rs256);
+        SetupSettings();
+        SetupGeneratingPlan(tenant);
+        MockPlacementGuard
+            .Setup(x => x.MayChangeKeysAsync(TenantId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false)
+            .Verifiable(Times.Once);
+        var command = CreateCommand(tenant);
+
+        await Handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.Same(original, tenant.Secrets);
+        Assert.Equal([held], tenant.Secrets.Value);
         Assert.Empty(command.Context.PostCommitSteps);
     }
 
