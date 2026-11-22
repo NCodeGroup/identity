@@ -605,6 +605,16 @@
         }
       }
     },
+    "admission": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "concurrencyLimit": {
+          "type": ["integer", "null"],
+          "minimum": 1
+        }
+      }
+    },
     "database": {
       "type": "object",
       "additionalProperties": false,

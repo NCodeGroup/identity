@@ -759,6 +759,10 @@ same configuration the pods it rewraps keys for read.
   value: {{ .Values.apiReference.documentEnabled | quote }}
 - name: ApiReference__PageEnabled
   value: {{ .Values.apiReference.pageEnabled | quote }}
+{{- if .Values.admission.concurrencyLimit }}
+- name: OpenId__Admission__ConcurrencyLimit
+  value: {{ .Values.admission.concurrencyLimit | quote }}
+{{- end }}
 {{ include "identity-host.databaseEnv" (dict "scope" .Values.database "defaults" .Values.database) | trim }}
 {{- if $valkey }}
 {{ include "identity-host.valkeyEnv" (dict "scope" .Values.valkey "defaults" .Values.valkey) | trim }}

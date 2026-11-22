@@ -207,6 +207,11 @@ apiReference:
   documentEnabled: false
   pageEnabled: false
 
+# Load shedding (OpenId:Admission). concurrencyLimit is the most metered protocol requests one replica serves at
+# once; a request past its tenant's share of it (admission_capacity_percent) is answered 503. Unset sheds nothing.
+admission:
+  concurrencyLimit: null
+
 # The Postgres database (ConnectionStrings:openiddb) the pods read, as the runtime role. It also persists the Data
 # Protection key ring. Required: name either existingSecret, a Secret holding the finished Npgsql connection string, or
 # parts.existingSecret, a Secret holding the connection's parts, as a Postgres operator writes it; never both. The role
