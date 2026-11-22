@@ -38,7 +38,7 @@ export {
   type LocalAccountRow,
   type LocalAccountTableProps,
 } from './components/LocalAccountTable.js';
-export { GrantTable,type GrantRow, type GrantTableProps } from './components/GrantTable.js';
+export { GrantTable, type GrantRow, type GrantTableProps } from './components/GrantTable.js';
 export {
   ResourceServerTable,
   type ResourceServerRow,
@@ -94,6 +94,12 @@ export {
   type TeamFormDialogProps,
   type TeamFormValues,
 } from './components/TeamFormDialog.js';
+export {
+  LocalAccountFormDialog,
+  emptyLocalAccountFormValues,
+  type LocalAccountFormDialogProps,
+  type LocalAccountFormValues,
+} from './components/LocalAccountFormDialog.js';
 export {
   TeamUsageTable,
   type TeamUsageRow,
