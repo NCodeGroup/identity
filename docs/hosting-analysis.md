@@ -890,8 +890,8 @@ reputation; add the provider's SPF include and DKIM keys, and keep DMARC at `p=r
 
 Which cells move to AWS, when, and in which shape is open ([§13](#13-open-decisions)); this section informs it. AWS is
 not the starting point, because it costs more at the entry size, but it is where the platform grows once revenue pays
-for it. The platform already runs in AWS: its OpenTofu state, its backups and the deployment's KMS root key live in a
-dedicated AWS account
+for it. The platform runs in AWS from the start: its OpenTofu state, its backups and the KMS root keys of production and
+the lab live in a dedicated AWS account
 ([ADR-1132](decisions/1132-platform-infrastructure-code-is-public-on-github-and-its-state-and-backups-live-in-aws.md),
 [ADR-1235](decisions/1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md)).
 
