@@ -202,7 +202,10 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
         var result = await ReserveAsync(ControlPlaneTenantId, FreeIssuer);
 
         Assert.False(result.IsReserved);
-        Assert.Contains("already has the identifier", result.ConflictDetail);
+        Assert.Equal(
+            $"Another tenant already has the identifier '{ControlPlaneTenantId}'.",
+            result.ConflictDetail
+        );
         var record = await ReadTenantAsync(ControlPlaneTenantId);
         Assert.NotNull(record);
         Assert.Equal(TenantRecord.StatePlaced, record.State);
@@ -217,7 +220,10 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
         var result = await ReserveAsync(TenantId, ControlPlaneIssuer);
 
         Assert.False(result.IsReserved);
-        Assert.Contains("already has the issuer", result.ConflictDetail);
+        Assert.Equal(
+            $"Another tenant already has the issuer '{ControlPlaneIssuer}'.",
+            result.ConflictDetail
+        );
     }
 
     [Fact]
@@ -249,7 +255,10 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
             await tenants.ReserveAsync(reservation, CancellationToken.None)
         );
 
-        Assert.Contains("DirectoryServer:ControlPlaneTenantId", exception.Message);
+        Assert.Equal(
+            $"The tenant '{TenantId}' that DirectoryServer:ControlPlaneTenantId names is retired or held by another cell, so the directory cannot hold it for the control-plane cell.",
+            exception.Message
+        );
     }
 
     [Fact]
@@ -277,7 +286,10 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
             await Tenants.ReserveAsync(reservation, CancellationToken.None)
         );
 
-        Assert.Contains("DirectoryServer:Issuer", exception.Message);
+        Assert.Equal(
+            $"Another tenant holds or retired the issuer that DirectoryServer:Issuer names, so the directory cannot hold it for the control-plane cell's root tenant '{ControlPlaneTenantId}'.",
+            exception.Message
+        );
     }
 
     [Fact]
@@ -301,7 +313,10 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
             await Tenants.ReserveAsync(reservation, CancellationToken.None)
         );
 
-        Assert.Contains("retired or held by another cell", exception.Message);
+        Assert.Equal(
+            $"The tenant '{ControlPlaneTenantId}' that DirectoryServer:ControlPlaneTenantId names is retired or held by another cell, so the directory cannot hold it for the control-plane cell.",
+            exception.Message
+        );
     }
 
     [Fact]

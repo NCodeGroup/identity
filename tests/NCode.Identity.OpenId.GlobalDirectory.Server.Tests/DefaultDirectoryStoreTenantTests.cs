@@ -190,7 +190,10 @@ public sealed class DefaultDirectoryStoreTenantTests : DefaultDirectoryStoreTest
         var result = await PlaceTenantAsync(TenantId, Issuer);
 
         Assert.False(result.IsReserved);
-        Assert.Contains("reserved for another cell or issuer", result.ConflictDetail);
+        Assert.Equal(
+            $"The tenant '{TenantId}' is reserved for another cell or issuer.",
+            result.ConflictDetail
+        );
     }
 
     [Fact]
@@ -749,7 +752,10 @@ public sealed class DefaultDirectoryStoreTenantTests : DefaultDirectoryStoreTest
         var result = await ChangeIssuerAsync(TenantId, Issuer, ControlPlaneIssuer);
 
         Assert.False(result.IsReserved);
-        Assert.Contains("already has the issuer", result.ConflictDetail);
+        Assert.Equal(
+            $"Another tenant already has the issuer '{ControlPlaneIssuer}'.",
+            result.ConflictDetail
+        );
     }
 
     #endregion
