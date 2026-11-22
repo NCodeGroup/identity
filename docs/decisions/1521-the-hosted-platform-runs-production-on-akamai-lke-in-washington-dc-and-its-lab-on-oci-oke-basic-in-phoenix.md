@@ -49,8 +49,9 @@ cluster; the lab runs on OCI OKE Basic in Phoenix inside the free allowance; AWS
    a cluster of its own.
 3. **The lab.** An OCI Pay-As-You-Go tenancy with home region `us-phoenix-1`; OKE Basic, whose control plane is free; 2
    × Ampere A1 (1 OCPU / 6 GB) in two availability domains, inside the free allowance ($0); the free network load
-   balancer; CloudNativePG and Valkey in the cluster; arm64. It takes release candidates, runs the deployment posture
-   and never hosts a customer tenant (ADR-1495).
+   balancer; CloudNativePG and Valkey in the cluster; the root key in AWS KMS in the platform's account
+   ([#177](https://github.com/NCodeGroup/identity/issues/177)); arm64. It takes release candidates, runs the deployment
+   posture and never hosts a customer tenant (ADR-1495).
 4. **Development and ephemeral runs.** Daily development runs on the developer's machine (the Aspire stack,
    [ADR-1071](1071-the-aspire-apphost-runs-the-local-stack-in-health-gated-order-after-checking-the-frontend-toolchain.md))
    or a LAN-only homelab cluster, never under `ncodeid.net`, and may set `LocalDevelopment:Enabled` with the `local`
