@@ -19,14 +19,15 @@ using NCode.Identity.Registration.AspNetCore;
 namespace NCode.Identity.OpenId.Management.Endpoints;
 
 /// <summary>
-/// The root management route group (<c>/api</c>). It materializes the OpenID request environment for every management
-/// endpoint via <see cref="ManagementEnvironmentEndpointFilter"/> but opens no tenant scope. Each control-plane family
-/// (capabilities, caller, platform, teams, machine clients, tenant provisioning) opens the control-plane unscoped scope
-/// through <see cref="ControlPlaneScopeEndpointFilter"/> on its own route group, and the tenant-plane group opens the
-/// route's tenant scope. It declares on every route the <c>409</c> and <c>503</c> problems that its settings and
-/// root-key filters answer. It also describes the problem responses that every route shares in the OpenAPI document,
-/// and answers a thrown request-binding failure with its status. Its endpoints have confidential bodies, so HTTP
-/// logging never writes their request or response bodies.
+/// The root management route group (<c>/api</c>). It runs <see cref="ManagementCallerGate"/> before every management
+/// route binds its parameters, which materializes the OpenID request environment and authenticates the caller, and
+/// <see cref="ManagementFailureEndpointFilter"/> outermost among its filters; it opens no tenant scope. Each
+/// control-plane family (capabilities, caller, platform, teams, machine clients, tenant provisioning) opens the
+/// control-plane unscoped scope through <see cref="ControlPlaneScopeEndpointFilter"/> on its own route group, and the
+/// tenant-plane group opens the route's tenant scope. It declares on every route the <c>409</c> and <c>503</c> problems
+/// that its settings and root-key filters answer. It also describes the problem responses that every route shares in
+/// the OpenAPI document, and answers a thrown request-binding failure with its status. Its endpoints have confidential
+/// bodies, so HTTP logging never writes their request or response bodies.
 /// </summary>
 internal sealed class ManagementRootGroup : IEndpointGroup
 {
@@ -49,8 +50,8 @@ internal sealed class ManagementRootGroup : IEndpointGroup
         // Every management endpoint's body can carry a credential or personal data, so HTTP logging never writes one
         // (ADR-1503).
         group
-            .AddEndpointFilter<RouteGroupBuilder, ManagementEnvironmentEndpointFilter>()
-            .AddEndpointFilter<RouteGroupBuilder, ManagementAuthenticationEndpointFilter>()
+            .AddEndpointGate<RouteGroupBuilder, ManagementCallerGate>()
+            .AddEndpointFilter<RouteGroupBuilder, ManagementFailureEndpointFilter>()
             .AddEndpointFilter<RouteGroupBuilder, StoreConcurrencyEndpointFilter>()
             .AddEndpointFilter<RouteGroupBuilder, UnreadableSettingsEndpointFilter>()
             .AddEndpointFilter<RouteGroupBuilder, OwnerRootKeyUnavailableEndpointFilter>()
