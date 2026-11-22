@@ -26,7 +26,8 @@ namespace NCode.Identity.OpenId.Tenants;
 /// cell seeds its root tenant in the root plane; every other tenant, and the root tenant of every other cell, is seeded
 /// in the workload plane. A tenant it creates that a strategy serves (one with an issuer), other than the control-plane
 /// cell's root tenant, is reserved and placed in this cell through the global directory, as the management API creates
-/// a tenant; a tenant without an issuer is created in this cell alone.
+/// a tenant; a tenant of the platform's own team is reserved in no team; a tenant without an issuer is created in this
+/// cell alone.
 /// </summary>
 // See ADR-1166 (one seeding pipeline) and ADR-1351 (an effect that follows a committed change runs on its own bounded
 // token).
@@ -199,11 +200,21 @@ internal sealed class DefaultTenantProvisioner(
             );
         }
 
+        // The platform's own team is a row each cell creates for itself, and the directory holds no record of it, so a
+        // tenant of that team is reserved in no team, as the directory holds the control-plane cell's root tenant; no
+        // team limit applies to it. Every other team is one the control plane published (ADR-1411).
+        var reservedTeamId = string.Equals(
+            tenant.TeamId,
+            RootOptions.TeamId,
+            StringComparison.Ordinal
+        )
+            ? null
+            : tenant.TeamId;
         var reservation = new TenantReservation
         {
             TenantId = tenant.TenantId,
             Issuer = issuer,
-            TeamId = tenant.TeamId,
+            TeamId = reservedTeamId,
             Cell = CellOptions.Name,
         };
         var reservationResult = await TenantDirectory.ReserveAsync(reservation, cancellationToken);

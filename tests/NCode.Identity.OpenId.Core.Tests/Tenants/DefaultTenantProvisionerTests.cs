@@ -582,12 +582,58 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
         Assert.NotNull(reservation);
         Assert.Equal(WorkloadTenantId, reservation.TenantId);
         Assert.Equal(WorkloadIssuer, reservation.Issuer);
-        Assert.Equal(TeamId, reservation.TeamId);
+        Assert.Null(reservation.TeamId);
         Assert.Equal(ThisCell, reservation.Cell);
         Assert.NotNull(placement);
         Assert.Equal(WorkloadTenantId, placement.TenantId);
         Assert.Equal(WorkloadIssuer, placement.Issuer);
         Assert.Equal(ThisCell, placement.Cell);
+    }
+
+    [Fact]
+    public async Task EnsureCreatedAsync_WhenTheTenantBelongsToAnotherTeam_ReservesItInThatTeam()
+    {
+        var provisioner = CreateWorkloadCellProvisioner();
+        MockTeamProvisioner
+            .Setup(x => x.EnsureCreatedAsync("team-2", "team-2", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateTeam())
+            .Verifiable();
+        SetupStoreManager();
+        SetupGetTenant(WorkloadTenantId, (PersistedTenant?)null);
+        SetupDefaultAddress(WorkloadIssuer);
+
+        TenantReservation? reservation = null;
+        MockTenantDirectory
+            .Setup(x =>
+                x.ReserveAsync(It.IsAny<TenantReservation>(), It.IsAny<CancellationToken>())
+            )
+            .Callback((TenantReservation value, CancellationToken _) => reservation = value)
+            .ReturnsAsync(ReservationResult.Reserved())
+            .Verifiable();
+        MockTenantStore
+            .Setup(x => x.AddAsync(It.IsAny<PersistedTenant>(), It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        MockTenantDirectory
+            .Setup(x =>
+                x.PlaceAsync(It.IsAny<TenantPlacementRequest>(), It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(ReservationResult.Reserved())
+            .Verifiable();
+
+        await provisioner.EnsureCreatedAsync(
+            "team-2",
+            WorkloadTenantId,
+            "Acme",
+            CancellationToken.None
+        );
+
+        Assert.NotNull(reservation);
+        Assert.Equal("team-2", reservation.TeamId);
     }
 
     [Fact]
