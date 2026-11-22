@@ -451,6 +451,8 @@ internal class TeamApiEndpointHandler(
         var store = storeManager.GetStore<ITeamStore>();
 
         var teamId = request.TeamId;
+        var settingsObject = ToJsonObject(request.Settings);
+        var settingsElement = SerializeToElement(settingsObject);
         var team = new PersistedTeam
         {
             TeamId = teamId,
@@ -462,7 +464,7 @@ internal class TeamApiEndpointHandler(
             {
                 TeamId = teamId,
                 ConcurrencyToken = string.Empty,
-                Value = SerializeToElement(ToJsonObject(request.Settings)),
+                Value = settingsElement,
             },
         };
 
@@ -553,11 +555,13 @@ internal class TeamApiEndpointHandler(
         // The saves replace the team's concurrency token, so the response reflects the team as it now stands.
         team = await ReloadTeamAsync(team, cancellationToken);
 
+        var teamResource = ToTeamResource(team);
+        var teamValues = ToResourceValues(teamResource);
         await ManagementAuditRecorder.RecordTeamChangedAsync(
             httpContext,
             team.TeamId,
             ResourceChangeTypes.Created,
-            ToResourceValues(ToTeamResource(team))
+            teamValues
         );
 
         if (creatorAssignment is not null)
@@ -575,7 +579,8 @@ internal class TeamApiEndpointHandler(
         }
 
         httpContext.Response.Headers.ETag = ManagementEntityTags.Format(team.ConcurrencyToken);
-        return TypedResults.Created($"/teams/{team.TeamId}", ToTeamResource(team));
+        var createdTeamResource = ToTeamResource(team);
+        return TypedResults.Created($"/teams/{team.TeamId}", createdTeamResource);
     }
 
     /// <summary>
@@ -600,13 +605,12 @@ internal class TeamApiEndpointHandler(
         var reservationResult = await TeamDirectory.ReserveAsync(team.TeamId, cancellationToken);
         if (!reservationResult.IsReserved)
         {
-            return ToErrorResult(
-                new ManagementError
-                {
-                    StatusCode = StatusCodes.Status409Conflict,
-                    Detail = reservationResult.ConflictDetail,
-                }
-            );
+            var conflictError = new ManagementError
+            {
+                StatusCode = StatusCodes.Status409Conflict,
+                Detail = reservationResult.ConflictDetail,
+            };
+            return ToErrorResult(conflictError);
         }
 
         var isInserted = false;
@@ -620,7 +624,8 @@ internal class TeamApiEndpointHandler(
             await storeManager.SaveChangesAsync(cancellationToken);
             isInserted = true;
 
-            await TeamDirectory.PublishAsync(ToTeamDocument(team), cancellationToken);
+            var teamDocument = ToTeamDocument(team);
+            await TeamDirectory.PublishAsync(teamDocument, cancellationToken);
             isPublished = true;
         }
         finally
@@ -706,7 +711,8 @@ internal class TeamApiEndpointHandler(
     {
         try
         {
-            await TeamDirectory.PublishAsync(ToTeamDocument(team), cancellationToken);
+            var teamDocument = ToTeamDocument(team);
+            await TeamDirectory.PublishAsync(teamDocument, cancellationToken);
             return null;
         }
         catch (DirectoryUnavailableException exception)
@@ -721,16 +727,16 @@ internal class TeamApiEndpointHandler(
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
     /// <returns>The <see cref="ProblemHttpResult"/> that asks the caller to retry.</returns>
-    private static ProblemHttpResult DirectoryUnavailableProblem(HttpContext httpContext) =>
-        RetryAfterProblem.Create(
-            httpContext,
-            TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds),
-            new ProblemDetails
-            {
-                Status = StatusCodes.Status503ServiceUnavailable,
-                Detail = "The global directory is unavailable. Retry the request.",
-            }
-        );
+    private static ProblemHttpResult DirectoryUnavailableProblem(HttpContext httpContext)
+    {
+        var retryAfter = TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds);
+        var problem = new ProblemDetails
+        {
+            Status = StatusCodes.Status503ServiceUnavailable,
+            Detail = "The global directory is unavailable. Retry the request.",
+        };
+        return RetryAfterProblem.Create(httpContext, retryAfter, problem);
+    }
 
     /// <summary>
     /// Lists the teams.
@@ -752,19 +758,18 @@ internal class TeamApiEndpointHandler(
 
         // Listing teams is platform authority: a global admin or an assignment at the platform node lists them, and
         // nothing beneath the platform does.
+        var platformNode = GetPlatformNode(httpContext);
         return await ProcessListAsync(
             httpContext,
-            GetPlatformNode(httpContext),
+            platformNode,
             async () =>
             {
                 await using var storeManager = await StoreManagerFactory.CreateAsync(
                     cancellationToken
                 );
                 var store = storeManager.GetStore<ITeamStore>();
-                return await store.GetPageAsync(
-                    new PageRequest { Cursor = cursor, Limit = effectiveLimit },
-                    cancellationToken
-                );
+                var page = new PageRequest { Cursor = cursor, Limit = effectiveLimit };
+                return await store.GetPageAsync(page, cancellationToken);
             },
             ToTeamResource,
             cancellationToken
@@ -804,11 +809,8 @@ internal class TeamApiEndpointHandler(
                     cancellationToken
                 );
                 var store = storeManager.GetStore<ITeamStore>();
-                return await store.GetChildPageAsync(
-                    teamId,
-                    new PageRequest { Cursor = cursor, Limit = effectiveLimit },
-                    cancellationToken
-                );
+                var page = new PageRequest { Cursor = cursor, Limit = effectiveLimit };
+                return await store.GetChildPageAsync(teamId, page, cancellationToken);
             },
             ToTeamResource,
             cancellationToken
@@ -830,9 +832,10 @@ internal class TeamApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var teamNode = GetTeamNode(httpContext, teamId);
         return await ProcessGetAsync(
             httpContext,
-            GetTeamNode(httpContext, teamId),
+            teamNode,
             Operations.Read,
             async token =>
             {
@@ -867,9 +870,10 @@ internal class TeamApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var controlPlaneTenantId = GetControlPlaneTenantId(httpContext);
         var authorizationError = await TeamValidator.AuthorizeUpdateAsync(
             httpContext.User,
-            GetControlPlaneTenantId(httpContext),
+            controlPlaneTenantId,
             teamId,
             cancellationToken
         );
@@ -906,9 +910,10 @@ internal class TeamApiEndpointHandler(
             );
         }
 
+        var validationTenantId = GetControlPlaneTenantId(httpContext);
         var error = await TeamValidator.ValidateUpdateAsync(
             httpContext.User,
-            GetControlPlaneTenantId(httpContext),
+            validationTenantId,
             team,
             model,
             ifMatch,
@@ -930,11 +935,13 @@ internal class TeamApiEndpointHandler(
         // change is audited and announced.
         var publishFailure = await TryPublishAsync(team, cancellationToken);
 
+        var teamResource = ToTeamResource(team);
+        var teamValues = ToResourceValues(teamResource);
         await ManagementAuditRecorder.RecordTeamChangedAsync(
             httpContext,
             team.TeamId,
             ResourceChangeTypes.Updated,
-            ToResourceValues(ToTeamResource(team))
+            teamValues
         );
 
         await NotifyTeamChangedAsync(
@@ -969,9 +976,10 @@ internal class TeamApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var controlPlaneTenantId = GetControlPlaneTenantId(httpContext);
         var authorizationError = await TeamValidator.AuthorizeDeleteAsync(
             httpContext.User,
-            GetControlPlaneTenantId(httpContext),
+            controlPlaneTenantId,
             teamId,
             cancellationToken
         );
@@ -989,9 +997,10 @@ internal class TeamApiEndpointHandler(
             return ManagementProblems.ResourceNotFound();
         }
 
+        var validationTenantId = GetControlPlaneTenantId(httpContext);
         var error = await TeamValidator.ValidateDeleteAsync(
             httpContext.User,
-            GetControlPlaneTenantId(httpContext),
+            validationTenantId,
             team,
             storeManager,
             cancellationToken
@@ -1001,7 +1010,8 @@ internal class TeamApiEndpointHandler(
             return ToErrorResult(error);
         }
 
-        var resourceValues = ToResourceValues(ToTeamResource(team));
+        var teamResource = ToTeamResource(team);
+        var resourceValues = ToResourceValues(teamResource);
 
         await store.RemoveAsync(teamId, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
@@ -1055,9 +1065,10 @@ internal class TeamApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var teamNode = GetTeamNode(httpContext, teamId);
         return await ProcessGetAsync(
             httpContext,
-            GetTeamNode(httpContext, teamId),
+            teamNode,
             Operations.Read,
             async token =>
             {
@@ -1132,9 +1143,10 @@ internal class TeamApiEndpointHandler(
         // The settings are resolved only after authorization, so a caller who may not read them learns nothing about a
         // document that cannot be honored, and the stored document's token is not the effective view's.
         // See ADR-1245.
+        var teamNode = GetTeamNode(httpContext, teamId);
         return await ProcessGetAsync(
             httpContext,
-            GetTeamNode(httpContext, teamId),
+            teamNode,
             Operations.Read,
             async token =>
             {
@@ -1176,9 +1188,10 @@ internal class TeamApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var teamNode = GetTeamNode(httpContext, teamId);
         var authorizationFailure = await GetAuthorizationFailureAsync(
             httpContext,
-            GetTeamNode(httpContext, teamId),
+            teamNode,
             Operations.Update,
             cancellationToken
         );
@@ -1240,10 +1253,8 @@ internal class TeamApiEndpointHandler(
         var changedLimits = SettingSerializer.GetChangedLimits(teamSettings.Value, settingsValue);
         // A limit in a team's document is set by the authority over its parent team, or over the platform for a
         // top-level team (ADR-1418, ADR-1426).
-        var authorityAbove = TeamNodes.GetNodeAbove(
-            GetControlPlaneTenantId(httpContext),
-            team.ParentTeamId
-        );
+        var controlPlaneTenantId = GetControlPlaneTenantId(httpContext);
+        var authorityAbove = TeamNodes.GetNodeAbove(controlPlaneTenantId, team.ParentTeamId);
         var limitRefusal = await GetLimitChangeRefusalOrDefaultAsync(
             httpContext,
             changedLimits,
@@ -1299,11 +1310,13 @@ internal class TeamApiEndpointHandler(
         // the change is audited and announced.
         var publishFailure = await TryPublishAsync(team, cancellationToken);
 
+        var teamSettingsResource = ToTeamSettingsResource(teamSettings);
+        var teamSettingsValues = ToResourceValues(teamSettingsResource);
         await ManagementAuditRecorder.RecordTeamChangedAsync(
             httpContext,
             teamSettings.TeamId,
             ResourceChangeTypes.SettingsUpdated,
-            ToResourceValues(ToTeamSettingsResource(teamSettings))
+            teamSettingsValues
         );
 
         await NotifyTeamChangedAsync(
@@ -1425,33 +1438,41 @@ internal class TeamApiEndpointHandler(
             return authorizationFailure;
         }
 
-        var lastDay = to ?? DateOnly.FromDateTime(TimeProvider.GetUtcNow().UtcDateTime);
+        DateOnly lastDay;
+        if (to is { } requestedLastDay)
+        {
+            lastDay = requestedLastDay;
+        }
+        else
+        {
+            var utcNow = TimeProvider.GetUtcNow();
+            lastDay = DateOnly.FromDateTime(utcNow.UtcDateTime);
+        }
+
         if (from is null && lastDay.DayNumber < DefaultUsageDays)
         {
             // The default range would start before DateOnly.MinValue, which AddDays refuses by throwing.
-            return TypedResults.ValidationProblem(
-                new Dictionary<string, string[]>
-                {
-                    ["to"] =
-                    [
-                        $"Without 'from', 'to' must be at least {DefaultUsageDays} days after the first representable day.",
-                    ],
-                }
-            );
+            var toErrors = new Dictionary<string, string[]>
+            {
+                ["to"] =
+                [
+                    $"Without 'from', 'to' must be at least {DefaultUsageDays} days after the first representable day.",
+                ],
+            };
+            return TypedResults.ValidationProblem(toErrors);
         }
 
         var firstDay = from ?? lastDay.AddDays(-DefaultUsageDays);
         if (firstDay > lastDay || lastDay.DayNumber - firstDay.DayNumber >= MaxUsageDays)
         {
-            return TypedResults.ValidationProblem(
-                new Dictionary<string, string[]>
-                {
-                    ["from"] =
-                    [
-                        $"The range must run forward from 'from' to 'to' and span at most {MaxUsageDays} days.",
-                    ],
-                }
-            );
+            var fromErrors = new Dictionary<string, string[]>
+            {
+                ["from"] =
+                [
+                    $"The range must run forward from 'from' to 'to' and span at most {MaxUsageDays} days.",
+                ],
+            };
+            return TypedResults.ValidationProblem(fromErrors);
         }
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
@@ -1466,24 +1487,23 @@ internal class TeamApiEndpointHandler(
         var store = storeManager.GetStore<ITenantUsageStore>();
         var usage = await store.ListByTeamAsync(teamPath, firstDay, lastDay, cancellationToken);
 
-        return TypedResults.Ok(
-            new TeamUsageResource
-            {
-                TeamId = teamId,
-                From = firstDay,
-                To = lastDay,
-                Entries = usage
-                    .Select(entry => new TeamUsageEntry
-                    {
-                        TeamId = TeamPaths.Parse(entry.TeamPath)[^1],
-                        TenantId = entry.TenantId,
-                        Day = entry.Day,
-                        Meter = entry.Meter,
-                        Count = entry.Count,
-                    })
-                    .ToList(),
-            }
-        );
+        var usageResource = new TeamUsageResource
+        {
+            TeamId = teamId,
+            From = firstDay,
+            To = lastDay,
+            Entries = usage
+                .Select(entry => new TeamUsageEntry
+                {
+                    TeamId = TeamPaths.Parse(entry.TeamPath)[^1],
+                    TenantId = entry.TenantId,
+                    Day = entry.Day,
+                    Meter = entry.Meter,
+                    Count = entry.Count,
+                })
+                .ToList(),
+        };
+        return TypedResults.Ok(usageResource);
     }
 
     /// <summary>
@@ -1645,9 +1665,10 @@ internal class TeamApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var teamNode = GetTeamNode(httpContext, teamId);
         var authorizationFailure = await GetAuthorizationFailureAsync(
             httpContext,
-            GetTeamNode(httpContext, teamId),
+            teamNode,
             Operations.Read,
             cancellationToken
         );
@@ -1665,19 +1686,19 @@ internal class TeamApiEndpointHandler(
             return ManagementProblems.ResourceNotFound();
         }
 
-        return TypedResults.Ok(
-            new TeamRootKeysResource
-            {
-                RootKeys =
-                [
-                    .. team
-                        .RootKeys.OrderBy(pair => pair.Key, StringComparer.Ordinal)
-                        .Select(pair => ToTeamRootKeyResource(pair.Key, pair.Value)),
-                ],
-                RootKeyProviders = [.. OwnerRootKeyManager.AllowedKeyWrapperNames],
-                RootKeyAccessBinding = OwnerRootKeyManager.GetAccessBinding(GetTeamOwner(team)),
-            }
-        );
+        var teamOwner = GetTeamOwner(team);
+        var rootKeysResource = new TeamRootKeysResource
+        {
+            RootKeys =
+            [
+                .. team
+                    .RootKeys.OrderBy(pair => pair.Key, StringComparer.Ordinal)
+                    .Select(pair => ToTeamRootKeyResource(pair.Key, pair.Value)),
+            ],
+            RootKeyProviders = [.. OwnerRootKeyManager.AllowedKeyWrapperNames],
+            RootKeyAccessBinding = OwnerRootKeyManager.GetAccessBinding(teamOwner),
+        };
+        return TypedResults.Ok(rootKeysResource);
     }
 
     /// <summary>
@@ -1705,9 +1726,10 @@ internal class TeamApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var teamNode = GetTeamNode(httpContext, teamId);
         var authorizationFailure = await GetAuthorizationFailureAsync(
             httpContext,
-            GetTeamNode(httpContext, teamId),
+            teamNode,
             Operations.Update,
             cancellationToken
         );
@@ -1749,12 +1771,11 @@ internal class TeamApiEndpointHandler(
 
         if (!cells.Any(cell => string.Equals(cell.Region, region, StringComparison.Ordinal)))
         {
-            return TypedResults.ValidationProblem(
-                new Dictionary<string, string[]>(StringComparer.Ordinal)
-                {
-                    ["region"] = [$"No cell runs in the region '{region}'."],
-                }
-            );
+            var regionErrors = new Dictionary<string, string[]>(StringComparer.Ordinal)
+            {
+                ["region"] = [$"No cell runs in the region '{region}'."],
+            };
+            return TypedResults.ValidationProblem(regionErrors);
         }
 
         // The cell of another region applies the key from the published team document, so only this cell's own region
@@ -1788,13 +1809,14 @@ internal class TeamApiEndpointHandler(
         };
         var resource = ToTeamRootKeyResource(region, rootKey);
 
+        var resourceValues = ToResourceValues(resource);
         var publishFailure = await ChangeRootKeysAsync(
             httpContext,
             storeManager,
             store,
             team,
             rootKeys,
-            ToResourceValues(resource),
+            resourceValues,
             cancellationToken
         );
         if (publishFailure is not null)
@@ -1825,9 +1847,10 @@ internal class TeamApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var teamNode = GetTeamNode(httpContext, teamId);
         var authorizationFailure = await GetAuthorizationFailureAsync(
             httpContext,
-            GetTeamNode(httpContext, teamId),
+            teamNode,
             Operations.Update,
             cancellationToken
         );
@@ -1848,11 +1871,12 @@ internal class TeamApiEndpointHandler(
         IResult? removal = null;
         if (IsOwnRegion(region))
         {
+            var teamOwner = GetTeamOwner(team);
             removal = await EncryptionKeyEndpoints.RemoveRootKeyAsync(
                 OwnerRootKeyManager,
                 ManagementAuditRecorder,
                 httpContext,
-                GetTeamOwner(team),
+                teamOwner,
                 cancellationToken
             );
         }
@@ -1865,13 +1889,15 @@ internal class TeamApiEndpointHandler(
             );
             rootKeys.Remove(region);
 
+            var removedRootKeyResource = ToTeamRootKeyResource(region, rootKey);
+            var removedResourceValues = ToResourceValues(removedRootKeyResource);
             var publishFailure = await ChangeRootKeysAsync(
                 httpContext,
                 storeManager,
                 store,
                 team,
                 rootKeys,
-                ToResourceValues(ToTeamRootKeyResource(region, rootKey)),
+                removedResourceValues,
                 cancellationToken
             );
             if (publishFailure is not null)
@@ -1903,9 +1929,10 @@ internal class TeamApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var teamNode = GetTeamNode(httpContext, teamId);
         var authorizationFailure = await GetAuthorizationFailureAsync(
             httpContext,
-            GetTeamNode(httpContext, teamId),
+            teamNode,
             Operations.Update,
             cancellationToken
         );
@@ -1931,11 +1958,12 @@ internal class TeamApiEndpointHandler(
             );
         }
 
+        var teamOwner = GetTeamOwner(team);
         return await EncryptionKeyEndpoints.ValidateRootKeyAsync(
             OwnerRootKeyManager,
             ManagementAuditRecorder,
             httpContext,
-            GetTeamOwner(team),
+            teamOwner,
             cancellationToken
         );
     }
@@ -2029,10 +2057,8 @@ internal class TeamApiEndpointHandler(
     )
     {
         var mediator = httpContext.RequestServices.GetRequiredService<IMediator>();
-        return mediator.SendAsync(
-            new TeamChangedCommand(teamId, settingsChanged),
-            cancellationToken
-        );
+        var command = new TeamChangedCommand(teamId, settingsChanged);
+        return mediator.SendAsync(command, cancellationToken);
     }
 
     // Checks the limits a child team's creation is held to: the platform's 'max_team_depth' bounds how deep the child
