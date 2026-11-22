@@ -124,7 +124,8 @@ internal static class BffSessionCodec
     {
         _ = SecureEncoding.UTF8.GetBytes(storeKey, destination);
 
-        BinaryPrimitives.WriteInt64BigEndian(destination.GetSpan(sizeof(long)), version);
+        var span = destination.GetSpan(sizeof(long));
+        BinaryPrimitives.WriteInt64BigEndian(span, version);
         destination.Advance(sizeof(long));
 
         BffSessionRecordSerializer.WriteMetadata(metadata, destination);

@@ -99,7 +99,8 @@ internal class BffLogoutHandler(
         var session = await Resolver.ResolveAsync(httpContext, cancellationToken);
         if (session is null)
         {
-            httpContext.Response.Redirect(BffNavigation.LocalUrl(request, returnUrl));
+            var localUrl = BffNavigation.LocalUrl(request, returnUrl);
+            httpContext.Response.Redirect(localUrl);
             return;
         }
 
@@ -132,14 +133,16 @@ internal class BffLogoutHandler(
         catch (Exception exception)
             when (BffProviderFailures.IsUnavailable(exception, cancellationToken))
         {
-            httpContext.Response.Redirect(BffNavigation.LocalUrl(request, returnUrl));
+            var localUrl = BffNavigation.LocalUrl(request, returnUrl);
+            httpContext.Response.Redirect(localUrl);
             return;
         }
 
         var endpoint = metadata.EndSessionEndpoint;
         if (endpoint is null)
         {
-            httpContext.Response.Redirect(BffNavigation.LocalUrl(request, returnUrl));
+            var localUrl = BffNavigation.LocalUrl(request, returnUrl);
+            httpContext.Response.Redirect(localUrl);
             return;
         }
 
@@ -158,10 +161,11 @@ internal class BffLogoutHandler(
 
     private static bool IsGuardMatch(string sid, string guard)
     {
-        return CryptographicOperations.FixedTimeEquals(
-            MemoryMarshal.AsBytes(sid.AsSpan()),
-            MemoryMarshal.AsBytes(guard.AsSpan())
-        );
+        var sidChars = sid.AsSpan();
+        var sidBytes = MemoryMarshal.AsBytes(sidChars);
+        var guardChars = guard.AsSpan();
+        var guardBytes = MemoryMarshal.AsBytes(guardChars);
+        return CryptographicOperations.FixedTimeEquals(sidBytes, guardBytes);
     }
 
     private static ValueTask WriteInvalidRequestAsync(

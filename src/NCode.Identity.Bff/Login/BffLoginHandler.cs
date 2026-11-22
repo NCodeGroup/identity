@@ -130,7 +130,8 @@ internal class BffLoginHandler(
 
         var scopes = new List<string> { OpenIdProtocol.ScopeTypes.OpenId };
         scopes.AddRange(options.Scopes);
-        var scope = string.Join(' ', scopes.Distinct(StringComparer.Ordinal));
+        var distinctScopes = scopes.Distinct(StringComparer.Ordinal);
+        var scope = string.Join(' ', distinctScopes);
 
         var authorizationRequest = new AuthorizationRequest(redirectUri, state, verifier)
         {

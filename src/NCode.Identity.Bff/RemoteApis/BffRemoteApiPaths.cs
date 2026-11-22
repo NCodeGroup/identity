@@ -70,7 +70,8 @@ internal static class BffRemoteApiPaths
             return false;
         }
 
-        return !HasDotSegment(path.Split('/'));
+        var segments = path.Split('/');
+        return !HasDotSegment(segments);
     }
 
     private static bool IsSafeRawPath(string rawTarget)

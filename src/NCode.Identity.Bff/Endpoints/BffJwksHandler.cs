@@ -70,6 +70,7 @@ internal class BffJwksHandler(
         response.Headers.AccessControlAllowOrigin = "*";
         response.StatusCode = StatusCodes.Status200OK;
         response.ContentType = JsonContentType;
-        return new ValueTask(response.WriteAsync(json, SecureEncoding.UTF8, cancellationToken));
+        var writeTask = response.WriteAsync(json, SecureEncoding.UTF8, cancellationToken);
+        return new ValueTask(writeTask);
     }
 }

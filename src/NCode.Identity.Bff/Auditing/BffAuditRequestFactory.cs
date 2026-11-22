@@ -29,6 +29,10 @@ internal static class BffAuditRequestFactory
         var request = httpContext.Request;
         var activity = Activity.Current;
         var endpoint = httpContext.GetEndpoint();
+        var remoteIpAddress = httpContext.Connection.RemoteIpAddress?.ToString();
+        var userAgent = request.Headers.UserAgent.ToString();
+        var truncatedUserAgent = Truncate(userAgent, MaxUserAgentLength);
+        var endpointName = endpoint?.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName;
 
         return new AuditRequest
         {
@@ -39,16 +43,11 @@ internal static class BffAuditRequestFactory
             SpanId = activity is { IdFormat: ActivityIdFormat.W3C }
                 ? activity.SpanId.ToHexString()
                 : null,
-            SourceIp = NullIfEmpty(httpContext.Connection.RemoteIpAddress?.ToString()),
-            UserAgent = NullIfEmpty(
-                Truncate(request.Headers.UserAgent.ToString(), MaxUserAgentLength)
-            ),
+            SourceIp = NullIfEmpty(remoteIpAddress),
+            UserAgent = NullIfEmpty(truncatedUserAgent),
             HttpMethod = NullIfEmpty(request.Method),
             Path = NullIfEmpty((request.PathBase + request.Path).Value),
-            Endpoint = NullIfEmpty(
-                endpoint?.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName
-                    ?? endpoint?.DisplayName
-            ),
+            Endpoint = NullIfEmpty(endpointName ?? endpoint?.DisplayName),
         };
     }
 

@@ -71,7 +71,8 @@ internal sealed class BffFrontendMatcherPolicy(BffFrontendCatalog frontends)
                 resolved = true;
             }
 
-            candidates.SetValidity(i, frontend is not null && Names(attributes, frontend.Name));
+            var valid = frontend is not null && Names(attributes, frontend.Name);
+            candidates.SetValidity(i, valid);
         }
 
         return Task.CompletedTask;

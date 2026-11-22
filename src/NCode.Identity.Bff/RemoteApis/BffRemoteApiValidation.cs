@@ -45,9 +45,9 @@ internal static class BffRemoteApiValidation
 
         if (!IsValidDestination(api.Destination, isLocalDevelopment))
         {
-            failures.Add(
-                $"{key}:Destination {QuoteUrl(api.Destination)} must be an absolute URL without user info, a query or a fragment, and must use 'https' unless LocalDevelopment:Enabled is true."
-            );
+            var failure =
+                $"{key}:Destination {QuoteUrl(api.Destination)} must be an absolute URL without user info, a query or a fragment, and must use 'https' unless LocalDevelopment:Enabled is true.";
+            failures.Add(failure);
         }
 
         if (string.IsNullOrWhiteSpace(api.TokenRequirement))

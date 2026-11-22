@@ -92,7 +92,8 @@ internal class BffLogoutService(
         }
         catch (Exception exception)
         {
-            logger.RefreshTokenRevocationFailed(exception.GetType().Name, exception);
+            var exceptionTypeName = exception.GetType().Name;
+            logger.RefreshTokenRevocationFailed(exceptionTypeName, exception);
         }
     }
 }

@@ -29,7 +29,8 @@ internal sealed class DefaultBffUserDocumentFactory(
     {
         ArgumentNullException.ThrowIfNull(httpContext);
 
-        if (!BffGuardedEndpoints.IsGuarded(httpContext.GetEndpoint()))
+        var endpoint = httpContext.GetEndpoint();
+        if (!BffGuardedEndpoints.IsGuarded(endpoint))
             throw new InvalidOperationException(
                 "The user document is available only to an endpoint the BFF guards."
             );
@@ -83,14 +84,10 @@ internal sealed class DefaultBffUserDocumentFactory(
             writer.WriteEndObject();
 
             writer.WriteStartObject(BffUserDocumentNames.Session);
-            writer.WriteNumber(
-                BffUserDocumentNames.ExpiresAt,
-                session.Metadata.AbsoluteExpiresAt.ToUnixTimeSeconds()
-            );
-            writer.WriteNumber(
-                BffUserDocumentNames.IdleExpiresAt,
-                session.Metadata.IdleExpiresAt.ToUnixTimeSeconds()
-            );
+            var expiresAt = session.Metadata.AbsoluteExpiresAt.ToUnixTimeSeconds();
+            writer.WriteNumber(BffUserDocumentNames.ExpiresAt, expiresAt);
+            var idleExpiresAt = session.Metadata.IdleExpiresAt.ToUnixTimeSeconds();
+            writer.WriteNumber(BffUserDocumentNames.IdleExpiresAt, idleExpiresAt);
             writer.WriteEndObject();
 
             var logoutPath = BffNavigation.LogoutUrl(httpContext.Request, frontend.Options);

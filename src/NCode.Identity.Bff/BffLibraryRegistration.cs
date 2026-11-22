@@ -45,14 +45,14 @@ public static class BffLibraryRegistration
                 .ServiceCollection.AddOptions<BffOptions>()
                 .Configure(options => section.BindStrictly(options));
 
-            builder.ServiceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IOptionsChangeTokenSource<BffOptions>>(
-                    new ConfigurationChangeTokenSource<BffOptions>(
-                        Microsoft.Extensions.Options.Options.DefaultName,
-                        section
-                    )
-                )
+            var changeTokenSource = new ConfigurationChangeTokenSource<BffOptions>(
+                Microsoft.Extensions.Options.Options.DefaultName,
+                section
             );
+            var changeTokenSourceDescriptor = ServiceDescriptor.Singleton<
+                IOptionsChangeTokenSource<BffOptions>
+            >(changeTokenSource);
+            builder.ServiceCollection.TryAddEnumerable(changeTokenSourceDescriptor);
 
             return builder;
         }

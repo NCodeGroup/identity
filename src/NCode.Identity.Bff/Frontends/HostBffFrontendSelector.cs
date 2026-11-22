@@ -41,7 +41,14 @@ internal sealed class HostBffFrontendSelector : IBffFrontendSelector
         if (
             Uri.CheckHostName(candidate.Host) is not (UriHostNameType.Dns or UriHostNameType.IPv4)
             || candidate.Port is < MinPort or > MaxPort
-            || !string.Equals(candidate.ToUriComponent(), value, StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return false;
+        }
+
+        var uriComponent = candidate.ToUriComponent();
+        if (
+            !string.Equals(uriComponent, value, StringComparison.OrdinalIgnoreCase)
             || !string.Equals(
                 candidate.Port is { } port ? $"{candidate.Host}:{port}" : candidate.Host,
                 value,

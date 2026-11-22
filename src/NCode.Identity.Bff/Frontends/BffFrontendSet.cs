@@ -65,7 +65,8 @@ internal sealed class BffFrontendSet
                     $"Bff:Frontends:{name}:Selection:Rule '{rule}' is not a registered frontend selection rule."
                 );
 
-            frontends.Add(new BffFrontend(name, frontendOptions, selector));
+            var frontend = new BffFrontend(name, frontendOptions, selector);
+            frontends.Add(frontend);
         }
 
         return new BffFrontendSet(options, [.. frontends]);

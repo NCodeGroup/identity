@@ -61,10 +61,8 @@ internal static class BffSessionRecordSerializer
         {
             var span = memory.Span;
             span[0] = FormatVersion;
-            BinaryPrimitives.WriteInt32BigEndian(
-                span.Slice(sizeof(byte), sizeof(int)),
-                metadataSpan.Length
-            );
+            var lengthSpan = span.Slice(sizeof(byte), sizeof(int));
+            BinaryPrimitives.WriteInt32BigEndian(lengthSpan, metadataSpan.Length);
             metadataSpan.CopyTo(span[HeaderLength..]);
             protectedPayload.CopyTo(span[(HeaderLength + metadataSpan.Length)..]);
         }
@@ -93,9 +91,8 @@ internal static class BffSessionRecordSerializer
         if (value.Length < HeaderLength || value.Span[0] != FormatVersion)
             return false;
 
-        var metadataLength = BinaryPrimitives.ReadInt32BigEndian(
-            value.Span.Slice(sizeof(byte), sizeof(int))
-        );
+        var lengthSpan = value.Span.Slice(sizeof(byte), sizeof(int));
+        var metadataLength = BinaryPrimitives.ReadInt32BigEndian(lengthSpan);
         if (metadataLength < 0 || metadataLength > value.Length - HeaderLength)
             return false;
 

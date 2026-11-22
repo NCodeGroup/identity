@@ -133,11 +133,18 @@ internal sealed class BffEndpointStartupCheck(
     {
         var failures = FindFailures(endpoints.Endpoints, frontends, services, HasBffTransforms);
         if (failures.Count > 0)
-            throw new InvalidOperationException(string.Join(" ", failures));
+        {
+            var message = string.Join(" ", failures);
+            throw new InvalidOperationException(message);
+        }
 
         Subscription = ChangeToken.OnChange(
             () =>
-                new CompositeChangeToken([endpoints.GetChangeToken(), frontends.GetChangeToken()]),
+            {
+                var endpointsToken = endpoints.GetChangeToken();
+                var frontendsToken = frontends.GetChangeToken();
+                return new CompositeChangeToken([endpointsToken, frontendsToken]);
+            },
             Recheck
         );
         return Task.CompletedTask;

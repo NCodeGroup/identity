@@ -51,7 +51,14 @@ internal sealed class BffRemoteApi(
     /// <summary>
     /// Gets the value of the <c>Allow</c> header that a refused method is answered with.
     /// </summary>
-    public string AllowHeader => string.Join(", ", AllowedMethods.Order(StringComparer.Ordinal));
+    public string AllowHeader
+    {
+        get
+        {
+            var orderedMethods = AllowedMethods.Order(StringComparer.Ordinal);
+            return string.Join(", ", orderedMethods);
+        }
+    }
 
     /// <summary>
     /// Gets the configuration of each forwarded request.

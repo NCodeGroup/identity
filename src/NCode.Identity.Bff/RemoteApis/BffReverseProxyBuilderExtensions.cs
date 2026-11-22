@@ -40,10 +40,13 @@ public static class BffReverseProxyBuilderExtensions
         serviceCollection[index] = ServiceDescriptor.Describe(
             typeof(IForwarderHttpClientFactory),
             serviceProvider =>
-                ActivatorUtilities.CreateInstance<BffForwarderHttpClientFactory>(
+            {
+                var innerFactory = CreateInner(serviceProvider, inner);
+                return ActivatorUtilities.CreateInstance<BffForwarderHttpClientFactory>(
                     serviceProvider,
-                    CreateInner(serviceProvider, inner)
-                ),
+                    innerFactory
+                );
+            },
             inner.Lifetime
         );
     }
@@ -55,14 +58,16 @@ public static class BffReverseProxyBuilderExtensions
     {
         var instance =
             descriptor.ImplementationInstance
-            ?? descriptor.ImplementationFactory?.Invoke(serviceProvider)
-            ?? ActivatorUtilities.CreateInstance(
-                serviceProvider,
+            ?? descriptor.ImplementationFactory?.Invoke(serviceProvider);
+        if (instance is null)
+        {
+            var implementationType =
                 descriptor.ImplementationType
-                    ?? throw new InvalidOperationException(
-                        "The IForwarderHttpClientFactory registration has no implementation."
-                    )
-            );
+                ?? throw new InvalidOperationException(
+                    "The IForwarderHttpClientFactory registration has no implementation."
+                );
+            instance = ActivatorUtilities.CreateInstance(serviceProvider, implementationType);
+        }
 
         return (IForwarderHttpClientFactory)instance;
     }

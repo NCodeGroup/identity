@@ -127,13 +127,12 @@ public static class BffEndpointRouteBuilderExtensions
                 .WithTags(Tag)
                 .WithConfidentialBodies();
 
-            ((IEndpointRouteBuilder)group).DataSources.Add(
-                new BffFrontendEndpointDataSource(
-                    catalog,
-                    endpoints.ServiceProvider,
-                    MapFrontendEndpoints
-                )
+            var dataSource = new BffFrontendEndpointDataSource(
+                catalog,
+                endpoints.ServiceProvider,
+                MapFrontendEndpoints
             );
+            ((IEndpointRouteBuilder)group).DataSources.Add(dataSource);
 
             return group;
         }
@@ -190,20 +189,21 @@ public static class BffEndpointRouteBuilderExtensions
             var services = endpoints.ServiceProvider;
             var catalog = services.GetRequiredService<BffFrontendCatalog>();
 
-            catalog.AddCheck(
-                new BffRemoteApiRequirementCheck(
-                    services
-                        .GetServices<IBffTokenRequirement>()
-                        .Select(x => x.Name)
-                        .ToFrozenSet(StringComparer.Ordinal)
-                )
-            );
+            var tokenRequirementNames = services
+                .GetServices<IBffTokenRequirement>()
+                .Select(x => x.Name)
+                .ToFrozenSet(StringComparer.Ordinal);
+            var requirementCheck = new BffRemoteApiRequirementCheck(tokenRequirementNames);
+            catalog.AddCheck(requirementCheck);
 
             var group = endpoints.MapGroup(string.Empty);
 
-            ((IEndpointRouteBuilder)group).DataSources.Add(
-                new BffFrontendEndpointDataSource(catalog, services, MapFrontendRemoteApis)
+            var dataSource = new BffFrontendEndpointDataSource(
+                catalog,
+                services,
+                MapFrontendRemoteApis
             );
+            ((IEndpointRouteBuilder)group).DataSources.Add(dataSource);
 
             return group;
         }

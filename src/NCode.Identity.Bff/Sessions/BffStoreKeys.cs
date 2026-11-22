@@ -59,7 +59,11 @@ internal static class BffStoreKeys
     /// <summary>
     /// Gets the key of the index of the sessions of a client.
     /// </summary>
-    public static string ClientIndex(BffSessionClient client) => ClientIndex(ClientDigest(client));
+    public static string ClientIndex(BffSessionClient client)
+    {
+        var clientDigest = ClientDigest(client);
+        return ClientIndex(clientDigest);
+    }
 
     /// <summary>
     /// Gets the key of the index of the sessions of the client that a digest names.
@@ -70,8 +74,11 @@ internal static class BffStoreKeys
     /// Gets the digest that names a client in the keys and in the members of <see cref="ClientsIndex"/>, so that the
     /// key space of the shared state names no client.
     /// </summary>
-    public static string ClientDigest(BffSessionClient client) =>
-        Digest(client.Frontend, Digest(client.Authority, client.ClientId));
+    public static string ClientDigest(BffSessionClient client)
+    {
+        var authorityDigest = Digest(client.Authority, client.ClientId);
+        return Digest(client.Frontend, authorityDigest);
+    }
 
     /// <summary>
     /// Gets the instant at which the member of <see cref="ClientsIndex"/> for a session's absolute expiry expires:
@@ -112,11 +119,13 @@ internal static class BffStoreKeys
         digest = string.Empty;
 
         var separator = member.IndexOf(ClientMemberSeparator);
+        if (separator < 0 || separator == member.Length - 1)
+            return false;
+
+        var day = member.AsSpan(0, separator);
         if (
-            separator < 0
-            || separator == member.Length - 1
-            || !DateOnly.TryParseExact(
-                member.AsSpan(0, separator),
+            !DateOnly.TryParseExact(
+                day,
                 ClientMemberDayFormat,
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.None,
@@ -142,12 +151,12 @@ internal static class BffStoreKeys
             out Span<byte> buffer
         );
         BinaryPrimitives.WriteInt32BigEndian(buffer[..sizeof(int)], firstLength);
-        SecureEncoding.UTF8.GetBytes(first, buffer.Slice(sizeof(int), firstLength));
-        BinaryPrimitives.WriteInt32BigEndian(buffer.Slice(secondOffset, sizeof(int)), secondLength);
-        SecureEncoding.UTF8.GetBytes(
-            second,
-            buffer.Slice(secondOffset + sizeof(int), secondLength)
-        );
+        var firstDestination = buffer.Slice(sizeof(int), firstLength);
+        SecureEncoding.UTF8.GetBytes(first, firstDestination);
+        var secondLengthDestination = buffer.Slice(secondOffset, sizeof(int));
+        BinaryPrimitives.WriteInt32BigEndian(secondLengthDestination, secondLength);
+        var secondDestination = buffer.Slice(secondOffset + sizeof(int), secondLength);
+        SecureEncoding.UTF8.GetBytes(second, secondDestination);
 
         Span<byte> hash = stackalloc byte[SHA256.HashSizeInBytes];
         SHA256.HashData(buffer, hash);

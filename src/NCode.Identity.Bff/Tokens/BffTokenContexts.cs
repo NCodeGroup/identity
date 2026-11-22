@@ -34,8 +34,9 @@ internal class BffTokenContexts(
     {
         ArgumentNullException.ThrowIfNull(httpContext);
 
+        var endpoint = httpContext.GetEndpoint();
         if (
-            BffGuardedEndpoints.IsHub(httpContext.GetEndpoint())
+            BffGuardedEndpoints.IsHub(endpoint)
             && httpContext.User.GetBffConnectionSession() is IBffSessionScope connection
         )
         {

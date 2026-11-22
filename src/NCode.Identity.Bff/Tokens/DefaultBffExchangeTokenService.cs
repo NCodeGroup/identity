@@ -145,13 +145,14 @@ internal class DefaultBffExchangeTokenService(
 
     private BffTokenResult? TryGetFresh(BffSessionPayload payload, BffTokenRequest request)
     {
+        var now = TimeProvider.GetUtcNow();
         if (
             !BffTokenCache.TryGetFresh(
                 payload,
                 BffTokenRequirementNames.Exchange,
                 request.Resource,
                 request.Scope,
-                TimeProvider.GetUtcNow(),
+                now,
                 Frontends.Current.Options.Tokens.RefreshBeforeExpiry,
                 out var cached
             )

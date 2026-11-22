@@ -129,8 +129,9 @@ internal class BffLoginTransactionService(BffInstrumentedSessionStore store)
         Span<byte> keyBytes = stackalloc byte[BffKeyDerivation.SecretLength];
         var keyLength = SecureEncoding.UTF8.GetBytes(key, keyBytes);
 
+        var protectedLength = BffPayloadProtector.GetProtectedLength(buffer.WrittenCount);
         var rental = BufferFactory.Rent(
-            BffPayloadProtector.GetProtectedLength(buffer.WrittenCount),
+            protectedLength,
             isSensitive: false,
             out Memory<byte> memory
         );
