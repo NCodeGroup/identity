@@ -25,7 +25,7 @@ internal static class TestJwtValidationResults
         var decodedJwt = new DecodedJwt(compactJwt, payload, signingKey: null!);
         return JwtValidationResult.Success(
             new JwtValidationParameters(),
-            PropertyBagFactory.Create(),
+            new PropertyBagDictionary(),
             decodedJwt,
             (decoded, _, authType, nameType, roleType, _) =>
             {
@@ -42,7 +42,7 @@ internal static class TestJwtValidationResults
     public static JwtValidationResult Invalid(string encodedToken) =>
         JwtValidationResult.Fail(
             new JwtValidationParameters(),
-            PropertyBagFactory.Create(),
+            new PropertyBagDictionary(),
             encodedToken,
             new JwtValidationException("invalid")
         );
