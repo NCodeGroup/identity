@@ -750,7 +750,7 @@ VM prices exclude the OS managed disk (a few dollars per month, _(verify)_).
   needs; the local harness only targets `host.docker.internal`. Certification itself runs against production's
   `conformance` tenant
   ([ADR-1495](decisions/1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md)).
-- The **production-shaped path**: L4 LB → Traefik → forwarded client certificate ([#82](https://github.com/NCodeGroup/identity/issues/82) / [#83](https://github.com/NCodeGroup/identity/issues/83)), multiple replicas
+- The **production-shaped path**: L4 LB → Traefik → forwarded client certificate ([ADR-1172](decisions/1172-a-forwarded-client-certificate-is-decoded-by-the-decoder-registered-for-its-format.md), [ADR-1173](decisions/1173-a-mutual-tls-client-is-authenticated-by-its-registered-certificate-chained-to-configured-trust-anchors.md)), multiple replicas
   sharing Valkey, Postgres over the network — including the mTLS/FAPI plans.
 - k6 **load tests** that produce the real sizing numbers for [§3](#3-compute-sizing).
 - **Remote signing** against Key Vault
