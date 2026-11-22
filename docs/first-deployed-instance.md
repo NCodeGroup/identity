@@ -119,12 +119,14 @@ with `setup` as its first argument:
 dotnet NCode.Identity.OpenId.Host.dll setup
 ```
 
-It reads `Setup__Root__UserName`, `Setup__Root__Email` and `Setup__Root__Password`. Set `UserName` and `Password`
-together or not at all. The exit code is `0` when the root administrator is created or the instance is already
+It reads `Setup__Root__UserName`, `Setup__Root__Email`, `Setup__Root__Password` and the optional
+`Setup__Root__DisplayName`, the name the management console's header shows; it defaults to the user name. Set
+`UserName` and `Password` together or not at all. The wizard's root step asks for a required Display name above the
+user name. The exit code is `0` when the root administrator is created or the instance is already
 initialized, `2` for a usage error, and `1` when the creation fails, so a Job can run the command on every release.
 
 The chart runs it as an opt-in Job. Create a Secret that holds the account, with the keys `userName`, `email` and
-`password`:
+`password`, and optionally `displayName`:
 
 ```bash
 kubectl create secret generic identity-root-admin \
@@ -133,8 +135,8 @@ kubectl create secret generic identity-root-admin \
   --from-literal=password='<at least 15 characters>'
 ```
 
-Set `setup.job.enabled=true` and `setup.job.existingSecret=identity-root-admin`. `setup.job.userNameKey`, `emailKey`
-and `passwordKey` rename the Secret's keys.
+Set `setup.job.enabled=true` and `setup.job.existingSecret=identity-root-admin`. `setup.job.userNameKey`, `emailKey`,
+`passwordKey` and `displayNameKey` (default `displayName`, which the Secret may omit) rename the Secret's keys.
 
 ### The management console's client
 
