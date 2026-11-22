@@ -94,6 +94,7 @@ internal class AuditStreamApiEndpointHandler(
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
             .ProducesProblem(StatusCodes.Status415UnsupportedMediaType)
             .WithNoStore();
         auditStreams
@@ -116,7 +117,8 @@ internal class AuditStreamApiEndpointHandler(
             .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed);
         // The response reveals a secret once, so no cache may keep it (ADR-1050).
         auditStreams
             .MapPost("/{streamId}/signing-secrets", RotateSigningSecretAsync)
@@ -124,8 +126,18 @@ internal class AuditStreamApiEndpointHandler(
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
             .WithNoStore();
     }
+
+    /// <summary>
+    /// Gets the location of an audit stream, which the create and rotate-signing-secret routes answer with.
+    /// </summary>
+    /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
+    /// <param name="streamId">The identifier of the audit stream.</param>
+    /// <returns>The location of the audit stream.</returns>
+    private static string GetStreamLocation(string tenantId, string streamId) =>
+        $"/tenants/{tenantId}/audit-streams/{streamId}";
 
     /// <summary>
     /// Maps a <see cref="PersistedAuditStream"/> to its <see cref="AuditStreamResource"/> representation, which never
@@ -312,10 +324,8 @@ internal class AuditStreamApiEndpointHandler(
                 CreatedTime = signingSecret.CreatedTime,
             },
         };
-        return TypedResults.Created(
-            $"/tenants/{tenantId}/audit-streams/{streamId}",
-            createdResource
-        );
+        var location = GetStreamLocation(tenantId, streamId);
+        return TypedResults.Created(location, createdResource);
     }
 
     /// <summary>
@@ -597,10 +607,8 @@ internal class AuditStreamApiEndpointHandler(
             SigningSecret = signingSecretValue,
             CreatedTime = signingSecret.CreatedTime,
         };
-        return TypedResults.Created(
-            $"/tenants/{tenantId}/audit-streams/{streamId}",
-            createdResource
-        );
+        var location = GetStreamLocation(tenantId, streamId);
+        return TypedResults.Created(location, createdResource);
     }
 
     // Reads the most audit streams the addressed tenant may hold from the settings of a context of that tenant.
