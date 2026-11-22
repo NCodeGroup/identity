@@ -16,6 +16,8 @@ export type Messages = {
     readonly username: string;
     readonly password: string;
     readonly submit: string;
+    readonly forgotPassword: string;
+    readonly passwordReset: string;
   };
   /** The messages the login page shows for the `error` codes the host redirects back with. */
   readonly loginErrors: {
@@ -54,6 +56,7 @@ export type Messages = {
     readonly signOut: string;
     readonly manageSessions: string;
     readonly changePassword: string;
+    readonly verifyEmail: string;
   };
   readonly sessions: {
     readonly title: string;
@@ -99,6 +102,52 @@ export type Messages = {
     readonly passwordTooLong: string;
     readonly passwordBlocklisted: string;
     readonly fallback: string;
+  };
+  readonly forgotPassword: {
+    readonly title: string;
+    readonly prompt: string;
+    readonly submit: string;
+  };
+  readonly resetPassword: {
+    readonly title: string;
+    readonly prompt: string;
+    readonly code: string;
+    readonly newPassword: string;
+    readonly confirmPassword: string;
+    readonly submit: string;
+  };
+  readonly signInCode: {
+    readonly title: string;
+    readonly prompt: string;
+    readonly code: string;
+    readonly verify: string;
+    readonly resend: string;
+    readonly sent: string;
+  };
+  /** The messages the email-code pages show for the `error` codes the host redirects back with. */
+  readonly emailCodeErrors: {
+    readonly invalidCode: string;
+    readonly tooManyCodes: string;
+    readonly passwordMismatch: string;
+    readonly passwordRefused: string;
+    readonly noEmail: string;
+    readonly alreadyVerified: string;
+    readonly fallback: string;
+  };
+  readonly email: {
+    readonly title: string;
+    readonly titleFor: (productName: string) => string;
+    readonly address: string;
+    readonly verified: string;
+    readonly unverified: string;
+    readonly sendCode: string;
+    readonly codePrompt: string;
+    readonly code: string;
+    readonly verify: string;
+    readonly verifiedStatus: string;
+    readonly unavailable: string;
+    readonly loading: string;
+    readonly back: string;
   };
   /** The banner of a tenant that is not a production one, given the environment's label. */
   readonly environmentBanner: (label: string) => string;

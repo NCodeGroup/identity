@@ -51,6 +51,39 @@ public static class InteractiveLocales
                 MissingCredentialsError = "Enter both a username and a password.",
                 AccessDeniedError = "This account cannot sign in. Contact your administrator.",
                 SignInFailedError = "Sign-in failed. Please try again.",
+                ForgotPasswordLink = "Forgot your password?",
+                PasswordResetStatus =
+                    "Your password has been reset. Sign in with your new password.",
+                ForgotPasswordTitle = "Reset your password",
+                ForgotPasswordPrompt =
+                    "Enter your username. If its account has a verified email address, we will send a code to it.",
+                SendCodeButton = "Send code",
+                ResetPasswordTitle = "Choose a new password",
+                ResetPasswordPrompt = "Enter the code from the email and choose a new password.",
+                CodeLabel = "Code",
+                NewPasswordLabel = "New password",
+                ConfirmPasswordLabel = "Confirm new password",
+                ResetPasswordButton = "Reset password",
+                SignInCodeTitle = "Check your email",
+                SignInCodePrompt =
+                    "Enter the code we sent to your email address to finish signing in.",
+                VerifyCodeButton = "Verify",
+                ResendCodeButton = "Send a new code",
+                CodeSentStatus = "We sent a new code.",
+                InvalidCodeError = "The code is incorrect or has expired.",
+                TooManyCodesError = "Too many codes were requested. Try again later.",
+                PasswordMismatchError = "The passwords do not match.",
+                PasswordRefusedError =
+                    "Choose a different password: this one does not meet the requirements.",
+                VerificationMailSubject = "Verify your email address",
+                VerificationMailBodyFormat =
+                    "Your verification code is {0}. It expires in {1} minutes.\n\nIf you did not ask for this code, you can ignore this email.",
+                PasswordResetMailSubject = "Reset your password",
+                PasswordResetMailBodyFormat =
+                    "Your password reset code is {0}. It expires in {1} minutes.\n\nIf you did not ask to reset your password, you can ignore this email. Your password has not changed.",
+                SignInMailSubject = "Your sign-in code",
+                SignInMailBodyFormat =
+                    "Your sign-in code is {0}. It expires in {1} minutes.\n\nIf you are not signing in, someone else may know your password. Change it.",
             }
         );
 
@@ -83,6 +116,41 @@ public static class InteractiveLocales
                     "Dieses Konto kann sich nicht anmelden. Wenden Sie sich an Ihren Administrator.",
                 SignInFailedError =
                     "Die Anmeldung ist fehlgeschlagen. Bitte versuchen Sie es erneut.",
+                ForgotPasswordLink = "Passwort vergessen?",
+                PasswordResetStatus =
+                    "Ihr Passwort wurde zurückgesetzt. Melden Sie sich mit Ihrem neuen Passwort an.",
+                ForgotPasswordTitle = "Passwort zurücksetzen",
+                ForgotPasswordPrompt =
+                    "Geben Sie Ihren Benutzernamen ein. Hat das Konto eine bestätigte E-Mail-Adresse, senden wir einen Code dorthin.",
+                SendCodeButton = "Code senden",
+                ResetPasswordTitle = "Neues Passwort wählen",
+                ResetPasswordPrompt =
+                    "Geben Sie den Code aus der E-Mail ein und wählen Sie ein neues Passwort.",
+                CodeLabel = "Code",
+                NewPasswordLabel = "Neues Passwort",
+                ConfirmPasswordLabel = "Neues Passwort bestätigen",
+                ResetPasswordButton = "Passwort zurücksetzen",
+                SignInCodeTitle = "Prüfen Sie Ihre E-Mail",
+                SignInCodePrompt =
+                    "Geben Sie den Code ein, den wir an Ihre E-Mail-Adresse gesendet haben, um die Anmeldung abzuschließen.",
+                VerifyCodeButton = "Bestätigen",
+                ResendCodeButton = "Neuen Code senden",
+                CodeSentStatus = "Wir haben einen neuen Code gesendet.",
+                InvalidCodeError = "Der Code ist falsch oder abgelaufen.",
+                TooManyCodesError =
+                    "Es wurden zu viele Codes angefordert. Versuchen Sie es später erneut.",
+                PasswordMismatchError = "Die Passwörter stimmen nicht überein.",
+                PasswordRefusedError =
+                    "Wählen Sie ein anderes Passwort: Dieses erfüllt die Anforderungen nicht.",
+                VerificationMailSubject = "E-Mail-Adresse bestätigen",
+                VerificationMailBodyFormat =
+                    "Ihr Bestätigungscode lautet {0}. Er läuft in {1} Minuten ab.\n\nWenn Sie diesen Code nicht angefordert haben, können Sie diese E-Mail ignorieren.",
+                PasswordResetMailSubject = "Passwort zurücksetzen",
+                PasswordResetMailBodyFormat =
+                    "Ihr Code zum Zurücksetzen des Passworts lautet {0}. Er läuft in {1} Minuten ab.\n\nWenn Sie das Zurücksetzen Ihres Passworts nicht angefordert haben, können Sie diese E-Mail ignorieren. Ihr Passwort wurde nicht geändert.",
+                SignInMailSubject = "Ihr Anmeldecode",
+                SignInMailBodyFormat =
+                    "Ihr Anmeldecode lautet {0}. Er läuft in {1} Minuten ab.\n\nWenn Sie sich nicht anmelden, kennt möglicherweise jemand anderes Ihr Passwort. Ändern Sie es.",
             }
         );
 
@@ -112,6 +180,40 @@ public static class InteractiveLocales
                 AccessDeniedError =
                     "Esta cuenta no puede iniciar sesión. Póngase en contacto con su administrador.",
                 SignInFailedError = "No se pudo iniciar sesión. Inténtelo de nuevo.",
+                ForgotPasswordLink = "¿Ha olvidado su contraseña?",
+                PasswordResetStatus =
+                    "Su contraseña ha sido restablecida. Inicie sesión con su nueva contraseña.",
+                ForgotPasswordTitle = "Restablecer su contraseña",
+                ForgotPasswordPrompt =
+                    "Introduzca su nombre de usuario. Si su cuenta tiene una dirección de correo verificada, le enviaremos un código.",
+                SendCodeButton = "Enviar código",
+                ResetPasswordTitle = "Elegir una nueva contraseña",
+                ResetPasswordPrompt =
+                    "Introduzca el código del correo y elija una nueva contraseña.",
+                CodeLabel = "Código",
+                NewPasswordLabel = "Nueva contraseña",
+                ConfirmPasswordLabel = "Confirmar la nueva contraseña",
+                ResetPasswordButton = "Restablecer contraseña",
+                SignInCodeTitle = "Revise su correo",
+                SignInCodePrompt =
+                    "Introduzca el código que enviamos a su dirección de correo para terminar de iniciar sesión.",
+                VerifyCodeButton = "Verificar",
+                ResendCodeButton = "Enviar un código nuevo",
+                CodeSentStatus = "Hemos enviado un código nuevo.",
+                InvalidCodeError = "El código es incorrecto o ha caducado.",
+                TooManyCodesError =
+                    "Se han solicitado demasiados códigos. Inténtelo de nuevo más tarde.",
+                PasswordMismatchError = "Las contraseñas no coinciden.",
+                PasswordRefusedError = "Elija otra contraseña: esta no cumple los requisitos.",
+                VerificationMailSubject = "Verifique su dirección de correo",
+                VerificationMailBodyFormat =
+                    "Su código de verificación es {0}. Caduca en {1} minutos.\n\nSi no solicitó este código, puede ignorar este correo.",
+                PasswordResetMailSubject = "Restablezca su contraseña",
+                PasswordResetMailBodyFormat =
+                    "Su código para restablecer la contraseña es {0}. Caduca en {1} minutos.\n\nSi no solicitó restablecer su contraseña, puede ignorar este correo. Su contraseña no ha cambiado.",
+                SignInMailSubject = "Su código de inicio de sesión",
+                SignInMailBodyFormat =
+                    "Su código de inicio de sesión es {0}. Caduca en {1} minutos.\n\nSi no está iniciando sesión, es posible que otra persona conozca su contraseña. Cámbiela.",
             }
         );
 
@@ -142,6 +244,40 @@ public static class InteractiveLocales
                 AccessDeniedError =
                     "Ce compte ne peut pas se connecter. Contactez votre administrateur.",
                 SignInFailedError = "La connexion a échoué. Veuillez réessayer.",
+                ForgotPasswordLink = "Mot de passe oublié ?",
+                PasswordResetStatus =
+                    "Votre mot de passe a été réinitialisé. Connectez-vous avec votre nouveau mot de passe.",
+                ForgotPasswordTitle = "Réinitialiser votre mot de passe",
+                ForgotPasswordPrompt =
+                    "Saisissez votre nom d’utilisateur. Si son compte a une adresse e-mail vérifiée, nous y enverrons un code.",
+                SendCodeButton = "Envoyer le code",
+                ResetPasswordTitle = "Choisir un nouveau mot de passe",
+                ResetPasswordPrompt =
+                    "Saisissez le code reçu par e-mail et choisissez un nouveau mot de passe.",
+                CodeLabel = "Code",
+                NewPasswordLabel = "Nouveau mot de passe",
+                ConfirmPasswordLabel = "Confirmer le nouveau mot de passe",
+                ResetPasswordButton = "Réinitialiser le mot de passe",
+                SignInCodeTitle = "Consultez votre messagerie",
+                SignInCodePrompt =
+                    "Saisissez le code envoyé à votre adresse e-mail pour terminer la connexion.",
+                VerifyCodeButton = "Vérifier",
+                ResendCodeButton = "Envoyer un nouveau code",
+                CodeSentStatus = "Nous avons envoyé un nouveau code.",
+                InvalidCodeError = "Le code est incorrect ou a expiré.",
+                TooManyCodesError = "Trop de codes ont été demandés. Réessayez plus tard.",
+                PasswordMismatchError = "Les mots de passe ne correspondent pas.",
+                PasswordRefusedError =
+                    "Choisissez un autre mot de passe : celui-ci ne respecte pas les exigences.",
+                VerificationMailSubject = "Vérifiez votre adresse e-mail",
+                VerificationMailBodyFormat =
+                    "Votre code de vérification est {0}. Il expire dans {1} minutes.\n\nSi vous n’avez pas demandé ce code, vous pouvez ignorer cet e-mail.",
+                PasswordResetMailSubject = "Réinitialisez votre mot de passe",
+                PasswordResetMailBodyFormat =
+                    "Votre code de réinitialisation du mot de passe est {0}. Il expire dans {1} minutes.\n\nSi vous n’avez pas demandé la réinitialisation de votre mot de passe, vous pouvez ignorer cet e-mail. Votre mot de passe n’a pas changé.",
+                SignInMailSubject = "Votre code de connexion",
+                SignInMailBodyFormat =
+                    "Votre code de connexion est {0}. Il expire dans {1} minutes.\n\nSi vous ne vous connectez pas, quelqu’un d’autre connaît peut-être votre mot de passe. Changez-le.",
             }
         );
 

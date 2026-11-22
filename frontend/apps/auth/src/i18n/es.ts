@@ -8,6 +8,8 @@ export const es: Messages = {
     username: 'Nombre de usuario',
     password: 'Contraseña',
     submit: 'Iniciar sesión',
+    forgotPassword: '¿Ha olvidado su contraseña?',
+    passwordReset: 'Su contraseña ha sido restablecida. Inicie sesión con su nueva contraseña.',
   },
   loginErrors: {
     invalidCredentials: 'El nombre de usuario o la contraseña no son correctos.',
@@ -45,6 +47,7 @@ export const es: Messages = {
     signOut: 'Cerrar sesión',
     manageSessions: 'Gestionar sesiones activas',
     changePassword: 'Cambiar contraseña',
+    verifyEmail: 'Verificar su dirección de correo',
   },
   sessions: {
     title: 'Sesiones activas',
@@ -92,6 +95,53 @@ export const es: Messages = {
     passwordBlocklisted:
       'La nueva contraseña es demasiado común o se sabe que está comprometida. Elija una que no use en ningún otro lugar.',
     fallback: 'No se pudo cambiar la contraseña. Inténtelo de nuevo.',
+  },
+  forgotPassword: {
+    title: 'Restablecer su contraseña',
+    prompt:
+      'Introduzca su nombre de usuario. Si su cuenta tiene una dirección de correo verificada, le enviaremos un código.',
+    submit: 'Enviar código',
+  },
+  resetPassword: {
+    title: 'Elegir una nueva contraseña',
+    prompt: 'Introduzca el código del correo y elija una nueva contraseña.',
+    code: 'Código',
+    newPassword: 'Nueva contraseña',
+    confirmPassword: 'Confirmar la nueva contraseña',
+    submit: 'Restablecer contraseña',
+  },
+  signInCode: {
+    title: 'Revise su correo',
+    prompt:
+      'Introduzca el código que enviamos a su dirección de correo para terminar de iniciar sesión.',
+    code: 'Código',
+    verify: 'Verificar',
+    resend: 'Enviar un código nuevo',
+    sent: 'Hemos enviado un código nuevo.',
+  },
+  emailCodeErrors: {
+    invalidCode: 'El código es incorrecto o ha caducado.',
+    tooManyCodes: 'Se han solicitado demasiados códigos. Inténtelo de nuevo más tarde.',
+    passwordMismatch: 'Las contraseñas no coinciden.',
+    passwordRefused: 'Elija otra contraseña: esta no cumple los requisitos.',
+    noEmail: 'Esta cuenta no tiene dirección de correo.',
+    alreadyVerified: 'Su dirección de correo ya está verificada.',
+    fallback: 'Algo salió mal. Inténtelo de nuevo.',
+  },
+  email: {
+    title: 'Dirección de correo',
+    titleFor: (productName) => `Dirección de correo de ${productName}`,
+    address: 'Dirección',
+    verified: 'Verificada',
+    unverified: 'No verificada',
+    sendCode: 'Enviar un código de verificación',
+    codePrompt: 'Introduzca el código que enviamos a su dirección de correo.',
+    code: 'Código',
+    verify: 'Verificar',
+    verifiedStatus: 'Su dirección de correo está verificada.',
+    unavailable: 'La verificación del correo no está disponible.',
+    loading: 'Cargando…',
+    back: 'Volver a su cuenta',
   },
   environmentBanner: (label) => `Entorno ${label} — no apto para producción`,
 };

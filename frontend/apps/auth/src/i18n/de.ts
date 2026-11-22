@@ -8,6 +8,8 @@ export const de: Messages = {
     username: 'Benutzername',
     password: 'Passwort',
     submit: 'Anmelden',
+    forgotPassword: 'Passwort vergessen?',
+    passwordReset: 'Ihr Passwort wurde zurückgesetzt. Melden Sie sich mit Ihrem neuen Passwort an.',
   },
   loginErrors: {
     invalidCredentials: 'Der Benutzername oder das Passwort ist falsch.',
@@ -46,6 +48,7 @@ export const de: Messages = {
     signOut: 'Abmelden',
     manageSessions: 'Aktive Sitzungen verwalten',
     changePassword: 'Passwort ändern',
+    verifyEmail: 'E-Mail-Adresse bestätigen',
   },
   sessions: {
     title: 'Aktive Sitzungen',
@@ -93,6 +96,53 @@ export const de: Messages = {
     passwordBlocklisted:
       'Das neue Passwort ist zu häufig oder bekanntermaßen kompromittiert. Wählen Sie eines, das Sie nirgendwo sonst verwenden.',
     fallback: 'Das Passwort konnte nicht geändert werden. Bitte versuchen Sie es erneut.',
+  },
+  forgotPassword: {
+    title: 'Passwort zurücksetzen',
+    prompt:
+      'Geben Sie Ihren Benutzernamen ein. Hat das Konto eine bestätigte E-Mail-Adresse, senden wir einen Code dorthin.',
+    submit: 'Code senden',
+  },
+  resetPassword: {
+    title: 'Neues Passwort wählen',
+    prompt: 'Geben Sie den Code aus der E-Mail ein und wählen Sie ein neues Passwort.',
+    code: 'Code',
+    newPassword: 'Neues Passwort',
+    confirmPassword: 'Neues Passwort bestätigen',
+    submit: 'Passwort zurücksetzen',
+  },
+  signInCode: {
+    title: 'Prüfen Sie Ihre E-Mail',
+    prompt:
+      'Geben Sie den Code ein, den wir an Ihre E-Mail-Adresse gesendet haben, um die Anmeldung abzuschließen.',
+    code: 'Code',
+    verify: 'Bestätigen',
+    resend: 'Neuen Code senden',
+    sent: 'Wir haben einen neuen Code gesendet.',
+  },
+  emailCodeErrors: {
+    invalidCode: 'Der Code ist falsch oder abgelaufen.',
+    tooManyCodes: 'Es wurden zu viele Codes angefordert. Versuchen Sie es später erneut.',
+    passwordMismatch: 'Die Passwörter stimmen nicht überein.',
+    passwordRefused: 'Wählen Sie ein anderes Passwort: Dieses erfüllt die Anforderungen nicht.',
+    noEmail: 'Dieses Konto hat keine E-Mail-Adresse.',
+    alreadyVerified: 'Ihre E-Mail-Adresse ist bereits bestätigt.',
+    fallback: 'Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.',
+  },
+  email: {
+    title: 'E-Mail-Adresse',
+    titleFor: (productName) => `E-Mail-Adresse für ${productName}`,
+    address: 'Adresse',
+    verified: 'Bestätigt',
+    unverified: 'Nicht bestätigt',
+    sendCode: 'Bestätigungscode senden',
+    codePrompt: 'Geben Sie den Code ein, den wir an Ihre E-Mail-Adresse gesendet haben.',
+    code: 'Code',
+    verify: 'Bestätigen',
+    verifiedStatus: 'Ihre E-Mail-Adresse ist bestätigt.',
+    unavailable: 'Die E-Mail-Bestätigung ist nicht verfügbar.',
+    loading: 'Wird geladen…',
+    back: 'Zurück zu Ihrem Konto',
   },
   environmentBanner: (label) => `${label}-Umgebung — nicht für den Produktionseinsatz`,
 };
