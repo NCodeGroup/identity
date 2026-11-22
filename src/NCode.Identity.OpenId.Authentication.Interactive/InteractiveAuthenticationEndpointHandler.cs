@@ -1578,12 +1578,18 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// verify their address.
     /// </summary>
     // See ADR-1533.
-    public async ValueTask<IResult> PostSendEmailCodeAsync(HttpContext httpContext)
+    public async ValueTask<IResult> PostSendEmailCodeAsync(
+        HttpContext httpContext,
+        [FromForm(Name = InteractiveAuthenticationPageRenderer.UiLocalesFieldName)]
+            string? uiLocales
+    )
     {
         if (!IsEmailVerificationEnabled(httpContext))
         {
             return TypedResults.NotFound();
         }
+
+        var languageTag = LocaleSelector.GetCarriedLanguageTag(uiLocales);
 
         var authenticateResult = await AuthenticateSessionAsync(
             httpContext,
@@ -1606,13 +1612,13 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             ? RedirectToSurfacePage(
                 httpContext,
                 InteractiveAuthenticationDefaults.EmailPath,
-                languageTag: null,
+                languageTag,
                 (FlowQueryName, sent.FlowId)
             )
             : RedirectToSurfacePage(
                 httpContext,
                 InteractiveAuthenticationDefaults.EmailPath,
-                languageTag: null,
+                languageTag,
                 (ErrorQueryName, sent.Error)
             );
     }

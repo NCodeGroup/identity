@@ -296,6 +296,37 @@ public class InteractiveEmailVerificationTests
         Assert.Empty(transport.Delivered);
     }
 
+    [Fact]
+    public async Task PostEmailSend_WithoutTheAntiforgeryToken_IsRefused()
+    {
+        var transport = new CapturingMailTransport();
+        using var factory = new HostApplicationFactory();
+        await SeedVerificationEnabledAsync(factory, CancellationToken.None);
+        await factory.SeedLocalAccountAsync(
+            UserName,
+            Password,
+            Email,
+            emailVerified: false,
+            CancellationToken.None
+        );
+        using var host = factory.WithWebHostBuilder(UseTransport(transport));
+        var client = CreateClient(host);
+        var sessionCookie = await InteractiveLogin.SignInAsync(
+            client,
+            UserName,
+            Password,
+            CancellationToken.None
+        );
+        using var request = new HttpRequestMessage(HttpMethod.Post, EmailSendPath);
+        request.Headers.Add("Cookie", $"{InteractiveLogin.SessionCookieName}={sessionCookie}");
+        request.Content = new FormUrlEncodedContent(new Dictionary<string, string>());
+
+        using var response = await client.SendAsync(request, CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Empty(transport.Delivered);
+    }
+
     #endregion
 
     #region Me Tests
