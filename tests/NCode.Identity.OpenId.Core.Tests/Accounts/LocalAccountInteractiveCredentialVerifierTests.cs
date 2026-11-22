@@ -45,10 +45,10 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
         MockResolver = CreateStrictMock<IAuthenticationContextReferenceResolver>();
         MockPasswordAttemptLimiter = CreateStrictMock<IPasswordAttemptLimiter>();
         MockContext = CreateStrictMock<OpenIdContext>();
+        var subjectFactory = new LocalAccountSubjectFactory(MockResolver.Object, TimeProvider);
         Verifier = new LocalAccountInteractiveCredentialVerifier(
             MockStoreManagerFactory.Object,
-            MockResolver.Object,
-            TimeProvider,
+            subjectFactory,
             MockPasswordAttemptLimiter.Object
         );
     }
@@ -282,7 +282,8 @@ public class LocalAccountInteractiveCredentialVerifierTests : BaseTests
 
         Assert.NotNull(principal);
         Assert.Equal(LocalAccountId, principal.FindFirstValue("sub"));
-        Assert.Equal("Display Name", principal.FindFirstValue(JoseClaimNames.Payload.Name));
+        var name = principal.FindFirstValue(JoseClaimNames.Payload.Name);
+        Assert.Equal("Display Name", name);
     }
 
     #endregion

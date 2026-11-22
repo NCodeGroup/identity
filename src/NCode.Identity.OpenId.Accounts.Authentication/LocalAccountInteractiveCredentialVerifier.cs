@@ -1,17 +1,12 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
-using System.Globalization;
 using System.Security.Claims;
 using NCode.Buffers;
-using NCode.Identity.Jose;
-using NCode.Identity.OpenId.Accounts.DataContracts;
 using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Interactive;
 using NCode.Identity.OpenId.Authentication.Passwords;
-using NCode.Identity.OpenId.Authentication.Subject;
 using NCode.Identity.OpenId.Contexts;
-using NCode.Identity.OpenId.Settings;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Accounts.Authentication;
@@ -27,15 +22,12 @@ namespace NCode.Identity.OpenId.Accounts.Authentication;
 /// </summary>
 internal sealed class LocalAccountInteractiveCredentialVerifier(
     IStoreManagerFactory storeManagerFactory,
-    IAuthenticationContextReferenceResolver authenticationContextReferenceResolver,
-    TimeProvider timeProvider,
+    LocalAccountSubjectFactory localAccountSubjectFactory,
     IPasswordAttemptLimiter passwordAttemptLimiter
 ) : IInteractiveCredentialVerifier
 {
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
-    private IAuthenticationContextReferenceResolver AuthenticationContextReferenceResolver { get; } =
-        authenticationContextReferenceResolver;
-    private TimeProvider TimeProvider { get; } = timeProvider;
+    private LocalAccountSubjectFactory LocalAccountSubjectFactory { get; } = localAccountSubjectFactory;
     private IPasswordAttemptLimiter PasswordAttemptLimiter { get; } = passwordAttemptLimiter;
 
     /// <inheritdoc />
@@ -73,7 +65,12 @@ internal sealed class LocalAccountInteractiveCredentialVerifier(
             cancellationToken
         );
 
-        return await BuildCookiePrincipalAsync(openIdContext, result.Account, cancellationToken);
+        return await LocalAccountSubjectFactory.CreateAsync(
+            openIdContext,
+            result.Account,
+            InteractiveAuthenticationDefaults.CookieSchemeName,
+            cancellationToken
+        );
     }
 
     private async ValueTask<LocalAccountVerificationResult> VerifyCredentialsAsync(
@@ -112,61 +109,5 @@ internal sealed class LocalAccountInteractiveCredentialVerifier(
         }
 
         return result;
-    }
-
-    private async ValueTask<ClaimsPrincipal> BuildCookiePrincipalAsync(
-        OpenIdContext openIdContext,
-        PersistedLocalAccount account,
-        CancellationToken cancellationToken
-    )
-    {
-        var settings = openIdContext.Tenant.SettingsProvider.Collection;
-        var subjectClaimType = settings.GetValue(OpenIdSettingKeys.SubjectClaimTypes).First();
-        var issuerClaimType = settings.GetValue(OpenIdSettingKeys.PrincipalIssuerClaim);
-
-        var authTime = TimeProvider.GetUtcNow().ToUnixTimeSeconds();
-        var authTimeValue = authTime.ToString(CultureInfo.InvariantCulture);
-        var claims = new List<Claim>(account.Claims.Count + 7)
-        {
-            new(subjectClaimType, account.LocalAccountId),
-            new(issuerClaimType, AccountConstants.SelfIssuer),
-            new(JoseClaimNames.Payload.Tid, openIdContext.Tenant.TenantId),
-            new(JoseClaimNames.Payload.AuthTime, authTimeValue, ClaimValueTypes.Integer64),
-        };
-        // The display name is the account's 'name' claim.
-        var nameClaim = new Claim(JoseClaimNames.Payload.Name, account.DisplayName);
-        claims.Add(nameClaim);
-        var accountClaims = account.Claims.Select(claim => new Claim(claim.Type, claim.Value));
-        claims.AddRange(accountClaims);
-
-        // The local account verified a password, so record 'pwd' (RFC 8176) and resolve the authentication context
-        // class reference (acr) from it, letting the deployment's policy assert a stronger value when applicable.
-        var amrClaim = new Claim(
-            JoseClaimNames.Payload.Amr,
-            OpenIdProtocol.AuthenticationMethods.Password
-        );
-        claims.Add(amrClaim);
-
-        var acrRequest = new AuthenticationContextReferenceRequest
-        {
-            AuthenticationMethods = [OpenIdProtocol.AuthenticationMethods.Password],
-            IdentityProvider = null,
-            Settings = settings,
-        };
-        var acr = await AuthenticationContextReferenceResolver.ResolveAsync(
-            acrRequest,
-            cancellationToken
-        );
-        if (!string.IsNullOrEmpty(acr))
-        {
-            var acrClaim = new Claim(JoseClaimNames.Payload.Acr, acr);
-            claims.Add(acrClaim);
-        }
-
-        var identity = new ClaimsIdentity(
-            claims,
-            InteractiveAuthenticationDefaults.CookieSchemeName
-        );
-        return new ClaimsPrincipal(identity);
     }
 }
