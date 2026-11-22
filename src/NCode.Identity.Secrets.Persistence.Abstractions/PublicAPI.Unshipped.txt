@@ -175,6 +175,7 @@ NCode.Identity.Secrets.Persistence.SecretKeyImportRequest.Use.init -> void
 const NCode.Identity.Secrets.Persistence.Options.SecretProtectionOptions.DefaultSectionName = "SecretProtection" -> string!
 const NCode.Identity.Secrets.Persistence.Protection.SecretOwnerTypes.Platform = "platform" -> string!
 const NCode.Identity.Secrets.Persistence.Protection.SecretOwnerTypes.Tenant = "tenant" -> string!
+const NCode.Identity.Secrets.Persistence.Protection.SecretProtectionPurposes.AuditStreamSigningSecret = "audit-stream-signing-secret" -> string!
 const NCode.Identity.Secrets.Persistence.Protection.SecretProtectionPurposes.DataProtectionKeyRing = "data-protection-key-ring" -> string!
 const NCode.Identity.Secrets.Persistence.Protection.SecretProtectionPurposes.GrantPayload = "grant-payload" -> string!
 const NCode.Identity.Secrets.Persistence.Protection.SecretProtectionPurposes.PersistedSecret = "persisted-secret" -> string!
@@ -258,6 +259,7 @@ NCode.Identity.Secrets.Persistence.Protection.SecretProtectorProviderExtensions.
 NCode.Identity.Secrets.Persistence.Protection.SecretProtectorProviderExtensions.extension(NCode.Identity.Secrets.Persistence.Protection.ISecretProtectorProvider!).GetProtectorForSecretsAsync(NCode.Identity.Secrets.Persistence.Protection.SecretOwner owner, System.Collections.Generic.IEnumerable<NCode.Identity.Secrets.Persistence.DataContracts.PersistedSecret!>! secrets, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.Secrets.Persistence.Protection.ISecretProtector!>
 override NCode.Identity.Secrets.Persistence.Protection.SecretOwner.ToString() -> string!
 static NCode.Identity.Secrets.Persistence.Protection.SecretOwner.ForTenant(string! tenantId) -> NCode.Identity.Secrets.Persistence.Protection.SecretOwner
+static NCode.Identity.Secrets.Persistence.Protection.SecretProtectionContext.ForAuditStreamSigningSecret(string! secretId) -> NCode.Identity.Secrets.Persistence.Protection.SecretProtectionContext
 static NCode.Identity.Secrets.Persistence.Protection.SecretProtectionContext.ForGrantPayload(string! hashedKey) -> NCode.Identity.Secrets.Persistence.Protection.SecretProtectionContext
 static NCode.Identity.Secrets.Persistence.Protection.SecretProtectionContext.ForPersistedSecret(string! secretId) -> NCode.Identity.Secrets.Persistence.Protection.SecretProtectionContext
 NCode.Identity.Secrets.Persistence.SecretSerializerExtensions
