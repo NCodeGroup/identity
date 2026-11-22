@@ -923,6 +923,35 @@ public class LocalAccountLifecycleTests
     }
 
     [Fact]
+    public async Task Update_WhenThePatchRemovesTheUserName_Returns400()
+    {
+        using var factory = new BootstrapAdminApplicationFactory();
+        var localAccountId = await factory.SeedLocalAccountAsync(
+            UserName,
+            Password,
+            CancellationToken.None
+        );
+        using var administrator = await factory.CreateAdministratorClientAsync(
+            CancellationToken.None
+        );
+        var accountPath = $"{TenantApiPath}/local-accounts/{localAccountId}";
+
+        using var request = new HttpRequestMessage(HttpMethod.Patch, accountPath)
+        {
+            Content = new StringContent(
+                """[{"op":"remove","path":"/userName"}]""",
+                SecureEncoding.UTF8,
+                "application/json-patch+json"
+            ),
+        };
+        using var patch = await administrator.SendAsync(request);
+        var patchBody = await patch.Content.ReadAsStringAsync();
+
+        Assert.True(patch.StatusCode == HttpStatusCode.BadRequest, patchBody);
+        Assert.Contains("The username is required.", patchBody);
+    }
+
+    [Fact]
     public async Task SetClaims_WithANameClaim_Returns400()
     {
         using var factory = new BootstrapAdminApplicationFactory();

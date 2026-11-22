@@ -320,15 +320,18 @@ public class InstanceSetupTests
         Assert.Equal("Root Admin", root.DisplayName);
 
         using var scope = factory.Services.CreateScope();
-        using var tenantScope = scope
-            .ServiceProvider.GetRequiredService<IAmbientTenantAccessor>()
-            .BeginScope(root.TenantId);
-        await using var storeManager = await scope
-            .ServiceProvider.GetRequiredService<IStoreManagerFactory>()
-            .CreateAsync(CancellationToken.None);
-        var account = await storeManager
-            .GetStore<ILocalAccountStore>()
-            .GetByUserNameOrDefaultAsync(RootUserName, CancellationToken.None);
+        var ambientTenantAccessor =
+            scope.ServiceProvider.GetRequiredService<IAmbientTenantAccessor>();
+        using var tenantScope = ambientTenantAccessor.BeginScope(root.TenantId);
+        var storeManagerFactory = scope.ServiceProvider.GetRequiredService<IStoreManagerFactory>();
+        await using var storeManager = await storeManagerFactory.CreateAsync(
+            CancellationToken.None
+        );
+        var localAccountStore = storeManager.GetStore<ILocalAccountStore>();
+        var account = await localAccountStore.GetByUserNameOrDefaultAsync(
+            RootUserName,
+            CancellationToken.None
+        );
 
         Assert.NotNull(account);
         Assert.Equal("Root Admin", account.DisplayName);
