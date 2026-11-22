@@ -8,6 +8,7 @@ using Microsoft.Extensions.Time.Testing;
 using Moq;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.Json;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Persistence.Tenants;
@@ -27,6 +28,7 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
     private const string RootDisplayName = "Control Plane";
     private const string WorkloadTenantId = "acme";
     private const string WorkloadIssuer = "https://op.example/acme";
+    private const string ThisCell = "cell-a";
 
     private MockRepository Mocks { get; } = new(MockBehavior.Strict);
     private Mock<IStoreManagerFactory> MockStoreManagerFactory { get; }
@@ -54,7 +56,11 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
             .Setup(x => x.BeginUnscoped(It.IsAny<string>()))
             .Returns(Mock.Of<IDisposable>());
 
-        Provisioner = new DefaultTenantProvisioner(
+        Provisioner = CreateProvisioner(new CellOptions { Name = ThisCell, IsControlPlane = true });
+    }
+
+    private DefaultTenantProvisioner CreateProvisioner(CellOptions cellOptions) =>
+        new(
             MockStoreManagerFactory.Object,
             MockAmbientTenantAccessor.Object,
             MockTenantResolver.Object,
@@ -64,12 +70,12 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
                     Root = { TeamId = TeamId, TeamDisplayName = TeamDisplayName },
                 }
             ),
+            Options.Create(cellOptions),
             MockMediator.Object,
             MockTeamProvisioner.Object,
             TimeProvider,
             NullLogger<DefaultTenantProvisioner>.Instance
         );
-    }
 
     private FakeTimeProvider TimeProvider { get; } =
         new(new DateTimeOffset(2026, 11, 4, 12, 0, 0, TimeSpan.Zero));
@@ -487,6 +493,25 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
     }
 
     [Fact]
+    public async Task SeedAsync_WhenTheCellIsNotTheControlPlane_SeedsItsRootTenantInTheWorkloadPlane()
+    {
+        var provisioner = CreateProvisioner(new CellOptions { Name = ThisCell });
+        SetupControlPlaneTenantId();
+        var root = CreateTenant(RootTenantId);
+        var seeded = new List<SeedTenantCommand>();
+        SetupStoreManager();
+        SetupGetTenant(RootTenantId, root);
+        SetupSeed(seeded);
+
+        var result = await provisioner.SeedAsync(RootTenantId, CancellationToken.None);
+
+        Assert.Same(root, result);
+        var command = Assert.Single(seeded);
+        Assert.Same(root, command.Context.Tenant);
+        Assert.Equal(TenantPlane.Workload, command.Context.Plane);
+    }
+
+    [Fact]
     public async Task SeedAsync_WhenTheTenantIsTheControlPlaneTenant_SeedsItInTheRootPlaneWithoutAnotherRootTenant()
     {
         const string controlPlaneTenantId = "default";
@@ -531,6 +556,39 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
             {
                 Assert.Same(root, command.Context.Tenant);
                 Assert.Equal(TenantPlane.Root, command.Context.Plane);
+            },
+            command =>
+            {
+                Assert.Same(workload, command.Context.Tenant);
+                Assert.Equal(TenantPlane.Workload, command.Context.Plane);
+            }
+        );
+    }
+
+    [Fact]
+    public async Task SeedAsync_WhenTheCellIsNotTheControlPlane_EnsuresItsRootTenantAndSeedsBothInTheWorkloadPlane()
+    {
+        var provisioner = CreateProvisioner(new CellOptions { Name = ThisCell });
+        SetupControlPlaneTenantId();
+        SetupControlPlaneTenantDisplayName();
+        SetupTeam();
+        var root = CreateTenant(RootTenantId);
+        var workload = CreateTenant(WorkloadTenantId, WorkloadIssuer);
+        var seeded = new List<SeedTenantCommand>();
+        SetupStoreManager();
+        SetupGetTenant(RootTenantId, root);
+        SetupGetTenant(WorkloadTenantId, workload);
+        SetupSeed(seeded);
+
+        var result = await provisioner.SeedAsync(WorkloadTenantId, CancellationToken.None);
+
+        Assert.Same(workload, result);
+        Assert.Collection(
+            seeded,
+            command =>
+            {
+                Assert.Same(root, command.Context.Tenant);
+                Assert.Equal(TenantPlane.Workload, command.Context.Plane);
             },
             command =>
             {

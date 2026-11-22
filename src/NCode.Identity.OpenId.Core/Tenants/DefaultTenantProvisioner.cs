@@ -4,6 +4,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NCode.Identity.Json;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Logging;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -21,7 +22,9 @@ namespace NCode.Identity.OpenId.Tenants;
 /// root tenant its strategy names — by fanning out <see cref="SeedTenantCommand"/> to every registered handler within a
 /// single unit of work, then runs the steps the handlers queued for after the commit, each on its own bounded token; a
 /// step that fails is logged, the remaining steps run, and the seed stands, because its unit of work has committed. It
-/// then reads the tenant again in a fresh unit of work and returns the row its seed committed.
+/// then reads the tenant again in a fresh unit of work and returns the row its seed committed. Only the control-plane
+/// cell seeds its root tenant in the root plane; every other tenant, and the root tenant of every other cell, is seeded
+/// in the workload plane.
 /// </summary>
 // See ADR-1166 (one seeding pipeline) and ADR-1351 (an effect that follows a committed change runs on its own bounded
 // token).
@@ -30,6 +33,7 @@ internal sealed class DefaultTenantProvisioner(
     IAmbientTenantAccessor ambientTenantAccessor,
     ITenantResolver tenantResolver,
     IOptions<TenantResolutionOptions> optionsAccessor,
+    IOptions<CellOptions> cellOptionsAccessor,
     IMediator mediator,
     ITeamProvisioner teamProvisioner,
     TimeProvider timeProvider,
@@ -42,6 +46,7 @@ internal sealed class DefaultTenantProvisioner(
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
     private ITenantResolver TenantResolver { get; } = tenantResolver;
+    private CellOptions CellOptions { get; } = cellOptionsAccessor.Value;
     private IMediator Mediator { get; } = mediator;
     private ITeamProvisioner TeamProvisioner { get; } = teamProvisioner;
     private TimeProvider TimeProvider { get; } = timeProvider;
@@ -135,10 +140,14 @@ internal sealed class DefaultTenantProvisioner(
         var rootTenantId = TenantResolver.GetControlPlaneTenantId();
         var isRootTenant = string.Equals(tenantId, rootTenantId, StringComparison.Ordinal);
 
+        var rootTenantPlane = CellOptions.IsControlPlane ? TenantPlane.Root : TenantPlane.Workload;
+
         // The root tenant is the control-plane tenant that the strategy names; under the static single-tenant strategy it
-        // is the tenant's own tenant, which is then seeded once, in the root plane. It must exist and be seeded whatever
-        // tenant is seeded, so its control-plane data is in place under every strategy (ADR-1411, ADR-1166). It is seeded
-        // on this same path, so root and workload tenants are seeded identically.
+        // is the strategy's own tenant, which is then seeded once. It must exist and be seeded whatever tenant is
+        // seeded, on this same path, so root and workload tenants are seeded identically (ADR-1166). Only the
+        // control-plane cell seeds it in the root plane, which holds the control plane's data: every other cell
+        // validates management tokens against the control-plane cell and maps no platform or team route, so it seeds
+        // its root tenant in the workload plane (ADR-1411).
         if (!isRootTenant)
         {
             var rootDisplayName = TenantResolver.GetControlPlaneTenantDisplayName();
@@ -148,12 +157,12 @@ internal sealed class DefaultTenantProvisioner(
                 rootDisplayName,
                 cancellationToken
             );
-            await SeedInUnitOfWorkAsync(rootTenantId, TenantPlane.Root, cancellationToken);
+            await SeedInUnitOfWorkAsync(rootTenantId, rootTenantPlane, cancellationToken);
         }
 
         await SeedInUnitOfWorkAsync(
             tenantId,
-            isRootTenant ? TenantPlane.Root : TenantPlane.Workload,
+            isRootTenant ? rootTenantPlane : TenantPlane.Workload,
             cancellationToken
         );
 
