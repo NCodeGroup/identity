@@ -1005,8 +1005,16 @@ Drawn from _Clean Code_ (R. C. Martin) and _Refactoring_ (Fowler / Beck). All �
 The template's [Clean Code](csharp.instructions.md#clean-code) rules: small functions that do one thing, few
 parameters, command-query separation, no `null` where an empty form exists, intention-revealing names, typed exceptions
 and no empty `catch` or `async void`, comments that say why and no commented-out code, a type for a concept with
-invariants, the Law of Demeter, and no call nested in another call's arguments. The family adds:
+invariants, and the Law of Demeter. The family adds:
 
+- ✅ **No call, `await` or object creation nested in another call's arguments** — template
+  [Clean Code](csharp.instructions.md#clean-code); hoist it into a named local first. `NCID0006`, from
+  `analyzers/NCode.Identity.Analyzers`, fails the build in production code (`src/`, `hosts/`, and `analyzers/` through
+  its test) on such an expression, and exempts a lambda argument, `nameof`, `typeof`, `default` and `sizeof`, a place C#
+  cannot declare a local in (an initializer, a constructor initializer, an attribute argument, a parameter default, a
+  catch filter, a `when` clause or a query expression), a lambda converted to an `Expression<TDelegate>`, and the
+  arguments of a `[Conditional]` method
+  ([ADR-1521](../../docs/decisions/1521-an-analyzer-fails-the-build-on-a-call-await-or-object-creation-nested-in-another-calls-arguments.md)).
 - **Few parameters**: a clump that mirrors a well-known BCL shape
   (`ClaimsIdentity(authenticationType, nameType, roleType)`) is acceptable, and a private single-call-site helper isn't
   worth a parameter object.
