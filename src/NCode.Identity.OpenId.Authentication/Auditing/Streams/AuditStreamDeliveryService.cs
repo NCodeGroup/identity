@@ -14,9 +14,10 @@ namespace NCode.Identity.OpenId.Authentication.Auditing.Streams;
 
 /// <summary>
 /// Delivers the audit records of every tenant's audit streams every
-/// <see cref="AuditRecordOptions.StreamPollInterval"/>. Each poll reads the streams whose delivery is due, claims each
-/// one's lease in a unit of work of its own so that only one replica delivers a stream, and hands each claimed stream
-/// to the <see cref="IAuditStreamDeliverer"/>. A poll that fails is logged and run again at the next interval.
+/// <see cref="AuditRecordOptions.StreamPollInterval"/>. Each poll reads the streams whose delivery is due, and for each
+/// one in turn takes its lease in a unit of work of its own, so that only one replica delivers a stream, just before
+/// handing the stream to the <see cref="IAuditStreamDeliverer"/>. A poll that fails is logged and run again at the next
+/// interval.
 /// </summary>
 // See ADR-1534.
 internal sealed class AuditStreamDeliveryService(
@@ -66,8 +67,8 @@ internal sealed class AuditStreamDeliveryService(
     }
 
     /// <summary>
-    /// Reads the delivery states that are due, claims the lease of each one in a unit of work of its own, skipping the
-    /// ones that another replica claimed first, and delivers each claimed stream in turn.
+    /// Reads the delivery states that are due and, for each one in turn, claims its lease in a unit of work of its own
+    /// just before delivering it, skipping the ones that another replica took first.
     /// </summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
@@ -80,18 +81,13 @@ internal sealed class AuditStreamDeliveryService(
 
             var due = await ReadDueStatesAsync(cancellationToken);
 
-            var claimed = new List<PersistedAuditStreamState>(due.Count);
+            // Each lease is taken just before its delivery, so a stream late in the list has its whole lease.
             foreach (var state in due)
             {
                 if (await TryClaimAsync(state, cancellationToken))
                 {
-                    claimed.Add(state);
+                    await Deliverer.DeliverAsync(state, cancellationToken);
                 }
-            }
-
-            foreach (var state in claimed)
-            {
-                await Deliverer.DeliverAsync(state, cancellationToken);
             }
         }
         // A timeout throws OperationCanceledException with the token untouched; only a cancelled token is shutdown.
@@ -129,7 +125,7 @@ internal sealed class AuditStreamDeliveryService(
         }
         catch (StoreConcurrencyException)
         {
-            // Another replica claimed the stream first.
+            // Another replica took the stream first.
             return false;
         }
 

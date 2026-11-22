@@ -173,6 +173,46 @@ public sealed class AuditStreamDeliveryServiceTests : BaseTests
     }
 
     [Fact]
+    public async Task PollAsync_WhenSeveralStreamsAreDue_ClaimsEachJustBeforeDeliveringIt()
+    {
+        var cancellationToken = CancellationToken.None;
+        var first = CreateState("stream-1");
+        var second = CreateState("stream-2");
+        SetupStores();
+        SetupDue([first, second], cancellationToken);
+        var events = new List<string>();
+        MockAuditStreamStore
+            .Setup(x =>
+                x.UpdateStateAsync(It.IsAny<PersistedAuditStreamState>(), cancellationToken)
+            )
+            .Callback(
+                (PersistedAuditStreamState state, CancellationToken _) =>
+                    events.Add($"claim:{state.StreamId}")
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Exactly(2));
+        MockStoreManager
+            .Setup(x => x.SaveChangesAsync(cancellationToken))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Exactly(2));
+        MockDeliverer
+            .Setup(x => x.DeliverAsync(It.IsAny<PersistedAuditStreamState>(), cancellationToken))
+            .Callback(
+                (PersistedAuditStreamState state, CancellationToken _) =>
+                    events.Add($"deliver:{state.StreamId}")
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable(Times.Exactly(2));
+
+        await Service.PollAsync(cancellationToken);
+
+        Assert.Equal(
+            ["claim:stream-1", "deliver:stream-1", "claim:stream-2", "deliver:stream-2"],
+            events
+        );
+    }
+
+    [Fact]
     public async Task PollAsync_WhenAnotherReplicaClaimsAState_SkipsIt()
     {
         var cancellationToken = CancellationToken.None;
