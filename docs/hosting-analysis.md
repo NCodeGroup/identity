@@ -874,25 +874,6 @@ single-datacenter platform supports (~99.9%), until cells run across availabilit
 reply as `security@` from an existing mailbox). Transactional mail sends only from `mail.ncodeid.net`, which isolates its reputation; add
 the provider's SPF include and DKIM keys, and keep DMARC at `p=reject`.
 
-## 14. Open decisions
-
-1. **Topology:** Akamai Washington, DC managed HA (rank 1: $95 for the developer plan, $155 with the HA control plane
-   once paid plans exist, managed 3-node Postgres) vs. OCI Phoenix maximum capacity (rank 2, ~$57–60, you
-   operate Postgres) — see [§2](#2-summary-and-ranked-recommendations).
-2. **Managed vs. self-managed Kubernetes:** DOKS / LKE / VKE (free control plane) vs. k3s on 3 VMs (HA control plane
-   included).
-3. **Postgres:** managed same-DC (Akamai 3-node $37 is the HA sweet spot) vs. CloudNativePG in-cluster.
-4. **Environments — decided** ([ADR-1495](decisions/1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md)):
-   customer dev/test/prod are tenants on production; the platform runs production plus a private lab
-   on OCI's free A1 allowance ($0) and ephemeral Azure runs on the Visual Studio credit (§2, §10,
-   issue [#132](https://github.com/NCodeGroup/identity/issues/132)).
-5. **Server prerequisites before mTLS goes live:** done — [#86](https://github.com/NCodeGroup/identity/issues/86) (route per-tenant mTLS alias hosts), [#82](https://github.com/NCodeGroup/identity/issues/82) (in-app
-   chain validation), [#83](https://github.com/NCodeGroup/identity/issues/83) (Traefik header format), and [#117](https://github.com/NCodeGroup/identity/issues/117) (each tenant's alias derived from a template).
-6. **Domains — decided** ([ADR-1495](decisions/1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md)): `ncodeid.net` carries every issuer, `ncodeid.com` the site, docs, status page and mail (§3).
-7. **Production region:** Washington, DC (`us-iad`) or Chicago (`us-ord`) — see [Choosing the region](#choosing-the-region).
-8. **When to place cells on AWS, and in which shape** (EKS with spot above an on-demand floor, or ECS on Fargate) —
-   see [§15](#15-growth-path-aws).
-
 ## 11. Growth path: AWS
 
 Which cells move to AWS, when, and in which shape is open ([§13](#13-open-decisions)); this section informs it. AWS is
@@ -1106,10 +1087,16 @@ takes its tenants through the export and import of [ADR-1514](decisions/1514-a-t
 ([tenant-move.md](tenant-move.md)), or the database moves by PostgreSQL logical replication with a short cutover. Washington, DC and `us-east-1` share a
 metro, so customers see no change in latency.
 
-## 16. Shared and dedicated cells
+## 12. Shared and dedicated cells
 
 The free and entry plans share infrastructure, the way shared VM hosting does. A customer who needs dedicated,
 isolated, guaranteed capacity gets a **dedicated cell**, never a reserved slice of a shared one.
+
+Cells are decided in
+[ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
+their placement on clusters in
+[ADR-1520](decisions/1520-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md),
+and the automation that provisions and runs them is [#845](https://github.com/NCodeGroup/identity/issues/845).
 
 ### The cell and its placement
 
@@ -1274,3 +1261,17 @@ sovereignty and bank exit plans ask for a regional, sovereign or dedicated cell 
 | No capacity rating for a dedicated cell, because there is no load-test data on dedicated-CPU nodes | Not tracked ([§4](#4-compute-sizing)) |
 | Telemetry per cell can outgrow Grafana Cloud's free 10k active series | Not tracked |
 | Infrastructure automation that stamps out one cell, with its node pool, database and DNS, and manages the fleet | [#845](https://github.com/NCodeGroup/identity/issues/845) |
+
+## 13. Open decisions
+
+Everything else on this page is decided in the record its section names.
+
+1. **When to place cells on AWS, and in which shape** — EKS with spot above an on-demand floor, or ECS on Fargate, which
+   runs outside the chart and so needs its own record
+   ([ADR-1133](decisions/1133-the-hosted-platform-runs-only-the-published-artifacts-it-offers-self-hosters.md)); see
+   [§11](#11-growth-path-aws).
+2. **The fleet model** — the cell inventory, the cell module, the release channels and the version-skew rule, where
+   fleet telemetry lives, and operator access, recorded before the fleet is built
+   ([#845](https://github.com/NCodeGroup/identity/issues/845)).
+3. **A dedicated cell's capacity rating** — it needs a load test on dedicated-CPU nodes
+   ([§3](#3-compute-sizing), [Gaps for dedicated cells](#gaps-for-dedicated-cells)).
