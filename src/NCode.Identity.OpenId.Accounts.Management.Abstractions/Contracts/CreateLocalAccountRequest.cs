@@ -21,6 +21,11 @@ public sealed class CreateLocalAccountRequest
     public required string UserName { get; init; }
 
     /// <summary>
+    /// Gets the account's display name, the source of its <c>name</c> claim, or <c>null</c> to use the username.
+    /// </summary>
+    public string? DisplayName { get; init; }
+
+    /// <summary>
     /// Gets the account's initial password, hashed server-side on create.
     /// </summary>
     public required string Password { get; init; }

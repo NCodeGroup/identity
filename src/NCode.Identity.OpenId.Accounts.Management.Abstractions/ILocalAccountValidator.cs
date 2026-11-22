@@ -59,11 +59,13 @@ public interface ILocalAccountValidator
     /// Validates that a local account with the specified username may be created.
     /// </summary>
     /// <param name="userName">The proposed username (login handle) of the account.</param>
+    /// <param name="displayName">The proposed display name of the account, already trimmed. The default implementation reports 400 when it is empty or longer than <see cref="AccountMaxLengths.DisplayName"/>.</param>
     /// <param name="storeManager">The <see cref="IStoreManager"/> for the current unit of work.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>A <see cref="ManagementError"/> describing the first failed precondition, or <c>null</c> when valid.</returns>
     ValueTask<ManagementError?> ValidateCreateAsync(
         string userName,
+        string displayName,
         IStoreManager storeManager,
         CancellationToken cancellationToken
     );
@@ -73,6 +75,7 @@ public interface ILocalAccountValidator
     /// </summary>
     /// <param name="localAccountId">The opaque identifier of the account being updated.</param>
     /// <param name="userName">The proposed (patched) username of the account.</param>
+    /// <param name="displayName">The proposed (patched) display name of the account, already trimmed. The default implementation reports 400 when it is empty or longer than <see cref="AccountMaxLengths.DisplayName"/>.</param>
     /// <param name="concurrencyToken">The current concurrency token of the account.</param>
     /// <param name="ifMatch">The optional <c>If-Match</c> precondition: <c>*</c>, a quoted strong entity tag or a comma-separated list of them, or the bare concurrency token.</param>
     /// <param name="storeManager">The <see cref="IStoreManager"/> for the current unit of work.</param>
@@ -81,6 +84,7 @@ public interface ILocalAccountValidator
     ValueTask<ManagementError?> ValidateUpdateAsync(
         string localAccountId,
         string userName,
+        string displayName,
         string concurrencyToken,
         string? ifMatch,
         IStoreManager storeManager,
