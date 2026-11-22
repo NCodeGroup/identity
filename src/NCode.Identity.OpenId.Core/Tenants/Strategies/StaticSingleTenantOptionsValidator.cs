@@ -7,10 +7,10 @@ namespace NCode.Identity.OpenId.Tenants.Strategies;
 
 /// <summary>
 /// Validates <see cref="TenantResolutionOptions.StaticSingle"/> when the static single-tenant strategy is selected: a
-/// literal tenant path, a valid tenant identifier, and an issuer — required, because the tenant is served only beneath it
-/// — that is valid and ends with the tenant path. The strategy serves no other tenant, so a configured root tenant issuer
-/// would never be honored and is rejected. The options of an unselected strategy are inert, and a layered configuration
-/// may legitimately carry them, so they are skipped.
+/// literal tenant path, a valid tenant identifier, and an issuer — required, because the tenant is served only beneath
+/// it — that is valid and ends with the tenant path. The strategy's tenant is the root tenant, so a configured root
+/// identifier, display name, issuer or alias would never be honored and is refused. The options of an unselected
+/// strategy are inert, and a layered configuration may legitimately carry them, so they are skipped.
 /// </summary>
 // See ADR-1137 (fail at startup), ADR-1165 (the tenant route and the issuer) and ADR-1160 (the same rules apply to tenants
 // written at runtime).
@@ -69,6 +69,24 @@ internal class StaticSingleTenantOptionsValidator : IValidateOptions<TenantResol
                 $"{nameof(options.Root)}:{nameof(RootTenantOptions.Issuer)} has no effect under the {Prefix} "
                     + $"strategy, which serves only its own tenant; configure {Prefix}:{nameof(staticSingle.Issuer)} "
                     + "instead."
+            );
+        }
+
+        if (!string.IsNullOrEmpty(options.Root?.TenantId))
+        {
+            failures.Add(
+                $"{nameof(options.Root)}:{nameof(RootTenantOptions.TenantId)} has no effect under the {Prefix} "
+                    + $"strategy, whose own tenant is the root tenant; configure {Prefix}:{nameof(staticSingle.TenantId)} "
+                    + "instead."
+            );
+        }
+
+        if (!string.IsNullOrEmpty(options.Root?.DisplayName))
+        {
+            failures.Add(
+                $"{nameof(options.Root)}:{nameof(RootTenantOptions.DisplayName)} has no effect under the {Prefix} "
+                    + "strategy, whose own tenant is the root tenant; configure "
+                    + $"{Prefix}:{nameof(staticSingle.DisplayName)} instead."
             );
         }
 
