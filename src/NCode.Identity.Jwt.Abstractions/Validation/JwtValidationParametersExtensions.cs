@@ -62,7 +62,11 @@ public static class JwtValidationParametersExtensions
         /// <returns>The <see cref="JwtValidationParameters"/> instance for method chaining.</returns>
         public JwtValidationParameters RequireAssertion(
             Func<JwtValidationContext, CancellationToken, ValueTask<bool>> assertion
-        ) => parameters.AddRequirement(new AssertionRequirement(assertion));
+        )
+        {
+            var requirement = new AssertionRequirement(assertion);
+            return parameters.AddRequirement(requirement);
+        }
 
         /// <summary>
         /// Adds a <see cref="ClaimValueRequirement"/> that asserts the specified <paramref name="claimName"/> exists
@@ -78,15 +82,16 @@ public static class JwtValidationParametersExtensions
             bool usePayload,
             bool allowCollection,
             IEnumerable<string> validValues
-        ) =>
-            parameters.AddRequirement(
-                new ClaimValueRequirement(
-                    claimName,
-                    usePayload,
-                    allowCollection,
-                    validValues as IReadOnlyCollection<string> ?? [.. validValues]
-                )
+        )
+        {
+            var requirement = new ClaimValueRequirement(
+                claimName,
+                usePayload,
+                allowCollection,
+                validValues as IReadOnlyCollection<string> ?? [.. validValues]
             );
+            return parameters.AddRequirement(requirement);
+        }
 
         /// <summary>
         /// Adds a requirement that asserts the <c>iss</c> payload claim is any of the specified <paramref name="validIssuers"/>.
@@ -94,18 +99,19 @@ public static class JwtValidationParametersExtensions
         /// </summary>
         /// <param name="validIssuers">The collection of allowable values for the <c>iss</c> claim.</param>
         /// <returns>The <see cref="JwtValidationParameters"/> instance for method chaining.</returns>
-        public JwtValidationParameters ValidateIssuer(params IEnumerable<string> validIssuers) =>
-            parameters.AddRequirement(
-                new ClaimValueRequirement(
-                    JoseClaimNames.Payload.Iss,
-                    UsePayload: true,
-                    AllowCollection: false,
-                    validIssuers as IReadOnlyCollection<string> ?? [.. validIssuers]
-                )
-                {
-                    FailureCode = JwtValidationFailureCodes.InvalidIssuer,
-                }
-            );
+        public JwtValidationParameters ValidateIssuer(params IEnumerable<string> validIssuers)
+        {
+            var requirement = new ClaimValueRequirement(
+                JoseClaimNames.Payload.Iss,
+                UsePayload: true,
+                AllowCollection: false,
+                validIssuers as IReadOnlyCollection<string> ?? [.. validIssuers]
+            )
+            {
+                FailureCode = JwtValidationFailureCodes.InvalidIssuer,
+            };
+            return parameters.AddRequirement(requirement);
+        }
 
         /// <summary>
         /// Adds a requirement that asserts the <c>aud</c> payload claim is any of the specified <paramref name="validAudiences"/>.
@@ -113,20 +119,19 @@ public static class JwtValidationParametersExtensions
         /// </summary>
         /// <param name="validAudiences">The collection of allowable values for the <c>aud</c> claim.</param>
         /// <returns>The <see cref="JwtValidationParameters"/> instance for method chaining.</returns>
-        public JwtValidationParameters ValidateAudience(
-            params IEnumerable<string> validAudiences
-        ) =>
-            parameters.AddRequirement(
-                new ClaimValueRequirement(
-                    JoseClaimNames.Payload.Aud,
-                    UsePayload: true,
-                    AllowCollection: true,
-                    validAudiences as IReadOnlyCollection<string> ?? [.. validAudiences]
-                )
-                {
-                    FailureCode = JwtValidationFailureCodes.InvalidAudience,
-                }
-            );
+        public JwtValidationParameters ValidateAudience(params IEnumerable<string> validAudiences)
+        {
+            var requirement = new ClaimValueRequirement(
+                JoseClaimNames.Payload.Aud,
+                UsePayload: true,
+                AllowCollection: true,
+                validAudiences as IReadOnlyCollection<string> ?? [.. validAudiences]
+            )
+            {
+                FailureCode = JwtValidationFailureCodes.InvalidAudience,
+            };
+            return parameters.AddRequirement(requirement);
+        }
 
         /// <summary>
         /// Adds a <see cref="TokenTypeRequirement"/> that asserts the <c>typ</c> JOSE header matches any of the
@@ -134,22 +139,24 @@ public static class JwtValidationParametersExtensions
         /// </summary>
         /// <param name="validTokenTypes">The collection of allowable values for the <c>typ</c> header.</param>
         /// <returns>The <see cref="JwtValidationParameters"/> instance for method chaining.</returns>
-        public JwtValidationParameters ValidateTokenType(
-            params IEnumerable<string> validTokenTypes
-        ) =>
-            parameters.AddRequirement(
-                new TokenTypeRequirement(
-                    validTokenTypes as IReadOnlyCollection<string> ?? [.. validTokenTypes]
-                )
+        public JwtValidationParameters ValidateTokenType(params IEnumerable<string> validTokenTypes)
+        {
+            var requirement = new TokenTypeRequirement(
+                validTokenTypes as IReadOnlyCollection<string> ?? [.. validTokenTypes]
             );
+            return parameters.AddRequirement(requirement);
+        }
 
         /// <summary>
         /// Adds a <see cref="CertificateLifetimeRequirement"/> that, when the signing key is a certificate, asserts the
         /// certificate is active and non-expired (capturing the current <see cref="JwtValidationParameters.ClockSkew"/>).
         /// </summary>
         /// <returns>The <see cref="JwtValidationParameters"/> instance for method chaining.</returns>
-        public JwtValidationParameters ValidateCertificateLifeTime() =>
-            parameters.AddRequirement(new CertificateLifetimeRequirement(parameters.ClockSkew));
+        public JwtValidationParameters ValidateCertificateLifeTime()
+        {
+            var requirement = new CertificateLifetimeRequirement(parameters.ClockSkew);
+            return parameters.AddRequirement(requirement);
+        }
 
         /// <summary>
         /// Adds a <see cref="TokenLifetimeRequirement"/> that asserts the <c>nbf</c>, <c>iat</c>, and <c>exp</c> claims
@@ -171,14 +178,16 @@ public static class JwtValidationParametersExtensions
         {
             var options = new ValidateTokenLifeTimeOptions();
             configureOptions(options);
-            return parameters.AddRequirement(
-                new TokenLifetimeRequirement(options.RequireExpirationTime, parameters.ClockSkew)
-                {
-                    MaxLifetime = options.MaxLifetime,
-                    RequireNotBefore = options.RequireNotBefore,
-                    RequireIssuedAt = options.RequireIssuedAt,
-                }
-            );
+            var requirement = new TokenLifetimeRequirement(
+                options.RequireExpirationTime,
+                parameters.ClockSkew
+            )
+            {
+                MaxLifetime = options.MaxLifetime,
+                RequireNotBefore = options.RequireNotBefore,
+                RequireIssuedAt = options.RequireIssuedAt,
+            };
+            return parameters.AddRequirement(requirement);
         }
     }
 }

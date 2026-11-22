@@ -93,11 +93,15 @@ public static class JoseTokenTypes
     /// <param name="left">The first <c>typ</c> value to compare, or <c>null</c>.</param>
     /// <param name="right">The second <c>typ</c> value to compare, or <c>null</c>.</param>
     /// <returns><c>true</c> if both values denote the same media type; otherwise, <c>false</c>.</returns>
-    public static bool AreSame(
-        [NotNullWhen(true)] string? left,
-        [NotNullWhen(true)] string? right
-    ) =>
-        !string.IsNullOrEmpty(left)
-        && !string.IsNullOrEmpty(right)
-        && string.Equals(Normalize(left), Normalize(right), StringComparison.OrdinalIgnoreCase);
+    public static bool AreSame([NotNullWhen(true)] string? left, [NotNullWhen(true)] string? right)
+    {
+        if (string.IsNullOrEmpty(left) || string.IsNullOrEmpty(right))
+        {
+            return false;
+        }
+
+        var normalizedLeft = Normalize(left);
+        var normalizedRight = Normalize(right);
+        return string.Equals(normalizedLeft, normalizedRight, StringComparison.OrdinalIgnoreCase);
+    }
 }

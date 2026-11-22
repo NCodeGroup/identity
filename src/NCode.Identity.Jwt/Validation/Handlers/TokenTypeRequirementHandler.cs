@@ -39,7 +39,8 @@ internal sealed class TokenTypeRequirementHandler : JwtValidationHandler<TokenTy
             return ValueTask.CompletedTask;
         }
 
-        if (!validTokenTypeSet.Contains(JoseTokenTypes.Normalize(tokenType)))
+        var normalizedTokenType = JoseTokenTypes.Normalize(tokenType);
+        if (!validTokenTypeSet.Contains(normalizedTokenType))
         {
             context.Fail(
                 JwtValidationFailureCodes.InvalidTokenType,

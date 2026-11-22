@@ -59,7 +59,11 @@ internal sealed class ClaimValueRequirementHandler : JwtValidationHandler<ClaimV
             if (
                 !property
                     .EnumerateArray()
-                    .Any(jsonElement => validValueSet.Contains(jsonElement.ToString()))
+                    .Any(jsonElement =>
+                    {
+                        var text = jsonElement.ToString();
+                        return validValueSet.Contains(text);
+                    })
             )
             {
                 context.Fail(

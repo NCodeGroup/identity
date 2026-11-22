@@ -43,17 +43,18 @@ public static class DefaultRegistration
 
             serviceCollection.TryAddSingleton<ICredentialSelector, DefaultCredentialSelector>();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICollectionDataSource<Algorithm>,
-                    DefaultAlgorithmDataSource
-                >()
-            );
+            var algorithmDataSource = ServiceDescriptor.Singleton<
+                ICollectionDataSource<Algorithm>,
+                DefaultAlgorithmDataSource
+            >();
+            serviceCollection.TryAddEnumerable(algorithmDataSource);
 
             // The ECDH-ES algorithms serve every key type that has a registered agreement (ADR-1389).
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IEcdhKeyAgreement, EccEcdhKeyAgreement>()
-            );
+            var ecdhKeyAgreement = ServiceDescriptor.Singleton<
+                IEcdhKeyAgreement,
+                EccEcdhKeyAgreement
+            >();
+            serviceCollection.TryAddEnumerable(ecdhKeyAgreement);
 
             // ES256, ES384 and ES512 (RFC 7518 §3.4) are registered as data, as a package registers ES256K (ADR-1392).
             serviceCollection.TryAddEnumerableInstance(EccSignatureAlgorithmSpecification.Es256);

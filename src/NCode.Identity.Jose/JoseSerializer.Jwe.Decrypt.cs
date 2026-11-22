@@ -65,14 +65,16 @@ partial class JoseSerializer
     )
     {
         // See ADR-1389: an algorithm may accept several key types, each with its own sizes.
-        if (!keyManagementAlgorithm.TryGetKeyType(secretKey.GetType(), out var algorithmKeyType))
+        var secretKeyType = secretKey.GetType();
+        if (!keyManagementAlgorithm.TryGetKeyType(secretKeyType, out var algorithmKeyType))
         {
-            var expected = string.Join(
-                "', '",
-                keyManagementAlgorithm.KeyTypes.Select(keyType => keyType.KeyClrType.FullName)
+            var keyTypeNames = keyManagementAlgorithm.KeyTypes.Select(keyType =>
+                keyType.KeyClrType.FullName
             );
+            var expected = string.Join("', '", keyTypeNames);
+            var actualTypeName = secretKey.GetType().FullName;
             throw new ArgumentException(
-                $"The secret key was expected to be a type of '{expected}', but '{secretKey.GetType().FullName}' was given instead.",
+                $"The secret key was expected to be a type of '{expected}', but '{actualTypeName}' was given instead.",
                 nameof(secretKey)
             );
         }

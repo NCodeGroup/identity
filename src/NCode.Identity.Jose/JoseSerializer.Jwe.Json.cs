@@ -98,7 +98,8 @@ partial class JoseSerializer
                 );
                 keyManagementAlgorithm.WrapKey(secretKey, recipientHeader, cek, encryptedKeyBuffer);
 
-                encodedEncryptedKeys.Add(Base64Url.EncodeToString(encryptedKeyBuffer.WrittenSpan));
+                var encodedEncryptedKey = Base64Url.EncodeToString(encryptedKeyBuffer.WrittenSpan);
+                encodedEncryptedKeys.Add(encodedEncryptedKey);
                 recipientHeaders.Add(recipientHeader);
             }
         }
@@ -124,7 +125,8 @@ partial class JoseSerializer
 
             recipientHeader.Remove(JoseClaimNames.Header.Enc);
 
-            encodedEncryptedKeys.Add(Base64Url.EncodeToString(encryptedKeyBuffer.WrittenSpan));
+            var encodedEncryptedKey = Base64Url.EncodeToString(encryptedKeyBuffer.WrittenSpan);
+            encodedEncryptedKeys.Add(encodedEncryptedKey);
             recipientHeaders.Add(recipientHeader);
         }
 
@@ -274,6 +276,7 @@ partial class JoseSerializer
 
         encodedAad = Base64Url.EncodeToString(additionalAuthenticatedData.Value.Span);
         var combined = string.Concat(encodedProtected, ".", encodedAad);
-        return Encode(SecureEncoding.ASCII, combined.AsSpan(), out associatedData);
+        var combinedSpan = combined.AsSpan();
+        return Encode(SecureEncoding.ASCII, combinedSpan, out associatedData);
     }
 }

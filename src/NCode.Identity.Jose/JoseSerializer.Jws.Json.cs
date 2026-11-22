@@ -61,14 +61,13 @@ partial class JoseSerializer
         var signed = new List<(string EncodedHeader, string EncodedSignature)>(signatures.Count);
         foreach (var signature in signatures)
         {
-            signed.Add(
-                await SignJwsSignatureAsync(
-                    signature,
-                    encodedPayload,
-                    encodePayload,
-                    cancellationToken
-                )
+            var signedSignature = await SignJwsSignatureAsync(
+                signature,
+                encodedPayload,
+                encodePayload,
+                cancellationToken
             );
+            signed.Add(signedSignature);
         }
 
         using var jsonBuffer = BufferFactory.CreatePooledBufferWriter(isSensitive: false, 1024);
@@ -96,7 +95,8 @@ partial class JoseSerializer
             }
             else
             {
-                WriteJwsSignatureMembers(writer, signatures.First(), signed[0]);
+                var firstSignature = signatures.First();
+                WriteJwsSignatureMembers(writer, firstSignature, signed[0]);
             }
 
             writer.WriteEndObject();

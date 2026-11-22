@@ -56,13 +56,8 @@ internal class KeyedHashSignatureAlgorithm : SignatureAlgorithm
            effective security strength is the minimum of the security strength
            of the key and two times the size of the internal hash value.)
         */
-        KeyTypes =
-        [
-            new(
-                typeof(SymmetricSecretKey),
-                [new KeySizes(minSize: signatureSizeBits, maxSize: int.MaxValue, skipSize: 8)]
-            ),
-        ];
+        var keySizes = new KeySizes(minSize: signatureSizeBits, maxSize: int.MaxValue, skipSize: 8);
+        KeyTypes = [new(typeof(SymmetricSecretKey), [keySizes])];
     }
 
     /// <inheritdoc />

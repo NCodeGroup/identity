@@ -83,7 +83,8 @@ public sealed class JsonWebKeySet
     public static JsonWebKeySet Parse(string json)
     {
         ArgumentNullException.ThrowIfNull(json);
-        return new JsonWebKeySet(JsonElement.Parse(json));
+        var element = JsonElement.Parse(json);
+        return new JsonWebKeySet(element);
     }
 
     /// <summary>
@@ -105,7 +106,8 @@ public sealed class JsonWebKeySet
     )
     {
         ArgumentNullException.ThrowIfNull(json);
-        return new JsonWebKeySet(JsonElement.Parse(json), keyTypeDescriptors);
+        var element = JsonElement.Parse(json);
+        return new JsonWebKeySet(element, keyTypeDescriptors);
     }
 
     private static Dictionary<string, JsonWebKeyTypeDescriptor> IndexByName(
@@ -157,7 +159,8 @@ public sealed class JsonWebKeySet
             );
         }
 
-        var list = new List<JsonWebKey>(keys.GetArrayLength());
+        var arrayLength = keys.GetArrayLength();
+        var list = new List<JsonWebKey>(arrayLength);
         foreach (var item in keys.EnumerateArray())
         {
             // Members with a missing, non-string or empty 'kty' are skipped so one bad key cannot poison the whole set.
@@ -170,11 +173,17 @@ public sealed class JsonWebKeySet
                 continue;
             }
 
-            list.Add(
-                descriptorsByName.TryGetValue(kty, out var descriptor)
-                    ? new JsonWebKey(item, descriptor)
-                    : new JsonWebKey(item)
-            );
+            JsonWebKey jsonWebKey;
+            if (descriptorsByName.TryGetValue(kty, out var descriptor))
+            {
+                jsonWebKey = new JsonWebKey(item, descriptor);
+            }
+            else
+            {
+                jsonWebKey = new JsonWebKey(item);
+            }
+
+            list.Add(jsonWebKey);
         }
 
         return list;

@@ -130,7 +130,8 @@ public sealed class JsonWebKey
     public static JsonWebKey Parse(string json)
     {
         ArgumentNullException.ThrowIfNull(json);
-        return new JsonWebKey(JsonElement.Parse(json));
+        var element = JsonElement.Parse(json);
+        return new JsonWebKey(element);
     }
 
     private static JsonElement ToElement(JsonObject members)
@@ -345,7 +346,8 @@ public sealed class JsonWebKey
 
         using var hasher = IncrementalHash.CreateHash(hashAlgorithmName);
         hasher.AppendData(buffer.WrittenSpan);
-        return Base64Url.EncodeToString(hasher.GetHashAndReset());
+        var hash = hasher.GetHashAndReset();
+        return Base64Url.EncodeToString(hash);
     }
 
     /// <summary>
@@ -455,7 +457,8 @@ public sealed class JsonWebKey
             return null;
         }
 
-        var result = new List<string>(array.GetArrayLength());
+        var arrayLength = array.GetArrayLength();
+        var result = new List<string>(arrayLength);
         foreach (var item in array.EnumerateArray())
         {
             if (item.TryGetValue<string>(out var text))

@@ -56,7 +56,8 @@ internal abstract class CommonJoseEncoder(JoseSerializer joseSerializer) : JoseE
     {
         using var tokenBuffer = BufferFactory.CreatePooledBufferWriter<char>(isSensitive: false);
 
-        await EncodeAsync(tokenBuffer, payload.AsMemory(), cancellationToken);
+        var payloadMemory = payload.AsMemory();
+        await EncodeAsync(tokenBuffer, payloadMemory, cancellationToken);
 
         return tokenBuffer.AsReadOnlySequence.ToString();
     }
@@ -66,7 +67,11 @@ internal abstract class CommonJoseEncoder(JoseSerializer joseSerializer) : JoseE
         IBufferWriter<char> tokenWriter,
         string payload,
         CancellationToken cancellationToken
-    ) => EncodeAsync(tokenWriter, payload.AsMemory(), cancellationToken);
+    )
+    {
+        var payloadMemory = payload.AsMemory();
+        return EncodeAsync(tokenWriter, payloadMemory, cancellationToken);
+    }
 
     /// <inheritdoc />
     public override async ValueTask<string> EncodeAsync(
