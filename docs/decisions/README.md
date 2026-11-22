@@ -148,6 +148,7 @@ The records are grouped by area; within an area they are in number order.
 | [1527](./1527-the-hosted-platform-keeps-audit-records-for-90-days-and-a-customer-exports-them-through-the-management-api.md) | The hosted platform keeps audit records for 90 days, and a customer exports them through the management API | Accepted |
 | [1528](./1528-the-hosted-platform-sends-its-mail-through-amazon-ses-in-each-cells-region-from-mail-ncodeid-net.md) | The hosted platform sends its mail through Amazon SES in each cell's region from mail.ncodeid.net | Accepted |
 | [1529](./1529-the-hosted-platforms-terms-dpa-and-privacy-policy-are-public-documents-built-on-common-papers-standard-terms.md) | The hosted platform's terms, DPA and privacy policy are public documents built on Common Paper's standard terms | Accepted |
+| [1530](./1530-cells-on-aws-run-on-eks-from-the-published-chart-across-three-zones-with-spot-above-an-on-demand-floor.md) | Cells on AWS run on EKS from the published chart, across three zones, with spot above an on-demand floor | Accepted |
 
 ### Settings
 
