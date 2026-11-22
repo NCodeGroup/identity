@@ -142,7 +142,8 @@ cluster; the lab runs on OCI OKE Basic in Phoenix inside the free allowance; AWS
 - [ADR-1495](1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md):
   the environment model and the platform's domains.
 - Issues [#87](https://github.com/NCodeGroup/identity/issues/87),
-  [#177](https://github.com/NCodeGroup/identity/issues/177) and
-  [#845](https://github.com/NCodeGroup/identity/issues/845).
+  [#132](https://github.com/NCodeGroup/identity/issues/132), [#177](https://github.com/NCodeGroup/identity/issues/177),
+  [#845](https://github.com/NCodeGroup/identity/issues/845) and
+  [#859](https://github.com/NCodeGroup/identity/issues/859).
 - Akamai: [HA control plane](https://techdocs.akamai.com/cloud-computing/docs/high-availability-ha-control-plane-on-lke)
   page.
