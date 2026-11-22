@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Microsoft.Extensions.DependencyInjection;
+using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Integration.Tests.Infrastructure;
 using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Tenants;
@@ -15,11 +16,34 @@ public class RootTenantSeedingTests(HostApplicationFactory factory)
 {
     private HostApplicationFactory Factory { get; } = factory;
 
+    // The static single-tenant strategy serves only its own tenant, which is the root tenant, so the Development host
+    // (the control-plane cell) holds the control plane's resource servers in the served tenant (ADR-1411).
     [Fact]
-    public async Task ResolvingWorkloadTenant_AlsoProvisionsTheRootTenant()
+    public async Task ResolvingTheStaticTenant_SeedsTheDirectoryResourceServerIntoIt()
     {
-        // A first request forces the static single-tenant strategy to resolve (and lazily provision) the tenant,
-        // which must also ensure the root (control-plane) tenant exists (ADR-1411).
+        using var warmupClient = Factory.CreateClient();
+        using var warmupResponse = await warmupClient.GetAsync("/oauth2/jwks");
+
+        using var scope = new TenantServiceScope(Factory.Services, HostApplicationFactory.TenantId);
+        var storeManagerFactory = scope.ServiceProvider.GetRequiredService<IStoreManagerFactory>();
+        await using var storeManager = await storeManagerFactory.CreateAsync(
+            CancellationToken.None
+        );
+        var store = storeManager.GetStore<IResourceServerStore>();
+
+        var directoryResourceServer = await store.GetByIdentifierOrDefaultAsync(
+            GlobalDirectoryProtocol.DirectoryAudience,
+            CancellationToken.None
+        );
+
+        Assert.NotNull(directoryResourceServer);
+    }
+
+    // The static single-tenant strategy serves only its own tenant, which is the root tenant, so no separate root
+    // tenant is created beside it.
+    [Fact]
+    public async Task ResolvingTheStaticTenant_CreatesNoOtherRootTenant()
+    {
         using var warmupClient = Factory.CreateClient();
         using var warmupResponse = await warmupClient.GetAsync("/oauth2/jwks");
 
@@ -35,10 +59,6 @@ public class RootTenantSeedingTests(HostApplicationFactory factory)
             CancellationToken.None
         );
 
-        Assert.NotNull(rootTenant);
-        Assert.Equal(RootTenantOptions.DefaultTenantId, rootTenant.TenantId);
-
-        // The static strategy serves only its own tenant, so the root tenant is given no address.
-        Assert.Null(rootTenant.Issuer);
+        Assert.Null(rootTenant);
     }
 }
