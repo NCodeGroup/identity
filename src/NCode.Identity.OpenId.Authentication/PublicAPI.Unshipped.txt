@@ -1,6 +1,13 @@
 #nullable enable
+const NCode.Identity.OpenId.Authentication.Admission.AdmissionOptions.SectionName = "Admission" -> string!
 const NCode.Identity.OpenId.Authentication.ClientCertificates.ClientCertificateRevocationOptions.SectionName = "ClientCertificateRevocation" -> string!
 const NCode.Identity.OpenId.Authentication.OutboundHttp.OutboundHttpOptions.SectionName = "OutboundHttp" -> string!
+NCode.Identity.OpenId.Authentication.Admission.AdmissionOptions
+NCode.Identity.OpenId.Authentication.Admission.AdmissionOptions.AdmissionOptions() -> void
+NCode.Identity.OpenId.Authentication.Admission.AdmissionOptions.ConcurrencyLimit.get -> int?
+NCode.Identity.OpenId.Authentication.Admission.AdmissionOptions.ConcurrencyLimit.set -> void
+NCode.Identity.OpenId.Authentication.Admission.AdmissionOptions.RetryAfter.get -> System.TimeSpan
+NCode.Identity.OpenId.Authentication.Admission.AdmissionOptions.RetryAfter.set -> void
 NCode.Identity.OpenId.Authentication.ClientCertificates.ClientCertificateRevocationOptions
 NCode.Identity.OpenId.Authentication.ClientCertificates.ClientCertificateRevocationOptions.ClientCertificateRevocationOptions() -> void
 NCode.Identity.OpenId.Authentication.ClientCertificates.ClientCertificateRevocationOptions.FailureCacheDuration.get -> System.TimeSpan
