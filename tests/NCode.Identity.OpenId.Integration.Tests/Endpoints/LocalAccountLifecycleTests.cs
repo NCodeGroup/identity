@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Web;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using NCode.Buffers;
 using NCode.Identity.OpenId.Accounts;
 using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Integration.Tests.Infrastructure;
@@ -792,6 +793,164 @@ public class LocalAccountLifecycleTests
             item => item.GetProperty("localAccountId").GetString() == localAccountId
         );
         Assert.Equal(principalId, listed.GetProperty("principalId").GetString());
+    }
+
+    [Fact]
+    public async Task Create_WithADisplayName_ReturnsItAndUserInfoNamesIt()
+    {
+        const string userName = "named-user";
+        const string password = "named-user-password";
+        const string displayName = "Grace Hopper";
+        const string clientId = "it-lifecycle-userinfo";
+        const string clientSecret = "lifecycle-userinfo-client-secret";
+        using var factory = new BootstrapAdminApplicationFactory();
+        using var administrator = await factory.CreateAdministratorClientAsync(
+            CancellationToken.None
+        );
+
+        using var create = await administrator.PostAsync(
+            $"{TenantApiPath}/local-accounts",
+            JsonContent.Create(new { userName, password, displayName })
+        );
+
+        var createBody = await create.Content.ReadAsStringAsync();
+        Assert.True(create.StatusCode == HttpStatusCode.Created, createBody);
+        Assert.Equal(
+            displayName,
+            JsonElement.Parse(createBody).GetProperty("displayName").GetString()
+        );
+
+        await factory.SeedConfidentialClientAsync(
+            clientId,
+            clientSecret,
+            [OpenIdProtocol.GrantTypes.Password],
+            CancellationToken.None
+        );
+        var client = CreateClient(factory);
+        var (statusCode, tokenBody) = await PostTokenAsync(
+            client,
+            new Dictionary<string, string>
+            {
+                ["grant_type"] = OpenIdProtocol.GrantTypes.Password,
+                ["client_id"] = clientId,
+                ["client_secret"] = clientSecret,
+                ["username"] = userName,
+                ["password"] = password,
+                ["scope"] = "openid profile",
+            },
+            CancellationToken.None
+        );
+        Assert.True(statusCode == HttpStatusCode.OK, tokenBody.ToString());
+        var accessToken = tokenBody.GetProperty("access_token").GetString();
+        Assert.False(string.IsNullOrEmpty(accessToken), tokenBody.ToString());
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/oauth2/userinfo");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
+            "Bearer",
+            accessToken
+        );
+        using var userInfoResponse = await client.SendAsync(request);
+
+        var userInfoBody = await userInfoResponse.Content.ReadAsStringAsync();
+        Assert.True(userInfoResponse.StatusCode == HttpStatusCode.OK, userInfoBody);
+        Assert.Equal(displayName, JsonElement.Parse(userInfoBody).GetProperty("name").GetString());
+    }
+
+    [Fact]
+    public async Task Update_WithAJsonPatch_ChangesTheDisplayName()
+    {
+        using var factory = new BootstrapAdminApplicationFactory();
+        var localAccountId = await factory.SeedLocalAccountAsync(
+            UserName,
+            Password,
+            CancellationToken.None
+        );
+        using var administrator = await factory.CreateAdministratorClientAsync(
+            CancellationToken.None
+        );
+        var accountPath = $"{TenantApiPath}/local-accounts/{localAccountId}";
+
+        using var before = await administrator.GetAsync(accountPath);
+        var beforeBody = await before.Content.ReadAsStringAsync();
+        Assert.True(before.StatusCode == HttpStatusCode.OK, beforeBody);
+        var entityTag = before.Headers.ETag;
+        Assert.NotNull(entityTag);
+
+        using var request = new HttpRequestMessage(HttpMethod.Patch, accountPath)
+        {
+            Content = new StringContent(
+                """[{"op":"replace","path":"/displayName","value":"Ada"}]""",
+                SecureEncoding.UTF8,
+                "application/json-patch+json"
+            ),
+        };
+        request.Headers.IfMatch.Add(entityTag);
+        using var patch = await administrator.SendAsync(request);
+        var patchBody = await patch.Content.ReadAsStringAsync();
+        Assert.True(patch.StatusCode == HttpStatusCode.NoContent, patchBody);
+
+        using var after = await administrator.GetAsync(accountPath);
+        var afterBody = await after.Content.ReadAsStringAsync();
+        Assert.True(after.StatusCode == HttpStatusCode.OK, afterBody);
+        Assert.Equal("Ada", JsonElement.Parse(afterBody).GetProperty("displayName").GetString());
+    }
+
+    [Fact]
+    public async Task SetClaims_WithANameClaim_Returns400()
+    {
+        using var factory = new BootstrapAdminApplicationFactory();
+        var localAccountId = await factory.SeedLocalAccountAsync(
+            UserName,
+            Password,
+            CancellationToken.None
+        );
+        using var administrator = await factory.CreateAdministratorClientAsync(
+            CancellationToken.None
+        );
+
+        using var response = await administrator.PutAsync(
+            $"{TenantApiPath}/local-accounts/{localAccountId}/claims",
+            JsonContent.Create(new { claims = new[] { new { type = "name", value = "Mallory" } } })
+        );
+
+        var responseBody = await response.Content.ReadAsStringAsync();
+        Assert.True(response.StatusCode == HttpStatusCode.BadRequest, responseBody);
+    }
+
+    [Fact]
+    public async Task PlatformList_ListsTheRootTenantsAccounts()
+    {
+        const string userName = "platform-user";
+        const string password = "platform-user-password";
+        using var factory = new BootstrapAdminApplicationFactory(
+            new Dictionary<string, string?>
+            {
+                ["Cell:Name"] = "platform-list",
+                ["Cell:Region"] = "platform-list",
+                ["Cell:IsControlPlane"] = "true",
+            }
+        );
+        using var administrator = await factory.CreateAdministratorClientAsync(
+            CancellationToken.None
+        );
+
+        using var create = await administrator.PostAsync(
+            "/api/platform/local-accounts",
+            JsonContent.Create(new { userName, password, displayName = "Platform User" })
+        );
+        var createBody = await create.Content.ReadAsStringAsync();
+        Assert.True(create.StatusCode == HttpStatusCode.Created, createBody);
+        var localAccountId = JsonElement.Parse(createBody).GetProperty("localAccountId").GetString();
+
+        using var list = await administrator.GetAsync("/api/platform/local-accounts");
+
+        var listBody = await list.Content.ReadAsStringAsync();
+        Assert.True(list.StatusCode == HttpStatusCode.OK, listBody);
+        var listed = Assert.Single(
+            JsonElement.Parse(listBody).GetProperty("items").EnumerateArray(),
+            item => item.GetProperty("localAccountId").GetString() == localAccountId
+        );
+        Assert.Equal("Platform User", listed.GetProperty("displayName").GetString());
     }
 
     [Fact]
