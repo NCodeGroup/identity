@@ -1,0 +1,19 @@
+#nullable enable
+NCode.Identity.Mail.IMailSender
+NCode.Identity.Mail.IMailSender.SendAsync(NCode.Identity.Mail.MailMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.Mail.IMailTransport
+NCode.Identity.Mail.IMailTransport.DeliverAsync(NCode.Identity.Mail.MailMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+NCode.Identity.Mail.MailLibrary
+NCode.Identity.Mail.MailLibrary.MailLibrary() -> void
+NCode.Identity.Mail.MailMessage
+NCode.Identity.Mail.MailMessage.FromDisplayName.get -> string?
+NCode.Identity.Mail.MailMessage.FromDisplayName.init -> void
+NCode.Identity.Mail.MailMessage.HtmlBody.get -> string?
+NCode.Identity.Mail.MailMessage.HtmlBody.init -> void
+NCode.Identity.Mail.MailMessage.MailMessage() -> void
+NCode.Identity.Mail.MailMessage.Subject.get -> string!
+NCode.Identity.Mail.MailMessage.Subject.init -> void
+NCode.Identity.Mail.MailMessage.TextBody.get -> string!
+NCode.Identity.Mail.MailMessage.TextBody.init -> void
+NCode.Identity.Mail.MailMessage.To.get -> string!
+NCode.Identity.Mail.MailMessage.To.init -> void
