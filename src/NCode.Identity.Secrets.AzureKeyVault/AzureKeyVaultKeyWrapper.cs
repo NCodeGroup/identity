@@ -123,7 +123,8 @@ internal class AzureKeyVaultKeyWrapper(
             );
         }
 
-        return await WrapUnderAsync(new ReferencedKey(keyId, Access: null), key, cancellationToken);
+        var referencedKey = new ReferencedKey(keyId, Access: null);
+        return await WrapUnderAsync(referencedKey, key, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -231,9 +232,14 @@ internal class AzureKeyVaultKeyWrapper(
                 keyId,
                 referencedKey.Access,
                 (client, token) =>
-                    new ValueTask<WrapResult>(
-                        client.WrapKeyAsync(KeyWrapAlgorithm.RsaOaep256, plaintext, token)
-                    ),
+                {
+                    var wrapTask = client.WrapKeyAsync(
+                        KeyWrapAlgorithm.RsaOaep256,
+                        plaintext,
+                        token
+                    );
+                    return new ValueTask<WrapResult>(wrapTask);
+                },
                 cancellationToken
             );
         }
@@ -344,9 +350,14 @@ internal class AzureKeyVaultKeyWrapper(
                 keyId,
                 access,
                 (client, token) =>
-                    new ValueTask<UnwrapResult>(
-                        client.UnwrapKeyAsync(KeyWrapAlgorithm.RsaOaep256, ciphertext, token)
-                    ),
+                {
+                    var unwrapTask = client.UnwrapKeyAsync(
+                        KeyWrapAlgorithm.RsaOaep256,
+                        ciphertext,
+                        token
+                    );
+                    return new ValueTask<UnwrapResult>(unwrapTask);
+                },
                 cancellationToken
             );
         }
@@ -377,7 +388,8 @@ internal class AzureKeyVaultKeyWrapper(
         using var lifetime = source.GetSecureLifetime();
 
         var length = source.Length;
-        source.CopyTo(destination.GetSpan(length)[..length]);
+        var span = destination.GetSpan(length);
+        source.CopyTo(span[..length]);
         destination.Advance(length);
     }
 }

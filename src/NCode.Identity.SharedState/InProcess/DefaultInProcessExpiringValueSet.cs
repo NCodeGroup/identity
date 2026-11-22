@@ -44,7 +44,8 @@ internal class DefaultInProcessExpiringValueSet(TimeProvider timeProvider) : IEx
 
         SweepIfDue(now);
 
-        var entry = new Entry(value.ToArray(), 1, expiresWhen);
+        var storedValue = value.ToArray();
+        var entry = new Entry(storedValue, 1, expiresWhen);
         while (true)
         {
             if (Entries.TryAdd(key, entry))
@@ -109,7 +110,8 @@ internal class DefaultInProcessExpiringValueSet(TimeProvider timeProvider) : IEx
             ExpiresWhen = expiresWhen,
         };
 
-        return ValueTask.FromResult(Entries.TryUpdate(key, replacement, existing));
+        var isReplaced = Entries.TryUpdate(key, replacement, existing);
+        return ValueTask.FromResult(isReplaced);
     }
 
     /// <inheritdoc />
@@ -125,15 +127,17 @@ internal class DefaultInProcessExpiringValueSet(TimeProvider timeProvider) : IEx
                 return ValueTask.FromResult<ExpiringValue?>(null);
 
             // Removes the pair only if it still holds this entry, so exactly one caller takes it.
-            var removed = Entries.TryRemove(KeyValuePair.Create(key, entry));
+            var pair = KeyValuePair.Create(key, entry);
+            var removed = Entries.TryRemove(pair);
 
             if (entry.ExpiresWhen <= now)
                 return ValueTask.FromResult<ExpiringValue?>(null);
 
             if (removed)
-                return ValueTask.FromResult<ExpiringValue?>(
-                    new ExpiringValue(entry.Value, entry.Version)
-                );
+            {
+                var taken = new ExpiringValue(entry.Value, entry.Version);
+                return ValueTask.FromResult<ExpiringValue?>(taken);
+            }
         }
     }
 
@@ -156,7 +160,9 @@ internal class DefaultInProcessExpiringValueSet(TimeProvider timeProvider) : IEx
             return ValueTask.FromResult(false);
 
         // Removes the pair only if it still holds this entry, so exactly one caller removes it.
-        return ValueTask.FromResult(Entries.TryRemove(KeyValuePair.Create(key, existing)));
+        var pair = KeyValuePair.Create(key, existing);
+        var isRemoved = Entries.TryRemove(pair);
+        return ValueTask.FromResult(isRemoved);
     }
 
     /// <inheritdoc />

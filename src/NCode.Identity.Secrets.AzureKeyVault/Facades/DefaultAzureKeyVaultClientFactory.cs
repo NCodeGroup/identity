@@ -50,13 +50,22 @@ internal sealed class DefaultAzureKeyVaultClientFactory(TimeProvider timeProvide
 
         if (access is null)
         {
-            return operation(OwnClients.Value.GetClient(keyId), cancellationToken);
+            var ownClient = OwnClients.Value.GetClient(keyId);
+            return operation(ownClient, cancellationToken);
         }
 
         return DirectoryClients.UseAsync(
             access.Identity,
-            _ => ValueTask.FromResult(AzureDirectoryClients.Create(access.Identity)),
-            (clients, token) => operation(clients.GetClient(keyId), token),
+            _ =>
+            {
+                var directoryClients = AzureDirectoryClients.Create(access.Identity);
+                return ValueTask.FromResult(directoryClients);
+            },
+            (clients, token) =>
+            {
+                var client = clients.GetClient(keyId);
+                return operation(client, token);
+            },
             cancellationToken
         );
     }
@@ -71,7 +80,8 @@ internal sealed class DefaultAzureKeyVaultClientFactory(TimeProvider timeProvide
         ArgumentNullException.ThrowIfNull(vaultUri);
         ArgumentNullException.ThrowIfNull(operation);
 
-        return operation(OwnClients.Value.GetKeyClient(vaultUri), cancellationToken);
+        var keyClient = OwnClients.Value.GetKeyClient(vaultUri);
+        return operation(keyClient, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -84,7 +94,8 @@ internal sealed class DefaultAzureKeyVaultClientFactory(TimeProvider timeProvide
         ArgumentNullException.ThrowIfNull(vaultUri);
         ArgumentNullException.ThrowIfNull(operation);
 
-        return operation(OwnClients.Value.GetKeyClientWithoutRetry(vaultUri), cancellationToken);
+        var keyClient = OwnClients.Value.GetKeyClientWithoutRetry(vaultUri);
+        return operation(keyClient, cancellationToken);
     }
 
     /// <summary>

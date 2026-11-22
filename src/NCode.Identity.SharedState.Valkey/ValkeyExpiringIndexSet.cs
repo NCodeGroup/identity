@@ -75,13 +75,9 @@ internal class ValkeyExpiringIndexSet(
             async cancellationToken =>
             {
                 var database = await Connection.GetDatabaseAsync(cancellationToken);
+                var redisKey = GetKey(indexKey);
                 await database
-                    .ScriptEvaluateAsync(
-                        AddMemberScript,
-                        [GetKey(indexKey)],
-                        values,
-                        CommandFlags.None
-                    )
+                    .ScriptEvaluateAsync(AddMemberScript, [redisKey], values, CommandFlags.None)
                     .WaitAsync(cancellationToken);
             },
             cancellationToken
@@ -103,9 +99,10 @@ internal class ValkeyExpiringIndexSet(
             async cancellationToken =>
             {
                 var database = await Connection.GetDatabaseAsync(cancellationToken);
+                var redisKey = GetKey(indexKey);
                 var values = await database
                     .SortedSetRangeByScoreAsync(
-                        GetKey(indexKey),
+                        redisKey,
                         start,
                         double.PositiveInfinity,
                         Exclude.Start,
@@ -143,8 +140,9 @@ internal class ValkeyExpiringIndexSet(
             async cancellationToken =>
             {
                 var database = await Connection.GetDatabaseAsync(cancellationToken);
+                var redisKey = GetKey(indexKey);
                 await database
-                    .SortedSetRemoveAsync(GetKey(indexKey), member, CommandFlags.None)
+                    .SortedSetRemoveAsync(redisKey, member, CommandFlags.None)
                     .WaitAsync(cancellationToken);
             },
             cancellationToken
@@ -161,8 +159,9 @@ internal class ValkeyExpiringIndexSet(
             async cancellationToken =>
             {
                 var database = await Connection.GetDatabaseAsync(cancellationToken);
+                var redisKey = GetKey(indexKey);
                 await database
-                    .KeyDeleteAsync(GetKey(indexKey), CommandFlags.None)
+                    .KeyDeleteAsync(redisKey, CommandFlags.None)
                     .WaitAsync(cancellationToken);
             },
             cancellationToken

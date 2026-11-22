@@ -67,7 +67,8 @@ internal class ValkeyExpiringValueSet(
     {
         var stored = new byte[VersionLength + value.Length];
         BinaryPrimitives.WriteInt64BigEndian(stored, version);
-        value.CopyTo(stored.AsSpan(VersionLength));
+        var destination = stored.AsSpan(VersionLength);
+        value.CopyTo(destination);
         return stored;
     }
 
@@ -80,7 +81,8 @@ internal class ValkeyExpiringValueSet(
             throw new InvalidOperationException("The stored value is shorter than its version.");
 
         var version = BinaryPrimitives.ReadInt64BigEndian(stored);
-        return new ExpiringValue(stored.AsMemory(VersionLength), version);
+        var valueMemory = stored.AsMemory(VersionLength);
+        return new ExpiringValue(valueMemory, version);
     }
 
     /// <inheritdoc />
@@ -98,9 +100,9 @@ internal class ValkeyExpiringValueSet(
             return false;
 
         // The server counts a time-to-live in whole milliseconds and rejects zero, so round up.
-        var expiration = new Expiration(
-            TimeSpan.FromMilliseconds(Math.Ceiling(timeToLive.TotalMilliseconds))
-        );
+        var roundedMilliseconds = Math.Ceiling(timeToLive.TotalMilliseconds);
+        var timeToLiveMilliseconds = TimeSpan.FromMilliseconds(roundedMilliseconds);
+        var expiration = new Expiration(timeToLiveMilliseconds);
         var stored = Encode(1, value.Span);
 
         return await Metrics.MeasureAsync(
@@ -108,8 +110,9 @@ internal class ValkeyExpiringValueSet(
             async cancellationToken =>
             {
                 var database = await Connection.GetDatabaseAsync(cancellationToken);
+                var redisKey = GetKey(key);
                 return await database
-                    .StringSetAsync(GetKey(key), stored, expiration, ValueCondition.NotExists)
+                    .StringSetAsync(redisKey, stored, expiration, ValueCondition.NotExists)
                     .WaitAsync(cancellationToken);
             },
             cancellationToken
@@ -126,9 +129,16 @@ internal class ValkeyExpiringValueSet(
             async cancellationToken =>
             {
                 var database = await Connection.GetDatabaseAsync(cancellationToken);
-                var value = await database.StringGetAsync(GetKey(key)).WaitAsync(cancellationToken);
+                var redisKey = GetKey(key);
+                var value = await database.StringGetAsync(redisKey).WaitAsync(cancellationToken);
 
-                return value.IsNull ? (ExpiringValue?)null : Decode(ToBytes(value));
+                if (value.IsNull)
+                {
+                    return (ExpiringValue?)null;
+                }
+
+                var bytes = ToBytes(value);
+                return Decode(bytes);
             },
             cancellationToken
         );
@@ -159,10 +169,11 @@ internal class ValkeyExpiringValueSet(
             async cancellationToken =>
             {
                 var database = await Connection.GetDatabaseAsync(cancellationToken);
+                var redisKey = GetKey(key);
                 var result = await database
                     .ScriptEvaluateAsync(
                         ReplaceScript,
-                        [GetKey(key)],
+                        [redisKey],
                         [expectedPrefix, stored, milliseconds]
                     )
                     .WaitAsync(cancellationToken);
@@ -186,11 +197,18 @@ internal class ValkeyExpiringValueSet(
             async cancellationToken =>
             {
                 var database = await Connection.GetDatabaseAsync(cancellationToken);
+                var redisKey = GetKey(key);
                 var value = await database
-                    .StringGetDeleteAsync(GetKey(key))
+                    .StringGetDeleteAsync(redisKey)
                     .WaitAsync(cancellationToken);
 
-                return value.IsNull ? (ExpiringValue?)null : Decode(ToBytes(value));
+                if (value.IsNull)
+                {
+                    return (ExpiringValue?)null;
+                }
+
+                var bytes = ToBytes(value);
+                return Decode(bytes);
             },
             cancellationToken
         );
@@ -214,8 +232,9 @@ internal class ValkeyExpiringValueSet(
             async cancellationToken =>
             {
                 var database = await Connection.GetDatabaseAsync(cancellationToken);
+                var redisKey = GetKey(key);
                 var result = await database
-                    .ScriptEvaluateAsync(RemoveScript, [GetKey(key)], [expected])
+                    .ScriptEvaluateAsync(RemoveScript, [redisKey], [expected])
                     .WaitAsync(cancellationToken);
 
                 return (long)result == 1;
@@ -234,7 +253,8 @@ internal class ValkeyExpiringValueSet(
             async cancellationToken =>
             {
                 var database = await Connection.GetDatabaseAsync(cancellationToken);
-                await database.KeyDeleteAsync(GetKey(key)).WaitAsync(cancellationToken);
+                var redisKey = GetKey(key);
+                await database.KeyDeleteAsync(redisKey).WaitAsync(cancellationToken);
             },
             cancellationToken
         );

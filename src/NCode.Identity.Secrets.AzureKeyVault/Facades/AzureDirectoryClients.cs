@@ -42,14 +42,21 @@ internal sealed class AzureDirectoryClients
     /// <param name="directory">The identifier of the directory, a GUID, that tokens are requested from; or
     /// <see langword="null"/> for the directory of the deployment's own identity.</param>
     /// <returns>The credential and clients for the directory.</returns>
-    public static AzureDirectoryClients Create(string? directory) =>
-        new(
-            directory is null
-                ? new DefaultAzureCredential()
-                : new DefaultAzureCredential(
-                    new DefaultAzureCredentialOptions { TenantId = directory }
-                )
-        );
+    public static AzureDirectoryClients Create(string? directory)
+    {
+        DefaultAzureCredential credential;
+        if (directory is null)
+        {
+            credential = new DefaultAzureCredential();
+        }
+        else
+        {
+            var credentialOptions = new DefaultAzureCredentialOptions { TenantId = directory };
+            credential = new DefaultAzureCredential(credentialOptions);
+        }
+
+        return new AzureDirectoryClients(credential);
+    }
 
     /// <summary>
     /// Gets the client for a key. The same client is returned for every call with the same key version identifier,
@@ -83,11 +90,11 @@ internal sealed class AzureDirectoryClients
         KeyClients.GetOrAdd(
             vaultUri,
             static (uri, credential) =>
-                new KeyClient(
-                    uri,
-                    credential,
-                    AzureKeyVaultClientOptions.Configure(new KeyClientOptions())
-                ),
+            {
+                var baseOptions = new KeyClientOptions();
+                var clientOptions = AzureKeyVaultClientOptions.Configure(baseOptions);
+                return new KeyClient(uri, credential, clientOptions);
+            },
             Credential
         );
 
@@ -101,23 +108,22 @@ internal sealed class AzureDirectoryClients
         KeyClientsWithoutRetry.GetOrAdd(
             vaultUri,
             static (uri, credential) =>
-                new KeyClient(
-                    uri,
-                    credential,
-                    AzureKeyVaultClientOptions.ConfigureWithoutRetry(
-                        AzureKeyVaultClientOptions.Configure(new KeyClientOptions())
-                    )
-                ),
+            {
+                var baseOptions = new KeyClientOptions();
+                var configuredOptions = AzureKeyVaultClientOptions.Configure(baseOptions);
+                var clientOptions = AzureKeyVaultClientOptions.ConfigureWithoutRetry(
+                    configuredOptions
+                );
+                return new KeyClient(uri, credential, clientOptions);
+            },
             Credential
         );
 
-    private static CryptographyClient CreateClient(
-        string keyId,
-        DefaultAzureCredential credential
-    ) =>
-        new(
-            new Uri(keyId),
-            credential,
-            AzureKeyVaultClientOptions.Configure(new CryptographyClientOptions())
-        );
+    private static CryptographyClient CreateClient(string keyId, DefaultAzureCredential credential)
+    {
+        var keyUri = new Uri(keyId);
+        var baseOptions = new CryptographyClientOptions();
+        var clientOptions = AzureKeyVaultClientOptions.Configure(baseOptions);
+        return new CryptographyClient(keyUri, credential, clientOptions);
+    }
 }

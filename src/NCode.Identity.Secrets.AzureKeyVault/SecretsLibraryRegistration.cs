@@ -58,12 +58,11 @@ public static class SecretsLibraryRegistration
                 )
                 .ValidateOnStart();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<AzureKeyVaultRemoteKeyProviderOptions>,
-                    AzureKeyVaultRemoteKeyProviderOptionsValidator
-                >()
-            );
+            var optionsValidatorDescriptor = ServiceDescriptor.Singleton<
+                IValidateOptions<AzureKeyVaultRemoteKeyProviderOptions>,
+                AzureKeyVaultRemoteKeyProviderOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(optionsValidatorDescriptor);
 
             serviceCollection.TryAddSingleton(TimeProvider.System);
             serviceCollection.TryAddSingleton<
@@ -71,16 +70,17 @@ public static class SecretsLibraryRegistration
                 DefaultAzureKeyVaultClientFactory
             >();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IRemoteKeyProvider, AzureKeyVaultRemoteKeyProvider>()
-            );
+            var remoteKeyProviderDescriptor = ServiceDescriptor.Singleton<
+                IRemoteKeyProvider,
+                AzureKeyVaultRemoteKeyProvider
+            >();
+            serviceCollection.TryAddEnumerable(remoteKeyProviderDescriptor);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IRemoteKeyDescriptorSource,
-                    AzureKeyVaultRemoteKeyDescriptors
-                >()
-            );
+            var descriptorSourceDescriptor = ServiceDescriptor.Singleton<
+                IRemoteKeyDescriptorSource,
+                AzureKeyVaultRemoteKeyDescriptors
+            >();
+            serviceCollection.TryAddEnumerable(descriptorSourceDescriptor);
 
             return builder;
         }

@@ -126,12 +126,11 @@ public static class DefaultRegistration
                 .ValidateOnStart();
 
             // Every key and channel carries the deployment the composition names, such as the identity server's cell.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IPostConfigureOptions<ValkeyOptions>,
-                    ValkeyDeploymentOptionsSetup
-                >()
-            );
+            var deploymentSetupDescriptor = ServiceDescriptor.Singleton<
+                IPostConfigureOptions<ValkeyOptions>,
+                ValkeyDeploymentOptionsSetup
+            >();
+            serviceCollection.TryAddEnumerable(deploymentSetupDescriptor);
 
             serviceCollection.AddMetrics();
             serviceCollection.TryAddSingleton(TimeProvider.System);

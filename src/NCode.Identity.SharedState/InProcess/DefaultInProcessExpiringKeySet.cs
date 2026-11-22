@@ -43,7 +43,8 @@ internal class DefaultInProcessExpiringKeySet(TimeProvider timeProvider) : IExpi
 
         SweepIfDue(now);
 
-        return ValueTask.FromResult(TryAdd(key, expiresWhen, now));
+        var isAdded = TryAdd(key, expiresWhen, now);
+        return ValueTask.FromResult(isAdded);
     }
 
     /// <inheritdoc />
