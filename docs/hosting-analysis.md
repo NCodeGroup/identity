@@ -102,14 +102,17 @@ Decided in [ADR-1495](decisions/1495-the-hosted-platform-runs-customer-environme
 - **Daily development runs outside the platform,** on the developer's own machine (the Aspire stack) or a LAN-only
   homelab cluster. It never uses the platform domain, so no issuer under `ncodeid.net` ever points at a developer's
   network.
-- **Production therefore carries customers' dev/test traffic too:** per-tenant rate limits (done, issue [#84](https://github.com/NCodeGroup/identity/issues/84)) and
-  quotas (done, issue [#118](https://github.com/NCodeGroup/identity/issues/118)) keep one tenant's load test from starving another.
+- **Production therefore carries customers' dev/test traffic too:** per-tenant rate limits
+  ([ADR-1246](decisions/1246-rate-limits-are-registered-descriptors-counted-in-a-shared-expiring-counter-set.md)) and
+  quotas ([ADR-1198](decisions/1198-a-daily-quota-counts-a-utc-day-and-a-tier-may-admit-a-bounded-billed-overage.md))
+  keep one tenant's load test from starving another.
 
-### Recommended plan
+### Stages
 
+The platform grows in stages, decided in
+[ADR-1520](decisions/1520-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md).
 The starting budget is about **$100/month all-in**, for the lab and a production platform that offers only the free,
-non-production developer plan. Paid plans, and the availability they need, come later, each step paid for by the
-plans that need it.
+non-production developer plan; paid plans, and the availability they need, are paid for by the plans that need them.
 
 0. **Daily development — a LAN-only homelab, $0.** A k3s cluster at home, already run by Flux with Traefik,
    cert-manager (DNS-01, so LAN hosts get real Let's Encrypt certificates), a bare-metal load balancer, distributed
@@ -120,19 +123,16 @@ plans that need it.
    the LAN can reach it: not the OpenID Foundation's hosted suite, an external relying party's back-channel logout, or
    any other inbound call from the internet. Keep the identity server off any single-sign-on proxy in front of other
    homelab apps, which would break the protocol endpoints.
-1. **Now — the lab, $0/month.** One OKE Basic cluster (no charge for its managed control plane; only Enhanced clusters
-   cost $0.10 an hour) in Phoenix, near the operator, in a Pay-As-You-Go tenancy, behind the free network load balancer.
+1. **The lab, $0/month.** One OKE Basic cluster (no charge for its managed control plane; only Enhanced clusters cost
+   $0.10 an hour) in Phoenix, near the operator, in a Pay-As-You-Go tenancy, behind the free network load balancer.
    Every OCI tenancy, free or paid, gets the first **1,500 A1 OCPU-hours and 9,000 GB-hours a month** free in its home
    region — 2 OCPU and 12 GB running all month (Oracle's
    [Always Free resources](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm),
    checked 2026-11-14; its public price list still shows the older 3,000 and 18,000, so check the tenancy's console).
-   Beyond it, A1 costs $0.01 per OCPU-hour and $0.0015 per GB-hour, about $7.30 per OCPU and $1.10 per GB a month:
 
-   | Lab node pool | Monthly | Notes |
-   |---|---|---|
-   | **2 × (1 OCPU / 6 GB), two availability domains** | **$0** | The whole free allowance; ~94 GB of the 200 GB free block storage for boot volumes. **Recommended to start.** |
-   | 3 × (1 OCPU / 4 GB), three availability domains | ~$7.30 | One OCPU past the allowance; rehearses losing a node and spreading over three domains |
-   | 3 × (1 OCPU / 8 GB), three availability domains | ~$20.40 | One OCPU and 12 GB past the allowance; more than one deployment needs |
+   The lab's node pool is **2 × (1 OCPU / 6 GB) in two availability domains, $0**: the whole free allowance, and about
+   94 GB of the 200 GB free block storage for boot volumes. Beyond the allowance, A1 costs $0.01 per OCPU-hour and
+   $0.0015 per GB-hour, so a third node in a third availability domain (3 × 1 OCPU / 4 GB) costs about $7.30 a month.
 
    With daily development on the homelab, the lab is the **public, cloud-shaped rehearsal before production**: it takes
    release candidates deliberately rather than every build, always runs the deployment posture, and proves what the
@@ -143,12 +143,11 @@ plans that need it.
    ([§10](#10-devtest-and-conformance-on-azure-visual-studio-credit), $0). The Kubernetes layer (Traefik, chart, app)
    is identical to production; only the cluster, load balancer and database modules differ. Publish multi-arch (amd64 +
    arm64) images.
-2. **The developer plan — production, ~$95/month.** Rank 1 in Washington, DC without the HA control plane: LKE with
+2. **The developer plan — production, ~$95/month.** Production in Washington, DC without the HA control plane: LKE with
    4 × 2 GB nodes ($48), a NodeBalancer ($10) and the 3-node 1 GB managed PostgreSQL ($37). Free developer tenants are
    non-production and carry no SLA, so the single-replica control plane is acceptable: if it fails, the running pods
    keep serving and only deploys and recovery pause. The database is the one component bought at its HA size from the
-   start, because it is the system of record and a 1-node cluster may not grow to 3 nodes in place _(verify)_;
-   a single-node database ($16) and three nodes bring production to ~$62 if the budget must be lower.
+   start, because it is the system of record and a 1-node cluster may not grow to 3 nodes in place _(verify)_.
 3. **Before the first paid plan — +$60/month.** Create a new LKE cluster with the HA control plane (+$60) and the same
    four nodes, and move the cell onto it: the managed database stays where it is, the release is deployed on the new
    cluster, and DNS is pointed at its load balancer, so no tenant changes
@@ -185,7 +184,7 @@ pods, so some pods wait unscheduled until the node returns; a fourth node gives 
 matters more on the platform developers use than in the lab. With three production nodes the total is ~$86–87, and a
 third lab node adds ~$7.30. Watch Grafana Cloud's free 10k active series across production and the lab.
 
-### Shared free services (every topology)
+### Shared services
 
 | Concern                                        | Service                                       | Free allowance (verified 2026-10-18 unless noted)                                                                        |
 | ---------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
@@ -200,34 +199,6 @@ third lab node adds ~$7.30. Watch Grafana Cloud's free 10k active series across 
 | Key Vault experiments, ephemeral conformance   | Azure via the Visual Studio credit            | $50/month, dev/test only ([§10](#10-devtest-and-conformance-on-azure-visual-studio-credit))                               |
 | Inbound email (`security@`, vendor accounts)   | Cloudflare Email Routing                      | Free; receive-and-forward only (sending needs Workers Paid)                                                              |
 | Outbound email, when needed                    | OCI Email Delivery                            | 3,000 emails/month                                                                                                       |
-
-### Key findings
-
-- **Best value at ~$100:** Akamai — managed Kubernetes, 4 nodes, a NodeBalancer, and a **3-node managed
-  PostgreSQL** for $95, the same price in every US region; the HA control plane its paying customers need adds $60. The
-  only other managed-HA database that fits is Vultr's 2-node option ($90 total, one fewer node); DigitalOcean's pushes
-  past $110.
-- **OCI is the "max-free" option:** every tenancy, free or Pay-As-You-Go, gets the first **1,500 Ampere A1 OCPU-hours
-  and 9,000 GB-hours free every month** (≈ 2 Arm vCPU + 12 GB always-on; Oracle's price list still shows the older
-  3,000 and 18,000 _(verify in the tenancy's console)_), plus a free network LB,
-  10 TB egress, 200 GB block storage, a free OKE Basic control plane, and free Vault keys.
-- **Production goes where customers are; the lab goes near the operator.** Production may run in any US region
-  ([Choosing the region](#choosing-the-region)): Washington, DC is ~1–2 ms from AWS `us-east-1`, where most customer
-  backends run. The lab stays near Denver: OCI Phoenix, with Azure West Central US (Wyoming) for ephemeral runs.
-- **AWS is the growth path, not the starting point** ([§15](#15-growth-path-aws)): about 1.5–2× the entry cost, for
-  multiple availability zones, in-account KMS, compliance inheritance and Marketplace procurement.
-- **Cheapest real HA:** self-managed **k3s on 3 VMs** (all three are control-plane servers with embedded etcd **and**
-  schedulable workers) behind one L4 load balancer — HA control plane and HA workers for the price of 3 small VMs + 1 LB.
-- **Cheapest managed-HA Postgres:** Akamai — **3-node, 1 GB managed PostgreSQL for $37/mo**.
-- **Free database tiers** (Neon / Aiven free Postgres, Aiven free Valkey) suit ad-hoc dev only — no HA, scale-to-zero /
-  power-off, and no region choice put them far from the cluster.
-- **Valkey can be self-hosted in-cluster** for $0 — it's a cache (DPoP replay/nonce stores), not a system of record.
-- **Hetzner US is no longer entry-level:** US shared plans now start at $21.09 (2 vCPU / 2 GB) with 1 TB traffic, and
-  several plans showed "currently unavailable".
-- **Three server gaps found** while validating Traefik mTLS (tracked as [#82](https://github.com/NCodeGroup/identity/issues/82), [#83](https://github.com/NCodeGroup/identity/issues/83), [#86](https://github.com/NCodeGroup/identity/issues/86)); see [§8](#8-traefik-mtls-and-tenant-pki).
-- **Dev/test + conformance on Azure:** the Visual Studio Professional **$50/month Azure credit** covers ephemeral
-  conformance / load-test / mTLS-topology environments and the Key Vault ([#165](https://github.com/NCodeGroup/identity/issues/165)) experiments — **not** production or
-  always-on staging; see [§10](#10-devtest-and-conformance-on-azure-visual-studio-credit).
 
 ## 3. Reference architecture
 
