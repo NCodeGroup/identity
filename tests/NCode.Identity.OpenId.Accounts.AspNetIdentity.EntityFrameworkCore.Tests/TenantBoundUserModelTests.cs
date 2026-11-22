@@ -42,15 +42,14 @@ public sealed class TenantBoundUserModelTests
     [Fact]
     public void HasTenantLookupLengths_WhenCalled_SizesTheDisplayNameColumnAndRequiresIt()
     {
-        using var dbContext = new TenantBoundIdentityDbContext(
-            CreateOptions<TenantBoundIdentityDbContext>()
-        );
+        var options = CreateOptions<TenantBoundIdentityDbContext>();
+        using var dbContext = new TenantBoundIdentityDbContext(options);
 
-        Assert.Equal(
-            AccountMaxLengths.DisplayName,
-            GetMaxLength(dbContext, nameof(TestTenantUser.DisplayName))
-        );
-        Assert.False(IsNullable(dbContext, nameof(TestTenantUser.DisplayName)));
+        var maxLength = GetMaxLength(dbContext, nameof(TestTenantUser.DisplayName));
+        var isNullable = IsNullable(dbContext, nameof(TestTenantUser.DisplayName));
+
+        Assert.Equal(AccountMaxLengths.DisplayName, maxLength);
+        Assert.False(isNullable);
     }
 
     [Fact]
