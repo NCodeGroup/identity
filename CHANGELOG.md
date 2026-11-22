@@ -4461,6 +4461,30 @@ Until the first stable release, the [Unreleased] section describes the product a
   ([ADR-1514](docs/decisions/1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md),
   [`docs/tenant-move.md`](docs/tenant-move.md)).
 
+- **A k6 load test rates a cell's capacity.** `benchmarks/load/token-requests.js` drives a tenant's token endpoint at
+  constant arrival rates with a generated client secret, `private_key_jwt` and a supplied client secret, and fails when
+  p95 latency, errors or dropped iterations pass their thresholds;
+  [`benchmarks/load/README.md`](benchmarks/load/README.md) gives the run that rates a dedicated cell and sets its
+  replicas' concurrency limit
+  ([ADR-1524](docs/decisions/1524-a-dedicated-cells-capacity-rating-is-measured-by-the-repositorys-k6-test-on-dedicated-cpu-nodes.md),
+  [#907](https://github.com/NCodeGroup/identity/issues/907)).
+
+- **A customer exports its tenants' audit records through the management API.**
+  [`docs/audit-records.md`](docs/audit-records.md#exporting-a-tenants-records) gives the paged export over
+  `GET api/tenants/{tenantId}/audit-records`, and the hosted platform keeps records 90 days in each cell's audit store
+  ([ADR-1527](docs/decisions/1527-the-hosted-platform-keeps-audit-records-for-90-days-and-a-customer-exports-them-through-the-management-api.md),
+  [#910](https://github.com/NCodeGroup/identity/issues/910)).
+
+- **An incident-response runbook for the hosted platform.** [`docs/incident-response.md`](docs/incident-response.md)
+  gives the severities, paging, triage, containment playbooks, customer communication, evidence and review
+  ([#913](https://github.com/NCodeGroup/identity/issues/913)).
+
+- **The hosted platform's legal documents.** [`docs/legal/`](docs/legal/README.md) holds the terms of service and the
+  data processing agreement, cover pages over Common Paper's standard terms, and the privacy policy, each a draft that
+  counsel reviews before it takes effect
+  ([ADR-1529](docs/decisions/1529-the-hosted-platforms-terms-dpa-and-privacy-policy-are-public-documents-built-on-common-papers-standard-terms.md),
+  [#912](https://github.com/NCodeGroup/identity/issues/912)).
+
 - **The host chart configures a cell.** `cell.name`, `cell.region`, `cell.kind`, `cell.cloudRegions`,
   `cell.managementUrl`, `cell.isControlPlane` and `cell.controlPlaneIssuer` set `Cell`; `backup.location` annotates the
   pods of the host, the directory and their migration Jobs with `ncode.io/backup-location`; `telemetry.otlpEndpoint` and
@@ -6714,6 +6738,18 @@ Until the first stable release, the [Unreleased] section describes the product a
   [ADR-1418](docs/decisions/1418-limits-are-set-by-the-authority-above-their-scope-and-readers-learn-which-they-may-change.md),
   [#84](https://github.com/NCodeGroup/identity/issues/84),
   [#563](https://github.com/NCodeGroup/identity/issues/563)).
+
+- **A replica sheds a tenant's protocol requests once its in-flight requests fill the tenant's share of its capacity.**
+  `OpenId:Admission:ConcurrencyLimit`, set in the host chart as `admission.concurrencyLimit`, is the most metered
+  protocol requests one replica serves at once, and the tenant setting `admission_capacity_percent` (1–100, a limit
+  merged with `Min`, 100 when unset) is the share of it a tenant's requests may fill, so a tier with a smaller share is
+  shed first. A request past its tenant's share is answered `503 Service Unavailable` with `temporarily_unavailable`,
+  `Retry-After` (`OpenId:Admission:RetryAfter`, one second by default) and `Cache-Control: no-store` before any rate
+  limit or quota counts it, and is neither handled, audited nor recorded as usage; discovery and the JSON Web Key Set
+  are never shed, and `ncode.identity.admission.shed` counts what is shed. A host without a concurrency limit sheds
+  nothing
+  ([ADR-1523](docs/decisions/1523-a-replica-sheds-a-tenants-protocol-requests-once-its-in-flight-requests-fill-the-tenants-share-of-its-capacity.md),
+  [#906](https://github.com/NCodeGroup/identity/issues/906)).
 
 - **Anonymous discovery and JSON Web Key Set requests cannot spend a tenant's daily request quota.** The two endpoints
   are not metered: they count only against the per-minute rate limits and are not recorded as `requests` usage, so no
