@@ -315,10 +315,12 @@ internal class CallerApiEndpointHandler(
             return (null, []);
         }
 
-        var authority = await ControlPlaneAuthority.GetAsync(
-            new ControlPlaneAuthorityRequest { Subject = subject, ClientId = clientId },
-            cancellationToken
-        );
+        var authorityRequest = new ControlPlaneAuthorityRequest
+        {
+            Subject = subject,
+            ClientId = clientId,
+        };
+        var authority = await ControlPlaneAuthority.GetAsync(authorityRequest, cancellationToken);
 
         var principalId = authority.PrincipalId;
         if (string.IsNullOrEmpty(principalId))

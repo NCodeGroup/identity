@@ -56,16 +56,15 @@ internal static class EncryptionKeyEndpoints
     {
         var status = await masterKeyManager.GetStatusAsync(owner, cancellationToken);
 
-        return TypedResults.Ok(
-            new EncryptionKeysResource
-            {
-                Keys = [.. status.Keys.Select(ToResource)],
-                RecoveryConfigured = status.RecoveryConfigured,
-                RootKey = status.RootKey is null ? null : ToResource(status.RootKey),
-                RootKeyProviders = [.. ownerRootKeyManager?.AllowedKeyWrapperNames ?? []],
-                RootKeyAccessBinding = ownerRootKeyManager?.GetAccessBinding(owner),
-            }
-        );
+        var keysResource = new EncryptionKeysResource
+        {
+            Keys = [.. status.Keys.Select(ToResource)],
+            RecoveryConfigured = status.RecoveryConfigured,
+            RootKey = status.RootKey is null ? null : ToResource(status.RootKey),
+            RootKeyProviders = [.. ownerRootKeyManager?.AllowedKeyWrapperNames ?? []],
+            RootKeyAccessBinding = ownerRootKeyManager?.GetAccessBinding(owner),
+        };
+        return TypedResults.Ok(keysResource);
     }
 
     /// <summary>
@@ -99,13 +98,12 @@ internal static class EncryptionKeyEndpoints
             MasterKeyChangeReasons.Requested
         );
 
-        return TypedResults.Ok(
-            new EncryptionKeyRotationResource
-            {
-                ActiveKey = ToResource(rotation.ActiveKey),
-                RetiredKey = rotation.RetiredKey is null ? null : ToResource(rotation.RetiredKey),
-            }
-        );
+        var rotationResource = new EncryptionKeyRotationResource
+        {
+            ActiveKey = ToResource(rotation.ActiveKey),
+            RetiredKey = rotation.RetiredKey is null ? null : ToResource(rotation.RetiredKey),
+        };
+        return TypedResults.Ok(rotationResource);
     }
 
     /// <summary>
@@ -166,15 +164,16 @@ internal static class EncryptionKeyEndpoints
                 );
             }
 
+            var extensions = new Dictionary<string, object?>
+            {
+                [ManagementProblemMembers.Provider] = request.Provider,
+                [ManagementProblemMembers.KeyReference] = request.KeyReference,
+                [ManagementProblemMembers.AccessIdentity] = request.AccessIdentity,
+            };
             return TypedResults.Problem(
                 detail: $"The key could not wrap and unwrap a probe through '{request.Provider}': {exception.Failure}",
                 statusCode: StatusCodes.Status422UnprocessableEntity,
-                extensions: new Dictionary<string, object?>
-                {
-                    [ManagementProblemMembers.Provider] = request.Provider,
-                    [ManagementProblemMembers.KeyReference] = request.KeyReference,
-                    [ManagementProblemMembers.AccessIdentity] = request.AccessIdentity,
-                }
+                extensions: extensions
             );
         }
 
@@ -197,18 +196,17 @@ internal static class EncryptionKeyEndpoints
             );
         }
 
-        return TypedResults.Ok(
-            new EncryptionRootKeyChangeResource
-            {
-                RootKey = ToResource(change.RootKey),
-                ActiveKey = change.Rotation is null ? null : ToResource(change.Rotation.ActiveKey),
-                RetiredKey = change.Rotation?.RetiredKey is null
-                    ? null
-                    : ToResource(change.Rotation.RetiredKey),
-                RewrappedKeys = change.Rewrap.Rewrapped,
-                FailedKeys = change.Rewrap.Failed,
-            }
-        );
+        var rootKeyChangeResource = new EncryptionRootKeyChangeResource
+        {
+            RootKey = ToResource(change.RootKey),
+            ActiveKey = change.Rotation is null ? null : ToResource(change.Rotation.ActiveKey),
+            RetiredKey = change.Rotation?.RetiredKey is null
+                ? null
+                : ToResource(change.Rotation.RetiredKey),
+            RewrappedKeys = change.Rewrap.Rewrapped,
+            FailedKeys = change.Rewrap.Failed,
+        };
+        return TypedResults.Ok(rootKeyChangeResource);
     }
 
     /// <summary>
@@ -240,9 +238,13 @@ internal static class EncryptionKeyEndpoints
             );
         }
 
-        return removal.Remaining is null
-            ? TypedResults.NoContent()
-            : TypedResults.Accepted((string?)null, ToResource(removal.Remaining));
+        if (removal.Remaining is null)
+        {
+            return TypedResults.NoContent();
+        }
+
+        var remainingResource = ToResource(removal.Remaining);
+        return TypedResults.Accepted((string?)null, remainingResource);
     }
 
     /// <summary>
@@ -262,12 +264,8 @@ internal static class EncryptionKeyEndpoints
 
         if (validation.Change is { } change)
         {
-            await auditRecorder.RecordRootKeyChangedAsync(
-                httpContext,
-                rootKey,
-                change,
-                RootKeyChangeReasons.ForValidation(change)
-            );
+            var reason = RootKeyChangeReasons.ForValidation(change);
+            await auditRecorder.RecordRootKeyChangedAsync(httpContext, rootKey, change, reason);
         }
 
         if (validation.Rotation is { } rotation)
@@ -279,7 +277,8 @@ internal static class EncryptionKeyEndpoints
             );
         }
 
-        return TypedResults.Ok(ToResource(rootKey));
+        var rootKeyResource = ToResource(rootKey);
+        return TypedResults.Ok(rootKeyResource);
     }
 
     /// <summary>
@@ -361,15 +360,12 @@ internal static class EncryptionKeyEndpoints
         MasterKeyRotationTooSoonException exception
     )
     {
-        return RetryAfterProblem.Create(
-            httpContext,
-            exception.RetryAfter,
-            new ProblemDetails
-            {
-                Status = StatusCodes.Status409Conflict,
-                Detail = RekeyTooSoonDetail,
-            }
-        );
+        var problemDetails = new ProblemDetails
+        {
+            Status = StatusCodes.Status409Conflict,
+            Detail = RekeyTooSoonDetail,
+        };
+        return RetryAfterProblem.Create(httpContext, exception.RetryAfter, problemDetails);
     }
 
     private static EncryptionRootKeyResource ToResource(OwnerRootKeyInfo rootKey) =>

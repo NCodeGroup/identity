@@ -39,8 +39,11 @@ internal sealed class DefaultSecretValidator(
     private static ManagementError Error(string detail) =>
         new() { StatusCode = StatusCodes.Status400BadRequest, Detail = detail };
 
-    private static SecretCreateValidation Invalid(string detail) =>
-        SecretCreateValidation.Invalid(Error(detail));
+    private static SecretCreateValidation Invalid(string detail)
+    {
+        var error = Error(detail);
+        return SecretCreateValidation.Invalid(error);
+    }
 
     /// <summary>
     /// Checks the instants of a secret's lifecycle a create or import request names, resolved and judged by the one
@@ -159,7 +162,8 @@ internal sealed class DefaultSecretValidator(
         var validation = ValidateRemoteKey(selector);
         if (validation.IsValid && !RemoteKeyDescriptorCatalog.CreatesKeys(selector.Provider))
         {
-            return Invalid(RemoteKeyRefusals.CreatesNoKeys(selector.Provider));
+            var createsNoKeysDetail = RemoteKeyRefusals.CreatesNoKeys(selector.Provider);
+            return Invalid(createsNoKeysDetail);
         }
 
         return validation;
@@ -183,12 +187,14 @@ internal sealed class DefaultSecretValidator(
 
         if (string.IsNullOrEmpty(selector.Provider))
         {
-            return Invalid(DescribeUnregisteredProvider(providerName: null));
+            var unnamedDetail = DescribeUnregisteredProvider(providerName: null);
+            return Invalid(unnamedDetail);
         }
 
         if (!RemoteKeyDescriptorCatalog.TryGetProvider(selector.Provider, out _))
         {
-            return Invalid(DescribeUnregisteredProvider(selector.Provider));
+            var unregisteredDetail = DescribeUnregisteredProvider(selector.Provider);
+            return Invalid(unregisteredDetail);
         }
 
         var requested = new RequestedKeyGeneration
@@ -251,9 +257,13 @@ internal sealed class DefaultSecretValidator(
             .Providers.Select(provider => provider.Name)
             .Order(StringComparer.Ordinal)
             .ToList();
-        return names.Count == 0
-            ? $"{subject}; the deployment registers no remote key provider."
-            : $"{subject}; expected " + string.Join(", ", names.Select(name => $"'{name}'")) + ".";
+        if (names.Count == 0)
+        {
+            return $"{subject}; the deployment registers no remote key provider.";
+        }
+
+        var quotedNames = names.Select(name => $"'{name}'");
+        return $"{subject}; expected " + string.Join(", ", quotedNames) + ".";
     }
 
     private SecretCreateValidation ResolveGeneration(
@@ -279,16 +289,17 @@ internal sealed class DefaultSecretValidator(
         };
         if (algorithm is not null)
         {
+            var keyGenerationDeclaration = new KeyGenerationDeclaration
+            {
+                KeyClrType = descriptor.KeyClrType,
+                KeySizeBits = keySizeBits,
+                Curve = curve,
+                Use = use,
+                Algorithm = algorithm,
+            };
             if (
                 !AlgorithmCollectionProvider.Collection.TryResolveKeyGeneration(
-                    new KeyGenerationDeclaration
-                    {
-                        KeyClrType = descriptor.KeyClrType,
-                        KeySizeBits = keySizeBits,
-                        Curve = curve,
-                        Use = use,
-                        Algorithm = algorithm,
-                    },
+                    keyGenerationDeclaration,
                     out var resolved,
                     out var algorithmError
                 )
@@ -419,9 +430,11 @@ internal sealed class DefaultSecretValidator(
 
         if (!descriptor.PublicKeyImportFormats.Contains(format))
         {
+            var formats = descriptor.PublicKeyImportFormats.Select(f => $"'{f}'");
+            var expectedFormats = string.Join(", ", formats);
             return Error(
                 $"The import format '{format}' is not supported for the secret type '{secretType}'; expected "
-                    + string.Join(", ", descriptor.PublicKeyImportFormats.Select(f => $"'{f}'"))
+                    + expectedFormats
                     + "."
             );
         }
@@ -488,27 +501,27 @@ internal sealed class DefaultSecretValidator(
                 return Error("The key's stored public key cannot be read.");
             }
 
+            var keyDeclaration = new KeyAlgorithmDeclaration
+            {
+                Key = publicKey,
+                Use = use,
+                Algorithm = algorithm,
+            };
             var keyError = AlgorithmCollectionProvider.Collection.ValidateKeyAlgorithm(
-                new KeyAlgorithmDeclaration
-                {
-                    Key = publicKey,
-                    Use = use,
-                    Algorithm = algorithm,
-                }
+                keyDeclaration
             );
             return keyError is null ? null : Error(keyError);
         }
 
         // A symmetric key has no curve, and its material is not at hand, so it is checked by its type and size.
-        var sizeError = AlgorithmCollectionProvider.Collection.ValidateKeySize(
-            new KeySizeDeclaration
-            {
-                KeyClrType = descriptor.KeyClrType,
-                KeySizeBits = secret.KeySizeBits,
-                Use = use,
-                Algorithm = algorithm,
-            }
-        );
+        var sizeDeclaration = new KeySizeDeclaration
+        {
+            KeyClrType = descriptor.KeyClrType,
+            KeySizeBits = secret.KeySizeBits,
+            Use = use,
+            Algorithm = algorithm,
+        };
+        var sizeError = AlgorithmCollectionProvider.Collection.ValidateKeySize(sizeDeclaration);
         return sizeError is null ? null : Error(sizeError);
     }
 }

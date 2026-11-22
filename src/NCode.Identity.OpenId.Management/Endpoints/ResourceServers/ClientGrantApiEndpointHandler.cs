@@ -122,20 +122,18 @@ internal class ClientGrantApiEndpointHandler(
     {
         var effectiveLimit = NormalizeLimit(limit);
 
+        var tenantScope = TenantScopeResource.For(tenantId);
         return await ProcessListAsync(
             httpContext,
-            TenantScopeResource.For(tenantId),
+            tenantScope,
             async () =>
             {
                 await using var storeManager = await StoreManagerFactory.CreateAsync(
                     cancellationToken
                 );
                 var store = storeManager.GetStore<IClientGrantStore>();
-                return await store.GetPageAsync(
-                    clientId,
-                    new PageRequest { Cursor = cursor, Limit = effectiveLimit },
-                    cancellationToken
-                );
+                var pageRequest = new PageRequest { Cursor = cursor, Limit = effectiveLimit };
+                return await store.GetPageAsync(clientId, pageRequest, cancellationToken);
             },
             ToResource,
             cancellationToken
@@ -156,9 +154,10 @@ internal class ClientGrantApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var tenantScope = TenantScopeResource.For(tenantId);
         return await ProcessGetAsync(
             httpContext,
-            TenantScopeResource.For(tenantId),
+            tenantScope,
             Operations.Read,
             async token =>
             {
@@ -225,9 +224,10 @@ internal class ClientGrantApiEndpointHandler(
         await storeManager.SaveChangesAsync(cancellationToken);
 
         httpContext.Response.Headers.ETag = ManagementEntityTags.Format(grant.ConcurrencyToken);
+        var resource = ToResource(grant);
         return TypedResults.Created(
             $"/tenants/{tenantId}/clients/{clientId}/grants/{request.ResourceServerId}",
-            ToResource(grant)
+            resource
         );
     }
 

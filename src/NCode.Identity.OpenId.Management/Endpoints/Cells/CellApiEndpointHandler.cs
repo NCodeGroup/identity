@@ -85,7 +85,8 @@ internal class CellApiEndpointHandler(
         try
         {
             var descriptors = await CellDirectory.ListAsync(cancellationToken);
-            return TypedResults.Json(descriptors.Select(ToCellResource).ToList());
+            var cells = descriptors.Select(ToCellResource).ToList();
+            return TypedResults.Json(cells);
         }
         catch (DirectoryUnavailableException)
         {
@@ -99,14 +100,14 @@ internal class CellApiEndpointHandler(
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
     /// <returns>The <see cref="ProblemHttpResult"/> that asks the caller to retry.</returns>
-    private static ProblemHttpResult DirectoryUnavailableProblem(HttpContext httpContext) =>
-        RetryAfterProblem.Create(
-            httpContext,
-            TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds),
-            new ProblemDetails
-            {
-                Status = StatusCodes.Status503ServiceUnavailable,
-                Detail = "The global directory is unavailable. Retry the request.",
-            }
-        );
+    private static ProblemHttpResult DirectoryUnavailableProblem(HttpContext httpContext)
+    {
+        var retryAfter = TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds);
+        var problemDetails = new ProblemDetails
+        {
+            Status = StatusCodes.Status503ServiceUnavailable,
+            Detail = "The global directory is unavailable. Retry the request.",
+        };
+        return RetryAfterProblem.Create(httpContext, retryAfter, problemDetails);
+    }
 }

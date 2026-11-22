@@ -49,6 +49,7 @@ internal sealed class ManagementRootGroup : IEndpointGroup
     {
         // Every management endpoint's body can carry a credential or personal data, so HTTP logging never writes one
         // (ADR-1503).
+        var problemResponseTransformer = new ManagementProblemResponseOperationTransformer();
         group
             .AddEndpointGate<RouteGroupBuilder, ManagementCallerGate>()
             .AddEndpointFilter<RouteGroupBuilder, ManagementFailureEndpointFilter>()
@@ -58,9 +59,7 @@ internal sealed class ManagementRootGroup : IEndpointGroup
             .WithConfidentialBodies()
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status503ServiceUnavailable)
-            .AddOpenApiOperationTransformer(
-                new ManagementProblemResponseOperationTransformer().TransformAsync
-            );
+            .AddOpenApiOperationTransformer(problemResponseTransformer.TransformAsync);
 
         ((IEndpointConventionBuilder)group).Add(BindingExceptionEndpointConvention.Apply);
     }

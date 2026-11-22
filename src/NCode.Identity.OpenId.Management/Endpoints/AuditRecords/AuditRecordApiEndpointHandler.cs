@@ -145,20 +145,18 @@ internal class AuditRecordApiEndpointHandler(
             TraceId = NullIfEmpty(traceId),
         };
 
+        var resource = TenantScopeResource.For(tenantId);
         return await ProcessListAsync(
             httpContext,
-            TenantScopeResource.For(tenantId),
+            resource,
             async () =>
             {
                 await using var storeManager = await StoreManagerFactory.CreateAsync(
                     cancellationToken
                 );
                 var store = storeManager.GetStore<IAuditRecordStore>();
-                return await store.GetPageAsync(
-                    filter,
-                    new PageRequest { Cursor = cursor, Limit = effectiveLimit },
-                    cancellationToken
-                );
+                var pageRequest = new PageRequest { Cursor = cursor, Limit = effectiveLimit };
+                return await store.GetPageAsync(filter, pageRequest, cancellationToken);
             },
             ToAuditRecordResource,
             cancellationToken

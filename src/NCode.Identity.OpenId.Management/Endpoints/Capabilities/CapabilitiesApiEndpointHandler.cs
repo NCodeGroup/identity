@@ -53,10 +53,8 @@ internal class CapabilitiesApiEndpointHandler : IEndpointProvider
         var openIdContext = httpContext.GetOpenIdContext();
 
         var result = new ManagementCapabilitiesResource();
-        await openIdContext.Mediator.SendAsync(
-            new DiscoverManagementCapabilitiesCommand(openIdContext, result.Capabilities),
-            cancellationToken
-        );
+        var command = new DiscoverManagementCapabilitiesCommand(openIdContext, result.Capabilities);
+        await openIdContext.Mediator.SendAsync(command, cancellationToken);
 
         return TypedResults.Json(result);
     }

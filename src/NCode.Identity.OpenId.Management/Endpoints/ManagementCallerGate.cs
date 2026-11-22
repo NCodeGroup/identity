@@ -65,15 +65,12 @@ internal sealed class ManagementCallerGate(
         var validation = await TokenValidator.ValidateAsync(httpContext, cancellationToken);
         if (validation.IsUnavailable)
         {
-            return RetryAfterProblem.Create(
-                httpContext,
-                validation.RetryAfter,
-                new ProblemDetails
-                {
-                    Status = StatusCodes.Status503ServiceUnavailable,
-                    Detail = "The control plane that validates management tokens is unavailable.",
-                }
-            );
+            var problemDetails = new ProblemDetails
+            {
+                Status = StatusCodes.Status503ServiceUnavailable,
+                Detail = "The control plane that validates management tokens is unavailable.",
+            };
+            return RetryAfterProblem.Create(httpContext, validation.RetryAfter, problemDetails);
         }
 
         if (validation.Principal is not { } caller)

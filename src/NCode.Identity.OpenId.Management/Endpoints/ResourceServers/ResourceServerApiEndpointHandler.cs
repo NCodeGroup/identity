@@ -379,19 +379,18 @@ internal class ResourceServerApiEndpointHandler(
     {
         var effectiveLimit = NormalizeLimit(limit);
 
+        var tenantScope = TenantScopeResource.For(tenantId);
         return await ProcessListAsync(
             httpContext,
-            TenantScopeResource.For(tenantId),
+            tenantScope,
             async () =>
             {
                 await using var storeManager = await StoreManagerFactory.CreateAsync(
                     cancellationToken
                 );
                 var store = storeManager.GetStore<IResourceServerStore>();
-                return await store.GetPageAsync(
-                    new PageRequest { Cursor = cursor, Limit = effectiveLimit },
-                    cancellationToken
-                );
+                var pageRequest = new PageRequest { Cursor = cursor, Limit = effectiveLimit };
+                return await store.GetPageAsync(pageRequest, cancellationToken);
             },
             ToResourceServerResource,
             cancellationToken
@@ -459,6 +458,7 @@ internal class ResourceServerApiEndpointHandler(
 
         var resourceServerId = CryptoService.GenerateResourceId();
 
+        var settingsJson = ToJsonObject(request.Settings);
         var resourceServer = new PersistedResourceServer
         {
             TenantId = tenantId,
@@ -472,7 +472,7 @@ internal class ResourceServerApiEndpointHandler(
             {
                 TenantId = tenantId,
                 ResourceServerId = resourceServerId,
-                Value = SerializeToElement(ToJsonObject(request.Settings)),
+                Value = SerializeToElement(settingsJson),
             },
             Scopes = [],
             Secrets = new PersistedResourceServerSecrets
@@ -519,12 +519,14 @@ internal class ResourceServerApiEndpointHandler(
         );
         await storeManager.SaveChangesAsync(cancellationToken);
 
+        var createdResourceServerResource = ToResourceServerResource(resourceServer);
+        var createdResourceValues = ToResourceValues(createdResourceServerResource);
         await ManagementAuditRecorder.RecordResourceServerChangedAsync(
             httpContext,
             resourceServer.TenantId,
             resourceServer.ResourceServerId,
             ResourceChangeTypes.Created,
-            ToResourceValues(ToResourceServerResource(resourceServer))
+            createdResourceValues
         );
 
         if (creatorAssignment is not null)
@@ -539,9 +541,10 @@ internal class ResourceServerApiEndpointHandler(
         httpContext.Response.Headers.ETag = ManagementEntityTags.Format(
             resourceServer.ConcurrencyToken
         );
+        var createdResource = ToResourceServerResource(resourceServer);
         return TypedResults.Created(
             $"/tenants/{tenantId}/resource-servers/{resourceServerId}",
-            ToResourceServerResource(resourceServer)
+            createdResource
         );
     }
 
@@ -615,12 +618,14 @@ internal class ResourceServerApiEndpointHandler(
         await store.UpdateAsync(resourceServer, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
 
+        var updatedResource = ToResourceServerResource(resourceServer);
+        var updatedValues = ToResourceValues(updatedResource);
         await ManagementAuditRecorder.RecordResourceServerChangedAsync(
             httpContext,
             resourceServer.TenantId,
             resourceServer.ResourceServerId,
             ResourceChangeTypes.Updated,
-            ToResourceValues(ToResourceServerResource(resourceServer))
+            updatedValues
         );
 
         return TypedResults.NoContent();
@@ -670,7 +675,8 @@ internal class ResourceServerApiEndpointHandler(
             return ToErrorResult(error);
         }
 
-        var resourceValues = ToResourceValues(ToResourceServerResource(resourceServer));
+        var resourceServerResource = ToResourceServerResource(resourceServer);
+        var resourceValues = ToResourceValues(resourceServerResource);
 
         await store.RemoveAsync(resourceServerId, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
@@ -1325,12 +1331,14 @@ internal class ResourceServerApiEndpointHandler(
         await store.UpdateSettingsAsync(settings, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
 
+        var settingsResource = ToResourceServerSettingsResource(settings);
+        var settingsValues = ToResourceValues(settingsResource);
         await ManagementAuditRecorder.RecordResourceServerChangedAsync(
             httpContext,
             settings.TenantId,
             settings.ResourceServerId,
             ResourceChangeTypes.SettingsUpdated,
-            ToResourceValues(ToResourceServerSettingsResource(settings))
+            settingsValues
         );
 
         httpContext.Response.Headers.ETag = ManagementEntityTags.Format(settings.ConcurrencyToken);
@@ -1477,8 +1485,9 @@ internal class ResourceServerApiEndpointHandler(
             return secretIdConflict;
         }
 
+        var secretOwner = SecretOwner.ForTenant(resourceServer.TenantId);
         var protector = await SecretProtectorProvider.GetProtectorAsync(
-            SecretOwner.ForTenant(resourceServer.TenantId),
+            secretOwner,
             [],
             cancellationToken
         );
@@ -1486,21 +1495,19 @@ internal class ResourceServerApiEndpointHandler(
         GeneratedSecret generatedSecret;
         try
         {
-            generatedSecret = SecretGenerator.GenerateSecret(
-                protector,
-                new GenerateSecretRequest
-                {
-                    SecretId = secretId,
-                    SecretType = request.SecretType,
-                    GenerationParameters = validation.GenerationParameters,
-                    Use = request.Use,
-                    Algorithm = request.Algorithm,
-                    CreatedWhen = createdWhen,
-                    ActivatesWhen = request.ActivatesWhen,
-                    RetiresWhen = request.RetiresWhen,
-                    ExpiresWhen = request.ExpiresWhen,
-                }
-            );
+            var generateRequest = new GenerateSecretRequest
+            {
+                SecretId = secretId,
+                SecretType = request.SecretType,
+                GenerationParameters = validation.GenerationParameters,
+                Use = request.Use,
+                Algorithm = request.Algorithm,
+                CreatedWhen = createdWhen,
+                ActivatesWhen = request.ActivatesWhen,
+                RetiresWhen = request.RetiresWhen,
+                ExpiresWhen = request.ExpiresWhen,
+            };
+            generatedSecret = SecretGenerator.GenerateSecret(protector, generateRequest);
         }
         catch (Exception exception)
             when (exception is ArgumentException or InvalidOperationException)
@@ -1516,21 +1523,27 @@ internal class ResourceServerApiEndpointHandler(
 
         await storeManager.SaveChangesAsync(cancellationToken);
 
+        var secretResource = ToSecretResource(generatedSecret.Secret);
+        var secretValues = ToResourceValues(secretResource);
         await ManagementAuditRecorder.RecordResourceServerSecretChangedAsync(
             httpContext,
             resourceServer.TenantId,
             resourceServerId,
             secretId,
             ResourceChangeTypes.Created,
-            ToResourceValues(ToSecretResource(generatedSecret.Secret))
+            secretValues
         );
 
         httpContext.Response.Headers.ETag = ManagementEntityTags.Format(
             generatedSecret.Secret.ConcurrencyToken
         );
+        var createdSecretResource = ToCreatedSecretResource(
+            generatedSecret.Secret,
+            generatedSecret.SecretMaterial
+        );
         return TypedResults.Created(
             $"/tenants/{tenantId}/resource-servers/{resourceServerId}/secrets/{secretId}",
-            ToCreatedSecretResource(generatedSecret.Secret, generatedSecret.SecretMaterial)
+            createdSecretResource
         );
     }
 
@@ -1633,6 +1646,7 @@ internal class ResourceServerApiEndpointHandler(
         await storeManager.SaveChangesAsync(cancellationToken);
 
         var importedSecretResource = ToSecretResource(importedSecret);
+        var importedSecretValues = ToResourceValues(importedSecretResource);
 
         await ManagementAuditRecorder.RecordResourceServerSecretChangedAsync(
             httpContext,
@@ -1640,7 +1654,7 @@ internal class ResourceServerApiEndpointHandler(
             resourceServerId,
             secretId,
             ResourceChangeTypes.Created,
-            ToResourceValues(importedSecretResource)
+            importedSecretValues
         );
 
         httpContext.Response.Headers.ETag = ManagementEntityTags.Format(
@@ -1798,13 +1812,15 @@ internal class ResourceServerApiEndpointHandler(
         await store.UpdateSecretAsync(resourceServerId, updated, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
 
+        var secretResource = ToSecretResource(updated);
+        var secretValues = ToResourceValues(secretResource);
         await ManagementAuditRecorder.RecordResourceServerSecretChangedAsync(
             httpContext,
             resourceServerSecret.TenantId,
             resourceServerId,
             secretId,
             ResourceChangeTypes.Updated,
-            ToResourceValues(ToSecretResource(updated))
+            secretValues
         );
 
         return TypedResults.NoContent();
@@ -1857,13 +1873,15 @@ internal class ResourceServerApiEndpointHandler(
         await store.RemoveSecretAsync(resourceServerId, secretId, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
 
+        var secretResource = ToSecretResource(resourceServerSecret.Value);
+        var secretValues = ToResourceValues(secretResource);
         await ManagementAuditRecorder.RecordResourceServerSecretChangedAsync(
             httpContext,
             resourceServerSecret.TenantId,
             resourceServerId,
             secretId,
             ResourceChangeTypes.Deleted,
-            ToResourceValues(ToSecretResource(resourceServerSecret.Value))
+            secretValues
         );
 
         return TypedResults.NoContent();
