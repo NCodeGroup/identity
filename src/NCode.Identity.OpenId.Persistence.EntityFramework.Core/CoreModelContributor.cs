@@ -44,6 +44,9 @@ internal sealed class CoreModelContributor : IOpenIdModelContributor
         modelBuilder.Entity<TenantUsageCheckpointEntity>().ToTable("TenantUsageCheckpoints");
         modelBuilder.Entity<AuditRecordEntity>().ToTable("AuditRecords");
         modelBuilder.Entity<AuditRecordResourceEntity>().ToTable("AuditRecordResources");
+        modelBuilder.Entity<AuditStreamEntity>().ToTable("AuditStreams");
+        modelBuilder.Entity<AuditStreamStateEntity>().ToTable("AuditStreamStates");
+        modelBuilder.Entity<AuditStreamSigningSecretEntity>().ToTable("AuditStreamSigningSecrets");
 
         // The sequence of the directory change a team or the platform row last mirrored.
         modelBuilder

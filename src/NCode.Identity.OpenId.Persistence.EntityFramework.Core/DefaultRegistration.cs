@@ -71,6 +71,7 @@ public static class DefaultRegistration
             serviceCollection.AddStore<TDbContext, IRoleAssignmentStore, RoleAssignmentStore>();
             serviceCollection.AddStore<TDbContext, ITenantUsageStore, TenantUsageStore>();
             serviceCollection.AddStore<TDbContext, IAuditRecordStore, AuditRecordStore>();
+            serviceCollection.AddStore<TDbContext, IAuditStreamStore, AuditStreamStore>();
             serviceCollection.AddStore<TDbContext, IMasterKeyStore, MasterKeyStore>();
             serviceCollection.AddStore<TDbContext, IOwnerRootKeyStore, OwnerRootKeyStore>();
             serviceCollection.AddStore<TDbContext, ISecretEnvelopeStore, SecretEnvelopeStore>();

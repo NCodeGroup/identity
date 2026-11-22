@@ -95,8 +95,8 @@ public interface IAuditStreamStore : IStore
     );
 
     /// <summary>
-    /// Writes, when the unit of work is saved, a delivery state, checked against the state's concurrency token, which
-    /// the update renews on the state it is given.
+    /// Writes, when the unit of work is saved, a delivery state, checked against the state's concurrency token, and the
+    /// save gives the stored state a fresh token, so a caller that writes the state again reads it first.
     /// </summary>
     /// <param name="state">The state to write, carrying the concurrency token it was read with.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
