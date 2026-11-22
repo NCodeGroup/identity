@@ -343,6 +343,7 @@ The records are grouped by area; within an area they are in number order.
 | [1283](./1283-audit-records-are-cloudtrail-shaped-json-with-an-indexable-envelope.md) | Audit records are CloudTrail-shaped JSON with an indexable envelope | Accepted |
 | [1303](./1303-audit-records-are-kept-in-an-indexed-store-that-each-replica-writes-in-batches.md) | Audit records are kept in an indexed store that each replica writes in batches | Accepted |
 | [1402](./1402-the-interactive-surface-renders-in-the-locale-the-request-prefers-among-the-registered-ui-locales.md) | The interactive surface renders in the locale the request prefers among the registered UI locales | Accepted |
+| [1523](./1523-a-tenant-signs-users-in-through-named-connections-and-a-local-account-belongs-to-one.md) | A tenant signs users in through named connections, and a local account belongs to one | Proposed |
 
 ### Frontend, BFF and browser security
 
