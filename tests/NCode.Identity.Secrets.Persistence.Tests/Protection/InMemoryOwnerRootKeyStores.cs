@@ -295,6 +295,13 @@ public sealed class InMemoryOwnerRootKeyStores : IStoreManagerFactory
             CancellationToken cancellationToken
         ) => throw new NotSupportedException();
 
+        public ValueTask<PagedResult<PersistedMasterKey>> GetWrappedByKeyPageAsync(
+            string rootKeyProvider,
+            string rootKeyReference,
+            PageRequest page,
+            CancellationToken cancellationToken
+        ) => throw new NotSupportedException();
+
         public ValueTask<PagedResult<PersistedMasterKey>> GetActivePageAsync(
             DateTimeOffset createdBefore,
             PageRequest page,
