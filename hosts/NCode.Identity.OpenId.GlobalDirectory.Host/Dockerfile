@@ -14,7 +14,7 @@
 
 # The host, published framework-dependent for the target architecture. The host applies its own migrations: the
 # 'migrate' command runs them and exits, so a one-off Job runs this image and the image carries no separate worker.
-FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0-noble@sha256:fe0fd4e93bd2fbb47c883b7a6369e5c8d3db8bf01cdc5981f6ee35fbdf3ff4fb AS build
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0-noble@sha256:bef136a371963aaa46ec97882845ef6f54dec15728bb4b128b1c2a400ffbc9b4 AS build
 ARG TARGETARCH
 # The build context carries no .git directory, so the version comes from version.json alone rather than commit height.
 ENV NBGV_GitEngine=Disabled
@@ -38,7 +38,7 @@ RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
 
 # Visual Studio's container fast mode debugs against this stage (DockerfileFastModeStage defaults to "base"), which
 # needs a shell; the production image below is built FROM the chiseled variant instead.
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble@sha256:bfd912c83295ce66d4b706ebb8541b9f14259b0e76fbb88b2751f58ce2399d2e AS base
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble@sha256:12b1135f5f8b3c0a214f2a680ff2033dff4f684f445d6c697d9524ceeb303586 AS base
 WORKDIR /app
 USER $APP_UID
 EXPOSE 8080
