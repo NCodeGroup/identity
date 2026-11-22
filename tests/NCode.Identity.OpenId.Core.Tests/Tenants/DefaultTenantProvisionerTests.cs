@@ -246,6 +246,29 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
     }
 
     [Fact]
+    public async Task EnsureCreatedAsync_WhenTheTeamIsThePlatformTeamInAnotherCase_CreatesItWithThePlatformTeamsDisplayName()
+    {
+        MockTeamProvisioner
+            .Setup(x =>
+                x.EnsureCreatedAsync("PLATFORM", TeamDisplayName, It.IsAny<CancellationToken>())
+            )
+            .ReturnsAsync(CreateTeam())
+            .Verifiable();
+        var existing = CreateTenant(WorkloadTenantId, WorkloadIssuer);
+        SetupStoreManager();
+        SetupGetTenant(WorkloadTenantId, existing);
+
+        var result = await Provisioner.EnsureCreatedAsync(
+            "PLATFORM",
+            WorkloadTenantId,
+            "Acme",
+            CancellationToken.None
+        );
+
+        Assert.Same(existing, result);
+    }
+
+    [Fact]
     public async Task EnsureCreatedAsync_WhenTenantIsNew_CreatesItAtItsDefaultAddress()
     {
         SetupTeam();

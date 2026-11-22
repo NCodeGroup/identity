@@ -817,7 +817,9 @@ internal class TenantApiEndpointHandler(
         var tenant = new PersistedTenant
         {
             TenantId = tenantId,
-            TeamId = teamId,
+            // The tenant takes its team's identifier as the team holds it, whatever case the route wrote, so the cell
+            // and the directory name one team.
+            TeamId = team.TeamId,
             ConcurrencyToken = string.Empty,
             Issuer = issuer,
             MtlsEndpointAliasAuthority = mtlsEndpointAliasAuthority,

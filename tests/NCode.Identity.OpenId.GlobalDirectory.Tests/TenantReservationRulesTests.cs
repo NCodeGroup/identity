@@ -18,6 +18,14 @@ public class TenantReservationRulesTests : BaseTests
     }
 
     [Fact]
+    public void GetTeamId_WhenTheTeamIsThePlatformTeamInAnotherCase_ReturnsNull()
+    {
+        var result = TenantReservationRules.GetTeamId("PLATFORM", "platform");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
     public void GetTeamId_WhenTheTeamIsAnother_ReturnsIt()
     {
         var result = TenantReservationRules.GetTeamId("acme", "platform");

@@ -4397,6 +4397,55 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task CreateTenantAsync_WhenTheRouteNamesTheTeamInAnotherCase_StoresAndReservesTheTeamAsItIsHeld()
+    {
+        const string routeTeamId = "PLATFORM";
+        MockTenantValidator
+            .Setup(x =>
+                x.AuthorizeCreateAsync(
+                    It.IsAny<ClaimsPrincipal>(),
+                    ControlPlaneTenantId,
+                    routeTeamId,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync((ManagementError?)null)
+            .Verifiable();
+        MockStoreManager
+            .Setup(x => x.GetStore<ITeamStore>())
+            .Returns(MockTeamStore.Object)
+            .Verifiable();
+        MockTeamStore
+            .Setup(x => x.GetOrDefaultAsync(routeTeamId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateTeam())
+            .Verifiable();
+        SetupCreatorAssignment();
+        SetupTenantChangedAudit();
+        SetupDefaultAlias("acme", alias: null);
+        SetupValidSettings();
+        SetupStore();
+        SetupDefaultIssuer("acme", DerivedIssuer);
+        var assertValidated = SetupCreateValidation();
+        SetupCreatePersistence(CreateSeededTenant(DerivedIssuer), reservedTeamId: null);
+        SetupTenantEnvironment(tenantId: "acme");
+
+        // Strict mocks: a reservation in any team matches no setup and fails the test.
+        var result = await Handler.CreateTenantAsync(
+            CreateHttpContext(authenticated: true),
+            routeTeamId,
+            CreateTenantRequest(),
+            CancellationToken.None
+        );
+
+        Assert.IsType<Created<TenantResource>>(result);
+        assertValidated(validated =>
+        {
+            Assert.NotNull(validated);
+            Assert.Equal(TeamId, validated.TeamId);
+        });
+    }
+
+    [Fact]
     public async Task CreateTenantAsync_WhenTheTeamIsNotThePlatformsOwn_ReservesTheTenantInItsTeam()
     {
         TenantResolutionOptions.Root.TeamId = "another-team";

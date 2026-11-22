@@ -68,7 +68,11 @@ internal sealed class DefaultTenantProvisioner(
     )
     {
         // The tenant's team exists before the tenant, so the tenant's foreign key to it holds (ADR-1411).
-        var isRootTeam = string.Equals(teamId, RootOptions.TeamId, StringComparison.Ordinal);
+        var isRootTeam = string.Equals(
+            teamId,
+            RootOptions.TeamId,
+            StringComparison.OrdinalIgnoreCase
+        );
         await TeamProvisioner.EnsureCreatedAsync(
             teamId,
             isRootTeam ? RootOptions.TeamDisplayName : teamId,

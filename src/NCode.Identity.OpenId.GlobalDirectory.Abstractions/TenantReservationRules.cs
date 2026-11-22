@@ -16,7 +16,8 @@ namespace NCode.Identity.OpenId.GlobalDirectory;
 public static class TenantReservationRules
 {
     /// <summary>
-    /// Gets the team a tenant is reserved in, which <see cref="TenantReservation.TeamId"/> carries.
+    /// Gets the team a tenant is reserved in, which <see cref="TenantReservation.TeamId"/> carries. Team identifiers
+    /// are compared without regard to case, as team identifiers are.
     /// </summary>
     /// <param name="teamId">The identifier of the team that holds the tenant in its cell.</param>
     /// <param name="platformTeamId">
@@ -26,5 +27,5 @@ public static class TenantReservationRules
     /// The identifier of the tenant's team, or <see langword="null"/> when it is the platform's own team.
     /// </returns>
     public static string? GetTeamId(string teamId, string platformTeamId) =>
-        string.Equals(teamId, platformTeamId, StringComparison.Ordinal) ? null : teamId;
+        string.Equals(teamId, platformTeamId, StringComparison.OrdinalIgnoreCase) ? null : teamId;
 }
