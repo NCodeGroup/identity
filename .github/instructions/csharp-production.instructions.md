@@ -520,49 +520,51 @@ than inlining the rationale.
   combined bounds cannot be met — refuse (`invalid_request` when the request can avoid it, `server_error` when the
   configuration cannot be satisfied). See
   [ADR-1158](../../docs/decisions/1158-the-tenant-signs-an-access-token-and-its-client-and-targeted-resource-servers-bound-it.md).
-- 👁 **A package registers its own services from `DefaultRegistration.cs`** (the class is **always** `DefaultRegistration`)
-  using `extension(IServiceBuilder<TMarker>)` + `TryAdd*` so a consumer can override a default, per
-  [ADR-1069](../../docs/decisions/1069-di-registration-proves-every-prerequisite-at-compile-time-through-marker-builders.md). **The receiver marker is the
-  compile-time prerequisite:** a package root's `AddXLibrary()` extends its prerequisite library's builder
-  (`extension(IServiceBuilder<OpenIdCoreLibrary>) { AddOpenIdManagementLibrary() }`), and an **opt-in bolt-on capability**
-  extends the marker of the library it augments (`AddLocalAccountManagement()` on `IServiceBuilder<OpenIdManagementLibrary>`,
-  `AddInteractiveAuthentication()` on `IServiceBuilder<OpenIdAuthenticationLibrary>`) — **never** a naked
-  `IServiceCollection`, so it is compile-time-impossible to add a capability without its framework. A library marker a
-  cross-package bolt-on must name lives in that library's `.Abstractions` (a marker is an empty `readonly struct`
-  implementing `IRegistrationMarker<TMarker>` — its type identity is the whole signal, with no `DisplayName` or
-  `ConfigureMethod` data to keep in sync). **A second litmus governs which `.Abstractions`
-  packages own a marker: a registerable library _layer_ does (minted by its `AddXLibrary()`), and a dependency-inverted
-  _seam that other registrations build on_ owns a _presence marker_ minted by every implementation.** Two seams own one:
-  the persistence framework owns `StoreManagerLibrary` (`NCode.Identity.Persistence.Abstractions`, minted by
-  `AddEntityFrameworkCorePersistence`), and the local-account store owns `LocalAccountLibrary`
-  (per [ADR-1051](../../docs/decisions/1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md)): each store
-  registration (`AddLocalAccountEntityFramework`, `AddAspNetIdentityLocalAccountStore`, a custom store) receives
-  `IServiceBuilder<StoreManagerLibrary>` and **returns** `IServiceBuilder<LocalAccountLibrary>`, and the account bolt-ons
-  take it as a **required `IServiceBuilder<LocalAccountLibrary>` parameter** (their receiver stays the OpenId library they
-  extend), so a capability cannot even be written without a
-  store (the accepted cost: a custom store must mint/return it too). Pure contract/DTO abstractions, cross-library helpers,
-  foundational marker-less infrastructure, and **the interactive credential verifier** (registered after its surface, so
-  there is no builder to thread and a missing verifier surfaces at resolution) own **none** — a compile-time seam marker
-  applies exactly when the seam is registered **before** its dependent. A **larger package organized into subfolders**
-  registers each folder from its own `DefaultRegistration.cs` and may introduce **additional registration markers — most
-  often `internal`, though not required to be — to scope a nested folder**, created with `builder.NewBuilder<TChildMarker>()`
-  (e.g. `Endpoints` → `OpenIdAuthenticationEndpoints`). **The litmus for a naked `IServiceCollection` receiver is
-  "would this registration do the right thing registered alone?":** a registration that **replaces, hooks, or consumes
-  another marker-bearing library's services** is a bolt-on and **must** gate on that library's `IServiceBuilder<TMarker>`
-  (e.g. the dev-host `AddDeveloperKeyPruning` / `AddDeveloperInteractiveSeed`, which hook the server's command handlers,
-  extend `IServiceBuilder<IdentityServer>` — never the bare collection). Only a chain **root**
-  with no prerequisite (`AddSettingsLibrary`, `AddClaimsLibrary`, `AddCryptographyLibrary`, `AddSecretsLibrary`, `AddEventServices` which mints `EventsLibrary`, and the
-  persistence-framework root `AddEntityFrameworkCorePersistence` which mints `StoreManagerLibrary`), a **generic utility
-  helper**, or **foundational marker-less cross-cutting infrastructure** (`AddPropertyBag`, `AddDataProtection`) takes a
-  naked `IServiceCollection`; a dependency-inverted store instead receives its framework seam's builder
-  (`IServiceBuilder<StoreManagerLibrary>`), and the event opt-ins (`AddEventHandler`, `AddBackgroundEventDelivery`) receive
-  `IServiceBuilder<EventsLibrary>`. A **cross-library helper** invoked from more
+- 👁 **A package registers its own services from `DefaultRegistration.cs`** (the class is **always**
+  `DefaultRegistration`) using `extension(IServiceBuilder<TMarker>)` + `TryAdd*` so a consumer can override a default,
+  per
+  [ADR-1069](../../docs/decisions/1069-di-registration-proves-every-prerequisite-at-compile-time-through-marker-builders.md).
+  **The receiver marker is the compile-time prerequisite:** a package root's `AddXLibrary()` extends its prerequisite
+  library's builder (`extension(IServiceBuilder<OpenIdCoreLibrary>) { AddOpenIdManagementLibrary() }`), and an **opt-in
+  bolt-on capability** extends the marker of the library it augments (`AddLocalAccountManagement()` on
+  `IServiceBuilder<OpenIdManagementLibrary>`, `AddInteractiveAuthentication()` on
+  `IServiceBuilder<OpenIdAuthenticationLibrary>`) — **never** a naked `IServiceCollection`, so it is
+  compile-time-impossible to add a capability without its framework. A library marker a cross-package bolt-on must name
+  lives in that library's `.Abstractions` (a marker is an empty `readonly struct` implementing
+  `IRegistrationMarker<TMarker>` — its type identity is the whole signal, with no `DisplayName` or `ConfigureMethod`
+  data to keep in sync). **A second litmus governs which `.Abstractions` packages own a marker: a registerable library
+  _layer_ does (minted by its `AddXLibrary()`), and a dependency-inverted _seam that other registrations build on_ owns
+  a _presence marker_ minted by every implementation.** Two seams own one: the persistence framework owns
+  `StoreManagerLibrary` (`NCode.Identity.Persistence.Abstractions`, minted by `AddEntityFrameworkCorePersistence`), and
+  the local-account store owns `LocalAccountLibrary` (per
+  [ADR-1051](../../docs/decisions/1051-a-local-account-is-a-self-issued-connection-behind-one-pluggable-store-seam.md)):
+  each store registration (`AddLocalAccountEntityFramework`, `AddAspNetIdentityLocalAccountStore`, a custom store)
+  receives `IServiceBuilder<StoreManagerLibrary>` and **returns** `IServiceBuilder<LocalAccountLibrary>`, and the
+  account bolt-ons take it as a **required `IServiceBuilder<LocalAccountLibrary>` parameter** (their receiver stays the
+  OpenId library they extend), so a capability cannot even be written without a store (the accepted cost: a custom store
+  must mint/return it too). Pure contract/DTO abstractions, cross-library helpers, foundational marker-less
+  infrastructure, and **the interactive credential verifier** (registered after its surface, so there is no builder to
+  thread and a missing verifier surfaces at resolution) own **none** — a compile-time seam marker applies exactly when
+  the seam is registered **before** its dependent. A **larger package organized into subfolders** registers each folder
+  from its own `DefaultRegistration.cs` and may introduce **additional registration markers — most often `internal`,
+  though not required to be — to scope a nested folder**, created with `builder.NewBuilder<TChildMarker>()` (e.g.
+  `Endpoints` → `OpenIdAuthenticationEndpoints`). **The litmus for a naked `IServiceCollection` receiver is "would this
+  registration do the right thing registered alone?":** a registration that **replaces, hooks, or consumes another
+  marker-bearing library's services** is a bolt-on and **must** gate on that library's `IServiceBuilder<TMarker>` (e.g.
+  the dev-host `AddDeveloperKeyPruning` / `AddDeveloperInteractiveSeed`, which hook the server's command handlers,
+  extend `IServiceBuilder<IdentityServer>` — never the bare collection). Only a chain **root** with no prerequisite
+  (`AddSettingsLibrary`, `AddClaimsLibrary`, `AddCryptographyLibrary`, `AddSecretsLibrary`, `AddEventServices` which
+  mints `EventsLibrary`, and the persistence-framework root `AddEntityFrameworkCorePersistence` which mints
+  `StoreManagerLibrary`), a **generic utility helper**, or **foundational marker-less cross-cutting infrastructure**
+  (`AddDataProtection`) takes a naked `IServiceCollection`; a dependency-inverted store instead receives its framework
+  seam's builder (`IServiceBuilder<StoreManagerLibrary>`), and the event opt-ins (`AddEventHandler`,
+  `AddBackgroundEventDelivery`) receive `IServiceBuilder<EventsLibrary>`. A **cross-library helper** invoked from more
   than one library's builder (so it cannot name a single marker) takes the **non-generic `IServiceBuilder`** receiver —
   stronger than a naked collection (the caller must hold _some_ library builder) but library-agnostic (e.g.
   `AddMessageFactory<TMessage>`, `AddEndpointProvider<T>`, `AddEndpointGroup<T>`); never pin such a helper to one marker
-  or drop it to a naked collection. Register a stateless capability as a singleton; register
-  a long-running loop as an `AddHostedService<T>` over a `BackgroundService`. Wire-up stays out of the type that does
-  the work, so the work stays constructor-injectable and testable.
+  or drop it to a naked collection. Register a stateless capability as a singleton; register a long-running loop as an
+  `AddHostedService<T>` over a `BackgroundService`. Wire-up stays out of the type that does the work, so the work stays
+  constructor-injectable and testable.
 - 👁 **A registration that supersedes another package's default registers with `Replace`.** A package whose
   registration exists to supersede another package's default for the same service — the global directory's remote
   adapters over the local tenant, team, platform and cell directories, the team-chain `ISecretOwnerParentResolver`
@@ -804,11 +806,13 @@ than inlining the rationale.
   [Outbound Calls](csharp.instructions.md#outbound-calls); it also takes its own copy of any disposable input a caller
   owns, such as a chain's certificates (`DefaultClientCertificateRevocationChecker`,
   [ADR-1400](../../docs/decisions/1400-client-certificate-revocation-is-checked-by-configured-sources-under-the-clients-revocation-mode.md)).
-- 👁 **A long-lived object owns a concurrent property bag, and an operation layers a child over its owner's.** An
-  object that many requests share, such as the platform, a team or a tenant, holds a `ConcurrentPropertyBagDictionary`
-  it clones from its parent's bag when it is created. An operation, and an object that serves one operation such as an
+- 👁 **A long-lived object owns a concurrent property bag, and an operation layers a child over its owner's.** An object
+  that many requests share, such as the platform, a team or a tenant, holds a `ConcurrentPropertyBagDictionary` it
+  clones from its parent's bag when it is created. An operation, and an object that serves one operation such as an
   `OpenIdContext` or an `OpenIdClient`, takes `CreateChild()` of its owner's bag, and a factory runs its own calls on a
-  child of the bag it is given and never stores that bag in what it creates. See
+  child of the bag it is given and never stores that bag in what it creates. An operation with nothing to inherit starts
+  from `new PropertyBagDictionary()`; no code constructs a bag through `IPropertyBagFactory` or `PropertyBagFactory`,
+  which `BannedSymbols.PropertyBag.txt` bans. See
   [ADR-1518](../../docs/decisions/1518-a-long-lived-openid-object-owns-a-concurrent-property-bag-and-an-operation-layers-a-child-over-its-owners.md).
 - 👁 **A count every replica must agree on increments `IExpiringCounterSet`, never a get-then-set.** A counter is
   incremented with the port's atomic `IncrementAsync`, which starts a counter for one fixed window, or, for the limits
@@ -922,9 +926,9 @@ than inlining the rationale.
   included — no `Newtonsoft.Json` (use `System.Text.Json`), no sync-over-async, no `JsonDocument.Parse` — and from
   [`BannedSymbols.txt`](../../BannedSymbols.txt), this repository's own list for shipping code: no legacy
   `JwtSecurityTokenHandler` / `JwtSecurityToken` (use `JsonWebTokenHandler`) and no throwing Unix-time factories. Add
-  house rules to that file as they emerge. `BannedSymbols.Encoding.txt` bans lenient text
-  encodings in every project, tests included, and `BannedSymbols.Buffers.txt` bans the bare buffer sources in every
-  project but the test projects
+  house rules to that file as they emerge. `BannedSymbols.Encoding.txt` bans lenient text encodings in every project,
+  tests included, and `BannedSymbols.Buffers.txt` bans the bare buffer sources in every project but the test projects,
+  and `BannedSymbols.PropertyBag.txt` bans the property-bag factories in every project, tests included
   ([ADR-1266](../../docs/decisions/1266-binary-data-uses-bufferfactory-rentals-with-explicit-sensitivity-and-text-only-strict-encodings.md)).
 - ⏳ **Warnings-as-errors in every project, tests and hosts included, and NuGet vulnerability advisories (`NU190x`) as
   errors in CI** — template [Build](csharp.instructions.md#build) and

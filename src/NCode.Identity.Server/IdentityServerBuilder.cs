@@ -22,7 +22,6 @@ using NCode.Identity.Server.DevelopmentEnvironment.OpenApi;
 using NCode.Identity.Server.OpenApi;
 using NCode.Identity.Settings;
 using NCode.Identity.SharedState;
-using NCode.PropertyBag;
 
 namespace NCode.Identity.Server;
 
@@ -77,7 +76,6 @@ internal sealed class IdentityServerBuilder : ServiceBuilder<IdentityServer>, II
     public IdentityServerBuilder(IServiceCollection serviceCollection)
         : base(serviceCollection)
     {
-        serviceCollection.AddPropertyBag();
         serviceCollection.AddEventServices();
 
         // The in-process, self-scheduling job dispatcher is the default adapter; a host swaps in a durable or

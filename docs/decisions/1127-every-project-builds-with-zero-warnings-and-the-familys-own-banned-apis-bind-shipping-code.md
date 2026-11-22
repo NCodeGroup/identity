@@ -56,7 +56,10 @@ binds the projects that ship.**
 7. **That list stays off test projects.** Tests use independent implementations as cross-validation oracles, such as the
    `jose-jwt` package that `NCode.Identity.Jose.Tests` references, and banning them would defeat the test strategy. The
    banned-API analyzer itself runs in every project, so `BannedSymbols.Encoding.txt`, added to every project, binds
-   tests too ([ADR-1266](1266-binary-data-uses-bufferfactory-rentals-with-explicit-sensitivity-and-text-only-strict-encodings.md)).
+   tests too
+   ([ADR-1266](1266-binary-data-uses-bufferfactory-rentals-with-explicit-sensitivity-and-text-only-strict-encodings.md)).
+   So does `BannedSymbols.PropertyBag.txt`, which bans the property-bag factories
+   ([ADR-1518](1518-a-long-lived-openid-object-owns-a-concurrent-property-bag-and-an-operation-layers-a-child-over-its-owners.md)).
    `BannedSymbols.Buffers.txt` binds every project that is not a test project, hosts and benchmark projects included,
    and leaves the test projects free of it
    ([ADR-1266](1266-binary-data-uses-bufferfactory-rentals-with-explicit-sensitivity-and-text-only-strict-encodings.md)).

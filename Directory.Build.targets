@@ -48,9 +48,10 @@
     </PackageReference>
   </ItemGroup>
 
-  <!-- Bans disallowed APIs (RS0030) on top of build/BannedSymbols.txt, which build/ProjectTemplate.props adds to every project: BannedSymbols.Encoding.txt in every project (ADR-1266), BannedSymbols.Buffers.txt in every project that is not a test project, which also bans every base64url decoder other than StrictBase64Url (ADR-1266), BannedSymbols.txt on shipping code only (ADR-1127). -->
+  <!-- Bans disallowed APIs (RS0030) on top of build/BannedSymbols.txt, which build/ProjectTemplate.props adds to every project: BannedSymbols.Encoding.txt in every project (ADR-1266), BannedSymbols.PropertyBag.txt in every project (ADR-1518), BannedSymbols.Buffers.txt in every project that is not a test project, which also bans every base64url decoder other than StrictBase64Url (ADR-1266), BannedSymbols.txt on shipping code only (ADR-1127). -->
   <ItemGroup>
     <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.Encoding.txt" />
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.PropertyBag.txt" />
   </ItemGroup>
   <ItemGroup Condition="'$(IsTestProject)' != 'true'">
     <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.Buffers.txt" />
@@ -108,6 +109,27 @@
     <Error
       Condition="'@(_OpenTelemetryReference)' != ''"
       Text="A shipping package records metrics through System.Diagnostics.Metrics alone: $(MSBuildProjectName) references an OpenTelemetry package, directly or through another package. Only NCode.Identity.AspNetCore.OpenTelemetry references the OpenTelemetry SDK, and only a host references that package (ADR-1197)."
+    />
+  </Target>
+
+  <!-- Every package of the .NET release resolves on the target framework's band: its major version is the framework's, so a host runs one release's Microsoft.Extensions, ASP.NET Core and EF Core assemblies (ADR-1519). -->
+  <Target
+    Name="RequireRuntimeBand"
+    AfterTargets="ResolveReferences"
+    Condition="'$(TargetFrameworkIdentifier)' == '.NETCoreApp'"
+  >
+    <PropertyGroup>
+      <_RuntimeBandMajor>$([System.Version]::Parse('$(TargetFrameworkVersion.TrimStart(`v`))').Major)</_RuntimeBandMajor>
+    </PropertyGroup>
+    <ItemGroup>
+      <_OffBandReference
+        Include="@(ReferencePath)"
+        Condition="'%(ReferencePath.NuGetPackageId)' != '' And ($([System.String]::Copy('%(ReferencePath.NuGetPackageId)').StartsWith('Microsoft.Extensions.')) Or $([System.String]::Copy('%(ReferencePath.NuGetPackageId)').StartsWith('Microsoft.AspNetCore.')) Or $([System.String]::Copy('%(ReferencePath.NuGetPackageId)').StartsWith('Microsoft.EntityFrameworkCore')) Or '%(ReferencePath.NuGetPackageId)' == 'Npgsql.EntityFrameworkCore.PostgreSQL' Or '%(ReferencePath.NuGetPackageId)' == 'System.Formats.Cbor' Or '%(ReferencePath.NuGetPackageId)' == 'System.Security.Cryptography.Xml' Or '%(ReferencePath.NuGetPackageId)' == 'System.Text.Json') And !$([System.String]::Copy('%(ReferencePath.NuGetPackageVersion)').StartsWith('$(_RuntimeBandMajor).')) And !$([System.String]::Copy(';$(RuntimeBandExceptions);').Contains(';%(ReferencePath.NuGetPackageId);'))"
+      />
+    </ItemGroup>
+    <Error
+      Condition="'@(_OffBandReference)' != ''"
+      Text="$(MSBuildProjectName) targets .NET $(_RuntimeBandMajor), so every Microsoft.Extensions, ASP.NET Core and EF Core package and the .NET release's System packages resolve at major $(_RuntimeBandMajor): @(_OffBandReference->'%(NuGetPackageId) %(NuGetPackageVersion)', ', '). Take the dependency that raises them from a release on this band, or list them in RuntimeBandExceptions beside the issue that tracks that release (ADR-1519)."
     />
   </Target>
 

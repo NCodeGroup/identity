@@ -66,7 +66,7 @@ public class DefaultAuthenticateAccessTokenHandlerTests : BaseTests
     private static JwtValidationResult CreateInvalidResult() =>
         JwtValidationResult.Fail(
             new JwtValidationParameters(),
-            PropertyBagFactory.Create(),
+            new PropertyBagDictionary(),
             Token,
             new JwtValidationException("invalid")
         );
@@ -78,7 +78,7 @@ public class DefaultAuthenticateAccessTokenHandlerTests : BaseTests
         var decodedJwt = new DecodedJwt(compactJwt, payload, signingKey: null!);
         return JwtValidationResult.Success(
             new JwtValidationParameters(),
-            PropertyBagFactory.Create(),
+            new PropertyBagDictionary(),
             decodedJwt,
             (decoded, _, authType, nameType, roleType, _) =>
             {

@@ -127,7 +127,7 @@ public class DefaultResolveEndSessionSubjectHandlerTests : BaseTests
         var decodedJwt = new DecodedJwt(compactJwt, payload, signingKey: null!);
         var result = JwtValidationResult.Success(
             new JwtValidationParameters(),
-            PropertyBagFactory.Create(),
+            new PropertyBagDictionary(),
             decodedJwt,
             (_, _, _, _, _, _) => ValueTask.FromResult(new ClaimsIdentity())
         );
@@ -156,7 +156,7 @@ public class DefaultResolveEndSessionSubjectHandlerTests : BaseTests
             .ReturnsAsync(
                 JwtValidationResult.Fail(
                     new JwtValidationParameters(),
-                    PropertyBagFactory.Create(),
+                    new PropertyBagDictionary(),
                     "token",
                     new InvalidOperationException("invalid")
                 )

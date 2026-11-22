@@ -31,10 +31,10 @@ namespace NCode.Identity.Jwt.Validation;
 public class JwtValidationParameters
 {
     /// <summary>
-    /// Gets an <see cref="IPropertyBag"/> that can provide additional user-defined information about the current operation.
-    /// This instance will be cloned for each JWT operation.
+    /// Gets an <see cref="IPropertyBag"/> that carries additional user-defined information about the validation. Each
+    /// validation layers a child bag over it, which reads its values and keeps the validation's own writes.
     /// </summary>
-    public IPropertyBag PropertyBag { get; } = PropertyBagFactory.Create();
+    public IPropertyBag PropertyBag { get; } = new PropertyBagDictionary();
 
     /// <summary>
     /// Gets or sets the <c>AuthenticationType</c> that is used when creating <see cref="ClaimsIdentity"/> instances.

@@ -183,6 +183,7 @@ The records are grouped by area; within an area they are in number order.
 | [1514](./1514-a-tenant-moves-between-cells-of-one-region-through-an-encrypted-export-and-import.md) | A tenant moves between cells of one region through an encrypted export and import | Accepted |
 | [1517](./1517-internal-surrogate-keys-are-uuidv7-minted-in-process-behind-one-seam-and-never-reach-a-caller.md) | Internal surrogate keys are UUIDv7 minted in-process behind one seam, and never reach a caller | Accepted |
 | [1518](./1518-a-long-lived-openid-object-owns-a-concurrent-property-bag-and-an-operation-layers-a-child-over-its-owners.md) | A long-lived OpenID object owns a concurrent property bag, and an operation layers a child over its owner's | Accepted |
+| [1519](./1519-every-microsoft-extensions-aspnet-core-and-ef-core-package-is-on-the-target-frameworks-release-band.md) | Every Microsoft.Extensions, ASP.NET Core and EF Core package is on the target framework's release band | Accepted |
 
 ### Management API
 

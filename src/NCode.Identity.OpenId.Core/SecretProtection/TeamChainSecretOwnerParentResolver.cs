@@ -134,7 +134,7 @@ internal sealed class TeamChainSecretOwnerParentResolver(
 
         var lease = await TenantCache.TryGetAsync(
             tenantId,
-            PropertyBagFactory.Create(),
+            new PropertyBagDictionary(),
             cancellationToken
         );
         if (lease.IsActive)
@@ -221,7 +221,7 @@ internal sealed class TeamChainSecretOwnerParentResolver(
     {
         var lease = await TeamCache.TryGetAsync(
             teamId,
-            PropertyBagFactory.Create(),
+            new PropertyBagDictionary(),
             cancellationToken
         );
         if (!lease.IsActive)

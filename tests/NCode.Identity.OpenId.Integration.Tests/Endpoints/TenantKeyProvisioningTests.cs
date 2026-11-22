@@ -166,7 +166,7 @@ public class TenantKeyProvisioningTests
         await GetJwksAsync(client, host: null, CancellationToken.None);
 
         var tenantCache = factory.Services.GetRequiredService<IOpenIdTenantCache>();
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
         var revisions = await tenantCache.GetRevisionsAsync(propertyBag, CancellationToken.None);
         var served = Assert.Single(
             revisions,

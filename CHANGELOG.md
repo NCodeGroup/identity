@@ -3742,8 +3742,10 @@ Until the first stable release, the [Unreleased] section describes the product a
   from its parent team or the platform, and a tenant from its team. An `OpenIdContext`, an `OpenIdClient` and a JWT
   validation use a child bag, NCode.PropertyBag's `CreateChild()`, that reads through to its tenant's, context's or
   validation parameters' bag without copying it and never writes it, and the platform and tenant factories run their own
-  lookups, seeds and cache calls on a child of the bag they are given
-  ([ADR-1518](docs/decisions/1518-a-long-lived-openid-object-owns-a-concurrent-property-bag-and-an-operation-layers-a-child-over-its-owners.md)).
+  lookups, seeds and cache calls on a child of the bag they are given. An operation with nothing to inherit starts from
+  its own `PropertyBagDictionary`, and the server registers no property-bag factory
+  ([#896](https://github.com/NCodeGroup/identity/issues/896),
+  [ADR-1518](docs/decisions/1518-a-long-lived-openid-object-owns-a-concurrent-property-bag-and-an-operation-layers-a-child-over-its-owners.md)).
 
 - **The control-plane tenant is named from configuration and served from the tenant cache.** `ITenantStrategy` and
   `ITenantResolver` expose `GetControlPlaneTenantId()`, and `CreateControlPlaneTenantAsync` probes the tenant cache with
@@ -5032,6 +5034,15 @@ Until the first stable release, the [Unreleased] section describes the product a
   fixes only through it. Dependabot security updates are on for the repository, with one group per ecosystem, so an
   advisory that affects a dependency produces a fix pull request automatically, and every entry waits a three-day
   cooldown before it offers a version.
+
+- **Every Microsoft.Extensions, ASP.NET Core and EF Core package is on the target framework's release band.** The family
+  resolves them, the Npgsql EF Core provider and the .NET release's System packages at major version 10, one patch,
+  10.0.15, so a host runs them from one release beside the ASP.NET Core 10 shared framework and its servicing. The build
+  refuses a project that resolves one at another major, naming each package, unless `RuntimeBandExceptions` lists it
+  beside the issue that tracks the dependency holding it there, as it lists the dependency-injection pair that
+  NCode.PropertyBag holds at 11.0.0; Dependabot proposes no major update of them, because the band moves with the target
+  framework ([#895](https://github.com/NCodeGroup/identity/issues/895),
+  [ADR-1519](docs/decisions/1519-every-microsoft-extensions-aspnet-core-and-ef-core-package-is-on-the-target-frameworks-release-band.md)).
 
 - **The JWT validator takes an explicit algorithm and key policy.** `JwtValidationParameters` carries `DecryptionKeys`
   (`UseDecryptionKeys`) and the allow-lists `ValidSignatureAlgorithms`, `ValidKeyManagementAlgorithms`,

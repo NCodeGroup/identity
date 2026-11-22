@@ -116,7 +116,7 @@ public class DefaultLoadBackchannelAuthenticationRequestHandlerTests : BaseTests
             .ReturnsAsync(
                 JwtValidationResult.Fail(
                     new JwtValidationParameters(),
-                    PropertyBagFactory.Create(),
+                    new PropertyBagDictionary(),
                     "a.b.c",
                     new InvalidOperationException("tampered")
                 )

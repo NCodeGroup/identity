@@ -80,7 +80,7 @@ internal sealed class TenantChangedHandler(
     {
         // Evict first: a request that misses the cache from here on materializes the tenant, which seeds it too, so the
         // eviction never serves a state older than the change.
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
         await TenantCache.RemoveAsync(tenantId, propertyBag, cancellationToken);
 
         // A deleted tenant's master keys must not stay usable on any replica, so they leave this replica's memory with

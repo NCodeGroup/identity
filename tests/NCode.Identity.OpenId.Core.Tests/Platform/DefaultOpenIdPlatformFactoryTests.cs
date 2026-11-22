@@ -50,7 +50,7 @@ public class DefaultOpenIdPlatformFactoryTests : BaseTests
     public async Task CreateAsync_WhenTheMergedProviderCannotBeCreated_DisposesBothSettingsDataSources()
     {
         var mockEnvironment = CreateStrictMock<OpenIdEnvironment>();
-        mockEnvironment.Setup(x => x.PropertyBag).Returns(PropertyBagFactory.Create()).Verifiable();
+        mockEnvironment.Setup(x => x.PropertyBag).Returns(new PropertyBagDictionary()).Verifiable();
 
         var mockRootDataSource = CreateStrictMock<IDisposableCollectionDataSource<Setting>>();
         mockRootDataSource.Setup(x => x.Dispose()).Verifiable();
@@ -253,7 +253,7 @@ public class DefaultOpenIdPlatformFactoryTests : BaseTests
         SetupStoreManagers(mockFactory, mockStoreManager);
 
         var result = await factory.GetPersistedPlatformAsync(
-            PropertyBagFactory.Create(),
+            new PropertyBagDictionary(),
             CancellationToken.None
         );
 
@@ -282,7 +282,7 @@ public class DefaultOpenIdPlatformFactoryTests : BaseTests
         SetupStoreManagers(mockFactory, mockStoreManager);
 
         var result = await factory.GetPersistedPlatformAsync(
-            PropertyBagFactory.Create(),
+            new PropertyBagDictionary(),
             CancellationToken.None
         );
 
@@ -316,7 +316,7 @@ public class DefaultOpenIdPlatformFactoryTests : BaseTests
         SetupStoreManagers(mockFactory, firstManager, secondManager);
 
         var result = await factory.GetPersistedPlatformAsync(
-            PropertyBagFactory.Create(),
+            new PropertyBagDictionary(),
             CancellationToken.None
         );
 
@@ -350,7 +350,7 @@ public class DefaultOpenIdPlatformFactoryTests : BaseTests
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await factory.GetPersistedPlatformAsync(
-                PropertyBagFactory.Create(),
+                new PropertyBagDictionary(),
                 CancellationToken.None
             )
         );
@@ -379,7 +379,7 @@ public class DefaultOpenIdPlatformFactoryTests : BaseTests
 
         await Assert.ThrowsAsync<OperationCanceledException>(async () =>
             await factory.GetPersistedPlatformAsync(
-                PropertyBagFactory.Create(),
+                new PropertyBagDictionary(),
                 CancellationToken.None
             )
         );

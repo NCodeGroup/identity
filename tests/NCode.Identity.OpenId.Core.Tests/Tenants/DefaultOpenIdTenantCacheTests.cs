@@ -75,7 +75,7 @@ public sealed class DefaultOpenIdTenantCacheTests : IDisposable
     {
         var disposed = CreateCompletionSource();
         var mockTenant = CreateMockTenant(disposed);
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         // Only the cache and the handed-out lease hold the tenant once the creator releases its own reference.
         AsyncSharedReferenceLease<OpenIdTenant> handedOut;
@@ -111,7 +111,7 @@ public sealed class DefaultOpenIdTenantCacheTests : IDisposable
     [Fact]
     public async Task RemoveAsync_WhenTheTenantIsNotCached_DoesNothing()
     {
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         await Cache.RemoveAsync(TenantId, propertyBag, CancellationToken.None);
 
@@ -137,7 +137,7 @@ public sealed class DefaultOpenIdTenantCacheTests : IDisposable
         var firstTenant = CreateMockTenant(firstDisposed, "team-a");
         var secondTenant = CreateMockTenant(secondDisposed, "team-a");
         var thirdTenant = CreateMockTenant(teamId: "team-b");
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         await using (var first = AsyncSharedReference.Create(firstTenant.Object))
         await using (var second = AsyncSharedReference.Create(secondTenant.Object))
@@ -177,7 +177,7 @@ public sealed class DefaultOpenIdTenantCacheTests : IDisposable
     {
         var disposed = CreateCompletionSource();
         var mockTenant = CreateMockTenant(disposed, "Team-A");
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         await using (var owner = AsyncSharedReference.Create(mockTenant.Object))
         {
@@ -202,7 +202,7 @@ public sealed class DefaultOpenIdTenantCacheTests : IDisposable
         var disposed = CreateCompletionSource();
         var parentTeam = CreateMockParentTeam("team-a", "a1");
         var childTenant = CreateMockTenant(disposed, "team-a-web", parentTeam: parentTeam);
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         await using (var owner = AsyncSharedReference.Create(childTenant.Object))
         {
@@ -228,7 +228,7 @@ public sealed class DefaultOpenIdTenantCacheTests : IDisposable
         var firstTenant = CreateMockTenant(firstDisposed, "team-a");
         var secondDisposed = CreateCompletionSource();
         var secondTenant = CreateMockTenant(secondDisposed, "team-a");
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         await using (var first = AsyncSharedReference.Create(firstTenant.Object))
         {
@@ -260,7 +260,7 @@ public sealed class DefaultOpenIdTenantCacheTests : IDisposable
     [Fact]
     public async Task SetAsync_WhenTwoMaterializationsRace_KeepsTheCachedEntryInTheTeamIndex()
     {
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         for (var iteration = 0; iteration < 200; iteration++)
         {
@@ -318,7 +318,7 @@ public sealed class DefaultOpenIdTenantCacheTests : IDisposable
         var firstTenant = CreateMockTenant(teamId: "team-a", teamConcurrencyToken: "a1");
         var secondTenant = CreateMockTenant(teamId: "team-a", teamConcurrencyToken: "a1");
         var thirdTenant = CreateMockTenant(teamId: "team-b", teamConcurrencyToken: "b1");
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         await using (var first = AsyncSharedReference.Create(firstTenant.Object))
         await using (var second = AsyncSharedReference.Create(secondTenant.Object))
@@ -341,7 +341,7 @@ public sealed class DefaultOpenIdTenantCacheTests : IDisposable
     {
         var firstTenant = CreateMockTenant(teamId: "team-a", teamConcurrencyToken: "a1");
         var secondTenant = CreateMockTenant(teamId: "team-a", teamConcurrencyToken: "a2");
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         await using (var first = AsyncSharedReference.Create(firstTenant.Object))
         await using (var second = AsyncSharedReference.Create(secondTenant.Object))
@@ -362,7 +362,7 @@ public sealed class DefaultOpenIdTenantCacheTests : IDisposable
     {
         var firstTenant = CreateMockTenant(teamId: "team-a", teamConcurrencyToken: "a1");
         var secondTenant = CreateMockTenant(teamId: "team-b", teamConcurrencyToken: "b1");
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         await using (var first = AsyncSharedReference.Create(firstTenant.Object))
         await using (var second = AsyncSharedReference.Create(secondTenant.Object))
@@ -403,7 +403,7 @@ public sealed class DefaultOpenIdTenantCacheTests : IDisposable
             teamConcurrencyToken: "w1",
             parentTeam: parentTeam
         );
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         await using (var child = AsyncSharedReference.Create(childTenant.Object))
         {
@@ -426,7 +426,7 @@ public sealed class DefaultOpenIdTenantCacheTests : IDisposable
     {
         var firstTenant = CreateMockTenant(concurrencyToken: "t1");
         var secondTenant = CreateMockTenant(concurrencyToken: "t2");
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         await using (var first = AsyncSharedReference.Create(firstTenant.Object))
         await using (var second = AsyncSharedReference.Create(secondTenant.Object))
@@ -448,7 +448,7 @@ public sealed class DefaultOpenIdTenantCacheTests : IDisposable
         var firstDisposed = CreateCompletionSource();
         var firstTenant = CreateMockTenant(firstDisposed, concurrencyToken: "t1");
         var secondTenant = CreateMockTenant(concurrencyToken: "t2");
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         await using (var first = AsyncSharedReference.Create(firstTenant.Object))
         await using (var second = AsyncSharedReference.Create(secondTenant.Object))
@@ -473,7 +473,7 @@ public sealed class DefaultOpenIdTenantCacheTests : IDisposable
         var firstDisposed = CreateCompletionSource();
         var firstTenant = CreateMockTenant(firstDisposed, concurrencyToken: "t1");
         var secondTenant = CreateMockTenant(concurrencyToken: "t2");
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         await using (var first = AsyncSharedReference.Create(firstTenant.Object))
         {
@@ -505,7 +505,7 @@ public sealed class DefaultOpenIdTenantCacheTests : IDisposable
         var secondDisposed = CreateCompletionSource();
         var firstTenant = CreateMockTenant(firstDisposed);
         var secondTenant = CreateMockTenant(secondDisposed);
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         // Only the cache holds the tenants once the creators release their own references.
         await using (var first = AsyncSharedReference.Create(firstTenant.Object))
@@ -553,7 +553,7 @@ public sealed class DefaultOpenIdTenantCacheTests : IDisposable
         var replacementDisposed = CreateCompletionSource();
         var replacementTenant = CreateMockTenant(replacementDisposed, "team-a");
         var otherTenant = CreateMockTenant(teamId: "team-b");
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         await using (var owner = AsyncSharedReference.Create(clearedTenant.Object))
         {
@@ -596,7 +596,7 @@ public sealed class DefaultOpenIdTenantCacheTests : IDisposable
     public async Task ClearAsync_KeepsATenantCachedAfterIt()
     {
         var mockTenant = CreateMockTenant();
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
 
         await Cache.ClearAsync(propertyBag, CancellationToken.None);
 
@@ -621,7 +621,7 @@ public sealed class DefaultOpenIdTenantCacheTests : IDisposable
     public async Task SetAsync_WhenTheLifetimeElapses_EvictsTheTenant()
     {
         var mockTenant = CreateMockTenant();
-        var propertyBag = PropertyBagFactory.Create();
+        var propertyBag = new PropertyBagDictionary();
         var options = new OpenIdOptions
         {
             Tenant = { TenantCacheLifetime = TimeSpan.FromMilliseconds(50) },

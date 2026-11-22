@@ -37,8 +37,12 @@ over its owner's bag.**
    cache calls on a child of the bag they are given, and never store that bag in the object they create. An
    `OpenIdContext` layers a child over its tenant's bag, an `OpenIdClient` over its context's, and `DefaultJwtValidator`
    over the `JwtValidationParameters` bag, which the validation's context and result carry.
-4. **An operation with nothing to inherit starts from `PropertyBagFactory.Create()`**, such as a cache eviction or a
+4. **An operation with nothing to inherit starts from a new `PropertyBagDictionary`**, such as a cache eviction or a
    team-chain walk.
+5. **Every bag is constructed for its role, never through a factory.** The server registers no `IPropertyBagFactory`,
+   and nothing reads NCode.PropertyBag's process-wide `PropertyBagFactory.DefaultFactory`;
+   `BannedSymbols.PropertyBag.txt` bans both factories, `DefaultPropertyBagFactory` and `AddPropertyBag()`'s
+   `DefaultRegistration` in every project.
 
 ## Options considered
 
@@ -48,6 +52,10 @@ over its owner's bag.**
   long-lived object that many threads share could not take a write.
 - **Build each long-lived object from the caller's operation bag.** Rejected: a value one operation wrote would stay
   with a cached team or tenant and reach every later request.
+- **Create bags through an injected `IPropertyBagFactory`.** Rejected: constructing an empty container is not behavior,
+  the factory's `IPropertyBag` hides the kind the ownership rule depends on, it cannot reach the caller-constructed
+  `JwtValidationParameters`, and a consumer extends a bag's contents, through the environment's bag, never its
+  implementation.
 - **Long-lived objects own concurrent clones, and operations layer children (chosen).**
 
 ## Consequences
@@ -67,3 +75,4 @@ over its owner's bag.**
   `LayeredPropertyBag` and `CreateChild()`
 - [ADR-1036](1036-one-factory-materializes-every-openid-context-for-a-request-an-addressed-tenant-or-a-job.md): one
   factory materializes every OpenID context
+- [#896](https://github.com/NCodeGroup/identity/issues/896)
