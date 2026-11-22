@@ -46,11 +46,12 @@ internal partial class DefaultCoseSerializer
             cancellationToken
         );
 
+        var carriedContent = CarriedContent(content.Span, options);
         return CoseMessageWriter.Sign1(
             options.OmitTag ? null : CoseTags.Sign1,
             protectedBytes,
             unprotectedHeaders,
-            CarriedContent(content.Span, options),
+            carriedContent,
             signature
         );
     }
@@ -106,20 +107,22 @@ internal partial class DefaultCoseSerializer
                 options.ExternalAad.Span,
                 content.Span
             );
-            entries.Add(
-                new CoseLayerEntry(
-                    signatureProtected,
-                    unprotectedHeaders,
-                    await SignAsync(algorithm, credentials.SecretKey, structure, cancellationToken)
-                )
+            var signature = await SignAsync(
+                algorithm,
+                credentials.SecretKey,
+                structure,
+                cancellationToken
             );
+            var entry = new CoseLayerEntry(signatureProtected, unprotectedHeaders, signature);
+            entries.Add(entry);
         }
 
+        var carriedContent = CarriedContent(content.Span, options);
         return CoseMessageWriter.Sign(
             options.OmitTag ? null : CoseTags.Sign,
             bodyProtected,
             bodyUnprotectedHeaders,
-            CarriedContent(content.Span, options),
+            carriedContent,
             entries
         );
     }
@@ -351,9 +354,10 @@ internal partial class DefaultCoseSerializer
             && !protectedHeaders.ContainsKey(CoseHeaderLabels.KeyId)
             && !unprotectedHeaders.ContainsKey(CoseHeaderLabels.KeyId)
         )
-            unprotectedHeaders[CoseHeaderLabels.KeyId] = CoseValue.FromByteString(
-                CoseKeyIdentifiers.GetBytes(keyId)
-            );
+        {
+            var keyIdBytes = CoseKeyIdentifiers.GetBytes(keyId);
+            unprotectedHeaders[CoseHeaderLabels.KeyId] = CoseValue.FromByteString(keyIdBytes);
+        }
 
         return (protectedHeaders, unprotectedHeaders);
     }
@@ -402,16 +406,19 @@ internal partial class DefaultCoseSerializer
         IEnumerable<SecretKey> keys,
         string use,
         TimeSpan clockSkew
-    ) =>
-        CoseKeyCandidates.Select(
+    )
+    {
+        var now = TimeProvider.GetUtcNow();
+        return CoseKeyCandidates.Select(
             keys,
             layer.KeyId,
             algorithmCode,
             isCompatible,
             use,
-            TimeProvider.GetUtcNow(),
+            now,
             clockSkew
         );
+    }
 
     private static SecretKey? FindVerifyingKey(
         CoseAlgorithmBinding binding,

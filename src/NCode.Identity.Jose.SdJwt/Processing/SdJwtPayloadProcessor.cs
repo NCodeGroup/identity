@@ -138,7 +138,10 @@ internal sealed class SdJwtPayloadProcessor(
                 default:
                     // A scalar holds no digest, so it needs no path.
                     if (node is JsonObject or JsonArray)
-                        ProcessNode(node, JsonPointer.AppendMember(path, name), depth + 1, parent);
+                    {
+                        var memberPath = JsonPointer.AppendMember(path, name);
+                        ProcessNode(node, memberPath, depth + 1, parent);
+                    }
                     break;
             }
         }
@@ -166,15 +169,19 @@ internal sealed class SdJwtPayloadProcessor(
                 );
 
             if (depth == 0 && SdJwtClaimRules.IsProtected(claimName, Profile))
+            {
+                var protectedDescription = SdJwtClaimRules.DescribeProtected(claimName, Profile);
                 throw new SdJwtException(
                     SdJwtVerificationFailureCodes.ProtectedClaimDisclosed,
-                    SdJwtClaimRules.DescribeProtected(claimName, Profile)
+                    protectedDescription
                 );
+            }
 
             var claimPath = JsonPointer.AppendMember(path, claimName);
             var valueNode = ToNode(disclosure.Value);
             obj[claimName] = valueNode;
-            Disclosed.Add(new DisclosedClaim(disclosure, claimPath, parent));
+            var disclosedClaim = new DisclosedClaim(disclosure, claimPath, parent);
+            Disclosed.Add(disclosedClaim);
 
             ProcessDisclosedValue(valueNode, claimPath, depth + 1, disclosure);
         }
@@ -198,12 +205,10 @@ internal sealed class SdJwtPayloadProcessor(
             )
             {
                 if (element is JsonObject or JsonArray)
-                    ProcessNode(
-                        element,
-                        JsonPointer.AppendIndex(path, kept.Count),
-                        depth + 1,
-                        parent
-                    );
+                {
+                    var nestedPath = JsonPointer.AppendIndex(path, kept.Count);
+                    ProcessNode(element, nestedPath, depth + 1, parent);
+                }
                 kept.Add(element);
                 continue;
             }
@@ -233,7 +238,8 @@ internal sealed class SdJwtPayloadProcessor(
             var elementPath = JsonPointer.AppendIndex(path, kept.Count);
             var valueNode = ToNode(disclosure.Value);
             kept.Add(valueNode);
-            Disclosed.Add(new DisclosedClaim(disclosure, elementPath, parent));
+            var disclosedElement = new DisclosedClaim(disclosure, elementPath, parent);
+            Disclosed.Add(disclosedElement);
 
             ProcessDisclosedValue(valueNode, elementPath, depth + 1, disclosure);
         }
@@ -304,10 +310,13 @@ internal sealed class SdJwtPayloadProcessor(
 
         var claimName = JsonPointer.GetFirstToken(path);
         if (SdJwtClaimRules.IsProtected(claimName, Profile))
+        {
+            var protectedDescription = SdJwtClaimRules.DescribeProtected(claimName, Profile);
             throw new SdJwtException(
                 SdJwtVerificationFailureCodes.ProtectedClaimDisclosed,
-                SdJwtClaimRules.DescribeProtected(claimName, Profile)
+                protectedDescription
             );
+        }
     }
 
     private void EnsureDepth(int depth)
@@ -329,7 +338,10 @@ internal sealed class SdJwtPayloadProcessor(
 
         var digests = new List<string>(array.Count);
         foreach (var element in array)
-            digests.Add(ReadDigest(element));
+        {
+            var digest = ReadDigest(element);
+            digests.Add(digest);
+        }
 
         return digests;
     }

@@ -149,7 +149,8 @@ internal class DefaultSdJwtHolder(
         {
             TokenType = JoseTokenTypes.KeyBindingJwt,
         };
-        var encoder = JoseSerializer.CreateEncoder(new JoseSigningOptions(signature));
+        var signingOptions = new JoseSigningOptions(signature);
+        var encoder = JoseSerializer.CreateEncoder(signingOptions);
         return await encoder.EncodeAsync(payload, cancellationToken);
     }
 

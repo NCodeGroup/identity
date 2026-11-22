@@ -102,13 +102,13 @@ internal static class CborGuard
                 reader.ReadStartMap() ?? throw Invalid("The map uses an indefinite length.");
 
             // The declared length is peer data; each entry takes at least two bytes.
-            var map = new Dictionary<CoseLabel, CoseValue>(
-                Math.Min(length, reader.BytesRemaining / 2)
-            );
+            var capacity = Math.Min(length, reader.BytesRemaining / 2);
+            var map = new Dictionary<CoseLabel, CoseValue>(capacity);
             for (var index = 0; index < length; index++)
             {
                 var label = ReadLabel(reader);
-                var value = CoseValue.FromEncodedValue(ReadValue(reader, maxDepth - 1));
+                var encodedValue = ReadValue(reader, maxDepth - 1);
+                var value = CoseValue.FromEncodedValue(encodedValue);
                 if (!map.TryAdd(label, value))
                     throw Invalid("The map repeats a label.");
             }
@@ -153,9 +153,11 @@ internal static class CborGuard
         {
             case CborReaderState.UnsignedInteger:
             case CborReaderState.NegativeInteger:
-                return new CoseLabel(reader.ReadInt64());
+                var integerLabel = reader.ReadInt64();
+                return new CoseLabel(integerLabel);
             case CborReaderState.TextString:
-                return new CoseLabel(reader.ReadTextString());
+                var textLabel = reader.ReadTextString();
+                return new CoseLabel(textLabel);
             default:
                 throw Invalid("A map label is neither an integer nor a text string.");
         }

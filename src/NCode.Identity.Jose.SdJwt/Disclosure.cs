@@ -80,7 +80,8 @@ public sealed class Disclosure
                 nameof(claimName)
             );
 
-        return new Disclosure(Encode(salt, claimName, value), salt, claimName, value);
+        var encoded = Encode(salt, claimName, value);
+        return new Disclosure(encoded, salt, claimName, value);
     }
 
     /// <summary>
@@ -94,7 +95,8 @@ public sealed class Disclosure
     {
         ArgumentException.ThrowIfNullOrEmpty(salt);
 
-        return new Disclosure(Encode(salt, claimName: null, value), salt, claimName: null, value);
+        var encoded = Encode(salt, claimName: null, value);
+        return new Disclosure(encoded, salt, claimName: null, value);
     }
 
     /// <summary>

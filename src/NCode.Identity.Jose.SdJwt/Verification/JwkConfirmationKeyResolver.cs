@@ -71,12 +71,13 @@ internal class JwkConfirmationKeyResolver(ISecretKeyTypeCatalog secretKeyTypeCat
         try
         {
             Memory<byte> keyMaterial = default;
+            var importParameters = new SecretKeyImportParameters
+            {
+                Format = SecretKeyImportFormats.Jwk,
+                KeyMaterial = jwkElement.GetRawText(),
+            };
             var imported = descriptor.ImportPublicKeyMaterial(
-                new SecretKeyImportParameters
-                {
-                    Format = SecretKeyImportFormats.Jwk,
-                    KeyMaterial = jwkElement.GetRawText(),
-                },
+                importParameters,
                 bytes =>
                 {
                     lease?.Dispose();
@@ -85,8 +86,9 @@ internal class JwkConfirmationKeyResolver(ISecretKeyTypeCatalog secretKeyTypeCat
                     return string.Empty;
                 }
             );
+            var keyMetadata = new KeyMetadata { KeyId = jwk.KeyId };
             var secretKey = descriptor.DeserializeKeyMaterial(
-                new KeyMetadata { KeyId = jwk.KeyId },
+                keyMetadata,
                 imported.SecretEncoding,
                 keyMaterial.Span
             );

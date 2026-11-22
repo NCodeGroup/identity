@@ -37,31 +37,32 @@ internal static class CwtClaimsWriter
             claims[CwtClaimKeys.Audience] = CoseValue.FromTextStrings(parameters.Audiences);
 
         if (parameters.ExpiresAt is { } expiresAt)
-            claims[CwtClaimKeys.ExpirationTime] = CoseValue.FromInt64(
-                expiresAt.ToUnixTimeSeconds()
-            );
+        {
+            var expirationSeconds = expiresAt.ToUnixTimeSeconds();
+            claims[CwtClaimKeys.ExpirationTime] = CoseValue.FromInt64(expirationSeconds);
+        }
 
         if (parameters.NotBefore is { } notBefore)
-            claims[CwtClaimKeys.NotBefore] = CoseValue.FromInt64(notBefore.ToUnixTimeSeconds());
+        {
+            var notBeforeSeconds = notBefore.ToUnixTimeSeconds();
+            claims[CwtClaimKeys.NotBefore] = CoseValue.FromInt64(notBeforeSeconds);
+        }
 
-        claims[CwtClaimKeys.IssuedAt] = CoseValue.FromInt64(
-            (parameters.IssuedAt ?? now).ToUnixTimeSeconds()
-        );
+        var issuedAtSeconds = (parameters.IssuedAt ?? now).ToUnixTimeSeconds();
+        claims[CwtClaimKeys.IssuedAt] = CoseValue.FromInt64(issuedAtSeconds);
 
         if (parameters.CwtId is { } id)
             claims[CwtClaimKeys.CwtId] = CoseValue.FromByteString(id.Span);
 
         if (parameters.ConfirmationKey is { } confirmationKey)
         {
+            var encodedKey = keyConverter.WritePublicKey(confirmationKey);
             var confirmation = new Dictionary<CoseLabel, CoseValue>
             {
-                [CwtConfirmationKeys.CoseKey] = CoseValue.FromEncodedValue(
-                    keyConverter.WritePublicKey(confirmationKey)
-                ),
+                [CwtConfirmationKeys.CoseKey] = CoseValue.FromEncodedValue(encodedKey),
             };
-            claims[CwtClaimKeys.Confirmation] = CoseValue.FromEncodedValue(
-                serializer.EncodeMap(confirmation)
-            );
+            var encodedConfirmation = serializer.EncodeMap(confirmation);
+            claims[CwtClaimKeys.Confirmation] = CoseValue.FromEncodedValue(encodedConfirmation);
         }
 
         foreach (var (label, value) in parameters.AdditionalClaims)

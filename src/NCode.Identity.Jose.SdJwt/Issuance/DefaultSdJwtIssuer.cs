@@ -95,25 +95,32 @@ internal class DefaultSdJwtIssuer(
         walk.ProcessObject(claims, RootPath);
 
         if (disclosablePaths.Count > 0)
+        {
+            var firstPath = disclosablePaths.First();
             throw new ArgumentException(
-                $"The disclosable path '{disclosablePaths.First()}' names no claim.",
+                $"The disclosable path '{firstPath}' names no claim.",
                 nameof(options)
             );
+        }
 
         if (walk.WroteDigests)
             claims[JoseClaimNames.Payload.SdAlg] = algorithm.Name;
 
         if (holderKey is not null)
+        {
+            var holderElement = holderKey.AsElement();
             claims[JoseClaimNames.Payload.Cnf] = new JsonObject
             {
-                [JoseClaimNames.Header.Jwk] = JsonObject.Create(holderKey.AsElement()),
+                [JoseClaimNames.Header.Jwk] = JsonObject.Create(holderElement),
             };
+        }
 
         var signature = new JoseSignatureOptions(signingCredentials)
         {
             TokenType = options.Profile?.TokenType ?? JoseTokenTypes.Jwt,
         };
-        var encoder = JoseSerializer.CreateEncoder(new JoseSigningOptions(signature));
+        var signingOptions = new JoseSigningOptions(signature);
+        var encoder = JoseSerializer.CreateEncoder(signingOptions);
         var issuerSignedJwt = await encoder.EncodeAsync<JsonNode>(claims, cancellationToken);
 
         return new SelectiveDisclosureJwt(issuerSignedJwt, walk.Disclosures, keyBindingJwt: null);
@@ -135,7 +142,8 @@ internal class DefaultSdJwtIssuer(
         if (!descriptor.IsAsymmetric)
             throw new ArgumentException("The holder key must be asymmetric.", nameof(options));
 
-        if (new JsonWebKey(holderKey.AsElement(), jwkKeyType).ContainsPrivateKeyMaterial)
+        var holderElement = holderKey.AsElement();
+        if (new JsonWebKey(holderElement, jwkKeyType).ContainsPrivateKeyMaterial)
             throw new ArgumentException(
                 "The holder key must carry only public members.",
                 nameof(options)
@@ -169,10 +177,13 @@ internal class DefaultSdJwtIssuer(
 
             var claimName = JsonPointer.GetFirstToken(path);
             if (SdJwtClaimRules.IsProtected(claimName, profile))
+            {
+                var protectedDescription = SdJwtClaimRules.DescribeProtected(claimName, profile);
                 throw new ArgumentException(
-                    $"The disclosable path '{path}' names a protected claim. {SdJwtClaimRules.DescribeProtected(claimName, profile)}",
+                    $"The disclosable path '{path}' names a protected claim. {protectedDescription}",
                     nameof(options)
                 );
+            }
         }
 
         return disclosablePaths;

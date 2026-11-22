@@ -71,7 +71,8 @@ public static class CoseKeyIdentifiers
             if (digits.Length % 2 == 0 && IsLowerHex(digits))
             {
                 var decoded = Convert.FromHexString(digits);
-                if (string.Equals(GetKeyId(decoded), keyId, StringComparison.Ordinal))
+                var decodedKeyId = GetKeyId(decoded);
+                if (string.Equals(decodedKeyId, keyId, StringComparison.Ordinal))
                     return decoded;
             }
         }

@@ -57,8 +57,11 @@ internal static class JsonPointer
     /// <param name="pointer">The pointer of the array.</param>
     /// <param name="index">The zero-based index of the element.</param>
     /// <returns>The pointer of the element.</returns>
-    public static string AppendIndex(string pointer, int index) =>
-        string.Concat(pointer, "/", index.ToString(CultureInfo.InvariantCulture));
+    public static string AppendIndex(string pointer, int index)
+    {
+        var indexText = index.ToString(CultureInfo.InvariantCulture);
+        return string.Concat(pointer, "/", indexText);
+    }
 
     /// <summary>
     /// Determines whether a value is a well-formed JSON Pointer that names a member or element rather than the whole

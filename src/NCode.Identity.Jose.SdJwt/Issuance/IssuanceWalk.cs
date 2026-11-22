@@ -61,23 +61,31 @@ internal sealed class IssuanceWalk(
                 continue;
 
             var value = Detach(obj, name);
-            var disclosure = Disclosure.Create(RandomSource.NextSalt(), name, value);
+            var salt = RandomSource.NextSalt();
+            var disclosure = Disclosure.Create(salt, name, value);
             Disclosures.Add(disclosure);
-            (digests ??= []).Add(disclosure.ComputeDigest(Algorithm));
+            var disclosureDigest = disclosure.ComputeDigest(Algorithm);
+            (digests ??= []).Add(disclosureDigest);
         }
 
         if (digests is null)
             return;
 
         for (var i = 0; i < DecoyDigestCount; i++)
-            digests.Add(CreateDecoyDigest());
+        {
+            var decoyDigest = CreateDecoyDigest();
+            digests.Add(decoyDigest);
+        }
 
         // The order of the digests says nothing about the claims once it is the order of the digests themselves.
         digests.Sort(StringComparer.Ordinal);
 
         var sd = new JsonArray();
         foreach (var digest in digests)
-            sd.Add(JsonValue.Create(digest));
+        {
+            var digestValue = JsonValue.Create(digest);
+            sd.Add(digestValue);
+        }
 
         obj[JoseClaimNames.Payload.Sd] = sd;
         WroteDigests = true;
@@ -95,9 +103,11 @@ internal sealed class IssuanceWalk(
                 continue;
 
             var value = Detach(array, index);
-            var disclosure = Disclosure.Create(RandomSource.NextSalt(), value);
+            var salt = RandomSource.NextSalt();
+            var disclosure = Disclosure.Create(salt, value);
             Disclosures.Add(disclosure);
-            array[index] = CreatePlaceholder(disclosure.ComputeDigest(Algorithm));
+            var disclosureDigest = disclosure.ComputeDigest(Algorithm);
+            array[index] = CreatePlaceholder(disclosureDigest);
             disclosed = true;
         }
 
@@ -105,10 +115,12 @@ internal sealed class IssuanceWalk(
             return;
 
         for (var i = 0; i < DecoyDigestCount; i++)
-            array.Insert(
-                RandomSource.NextIndex(array.Count + 1),
-                CreatePlaceholder(CreateDecoyDigest())
-            );
+        {
+            var insertIndex = RandomSource.NextIndex(array.Count + 1);
+            var decoyDigest = CreateDecoyDigest();
+            var placeholder = CreatePlaceholder(decoyDigest);
+            array.Insert(insertIndex, placeholder);
+        }
 
         WroteDigests = true;
     }
@@ -127,7 +139,11 @@ internal sealed class IssuanceWalk(
         }
     }
 
-    private string CreateDecoyDigest() => Algorithm.ComputeDigest(RandomSource.NextSalt());
+    private string CreateDecoyDigest()
+    {
+        var salt = RandomSource.NextSalt();
+        return Algorithm.ComputeDigest(salt);
+    }
 
     private static JsonObject CreatePlaceholder(string digest) =>
         new() { [JoseClaimNames.Payload.SdArrayElement] = digest };

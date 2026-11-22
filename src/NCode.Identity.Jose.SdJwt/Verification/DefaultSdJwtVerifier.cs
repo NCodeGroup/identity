@@ -173,14 +173,14 @@ internal class DefaultSdJwtVerifier : ISdJwtVerifier
             cancellationToken
         );
         if (!issuerResult.IsValid)
-            return SdJwtVerificationResult.Fail(
+        {
+            var issuerFailure = DescribeFailure(
+                "The issuer-signed JWT",
                 issuerResult.FailureCode,
-                DescribeFailure(
-                    "The issuer-signed JWT",
-                    issuerResult.FailureCode,
-                    issuerResult.Exception
-                )
+                issuerResult.Exception
             );
+            return SdJwtVerificationResult.Fail(issuerResult.FailureCode, issuerFailure);
+        }
 
         var issuerJwt = issuerResult.DecodedJwt;
         if (issuerJwt.EncryptionHeader is not null)
@@ -312,10 +312,17 @@ internal class DefaultSdJwtVerifier : ISdJwtVerifier
             cancellationToken
         );
         if (!result.IsValid)
+        {
+            var keyBindingFailure = DescribeFailure(
+                "The Key Binding JWT",
+                result.FailureCode,
+                result.Exception
+            );
             return KeyBindingOutcome.Fail(
                 SdJwtVerificationFailureCodes.InvalidKeyBinding,
-                DescribeFailure("The Key Binding JWT", result.FailureCode, result.Exception)
+                keyBindingFailure
             );
+        }
 
         var keyBindingJwt = result.DecodedJwt;
         var claims = keyBindingJwt.Payload;
@@ -335,9 +342,8 @@ internal class DefaultSdJwtVerifier : ISdJwtVerifier
             );
 
         // sd_hash covers the presentation exactly as received, up to and including the last '~' (RFC 9901 §4.3.1).
-        var expectedSdHash = algorithm.ComputeDigest(
-            SdJwtSerialization.GetKeyBindingInput(presentation)
-        );
+        var keyBindingInput = SdJwtSerialization.GetKeyBindingInput(presentation);
+        var expectedSdHash = algorithm.ComputeDigest(keyBindingInput);
         if (
             !claims.TryGetPropertyValue<string>(JoseClaimNames.Payload.SdHash, out var sdHash)
             || !AreEqual(sdHash, expectedSdHash)
@@ -365,23 +371,25 @@ internal class DefaultSdJwtVerifier : ISdJwtVerifier
                 "The Key Binding JWT 'iat' claim is in the future or older than the maximum age."
             );
 
-        return KeyBindingOutcome.Succeed(
-            new SdJwtKeyBinding
-            {
-                Jwt = keyBindingJwt,
-                HolderKey = holderKey,
-                Nonce = nonce,
-                IssuedAt = issuedAt,
-            }
-        );
+        var keyBinding = new SdJwtKeyBinding
+        {
+            Jwt = keyBindingJwt,
+            HolderKey = holderKey,
+            Nonce = nonce,
+            IssuedAt = issuedAt,
+        };
+        return KeyBindingOutcome.Succeed(keyBinding);
     }
 
     // A nonce and a digest are guard values, compared in fixed time.
-    private static bool AreEqual(string presented, string expected) =>
-        CryptographicOperations.FixedTimeEquals(
-            MemoryMarshal.AsBytes(presented.AsSpan()),
-            MemoryMarshal.AsBytes(expected.AsSpan())
-        );
+    private static bool AreEqual(string presented, string expected)
+    {
+        var presentedSpan = presented.AsSpan();
+        var presentedBytes = MemoryMarshal.AsBytes(presentedSpan);
+        var expectedSpan = expected.AsSpan();
+        var expectedBytes = MemoryMarshal.AsBytes(expectedSpan);
+        return CryptographicOperations.FixedTimeEquals(presentedBytes, expectedBytes);
+    }
 
     private async ValueTask<SecretKey?> ResolveHolderKeyAsync(
         JsonElement payload,

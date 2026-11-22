@@ -40,12 +40,8 @@ internal class DefaultCwtIssuer(
 
         Validate(parameters);
 
-        var claims = CwtClaimsWriter.Build(
-            parameters,
-            TimeProvider.GetUtcNow(),
-            Serializer,
-            KeyConverter
-        );
+        var now = TimeProvider.GetUtcNow();
+        var claims = CwtClaimsWriter.Build(parameters, now, Serializer, KeyConverter);
         var claimsSet = Serializer.EncodeMap(claims);
 
         var options = new CoseEncodingOptions
@@ -69,13 +65,15 @@ internal class DefaultCwtIssuer(
 
         var token = authenticated;
         if (parameters.EncryptionCredentials is { } credentials)
-            token = Serializer.EncodeEncrypt0(
-                authenticated,
-                credentials,
-                new CoseEncodingOptions()
-            );
+        {
+            var encryptionOptions = new CoseEncodingOptions();
+            token = Serializer.EncodeEncrypt0(authenticated, credentials, encryptionOptions);
+        }
         else if (parameters.EncryptionRecipients is { } recipients)
-            token = Serializer.EncodeEncrypt(authenticated, recipients, new CoseEncodingOptions());
+        {
+            var encryptionOptions = new CoseEncodingOptions();
+            token = Serializer.EncodeEncrypt(authenticated, recipients, encryptionOptions);
+        }
 
         return parameters.WriteCwtTag
             ? [CborTagWithOneByteArgument, (byte)CwtConstants.Tag, .. token]
