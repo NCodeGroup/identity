@@ -595,6 +595,12 @@ public static class OpenIdSettingKeys
     public static SettingKey<string> EnvironmentName => new(OpenIdSettingNames.EnvironmentName);
 
     /// <summary>
+    /// Gets the <see cref="SettingKey{TValue}"/> for the 'max_audit_streams' setting: the most audit streams a tenant
+    /// may have.
+    /// </summary>
+    public static SettingKey<int> MaxAuditStreams => new(OpenIdSettingNames.MaxAuditStreams);
+
+    /// <summary>
     /// Gets the <see cref="SettingKey{TValue}"/> for the 'max_tenants' setting: the most tenants a team may hold.
     /// </summary>
     public static SettingKey<int> MaxTenants => new(OpenIdSettingNames.MaxTenants);

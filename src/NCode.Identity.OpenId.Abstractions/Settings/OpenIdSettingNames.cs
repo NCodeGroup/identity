@@ -1207,6 +1207,14 @@ public static class OpenIdSettingNames
     public const string EmailVerificationEnabled = "email_verification_enabled";
 
     /// <summary>
+    /// Contains the name of the <c>max_audit_streams</c> setting: the most audit streams a tenant may have; a creation
+    /// that would exceed it is refused. Between 0 and 10; defaults to 2. It is a limit on the tenant scope: the
+    /// administrators above the tenant set it, and a tenant can only lower it.
+    /// </summary>
+    // See ADR-1534.
+    public const string MaxAuditStreams = "max_audit_streams";
+
+    /// <summary>
     /// Contains the name of the <c>max_tenants</c> setting: the most tenants a team may hold; a creation that would
     /// exceed it is refused. Unset means unlimited. It applies to the team scope: the platform sets the
     /// ceiling and a team can only lower it.

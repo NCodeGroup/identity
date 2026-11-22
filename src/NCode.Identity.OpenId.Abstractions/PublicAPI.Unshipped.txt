@@ -1009,9 +1009,11 @@ NCode.Identity.OpenId.Teams.ITeamDescendantWalker
 NCode.Identity.OpenId.Teams.ITeamDescendantWalker.WalkDescendantsAsync(string! teamId, System.Func<NCode.Identity.OpenId.Persistence.DataContracts.PersistedTeam!, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<bool>>! visitAsync, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 NCode.Identity.OpenId.Teams.ITeamProvisioner
 NCode.Identity.OpenId.Teams.ITeamProvisioner.EnsureCreatedAsync(string! teamId, string! displayName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<NCode.Identity.OpenId.Persistence.DataContracts.PersistedTeam!>
+const NCode.Identity.OpenId.Settings.OpenIdSettingNames.MaxAuditStreams = "max_audit_streams" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.MaxTenants = "max_tenants" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.MaxTeams = "max_teams" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.MaxTeamDepth = "max_team_depth" -> string!
+static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.MaxAuditStreams.get -> NCode.Identity.Settings.SettingKey<int>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.MaxTeams.get -> NCode.Identity.Settings.SettingKey<int>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.MaxTeamDepth.get -> NCode.Identity.Settings.SettingKey<int>
 abstract NCode.Identity.OpenId.Teams.OpenIdTeam.ConcurrencyToken.get -> string!
