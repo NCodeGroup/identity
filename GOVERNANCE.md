@@ -11,6 +11,19 @@ any one host feature.
 - Ownership is a team fact. Path-scoped required reviewers (a `CODEOWNERS` file) are a future improvement, not needed
   while the maintainer set is small.
 
+## Continuity
+
+The repository, its issues, decision records, build, release automation and documentation all live in the `NCodeGroup`
+GitHub organization, so anyone given access to it can carry the project on with no knowledge held elsewhere. Prerelease
+packages reach nuget.org through trusted publishing, which keeps no stored API key to hand over, and the images and the
+chart reach GHCR through the repository's own workflows.
+
+Access continuity, the OpenSSF Best Practices criterion `access_continuity`, needs at least two people who can
+administer the GitHub organization and the nuget.org packages under the `NCode` prefix; the same second owner gives the
+bus factor of 2 that `bus_factor` asks for. The NCode Group has one maintainer, so continuity is incomplete, and the
+silver level can't be claimed until a second owner exists
+([docs/best-practices-badge.md](docs/best-practices-badge.md)).
+
 ## Scope
 
 - **In scope:** the OpenID Connect / OAuth 2.0 protocol model and server building blocks — JOSE/JWT, cryptographic
