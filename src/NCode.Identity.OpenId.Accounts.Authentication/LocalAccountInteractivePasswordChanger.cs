@@ -7,7 +7,6 @@ using NCode.Identity.OpenId.Accounts.Stores;
 using NCode.Identity.OpenId.Authentication.Interactive;
 using NCode.Identity.OpenId.Authentication.Passwords;
 using NCode.Identity.OpenId.Contexts;
-using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.Persistence.Stores;
 
 namespace NCode.Identity.OpenId.Accounts.Authentication;
@@ -40,36 +39,13 @@ internal sealed class LocalAccountInteractivePasswordChanger(
         CancellationToken cancellationToken
     )
     {
-        var principalId = openIdContext.GetSubjectId(principal);
-        if (string.IsNullOrEmpty(principalId))
-        {
-            return InteractivePasswordChangeResult.NotSupported;
-        }
-
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
 
-        var identities = await storeManager
-            .GetStore<IFederatedIdentityStore>()
-            .GetByPrincipalAsync(principalId, cancellationToken);
-
         // A principal that links several local accounts has no single password to change.
-        var selfIssuedIdentities = identities
-            .Where(identity =>
-                string.Equals(
-                    identity.Issuer,
-                    AccountConstants.SelfIssuer,
-                    StringComparison.Ordinal
-                )
-            )
-            .ToList();
-        if (selfIssuedIdentities.Count != 1)
-        {
-            return InteractivePasswordChangeResult.NotSupported;
-        }
-
-        var accountStore = storeManager.GetStore<ILocalAccountStore>();
-        var account = await accountStore.GetByIdOrDefaultAsync(
-            selfIssuedIdentities[0].Subject,
+        var account = await LocalAccountSignedInAccounts.FindAsync(
+            storeManager,
+            openIdContext,
+            principal,
             cancellationToken
         );
         if (account is not { IsEnabled: true })
@@ -108,6 +84,7 @@ internal sealed class LocalAccountInteractivePasswordChanger(
         // password refused at the limit is verified against its dummy hash and counts as a failure, as a wrong one
         // does. The gate refuses a result that a store verified after a refusal and fails a store that never asked, so
         // no store lifts the limit. See ADR-1237.
+        var accountStore = storeManager.GetStore<ILocalAccountStore>();
         var gate = new PasswordAttemptGate(PasswordAttemptLimiter, openIdContext);
         var storedResult = await accountStore.VerifyCredentialAsync(
             account.UserName,
