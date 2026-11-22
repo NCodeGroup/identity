@@ -33,29 +33,31 @@ The management API under `/api` is a resource server for its own issuer. The for
 ## Decision
 
 **The management API authenticates the access tokens its own issuer mints, inside the request environment, and the
-authentication filter is the only source of a route's caller. In development and test, the first `GlobalAdmin` is a
-client that configuration seeds.**
+caller gate is the only source of a route's caller. In development and test, the first `GlobalAdmin` is a client that
+configuration seeds.**
 
 ### Inbound authentication
 
-1. **`ManagementAuthenticationEndpointFilter` runs on `/api` right after the environment filter.** It validates the
-   `Authorization` header's `Bearer` or `DPoP` token through `AuthenticateAccessTokenCommand`, as a self-issued JWT
-   access token of the control-plane tenant
+1. **`ManagementCallerGate` authenticates every `/api` request before the route binds its parameters.** It is an
+   `IEndpointGate` ([ADR-1520](1520-a-caller-is-authenticated-before-its-request-body-is-read.md)) that materializes the
+   control-plane environment and then validates the `Authorization` header's `Bearer` or `DPoP` token through
+   `AuthenticateAccessTokenCommand`, as a self-issued JWT access token of the control-plane tenant
    ([ADR-1191](1191-a-management-request-is-authenticated-by-the-control-plane-tenant-and-scoped-by-its-routes-tenant.md)) whose audience contains
    `urn:ncode:management`, under `IIssuedTokenValidator`
    ([ADR-1167](1167-the-server-validates-the-tokens-it-issued-under-one-policy.md)) and the tenant's own signing keys.
-2. **It runs inside the request environment, because only there are the keys and the issuer known.** The API has no
-   pre-routing or ASP.NET Core authentication scheme and no `.RequireAuthorization()`.
-3. **The filter sets `HttpContext.User` on every management request.** It is the principal a valid management token
-   authenticates, or `new ClaimsPrincipal(new ClaimsIdentity())` for any other request, whatever principal a host
-   scheme, such as a session cookie, set. Every authorizing route reads `HttpContext.User`, so none trusts a foreign
-   principal.
-4. **The filter publishes `IManagementCallerFeature` only for an authenticated caller.** The public feature in
+2. **The gate runs inside the request environment, because only there are the keys and the issuer known.** The API has
+   no pre-routing or ASP.NET Core authentication scheme and no `.RequireAuthorization()`.
+3. **The gate answers `401` before the parameters bind to a request without a valid management access token.** Every
+   route needs an authenticated caller, so the gate answers `ManagementProblems.AuthenticationRequired()` (`401`) to
+   such a request, and it sets `HttpContext.User` to the principal a valid management token authenticates, whatever
+   principal a host scheme, such as a session cookie, set. Every authorizing route reads `HttpContext.User`, so none
+   trusts a foreign principal.
+4. **The gate publishes `IManagementCallerFeature` only for an authenticated caller.** The public feature in
    `NCode.Identity.OpenId.Management.Abstractions` carries the caller's `ClaimsPrincipal`, and a capability package's
    route reads its caller there. For every other request the feature is `null`.
 5. **Authentication-only routes fail closed.** `GET /api/capabilities`, `/api/me`, `/api/me/teams` and
    `/api/me/tenants` read `IManagementCallerFeature`, never `HttpContext.User.Identity.IsAuthenticated`, and answer
-   `ManagementProblems.AuthenticationRequired()` (`401`) when the feature is absent, also when the filter did not run.
+   `ManagementProblems.AuthenticationRequired()` (`401`) when the feature is absent, also when the gate did not run.
    They have no authority check, so they declare `401` and no `403`
    ([ADR-1483](1483-every-management-error-is-a-problem-document-that-its-route-declares.md),
    [ADR-1481](1481-the-composition-layer-serves-the-api-reference-only-where-a-host-enables-it-and-each-management-problem-says-when-it-occurs.md)); an authenticated caller that
@@ -112,8 +114,8 @@ client that configuration seeds.**
 
 - **Leave inbound authentication to each host.** Rejected: every host would re-wire the scheme and the published server
   would ship an unauthenticated management API.
-- **A pre-routing JWT bearer middleware.** Rejected: the per-tenant keys and issuer are known only after the
-  environment filter, which runs inside endpoint execution.
+- **A pre-routing JWT bearer middleware.** Rejected: the per-tenant keys and issuer are known only inside endpoint
+  execution, where the gate materializes the environment.
 - **An authentication scheme for the management API.** Rejected: a scheme's challenge and forbid can redirect to an
   interactive page, which a management API never answers.
 - **Trust another scheme's principal.** Rejected: a session cookie, which a cross-site navigation carries, would act on
@@ -130,7 +132,7 @@ client that configuration seeds.**
   once, through instance setup ([ADR-1512](1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md)).
 - **An empty `200` for an anonymous who-am-I request.** Rejected: the answer describes nobody and hides a missing or
   expired token from a client that would sign in again.
-- **Chosen: the filter authenticates the issuer's own tokens in the environment, is the only source of the caller, and a
+- **Chosen: the gate authenticates the issuer's own tokens in the environment, is the only source of the caller, and a
   configured client holds a persisted platform `GlobalAdmin` assignment in development and test.** One issuer mints and
   validates, reuses the tenant's signing keys, and needs no second trust configuration.
 
@@ -152,7 +154,7 @@ client that configuration seeds.**
   authority is cross-plane and no single requestable scope represents it. A cell that is not the control plane asks the
   control plane, and answers `503` with a `Retry-After` while it is unavailable.
 - A smell: a route that reads `HttpContext.User.Identity.IsAuthenticated` to decide an authentication-only answer
-  trusts a principal the filter may not have set.
+  trusts a principal the gate may not have set.
 
 ## References
 
@@ -173,6 +175,8 @@ client that configuration seeds.**
   authenticated-caller routes.
 - [ADR-1512](1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md):
   the root administrator of a deployed instance.
+- [ADR-1520](1520-a-caller-is-authenticated-before-its-request-body-is-read.md): the caller gate that runs before
+  binding.
 - RFC 6750 section 3.
 - [#715](https://github.com/NCodeGroup/identity/issues/715),
   [#716](https://github.com/NCodeGroup/identity/issues/716)

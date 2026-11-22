@@ -65,9 +65,11 @@ answers `404` and `409` from the rows it read, and each route declares every pro
    every host, and a host adds nothing.
 3. **The root group converts a thrown binding failure.** `BindingExceptionEndpointConvention` answers a
    `BadHttpRequestException` that `ThrowOnBadRequest` throws with its status and no body, before a host exception
-   handler renders it, and the middleware writes the problem. `ManagementEnvironmentEndpointFilter` returns an
-   `HttpResultException`'s result and stops a request whose binding failed, so a binding failure is answered before
-   authentication.
+   handler renders it, and the middleware writes the problem. `ManagementFailureEndpointFilter` returns an
+   `HttpResultException`'s result and stops a request whose binding failed, and `ManagementCallerGate` runs before
+   binding, so a request without a valid management access token is answered `401` and only an authenticated caller's
+   binding failure is answered `400`, `413` or `415`
+   ([ADR-1520](1520-a-caller-is-authenticated-before-its-request-body-is-read.md)).
 4. **A route answers `404` and `409` from what it read.** A route answers them from the rows it, or a service it calls
    such as `IResourceOwnershipService`, read before the write. It never catches a store exception to answer them and
    never answers them from the return value of a store write. The store's `InvalidOperationException` propagates as
