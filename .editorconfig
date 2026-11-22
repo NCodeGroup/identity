@@ -136,12 +136,12 @@ dotnet_diagnostic.CA1861.severity = none
 # Each test builds its own JsonSerializerOptions: the type becomes immutable on first use, so sharing one
 # across tests would couple them and block per-test converter setup. The caching win is irrelevant here.
 dotnet_diagnostic.CA1869.severity = none
-# The named-local rule binds production code only (ADR-1521).
+# The named-local rule binds production code only (ADR-1522).
 dotnet_diagnostic.NCID0006.severity = none
 
 # ── Benchmark projects only ─────────────────────────────────────────────────
 [benchmarks/**/*.cs]
-# The named-local rule binds production code only (ADR-1521).
+# The named-local rule binds production code only (ADR-1522).
 dotnet_diagnostic.NCID0006.severity = none
 
 # ── EF Core generated migrations ────────────────────────────────────────────

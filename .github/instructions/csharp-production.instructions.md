@@ -1014,7 +1014,7 @@ invariants, and the Law of Demeter. The family adds:
   cannot declare a local in (an initializer, a constructor initializer, an attribute argument, a parameter default, a
   catch filter, a `when` clause or a query expression), a lambda converted to an `Expression<TDelegate>`, and the
   arguments of a `[Conditional]` method
-  ([ADR-1521](../../docs/decisions/1521-an-analyzer-fails-the-build-on-a-call-await-or-object-creation-nested-in-another-calls-arguments.md)).
+  ([ADR-1522](../../docs/decisions/1522-an-analyzer-fails-the-build-on-a-call-await-or-object-creation-nested-in-another-calls-arguments.md)).
 - **Few parameters**: a clump that mirrors a well-known BCL shape
   (`ClaimsIdentity(authenticationType, nameType, roleType)`) is acceptable, and a private single-call-site helper isn't
   worth a parameter object.

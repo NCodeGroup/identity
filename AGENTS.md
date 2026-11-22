@@ -157,7 +157,7 @@ compiles it, no gate runs it as tests, and a `.Tests` project of its own unit-te
   surrogate key would reach a caller
   ([ADR-1517](docs/decisions/1517-internal-surrogate-keys-are-uuidv7-minted-in-process-behind-one-seam-and-never-reach-a-caller.md)),
   and `NCID0006` reports a call, `await` or object creation nested in another call's arguments in production code
-  ([ADR-1521](docs/decisions/1521-an-analyzer-fails-the-build-on-a-call-await-or-object-creation-nested-in-another-calls-arguments.md))
+  ([ADR-1522](docs/decisions/1522-an-analyzer-fails-the-build-on-a-call-await-or-object-creation-nested-in-another-calls-arguments.md))
 - **Frontend (`frontend/`)** — the pnpm workspace of the web apps (`apps/auth`, `apps/conformance`,
   `apps/conformance-runner`, `apps/mgmt`, `apps/playground`, `apps/setup`) and their shared `@ncodegroup/identity-*`
   packages, themed with NCode Brand's Instrument, whose files `frontend/packages/brand` vendors from the release

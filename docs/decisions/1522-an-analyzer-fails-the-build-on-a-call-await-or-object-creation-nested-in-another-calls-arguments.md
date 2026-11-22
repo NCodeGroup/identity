@@ -1,4 +1,4 @@
-# 1521. An analyzer fails the build on a call, await or object creation nested in another call's arguments
+# 1522. An analyzer fails the build on a call, await or object creation nested in another call's arguments
 
 - **Status:** Accepted
 - **Date:** 2026-11-21

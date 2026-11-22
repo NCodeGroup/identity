@@ -4048,7 +4048,7 @@ Until the first stable release, the [Unreleased] section describes the product a
   initializer or primary-constructor base, an attribute, a parameter default, a catch filter, a `when` clause, a query
   expression, or an expression tree), or is an argument of a `[Conditional]` method
   ([#867](https://github.com/NCodeGroup/identity/issues/867),
-  [ADR-1521](docs/decisions/1521-an-analyzer-fails-the-build-on-a-call-await-or-object-creation-nested-in-another-calls-arguments.md)).
+  [ADR-1522](docs/decisions/1522-an-analyzer-fails-the-build-on-a-call-await-or-object-creation-nested-in-another-calls-arguments.md)).
 
 - **C# files carry a two-line SPDX header that the build checks.** Every C# file starts with
   `// Copyright © NCode Group` and `// SPDX-License-Identifier: Apache-2.0`; `.editorconfig` sets the header as
