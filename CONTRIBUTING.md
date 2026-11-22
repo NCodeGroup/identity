@@ -258,10 +258,9 @@ To upgrade a package, change its single `Version` in `Directory.Packages.props` 
 
 The Microsoft.Extensions, ASP.NET Core and EF Core packages and the .NET release's System packages stay on the target
 framework's band, at one patch. The build's `RequireRuntimeBand` guard fails a project that resolves one from another
-major, except the packages the `RuntimeBandExceptions` property of `Directory.Packages.props` lists, each named in a
-comment that links the issue tracking its release (the dependency-injection pair that NCode.PropertyBag holds at 11.0.0
-is one, [#895](https://github.com/NCodeGroup/identity/issues/895)). A dependency that needs a higher band is taken only
-from a release that depends on this one
+major, and admits no exception. A dependency is taken only from a release whose target depends on this band: one whose
+newest release needs a higher band stays at its newest release on this band, held there by an `ignore` rule in
+`.github/dependabot.yml` whose comment names the issue that tracks its release on the band
 ([ADR-1519](docs/decisions/1519-every-microsoft-extensions-aspnet-core-and-ef-core-package-is-on-the-target-frameworks-release-band.md)).
 
 ## Dependabot pull requests
