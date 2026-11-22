@@ -177,7 +177,7 @@ pipeline runs, with the test user's password kept as a secret.
 | Homelab: the developer's own hardware, already running | $0 |
 | AWS KMS root keys, one per deployment (2 × $1, plus $1 for each of a key's first two yearly rotations) | ~$2–3 |
 | AWS S3 for OpenTofu state and backups | ~$1 |
-| GitHub, Cloudflare DNS, Let's Encrypt, Grafana Cloud Free, OCI Email Delivery, the Azure credit | $0 |
+| GitHub, Cloudflare DNS, Let's Encrypt, Grafana Cloud Free, the Azure credit, and OCI Email Delivery if it sends the platform's mail (Cloudflare Email Sending costs $5; [§13](#13-open-decisions)) | $0 |
 | Domains (prepaid for ten years at registration) | $0 |
 | **Total** | **~$98–99** |
 
@@ -201,7 +201,7 @@ node adds ~$7.30. Watch Grafana Cloud's free 10k active series across production
 | Root key (ADR-1235)                            | AWS KMS (the platform's account)              | $1 per key per month (plus $1 for each of the first two yearly rotations) and $0.03 per 10,000 requests, 20,000 requests per month free _(verify)_ |
 | Key Vault experiments, ephemeral conformance   | Azure via the Visual Studio credit            | $50/month, dev/test only ([§8](#8-devtest-and-conformance-on-azure-visual-studio-credit))                               |
 | Inbound email (`security@`, vendor accounts)   | Cloudflare Email Routing                      | Free; receive-and-forward only (sending needs Workers Paid)                                                              |
-| Outbound email, when needed                    | OCI Email Delivery                            | 3,000 emails/month                                                                                                       |
+| Outbound email (provider open, [§13](#13-open-decisions)) | OCI Email Delivery or Cloudflare Email Sending ([§10](#10-pre-launch-considerations)) | OCI: 3,000 emails/month; Cloudflare: needs Workers Paid ($5/month) |
 
 ## 2. Reference architecture
 
