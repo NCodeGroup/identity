@@ -117,7 +117,8 @@ cluster; the lab runs on OCI OKE Basic in Phoenix inside the free allowance; AWS
   ([ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md))
   and each release is verified on the `canary` tenant (ADR-1495).
 - The subprocessors are Akamai (with Aiven behind its managed PostgreSQL), Cloudflare, Grafana Labs, AWS, and Oracle
-  when OCI Email Delivery sends the platform's mail ([#859](https://github.com/NCodeGroup/identity/issues/859)).
+  when OCI Email Delivery sends the platform's mail ([#859](https://github.com/NCodeGroup/identity/issues/859),
+  [#911](https://github.com/NCodeGroup/identity/issues/911)).
 - The hosting analysis keeps the sizing, the capacity, the chosen vendors' prices and the AWS growth path.
 
 ## References
@@ -146,7 +147,8 @@ cluster; the lab runs on OCI OKE Basic in Phoenix inside the free allowance; AWS
   the environment model and the platform's domains.
 - Issues [#87](https://github.com/NCodeGroup/identity/issues/87),
   [#132](https://github.com/NCodeGroup/identity/issues/132), [#177](https://github.com/NCodeGroup/identity/issues/177),
-  [#845](https://github.com/NCodeGroup/identity/issues/845), [#859](https://github.com/NCodeGroup/identity/issues/859)
-  and [#914](https://github.com/NCodeGroup/identity/issues/914).
+  [#845](https://github.com/NCodeGroup/identity/issues/845), [#859](https://github.com/NCodeGroup/identity/issues/859),
+  [#911](https://github.com/NCodeGroup/identity/issues/911) and
+  [#914](https://github.com/NCodeGroup/identity/issues/914).
 - Akamai: [HA control plane](https://techdocs.akamai.com/cloud-computing/docs/high-availability-ha-control-plane-on-lke)
   page.
