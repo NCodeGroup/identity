@@ -3,6 +3,7 @@
 
 using System.Security.Claims;
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing.Patterns;
@@ -306,6 +307,140 @@ public class InteractiveAuthenticationEndpointHandlerTests
 
         var redirect = Assert.IsType<RedirectHttpResult>(result);
         Assert.Equal("/acme/account/password/reset?flow=flow-1&ui_locales=yy", redirect.Url);
+        mockRepository.Verify();
+    }
+
+    #endregion
+
+    #region PostSendEmailCodeAsync Tests
+
+    [Fact]
+    public async Task PostSendEmailCodeAsync_WhenTheFormCarriesALanguageTag_MailsInThatLocale()
+    {
+        var mockRepository = new MockRepository(MockBehavior.Strict);
+        var mockCatalog = mockRepository.Create<IUiLocaleCatalog>();
+        mockCatalog.SetupGet(x => x.Locales).Returns([TestLocales.Xx, TestLocales.Yy]).Verifiable();
+        IUiLocale? carried = TestLocales.Yy;
+        mockCatalog.Setup(x => x.TryGet("yy", out carried)).Returns(true).Verifiable();
+
+        var mockSettings = mockRepository.Create<IReadOnlySettingCollection>();
+        mockSettings
+            .Setup(x => x.GetValue(OpenIdSettingKeys.EmailVerificationEnabled))
+            .Returns(true)
+            .Verifiable();
+        // The page the end user saw was yy, so the mail is worded in yy, although the browser prefers xx.
+        mockCatalog
+            .Setup(x =>
+                x.Select(
+                    mockSettings.Object,
+                    It.Is<IEnumerable<string>>(preferences =>
+                        preferences.SequenceEqual(new[] { "yy", "xx" }, StringComparer.Ordinal)
+                    )
+                )
+            )
+            .Returns(TestLocales.Yy)
+            .Verifiable();
+
+        var mockProvider = mockRepository.Create<IReadOnlySettingCollectionProvider>();
+        mockProvider.SetupGet(x => x.Collection).Returns(mockSettings.Object).Verifiable();
+        var mockTenant = mockRepository.Create<OpenIdTenant>();
+        mockTenant.SetupGet(x => x.SettingsProvider).Returns(mockProvider.Object).Verifiable();
+        var mockContext = mockRepository.Create<OpenIdContext>();
+        mockContext.SetupGet(x => x.Tenant).Returns(mockTenant.Object).Verifiable();
+        var mockFeature = mockRepository.Create<IOpenIdContextFeature>();
+        mockFeature.SetupGet(x => x.OpenIdContext).Returns(mockContext.Object).Verifiable();
+
+        var principal = new ClaimsPrincipal(
+            new ClaimsIdentity(
+                [new Claim(JoseClaimNames.Payload.Sid, "session-1")],
+                authenticationType: "cookie"
+            )
+        );
+        var mockAuthentication = mockRepository.Create<IAuthenticationService>();
+        mockAuthentication
+            .Setup(x =>
+                x.AuthenticateAsync(
+                    It.IsAny<HttpContext>(),
+                    InteractiveAuthenticationDefaults.CookieSchemeName
+                )
+            )
+            .ReturnsAsync(
+                AuthenticateResult.Success(
+                    new AuthenticationTicket(
+                        principal,
+                        InteractiveAuthenticationDefaults.CookieSchemeName
+                    )
+                )
+            )
+            .Verifiable();
+
+        var mockSessionService = mockRepository.Create<ISessionService>();
+        mockSessionService
+            .Setup(x =>
+                x.ValidateAndTouchAsync(
+                    mockContext.Object,
+                    "session-1",
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(true)
+            .Verifiable();
+
+        var mockVerifier = mockRepository.Create<IInteractiveEmailVerifier>();
+        mockVerifier
+            .Setup(x =>
+                x.SendVerificationCodeAsync(
+                    mockContext.Object,
+                    principal,
+                    TestLocales.Yy,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(InteractiveEmailCodeResult.Sent("flow-1"))
+            .Verifiable();
+
+        var mockTenantResolver = mockRepository.Create<ITenantResolver>();
+        mockTenantResolver
+            .Setup(x => x.GetTenantRoute())
+            .Returns(RoutePatternFactory.Parse("/{tenantId}"))
+            .Verifiable();
+
+        using var serviceProvider = new ServiceCollection()
+            .AddRouting()
+            .AddSingleton(mockAuthentication.Object)
+            .BuildServiceProvider();
+        using var bundle = new SinglePageBundle<InteractiveBundleShell>(null, _ => null);
+        var handler = new InteractiveAuthenticationEndpointHandler(
+            mockRepository.Create<IInteractiveCredentialVerifier>().Object,
+            mockRepository.Create<IPrincipalResolver>().Object,
+            mockRepository.Create<IConsentService>().Object,
+            mockRepository.Create<IContinueRefusalService>().Object,
+            mockRepository.Create<IInteractivePasswordChanger>().Object,
+            mockRepository.Create<IInteractivePasswordResetter>().Object,
+            mockVerifier.Object,
+            mockRepository.Create<IInteractiveSignInCodeChallenge>().Object,
+            mockSessionService.Object,
+            mockRepository.Create<IPostCommitSecurityEffects>().Object,
+            TimeProvider.System,
+            mockRepository.Create<IAntiforgery>().Object,
+            bundle,
+            new InteractiveSurfacePaths(
+                mockTenantResolver.Object,
+                serviceProvider.GetRequiredService<TemplateBinderFactory>()
+            ),
+            mockRepository.Create<ITenantEnvironmentCatalog>().Object,
+            new InteractiveLocaleSelector(mockCatalog.Object)
+        );
+
+        var httpContext = new DefaultHttpContext { RequestServices = serviceProvider };
+        httpContext.Features.Set(mockFeature.Object);
+        httpContext.Request.RouteValues["tenantId"] = "acme";
+        httpContext.Request.Headers.AcceptLanguage = "xx";
+
+        var result = await handler.PostSendEmailCodeAsync(httpContext, uiLocales: "yy");
+
+        var redirect = Assert.IsType<RedirectHttpResult>(result);
+        Assert.Equal("/acme/account/email?flow=flow-1&ui_locales=yy", redirect.Url);
         mockRepository.Verify();
     }
 

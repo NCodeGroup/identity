@@ -1601,7 +1601,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         }
 
         var openIdContext = httpContext.GetOpenIdContext();
-        var locale = SelectLocale(httpContext);
+        var locale = SelectLocale(httpContext, languageTag);
         var sent = await EmailVerifier.SendVerificationCodeAsync(
             openIdContext,
             authenticateResult.Principal,

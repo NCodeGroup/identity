@@ -14,6 +14,7 @@ import {
   EMAIL_SEND_ACTION,
   EMAIL_STATUS_ENDPOINT,
   EMAIL_VERIFY_ACTION,
+  UI_LOCALES_FIELD,
   resolveSurfacePath,
 } from './params.js';
 import { useLocale } from './i18n/LocaleContext.js';
@@ -65,7 +66,7 @@ export function EmailPage({
   productName,
   loadEmail = fetchEmail,
 }: EmailPageProps) {
-  const { messages } = useLocale();
+  const { pageLanguage, messages } = useLocale();
   const text = messages.email;
   // `undefined` while loading, `null` when there is nothing to verify.
   const [email, setEmail] = useState<AccountEmail | null | undefined>(undefined);
@@ -147,6 +148,9 @@ export function EmailPage({
                 data-testid="email-send"
               >
                 <input type="hidden" name={ANTIFORGERY_FIELD} value={antiforgeryToken} />
+                {pageLanguage ? (
+                  <input type="hidden" name={UI_LOCALES_FIELD} value={pageLanguage} />
+                ) : null}
                 <Button id="send-email-code" type="submit" variant="contained" fullWidth>
                   {text.sendCode}
                 </Button>

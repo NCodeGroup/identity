@@ -3,6 +3,7 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import { AppThemeProvider } from '@ncodegroup/identity-ui';
 import { EmailPage, type AccountEmail } from './EmailPage.js';
 import { en } from './i18n/en.js';
+import { LocaleProvider } from './i18n/LocaleContext.js';
 
 function renderPage(props: Parameters<typeof EmailPage>[0]) {
   return render(
@@ -77,6 +78,28 @@ describe('EmailPage', () => {
     );
     expect(screen.queryByTestId('email-verify')).not.toBeInTheDocument();
     expect(container.querySelector('#code')).toBeNull();
+  });
+
+  it('posts the page language as ui_locales from the send form', async () => {
+    render(
+      <LocaleProvider pageLanguage="fr">
+        <AppThemeProvider>
+          <EmailPage antiforgeryToken="tok" loadEmail={() => Promise.resolve(unverified)} />
+        </AppThemeProvider>
+      </LocaleProvider>,
+    );
+
+    const form = await screen.findByTestId('email-send');
+    const carried = form.querySelector('input[name="ui_locales"]') as HTMLInputElement | null;
+    expect(carried?.type).toBe('hidden');
+    expect(carried?.value).toBe('fr');
+  });
+
+  it('posts no ui_locales from the send form when the host selected no language', async () => {
+    renderPage({ antiforgeryToken: 'tok', loadEmail: () => Promise.resolve(unverified) });
+
+    const form = await screen.findByTestId('email-send');
+    expect(form.querySelector('input[name="ui_locales"]')).toBeNull();
   });
 
   it('shows the verify form, carrying the flow, once a code was mailed', async () => {
