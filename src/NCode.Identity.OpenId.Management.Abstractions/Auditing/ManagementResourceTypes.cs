@@ -64,6 +64,11 @@ public static class ManagementResourceTypes
     public const string ResourceServerSecret = "resource_server.secret";
 
     /// <summary>
+    /// An audit stream, a tenant's endpoint that receives its audit records as they are stored.
+    /// </summary>
+    public const string AuditStream = "audit_stream";
+
+    /// <summary>
     /// An initial access token (RFC 7591) that authorizes protected dynamic client registration.
     /// </summary>
     public const string InitialAccessToken = "initial_access_token";

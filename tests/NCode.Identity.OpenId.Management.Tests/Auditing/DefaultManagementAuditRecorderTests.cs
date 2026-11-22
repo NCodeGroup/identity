@@ -1222,6 +1222,65 @@ public sealed class DefaultManagementAuditRecorderTests : IDisposable
 
     #endregion
 
+    #region RecordAuditStreamChangedAsync Tests
+
+    [Fact]
+    public async Task RecordAuditStreamChangedAsync_PublishesAuditStreamChangedAuditEventWithSnapshot()
+    {
+        var mockPublisher = MockRepository.Create<IEventPublisher>();
+
+        AuditStreamChangedAuditEvent? captured = null;
+        mockPublisher
+            .Setup(x =>
+                x.PublishAsync(
+                    It.IsAny<AuditStreamChangedAuditEvent>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Callback(
+                (AuditStreamChangedAuditEvent auditEvent, CancellationToken _) =>
+                    captured = auditEvent
+            )
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+
+        var recorder = CreateRecorder(mockPublisher.Object);
+
+        var httpContext = CreateHttpContext("admin-1");
+        var resourceValues = JsonSerializer.SerializeToElement(new { displayName = "SIEM" });
+
+        await recorder.RecordAuditStreamChangedAsync(
+            httpContext,
+            "tenant-1",
+            "stream-1",
+            ResourceChangeTypes.Updated,
+            resourceValues
+        );
+
+        Assert.NotNull(captured);
+        Assert.Equal("audit_stream.updated", captured.EventName);
+        Assert.Equal(AuditEventSources.Management, captured.EventSource);
+        Assert.Equal(ManagementResourceTypes.AuditStream, captured.ResourceType);
+        Assert.Equal(ResourceChangeTypes.Updated, captured.ChangeType);
+        Assert.Equal(AuditOutcome.Success, captured.Outcome);
+        Assert.Equal("tenant-1", captured.TenantId);
+        Assert.Equal(TenantEnvironmentType, captured.TenantEnvironmentType);
+        Assert.Equal("stream-1", captured.ResourceId);
+        Assert.Equal(AuditActorTypes.Administrator, captured.Actor.Type);
+        Assert.Equal("admin-1", captured.Actor.Id);
+        Assert.NotNull(captured.Request);
+        Assert.Equal("trace-1", captured.Request.RequestId);
+        Assert.Equal("test-endpoint", captured.Request.Endpoint);
+        Assert.Equal(7, captured.EventId.Version);
+        Assert.Equal(
+            [new AuditResource(ManagementResourceTypes.AuditStream, "stream-1")],
+            captured.Resources
+        );
+        Assert.NotNull(captured.ResourceValues);
+    }
+
+    #endregion
+
     #region RecordResourceServerScopeChangedAsync Tests
 
     [Fact]
