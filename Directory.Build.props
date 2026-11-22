@@ -45,12 +45,4 @@
       IsAspireProjectResource="false"
     />
   </ItemGroup>
-
-  <!-- NCID0006 is quiet in a normal build while the tree is swept; -p:NamedLocalSweep=true reports it as a warning that does not fail the build. -->
-  <PropertyGroup Condition="'$(NamedLocalSweep)' != 'true'">
-    <NoWarn>$(NoWarn);NCID0006</NoWarn>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(NamedLocalSweep)' == 'true'">
-    <WarningsNotAsErrors>$(WarningsNotAsErrors);NCID0006</WarningsNotAsErrors>
-  </PropertyGroup>
 </Project>

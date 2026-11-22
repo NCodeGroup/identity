@@ -123,7 +123,7 @@ public class NestedCallArgumentAnalyzerTests
             diagnostic =>
             {
                 Assert.Equal("NCID0006", diagnostic.Id);
-                Assert.Equal(DiagnosticSeverity.Warning, diagnostic.Severity);
+                Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
             }
         );
 

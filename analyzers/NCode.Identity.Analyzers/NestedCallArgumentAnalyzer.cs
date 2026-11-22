@@ -44,7 +44,7 @@ public sealed class NestedCallArgumentAnalyzer : DiagnosticAnalyzer
             title: "Hoist a nested call into a named local",
             messageFormat: "Assign this {0} to a named local before passing it as an argument",
             category: "Design",
-            defaultSeverity: DiagnosticSeverity.Warning,
+            defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true,
             description: "A call, an await or an object creation inside the arguments of a method call, a delegate call or an object creation is assigned to a named local that the call then receives. The rule reports the outermost such expression of an argument, and never the receiver of a call. It does not report a lambda or anonymous-method argument itself (the rule applies inside its body), nameof, typeof, default, sizeof, literals, locals, parameters or member accesses; a place C# cannot declare a local in (field and property initializers, constructor initializers, primary-constructor base arguments, attribute arguments, parameter defaults, catch filters, pattern 'when' clauses and query expressions); a lambda converted to an Expression<TDelegate>; or the arguments of a call to a [Conditional] method such as Debug.Assert. Generated code is not analyzed.",
             helpLinkUri: "https://github.com/NCodeGroup/identity/blob/main/docs/decisions/1521-an-analyzer-fails-the-build-on-a-call-await-or-object-creation-nested-in-another-calls-arguments.md"
