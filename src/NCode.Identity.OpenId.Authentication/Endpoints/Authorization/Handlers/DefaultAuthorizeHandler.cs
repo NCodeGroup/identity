@@ -41,8 +41,11 @@ internal class DefaultAuthorizeHandler(
     internal virtual AuthorizeDisposition ConsentRequired() =>
         new(ChallengeRequired: false, ConsentRequired: true);
 
-    internal virtual AuthorizeDisposition LoginRequired(IOpenIdErrorFactory errorFactory) =>
-        Failed(errorFactory.LoginRequired());
+    internal virtual AuthorizeDisposition LoginRequired(IOpenIdErrorFactory errorFactory)
+    {
+        var loginRequiredError = errorFactory.LoginRequired();
+        return Failed(loginRequiredError);
+    }
 
     internal virtual AuthorizeDisposition InteractionRequired(
         IOpenIdErrorFactory errorFactory,
@@ -203,7 +206,8 @@ internal class DefaultAuthorizeHandler(
                     OpenIdProtocol.ErrorCodes.ConsentRequired,
                     cancellationToken
                 );
-                return Failed(openIdContext.ErrorFactory.ConsentRequired());
+                var consentRequiredError = openIdContext.ErrorFactory.ConsentRequired();
+                return Failed(consentRequiredError);
             }
 
             return ConsentRequired();
@@ -225,19 +229,17 @@ internal class DefaultAuthorizeHandler(
         var mediator = openIdContext.Mediator;
         var operationDisposition = new OperationDisposition<IOpenIdError>();
 
-        await mediator.SendAsync(
-            new ValidateSubjectAuthenticationCommand(
-                openIdContext,
-                openIdClient,
-                openIdRequest,
-                subjectAuthentication,
-                operationDisposition,
-                // The authorization endpoint is the interactive step where max_age / subject_max_age decide whether to
-                // force re-authentication.
-                EnforceAuthenticationAge: true
-            ),
-            cancellationToken
+        var command = new ValidateSubjectAuthenticationCommand(
+            openIdContext,
+            openIdClient,
+            openIdRequest,
+            subjectAuthentication,
+            operationDisposition,
+            // The authorization endpoint is the interactive step where max_age / subject_max_age decide whether to
+            // force re-authentication.
+            EnforceAuthenticationAge: true
         );
+        await mediator.SendAsync(command, cancellationToken);
 
         return operationDisposition;
     }
@@ -251,14 +253,12 @@ internal class DefaultAuthorizeHandler(
         var mediator = openIdContext.Mediator;
         var operationDisposition = new OperationDisposition<IOpenIdError>();
 
-        await mediator.SendAsync(
-            new ValidateSubjectStandingCommand(
-                openIdContext,
-                subjectAuthentication,
-                operationDisposition
-            ),
-            cancellationToken
+        var command = new ValidateSubjectStandingCommand(
+            openIdContext,
+            subjectAuthentication,
+            operationDisposition
         );
+        await mediator.SendAsync(command, cancellationToken);
 
         return operationDisposition;
     }

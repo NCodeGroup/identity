@@ -56,15 +56,20 @@ internal static class RefreshTokenRotationRequirement
         )
             return true;
 
-        return string.Equals(
+        if (
+            !string.Equals(
                 policy,
                 OpenIdConstants.RefreshTokenRotationPolicy.Unbound,
                 StringComparison.Ordinal
             )
-            && string.Equals(
-                settings.GetValue(OpenIdSettingKeys.TokenEndpointAuthMethod),
-                OpenIdProtocol.ClientAuthenticationMethods.None,
-                StringComparison.Ordinal
-            );
+        )
+            return false;
+
+        var tokenEndpointAuthMethod = settings.GetValue(OpenIdSettingKeys.TokenEndpointAuthMethod);
+        return string.Equals(
+            tokenEndpointAuthMethod,
+            OpenIdProtocol.ClientAuthenticationMethods.None,
+            StringComparison.Ordinal
+        );
     }
 }

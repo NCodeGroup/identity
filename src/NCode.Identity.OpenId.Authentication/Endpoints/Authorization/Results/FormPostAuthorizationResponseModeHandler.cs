@@ -22,11 +22,14 @@ internal sealed class FormPostAuthorizationResponseModeHandler : IAuthorizationR
         AuthorizationResult result,
         IOpenIdMessageResponse message,
         CancellationToken cancellationToken
-    ) =>
-        AuthorizationResponseWriter.WriteFormPostAsync(
+    )
+    {
+        var parameters = AuthorizationResponseWriter.GetParameters(message);
+        return AuthorizationResponseWriter.WriteFormPostAsync(
             httpContext.Response,
             result.Delivery.RedirectUri,
-            AuthorizationResponseWriter.GetParameters(message),
+            parameters,
             cancellationToken
         );
+    }
 }

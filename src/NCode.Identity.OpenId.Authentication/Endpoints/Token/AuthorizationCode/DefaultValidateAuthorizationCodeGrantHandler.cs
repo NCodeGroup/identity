@@ -218,12 +218,12 @@ internal class DefaultValidateAuthorizationCodeGrantHandler(
 
         var expectedCodeChallenge = codeChallengeMethodHandler.ComputeChallenge(codeVerifier);
 
-        if (
-            !CryptographicOperations.FixedTimeEquals(
-                MemoryMarshal.AsBytes(expectedCodeChallenge.AsSpan()),
-                MemoryMarshal.AsBytes(codeChallenge.AsSpan())
-            )
-        )
+        var expectedChallengeSpan = expectedCodeChallenge.AsSpan();
+        var expectedChallengeBytes = MemoryMarshal.AsBytes(expectedChallengeSpan);
+        var actualChallengeSpan = codeChallenge.AsSpan();
+        var actualChallengeBytes = MemoryMarshal.AsBytes(actualChallengeSpan);
+
+        if (!CryptographicOperations.FixedTimeEquals(expectedChallengeBytes, actualChallengeBytes))
             throw errorFactory
                 .InvalidGrant("PKCE verification failed.")
                 .WithStatusCode(StatusCodes.Status400BadRequest)

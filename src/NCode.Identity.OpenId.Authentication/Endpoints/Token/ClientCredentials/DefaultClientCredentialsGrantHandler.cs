@@ -49,15 +49,13 @@ internal class DefaultClientCredentialsGrantHandler(
         var confidentialClient = openIdClient.ConfidentialClient;
         var clientCredentialsGrant = new ClientCredentialsGrant(confidentialClient);
 
-        await mediator.SendAsync(
-            new ValidateTokenGrantCommand<ClientCredentialsGrant>(
-                openIdContext,
-                openIdClient,
-                tokenRequest,
-                clientCredentialsGrant
-            ),
-            cancellationToken
+        var validateCommand = new ValidateTokenGrantCommand<ClientCredentialsGrant>(
+            openIdContext,
+            openIdClient,
+            tokenRequest,
+            clientCredentialsGrant
         );
+        await mediator.SendAsync(validateCommand, cancellationToken);
 
         var tokenResponse = await CreateTokenResponseAsync(
             openIdContext,

@@ -174,11 +174,12 @@ internal class DefaultTokenExchangeGrantHandler(
                     .WithStatusCode(StatusCodes.Status400BadRequest);
             }
 
+            var utcNowInSeconds = TimeProvider.GetUtcNowWithPrecisionInSeconds();
             if (
                 RefreshTokenExpiration.HasLineageExpired(
                     openIdClient.Settings,
                     authTime.Value,
-                    TimeProvider.GetUtcNowWithPrecisionInSeconds()
+                    utcNowInSeconds
                 )
             )
             {
@@ -258,15 +259,13 @@ internal class DefaultTokenExchangeGrantHandler(
             RequestedTokenType = requestedTokenType,
         };
 
-        await mediator.SendAsync(
-            new ValidateTokenGrantCommand<TokenExchangeGrant>(
-                openIdContext,
-                openIdClient,
-                tokenRequest,
-                grant
-            ),
-            cancellationToken
+        var validateCommand = new ValidateTokenGrantCommand<TokenExchangeGrant>(
+            openIdContext,
+            openIdClient,
+            tokenRequest,
+            grant
         );
+        await mediator.SendAsync(validateCommand, cancellationToken);
 
         var effectiveScopes = await ResolveEffectiveScopesAsync(
             openIdContext,
@@ -310,13 +309,10 @@ internal class DefaultTokenExchangeGrantHandler(
         var actorTokenType = tokenRequest.ActorTokenType;
         if (string.IsNullOrEmpty(actorTokenType))
         {
-            return new DelegationResult(
-                errorFactory
-                    .MissingParameter(OpenIdProtocol.Parameters.ActorTokenType)
-                    .WithStatusCode(StatusCodes.Status400BadRequest),
-                null,
-                null
-            );
+            var missingActorTokenTypeError = errorFactory
+                .MissingParameter(OpenIdProtocol.Parameters.ActorTokenType)
+                .WithStatusCode(StatusCodes.Status400BadRequest);
+            return new DelegationResult(missingActorTokenTypeError, null, null);
         }
 
         var actorResult = await SubjectTokenValidator.ValidateAsync(
@@ -333,39 +329,30 @@ internal class DefaultTokenExchangeGrantHandler(
 
         if (!IsRequesterEntitled(openIdClient, actorResult.Payload))
         {
-            return new DelegationResult(
-                errorFactory
-                    .InvalidGrant("The actor_token was not issued to the requesting client.")
-                    .WithStatusCode(StatusCodes.Status400BadRequest),
-                null,
-                null
-            );
+            var notIssuedToClientError = errorFactory
+                .InvalidGrant("The actor_token was not issued to the requesting client.")
+                .WithStatusCode(StatusCodes.Status400BadRequest);
+            return new DelegationResult(notIssuedToClientError, null, null);
         }
 
         var subjectSub = GetStringClaim(subjectPayload, JoseClaimNames.Payload.Sub);
         var actorSub = GetStringClaim(actorResult.Payload, JoseClaimNames.Payload.Sub);
         if (string.IsNullOrEmpty(actorSub))
         {
-            return new DelegationResult(
-                errorFactory
-                    .InvalidGrant("The actor_token does not contain a subject.")
-                    .WithStatusCode(StatusCodes.Status400BadRequest),
-                null,
-                null
-            );
+            var noActorSubjectError = errorFactory
+                .InvalidGrant("The actor_token does not contain a subject.")
+                .WithStatusCode(StatusCodes.Status400BadRequest);
+            return new DelegationResult(noActorSubjectError, null, null);
         }
 
         // The subject and actor must differ; a token that delegates to itself is meaningless and masks a misconfigured
         // actor_token (aligns with Keycloak's delegation validation, RFC 8693 §4.1).
         if (string.Equals(subjectSub, actorSub, StringComparison.Ordinal))
         {
-            return new DelegationResult(
-                errorFactory
-                    .InvalidGrant("The actor_token and subject_token identify the same subject.")
-                    .WithStatusCode(StatusCodes.Status400BadRequest),
-                null,
-                null
-            );
+            var sameSubjectError = errorFactory
+                .InvalidGrant("The actor_token and subject_token identify the same subject.")
+                .WithStatusCode(StatusCodes.Status400BadRequest);
+            return new DelegationResult(sameSubjectError, null, null);
         }
 
         // The subject must have pre-authorized this actor via a may_act claim (RFC 8693 §4.4): the server never lets an

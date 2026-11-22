@@ -37,6 +37,7 @@ internal class DefaultUnsupportedPasswordGrantHandler(
             "The resource owner password credential grant type is not supported."
         );
 
-        return ValueTask.FromResult(new AuthenticateSubjectDisposition(error));
+        var disposition = new AuthenticateSubjectDisposition(error);
+        return ValueTask.FromResult(disposition);
     }
 }

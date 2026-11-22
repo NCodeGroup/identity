@@ -59,18 +59,16 @@ internal class DefaultPasswordGrantHandler(TimeProvider timeProvider, ITokenServ
             IssuedUtc = authenticatedWhen,
         };
 
+        var authenticateCommand = new AuthenticatePasswordGrantCommand(
+            openIdContext,
+            openIdClient,
+            tokenRequest,
+            authenticationProperties
+        );
         var disposition = await mediator.SendAsync<
             AuthenticatePasswordGrantCommand,
             AuthenticateSubjectDisposition
-        >(
-            new AuthenticatePasswordGrantCommand(
-                openIdContext,
-                openIdClient,
-                tokenRequest,
-                authenticationProperties
-            ),
-            cancellationToken
-        );
+        >(authenticateCommand, cancellationToken);
 
         if (!disposition.IsAuthenticated)
         {
@@ -84,15 +82,13 @@ internal class DefaultPasswordGrantHandler(TimeProvider timeProvider, ITokenServ
 
         var passwordGrant = new PasswordGrant(subjectAuthentication);
 
-        await mediator.SendAsync(
-            new ValidateTokenGrantCommand<PasswordGrant>(
-                openIdContext,
-                openIdClient,
-                tokenRequest,
-                passwordGrant
-            ),
-            cancellationToken
+        var validateCommand = new ValidateTokenGrantCommand<PasswordGrant>(
+            openIdContext,
+            openIdClient,
+            tokenRequest,
+            passwordGrant
         );
+        await mediator.SendAsync(validateCommand, cancellationToken);
 
         var tokenResponse = await CreateTokenResponseAsync(
             openIdContext,

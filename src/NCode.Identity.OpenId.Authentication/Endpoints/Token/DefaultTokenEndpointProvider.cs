@@ -169,13 +169,20 @@ internal class DefaultTokenEndpointProvider(
         );
 
         // for simple validations before selecting the handler and materializing any grants
-        await mediator.SendAsync(
-            new ValidateTokenRequestCommand(openIdContext, openIdClient, tokenRequest),
-            cancellationToken
+        var validateTokenRequestCommand = new ValidateTokenRequestCommand(
+            openIdContext,
+            openIdClient,
+            tokenRequest
         );
+        await mediator.SendAsync(validateTokenRequestCommand, cancellationToken);
 
+        var selectHandlerCommand = new SelectTokenGrantHandlerCommand(
+            openIdContext,
+            openIdClient,
+            tokenRequest
+        );
         var handler = await mediator.SendAsync<SelectTokenGrantHandlerCommand, ITokenGrantHandler>(
-            new SelectTokenGrantHandlerCommand(openIdContext, openIdClient, tokenRequest),
+            selectHandlerCommand,
             cancellationToken
         );
 

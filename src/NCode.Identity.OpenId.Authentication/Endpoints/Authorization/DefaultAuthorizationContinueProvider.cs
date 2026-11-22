@@ -96,12 +96,8 @@ internal class DefaultAuthorizationContinueProvider(
         );
 
         // The refusal is answered to the client at its redirect URI, echoing the state the request carried.
-        var result = new AuthorizationResult(
-            openIdContext,
-            openIdClient,
-            delivery,
-            error.WithState(delivery.State)
-        );
+        var errorWithState = error.WithState(delivery.State);
+        var result = new AuthorizationResult(openIdContext, openIdClient, delivery, errorWithState);
         return ReadOnlyEndpointDisposition.Handled(result);
     }
 
@@ -138,6 +134,7 @@ internal class DefaultAuthorizationContinueProvider(
     {
         var error = openIdContext.ErrorFactory.InvalidClient();
         error.StatusCode = StatusCodes.Status400BadRequest;
-        return ReadOnlyEndpointDisposition.Handled(error.AsHttpResult());
+        var httpResult = error.AsHttpResult();
+        return ReadOnlyEndpointDisposition.Handled(httpResult);
     }
 }
