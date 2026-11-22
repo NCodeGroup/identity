@@ -272,8 +272,8 @@ internal sealed class ConformanceSeedHandler(
     }
 
     /// <summary>
-    /// Composes the test user's display name, which the <c>name</c> claim carries, from the configured given and
-    /// family names.
+    /// Composes the test user's display name, which the <c>name</c> claim carries, from the configured given and family
+    /// names.
     /// </summary>
     /// <param name="userName">The test user's username, the display name when no name part is configured.</param>
     /// <returns>

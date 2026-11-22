@@ -14,8 +14,8 @@ using NCode.Identity.OpenId.GlobalDirectory;
 using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Endpoints;
 using NCode.Identity.OpenId.Persistence.Tenants;
-using NCode.Identity.Persistence.Stores;
 using NCode.Identity.OpenId.Settings;
+using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Registration.AspNetCore;
 
 namespace NCode.Identity.OpenId.Accounts.Management;
@@ -37,7 +37,11 @@ public sealed class PlatformLocalAccountEndpointProviderTests : IDisposable
             MockRepository.Create<IEffectiveSettingsResolver>().Object,
             MockRepository.Create<IPasswordPolicy>().Object
         );
-        var creator = new DefaultLocalAccountCreator(validator, cryptoService, localAccountPasswords);
+        var creator = new DefaultLocalAccountCreator(
+            validator,
+            cryptoService,
+            localAccountPasswords
+        );
 
         var handler = new LocalAccountApiEndpointHandler(
             MockRepository.Create<IStoreManagerFactory>().Object,

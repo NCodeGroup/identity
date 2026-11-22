@@ -12,11 +12,10 @@ using NCode.Identity.OpenId.Settings;
 namespace NCode.Identity.OpenId.Accounts.Authentication;
 
 /// <summary>
-/// Builds the subject of a local account that has just verified a password: the tenant's subject claim, the
-/// self-issued issuer claim, the tenant identifier, the authentication time, the display name as <c>name</c>, the
-/// account's own claims, the <c>pwd</c> authentication method and the resolved authentication context class reference.
-/// The password grant and the interactive sign-in both build their subject with it, so the two paths stamp the same
-/// claims.
+/// Builds the subject of a local account that has just verified a password: the tenant's subject claim, the self-issued
+/// issuer claim, the tenant identifier, the authentication time, the display name as <c>name</c>, the account's own
+/// claims, the <c>pwd</c> authentication method and the resolved authentication context class reference. The password
+/// grant and the interactive sign-in both build their subject with it, so the two paths stamp the same claims.
 /// </summary>
 // See ADR-1035, ADR-1051, ADR-1055.
 internal sealed class LocalAccountSubjectFactory(
@@ -35,7 +34,8 @@ internal sealed class LocalAccountSubjectFactory(
     /// <param name="account">The local account that verified its password.</param>
     /// <param name="authenticationType">The authentication type of the principal's identity.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-    /// <returns>The principal that carries the account's subject claims under <paramref name="authenticationType"/>.</returns>
+    /// <returns>The principal that carries the account's subject claims under
+    /// <paramref name="authenticationType"/>.</returns>
     public async ValueTask<ClaimsPrincipal> CreateAsync(
         OpenIdContext openIdContext,
         PersistedLocalAccount account,

@@ -62,7 +62,8 @@ public interface ILocalAccountValidator
     /// is empty or longer than <see cref="AccountMaxLengths.UserName"/>, or when the display name is empty or longer
     /// than <see cref="AccountMaxLengths.DisplayName"/>, and 409 when another account holds the username.
     /// </summary>
-    /// <param name="account">The staged <see cref="PersistedLocalAccount"/> to be created, its display name defaulted and trimmed.</param>
+    /// <param name="account">The staged <see cref="PersistedLocalAccount"/> to be created, its display name defaulted
+    /// and trimmed.</param>
     /// <param name="storeManager">The <see cref="IStoreManager"/> for the current unit of work.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>A <see cref="ManagementError"/> describing the first failed precondition, or <c>null</c> when valid.</returns>

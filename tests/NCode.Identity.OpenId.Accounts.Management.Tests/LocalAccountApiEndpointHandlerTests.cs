@@ -189,7 +189,9 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         MockLocalAccountValidator
             .Setup(x =>
                 x.ValidateDeleteAsync(
-                    It.Is<PersistedLocalAccount>(account => account.LocalAccountId == LocalAccountId),
+                    It.Is<PersistedLocalAccount>(account =>
+                        account.LocalAccountId == LocalAccountId
+                    ),
                     MockStoreManager.Object,
                     It.IsAny<CancellationToken>()
                 )
@@ -1286,7 +1288,10 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
-        Assert.Equal("The JSON Patch document could not be applied.", problem.ProblemDetails.Detail);
+        Assert.Equal(
+            "The JSON Patch document could not be applied.",
+            problem.ProblemDetails.Detail
+        );
     }
 
     #endregion

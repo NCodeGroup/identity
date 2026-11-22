@@ -86,7 +86,8 @@ internal class DefaultLocalAccountValidator(IAuthorizationService authorizationS
     /// <param name="userName">The proposed username.</param>
     /// <param name="localAccountId">The identifier of the account being updated, or <c>null</c> on create.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
-    /// <returns>A <see cref="ManagementError"/> describing the conflict, or <c>null</c> when the username is free.</returns>
+    /// <returns>A <see cref="ManagementError"/> describing the conflict, or <c>null</c> when the username is
+    /// free.</returns>
     private static async ValueTask<ManagementError?> CheckUserNameAvailableAsync(
         IStoreManager storeManager,
         string userName,

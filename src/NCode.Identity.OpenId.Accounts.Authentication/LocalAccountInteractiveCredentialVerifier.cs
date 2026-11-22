@@ -27,7 +27,8 @@ internal sealed class LocalAccountInteractiveCredentialVerifier(
 ) : IInteractiveCredentialVerifier
 {
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
-    private LocalAccountSubjectFactory LocalAccountSubjectFactory { get; } = localAccountSubjectFactory;
+    private LocalAccountSubjectFactory LocalAccountSubjectFactory { get; } =
+        localAccountSubjectFactory;
     private IPasswordAttemptLimiter PasswordAttemptLimiter { get; } = passwordAttemptLimiter;
 
     /// <inheritdoc />
