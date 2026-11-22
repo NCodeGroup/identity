@@ -896,9 +896,9 @@ dedicated AWS account
 
 ### What AWS adds
 
-- **Several availability zones in one region.** A cell spread over three zones survives the loss of a datacenter, the
-  one failure production accepts ([§4](#4-what-ha-means-and-what-it-costs)). It is what makes an SLA above ~99.9%
-  credible.
+- **Several availability zones in one region.** A cell spread over three zones survives the loss of a datacenter, which
+  takes production's single-datacenter cell down ([§4](#4-what-ha-means-and-what-it-costs)). It is what makes an SLA
+  above ~99.9% credible.
 - **Managed services across zones:** RDS for PostgreSQL Multi-AZ, or Aurora, with point-in-time recovery and
   cross-region replicas; ElastiCache for Valkey; Network Load Balancers in every zone.
 - **Keys in the same account and region.** The root key, remote signing keys and the KMS keys tenants hold
