@@ -431,7 +431,7 @@ A platform is a global directory over independent cells.
 
 ## 3. Compute sizing
 
-No production load data exists yet, so these are **planning estimates**; confirm with a load test (see below).
+These are **planning estimates** from the hardware and the code; the load test below confirms them.
 
 | Component                                    | Replicas                     | CPU request | Memory request / limit |
 | -------------------------------------------- | ---------------------------- | ----------- | ---------------------- |
@@ -462,10 +462,12 @@ No production load data exists yet, so these are **planning estimates**; confirm
   connection string ([ADR-1164](decisions/1164-replicas-share-expiring-keys-values-and-indexes-through-ports-with-in-process-and-valkey-adapters.md)); the
   in-process job dispatcher does not coordinate across nodes (issue [#25](https://github.com/NCodeGroup/identity/issues/25)).
 
-**Measure before buying:** run the host (`NCode.Identity.OpenId.Host`) with `dotnet-counters` attached, drive the token
-endpoint with k6 (`client_credentials` and authorization-code flows), and record working set and CPU-ms per request; set
-requests/limits from those numbers. Run it once on dedicated-CPU nodes as well, to rate the capacity a dedicated cell
-commits to ([§12](#12-shared-and-dedicated-cells)).
+**Measure before buying:** the k6 load test in [`benchmarks/load/`](../benchmarks/load/README.md) drives a tenant's
+token endpoint with generated-secret, `private_key_jwt` and supplied-secret client credentials, and `dotnet-counters` on
+the host records working set and CPU per request; set requests and limits from those numbers. A dedicated cell's
+capacity rating and each replica's `OpenId:Admission:ConcurrencyLimit` come from a run on its dedicated-CPU nodes, which
+records them in this section
+([ADR-1524](decisions/1524-a-dedicated-cells-capacity-rating-is-measured-by-the-repositorys-k6-test-on-dedicated-cpu-nodes.md)).
 
 ### Capacity of the launch cluster
 
@@ -1154,7 +1156,7 @@ From the least to the most isolated; infrastructure costs are Akamai list prices
 |---|---|---|---|---|
 | **Shared cell** | Many, free and entry plans | A shared node pool | Best effort; limits and quotas protect against noisy neighbors, and free traffic is shed before paid traffic | Part of the production cluster |
 | **Paid-only shared cell** | Many, paid plans only | Its own node pool; cluster B once the paying base grows | Headroom, not a reservation: run at ≤50% utilization, with no free tenants able to load it | ~$75–110/mo (a 3-node pool and its own 3-node PostgreSQL) |
-| **Dedicated cell on a shared cluster** | One | Its own dedicated-CPU node pool on the paid cells' cluster | Committed throughput at a stated p95 latency; 99.9% availability | ~$150–250/mo (3 dedicated-CPU nodes, a 3-node PostgreSQL, its own NodeBalancer, KMS and backups) |
+| **Dedicated cell on a shared cluster** | One | Its own dedicated-CPU node pool on the paid cells' cluster | Its capacity rating at p95 ≤ 200 ms for machine-to-machine token requests ([ADR-1524](decisions/1524-a-dedicated-cells-capacity-rating-is-measured-by-the-repositorys-k6-test-on-dedicated-cpu-nodes.md)); 99.9% availability | ~$150–250/mo (3 dedicated-CPU nodes, a 3-node PostgreSQL, its own NodeBalancer, KMS and backups) |
 | **Dedicated cluster** | One | Its own cluster, optionally in its own datacenter or region | As above, plus its own maintenance windows and region | ~$220–350/mo (the above plus an HA control plane) |
 | **Sovereign cell** | One | A separate cloud account, possibly the customer's, possibly a separate operator | Contractual | The customer's account |
 
