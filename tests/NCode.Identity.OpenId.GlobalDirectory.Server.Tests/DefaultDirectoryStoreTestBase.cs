@@ -115,7 +115,7 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
 
     protected ValueTask<ReservationResult> ReserveAsync(
         string tenantId,
-        string issuer,
+        string? issuer,
         string? teamId = null,
         CancellationToken cancellationToken = default
     ) =>
@@ -132,7 +132,7 @@ public abstract class DefaultDirectoryStoreTestBase : IDisposable
 
     protected async ValueTask ReserveAndPlaceAsync(
         string tenantId,
-        string issuer,
+        string? issuer,
         string? teamId = null,
         CancellationToken cancellationToken = default
     )

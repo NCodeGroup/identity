@@ -194,7 +194,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
 
     private async ValueTask<HttpResponseMessage> ReserveTenantAsync(
         string tenantId,
-        string issuer,
+        string? issuer,
         string? teamId = null,
         CancellationToken cancellationToken = default
     ) =>
@@ -402,13 +402,24 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ReserveTenant_WithoutAnIssuer_AnswersBadRequest()
+    public async Task ReserveTenant_WithoutAnIssuer_AnswersOk()
+    {
+        Authenticate();
+
+        var response = await ReserveTenantAsync(TenantId, issuer: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ReserveTenant_WhenTheIssuerIsEmpty_AnswersBadRequestWithTheDetail()
     {
         Authenticate();
 
         var response = await ReserveTenantAsync(TenantId, string.Empty);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(InvalidIssuerDetail, await ReadProblemDetailAsync(response));
     }
 
     [Fact]
@@ -565,6 +576,31 @@ public class DirectoryEndpointsTests : IAsyncLifetime
         var json = await getResponse.Content.ReadAsStringAsync();
         Assert.Contains("\"tenantId\":\"tenant-1\"", json, StringComparison.Ordinal);
         Assert.Contains("\"region\":\"region-a\"", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PlaceTenant_WithoutAnIssuer_PlacesTheTenant()
+    {
+        Authenticate();
+        var cellResponse = await Client.PutAsJsonAsync(
+            $"/directory/v1/cells/{CellName}",
+            CreateCell(CellName),
+            WebOptions
+        );
+        Assert.Equal(HttpStatusCode.OK, cellResponse.StatusCode);
+        await ReserveTenantAsync(TenantId, issuer: null);
+
+        var placeResponse = await Client.PostAsJsonAsync(
+            "/directory/v1/tenants/place",
+            new TenantPlacementRequest { TenantId = TenantId, Cell = CellName },
+            WebOptions
+        );
+        var getResponse = await Client.GetAsync($"/directory/v1/tenants/{TenantId}");
+
+        Assert.Equal(HttpStatusCode.OK, placeResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+        var placement = await ReadAsync<JsonElement>(getResponse);
+        Assert.Equal(JsonValueKind.Null, placement.GetProperty("issuer").ValueKind);
     }
 
     [Fact]

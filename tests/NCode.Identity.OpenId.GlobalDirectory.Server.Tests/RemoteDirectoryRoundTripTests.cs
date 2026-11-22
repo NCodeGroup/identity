@@ -178,7 +178,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
 
     private static TenantReservation CreateReservation(
         string tenantId,
-        string issuer,
+        string? issuer,
         string cell = CellName,
         string? teamId = null
     ) =>
@@ -273,6 +273,42 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
             $"Another tenant already has the issuer '{TenantIssuer}'.",
             result.ConflictDetail
         );
+    }
+
+    [Fact]
+    public async Task PlaceAsync_WhenTheTenantHasNoIssuer_AnswersAPlacementWithoutAnIssuer()
+    {
+        await Cells.RegisterAsync(
+            new CellDescriptor
+            {
+                Name = CellName,
+                Region = Region,
+                Kind = CellKinds.Shared,
+                ManagementUrl = "https://a.example/",
+            },
+            CancellationToken.None
+        );
+        Assert.True(
+            (
+                await Tenants.ReserveAsync(
+                    CreateReservation(TenantId, issuer: null),
+                    CancellationToken.None
+                )
+            ).IsReserved
+        );
+
+        var placeResult = await Tenants.PlaceAsync(
+            new TenantPlacementRequest { TenantId = TenantId, Cell = CellName },
+            CancellationToken.None
+        );
+
+        Assert.True(placeResult.IsReserved);
+        var placement = await Tenants.GetPlacementOrDefaultAsync(TenantId, CancellationToken.None);
+        Assert.NotNull(placement);
+        Assert.Equal(TenantId, placement.TenantId);
+        Assert.Null(placement.Issuer);
+        Assert.Equal(CellName, placement.Cell);
+        Assert.Equal(Region, placement.Region);
     }
 
     [Fact]

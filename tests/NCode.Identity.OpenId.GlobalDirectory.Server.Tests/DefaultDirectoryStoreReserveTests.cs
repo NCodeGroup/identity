@@ -34,6 +34,39 @@ public sealed class DefaultDirectoryStoreReserveTests : DefaultDirectoryStoreTes
     }
 
     [Fact]
+    public async Task ReserveAsync_WhenTheTenantHasNoIssuer_ReservesItsIdentifierAlone()
+    {
+        var result = await ReserveAsync(TenantId, issuer: null);
+
+        Assert.True(result.IsReserved);
+        var record = await ReadTenantAsync(TenantId);
+        Assert.NotNull(record);
+        Assert.Null(record.Issuer);
+        Assert.Null(record.NormalizedIssuer);
+        Assert.Equal(TenantRecord.StateReserved, record.State);
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenTenantsWithoutAnIssuerAreReservedInTurn_ReservesEach()
+    {
+        var first = await ReserveAsync(TenantId, issuer: null);
+        var second = await ReserveAsync(OtherTenantId, issuer: null);
+
+        Assert.True(first.IsReserved);
+        Assert.True(second.IsReserved);
+    }
+
+    [Fact]
+    public async Task ReserveAsync_WhenAReservationWithoutAnIssuerRunsAgain_IsReserved()
+    {
+        var first = await ReserveAsync(TenantId, issuer: null);
+        var second = await ReserveAsync(TenantId, issuer: null);
+
+        Assert.True(first.IsReserved);
+        Assert.True(second.IsReserved);
+    }
+
+    [Fact]
     public async Task ReserveAsync_WhenTheIdentifierIsRetired_ConflictsWithTheDeletedTenantText()
     {
         await Tenants.RetireAsync(

@@ -248,17 +248,18 @@ public static class DirectoryEndpoints
     #region Tenants
 
     /// <summary>
-    /// Reserves a tenant identifier and its issuer for the calling cell. A cell reserves a tenant only for itself.
+    /// Reserves a tenant identifier and, when the tenant has one, its issuer for the calling cell. A cell reserves a
+    /// tenant only for itself.
     /// </summary>
-    /// <param name="reservation">The tenant, its issuer, the team that owns it, if any, and its cell.</param>
+    /// <param name="reservation">The tenant, its issuer, if any, the team that owns it, if any, and its cell.</param>
     /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
     /// <param name="directory">The <see cref="ITenantDirectory"/> that holds the reservation.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the tenant is reserved; <c>400 Bad Request</c> when a field is blank, the cell is not a
-    /// <see cref="CellLabelRules"/> label, the tenant or its team is not a <see cref="TenantIdentifierRules"/>
-    /// identifier, the issuer is longer than the directory stores, or the issuer is not a service URL that
-    /// <see cref="AbsoluteUri.TryParseServiceUrl"/> accepts; <c>403 Forbidden</c> when the cell is not the caller;
+    /// <c>200 OK</c> when the tenant is reserved; <c>400 Bad Request</c> when the tenant or its cell is blank, the cell
+    /// is not a <see cref="CellLabelRules"/> label, the tenant or its team is not a <see cref="TenantIdentifierRules"/>
+    /// identifier, the issuer it names is longer than the directory stores, or the issuer it names is not a service URL
+    /// that <see cref="AbsoluteUri.TryParseServiceUrl"/> accepts; <c>403 Forbidden</c> when the cell is not the caller;
     /// <c>409 Conflict</c> when the identifier or the issuer is taken, the team has no record, or a <c>max_tenants</c>
     /// limit refuses the reservation or cannot be read.
     /// </returns>
@@ -269,14 +270,8 @@ public static class DirectoryEndpoints
         CancellationToken cancellationToken
     )
     {
-        if (
-            IsBlank(reservation.TenantId)
-            || IsBlank(reservation.Issuer)
-            || IsBlank(reservation.Cell)
-        )
-        {
-            return BadRequest("The tenant, its issuer and its cell are required.");
-        }
+        if (IsBlank(reservation.TenantId) || IsBlank(reservation.Cell))
+            return BadRequest("The tenant and its cell are required.");
 
         if (!CellLabelRules.IsValidLabel(reservation.Cell))
             return BadRequest(InvalidCellLabelDetail);
@@ -284,6 +279,8 @@ public static class DirectoryEndpoints
         if (!TenantIdentifierRules.IsValidTenantId(reservation.TenantId))
             return BadRequest(InvalidTenantIdDetail);
 
+        // A tenant without an issuer reserves its identifier alone; an issuer that is present, an empty one included,
+        // is judged.
         if (IsOverLong(reservation.Issuer, DirectoryLimits.MaxIssuerLength))
             return BadRequest(IssuerTooLongDetail);
 
@@ -305,14 +302,14 @@ public static class DirectoryEndpoints
     /// Places a tenant in the calling cell; its region is the region the cell registered. A cell places a tenant only
     /// in itself.
     /// </summary>
-    /// <param name="placement">The tenant, its issuer and its cell.</param>
+    /// <param name="placement">The tenant, its issuer, if any, and its cell.</param>
     /// <param name="httpContext">The <see cref="HttpContext"/> that carries the authenticated calling cell.</param>
     /// <param name="directory">The <see cref="ITenantDirectory"/> that holds the placement.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>
-    /// <c>200 OK</c> when the tenant is placed; <c>400 Bad Request</c> when the tenant or its issuer is blank, the
-    /// tenant is not a <see cref="TenantIdentifierRules"/> identifier, the issuer is longer than the directory stores
-    /// or is not a service URL that <see cref="AbsoluteUri.TryParseServiceUrl"/> accepts, or the cell is not a
+    /// <c>200 OK</c> when the tenant is placed; <c>400 Bad Request</c> when the tenant is blank, the tenant is not a
+    /// <see cref="TenantIdentifierRules"/> identifier, the issuer it names is longer than the directory stores or is
+    /// not a service URL that <see cref="AbsoluteUri.TryParseServiceUrl"/> accepts, or the cell is not a
     /// <see cref="CellLabelRules"/> label; <c>403 Forbidden</c> when the cell is not the caller; <c>409 Conflict</c>
     /// when the identifier or the issuer belongs to another tenant.
     /// </returns>
@@ -323,12 +320,14 @@ public static class DirectoryEndpoints
         CancellationToken cancellationToken
     )
     {
-        if (IsBlank(placement.TenantId) || IsBlank(placement.Issuer))
-            return BadRequest("The tenant and its issuer are required.");
+        if (IsBlank(placement.TenantId))
+            return BadRequest("The tenant is required.");
 
         if (!TenantIdentifierRules.IsValidTenantId(placement.TenantId))
             return BadRequest(InvalidTenantIdDetail);
 
+        // A tenant without an issuer reserves its identifier alone; an issuer that is present, an empty one included,
+        // is judged.
         if (IsOverLong(placement.Issuer, DirectoryLimits.MaxIssuerLength))
             return BadRequest(IssuerTooLongDetail);
 
