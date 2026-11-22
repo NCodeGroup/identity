@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Options;
 using Moq;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -31,14 +30,8 @@ public sealed class FrontendIssuerResolverTests : BaseTests
         MockStoreManager = CreateStrictMock<IStoreManager>();
         MockTenantStore = CreateStrictMock<ITenantStore>();
 
-        var resolutionOptions = new TenantResolutionOptions
-        {
-            Root = new RootTenantOptions { TenantId = RootTenantId },
-        };
-
         Resolver = new FrontendIssuerResolver(
             MockTenantResolver.Object,
-            Options.Create(resolutionOptions),
             MockStoreManagerFactory.Object
         );
     }
@@ -50,6 +43,14 @@ public sealed class FrontendIssuerResolverTests : BaseTests
             .Setup(x => x.TryGetTenantId(HttpContext, out requestTenantId))
             .Returns(tenantId is not null)
             .Verifiable();
+
+        if (tenantId is null)
+        {
+            MockTenantResolver
+                .Setup(x => x.GetControlPlaneTenantId())
+                .Returns(RootTenantId)
+                .Verifiable();
+        }
     }
 
     private void SetupStoredTenant(string tenantId, PersistedTenant? persistedTenant)
