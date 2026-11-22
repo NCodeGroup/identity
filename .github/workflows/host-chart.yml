@@ -860,6 +860,17 @@ jobs:
           refuse --set ingress.controller=traefik --set directory.ingress.enabled=true
           helm template release "$CHART" --values "$base" --set ingress.controller=traefik \
             --set directory.ingress.enabled=true --set directory.backendTls.ingressSecret=directory-ingress > /dev/null
+          # The CA publisher writes only the chart's private CA, so the chart refuses it with a directory certificate of
+          # the operator's whose CA no directory ConfigMap names, and renders the directory's BackendTLSPolicy against
+          # the ConfigMap that names it.
+          refuse --set backendTls.caPublisher.enabled=true
+          directory_ca=$(helm template release "$CHART" --values "$base" --set backendTls.caPublisher.enabled=true \
+            --set directory.backendTls.caConfigMap=directory-ca --set directory.httpRoute.enabled=true \
+            --set-json 'directory.httpRoute.parentRefs=[{"name":"gw"}]' --show-only templates/directory-http-route.yaml)
+          if ! grep -q -- 'name: directory-ca' <<< "$directory_ca"; then
+            echo "::error::The directory's BackendTLSPolicy does not verify against directory.backendTls.caConfigMap."
+            exit 1
+          fi
 
       - name: Run the directory's migration Job under the operator's ServiceAccount
         run: |
