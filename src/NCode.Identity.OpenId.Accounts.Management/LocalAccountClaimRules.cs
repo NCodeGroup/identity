@@ -26,7 +26,8 @@ internal static class LocalAccountClaimRules
                 return new ManagementError
                 {
                     StatusCode = StatusCodes.Status400BadRequest,
-                    Detail = "The 'name' claim is the account's display name; set displayName instead.",
+                    Detail =
+                        "The 'name' claim is the account's display name; set displayName instead.",
                 };
             }
         }

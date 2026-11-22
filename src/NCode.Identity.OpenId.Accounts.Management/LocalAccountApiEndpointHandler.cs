@@ -354,7 +354,13 @@ internal class LocalAccountApiEndpointHandler(
     {
         var tenantId = httpContext.GetOpenIdContext().Tenant.TenantId;
         using var scope = AmbientTenantAccessor.BeginScope(tenantId);
-        return await ListLocalAccountsAsync(httpContext, tenantId, cursor, limit, cancellationToken);
+        return await ListLocalAccountsAsync(
+            httpContext,
+            tenantId,
+            cursor,
+            limit,
+            cancellationToken
+        );
     }
 
     /// <summary>

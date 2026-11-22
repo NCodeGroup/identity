@@ -810,7 +810,14 @@ public class LocalAccountLifecycleTests
 
         using var create = await administrator.PostAsync(
             $"{TenantApiPath}/local-accounts",
-            JsonContent.Create(new { userName, password, displayName })
+            JsonContent.Create(
+                new
+                {
+                    userName,
+                    password,
+                    displayName,
+                }
+            )
         );
 
         var createBody = await create.Content.ReadAsStringAsync();
@@ -936,11 +943,21 @@ public class LocalAccountLifecycleTests
 
         using var create = await administrator.PostAsync(
             "/api/platform/local-accounts",
-            JsonContent.Create(new { userName, password, displayName = "Platform User" })
+            JsonContent.Create(
+                new
+                {
+                    userName,
+                    password,
+                    displayName = "Platform User",
+                }
+            )
         );
         var createBody = await create.Content.ReadAsStringAsync();
         Assert.True(create.StatusCode == HttpStatusCode.Created, createBody);
-        var localAccountId = JsonElement.Parse(createBody).GetProperty("localAccountId").GetString();
+        var localAccountId = JsonElement
+            .Parse(createBody)
+            .GetProperty("localAccountId")
+            .GetString();
 
         using var list = await administrator.GetAsync("/api/platform/local-accounts");
 

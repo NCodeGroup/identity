@@ -275,8 +275,8 @@ internal sealed class ConformanceSeedHandler(
     // the suite's EnsureUserInfoContainsName check (a 'profile' scope request) always finds one.
     private string BuildTestUserDisplayName(string userName)
     {
-        var nameParts = new[] { Options.TestUserGivenName, Options.TestUserFamilyName }.Where(part =>
-            !string.IsNullOrEmpty(part)
+        var nameParts = new[] { Options.TestUserGivenName, Options.TestUserFamilyName }.Where(
+            part => !string.IsNullOrEmpty(part)
         );
         var displayName = string.Join(' ', nameParts);
         return displayName.Length > 0 ? displayName : userName;

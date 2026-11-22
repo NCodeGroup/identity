@@ -1330,9 +1330,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
             .Verifiable();
         MockLocalAccountStore
             .Setup(x => x.GetPageAsync(It.IsAny<PageRequest>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(
-                new PagedResult<PersistedLocalAccount> { Items = [], NextCursor = null }
-            )
+            .ReturnsAsync(new PagedResult<PersistedLocalAccount> { Items = [], NextCursor = null })
             .Verifiable();
         MockStoreManager
             .Setup(x => x.GetStore<IFederatedIdentityStore>())

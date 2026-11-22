@@ -226,7 +226,11 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
     [Fact]
     public async Task StageAsync_WithoutDisplayName_UsesTheUserName()
     {
-        var conflict = new ManagementError { StatusCode = StatusCodes.Status409Conflict, Detail = "stop" };
+        var conflict = new ManagementError
+        {
+            StatusCode = StatusCodes.Status409Conflict,
+            Detail = "stop",
+        };
         SetupUserNameValidated(conflict, displayName: UserName);
 
         var creation = await Creator.StageAsync(
@@ -247,7 +251,11 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
     [Fact]
     public async Task StageAsync_TrimsTheDisplayName()
     {
-        var conflict = new ManagementError { StatusCode = StatusCodes.Status409Conflict, Detail = "stop" };
+        var conflict = new ManagementError
+        {
+            StatusCode = StatusCodes.Status409Conflict,
+            Detail = "stop",
+        };
         SetupUserNameValidated(conflict, displayName: "Alice Liddell");
 
         var creation = await Creator.StageAsync(
