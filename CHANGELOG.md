@@ -1163,12 +1163,15 @@ Until the first stable release, the [Unreleased] section describes the product a
   `tenant.key.generated`, `tenant.key.activated`, `tenant.key.retired`, `tenant.key.extended` or
   `tenant.key.removed`, in the `key` category with the `system` actor, published once the change is committed: the
   pass publishes after its save, and a seed queues its events on `TenantSeedContext.RunAfterCommit`, whose steps the
-  provisioner runs once the seed has committed
+  provisioner runs once the seed has committed. Neither the seed nor the pass changes the keys of a tenant the global
+  directory places in another cell, or of one whose placement it cannot read, so a cell that still holds a moved
+  tenant's copy never destroys a remote key the tenant's cell uses
   ([ADR-1404](docs/decisions/1404-a-tenants-provisioned-keys-roll-over-ahead-of-retirement-and-expire-after-a-grace.md),
   [ADR-1412](docs/decisions/1412-a-settings-change-reaches-every-replica-at-once-and-is-reconciled-per-team-against-what-changed.md),
   [ADR-1426](docs/decisions/1426-a-team-can-nest-beneath-a-parent-team-and-its-subtree-is-walked-depth-first.md),
   [docs/capabilities/key-rollover.md](docs/capabilities/key-rollover.md), [docs/audit-records.md](docs/audit-records.md),
-  [#166](https://github.com/NCodeGroup/identity/issues/166)).
+  [#166](https://github.com/NCodeGroup/identity/issues/166),
+  [#864](https://github.com/NCodeGroup/identity/issues/864)).
 
 - **A tenant's signing and encryption keys can stay inside a key management service, which signs every token and unwraps
   every content key sent to the tenant.** The tenant setting `tenant_key_provider` names a registered remote key
@@ -4038,6 +4041,15 @@ Until the first stable release, the [Unreleased] section describes the product a
   [#744](https://github.com/NCodeGroup/identity/issues/744),
   [ADR-1496](docs/decisions/1496-an-analyzer-reports-an-own-async-method-that-returns-task-or-lacks-a-trailing-cancellation-token.md)).
 
+- **The build reports a call, `await` or object creation nested in another call's arguments.**
+  `NCode.Identity.Analyzers` fails the build with `NCID0006` in the production code under `src/` and `hosts/`, and a
+  test holds `analyzers/` to it, unless the expression is a lambda argument, `nameof`, `typeof`, `default`, `sizeof`, a
+  literal, local, parameter or member access, sits where C# cannot declare a local (an initializer, a constructor
+  initializer or primary-constructor base, an attribute, a parameter default, a catch filter, a `when` clause, a query
+  expression, or an expression tree), or is an argument of a `[Conditional]` method
+  ([#867](https://github.com/NCodeGroup/identity/issues/867),
+  [ADR-1521](docs/decisions/1521-an-analyzer-fails-the-build-on-a-call-await-or-object-creation-nested-in-another-calls-arguments.md)).
+
 - **C# files carry a two-line SPDX header that the build checks.** Every C# file starts with
   `// Copyright © NCode Group` and `// SPDX-License-Identifier: Apache-2.0`; `.editorconfig` sets the header as
   `file_header_template` and raises `IDE0073` to `warning`, so a file whose header is missing or differs fails the build
@@ -4640,24 +4652,27 @@ Until the first stable release, the [Unreleased] section describes the product a
   rotates the tenant's master key so that the successor is created under it and rewraps every retired master key under
   it, because earlier material exists in backups under the deployment's root key; removing it moves the master keys
   under the nearest other root key, the team's when the team brings one and otherwise the deployment's, without a
-  rotation. An Azure Key Vault key reference names a host under the
-  deployment's Key Vault or Managed HSM host suffixes
-  (`SecretProtection:RootKeyProviders:AzureKeyVault:ReferencedKeyHostSuffixes`, by default the public, China and US
-  government cloud domains). Which owners can bring a key is a registered `IOwnerRootKeyPolicy`: the `platform` owner
-  and the control-plane tenant, which the management API authenticates against, are refused, a consumer registers its
-  own, and a `PUT` for a refused owner answers `400`. A root key is `active`, `unavailable` or `removing`, and an
-  unknown state reads as `unavailable`. `SecretProtection:OwnerRootKeys:Providers` (empty by default, so no tenant can
-  bring a key), `ValidationInterval` (one hour, between one minute and one day) and `RetryInterval` (one minute, between
-  one second and the validation interval) tune it, and a listed provider that is not a registered referenced key wrapper
-  stops the host as it starts. The Helm chart's `secretProtection.ownerRootKeys.providers` lists the providers and
-  mounts a listed provider's workload credentials. The management console's tenant encryption keys tab sets, validates
-  and removes the key, shows its state and the master keys' root keys, and warns when it is `unavailable`.
-  `root_key.set`, `root_key.removed`, `root_key.unavailable` and `root_key.restored` are `key` audit events without
-  material, a rotation onto the key records `master_key.rotated` with the reason `root_key_changed`, and a master key's
-  `root_key_reference` detail names the key that wraps it. `IReferencedKeyWrapper` is a key wrapper that wraps under a
-  key the caller names, implemented by the AWS KMS, Google Cloud KMS and Azure Key Vault wrappers, and
-  `IOwnerRootKeyManager` sets, removes and validates a root key
+  rotation; the removal completes once no master key under the key remains that does not conform to its owner's nearest
+  root key, which it reads through one indexed query on the master keys' root key provider and reference
+  (`IMasterKeyStore.GetWrappedByKeyPageAsync`). An Azure Key Vault key reference names a host under the deployment's Key
+  Vault or Managed HSM host suffixes (`SecretProtection:RootKeyProviders:AzureKeyVault:ReferencedKeyHostSuffixes`, by
+  default the public, China and US government cloud domains). Which owners can bring a key is a registered
+  `IOwnerRootKeyPolicy`: the `platform` owner and the control-plane tenant, which the management API authenticates
+  against, are refused, a consumer registers its own, and a `PUT` for a refused owner answers `400`. A root key is
+  `active`, `unavailable` or `removing`, and an unknown state reads as `unavailable`.
+  `SecretProtection:OwnerRootKeys:Providers` (empty by default, so no tenant can bring a key), `ValidationInterval` (one
+  hour, between one minute and one day) and `RetryInterval` (one minute, between one second and the validation interval)
+  tune it, and a listed provider that is not a registered referenced key wrapper stops the host as it starts. The Helm
+  chart's `secretProtection.ownerRootKeys.providers` lists the providers and mounts a listed provider's workload
+  credentials. The management console's tenant encryption keys tab sets, validates and removes the key, shows its state
+  and the master keys' root keys, and warns when it is `unavailable`. `root_key.set`, `root_key.removed`,
+  `root_key.unavailable` and `root_key.restored` are `key` audit events without material, a rotation onto the key
+  records `master_key.rotated` with the reason `root_key_changed`, and a master key's `root_key_reference` detail names
+  the key that wraps it. `IReferencedKeyWrapper` is a key wrapper that wraps under a key the caller names, implemented
+  by the AWS KMS, Google Cloud KMS and Azure Key Vault wrappers, and `IOwnerRootKeyManager` sets, removes and validates
+  a root key
   ([#174](https://github.com/NCodeGroup/identity/issues/174), [#574](https://github.com/NCodeGroup/identity/issues/574),
+  [#865](https://github.com/NCodeGroup/identity/issues/865),
   [ADR-1414](docs/decisions/1414-a-tenant-can-wrap-its-master-keys-under-a-root-key-it-controls.md)).
 
 - **A package maps the exceptions it owns to protocol errors.** `IOpenIdExceptionTranslator` implementations, registered
