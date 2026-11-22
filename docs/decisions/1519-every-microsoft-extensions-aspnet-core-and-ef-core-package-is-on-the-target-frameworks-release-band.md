@@ -29,7 +29,7 @@ framework.**
    `RuntimeBandExceptions` property of `Directory.Packages.props`, under a comment that names the dependency and links
    the issue tracking its release, and stay at the version it needs: the
    `Microsoft.Extensions.DependencyInjection(.Abstractions)` pair is one, at 11.0.0 for NCode.PropertyBag's floor,
-   tracked in issue #895.
+   tracked in issue [#895](https://github.com/NCodeGroup/identity/issues/895).
 3. The `RequireRuntimeBand` target of `Directory.Build.targets` fails the build of a .NET project that compiles
    against a band package of another major that `RuntimeBandExceptions` doesn't list, naming each package and version.
 4. Dependabot ignores semver-major updates of these packages: the band moves with the target framework, as one planned
