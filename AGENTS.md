@@ -352,14 +352,15 @@ needs a decision comes back to Opus to be re-planned — in VS Code, Copilot CLI
   `.claude/agents/plan-executor.md` and `CLAUDE.md` **come from the project template**
   ([`NCodeGroup/project-template`](https://github.com/NCodeGroup/project-template); the version is in
   [`.copier-answers.yml`](.copier-answers.yml)), which owns them: never hand-edit them. Change the workflow in
-  project-template, then pull the new version in with `/plan-template-update`, which plans the update from a trial
-  run of `./.template/Update-Project.ps1` and files each gap it finds. Report a gap in the template's
-  workflow as an issue in project-template, where it is fixed and tagged. Repository rules belong in the instruction
-  files, which every agent in the loop already loads; this repository's own `/audit-conventions` sweeps are in
+  project-template, then pull the new version in with `/plan-template-update`, which plans the update from a trial run
+  of `./.template/Update-Project.ps1` and files each gap it finds. Report a gap in the template's workflow as an issue
+  in project-template, where it is fixed and tagged. Repository rules belong in the instruction files, which every agent
+  in the loop already loads; this repository's own `/audit-conventions` sweeps are in
   [`convention-audit.instructions.md`](.github/instructions/convention-audit.instructions.md). `build/dod.ps1` is this
   repository's own Definition of Done, although the template renders a simpler one at that path: the
   `project_owned_files` answer in [`.copier-answers.yml`](.copier-answers.yml) names it, so an update leaves it alone
-  and only shows the template's changes to it.
+  and only shows the template's changes to it. `.vscode/settings.json` is the project's own too: it routes VS Code's
+  Plan and implement agents to the models above and sets the editor's formatters, so the same answer names it.
 
 ### Local and Copilot customizations
 
