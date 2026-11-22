@@ -884,7 +884,7 @@ mail, listed per region in [#859](https://github.com/NCodeGroup/identity/issues/
 region) — EU customers need a regional cell
 ([ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md));
 an SLA no higher than a single-datacenter platform supports (~99.9%), until cells run across availability zones
-([§11](#11-growth-path-aws)); an incident-response runbook ([#844](https://github.com/NCodeGroup/identity/issues/844)).
+([§11](#11-growth-path-aws)); an incident-response runbook ([#913](https://github.com/NCodeGroup/identity/issues/913)).
 
 **Outbound email:** verification, password reset, and email MFA need a sending provider
 ([#911](https://github.com/NCodeGroup/identity/issues/911)) — OCI Email Delivery (3,000 emails/month free) or Cloudflare
