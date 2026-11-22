@@ -844,15 +844,19 @@ the stacks and components is [#87](https://github.com/NCodeGroup/identity/issues
   is the primary restore path, but it lives in the same vendor account. A nightly `pg_dump`, encrypted client-side with
   `age` (it contains signing keys and the Data Protection key ring), goes off-vendor to the AWS backup bucket — Object
   Lock in compliance mode, write-only credentials, 14 daily + 12 monthly copies with monthly ones moved to an archive
-  tier ([ADR-1132](decisions/1132-platform-infrastructure-code-is-public-on-github-and-its-state-and-backups-live-in-aws.md)). A restore drill before launch and
-  quarterly; written RPO / RTO targets.
-- **Cluster secrets** never sit in Git as plaintext: SOPS + age (free) or External Secrets Operator syncing from the
-  key vault.
+  tier
+  ([ADR-1132](decisions/1132-platform-infrastructure-code-is-public-on-github-and-its-state-and-backups-live-in-aws.md)).
+  A restore drill before launch and quarterly; written RPO / RTO targets
+  ([#845](https://github.com/NCodeGroup/identity/issues/845)).
+- **Cluster secrets** never sit in Git as plaintext: SOPS + age (free) or External Secrets Operator syncing from the key
+  vault ([#909](https://github.com/NCodeGroup/identity/issues/909)).
 - **Alerting:** Grafana Cloud alerts on token-endpoint error rate and p95 latency, certificate expiry, database
   connections and replication lag, and node/disk pressure; on-call via Grafana IRM's free tier; a public status page
   (`status.ncodeid.com`, UptimeRobot free).
-- **Audit events** ([ADR-1047](decisions/1047-observation-is-a-fault-isolated-event-seam-that-audit-specializes-and-protocol-errors-reach-once.md)): decide retention and customer export —
-  they contain PII.
+- **Audit events**
+  ([ADR-1047](decisions/1047-observation-is-a-fault-isolated-event-seam-that-audit-specializes-and-protocol-errors-reach-once.md)):
+  their retention and customer export are open ([#910](https://github.com/NCodeGroup/identity/issues/910)), and they
+  contain PII.
 - **Cost guardrails:** billing alerts on every vendor, an Azure budget alert, and bandwidth-overage alerts.
 
 **Security hardening:**
@@ -873,18 +877,20 @@ the stacks and components is [#87](https://github.com/NCodeGroup/identity/issues
   third-party hosts (the status page and the site host) serve its subdomains. An RFC 9116 `/.well-known/security.txt`
   points to [`SECURITY.md`](../SECURITY.md).
 
-**Business and legal (before onboarding customers):** privacy policy, terms, a DPA and subprocessor list (Akamai and the
-Aiven service behind its managed PostgreSQL, Cloudflare, Grafana Labs, AWS, and Oracle when OCI Email Delivery sends the
-platform's mail, listed per region in [#859](https://github.com/NCodeGroup/identity/issues/859)); data residency is
-US-only (one US region) — EU customers need a regional cell
+**Business and legal (before onboarding customers):** privacy policy, terms and a DPA
+([#912](https://github.com/NCodeGroup/identity/issues/912)), and a subprocessor list (Akamai and the Aiven service
+behind its managed PostgreSQL, Cloudflare, Grafana Labs, AWS, and Oracle when OCI Email Delivery sends the platform's
+mail, listed per region in [#859](https://github.com/NCodeGroup/identity/issues/859)); data residency is US-only (one US
+region) — EU customers need a regional cell
 ([ADR-1411](decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md));
 an SLA no higher than a single-datacenter platform supports (~99.9%), until cells run across availability zones
-([§11](#11-growth-path-aws)); an incident-response runbook.
+([§11](#11-growth-path-aws)); an incident-response runbook ([#844](https://github.com/NCodeGroup/identity/issues/844)).
 
-**Outbound email:** verification, password reset, and email MFA need a sending provider — OCI Email Delivery (3,000
-emails/month free) or Cloudflare Email Sending (Workers Paid, $5/month; its SMTP endpoint also lets the owner reply as
-`security@` from an existing mailbox). Transactional mail sends only from `mail.ncodeid.net`, which isolates its
-reputation; add the provider's SPF include and DKIM keys, and keep DMARC at `p=reject`.
+**Outbound email:** verification, password reset, and email MFA need a sending provider
+([#911](https://github.com/NCodeGroup/identity/issues/911)) — OCI Email Delivery (3,000 emails/month free) or Cloudflare
+Email Sending (Workers Paid, $5/month; its SMTP endpoint also lets the owner reply as `security@` from an existing
+mailbox). Transactional mail sends only from `mail.ncodeid.net`, which isolates its reputation; add the provider's SPF
+include and DKIM keys, and keep DMARC at `p=reject`.
 
 ## 11. Growth path: AWS
 
