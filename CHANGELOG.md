@@ -4353,12 +4353,14 @@ Until the first stable release, the [Unreleased] section describes the product a
   `NCode.Identity.OpenId.GlobalDirectory`, which fail closed with `503` and `Retry-After` on a transport failure, a
   `5xx`, or a call that outlasts `DirectoryClientOptions.RequestTimeout`, its response body included. Creating a tenant
   reserves its identifier (a team's `max_tenants` is enforced there), saves the tenant and places it, releasing the
-  reservation on failure; a tenant a cell creates on demand, a static strategy's own tenant or the root tenant of a cell
-  that is not the control plane, is reserved and placed the same way; serving a tenant's requests never calls the
-  directory, because the cell's own tenant row is authoritative; the control-plane cell creates its root tenant without
-  reserving or placing it, which the directory holds from its own configuration, judges its address and changes its keys
-  without asking the directory, which accepts only the tokens that tenant issues, so a control-plane cell serves from a
-  release that carries its directory client from the first release
+  reservation on failure; a tenant a cell creates on demand that a strategy serves at an address, a static strategy's
+  own tenant or the root tenant of a cell that is not the control plane when it has an issuer, is reserved and placed
+  the same way, in no team when it belongs to the platform's own team, and a tenant without an issuer is created in its
+  cell alone; serving a tenant's requests never calls the directory, because the cell's own tenant row is authoritative;
+  the control-plane cell creates its root tenant without reserving or placing it, which the directory holds from its own
+  configuration, judges its address and changes its keys without asking the directory, which accepts only the tokens
+  that tenant issues, so a control-plane cell serves from a release that carries its directory client from the first
+  release
   ([ADR-1411](docs/decisions/1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md),
   [#918](https://github.com/NCodeGroup/identity/issues/918)).
 

@@ -374,7 +374,10 @@ other cell once the directory runs.
    values are the cell's own two roles and are never the directory's. Under the `StaticSingle` strategy, give every cell
    other than the control-plane cell its own `tenantResolution.staticSingle.tenantId`: a tenant identifier is unique
    across the platform's cells, the cell reserves and places its tenant in the directory when it first creates it, and
-   it does not create a tenant whose identifier another cell holds.
+   it does not create a tenant whose identifier another cell holds. Under the host and path strategies, a cell that is
+   not the control plane and gives its root tenant an issuer (`TenantResolution:Root:Issuer`) names it with a
+   `TenantResolution:Root:TenantId` no other cell uses, because the cell reserves it in the directory; without an issuer
+   its root tenant is created in the cell alone.
 
 **Verify:** the cell starts and reports ready. A client-credentials token request for the client `cell-{name}`, signed
 with the key ring, at the control-plane cell's root issuer returns a token for the audience `urn:ncode:directory` with

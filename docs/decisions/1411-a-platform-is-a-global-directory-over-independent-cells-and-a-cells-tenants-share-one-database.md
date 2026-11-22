@@ -60,12 +60,14 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
    placements, cells and team documents, and nothing about a person. Creating a tenant reserves its identifier, inserts
    the tenant and then places it, and a failure after the insert removes the inserted tenant and then releases the
    reservation, so the directory never frees an identifier whose row still exists; creation fails closed with `503` when
-   the directory is unreachable. A tenant a cell creates on demand, a static strategy's own tenant or the root tenant of
-   a cell that is not the control plane, is reserved, inserted and placed the same way when the cell first creates it,
-   and the cell does not create it while the directory refuses it or cannot be reached. The directory holds the
-   control-plane cell's root tenant from its own configuration: `DirectoryServer:ControlPlaneTenantId` names it, and
-   before every reservation and every issuer change the directory ensures its record, placed in the control-plane cell
-   under `DirectoryServer:Issuer` and in no team, in a transaction that commits first, so no other cell reserves its
+   the directory is unreachable. A tenant a cell creates on demand that a strategy serves at an address (one with an
+   issuer), a static strategy's own tenant or the root tenant of a cell that is not the control plane when
+   `TenantResolution:Root:Issuer` gives it one, is reserved, inserted and placed the same way when the cell first
+   creates it, and the cell does not create it while the directory refuses it or cannot be reached; a tenant without an
+   issuer has no address on the platform and is created in its cell alone. The directory holds the control-plane cell's
+   root tenant from its own configuration: `DirectoryServer:ControlPlaneTenantId` names it, and before every reservation
+   and every issuer change the directory ensures its record, placed in the control-plane cell under
+   `DirectoryServer:Issuer` and in no team, in a transaction that commits first, so no other cell reserves its
    identifier or its issuer and the control-plane cell changes that tenant's issuer through the directory as for any
    tenant; a configuration that names an identifier another cell holds, or an issuer another tenant holds, fails the
    write. Creating a team reserves its identifier, inserts the team and then publishes its document, and a failure after
@@ -142,7 +144,8 @@ customer's tenants and spans cells, and a tenant lives in exactly one cell.**
     ([ADR-1426](1426-a-team-can-nest-beneath-a-parent-team-and-its-subtree-is-walked-depth-first.md)).
 11. **The platform's own team.** `TenantResolution:Root:TeamId` (default `platform`) names the team that holds the root
     tenant and every tenant a tenant-resolution strategy creates. It is top-level, holds no teams, and can be neither
-    disabled nor deleted.
+    disabled nor deleted. The directory holds no record of it, because each cell creates it for itself, so a tenant of
+    the platform's own team is reserved in no team and no team limit applies to it.
 12. **The cascade.** Settings resolve through host configuration and the platform, the team or teams, the tenant, and the
     client or resource server, with the registered setting scopes `platform`, `team`, `tenant`, `client` and
     `resource_server`. A team document carries every setting that applies beneath it, so the security profiles and
