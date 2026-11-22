@@ -501,4 +501,26 @@ internal static partial class Log
         string teamId,
         string parentTeamId
     );
+
+    [LoggerMessage(
+        EventId = EventIds.TenantKeysPlacedElsewhere,
+        Level = LogLevel.Information,
+        Message = "The keys of the tenant '{TenantId}' stay unchanged in this cell because the global directory places the tenant in the cell '{Cell}'"
+    )]
+    internal static partial void TenantKeysPlacedElsewhere(
+        this ILogger logger,
+        string tenantId,
+        string cell
+    );
+
+    [LoggerMessage(
+        EventId = EventIds.TenantKeysPlacementUnknown,
+        Level = LogLevel.Warning,
+        Message = "The keys of the tenant '{TenantId}' stay unchanged in this cell because the global directory cannot be read"
+    )]
+    internal static partial void TenantKeysPlacementUnknown(
+        this ILogger logger,
+        string tenantId,
+        Exception exception
+    );
 }

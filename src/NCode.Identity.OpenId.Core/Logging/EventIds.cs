@@ -129,4 +129,16 @@ internal static class EventIds
     /// cell applies the team when the directory lists it again after its parent.
     /// </summary>
     public const int DirectoryTeamParentNotMirrored = Base + 50;
+
+    /// <summary>
+    /// Identifies the informational message that a tenant's keys stay unchanged in this cell because the global
+    /// directory places the tenant in another cell.
+    /// </summary>
+    public const int TenantKeysPlacedElsewhere = Base + 51;
+
+    /// <summary>
+    /// Identifies the warning that a tenant's keys stay unchanged in this cell because the global directory cannot be
+    /// read to learn where the tenant is placed.
+    /// </summary>
+    public const int TenantKeysPlacementUnknown = Base + 52;
 }
