@@ -50,8 +50,9 @@ internal class DefaultEndSessionContinueProvider(ILogger<DefaultEndSessionContin
 
         var mediator = openIdContext.Mediator;
 
+        var resolveCommand = new ResolveEndSessionSubjectCommand(openIdContext, request);
         var subject = await mediator.SendAsync<ResolveEndSessionSubjectCommand, EndSessionSubject>(
-            new ResolveEndSessionSubjectCommand(openIdContext, request),
+            resolveCommand,
             cancellationToken
         );
 
@@ -70,8 +71,9 @@ internal class DefaultEndSessionContinueProvider(ILogger<DefaultEndSessionContin
             return ReadOnlyEndpointDisposition.Handled(errorResult);
         }
 
+        var endSessionCommand = new EndSessionCommand(openIdContext, request, subject);
         var disposition = await mediator.SendAsync<EndSessionCommand, EndSessionDisposition>(
-            new EndSessionCommand(openIdContext, request, subject),
+            endSessionCommand,
             cancellationToken
         );
 

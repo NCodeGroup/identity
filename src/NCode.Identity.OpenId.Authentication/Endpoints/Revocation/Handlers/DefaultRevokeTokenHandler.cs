@@ -76,19 +76,21 @@ internal class DefaultRevokeTokenHandler(
         var lineageId = grant.Value.RefreshTokenLineageId;
         if (!string.IsNullOrEmpty(lineageId))
         {
+            var revokedWhen = TimeProvider.GetUtcNow();
             await PersistedGrantService.RevokeByRefreshTokenLineageAsync(
                 openIdContext,
                 lineageId,
-                TimeProvider.GetUtcNow(),
+                revokedWhen,
                 cancellationToken
             );
         }
         else
         {
+            var revokedWhen = TimeProvider.GetUtcNow();
             await PersistedGrantService.SetRevokedOnceAsync(
                 openIdContext,
                 grantId,
-                TimeProvider.GetUtcNow(),
+                revokedWhen,
                 cancellationToken
             );
         }

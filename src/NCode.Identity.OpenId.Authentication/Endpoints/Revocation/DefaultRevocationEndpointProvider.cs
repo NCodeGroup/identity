@@ -103,10 +103,12 @@ internal class DefaultRevocationEndpointProvider(
 
         var revocationRequest = TokenRevocationRequest.Load(openIdEnvironment, formData);
 
-        await mediator.SendAsync(
-            new RevokeTokenCommand(openIdContext, authResult.Client, revocationRequest),
-            cancellationToken
+        var revokeCommand = new RevokeTokenCommand(
+            openIdContext,
+            authResult.Client,
+            revocationRequest
         );
+        await mediator.SendAsync(revokeCommand, cancellationToken);
 
         // RFC 7009 section 2.2: respond 200 whether or not a token was revoked.
         return TypedResults.Ok();

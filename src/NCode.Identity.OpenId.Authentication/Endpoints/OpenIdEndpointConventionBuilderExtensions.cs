@@ -26,10 +26,14 @@ public static class OpenIdEndpointConventionBuilderExtensions
         /// </summary>
         /// <param name="isDiscoverable">Specifies whether the endpoint is discoverable. Default is <c>true</c>.</param>
         /// <returns>The <see cref="IEndpointConventionBuilder"/> instance for method chaining.</returns>
-        public TBuilder WithOpenIdDiscoverable(bool isDiscoverable = true) =>
-            builder.WithMetadata(
-                new DefaultOpenIdEndpointDiscoverableMetadata { IsDiscoverable = isDiscoverable }
-            );
+        public TBuilder WithOpenIdDiscoverable(bool isDiscoverable = true)
+        {
+            var metadata = new DefaultOpenIdEndpointDiscoverableMetadata
+            {
+                IsDiscoverable = isDiscoverable,
+            };
+            return builder.WithMetadata(metadata);
+        }
 
         /// <summary>
         /// Adds <see cref="IOpenIdEndpointMeteredMetadata"/> to the <see cref="IEndpointConventionBuilder"/> to indicate
@@ -38,18 +42,22 @@ public static class OpenIdEndpointConventionBuilderExtensions
         /// </summary>
         /// <param name="isMetered">Specifies whether requests to the endpoint are metered. Default is <c>true</c>.</param>
         /// <returns>The <see cref="IEndpointConventionBuilder"/> instance for method chaining.</returns>
-        public TBuilder WithOpenIdMetered(bool isMetered = true) =>
-            builder.WithMetadata(
-                new DefaultOpenIdEndpointMeteredMetadata { IsMetered = isMetered }
-            );
+        public TBuilder WithOpenIdMetered(bool isMetered = true)
+        {
+            var metadata = new DefaultOpenIdEndpointMeteredMetadata { IsMetered = isMetered };
+            return builder.WithMetadata(metadata);
+        }
 
         /// <summary>
         /// Adds <see cref="IOpenIdEndpointResourceServerClientMetadata"/> to the <see cref="IEndpointConventionBuilder"/>
         /// so that the endpoint accepts a client bound to a resource server. Every other endpoint refuses such a client.
         /// </summary>
         /// <returns>The <see cref="IEndpointConventionBuilder"/> instance for method chaining.</returns>
-        public TBuilder AcceptResourceServerClients() =>
-            builder.WithMetadata(new DefaultOpenIdEndpointResourceServerClientMetadata());
+        public TBuilder AcceptResourceServerClients()
+        {
+            var metadata = new DefaultOpenIdEndpointResourceServerClientMetadata();
+            return builder.WithMetadata(metadata);
+        }
 
         /// <summary>
         /// Adds <see cref="IOpenIdEndpointExceptionHandlerMetadata"/> to the <see cref="IEndpointConventionBuilder"/> to indicate the exception handler for the endpoint.
@@ -63,7 +71,11 @@ public static class OpenIdEndpointConventionBuilderExtensions
                 CancellationToken,
                 ValueTask<IOpenIdExceptionHandler>
             > getter
-        ) => builder.WithMetadata(new DefaultOpenIdEndpointExceptionHandlerMetadata(getter));
+        )
+        {
+            var metadata = new DefaultOpenIdEndpointExceptionHandlerMetadata(getter);
+            return builder.WithMetadata(metadata);
+        }
 
         /// <summary>
         /// Adds <see cref="IOpenIdExceptionHandler"/> to the <see cref="IEndpointConventionBuilder"/> to indicate the exception handler for the endpoint.
@@ -84,10 +96,14 @@ public static class OpenIdEndpointConventionBuilderExtensions
         public TBuilder WithOpenIdFormParameters(
             IKnownParameterCollectionProvider knownParameterCollectionProvider,
             string operationId
-        ) =>
-            builder.WithMetadata(
-                CreateFormUrlEncodedOperation(knownParameterCollectionProvider, operationId)
+        )
+        {
+            var operation = CreateFormUrlEncodedOperation(
+                knownParameterCollectionProvider,
+                operationId
             );
+            return builder.WithMetadata(operation);
+        }
     }
 
     private static OpenApiOperation CreateFormUrlEncodedOperation(

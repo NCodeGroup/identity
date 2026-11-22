@@ -130,13 +130,15 @@ internal class DefaultPushedAuthorizationRequestEndpointHandler(
         }
 
         // Load and validate the authorization request the same way the authorization endpoint would (RFC 9126 §2.2).
+        var loadCommand = new LoadAuthorizationRequestCommand(
+            openIdContext,
+            openIdClient,
+            requestValues
+        );
         var authorizationRequest = await mediator.SendAsync<
             LoadAuthorizationRequestCommand,
             IAuthorizationRequest
-        >(
-            new LoadAuthorizationRequestCommand(openIdContext, openIdClient, requestValues),
-            cancellationToken
-        );
+        >(loadCommand, cancellationToken);
 
         // RFC 9126 §2.1: the pushed request is checked as the authorization endpoint would check it, including where its response would be delivered.
         var delivery = await DeliveryResolver.ResolveAsync(
@@ -146,15 +148,13 @@ internal class DefaultPushedAuthorizationRequestEndpointHandler(
             cancellationToken
         );
 
-        await mediator.SendAsync(
-            new ValidateAuthorizationRequestCommand(
-                openIdContext,
-                openIdClient,
-                authorizationRequest,
-                delivery
-            ),
-            cancellationToken
+        var validateCommand = new ValidateAuthorizationRequestCommand(
+            openIdContext,
+            openIdClient,
+            authorizationRequest,
+            delivery
         );
+        await mediator.SendAsync(validateCommand, cancellationToken);
 
         var result = await PushedAuthorizationRequestService.StoreAsync(
             openIdContext,

@@ -28,12 +28,11 @@ internal static class DefaultRegistration
 
             builder.AddMessageFactory<TokenIntrospectionRequest>();
 
-            builder.ServiceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<IntrospectTokenCommand>,
-                    DefaultIntrospectTokenHandler
-                >()
-            );
+            var introspectHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<IntrospectTokenCommand>,
+                DefaultIntrospectTokenHandler
+            >();
+            builder.ServiceCollection.TryAddEnumerable(introspectHandler);
         }
     }
 }

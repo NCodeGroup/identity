@@ -44,10 +44,8 @@ internal class DefaultDiscoverScopesHandler(
             cancellationToken
         );
 
-        var scopes = new SortedSet<string>(
-            enabledScopes.Select(scope => scope.Value),
-            StringComparer.Ordinal
-        );
+        var scopeValues = enabledScopes.Select(scope => scope.Value);
+        var scopes = new SortedSet<string>(scopeValues, StringComparer.Ordinal);
 
         // A discovery metadata field, not a setting: the scope catalog is the tenant's resource servers (ADR-1026).
         metadata[OpenIdProtocol.MetadataNames.ScopesSupported] = scopes.ToList();

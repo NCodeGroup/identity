@@ -187,16 +187,14 @@ internal class DefaultIntrospectionEndpointProvider(
         var resourceServer = resolution?.Single;
         var result = new IntrospectionResult { Active = false };
 
-        await mediator.SendAsync(
-            new IntrospectTokenCommand(
-                openIdContext,
-                openIdClient,
-                resourceServer,
-                introspectionRequest,
-                result
-            ),
-            cancellationToken
+        var introspectCommand = new IntrospectTokenCommand(
+            openIdContext,
+            openIdClient,
+            resourceServer,
+            introspectionRequest,
+            result
         );
+        await mediator.SendAsync(introspectCommand, cancellationToken);
 
         // RFC 7662 §2.2: an inactive token is reported without any other member, whatever a handler contributed.
         if (!result.Active)

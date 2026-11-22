@@ -205,12 +205,11 @@ internal class DefaultResolveEndSessionSubjectHandler(
         }
 
         var payload = result.DecodedJwt.Payload;
-        return new HintClaims(
-            GetString(payload, JoseClaimNames.Payload.Sid),
-            GetString(payload, JoseClaimNames.Payload.Azp)
-                ?? GetString(payload, JoseClaimNames.Payload.ClientId)
-                ?? GetAudience(payload)
-        );
+        var sid = GetString(payload, JoseClaimNames.Payload.Sid);
+        var clientId = GetString(payload, JoseClaimNames.Payload.Azp);
+        clientId ??= GetString(payload, JoseClaimNames.Payload.ClientId);
+        clientId ??= GetAudience(payload);
+        return new HintClaims(sid, clientId);
     }
 
     private static string? GetString(JsonElement payload, string name) =>

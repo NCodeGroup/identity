@@ -92,14 +92,22 @@ internal class DefaultLoadBackchannelAuthenticationRequestHandler(
                 })
                 .RequireAssertion(
                     static (context, _) =>
-                        ValueTask.FromResult(
+                    {
+                        var isValid = false;
+                        if (
                             context.DecodedJwt.Payload.TryGetProperty(
                                 JoseClaimNames.Payload.Jti,
                                 out var jti
                             )
-                                && jti.ValueKind == JsonValueKind.String
-                                && !string.IsNullOrEmpty(jti.GetString())
+                            && jti.ValueKind == JsonValueKind.String
                         )
+                        {
+                            var jtiValue = jti.GetString();
+                            isValid = !string.IsNullOrEmpty(jtiValue);
+                        }
+
+                        return ValueTask.FromResult(isValid);
+                    }
                 );
 
             var result = await JwtValidator.ValidateAsync(

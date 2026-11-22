@@ -39,10 +39,11 @@ internal class DefaultDiscoverSessionManagementHandler(LinkGenerator linkGenerat
             return ValueTask.CompletedTask;
         }
 
+        var routeValues = new { };
         var checkSessionIframeUrl = LinkGenerator.GetTenantUriByName(
             openIdContext,
             OpenIdConstants.EndpointNames.CheckSessionIframe,
-            new { }
+            routeValues
         );
         if (!string.IsNullOrEmpty(checkSessionIframeUrl))
         {

@@ -36,9 +36,8 @@ internal class DefaultEndSessionConfirmationChallengeHandler
 
         // The resumed logout may redirect to the client, so the form may post to any origin.
         // See ADR-1380.
-        command.OpenIdContext.Http.Response.SetHtmlPageSecurity(
-            new HtmlPageSecurityPolicy { AllowsAnyFormAction = true }
-        );
+        var policy = new HtmlPageSecurityPolicy { AllowsAnyFormAction = true };
+        command.OpenIdContext.Http.Response.SetHtmlPageSecurity(policy);
 
         var page = TypedResults.Content(html, "text/html; charset=utf-8", SecureEncoding.UTF8);
         var disposition = ReadOnlyEndpointDisposition.Handled(page);

@@ -81,13 +81,14 @@ internal sealed class DefaultPushedAuthorizationRequestService(
             },
         };
 
+        var grantId = PersistedGrantService.CreateGrantId(
+            tenantId,
+            OpenIdConstants.PersistedGrantTypes.PushedAuthorizationRequest,
+            reference
+        );
         await PersistedGrantService.AddAsync(
             openIdContext,
-            PersistedGrantService.CreateGrantId(
-                tenantId,
-                OpenIdConstants.PersistedGrantTypes.PushedAuthorizationRequest,
-                reference
-            ),
+            grantId,
             grant,
             createdWhen,
             lifetime,
@@ -153,7 +154,8 @@ internal sealed class DefaultPushedAuthorizationRequestService(
         var values = new Dictionary<string, StringValues>(StringComparer.Ordinal);
         foreach (var (key, value) in payload.Parameters)
         {
-            values[key] = new StringValues(value.ToArray());
+            var valueArray = value.ToArray();
+            values[key] = new StringValues(valueArray);
         }
 
         return new RequestValuesUsingCollection(

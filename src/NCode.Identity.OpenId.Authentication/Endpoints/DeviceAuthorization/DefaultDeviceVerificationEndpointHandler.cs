@@ -66,10 +66,11 @@ internal class DefaultDeviceVerificationEndpointHandler(
         var errorFactory = openIdContext.ErrorFactory;
         var openIdEnvironment = openIdContext.Environment;
 
+        var authenticateCommand = new AuthenticateSubjectCommand(openIdContext);
         var disposition = await mediator.SendAsync<
             AuthenticateSubjectCommand,
             AuthenticateSubjectDisposition
-        >(new AuthenticateSubjectCommand(openIdContext), cancellationToken);
+        >(authenticateCommand, cancellationToken);
 
         if (disposition.HasError)
             return disposition.Error.WithStatusCode(StatusCodes.Status400BadRequest).AsHttpResult();
@@ -156,16 +157,14 @@ internal class DefaultDeviceVerificationEndpointHandler(
         // GET renders the confirmation; the host presents the client and scopes to the authenticated user.
         if (!isPostVerb)
         {
-            return TypedResults.Json(
-                new VerificationPrompt
-                {
-                    ClientId = payload.ClientId,
-                    Scopes = payload.Scopes,
-                    UserCode = userCodeRaw,
-                    Status = payload.Status,
-                },
-                openIdEnvironment.JsonSerializerOptions
-            );
+            var prompt = new VerificationPrompt
+            {
+                ClientId = payload.ClientId,
+                Scopes = payload.Scopes,
+                UserCode = userCodeRaw,
+                Status = payload.Status,
+            };
+            return TypedResults.Json(prompt, openIdEnvironment.JsonSerializerOptions);
         }
 
         var action = form?[ActionParameter].ToString() ?? string.Empty;
@@ -202,18 +201,17 @@ internal class DefaultDeviceVerificationEndpointHandler(
             );
 
             // The user_code is single-use: revoke the pointer so the code cannot be entered again.
+            var revokedWhen = TimeProvider.GetUtcNowWithPrecisionInSeconds();
             await PersistedGrantService.SetRevokedOnceAsync(
                 openIdContext,
                 userCodeGrantId,
-                TimeProvider.GetUtcNowWithPrecisionInSeconds(),
+                revokedWhen,
                 cancellationToken
             );
         }
 
-        return TypedResults.Json(
-            new VerificationResult { Status = approved ? ApproveAction : DenyAction },
-            openIdEnvironment.JsonSerializerOptions
-        );
+        var result = new VerificationResult { Status = approved ? ApproveAction : DenyAction };
+        return TypedResults.Json(result, openIdEnvironment.JsonSerializerOptions);
     }
 
     /// <summary>

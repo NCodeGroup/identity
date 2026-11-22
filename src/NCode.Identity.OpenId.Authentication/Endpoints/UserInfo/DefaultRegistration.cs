@@ -24,26 +24,23 @@ internal static class DefaultRegistration
         {
             builder.AddEndpoint<DefaultUserInfoEndpointProvider>();
 
-            builder.ServiceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<GetUserInfoClaimsCommand>,
-                    DefaultGetUserInfoClaimsHandler
-                >()
-            );
+            var claimsHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<GetUserInfoClaimsCommand>,
+                DefaultGetUserInfoClaimsHandler
+            >();
+            builder.ServiceCollection.TryAddEnumerable(claimsHandler);
 
-            builder.ServiceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<GetUserInfoClaimsCommand>,
-                    DefaultGetRequestedUserInfoClaimsHandler
-                >()
-            );
+            var requestedClaimsHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<GetUserInfoClaimsCommand>,
+                DefaultGetRequestedUserInfoClaimsHandler
+            >();
+            builder.ServiceCollection.TryAddEnumerable(requestedClaimsHandler);
 
-            builder.ServiceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<GetUserInfoClaimsCommand>,
-                    DefaultGetUserInfoMetadataClaimsHandler
-                >()
-            );
+            var metadataClaimsHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<GetUserInfoClaimsCommand>,
+                DefaultGetUserInfoMetadataClaimsHandler
+            >();
+            builder.ServiceCollection.TryAddEnumerable(metadataClaimsHandler);
         }
     }
 }

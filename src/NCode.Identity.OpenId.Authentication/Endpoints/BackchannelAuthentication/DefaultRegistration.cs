@@ -42,12 +42,11 @@ internal static class DefaultRegistration
                 DefaultLoadBackchannelAuthenticationRequestHandler
             >();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<ValidateBackchannelAuthenticationRequestCommand>,
-                    DefaultValidateBackchannelAuthenticationRequestHandler
-                >()
-            );
+            var validateHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<ValidateBackchannelAuthenticationRequestCommand>,
+                DefaultValidateBackchannelAuthenticationRequestHandler
+            >();
+            serviceCollection.TryAddEnumerable(validateHandler);
 
             // The login hint cannot be resolved until a host registers a CIBA authentication capability, which replaces
             // this default handler; without it a backchannel request is rejected with unknown_user_id.
@@ -75,12 +74,11 @@ internal static class DefaultRegistration
             serviceCollection.TryAddSingleton<ICibaRequestService, DefaultCibaRequestService>();
 
             // Client ping/push delivery runs as a durable, retryable dispatch job; the handler performs the HTTP POST.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Scoped<
-                    IDispatchJobHandler<CibaDeliveryJob>,
-                    CibaDeliveryJobHandler
-                >()
-            );
+            var deliveryJobHandler = ServiceDescriptor.Scoped<
+                IDispatchJobHandler<CibaDeliveryJob>,
+                CibaDeliveryJobHandler
+            >();
+            serviceCollection.TryAddEnumerable(deliveryJobHandler);
         }
     }
 }

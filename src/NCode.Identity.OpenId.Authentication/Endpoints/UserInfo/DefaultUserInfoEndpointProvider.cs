@@ -106,13 +106,14 @@ internal class DefaultUserInfoEndpointProvider(
         var openIdEnvironment = openIdContext.Environment;
         var errorFactory = openIdContext.ErrorFactory;
 
+        var authenticateCommand = new AuthenticateResourceRequestCommand(
+            openIdContext,
+            UserInfoAudiences
+        );
         var disposition = await mediator.SendAsync<
             AuthenticateResourceRequestCommand,
             AuthenticateSubjectDisposition
-        >(
-            new AuthenticateResourceRequestCommand(openIdContext, UserInfoAudiences),
-            cancellationToken
-        );
+        >(authenticateCommand, cancellationToken);
 
         if (disposition.HasError)
         {
@@ -163,10 +164,8 @@ internal class DefaultUserInfoEndpointProvider(
 
         var result = new UserInfoResult();
 
-        await mediator.SendAsync(
-            new GetUserInfoClaimsCommand(openIdContext, ticket, result.Claims),
-            cancellationToken
-        );
+        var claimsCommand = new GetUserInfoClaimsCommand(openIdContext, ticket, result.Claims);
+        await mediator.SendAsync(claimsCommand, cancellationToken);
 
         var credentials = await ClientJwtCredentialSelector.SelectCredentialsAsync(
             openIdContext,
@@ -175,18 +174,22 @@ internal class DefaultUserInfoEndpointProvider(
             cancellationToken
         );
 
-        IResult response = credentials.IsProtected
-            ? Utf8TextResults.Create(
-                await EncodeUserInfoJwtAsync(
-                    openIdContext,
-                    openIdClient,
-                    credentials,
-                    result,
-                    cancellationToken
-                ),
-                JwtContentType
-            )
-            : TypedResults.Json(result, openIdEnvironment.JsonSerializerOptions);
+        IResult response;
+        if (credentials.IsProtected)
+        {
+            var userInfoJwt = await EncodeUserInfoJwtAsync(
+                openIdContext,
+                openIdClient,
+                credentials,
+                result,
+                cancellationToken
+            );
+            response = Utf8TextResults.Create(userInfoJwt, JwtContentType);
+        }
+        else
+        {
+            response = TypedResults.Json(result, openIdEnvironment.JsonSerializerOptions);
+        }
 
         // Audited once the response is built, so a response that cannot be protected is not recorded as a disclosure.
         // The client's effective settings merge its tenant's with Or, so a client cannot opt out of its tenant's audit
