@@ -1,0 +1,3 @@
+{{- if and .Values.directory.enabled (not .Values.directory.backendTls.existingSecret) }}
+{{ include "identity-host.backendTls.certificate" (dict "root" . "name" (include "identity-host.directory.backendTls.secretName" .) "secretName" (include "identity-host.directory.backendTls.secretName" .) "service" (include "identity-host.directory.fullname" .) "extra" (list) "labels" (include "identity-host.directory.labels" .)) }}
+{{- end }}

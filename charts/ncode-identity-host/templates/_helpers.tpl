@@ -1307,7 +1307,4 @@ Refuses a directory the host would refuse, before anything is applied. Rendered 
 {{- fail "directory.database.runtimeRole must be a lower-case Postgres role name of letters, digits and underscores that does not start with a digit." }}
 {{- end }}
 {{- include "identity-host.databaseValidate" (dict "path" "directory.migrations.database" "scope" $directory.migrations.database "defaults" $directory.database "required" true "connectionStringName" "directory") }}
-{{- if not $directory.backendTls.existingSecret }}
-{{- fail "directory.backendTls.existingSecret must name the Secret holding the directory's serving certificate when directory.enabled is true: the directory serves HTTPS only." }}
-{{- end }}
 {{- end }}
