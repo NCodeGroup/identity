@@ -85,3 +85,42 @@ cluster; the lab runs on OCI OKE Basic in Phoenix inside the free allowance; AWS
 - **Akamai Chicago (`us-ord`).** The same prices and capabilities, but about 15–20 ms from `us-east-1` against about
   1–2 ms. Rejected.
 - **Chosen:** Akamai LKE in Washington, DC for production, OCI OKE Basic in Phoenix for the lab.
+
+## Consequences
+
+- Every tier of production is redundant inside one datacenter, so a datacenter outage takes the cell down and an SLA
+  stays at or below about 99.9% until cells run across availability zones on AWS. These are the single points of failure
+  ADR-1134 accepts.
+- The developer-plan cluster's control plane pauses deploys and recovery when it fails; the paid cluster's HA control
+  plane costs $60 a month.
+- The developer-plan bill is about $98–99 a month: production $95, the lab $0, KMS keys about $2–3 and S3 about $1.
+- `NCodeGroup/identity-platform` builds the `akamai` and `oci` stacks from the LKE, Akamai PostgreSQL, OKE and Flux
+  components ([#87](https://github.com/NCodeGroup/identity/issues/87)). The fleet's cell module serves Akamai first and
+  AWS next ([#845](https://github.com/NCodeGroup/identity/issues/845)). Under ADR-1133's support tiers, the Akamai and
+  OCI components are the supported ones.
+- The lab is arm64 with CloudNativePG and production is amd64 with managed PostgreSQL, so the images are multi-arch
+  ([ADR-1248](1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md))
+  and each release is verified on the `canary` tenant (ADR-1495).
+- The subprocessors are Akamai (with Aiven behind its managed PostgreSQL), Cloudflare, Grafana Labs and AWS
+  ([#859](https://github.com/NCodeGroup/identity/issues/859)).
+- The hosting analysis keeps the sizing, the capacity, the chosen vendors' prices and the AWS growth path.
+
+## References
+
+- [Hosting analysis](../hosting-analysis.md): the sizing, the capacity, the chosen vendors' prices and the AWS growth
+  path.
+- [ADR-1132](1132-platform-infrastructure-code-is-public-on-github-and-its-state-and-backups-live-in-aws.md): the
+  infrastructure code, state and backups.
+- [ADR-1133](1133-the-hosted-platform-runs-only-the-published-artifacts-it-offers-self-hosters.md): the published
+  artifacts and the support tiers.
+- [ADR-1134](1134-the-platform-and-the-host-follow-written-cloud-native-operating-principles.md): the operating
+  principles and the accepted single points of failure.
+- [ADR-1411](1411-a-platform-is-a-global-directory-over-independent-cells-and-a-cells-tenants-share-one-database.md):
+  cells and the global directory.
+- [ADR-1495](1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md):
+  the environment model and the platform's domains.
+- Issues [#87](https://github.com/NCodeGroup/identity/issues/87),
+  [#177](https://github.com/NCodeGroup/identity/issues/177) and
+  [#845](https://github.com/NCodeGroup/identity/issues/845).
+- Akamai: [HA control plane](https://techdocs.akamai.com/cloud-computing/docs/high-availability-ha-control-plane-on-lke)
+  page.
