@@ -69,6 +69,9 @@ cluster; the lab runs on OCI OKE Basic in Phoenix inside the free allowance; AWS
 - **OCI Phoenix as production** (k3s HA on 3 × A1 at 2 OCPU / 12 GB, CloudNativePG, about $57–60). It has three
   availability domains and about 3× the capacity, but the platform operates the control plane and the database, A1
   capacity can be scarce and it is arm64 only. Rejected for production; the lab uses its free allowance.
+- **Self-managed k3s on three VMs at a paid vendor** (Vultr Dallas: 3 × 2 vCPU / 4 GB and a load balancer, $82; $97 with
+  a single-node managed database, $132 with an HA one). Every node is a control-plane server with embedded etcd and a
+  worker, so the control plane is HA for the price of the VMs, but the platform operates it and its upgrades. Rejected.
 - **Vultr VKE** (3 × 1 vCPU / 2 GB, 2-node managed database, $90). One fewer node and one fewer database replica, and
   the price of an HA control plane is unpublished. Rejected.
 - **Civo NYC1 managed k3s** (3 × 4 GB, CloudNativePG, about $76, free egress). The platform operates PostgreSQL (managed
@@ -84,6 +87,8 @@ cluster; the lab runs on OCI OKE Basic in Phoenix inside the free allowance; AWS
 - **Akamai Dallas (`us-central`).** It lacks VPCs, Premium plans, Premium NodeBalancers and LKE Enterprise. Rejected.
 - **Akamai Chicago (`us-ord`).** The same prices and capabilities, but about 15–20 ms from `us-east-1` against about 1–2
   ms. Rejected.
+- **The lab in another OCI region** (San Jose, Chicago or Ashburn). Phoenix is the closest OCI region to Denver, about
+  15–20 ms away against about 20–45 ms, and has three availability domains. Rejected.
 - **Chosen:** Akamai LKE in Washington, DC for production, OCI OKE Basic in Phoenix for the lab.
 
 ## Consequences
