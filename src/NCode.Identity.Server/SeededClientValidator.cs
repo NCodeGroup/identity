@@ -62,11 +62,8 @@ internal sealed class SeededClientValidator(
         );
         if (settingErrors.Count != 0)
         {
-            throw CreateException(
-                clientKind,
-                clientId,
-                settingErrors.Select(error => error.Message)
-            );
+            var messages = settingErrors.Select(error => error.Message);
+            throw CreateException(clientKind, clientId, messages);
         }
 
         var teamSettings = await EffectiveSettingsResolver.ResolveTeamAsync(
@@ -82,11 +79,8 @@ internal sealed class SeededClientValidator(
         var violations = ClientCoherenceValidator.Validate(tenantSettings, settings);
         if (violations.Count != 0)
         {
-            throw CreateException(
-                clientKind,
-                clientId,
-                violations.Select(violation => violation.Description)
-            );
+            var messages = violations.Select(violation => violation.Description);
+            throw CreateException(clientKind, clientId, messages);
         }
     }
 
@@ -94,5 +88,9 @@ internal sealed class SeededClientValidator(
         string clientKind,
         string clientId,
         IEnumerable<string> messages
-    ) => new($"The {clientKind} '{clientId}' cannot be seeded: {string.Join(" ", messages)}");
+    )
+    {
+        var messagesText = string.Join(" ", messages);
+        return new($"The {clientKind} '{clientId}' cannot be seeded: {messagesText}");
+    }
 }

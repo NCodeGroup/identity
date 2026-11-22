@@ -58,17 +58,20 @@ internal sealed class TagGroupsDocumentTransformer : IOpenApiDocumentTransformer
 
         if (oauthTags.Count > 0)
         {
-            tagGroups.Add(CreateGroup(OAuthGroupName, oauthTags));
+            var oauthGroup = CreateGroup(OAuthGroupName, oauthTags);
+            tagGroups.Add(oauthGroup);
         }
 
         if (managementTags.Count > 0)
         {
-            tagGroups.Add(CreateGroup(ManagementGroupName, managementTags));
+            var managementGroup = CreateGroup(ManagementGroupName, managementTags);
+            tagGroups.Add(managementGroup);
         }
 
         if (otherTags.Count > 0)
         {
-            tagGroups.Add(CreateGroup(OtherGroupName, otherTags));
+            var otherGroup = CreateGroup(OtherGroupName, otherTags);
+            tagGroups.Add(otherGroup);
         }
 
         document.Extensions ??= new Dictionary<string, IOpenApiExtension>();

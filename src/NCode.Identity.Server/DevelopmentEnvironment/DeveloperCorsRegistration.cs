@@ -64,12 +64,11 @@ public static class DeveloperCorsRegistration
                 .AddOptions<DeveloperCorsOptions>()
                 .Configure(options => section.BindStrictly(options))
                 .ValidateOnStart();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<DeveloperCorsOptions>,
-                    DeveloperCorsOptionsValidator
-                >()
-            );
+            var developerCorsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<DeveloperCorsOptions>,
+                DeveloperCorsOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(developerCorsValidator);
 
             serviceCollection.AddCors();
             serviceCollection

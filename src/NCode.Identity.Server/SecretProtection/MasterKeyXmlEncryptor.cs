@@ -49,10 +49,13 @@ internal class MasterKeyXmlEncryptor(PlatformSecretProtectorHolder holder) : IXm
 
         var value = protector.ProtectToString(xml.WrittenSpan, MasterKeyXmlFormat.Context);
 
+        var ownerText = protector.Owner.ToString();
+        var ownerAttribute = new XAttribute(MasterKeyXmlFormat.OwnerName, ownerText);
+        var valueElement = new XElement(MasterKeyXmlFormat.ValueName, value);
         var element = new XElement(
             MasterKeyXmlFormat.EncryptedSecretName,
-            new XAttribute(MasterKeyXmlFormat.OwnerName, protector.Owner.ToString()),
-            new XElement(MasterKeyXmlFormat.ValueName, value)
+            ownerAttribute,
+            valueElement
         );
 
         return new EncryptedXmlInfo(element, typeof(MasterKeyXmlDecryptor));

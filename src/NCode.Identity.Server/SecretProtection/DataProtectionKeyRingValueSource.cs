@@ -50,10 +50,16 @@ internal sealed class DataProtectionKeyRingValueSource(
     )
     {
         if (!Loader.IsOwner(owner))
-            return ValueTask.FromResult<IReadOnlySet<Guid>>(new HashSet<Guid>());
+        {
+            var emptyReferenced = new HashSet<Guid>();
+            return ValueTask.FromResult<IReadOnlySet<Guid>>(emptyReferenced);
+        }
 
         if (!KeyRingReader.TryRead(out var values))
-            return ValueTask.FromResult<IReadOnlySet<Guid>>(new HashSet<Guid>(masterKeyIds));
+        {
+            var allReferenced = new HashSet<Guid>(masterKeyIds);
+            return ValueTask.FromResult<IReadOnlySet<Guid>>(allReferenced);
+        }
 
         var now = TimeProvider.GetUtcNow();
         var grace = ProtectionOptions.Value.MasterKeys.RetirementGrace;

@@ -120,12 +120,11 @@ internal sealed class IdentityServerBuilder : ServiceBuilder<IdentityServer>, II
         // it.
         serviceCollection.TryAddSingleton<SeededLocalAccountValidator>();
 
-        serviceCollection.TryAddEnumerable(
-            ServiceDescriptor.Singleton<
-                IValidateOptions<IdentityServerApiReferenceOptions>,
-                IdentityServerApiReferenceOptionsValidator
-            >()
-        );
+        var apiReferenceOptionsValidator = ServiceDescriptor.Singleton<
+            IValidateOptions<IdentityServerApiReferenceOptions>,
+            IdentityServerApiReferenceOptionsValidator
+        >();
+        serviceCollection.TryAddEnumerable(apiReferenceOptionsValidator);
 
         // The OpenAPI document describes this server's own endpoints, so the composition root owns its
         // registration and grouping rather than leaving each host to re-wire it.

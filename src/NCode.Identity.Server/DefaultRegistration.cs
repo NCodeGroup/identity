@@ -28,7 +28,8 @@ public static class DefaultRegistration
         /// <returns>The <see cref="IIdentityServerBuilder"/> instance for additional configuration.</returns>
         public IIdentityServerBuilder AddIdentityServer()
         {
-            serviceCollection.TryAddSingleton(new LocalDevelopmentMode(false));
+            var localDevelopmentMode = new LocalDevelopmentMode(false);
+            serviceCollection.TryAddSingleton(localDevelopmentMode);
             return new IdentityServerBuilder(serviceCollection);
         }
     }

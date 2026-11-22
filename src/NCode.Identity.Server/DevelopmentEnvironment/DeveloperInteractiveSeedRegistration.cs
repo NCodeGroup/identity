@@ -62,21 +62,19 @@ public static class DeveloperInteractiveSeedRegistration
             }
 
             serviceCollection.AddSingleton(options);
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<SeedTenantCommand>,
-                    DeveloperInteractiveSeedHandler
-                >()
-            );
+            var seedHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<SeedTenantCommand>,
+                DeveloperInteractiveSeedHandler
+            >();
+            serviceCollection.TryAddEnumerable(seedHandler);
 
             // Project the interactively-authenticated subject's role claim into the access token so the seeded
             // administrator can exercise the role-gated management API during local development.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<GetAccessTokenSubjectClaimsCommand>,
-                    DeveloperInteractiveSubjectClaimsHandler
-                >()
-            );
+            var subjectClaimsHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<GetAccessTokenSubjectClaimsCommand>,
+                DeveloperInteractiveSubjectClaimsHandler
+            >();
+            serviceCollection.TryAddEnumerable(subjectClaimsHandler);
 
             return builder;
         }

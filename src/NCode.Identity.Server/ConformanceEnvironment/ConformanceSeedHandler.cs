@@ -137,21 +137,24 @@ internal sealed class ConformanceSeedHandler(
         if (!string.IsNullOrEmpty(client.ClientSecret))
         {
             // A client seeded with only its keys never loads the tenant's master key.
+            var secretOwner = SecretOwner.ForTenant(tenantId);
             var protector = await SecretProtectorProvider.GetProtectorAsync(
-                SecretOwner.ForTenant(tenantId),
+                secretOwner,
                 [],
                 cancellationToken
             );
-            secrets.Add(
-                CreatePersistedSecret(
-                    protector,
-                    client.ClientSecret,
-                    client.TokenEndpointAuthMethod
-                )
+            var persistedSecret = CreatePersistedSecret(
+                protector,
+                client.ClientSecret,
+                client.TokenEndpointAuthMethod
             );
+            secrets.Add(persistedSecret);
         }
         if (!string.IsNullOrEmpty(client.Jwks))
-            secrets.AddRange(ImportKeys(clientId, client.Jwks));
+        {
+            var importedKeys = ImportKeys(clientId, client.Jwks);
+            secrets.AddRange(importedKeys);
+        }
 
         var persistedClient = new PersistedClient
         {
@@ -180,10 +183,11 @@ internal sealed class ConformanceSeedHandler(
     private IReadOnlyList<PersistedSecret> ImportKeys(string clientId, string jwks)
     {
         var jsonElement = ParseKeySet(clientId, jwks);
+        var utcNow = TimeProvider.GetUtcNow();
         if (
             ClientKeyImporter.TryImportRegisteredKeySet(
                 jsonElement,
-                TimeProvider.GetUtcNow(),
+                utcNow,
                 out var keys,
                 out var error
             )
@@ -277,7 +281,8 @@ internal sealed class ConformanceSeedHandler(
         {
             if (!string.IsNullOrEmpty(value))
             {
-                claims.Add(new PersistedLocalAccountClaim { Type = type, Value = value });
+                var claim = new PersistedLocalAccountClaim { Type = type, Value = value };
+                claims.Add(claim);
             }
         }
 
@@ -286,10 +291,8 @@ internal sealed class ConformanceSeedHandler(
 
         // Compose the displayed 'name' from whichever name parts are configured so the suite's EnsureUserInfoContainsName
         // check (a 'profile' scope request) always finds one.
-        var displayName = string.Join(
-            ' ',
-            new[] { givenName, familyName }.Where(part => !string.IsNullOrEmpty(part))
-        );
+        var nameParts = new[] { givenName, familyName }.Where(part => !string.IsNullOrEmpty(part));
+        var displayName = string.Join(' ', nameParts);
         Add(JoseClaimNames.Payload.Name, displayName);
 
         // Seed the full standard 'profile', 'address', and 'phone' scope claim sets with deterministic values so the

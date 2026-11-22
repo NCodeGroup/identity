@@ -117,8 +117,9 @@ internal sealed class BootstrapAdminSeedHandler(
                 cancellationToken
             );
             Logger.BootstrapAdminClientSecretRefreshed(clientId, tenantId);
+            var firstRoleAssignmentStore = context.StoreManager.GetStore<IRoleAssignmentStore>();
             await EnsureGlobalAdminAsync(
-                context.StoreManager.GetStore<IRoleAssignmentStore>(),
+                firstRoleAssignmentStore,
                 tenantId,
                 existing.PrincipalId,
                 cancellationToken
@@ -150,8 +151,9 @@ internal sealed class BootstrapAdminSeedHandler(
         await store.AddAsync(persistedClient, cancellationToken);
 
         // The store assigns the client's principal identifier when it adds the client.
+        var roleAssignmentStore = context.StoreManager.GetStore<IRoleAssignmentStore>();
         await EnsureGlobalAdminAsync(
-            context.StoreManager.GetStore<IRoleAssignmentStore>(),
+            roleAssignmentStore,
             tenantId,
             persistedClient.PrincipalId,
             cancellationToken
@@ -198,30 +200,27 @@ internal sealed class BootstrapAdminSeedHandler(
             return;
         }
 
-        await store.AddAsync(
-            new PersistedRoleAssignment
-            {
-                TenantId = tenantId,
-                AssignmentId = CryptoService.GenerateResourceId(),
-                PrincipalId = principalId,
-                RoleName = BuiltInRoles.GlobalAdmin,
-                ResourceType = ResourceNodeTypes.Platform,
-                ResourceId = OpenIdConstants.PlatformResourceId,
-                ConcurrencyToken = string.Empty,
-            },
-            cancellationToken
-        );
+        var assignment = new PersistedRoleAssignment
+        {
+            TenantId = tenantId,
+            AssignmentId = CryptoService.GenerateResourceId(),
+            PrincipalId = principalId,
+            RoleName = BuiltInRoles.GlobalAdmin,
+            ResourceType = ResourceNodeTypes.Platform,
+            ResourceId = OpenIdConstants.PlatformResourceId,
+            ConcurrencyToken = string.Empty,
+        };
+        await store.AddAsync(assignment, cancellationToken);
     }
 
     private ValueTask<ISecretProtector> GetProtectorAsync(
         string tenantId,
         CancellationToken cancellationToken
-    ) =>
-        SecretProtectorProvider.GetProtectorAsync(
-            SecretOwner.ForTenant(tenantId),
-            [],
-            cancellationToken
-        );
+    )
+    {
+        var secretOwner = SecretOwner.ForTenant(tenantId);
+        return SecretProtectorProvider.GetProtectorAsync(secretOwner, [], cancellationToken);
+    }
 
     private async ValueTask RefreshClientSecretAsync(
         IClientStore store,
@@ -241,11 +240,12 @@ internal sealed class BootstrapAdminSeedHandler(
             }
         }
 
-        await store.AddSecretAsync(
-            clientId,
-            CreatePersistedSecret(protector, clientSecret, tokenEndpointAuthMethod),
-            cancellationToken
+        var persistedSecret = CreatePersistedSecret(
+            protector,
+            clientSecret,
+            tokenEndpointAuthMethod
         );
+        await store.AddSecretAsync(clientId, persistedSecret, cancellationToken);
     }
 
     private bool TargetsTenant(TenantSeedContext context) =>
@@ -253,13 +253,14 @@ internal sealed class BootstrapAdminSeedHandler(
         // must be the control-plane tenant, where the platform role assignment is read.
         string.Equals(context.TenantId, Options.TenantId, StringComparison.Ordinal);
 
-    private static JsonElement CreateSettings() =>
-        JsonSerializer.SerializeToElement(
-            new Dictionary<string, object>
-            {
-                [OpenIdSettingNames.TokenEndpointAuthMethod] = SeededAuthenticationMethod,
-            }
-        );
+    private static JsonElement CreateSettings()
+    {
+        var settings = new Dictionary<string, object>
+        {
+            [OpenIdSettingNames.TokenEndpointAuthMethod] = SeededAuthenticationMethod,
+        };
+        return JsonSerializer.SerializeToElement(settings);
+    }
 
     private PersistedClient CreateClient(
         string tenantId,
