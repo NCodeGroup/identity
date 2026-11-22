@@ -45,7 +45,8 @@ POST api/tenant-imports/transfer-keys
 /// package, imports every section and the master keys, retags the remote keys that the imported secrets reference to
 /// this cell, and moves the tenant's placement in the global directory to this cell. A package names the cell it is
 /// offered to, and only that cell imports it. The tenant stays disabled. Every cell maps the routes, and the caller
-/// needs the update operation on the platform node.
+/// needs the update operation on the platform node. The import route authorizes the caller before its body binds, in
+/// <see cref="TenantImportAuthorizationGate"/>, and again in its handler.
 /// </summary>
 // See ADR-1514.
 internal class TenantImportApiEndpointHandler(
@@ -89,6 +90,7 @@ internal class TenantImportApiEndpointHandler(
 
         imports
             .MapPost("", ImportTenantAsync)
+            .AddEndpointGate<RouteHandlerBuilder, TenantImportAuthorizationGate>()
             .WithMetadata(new RequestSizeLimitAttribute(TenantTransferLimits.MaxImportRequestBytes))
             .Produces<TenantImportResource>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
