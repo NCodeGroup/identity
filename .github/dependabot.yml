@@ -38,6 +38,21 @@ updates:
       # The repository's analyzers build against the Roslyn that EF Core Design pins exactly, older than the Roslyn of every SDK global.json admits, so this version moves with EF Core Design, deliberately (ADR-1486, ADR-1493).
       - dependency-name: 'Microsoft.CodeAnalysis.CSharp'
         update-types: ['version-update:semver-major', 'version-update:semver-minor']
+      # The .NET release's packages stay on the target framework's band, so their major moves with the target framework, deliberately (ADR-1519).
+      - dependency-name: 'Microsoft.Extensions.*'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'Microsoft.AspNetCore.*'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'Microsoft.EntityFrameworkCore*'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'Npgsql.EntityFrameworkCore.PostgreSQL'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'System.Formats.Cbor'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'System.Security.Cryptography.Xml'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'System.Text.Json'
+        update-types: ['version-update:semver-major']
     groups:
       # Patch/minor servicing moves together — this is the stream that clears NuGet advisories, which the full
       # Definition of Done treats as build errors (NU1901-1904), so leaving it to rot eventually breaks CI outright.
