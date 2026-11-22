@@ -152,8 +152,11 @@ non-production developer plan; paid plans, and the availability they need, are p
    four nodes, and move the cell onto it: the managed database stays where it is, the release is deployed on the new
    cluster, and DNS is pointed at its load balancer, so no tenant changes ([§12](#which-cluster-each-cell-uses)). This
    avoids enabling HA in place, which replaces every node irreversibly.
-4. **As the paid plans grow — AWS:** place new cells, then the paid cells, on AWS for multiple availability zones and
-   the enterprise features the cheaper vendors lack ([§11](#11-growth-path-aws)).
+4. **As the paying base grows — a cluster of its own, then AWS.** The paid cells move to a cluster of their own, created
+   with the HA control plane, when free usage shows in paid customers' latency or a contract asks for it
+   ([§12](#which-cluster-each-cell-uses)). A cell moves to AWS when a customer needs several availability zones,
+   PrivateLink, Marketplace billing or a higher SLA, and the paid shared cell moves when the paid plans need it; which
+   cells move, when, and in which shape is open ([§11](#11-growth-path-aws), [§13](#13-open-decisions)).
 
 Every release goes through the same steps: the conformance suite in CI against each build (the self-hosted OpenID
 Foundation suite in Docker on a GitHub-hosted runner, [#124](https://github.com/NCodeGroup/identity/issues/124), $0),
