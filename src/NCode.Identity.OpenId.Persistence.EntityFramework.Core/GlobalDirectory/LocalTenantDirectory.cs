@@ -117,7 +117,8 @@ internal sealed class LocalTenantDirectory(
     )
     {
         // The tenant row is the placement.
-        return ValueTask.FromResult(ReservationResult.Reserved());
+        var reserved = ReservationResult.Reserved();
+        return ValueTask.FromResult(reserved);
     }
 
     /// <inheritdoc />
@@ -136,11 +137,10 @@ internal sealed class LocalTenantDirectory(
     )
     {
         // A cell that runs on its own has no other cell to offer a tenant to.
-        return ValueTask.FromResult(
-            MoveOfferResult.Conflict(
-                $"The cell '{CellOptions.Name}' runs on its own, so it has no other cell to offer the tenant '{tenantId}' to."
-            )
+        var conflict = MoveOfferResult.Conflict(
+            $"The cell '{CellOptions.Name}' runs on its own, so it has no other cell to offer the tenant '{tenantId}' to."
         );
+        return ValueTask.FromResult(conflict);
     }
 
     /// <inheritdoc />
@@ -152,11 +152,10 @@ internal sealed class LocalTenantDirectory(
     )
     {
         // A cell that runs on its own has no other cell to move a tenant to.
-        return ValueTask.FromResult(
-            MoveResult.Conflict(
-                $"The cell '{CellOptions.Name}' runs on its own, so it has no other cell to move the tenant '{tenantId}' to."
-            )
+        var conflict = MoveResult.Conflict(
+            $"The cell '{CellOptions.Name}' runs on its own, so it has no other cell to move the tenant '{tenantId}' to."
         );
+        return ValueTask.FromResult(conflict);
     }
 
     /// <inheritdoc />
@@ -178,14 +177,13 @@ internal sealed class LocalTenantDirectory(
             )
         )
         {
-            dbContext.RetiredTenants.Add(
-                new RetiredTenantEntity
-                {
-                    Id = KeyGenerator.CreateKey(),
-                    TenantId = tenantId,
-                    NormalizedTenantId = normalizedTenantId,
-                }
-            );
+            var retiredTenantEntity = new RetiredTenantEntity
+            {
+                Id = KeyGenerator.CreateKey(),
+                TenantId = tenantId,
+                NormalizedTenantId = normalizedTenantId,
+            };
+            dbContext.RetiredTenants.Add(retiredTenantEntity);
         }
 
         if (retirement.Issuer is { } issuer)
@@ -276,15 +274,14 @@ internal sealed class LocalTenantDirectory(
             return;
         }
 
-        dbContext.RetiredIssuers.Add(
-            new RetiredIssuerEntity
-            {
-                Id = KeyGenerator.CreateKey(),
-                Issuer = issuer,
-                NormalizedIssuer = normalizedIssuer,
-                TenantId = tenantId,
-            }
-        );
+        var retiredIssuerEntity = new RetiredIssuerEntity
+        {
+            Id = KeyGenerator.CreateKey(),
+            Issuer = issuer,
+            NormalizedIssuer = normalizedIssuer,
+            TenantId = tenantId,
+        };
+        dbContext.RetiredIssuers.Add(retiredIssuerEntity);
     }
 
     /// <inheritdoc />
@@ -341,9 +338,10 @@ internal sealed class LocalTenantDirectory(
         using var unscoped = AmbientTenantAccessor.BeginUnscoped(UnscopedReason);
         await using var dbContext = await DbContextFactory.CreateDbContextAsync(cancellationToken);
 
+        var normalizedIssuer = Normalize(issuer);
         return await GetRetiredIssuerHolderCoreAsync(
             dbContext,
-            Normalize(issuer),
+            normalizedIssuer,
             cancellationToken
         );
     }
@@ -365,9 +363,10 @@ internal sealed class LocalTenantDirectory(
         CancellationToken cancellationToken
     )
     {
+        var normalizedIssuer = Normalize(issuer);
         var formerHolder = await GetRetiredIssuerHolderCoreAsync(
             dbContext,
-            Normalize(issuer),
+            normalizedIssuer,
             cancellationToken
         );
         return

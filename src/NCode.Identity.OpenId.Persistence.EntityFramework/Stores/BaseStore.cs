@@ -208,10 +208,16 @@ public abstract class BaseStore<TItem, TEntity> : IStore
         var items = new List<TItem>(count);
         for (var index = 0; index < count; index++)
         {
-            items.Add(await MapFromEntityAsync(entities[index], cancellationToken));
+            var item = await MapFromEntityAsync(entities[index], cancellationToken);
+            items.Add(item);
         }
 
-        var nextCursor = hasMore ? EncodeCursor(GetSortKey(entities[count - 1])) : null;
+        string? nextCursor = null;
+        if (hasMore)
+        {
+            var sortKey = GetSortKey(entities[count - 1]);
+            nextCursor = EncodeCursor(sortKey);
+        }
 
         return new PagedResult<TItem> { Items = items, NextCursor = nextCursor };
     }

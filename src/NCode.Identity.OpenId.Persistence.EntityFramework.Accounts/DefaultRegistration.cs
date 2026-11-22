@@ -40,9 +40,11 @@ public static class DefaultRegistration
 
             var newBuilder = serviceCollection.NewBuilder<LocalAccountLibrary>();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IOpenIdModelContributor, LocalAccountModelContributor>()
-            );
+            var modelContributor = ServiceDescriptor.Singleton<
+                IOpenIdModelContributor,
+                LocalAccountModelContributor
+            >();
+            serviceCollection.TryAddEnumerable(modelContributor);
 
             serviceCollection.AddSingleton<
                 Func<IStoreProvider, OpenIdDbContext, ILocalAccountStore>

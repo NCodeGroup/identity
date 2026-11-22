@@ -77,21 +77,20 @@ internal class ResourceServerStore(
         CancellationToken cancellationToken
     )
     {
-        return ValueTask.FromResult(
-            new PersistedResourceServer
-            {
-                TenantId = entity.Tenant.TenantId,
-                ResourceServerId = entity.ResourceServerId,
-                Identifier = entity.Identifier,
-                ConcurrencyToken = entity.ConcurrencyToken,
-                Name = entity.Name,
-                IsSystem = entity.IsSystem,
-                IsDisabled = entity.IsDisabled,
-                Settings = MapSettings(entity),
-                Scopes = entity.Scopes.Select(MapScope).ToList(),
-                Secrets = MapSecrets(entity),
-            }
-        );
+        var persistedResourceServer = new PersistedResourceServer
+        {
+            TenantId = entity.Tenant.TenantId,
+            ResourceServerId = entity.ResourceServerId,
+            Identifier = entity.Identifier,
+            ConcurrencyToken = entity.ConcurrencyToken,
+            Name = entity.Name,
+            IsSystem = entity.IsSystem,
+            IsDisabled = entity.IsDisabled,
+            Settings = MapSettings(entity),
+            Scopes = entity.Scopes.Select(MapScope).ToList(),
+            Secrets = MapSecrets(entity),
+        };
+        return ValueTask.FromResult(persistedResourceServer);
     }
 
     /// <inheritdoc />
@@ -299,7 +298,8 @@ internal class ResourceServerStore(
         var items = new List<PersistedResourceServer>(entities.Count);
         foreach (var entity in entities)
         {
-            items.Add(await MapFromEntityAsync(entity, cancellationToken));
+            var mapped = await MapFromEntityAsync(entity, cancellationToken);
+            items.Add(mapped);
         }
 
         return items;
@@ -350,22 +350,21 @@ internal class ResourceServerStore(
 
         foreach (var persistedScope in persistedResourceServer.Scopes)
         {
-            scopes.Add(
-                new ScopeEntity
-                {
-                    Id = NextId(),
-                    TenantId = tenantEntity.Id,
-                    NormalizedTenantId = tenantEntity.NormalizedTenantId,
-                    ResourceServerId = resourceServerEntity.Id,
-                    Value = persistedScope.Value,
-                    NormalizedValue = Normalize(persistedScope.Value),
-                    ConcurrencyToken = NextConcurrencyToken(),
-                    Description = persistedScope.Description,
-                    IsSystem = persistedScope.IsSystem,
-                    Tenant = tenantEntity,
-                    ResourceServer = resourceServerEntity,
-                }
-            );
+            var scopeEntity = new ScopeEntity
+            {
+                Id = NextId(),
+                TenantId = tenantEntity.Id,
+                NormalizedTenantId = tenantEntity.NormalizedTenantId,
+                ResourceServerId = resourceServerEntity.Id,
+                Value = persistedScope.Value,
+                NormalizedValue = Normalize(persistedScope.Value),
+                ConcurrencyToken = NextConcurrencyToken(),
+                Description = persistedScope.Description,
+                IsSystem = persistedScope.IsSystem,
+                Tenant = tenantEntity,
+                ResourceServer = resourceServerEntity,
+            };
+            scopes.Add(scopeEntity);
         }
 
         foreach (var persistedSecret in persistedResourceServer.Secrets.Value)
@@ -495,21 +494,21 @@ internal class ResourceServerStore(
 
         DbContext.Scopes.RemoveRange(resourceServerEntity.Scopes);
         DbContext.ResourceServerSecrets.RemoveRange(resourceServerEntity.Secrets);
-        DbContext.Secrets.RemoveRange(
-            resourceServerEntity.Secrets.Select(resourceServerSecret => resourceServerSecret.Secret)
+        var secrets = resourceServerEntity.Secrets.Select(resourceServerSecret =>
+            resourceServerSecret.Secret
         );
+        DbContext.Secrets.RemoveRange(secrets);
 
         // The role assignments at the resource server's node are stored under its tenant and removed with it.
         // See ADR-1212.
-        DbContext.RoleAssignments.RemoveRange(
-            await DbContext
-                .RoleAssignments.Where(entity =>
-                    entity.TenantId == tenantKey
-                    && entity.ResourceType == OpenIdResourceTypes.ResourceServer
-                    && entity.NormalizedResourceId == normalizedResourceServerId
-                )
-                .ToListAsync(cancellationToken)
-        );
+        var roleAssignments = await DbContext
+            .RoleAssignments.Where(entity =>
+                entity.TenantId == tenantKey
+                && entity.ResourceType == OpenIdResourceTypes.ResourceServer
+                && entity.NormalizedResourceId == normalizedResourceServerId
+            )
+            .ToListAsync(cancellationToken);
+        DbContext.RoleAssignments.RemoveRange(roleAssignments);
 
         DbContext.ResourceServers.Remove(resourceServerEntity);
     }

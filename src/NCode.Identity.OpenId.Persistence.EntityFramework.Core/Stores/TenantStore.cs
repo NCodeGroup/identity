@@ -60,14 +60,13 @@ internal class TenantStore(
         CancellationToken cancellationToken
     )
     {
-        return ValueTask.FromResult(
-            new PersistedTenantSettings
-            {
-                TenantId = tenantEntity.TenantId,
-                ConcurrencyToken = tenantEntity.SettingsConcurrencyToken,
-                Value = tenantEntity.SettingsJson,
-            }
-        );
+        var persistedTenantSettings = new PersistedTenantSettings
+        {
+            TenantId = tenantEntity.TenantId,
+            ConcurrencyToken = tenantEntity.SettingsConcurrencyToken,
+            Value = tenantEntity.SettingsJson,
+        };
+        return ValueTask.FromResult(persistedTenantSettings);
     }
 
     /// <summary>
@@ -81,14 +80,13 @@ internal class TenantStore(
         CancellationToken cancellationToken
     )
     {
-        return ValueTask.FromResult(
-            new PersistedTenantSecrets
-            {
-                TenantId = tenantEntity.TenantId,
-                ConcurrencyToken = tenantEntity.SecretsConcurrencyToken,
-                Value = MapToPersistedSecrets(tenantEntity.Secrets),
-            }
-        );
+        var persistedTenantSecrets = new PersistedTenantSecrets
+        {
+            TenantId = tenantEntity.TenantId,
+            ConcurrencyToken = tenantEntity.SecretsConcurrencyToken,
+            Value = MapToPersistedSecrets(tenantEntity.Secrets),
+        };
+        return ValueTask.FromResult(persistedTenantSecrets);
     }
 
     /// <inheritdoc />
@@ -218,14 +216,13 @@ internal class TenantStore(
         for (var index = 0; index < count; index++)
         {
             var row = rows[index];
-            items.Add(
-                new PersistedTenantSettings
-                {
-                    TenantId = row.TenantId,
-                    ConcurrencyToken = row.SettingsConcurrencyToken,
-                    Value = row.SettingsJson,
-                }
-            );
+            var persistedTenantSettings = new PersistedTenantSettings
+            {
+                TenantId = row.TenantId,
+                ConcurrencyToken = row.SettingsConcurrencyToken,
+                Value = row.SettingsJson,
+            };
+            items.Add(persistedTenantSettings);
         }
 
         var nextCursor = hasMore ? EncodeCursor(rows[count - 1].Id) : null;
@@ -300,14 +297,13 @@ internal class TenantStore(
         for (var index = 0; index < count; index++)
         {
             var row = rows[index];
-            items.Add(
-                new PersistedTenantSettings
-                {
-                    TenantId = row.TenantId,
-                    ConcurrencyToken = row.SettingsConcurrencyToken,
-                    Value = row.SettingsJson,
-                }
-            );
+            var persistedTenantSettings = new PersistedTenantSettings
+            {
+                TenantId = row.TenantId,
+                ConcurrencyToken = row.SettingsConcurrencyToken,
+                Value = row.SettingsJson,
+            };
+            items.Add(persistedTenantSettings);
         }
 
         var nextCursor = hasMore ? EncodeCursor(rows[count - 1].Id) : null;
@@ -353,7 +349,8 @@ internal class TenantStore(
         var tenants = new List<PersistedTenant>(entities.Count);
         foreach (var entity in entities)
         {
-            tenants.Add(await MapFromEntityAsync(entity, cancellationToken));
+            var mapped = await MapFromEntityAsync(entity, cancellationToken);
+            tenants.Add(mapped);
         }
 
         return tenants;
@@ -844,19 +841,18 @@ internal class TenantStore(
         var normalizedTenantId = tenantEntity.NormalizedTenantId;
         // Cross-tenant: the principals of the tenant that is removed hold assignments at the nodes of other tenants.
         var principals = DbContext.FederatedPrincipals.IgnoreQueryFilters();
-        DbContext.RoleAssignments.RemoveRange(
-            await DbContext
-                // Cross-tenant: the assignments that the removed tenant's principals hold are stored under other tenants.
-                .RoleAssignments.IgnoreQueryFilters()
-                .Where(assignment =>
-                    assignment.NormalizedTenantId != normalizedTenantId
-                    && principals.Any(principal =>
-                        principal.NormalizedTenantId == normalizedTenantId
-                        && principal.NormalizedPrincipalId == assignment.NormalizedPrincipalId
-                    )
+        var roleAssignments = await DbContext
+            // Cross-tenant: the assignments that the removed tenant's principals hold are stored under other tenants.
+            .RoleAssignments.IgnoreQueryFilters()
+            .Where(assignment =>
+                assignment.NormalizedTenantId != normalizedTenantId
+                && principals.Any(principal =>
+                    principal.NormalizedTenantId == normalizedTenantId
+                    && principal.NormalizedPrincipalId == assignment.NormalizedPrincipalId
                 )
-                .ToListAsync(cancellationToken)
-        );
+            )
+            .ToListAsync(cancellationToken);
+        DbContext.RoleAssignments.RemoveRange(roleAssignments);
 
         await RemoveTenantOwnedRowsAsync(tenantEntity.NormalizedTenantId, cancellationToken);
 
@@ -918,7 +914,8 @@ internal class TenantStore(
             }
 
             var rows = await removal;
-            secretIds.AddRange(rows.OfType<ISupportSecretEntity>().Select(row => row.SecretId));
+            var rowSecretIds = rows.OfType<ISupportSecretEntity>().Select(row => row.SecretId);
+            secretIds.AddRange(rowSecretIds);
         }
 
         if (secretIds.Count == 0)

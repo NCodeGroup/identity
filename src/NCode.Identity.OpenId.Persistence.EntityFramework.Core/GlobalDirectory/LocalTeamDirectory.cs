@@ -119,14 +119,13 @@ internal sealed class LocalTeamDirectory(
                 .SingleOrDefaultAsync(cancellationToken)
             ?? teamId;
 
-        dbContext.RetiredTeams.Add(
-            new RetiredTeamEntity
-            {
-                Id = KeyGenerator.CreateKey(),
-                TeamId = heldTeamId,
-                NormalizedTeamId = normalizedTeamId,
-            }
-        );
+        var retiredTeamEntity = new RetiredTeamEntity
+        {
+            Id = KeyGenerator.CreateKey(),
+            TeamId = heldTeamId,
+            NormalizedTeamId = normalizedTeamId,
+        };
+        dbContext.RetiredTeams.Add(retiredTeamEntity);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 

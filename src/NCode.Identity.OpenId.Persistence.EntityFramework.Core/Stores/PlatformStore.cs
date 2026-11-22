@@ -46,13 +46,12 @@ internal class PlatformStore(
         CancellationToken cancellationToken
     )
     {
-        return ValueTask.FromResult(
-            new PersistedPlatformSettings
-            {
-                ConcurrencyToken = platformEntity.SettingsConcurrencyToken,
-                Value = platformEntity.SettingsJson,
-            }
-        );
+        var persistedPlatformSettings = new PersistedPlatformSettings
+        {
+            ConcurrencyToken = platformEntity.SettingsConcurrencyToken,
+            Value = platformEntity.SettingsJson,
+        };
+        return ValueTask.FromResult(persistedPlatformSettings);
     }
 
     /// <inheritdoc />
@@ -255,18 +254,16 @@ internal class PlatformStore(
         {
             var concurrencyToken = NextConcurrencyToken();
 
-            await DbContext.Platforms.AddAsync(
-                new PlatformEntity
-                {
-                    Id = NextId(),
-                    Key = OpenIdResourceIds.Platform,
-                    ConcurrencyToken = concurrencyToken,
-                    SettingsConcurrencyToken = nextConcurrencyToken,
-                    SettingsJson = settings.Value,
-                    DirectorySequence = directorySequence,
-                },
-                cancellationToken
-            );
+            var newPlatformEntity = new PlatformEntity
+            {
+                Id = NextId(),
+                Key = OpenIdResourceIds.Platform,
+                ConcurrencyToken = concurrencyToken,
+                SettingsConcurrencyToken = nextConcurrencyToken,
+                SettingsJson = settings.Value,
+                DirectorySequence = directorySequence,
+            };
+            await DbContext.Platforms.AddAsync(newPlatformEntity, cancellationToken);
         }
         else
         {

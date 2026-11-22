@@ -49,15 +49,14 @@ internal class ClientStore(
         CancellationToken cancellationToken
     )
     {
-        return ValueTask.FromResult(
-            new PersistedClientSettings
-            {
-                TenantId = clientEntity.Tenant.TenantId,
-                ClientId = clientEntity.ClientId,
-                ConcurrencyToken = clientEntity.SettingsConcurrencyToken,
-                Value = clientEntity.SettingsJson,
-            }
-        );
+        var persistedClientSettings = new PersistedClientSettings
+        {
+            TenantId = clientEntity.Tenant.TenantId,
+            ClientId = clientEntity.ClientId,
+            ConcurrencyToken = clientEntity.SettingsConcurrencyToken,
+            Value = clientEntity.SettingsJson,
+        };
+        return ValueTask.FromResult(persistedClientSettings);
     }
 
     /// <summary>
@@ -71,15 +70,14 @@ internal class ClientStore(
         CancellationToken cancellationToken
     )
     {
-        return ValueTask.FromResult(
-            new PersistedClientSecrets
-            {
-                TenantId = clientEntity.Tenant.TenantId,
-                ClientId = clientEntity.ClientId,
-                ConcurrencyToken = clientEntity.SecretsConcurrencyToken,
-                Value = MapToPersistedSecrets(clientEntity.Secrets),
-            }
-        );
+        var persistedClientSecrets = new PersistedClientSecrets
+        {
+            TenantId = clientEntity.Tenant.TenantId,
+            ClientId = clientEntity.ClientId,
+            ConcurrencyToken = clientEntity.SecretsConcurrencyToken,
+            Value = MapToPersistedSecrets(clientEntity.Secrets),
+        };
+        return ValueTask.FromResult(persistedClientSecrets);
     }
 
     /// <inheritdoc />
@@ -139,7 +137,11 @@ internal class ClientStore(
         Guid? afterId,
         int take,
         CancellationToken cancellationToken
-    ) => await GetEntityPageAsync(QueryClients(), afterId, take, cancellationToken);
+    )
+    {
+        var query = QueryClients();
+        return await GetEntityPageAsync(query, afterId, take, cancellationToken);
+    }
 
     private static async ValueTask<IReadOnlyList<ClientEntity>> GetEntityPageAsync(
         IQueryable<ClientEntity> query,
@@ -190,15 +192,14 @@ internal class ClientStore(
         for (var index = 0; index < count; index++)
         {
             var row = rows[index];
-            items.Add(
-                new PersistedClientSettings
-                {
-                    TenantId = row.TenantId,
-                    ClientId = row.ClientId,
-                    ConcurrencyToken = row.SettingsConcurrencyToken,
-                    Value = row.SettingsJson,
-                }
-            );
+            var persistedClientSettings = new PersistedClientSettings
+            {
+                TenantId = row.TenantId,
+                ClientId = row.ClientId,
+                ConcurrencyToken = row.SettingsConcurrencyToken,
+                Value = row.SettingsJson,
+            };
+            items.Add(persistedClientSettings);
         }
 
         var nextCursor = hasMore ? EncodeCursor(rows[count - 1].Id) : null;
@@ -617,38 +618,33 @@ internal class ClientStore(
         // assignments its principal holds, in any tenant, are removed with IRoleAssignmentStore.RemoveByPrincipalAsync.
         // See ADR-1212 and ADR-1466.
         DbContext.ClientSecrets.RemoveRange(clientEntity.Secrets);
-        DbContext.Secrets.RemoveRange(
-            clientEntity.Secrets.Select(clientSecret => clientSecret.Secret)
-        );
+        var secrets = clientEntity.Secrets.Select(clientSecret => clientSecret.Secret);
+        DbContext.Secrets.RemoveRange(secrets);
 
         var clientKey = clientEntity.Id;
         var tenantKey = clientEntity.TenantId;
         var normalizedClientId = clientEntity.NormalizedClientId;
 
-        DbContext.ClientGrants.RemoveRange(
-            await DbContext
-                .ClientGrants.Where(entity => entity.ClientId == clientKey)
-                .ToListAsync(cancellationToken)
-        );
-        DbContext.Consents.RemoveRange(
-            await DbContext
-                .Consents.Where(entity => entity.ClientId == clientKey)
-                .ToListAsync(cancellationToken)
-        );
-        DbContext.Grants.RemoveRange(
-            await DbContext
-                .Grants.Where(entity => entity.ClientId == clientKey)
-                .ToListAsync(cancellationToken)
-        );
-        DbContext.RoleAssignments.RemoveRange(
-            await DbContext
-                .RoleAssignments.Where(entity =>
-                    entity.TenantId == tenantKey
-                    && entity.ResourceType == OpenIdResourceTypes.Client
-                    && entity.NormalizedResourceId == normalizedClientId
-                )
-                .ToListAsync(cancellationToken)
-        );
+        var clientGrants = await DbContext
+            .ClientGrants.Where(entity => entity.ClientId == clientKey)
+            .ToListAsync(cancellationToken);
+        DbContext.ClientGrants.RemoveRange(clientGrants);
+        var consents = await DbContext
+            .Consents.Where(entity => entity.ClientId == clientKey)
+            .ToListAsync(cancellationToken);
+        DbContext.Consents.RemoveRange(consents);
+        var grants = await DbContext
+            .Grants.Where(entity => entity.ClientId == clientKey)
+            .ToListAsync(cancellationToken);
+        DbContext.Grants.RemoveRange(grants);
+        var roleAssignments = await DbContext
+            .RoleAssignments.Where(entity =>
+                entity.TenantId == tenantKey
+                && entity.ResourceType == OpenIdResourceTypes.Client
+                && entity.NormalizedResourceId == normalizedClientId
+            )
+            .ToListAsync(cancellationToken);
+        DbContext.RoleAssignments.RemoveRange(roleAssignments);
 
         DbContext.Clients.Remove(clientEntity);
 

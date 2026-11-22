@@ -41,9 +41,11 @@ public static class DefaultRegistration
         {
             var newBuilder = serviceCollection.AddEntityFrameworkPersistenceServices<TDbContext>();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IOpenIdModelContributor, CoreModelContributor>()
-            );
+            var modelContributor = ServiceDescriptor.Singleton<
+                IOpenIdModelContributor,
+                CoreModelContributor
+            >();
+            serviceCollection.TryAddEnumerable(modelContributor);
 
             // The team store and the local team directory write and read the root keys of each team row through the
             // one serializer of the payloads stored at rest. TryAdd keeps a serializer registered first.

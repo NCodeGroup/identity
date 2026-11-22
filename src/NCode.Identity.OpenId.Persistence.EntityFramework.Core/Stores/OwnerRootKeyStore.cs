@@ -148,7 +148,8 @@ internal class OwnerRootKeyStore(
         var normalizedOwnerIds = new List<string>(ownerIds.Count);
         foreach (var ownerId in ownerIds)
         {
-            normalizedOwnerIds.Add(ownerId.ToLowerInvariant());
+            var normalizedOwnerId = ownerId.ToLowerInvariant();
+            normalizedOwnerIds.Add(normalizedOwnerId);
         }
 
         var entities = await DbContext

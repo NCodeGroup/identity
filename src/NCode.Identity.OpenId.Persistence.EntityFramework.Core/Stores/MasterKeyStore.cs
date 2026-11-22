@@ -200,7 +200,11 @@ internal class MasterKeyStore(
     public async ValueTask<PagedResult<PersistedMasterKey>> GetPageAsync(
         PageRequest page,
         CancellationToken cancellationToken
-    ) => await GetPageAsync(DbContext.MasterKeys.AsNoTracking(), page, cancellationToken);
+    )
+    {
+        var query = DbContext.MasterKeys.AsNoTracking();
+        return await GetPageAsync(query, page, cancellationToken);
+    }
 
     /// <inheritdoc />
     public async ValueTask<PagedResult<PersistedMasterKey>> GetWrappedByKeyPageAsync(
@@ -229,13 +233,11 @@ internal class MasterKeyStore(
     {
         var instant = createdBefore.ToUniversalTime();
 
-        return await GetPageAsync(
-            DbContext
-                .MasterKeys.AsNoTracking()
-                .Where(entity => entity.RetiredWhen == null && entity.CreatedWhen < instant),
-            page,
-            cancellationToken
-        );
+        var query = DbContext
+            .MasterKeys.AsNoTracking()
+            .Where(entity => entity.RetiredWhen == null && entity.CreatedWhen < instant);
+
+        return await GetPageAsync(query, page, cancellationToken);
     }
 
     /// <inheritdoc />

@@ -41,19 +41,18 @@ internal class ConsentStore(
         CancellationToken cancellationToken
     )
     {
-        return ValueTask.FromResult(
-            new PersistedConsent
-            {
-                TenantId = entity.Tenant.TenantId,
-                ClientId = entity.Client.ClientId,
-                SubjectId = entity.SubjectId,
-                RequestedScopes = DeserializeScopes(entity.RequestedScopesJson),
-                GrantedScopes = DeserializeScopes(entity.GrantedScopesJson),
-                CreatedWhen = entity.CreatedWhen,
-                UpdatedWhen = entity.UpdatedWhen,
-                ConcurrencyToken = entity.ConcurrencyToken,
-            }
-        );
+        var persistedConsent = new PersistedConsent
+        {
+            TenantId = entity.Tenant.TenantId,
+            ClientId = entity.Client.ClientId,
+            SubjectId = entity.SubjectId,
+            RequestedScopes = DeserializeScopes(entity.RequestedScopesJson),
+            GrantedScopes = DeserializeScopes(entity.GrantedScopesJson),
+            CreatedWhen = entity.CreatedWhen,
+            UpdatedWhen = entity.UpdatedWhen,
+            ConcurrencyToken = entity.ConcurrencyToken,
+        };
+        return ValueTask.FromResult(persistedConsent);
     }
 
     /// <inheritdoc />
@@ -126,7 +125,8 @@ internal class ConsentStore(
         var result = new List<PersistedConsent>(entities.Count);
         foreach (var entity in entities)
         {
-            result.Add(await MapFromEntityAsync(entity, cancellationToken));
+            var mapped = await MapFromEntityAsync(entity, cancellationToken);
+            result.Add(mapped);
         }
 
         return result;

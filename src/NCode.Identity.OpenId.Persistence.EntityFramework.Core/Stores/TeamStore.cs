@@ -56,14 +56,13 @@ internal class TeamStore(
         CancellationToken cancellationToken
     )
     {
-        return ValueTask.FromResult(
-            new PersistedTeamSettings
-            {
-                TeamId = teamEntity.TeamId,
-                ConcurrencyToken = teamEntity.SettingsConcurrencyToken,
-                Value = teamEntity.SettingsJson,
-            }
-        );
+        var persistedTeamSettings = new PersistedTeamSettings
+        {
+            TeamId = teamEntity.TeamId,
+            ConcurrencyToken = teamEntity.SettingsConcurrencyToken,
+            Value = teamEntity.SettingsJson,
+        };
+        return ValueTask.FromResult(persistedTeamSettings);
     }
 
     /// <inheritdoc />
@@ -189,7 +188,8 @@ internal class TeamStore(
         var teams = new List<PersistedTeam>(entities.Count);
         foreach (var entity in entities)
         {
-            teams.Add(await MapFromEntityAsync(entity, cancellationToken));
+            var mapped = await MapFromEntityAsync(entity, cancellationToken);
+            teams.Add(mapped);
         }
 
         return teams;
@@ -254,7 +254,8 @@ internal class TeamStore(
             );
             if (ancestor is not null)
             {
-                lineage.Add(await MapFromEntityAsync(ancestor, cancellationToken));
+                var mapped = await MapFromEntityAsync(ancestor, cancellationToken);
+                lineage.Add(mapped);
             }
         }
 
@@ -507,16 +508,15 @@ internal class TeamStore(
         }
 
         var normalizedTeamId = teamEntity.NormalizedTeamId;
-        DbContext.RoleAssignments.RemoveRange(
-            await DbContext
-                // Cross-tenant: the role assignments at the team's node are stored under the tenant of their holder.
-                .RoleAssignments.IgnoreQueryFilters()
-                .Where(assignment =>
-                    assignment.ResourceType == OpenIdResourceTypes.Team
-                    && assignment.NormalizedResourceId == normalizedTeamId
-                )
-                .ToListAsync(cancellationToken)
-        );
+        var roleAssignments = await DbContext
+            // Cross-tenant: the role assignments at the team's node are stored under the tenant of their holder.
+            .RoleAssignments.IgnoreQueryFilters()
+            .Where(assignment =>
+                assignment.ResourceType == OpenIdResourceTypes.Team
+                && assignment.NormalizedResourceId == normalizedTeamId
+            )
+            .ToListAsync(cancellationToken);
+        DbContext.RoleAssignments.RemoveRange(roleAssignments);
 
         DbContext.Teams.Remove(teamEntity);
 
@@ -568,27 +568,25 @@ internal class TeamStore(
             persistedTeam.ConcurrencyToken = NextConcurrencyToken();
             persistedTeam.Settings.ConcurrencyToken = NextConcurrencyToken();
 
-            await DbContext.Teams.AddAsync(
-                new TeamEntity
-                {
-                    Id = NextId(),
-                    TeamId = persistedTeam.TeamId,
-                    NormalizedTeamId = Normalize(persistedTeam.TeamId),
-                    ParentTeamId = parent?.Id,
-                    ParentTeam = parent,
-                    Path = path,
-                    ConcurrencyToken = persistedTeam.ConcurrencyToken,
-                    SettingsConcurrencyToken = persistedTeam.Settings.ConcurrencyToken,
-                    IsDisabled = persistedTeam.IsDisabled,
-                    DisplayName = persistedTeam.DisplayName,
-                    SettingsJson = persistedTeam.Settings.Value,
-                    RootKeysJson = WriteRootKeys(persistedTeam.RootKeys),
-                    DirectorySequence = persistedTeam.DirectorySequence,
-                    // A collection expression is a fixed-size array, which EF refuses to add to.
-                    Tenants = new List<TenantEntity>(),
-                },
-                cancellationToken
-            );
+            var newTeamEntity = new TeamEntity
+            {
+                Id = NextId(),
+                TeamId = persistedTeam.TeamId,
+                NormalizedTeamId = Normalize(persistedTeam.TeamId),
+                ParentTeamId = parent?.Id,
+                ParentTeam = parent,
+                Path = path,
+                ConcurrencyToken = persistedTeam.ConcurrencyToken,
+                SettingsConcurrencyToken = persistedTeam.Settings.ConcurrencyToken,
+                IsDisabled = persistedTeam.IsDisabled,
+                DisplayName = persistedTeam.DisplayName,
+                SettingsJson = persistedTeam.Settings.Value,
+                RootKeysJson = WriteRootKeys(persistedTeam.RootKeys),
+                DirectorySequence = persistedTeam.DirectorySequence,
+                // A collection expression is a fixed-size array, which EF refuses to add to.
+                Tenants = new List<TenantEntity>(),
+            };
+            await DbContext.Teams.AddAsync(newTeamEntity, cancellationToken);
 
             return true;
         }

@@ -42,14 +42,14 @@ internal sealed class TeamRootKeysPayload
     public static JsonElement Write(
         IPersistedPayloadSerializer payloadSerializer,
         IReadOnlyDictionary<string, OwnerRootKeyRequest> rootKeys
-    ) =>
-        payloadSerializer.Serialize(
-            new TeamRootKeysPayload
-            {
-                RootKeys = rootKeys.ToImmutableDictionary(StringComparer.Ordinal),
-            },
-            JsonOptions
-        );
+    )
+    {
+        var payload = new TeamRootKeysPayload
+        {
+            RootKeys = rootKeys.ToImmutableDictionary(StringComparer.Ordinal),
+        };
+        return payloadSerializer.Serialize(payload, JsonOptions);
+    }
 
     /// <summary>
     /// Reads the root keys that a team brings from the schema-versioned envelope of their payload.
