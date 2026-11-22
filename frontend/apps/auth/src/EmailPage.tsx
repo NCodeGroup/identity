@@ -167,6 +167,9 @@ export function EmailPage({
               >
                 <input type="hidden" name={ANTIFORGERY_FIELD} value={antiforgeryToken} />
                 <input type="hidden" name="flow" value={flow} />
+                {pageLanguage ? (
+                  <input type="hidden" name={UI_LOCALES_FIELD} value={pageLanguage} />
+                ) : null}
                 <Typography variant="body2">{text.codePrompt}</Typography>
                 <TextField
                   id="code"

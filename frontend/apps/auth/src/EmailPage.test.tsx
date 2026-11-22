@@ -132,6 +132,36 @@ describe('EmailPage', () => {
     expect(screen.queryByTestId('email-send')).not.toBeInTheDocument();
   });
 
+  it('posts the page language as ui_locales from the verify form', async () => {
+    render(
+      <LocaleProvider pageLanguage="fr">
+        <AppThemeProvider>
+          <EmailPage
+            antiforgeryToken="tok"
+            flow="handle-1"
+            loadEmail={() => Promise.resolve(unverified)}
+          />
+        </AppThemeProvider>
+      </LocaleProvider>,
+    );
+
+    const form = await screen.findByTestId('email-verify');
+    const carried = form.querySelector('input[name="ui_locales"]') as HTMLInputElement | null;
+    expect(carried?.type).toBe('hidden');
+    expect(carried?.value).toBe('fr');
+  });
+
+  it('posts no ui_locales from the verify form when the host selected no language', async () => {
+    renderPage({
+      antiforgeryToken: 'tok',
+      flow: 'handle-1',
+      loadEmail: () => Promise.resolve(unverified),
+    });
+
+    const form = await screen.findByTestId('email-verify');
+    expect(form.querySelector('input[name="ui_locales"]')).toBeNull();
+  });
+
   it('shows a verified address with no form', async () => {
     renderPage({
       antiforgeryToken: 'tok',

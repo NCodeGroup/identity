@@ -1626,21 +1626,25 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     /// <summary>
     /// Verifies the current end user's address from the code the email page posts, then redirects to the email page
     /// with <c>?status=verified</c>, or back to it, keeping the flow, with <c>?error=</c> and <c>invalid_request</c>
-    /// for a missing field or the error code the backend reports, such as <c>invalid_code</c>. A request without an
-    /// active session is redirected to the login page. The page is not found while the tenant does not let its end
-    /// users verify their address.
+    /// for a missing field or the error code the backend reports, such as <c>invalid_code</c>. Every redirect keeps the
+    /// language the form carries. A request without an active session is redirected to the login page. The page is not
+    /// found while the tenant does not let its end users verify their address.
     /// </summary>
     // See ADR-1533.
     public async ValueTask<IResult> PostVerifyEmailAsync(
         HttpContext httpContext,
         [FromForm(Name = FlowQueryName)] string? flow,
-        [FromForm(Name = "code")] string? code
+        [FromForm(Name = "code")] string? code,
+        [FromForm(Name = InteractiveAuthenticationPageRenderer.UiLocalesFieldName)]
+            string? uiLocales
     )
     {
         if (!IsEmailVerificationEnabled(httpContext))
         {
             return TypedResults.NotFound();
         }
+
+        var languageTag = LocaleSelector.GetCarriedLanguageTag(uiLocales);
 
         var authenticateResult = await AuthenticateSessionAsync(
             httpContext,
@@ -1671,7 +1675,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
                 return RedirectToSurfacePage(
                     httpContext,
                     InteractiveAuthenticationDefaults.EmailPath,
-                    languageTag: null,
+                    languageTag,
                     (StatusQueryName, EmailVerifiedStatus)
                 );
             }
@@ -1682,7 +1686,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         return RedirectToSurfacePage(
             httpContext,
             InteractiveAuthenticationDefaults.EmailPath,
-            languageTag: null,
+            languageTag,
             (FlowQueryName, flow),
             (ErrorQueryName, error)
         );
