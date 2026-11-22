@@ -28,11 +28,9 @@ internal sealed class DefaultJsonOpenIdResponseFormatter : IOpenIdResponseFormat
         var response = context.Response;
         var jsonSerializerOptions = response.OpenIdEnvironment.JsonSerializerOptions;
 
-        var jsonResult = HttpResults.Json(
-            response,
-            jsonSerializerOptions.GetTypeInfo(response.GetType()),
-            statusCode: context.StatusCode
-        );
+        var responseType = response.GetType();
+        var jsonTypeInfo = jsonSerializerOptions.GetTypeInfo(responseType);
+        var jsonResult = HttpResults.Json(response, jsonTypeInfo, statusCode: context.StatusCode);
 
         await jsonResult.ExecuteAsync(context.HttpContext);
     }

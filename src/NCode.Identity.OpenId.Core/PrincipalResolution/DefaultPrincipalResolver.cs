@@ -67,7 +67,8 @@ internal class DefaultPrincipalResolver(
 
         // Otherwise the subject is an upstream value paired with its issuer.
         var settings = openIdContext.Tenant.SettingsProvider.Collection;
-        var issuer = user.FindFirstValue(settings.GetValue(OpenIdSettingKeys.PrincipalIssuerClaim));
+        var issuerClaim = settings.GetValue(OpenIdSettingKeys.PrincipalIssuerClaim);
+        var issuer = user.FindFirstValue(issuerClaim);
         if (string.IsNullOrEmpty(issuer))
         {
             return (false, null);
@@ -126,7 +127,8 @@ internal class DefaultPrincipalResolver(
 
         var subject = openIdContext.GetSubjectId(user);
         var settings = openIdContext.Tenant.SettingsProvider.Collection;
-        var issuer = user.FindFirstValue(settings.GetValue(OpenIdSettingKeys.PrincipalIssuerClaim));
+        var issuerClaim = settings.GetValue(OpenIdSettingKeys.PrincipalIssuerClaim);
+        var issuer = user.FindFirstValue(issuerClaim);
 
         // Without a resolvable upstream (issuer, subject) pair we cannot form a durable connection identity for
         // idempotent lookup, so the subject value is used as-is: for a non-federated caller the subject is already the
@@ -154,30 +156,26 @@ internal class DefaultPrincipalResolver(
         else
         {
             principalId = CryptoService.GenerateResourceId();
-            await principalStore.AddAsync(
-                new PersistedFederatedPrincipal
-                {
-                    TenantId = openIdContext.Tenant.TenantId,
-                    PrincipalId = principalId,
-                    ConcurrencyToken = string.Empty,
-                },
-                cancellationToken
-            );
-        }
-
-        await identityStore.AddAsync(
-            new PersistedFederatedIdentity
+            var federatedPrincipal = new PersistedFederatedPrincipal
             {
                 TenantId = openIdContext.Tenant.TenantId,
-                FederatedIdentityId = CryptoService.GenerateResourceId(),
                 PrincipalId = principalId,
-                Issuer = issuer,
-                Subject = subject,
-                JoinKey = decision.JoinKey,
                 ConcurrencyToken = string.Empty,
-            },
-            cancellationToken
-        );
+            };
+            await principalStore.AddAsync(federatedPrincipal, cancellationToken);
+        }
+
+        var federatedIdentity = new PersistedFederatedIdentity
+        {
+            TenantId = openIdContext.Tenant.TenantId,
+            FederatedIdentityId = CryptoService.GenerateResourceId(),
+            PrincipalId = principalId,
+            Issuer = issuer,
+            Subject = subject,
+            JoinKey = decision.JoinKey,
+            ConcurrencyToken = string.Empty,
+        };
+        await identityStore.AddAsync(federatedIdentity, cancellationToken);
 
         return principalId;
     }

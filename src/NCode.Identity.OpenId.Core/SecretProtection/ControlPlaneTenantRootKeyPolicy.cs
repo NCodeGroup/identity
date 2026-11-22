@@ -22,9 +22,8 @@ internal sealed class ControlPlaneTenantRootKeyPolicy(ITenantResolver tenantReso
     public bool CanBringRootKey(SecretOwner owner, [NotNullWhen(false)] out string? reason)
     {
         // The manager passes the normalized owner, so the control-plane tenant is normalized the same way.
-        var controlPlane = SecretOwner
-            .ForTenant(TenantResolver.GetControlPlaneTenantId())
-            .Normalize();
+        var controlPlaneTenantId = TenantResolver.GetControlPlaneTenantId();
+        var controlPlane = SecretOwner.ForTenant(controlPlaneTenantId).Normalize();
 
         if (owner == controlPlane)
         {

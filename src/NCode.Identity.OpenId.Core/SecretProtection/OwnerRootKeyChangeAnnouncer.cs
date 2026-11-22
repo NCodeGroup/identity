@@ -39,9 +39,10 @@ internal sealed class OwnerRootKeyChangeAnnouncer(
     {
         if (owner.TenantId is null)
         {
+            var ownerName = owner.ToString();
             await ReplicaBroadcaster.PublishAsync(
                 MasterKeyBroadcast.ChannelName,
-                owner.ToString(),
+                ownerName,
                 cancellationToken
             );
             return;
@@ -59,10 +60,11 @@ internal sealed class OwnerRootKeyChangeAnnouncer(
         finally
         {
             // The settings did not change, so nothing seeds the tenant again in the announcement.
-            await mediator.SendAsync(
-                new TenantChangedCommand(owner.OwnerId, SettingsChanged: false),
-                cancellationToken
+            var tenantChangedCommand = new TenantChangedCommand(
+                owner.OwnerId,
+                SettingsChanged: false
             );
+            await mediator.SendAsync(tenantChangedCommand, cancellationToken);
         }
     }
 

@@ -110,7 +110,8 @@ internal class DefaultOpenIdPlatformProvider(
         // cleared on its own, so a failed team-cache clear still clears the tenants.
         try
         {
-            await TeamCache.ClearAsync(new PropertyBagDictionary(), cancellationToken);
+            var teamPropertyBag = new PropertyBagDictionary();
+            await TeamCache.ClearAsync(teamPropertyBag, cancellationToken);
         }
         catch (Exception exception)
         {
@@ -119,7 +120,8 @@ internal class DefaultOpenIdPlatformProvider(
 
         try
         {
-            await TenantCache.ClearAsync(new PropertyBagDictionary(), cancellationToken);
+            var tenantPropertyBag = new PropertyBagDictionary();
+            await TenantCache.ClearAsync(tenantPropertyBag, cancellationToken);
         }
         catch (Exception exception)
         {

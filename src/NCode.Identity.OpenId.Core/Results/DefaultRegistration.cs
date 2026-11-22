@@ -31,12 +31,11 @@ internal static class DefaultRegistration
 
             // The default application/json representation is itself a formatter, so it participates in the same
             // content-negotiation pipeline as any alternate representation rather than being a special-cased fallback.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IOpenIdResponseFormatter,
-                    DefaultJsonOpenIdResponseFormatter
-                >()
-            );
+            var jsonResponseFormatter = ServiceDescriptor.Singleton<
+                IOpenIdResponseFormatter,
+                DefaultJsonOpenIdResponseFormatter
+            >();
+            serviceCollection.TryAddEnumerable(jsonResponseFormatter);
 
             serviceCollection.TryAddSingleton<
                 IResultExecutor<OpenIdRedirectResult>,

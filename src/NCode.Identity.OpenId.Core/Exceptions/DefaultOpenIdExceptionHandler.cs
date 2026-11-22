@@ -33,16 +33,14 @@ internal class DefaultOpenIdExceptionHandler(ILogger<DefaultOpenIdExceptionHandl
     {
         var exceptionState = new CommandExceptionHandlerState();
 
-        await mediator.SendAsync(
-            new OnUnhandledExceptionCommand(
-                openIdEnvironment,
-                httpContext,
-                mediator,
-                exceptionDispatchInfo,
-                exceptionState
-            ),
-            cancellationToken
+        var command = new OnUnhandledExceptionCommand(
+            openIdEnvironment,
+            httpContext,
+            mediator,
+            exceptionDispatchInfo,
+            exceptionState
         );
+        await mediator.SendAsync(command, cancellationToken);
 
         if (exceptionState.IsHandled)
         {

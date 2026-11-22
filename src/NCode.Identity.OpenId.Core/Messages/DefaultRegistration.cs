@@ -28,12 +28,11 @@ internal static class DefaultRegistration
 
             var serviceCollection = builder.ServiceCollection;
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICollectionDataSource<KnownParameter>,
-                    DefaultCommonParameterDataSource
-                >()
-            );
+            var commonParameterDataSource = ServiceDescriptor.Singleton<
+                ICollectionDataSource<KnownParameter>,
+                DefaultCommonParameterDataSource
+            >();
+            serviceCollection.TryAddEnumerable(commonParameterDataSource);
 
             serviceCollection.TryAddSingleton<
                 IKnownParameterCollectionProvider,

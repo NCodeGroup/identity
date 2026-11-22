@@ -105,7 +105,8 @@ internal class DefaultOpenIdContextFactory(
             propertyBag
         );
 
-        httpContext.Features.Set(CreateFeature(openIdContext));
+        var feature = CreateFeature(openIdContext);
+        httpContext.Features.Set(feature);
         httpContext.Response.RegisterForDisposeAsync(openIdContext);
 
         return openIdContext;

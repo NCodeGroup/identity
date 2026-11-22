@@ -54,7 +54,8 @@ internal sealed partial class DefaultUiLocaleCatalog : IUiLocaleCatalog
 
         if (failures.Count > 0)
         {
-            throw new InvalidOperationException(string.Join(FailureSeparator, failures));
+            var message = string.Join(FailureSeparator, failures);
+            throw new InvalidOperationException(message);
         }
 
         return localesByTag.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);

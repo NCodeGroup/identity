@@ -54,7 +54,8 @@ internal class StringValuesJsonConverter : JsonConverter<StringValues>
                 );
             }
 
-            values.Add(reader.GetString() ?? string.Empty);
+            var element = reader.GetString() ?? string.Empty;
+            values.Add(element);
         }
 
         throw new JsonException("The JSON array of values is not complete.");
@@ -76,9 +77,9 @@ internal class StringValuesJsonConverter : JsonConverter<StringValues>
                 writer.WriteStringValue(value[0]);
                 break;
             default:
-                writer.WriteStringValue(
-                    string.Join(OpenIdProtocol.ParameterSeparatorChar, value.AsEnumerable())
-                );
+                var items = value.AsEnumerable();
+                var joined = string.Join(OpenIdProtocol.ParameterSeparatorChar, items);
+                writer.WriteStringValue(joined);
                 break;
         }
     }

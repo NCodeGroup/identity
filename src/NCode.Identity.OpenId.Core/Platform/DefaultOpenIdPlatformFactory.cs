@@ -97,11 +97,12 @@ internal class DefaultOpenIdPlatformFactory(
             );
             disposables.Add(configuredSettingsProvider);
 
+            var propertyBag = openIdEnvironment.PropertyBag.Clone();
             return Create(
                 configuredSettingsProvider,
                 settingsProvider,
                 platformSettingsDataSource.RefreshAsync,
-                openIdEnvironment.PropertyBag.Clone()
+                propertyBag
             );
         }
         catch

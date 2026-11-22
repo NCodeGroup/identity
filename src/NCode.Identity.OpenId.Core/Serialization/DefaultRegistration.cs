@@ -23,12 +23,11 @@ internal static class DefaultRegistration
         {
             var serviceCollection = builder.ServiceCollection;
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IOpenIdJsonConverterProvider,
-                    DefaultOpenIdJsonConverterProvider
-                >()
-            );
+            var jsonConverterProvider = ServiceDescriptor.Singleton<
+                IOpenIdJsonConverterProvider,
+                DefaultOpenIdJsonConverterProvider
+            >();
+            serviceCollection.TryAddEnumerable(jsonConverterProvider);
 
             return builder;
         }

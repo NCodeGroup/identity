@@ -135,12 +135,8 @@ internal sealed class DefaultTeamRootKeyMirror(
 
         var owner = new SecretOwner(SecretOwnerTypes.Team, teamId).Normalize();
         var current = await OwnerRootKeyManager.GetAsync(owner, cancellationToken);
-        await ApplyRootKeyAsync(
-            owner,
-            row?.RootKeys.GetValueOrDefault(CellOptions.Region),
-            current,
-            cancellationToken
-        );
+        var regionRootKey = row?.RootKeys.GetValueOrDefault(CellOptions.Region);
+        await ApplyRootKeyAsync(owner, regionRootKey, current, cancellationToken);
     }
 
     /// <summary>

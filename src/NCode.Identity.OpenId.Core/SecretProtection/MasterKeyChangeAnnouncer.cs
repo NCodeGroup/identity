@@ -41,28 +41,27 @@ internal sealed class MasterKeyChangeAnnouncer(
     {
         ArgumentNullException.ThrowIfNull(rotation);
 
+        var ownerName = rotation.Owner.ToString();
         await ReplicaBroadcaster.PublishAsync(
             MasterKeyBroadcast.ChannelName,
-            rotation.Owner.ToString(),
+            ownerName,
             cancellationToken
         );
 
         if (rotation.RetiredKey is null)
             return;
 
-        await JobDispatcher.DispatchAsync(
-            new MasterKeyRewrapJob
-            {
-                OwnerType = rotation.Owner.OwnerType,
-                OwnerId = rotation.Owner.OwnerId,
-            },
-            new DispatchOptions
-            {
-                Delay = Options.Value.MasterKeys.RefreshInterval * 2,
-                MaxAttempts = RewrapMaxAttempts,
-            },
-            cancellationToken
-        );
+        var rewrapJob = new MasterKeyRewrapJob
+        {
+            OwnerType = rotation.Owner.OwnerType,
+            OwnerId = rotation.Owner.OwnerId,
+        };
+        var dispatchOptions = new DispatchOptions
+        {
+            Delay = Options.Value.MasterKeys.RefreshInterval * 2,
+            MaxAttempts = RewrapMaxAttempts,
+        };
+        await JobDispatcher.DispatchAsync(rewrapJob, dispatchOptions, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -70,9 +69,10 @@ internal sealed class MasterKeyChangeAnnouncer(
     {
         ArgumentNullException.ThrowIfNull(destroyed);
 
+        var destroyedOwnerName = destroyed.Owner.ToString();
         return ReplicaBroadcaster.PublishAsync(
             MasterKeyBroadcast.ChannelName,
-            destroyed.Owner.ToString(),
+            destroyedOwnerName,
             cancellationToken
         );
     }

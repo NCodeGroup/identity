@@ -27,9 +27,8 @@ internal class DefaultFederatedIdentityLinkingPolicy : IFederatedIdentityLinking
     {
         var settings = openIdContext.Tenant.SettingsProvider.Collection;
 
-        var joinKey = user.FindFirstValue(
-            settings.GetValue(OpenIdSettingKeys.FederatedIdentityJoinClaim)
-        );
+        var joinClaim = settings.GetValue(OpenIdSettingKeys.FederatedIdentityJoinClaim);
+        var joinKey = user.FindFirstValue(joinClaim);
         if (string.IsNullOrEmpty(joinKey))
         {
             // No join key is asserted; nothing is recorded and nothing can be linked.
@@ -37,15 +36,13 @@ internal class DefaultFederatedIdentityLinkingPolicy : IFederatedIdentityLinking
         }
 
         // An unverified join key is neither recorded nor matchable, so it cannot become a takeover vector.
-        if (
-            settings.GetValue(OpenIdSettingKeys.FederatedIdentityRequireVerified)
-            && !IsVerified(
-                user,
-                settings.GetValue(OpenIdSettingKeys.FederatedIdentityVerifiedClaim)
-            )
-        )
+        if (settings.GetValue(OpenIdSettingKeys.FederatedIdentityRequireVerified))
         {
-            return new FederatedIdentityLinkDecision();
+            var verifiedClaim = settings.GetValue(OpenIdSettingKeys.FederatedIdentityVerifiedClaim);
+            if (!IsVerified(user, verifiedClaim))
+            {
+                return new FederatedIdentityLinkDecision();
+            }
         }
 
         // Explicit-only linking records the verified join key for later explicit linking but never auto-attaches.

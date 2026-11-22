@@ -50,16 +50,14 @@ internal sealed class DefaultOpenIdResultExecutor : IResultExecutor<IOpenIdResul
         var formatters = httpContext.RequestServices.GetServices<IOpenIdResponseFormatter>();
         var (formatter, mediaType) = SelectFormatter(formatters, httpContext.Request, response);
 
-        await formatter.WriteAsync(
-            new OpenIdResponseFormatterContext
-            {
-                HttpContext = httpContext,
-                Response = response,
-                MediaType = mediaType,
-                StatusCode = statusCode,
-            },
-            cancellationToken
-        );
+        var formatterContext = new OpenIdResponseFormatterContext
+        {
+            HttpContext = httpContext,
+            Response = response,
+            MediaType = mediaType,
+            StatusCode = statusCode,
+        };
+        await formatter.WriteAsync(formatterContext, cancellationToken);
     }
 
     // Server-driven content negotiation: picks the formatter for the highest-quality media type the client EXPLICITLY
