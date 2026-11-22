@@ -145,6 +145,7 @@ The records are grouped by area; within an area they are in number order.
 | [1524](./1524-a-dedicated-cells-capacity-rating-is-measured-by-the-repositorys-k6-test-on-dedicated-cpu-nodes.md) | A dedicated cell's capacity rating is measured by the repository's k6 test on dedicated-CPU nodes | Accepted |
 | [1525](./1525-each-cluster-and-cell-keeps-its-metrics-within-a-series-budget-on-grafana-cloud-free-then-pro.md) | Each cluster and cell keeps its metrics within a series budget, on Grafana Cloud Free and then Pro | Accepted |
 | [1526](./1526-the-platforms-cluster-secrets-reach-each-cluster-from-aws-parameter-store-through-external-secrets-operator.md) | The platform's cluster secrets reach each cluster from AWS Parameter Store through External Secrets Operator | Accepted |
+| [1527](./1527-the-hosted-platform-keeps-audit-records-for-90-days-and-a-customer-exports-them-through-the-management-api.md) | The hosted platform keeps audit records for 90 days, and a customer exports them through the management API | Accepted |
 
 ### Settings
 
