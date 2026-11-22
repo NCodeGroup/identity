@@ -18,7 +18,11 @@ const PUBLIC_JWKS = { keys: [{ kty: 'EC', crv: 'P-256', x: 'x', y: 'y', kid: 'k1
 const loadKeySet = vi.fn<ConsoleClientStepProps['loadKeySet']>();
 
 function renderStep(
-  account: RootAccount = { userName: 'root', password: 'a long passphrase!' },
+  account: RootAccount = {
+    displayName: 'Root Admin',
+    userName: 'root',
+    password: 'a long passphrase!',
+  },
   consoleHint?: ConsoleHint,
 ) {
   const onCreated = vi.fn();
@@ -66,6 +70,7 @@ function submit(): void {
 const CREATED_ROOT = {
   tenantId: 't',
   principalId: 'p',
+  displayName: 'Root Admin',
   userName: 'root',
   issuer: 'https://id.example.test/',
   discoveryUrl: 'https://id.example.test/.well-known/openid-configuration',
@@ -113,6 +118,7 @@ describe('ConsoleClientStep', () => {
     });
     expect(createRoot).toHaveBeenCalledExactlyOnceWith({
       token: 'the-token',
+      displayName: 'Root Admin',
       userName: 'root',
       password: 'a long passphrase!',
       managementConsole: {
@@ -314,6 +320,7 @@ describe('ConsoleClientStep', () => {
     });
     expect(createRoot).toHaveBeenCalledExactlyOnceWith({
       token: 'the-token',
+      displayName: 'Root Admin',
       userName: 'root',
       password: 'a long passphrase!',
     });
@@ -322,6 +329,7 @@ describe('ConsoleClientStep', () => {
   it('sends the account’s email when it has one', async () => {
     vi.mocked(createRoot).mockResolvedValue(CREATED);
     const { onCreated } = renderStep({
+      displayName: 'Root Admin',
       userName: 'root',
       email: 'root@example.com',
       password: 'a long passphrase!',
@@ -334,6 +342,7 @@ describe('ConsoleClientStep', () => {
     });
     expect(createRoot).toHaveBeenCalledExactlyOnceWith({
       token: 'the-token',
+      displayName: 'Root Admin',
       userName: 'root',
       email: 'root@example.com',
       password: 'a long passphrase!',
@@ -353,6 +362,7 @@ describe('ConsoleClientStep', () => {
     });
     expect(createRoot).toHaveBeenCalledExactlyOnceWith({
       token: 'the-token',
+      displayName: 'Root Admin',
       userName: 'root',
       password: 'a long passphrase!',
       managementConsole: {
@@ -376,6 +386,7 @@ describe('ConsoleClientStep', () => {
     });
     expect(createRoot).toHaveBeenCalledExactlyOnceWith({
       token: 'the-token',
+      displayName: 'Root Admin',
       userName: 'root',
       password: 'a long passphrase!',
       managementConsole: { baseUrl: 'https://console.example.test', jwks: PUBLIC_JWKS },
