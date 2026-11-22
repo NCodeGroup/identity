@@ -19,8 +19,14 @@ public static class LocalUrl
     /// </summary>
     /// <param name="value">The text to check.</param>
     /// <returns><see langword="true"/> when the text is a local URL; otherwise, <see langword="false"/>.</returns>
-    public static bool IsLocal([NotNullWhen(true)] string? value) =>
-        value is not null && IsLocal(value.AsSpan());
+    public static bool IsLocal([NotNullWhen(true)] string? value)
+    {
+        if (value is null)
+            return false;
+
+        var span = value.AsSpan();
+        return IsLocal(span);
+    }
 
     /// <summary>
     /// Determines whether the text is a local URL: it begins with exactly one <c>/</c> and contains no <c>\</c>,

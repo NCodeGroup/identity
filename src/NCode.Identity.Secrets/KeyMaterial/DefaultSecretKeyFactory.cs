@@ -30,13 +30,13 @@ internal class DefaultSecretKeyFactory(
     private IEccCurveCatalog EccCurveCatalog { get; } = eccCurveCatalog;
 
     // The curve is matched by its OID, so two curves of the same size are named apart.
-    private string? GetCurveName(ECAlgorithm key) =>
-        EccCurveCatalog.TryGetByCurve(
-            key.ExportParameters(includePrivateParameters: false).Curve,
-            out var specification
-        )
+    private string? GetCurveName(ECAlgorithm key)
+    {
+        var curve = key.ExportParameters(includePrivateParameters: false).Curve;
+        return EccCurveCatalog.TryGetByCurve(curve, out var specification)
             ? specification.CurveName
             : null;
+    }
 
     /// <inheritdoc />
     public SecretKey Empty => EmptySecretKey.Singleton;
@@ -117,7 +117,8 @@ internal class DefaultSecretKeyFactory(
             )
                 continue;
 
-            issuers.Add(certificate.Export(X509ContentType.Cert));
+            var issuerRawData = certificate.Export(X509ContentType.Cert);
+            issuers.Add(issuerRawData);
         }
 
         return Create(metadata, leaf, issuers);
@@ -203,9 +204,10 @@ internal class DefaultSecretKeyFactory(
     {
         var subjectPublicKeyInfo = publicKey.ExportSubjectPublicKeyInfo();
         var certificateRawData = certificate?.Export(X509ContentType.Cert);
+        var curveName = GetCurveName(publicKey);
         return new PublicEccSecretKey(
             metadata,
-            GetCurveName(publicKey),
+            curveName,
             publicKey.KeySize,
             subjectPublicKeyInfo,
             certificateRawData is null ? null : (ReadOnlyMemory<byte>?)certificateRawData
@@ -361,12 +363,8 @@ internal class DefaultSecretKeyFactory(
         key.ImportSubjectPublicKeyInfo(subjectPublicKeyInfo, out _);
         RequireKeySizeBits(binding, key.KeySize);
 
-        return new RemoteRsaSecretKey(
-            metadata,
-            key.KeySize,
-            subjectPublicKeyInfo.ToArray(),
-            binding
-        );
+        var subjectPublicKeyInfoBytes = subjectPublicKeyInfo.ToArray();
+        return new RemoteRsaSecretKey(metadata, key.KeySize, subjectPublicKeyInfoBytes, binding);
     }
 
     #endregion
@@ -408,14 +406,17 @@ internal class DefaultSecretKeyFactory(
             key,
             certificate,
             (keyBytes, certificateBytes) =>
-                CreateEcc(
+            {
+                var curveName = GetCurveName(key);
+                return CreateEcc(
                     metadata,
-                    GetCurveName(key),
+                    curveName,
                     key.KeySize,
                     keyBytes,
                     certificateBytes,
                     issuerCertificatesRawData
-                )
+                );
+            }
         );
 
     /// <inheritdoc />
@@ -482,11 +483,12 @@ internal class DefaultSecretKeyFactory(
                 nameof(subjectPublicKeyInfo)
             );
 
+        var subjectPublicKeyInfoBytes = subjectPublicKeyInfo.ToArray();
         return new RemoteEccSecretKey(
             metadata,
             curveName,
             key.KeySize,
-            subjectPublicKeyInfo.ToArray(),
+            subjectPublicKeyInfoBytes,
             binding
         );
     }

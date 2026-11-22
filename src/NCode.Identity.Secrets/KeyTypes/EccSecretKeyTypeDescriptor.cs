@@ -179,8 +179,11 @@ internal sealed class EccSecretKeyTypeDescriptor(
         };
     }
 
-    private static string FormatCurves(IEnumerable<EccCurveSpecification> curves) =>
-        string.Join(", ", curves.Select(curve => $"'{curve.CurveName}'"));
+    private static string FormatCurves(IEnumerable<EccCurveSpecification> curves)
+    {
+        var curveNames = curves.Select(curve => $"'{curve.CurveName}'");
+        return string.Join(", ", curveNames);
+    }
 
     // Resolves the requested curve by explicit name, else by key size, producing a human-readable error otherwise. A
     // curve fixes the size of its keys, so a named curve is refused for any other requested size, and two curves can
@@ -225,12 +228,10 @@ internal sealed class EccSecretKeyTypeDescriptor(
         specification = null;
         if (curvesOfSize.Count == 0)
         {
-            var expected = string.Join(
-                ", ",
-                EccCurveCatalog.Curves.Select(curve =>
-                    $"'{curve.CurveName}' ({curve.CurveSizeBits} bits)"
-                )
+            var curveDescriptions = EccCurveCatalog.Curves.Select(curve =>
+                $"'{curve.CurveName}' ({curve.CurveSizeBits} bits)"
             );
+            var expected = string.Join(", ", curveDescriptions);
             error =
                 $"The ECC key size '{parameters.KeySizeBits}' bits is invalid; expected {expected}.";
             return false;

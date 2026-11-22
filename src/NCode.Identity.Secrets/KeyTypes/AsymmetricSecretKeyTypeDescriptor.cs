@@ -156,9 +156,10 @@ public abstract class AsymmetricSecretKeyTypeDescriptor(ISecretKeyFactory secret
                 nameof(keyMaterial)
             );
 
+        var leafCertificateDer = DecodeJwkCertificate(leaf, subjectPublicKeyInfo);
         return new ImportedSecretKeyMaterial
         {
-            ProtectedKeyMaterial = protect(DecodeJwkCertificate(leaf, subjectPublicKeyInfo)),
+            ProtectedKeyMaterial = protect(leafCertificateDer),
             KeySizeBits = keySizeBits,
             SecretEncoding = SecretEncodings.X509,
         };
@@ -273,8 +274,9 @@ public abstract class AsymmetricSecretKeyTypeDescriptor(ISecretKeyFactory secret
             if (keyMaterial.Contains("-----BEGIN", StringComparison.Ordinal))
                 return X509Certificate2.CreateFromPem(keyMaterial);
 
+            var trimmedKeyMaterial = keyMaterial.Trim();
             using var derLease = BinaryTextEncoding.RentDecoded(
-                keyMaterial.Trim(),
+                trimmedKeyMaterial,
                 BinaryTextFormat.Base64,
                 isSensitive: false,
                 out Span<byte> der

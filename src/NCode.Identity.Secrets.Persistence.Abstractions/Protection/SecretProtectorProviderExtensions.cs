@@ -47,9 +47,11 @@ public static class SecretProtectorProviderExtensions
                     continue;
 
                 // The list is created only when a private secret exists, so a call with none shares the empty array.
-                protectedValues ??= new List<string>(
-                    secrets.TryGetNonEnumeratedCount(out var count) ? count : 0
-                );
+                if (protectedValues is null)
+                {
+                    var capacity = secrets.TryGetNonEnumeratedCount(out var count) ? count : 0;
+                    protectedValues = new List<string>(capacity);
+                }
                 protectedValues.Add(secret.EncodedValue);
             }
 

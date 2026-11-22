@@ -67,12 +67,13 @@ internal sealed class DefaultRemoteKeyResolver(
             binding.Algorithm.KeySizeBits >> 3
         );
 
+        var publicKeyRequest = new RemotePublicKeyRequest
+        {
+            KeyId = binding.Reference.KeyId,
+            Algorithm = binding.Algorithm,
+        };
         await binding.Provider.GetPublicKeyAsync(
-            new RemotePublicKeyRequest
-            {
-                KeyId = binding.Reference.KeyId,
-                Algorithm = binding.Algorithm,
-            },
+            publicKeyRequest,
             publicKeyBuffer,
             cancellationToken
         );

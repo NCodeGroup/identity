@@ -57,7 +57,8 @@ public sealed class KeyAccessClientCache<TClient>(TimeProvider timeProvider, Tim
         var (entry, hasEntered) = EnterEntry(key, create);
         while (!hasEntered)
         {
-            Entries.TryRemove(new KeyValuePair<string, KeyAccessClientEntry<TClient>>(key, entry));
+            var staleEntry = new KeyValuePair<string, KeyAccessClientEntry<TClient>>(key, entry);
+            Entries.TryRemove(staleEntry);
             (entry, hasEntered) = EnterEntry(key, create);
         }
 
@@ -135,7 +136,8 @@ public sealed class KeyAccessClientCache<TClient>(TimeProvider timeProvider, Tim
     /// <param name="entry">The entry to remove and release.</param>
     private void RemoveAndRelease(string key, KeyAccessClientEntry<TClient> entry)
     {
-        Entries.TryRemove(new KeyValuePair<string, KeyAccessClientEntry<TClient>>(key, entry));
+        var removedEntry = new KeyValuePair<string, KeyAccessClientEntry<TClient>>(key, entry);
+        Entries.TryRemove(removedEntry);
         entry.Release();
     }
 

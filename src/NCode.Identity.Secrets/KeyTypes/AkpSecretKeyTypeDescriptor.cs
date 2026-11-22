@@ -147,11 +147,12 @@ public sealed class AkpSecretKeyTypeDescriptor(
             {
                 using var key = MLDsa.ImportPkcs8PrivateKey(keyMaterial);
                 var publicKey = ExportPublicKey(key);
+                var protectedKeyMaterial = Protect(keyMaterial);
                 return new DefaultAkpSecretKey(
                     DataProtector,
                     metadata,
                     key.Algorithm,
-                    Protect(keyMaterial),
+                    protectedKeyMaterial,
                     publicKey,
                     certificateRawData: null
                 );
