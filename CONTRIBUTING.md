@@ -256,6 +256,14 @@ per project ([ADR-1003](docs/decisions/1003-the-family-versions-in-lockstep-from
 
 To upgrade a package, change its single `Version` in `Directory.Packages.props` — every consuming project moves together.
 
+The Microsoft.Extensions, ASP.NET Core and EF Core packages and the .NET release's System packages stay on the target
+framework's band, at one patch. The build's `RequireRuntimeBand` guard fails a project that resolves one from another
+major, except the packages the `RuntimeBandExceptions` property of `Directory.Packages.props` lists, each named in a
+comment that links the issue tracking its release (the dependency-injection pair that NCode.PropertyBag holds at 11.0.0
+is one, [#895](https://github.com/NCodeGroup/identity/issues/895)). A dependency that needs a higher band is taken only
+from a release that depends on this one
+([ADR-1519](docs/decisions/1519-every-microsoft-extensions-aspnet-core-and-ef-core-package-is-on-the-target-frameworks-release-band.md)).
+
 ## Dependabot pull requests
 
 [`.github/dependabot.yml`](.github/dependabot.yml) groups updates per ecosystem (NuGet minor/patch, NuGet majors,
