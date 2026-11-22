@@ -44,6 +44,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     IConsentService consentService,
     IContinueRefusalService continueRefusalService,
     IInteractivePasswordChanger passwordChanger,
+    IInteractivePasswordResetter passwordResetter,
     ISessionService sessionService,
     IPostCommitSecurityEffects postCommitSecurityEffects,
     TimeProvider timeProvider,
@@ -66,11 +67,18 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     private const string StatusQueryName = "status";
     private const string PasswordChangedStatus = "changed";
 
+    // The `status` query value the login page reads back to tell the end user that the password is reset, and the query
+    // names the forgot-password and reset-password pages carry.
+    private const string PasswordResetStatus = "password_reset";
+    private const string FlowQueryName = "flow";
+    private const string ReturnUrlName = "ReturnUrl";
+
     private IInteractiveCredentialVerifier CredentialVerifier { get; } = credentialVerifier;
     private IPrincipalResolver PrincipalResolver { get; } = principalResolver;
     private IConsentService ConsentService { get; } = consentService;
     private IContinueRefusalService ContinueRefusalService { get; } = continueRefusalService;
     private IInteractivePasswordChanger PasswordChanger { get; } = passwordChanger;
+    private IInteractivePasswordResetter PasswordResetter { get; } = passwordResetter;
     private ISessionService SessionService { get; } = sessionService;
     private IPostCommitSecurityEffects PostCommitSecurityEffects { get; } =
         postCommitSecurityEffects;
@@ -131,6 +139,22 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         );
         surface.MapGet(InteractiveAuthenticationDefaults.PasswordPath, GetPasswordPageAsync);
         surface.MapPost(InteractiveAuthenticationDefaults.PasswordPath, PostPasswordAsync);
+        surface.MapGet(
+            InteractiveAuthenticationDefaults.PasswordForgotPath,
+            GetForgotPasswordPageAsync
+        );
+        surface.MapPost(
+            InteractiveAuthenticationDefaults.PasswordForgotPath,
+            PostForgotPasswordAsync
+        );
+        surface.MapGet(
+            InteractiveAuthenticationDefaults.PasswordResetPath,
+            GetResetPasswordPageAsync
+        );
+        surface.MapPost(
+            InteractiveAuthenticationDefaults.PasswordResetPath,
+            PostResetPasswordAsync
+        );
     }
 
     /// <summary>
@@ -154,6 +178,24 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         var returnUrl = query["ReturnUrl"].ToString();
         var errorQueryValue = query[ErrorQueryName].ToString();
         var loginError = DescribeLoginError(errorQueryValue, frame.Locale.Messages);
+        var statusQueryValue = query[StatusQueryName].ToString();
+        var statusMessage = string.Equals(
+            statusQueryValue,
+            PasswordResetStatus,
+            StringComparison.Ordinal
+        )
+            ? frame.Locale.Messages.PasswordResetStatus
+            : null;
+
+        // The link to the forgot-password page appears only while the tenant lets its end users reset a password.
+        // See ADR-1533.
+        string? forgotPasswordHref = null;
+        if (IsPasswordResetEnabled(httpContext))
+        {
+            var carriedUiLocales = query[InteractiveAuthenticationPageRenderer.UiLocalesFieldName];
+            var carriedLanguageTag = LocaleSelector.GetCarriedLanguageTag(carriedUiLocales);
+            forgotPasswordHref = BuildForgotPasswordHref(returnUrl, carriedLanguageTag);
+        }
         InteractiveAuthenticationPageRenderer.RenderLoginPage(
             html,
             frame,
@@ -161,8 +203,8 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             tokens.FormFieldName,
             tokens.RequestToken ?? string.Empty,
             loginError,
-            statusMessage: null,
-            forgotPasswordHref: null
+            statusMessage,
+            forgotPasswordHref
         );
         return new InteractiveHtmlResult(html, security.Policy);
     }
@@ -1213,6 +1255,271 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             SessionTerminationReasons.PasswordChanged
         );
         return RedirectToPasswordPage(httpContext, StatusQueryName, PasswordChangedStatus);
+    }
+
+    /// <summary>
+    /// Serves the forgot-password page, where an end user who is not signed in asks for a reset code. The server
+    /// renders a working no-JavaScript form carrying the antiforgery token and the return URL. The page is not found
+    /// while the tenant does not let its end users reset a password.
+    /// </summary>
+    // See ADR-1533.
+    public async ValueTask<IResult> GetForgotPasswordPageAsync(HttpContext httpContext)
+    {
+        if (!IsPasswordResetEnabled(httpContext))
+        {
+            return TypedResults.NotFound();
+        }
+
+        var tokens = IssueAntiforgeryTokens(httpContext);
+        var query = httpContext.Request.Query;
+        var branding = ReadBranding(httpContext);
+        var security = InteractivePageSecurity.Create(branding);
+        var frame = await CreatePageFrameAsync(
+            httpContext,
+            branding,
+            security,
+            httpContext.RequestAborted
+        );
+        var html = InteractiveHtmlResult.CreateBuffer();
+        var returnUrl = query[ReturnUrlName].ToString();
+        var errorQueryValue = query[ErrorQueryName].ToString();
+        var errorMessage = DescribeEmailCodeError(errorQueryValue, frame.Locale.Messages);
+        InteractiveAuthenticationPageRenderer.RenderForgotPasswordPage(
+            html,
+            frame,
+            returnUrl,
+            tokens.FormFieldName,
+            tokens.RequestToken ?? string.Empty,
+            errorMessage
+        );
+        return new InteractiveHtmlResult(html, security.Policy);
+    }
+
+    /// <summary>
+    /// Serves the reset-password page, where an end user who is not signed in presents the reset code and chooses a new
+    /// password. The server renders a working no-JavaScript form carrying the antiforgery token, the return URL and the
+    /// handle of the reset flow. The page is not found while the tenant does not let its end users reset a password.
+    /// </summary>
+    // See ADR-1533.
+    public async ValueTask<IResult> GetResetPasswordPageAsync(HttpContext httpContext)
+    {
+        if (!IsPasswordResetEnabled(httpContext))
+        {
+            return TypedResults.NotFound();
+        }
+
+        var tokens = IssueAntiforgeryTokens(httpContext);
+        var query = httpContext.Request.Query;
+        var branding = ReadBranding(httpContext);
+        var security = InteractivePageSecurity.Create(branding);
+        var frame = await CreatePageFrameAsync(
+            httpContext,
+            branding,
+            security,
+            httpContext.RequestAborted
+        );
+        var html = InteractiveHtmlResult.CreateBuffer();
+        var returnUrl = query[ReturnUrlName].ToString();
+        var flowId = query[FlowQueryName].ToString();
+        var errorQueryValue = query[ErrorQueryName].ToString();
+        var errorMessage = DescribeEmailCodeError(errorQueryValue, frame.Locale.Messages);
+        InteractiveAuthenticationPageRenderer.RenderResetPasswordPage(
+            html,
+            frame,
+            returnUrl,
+            flowId,
+            tokens.FormFieldName,
+            tokens.RequestToken ?? string.Empty,
+            errorMessage
+        );
+        return new InteractiveHtmlResult(html, security.Policy);
+    }
+
+    /// <summary>
+    /// Starts a password reset for the user name the forgot-password form posts, then redirects to the reset-password
+    /// page with the handle of the reset flow, whether or not the account exists, so the answer never tells. A missing
+    /// user name redirects back to the forgot-password page with <c>?error=invalid_request</c>. The page is not found
+    /// while the tenant does not let its end users reset a password.
+    /// </summary>
+    // See ADR-1533.
+    public async ValueTask<IResult> PostForgotPasswordAsync(
+        HttpContext httpContext,
+        [FromForm] string? username,
+        [FromForm(Name = ReturnUrlName)] string? returnUrl,
+        [FromForm(Name = InteractiveAuthenticationPageRenderer.UiLocalesFieldName)]
+            string? uiLocales
+    )
+    {
+        if (!IsPasswordResetEnabled(httpContext))
+        {
+            return TypedResults.NotFound();
+        }
+
+        var languageTag = LocaleSelector.GetCarriedLanguageTag(uiLocales);
+        var carriedReturnUrl = string.IsNullOrEmpty(returnUrl)
+            ? null
+            : ResolveSafeReturnUrl(httpContext, returnUrl);
+        if (string.IsNullOrEmpty(username))
+        {
+            return RedirectToSurfacePage(
+                httpContext,
+                InteractiveAuthenticationDefaults.PasswordForgotPath,
+                languageTag,
+                (ReturnUrlName, carriedReturnUrl),
+                (ErrorQueryName, InteractivePasswordChangeErrors.InvalidRequest)
+            );
+        }
+
+        var openIdContext = httpContext.GetOpenIdContext();
+        var locale = SelectLocale(httpContext);
+        var flowId = await PasswordResetter.SendResetCodeAsync(
+            openIdContext,
+            username,
+            locale,
+            httpContext.RequestAborted
+        );
+        return RedirectToSurfacePage(
+            httpContext,
+            InteractiveAuthenticationDefaults.PasswordResetPath,
+            languageTag,
+            (FlowQueryName, flowId),
+            (ReturnUrlName, carriedReturnUrl)
+        );
+    }
+
+    /// <summary>
+    /// Resets the password from the reset-password form, then redirects to the login page with
+    /// <c>?status=password_reset</c>, or back to the reset-password page, keeping the flow, with <c>?error=</c> and
+    /// <c>invalid_request</c> for a missing field, <c>password_mismatch</c> when the confirmation differs from the new
+    /// password, or the error code the credential backend reports, such as <c>invalid_code</c> or a password policy
+    /// code. The page is not found while the tenant does not let its end users reset a password.
+    /// </summary>
+    // See ADR-1533.
+    public async ValueTask<IResult> PostResetPasswordAsync(
+        HttpContext httpContext,
+        [FromForm(Name = FlowQueryName)] string? flow,
+        [FromForm(Name = "code")] string? code,
+        [FromForm(Name = "new_password")] string? newPassword,
+        [FromForm(Name = "confirm_password")] string? confirmPassword,
+        [FromForm(Name = ReturnUrlName)] string? returnUrl,
+        [FromForm(Name = InteractiveAuthenticationPageRenderer.UiLocalesFieldName)]
+            string? uiLocales
+    )
+    {
+        if (!IsPasswordResetEnabled(httpContext))
+        {
+            return TypedResults.NotFound();
+        }
+
+        var languageTag = LocaleSelector.GetCarriedLanguageTag(uiLocales);
+        var carriedReturnUrl = string.IsNullOrEmpty(returnUrl)
+            ? null
+            : ResolveSafeReturnUrl(httpContext, returnUrl);
+
+        string? error = null;
+        if (
+            string.IsNullOrEmpty(flow)
+            || string.IsNullOrEmpty(code)
+            || string.IsNullOrEmpty(newPassword)
+        )
+        {
+            error = InteractivePasswordChangeErrors.InvalidRequest;
+        }
+        else if (!string.Equals(newPassword, confirmPassword, StringComparison.Ordinal))
+        {
+            error = InteractivePasswordChangeErrors.PasswordMismatch;
+        }
+        else
+        {
+            var openIdContext = httpContext.GetOpenIdContext();
+            var result = await PasswordResetter.ResetPasswordAsync(
+                openIdContext,
+                flow,
+                code,
+                newPassword,
+                httpContext.RequestAborted
+            );
+            if (result.IsChanged)
+            {
+                return RedirectToSurfacePage(
+                    httpContext,
+                    InteractiveAuthenticationDefaults.LoginPath,
+                    languageTag,
+                    (ReturnUrlName, carriedReturnUrl),
+                    (StatusQueryName, PasswordResetStatus)
+                );
+            }
+
+            error = result.Error;
+        }
+
+        return RedirectToSurfacePage(
+            httpContext,
+            InteractiveAuthenticationDefaults.PasswordResetPath,
+            languageTag,
+            (FlowQueryName, flow),
+            (ReturnUrlName, carriedReturnUrl),
+            (ErrorQueryName, error)
+        );
+    }
+
+    // The forgot-password and reset-password pages exist only while the tenant lets its end users reset a password.
+    // See ADR-1533.
+    private static bool IsPasswordResetEnabled(HttpContext httpContext) =>
+        httpContext
+            .GetOpenIdContext()
+            .Tenant.SettingsProvider.Collection.GetValue(OpenIdSettingKeys.PasswordResetEnabled);
+
+    // The address of the forgot-password page, relative to the surface the page's base names, carrying the return URL
+    // and the locale the login page carried.
+    private static string BuildForgotPasswordHref(string returnUrl, string? languageTag)
+    {
+        var href = "password/forgot";
+        if (!string.IsNullOrEmpty(returnUrl))
+        {
+            href += $"?{ReturnUrlName}={Uri.EscapeDataString(returnUrl)}";
+        }
+
+        return InteractiveLocaleSelector.AppendUiLocalesQuery(href, languageTag);
+    }
+
+    // Maps the codes the email-code pages receive to their messages; a code the page does not know is a password the
+    // policy refused, since that is the only other error the reset page receives.
+    private static string? DescribeEmailCodeError(string? error, InteractiveMessages messages) =>
+        error switch
+        {
+            null or "" => null,
+            InteractiveEmailCodeErrors.InvalidCode => messages.InvalidCodeError,
+            InteractiveEmailCodeErrors.TooManyCodes => messages.TooManyCodesError,
+            InteractivePasswordChangeErrors.PasswordMismatch => messages.PasswordMismatchError,
+            InteractivePasswordChangeErrors.InvalidRequest => messages.MissingCredentialsError,
+            _ => messages.PasswordRefusedError,
+        };
+
+    // Redirects to a page of the surface with the query values that are set, in a page that renders in the locale the
+    // form carried.
+    private RedirectHttpResult RedirectToSurfacePage(
+        HttpContext httpContext,
+        string surfacePath,
+        string? languageTag,
+        params (string Name, string? Value)[] query
+    )
+    {
+        var url = SurfacePaths.GetSurfacePath(httpContext, surfacePath);
+        var separator = '?';
+        foreach (var (name, value) in query)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                continue;
+            }
+
+            url += $"{separator}{name}={Uri.EscapeDataString(value)}";
+            separator = '&';
+        }
+
+        var location = InteractiveLocaleSelector.AppendUiLocalesQuery(url, languageTag);
+        return TypedResults.Redirect(location);
     }
 
     /// <summary>
