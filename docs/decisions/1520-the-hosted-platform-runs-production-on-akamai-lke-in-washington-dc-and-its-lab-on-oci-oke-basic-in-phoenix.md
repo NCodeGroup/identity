@@ -71,19 +71,19 @@ cluster; the lab runs on OCI OKE Basic in Phoenix inside the free allowance; AWS
   capacity can be scarce and it is arm64 only. Rejected for production; the lab uses its free allowance.
 - **Vultr VKE** (3 × 1 vCPU / 2 GB, 2-node managed database, $90). One fewer node and one fewer database replica, and
   the price of an HA control plane is unpublished. Rejected.
-- **Civo NYC1 managed k3s** (3 × 4 GB, CloudNativePG, about $76, free egress). The platform operates PostgreSQL
-  (managed starts at $43.45, about $119 in all), it has one US region and no HA control-plane tier. Rejected.
+- **Civo NYC1 managed k3s** (3 × 4 GB, CloudNativePG, about $76, free egress). The platform operates PostgreSQL (managed
+  starts at $43.45, about $119 in all), it has one US region and no HA control-plane tier. Rejected.
 - **DigitalOcean DOKS** (3 × 2 GiB, 1 GiB managed database, about $63). No database HA within the budget; a standby
   brings it to about $111. Rejected.
 - **Hetzner US** (k3s, about $123, all self-managed, plans shown unavailable) and **Hostinger** (Boston only, 24-month
   prepay, no load balancer or private network). Rejected.
 - **Always-on Azure** (about $130). The Visual Studio credit forbids always-on use. Rejected.
-- **AWS at launch** (EKS about $200–250, ECS on Fargate about $150–200 across three zones but outside the chart).
-  Over the budget. Rejected for launch; it is the growth path.
+- **AWS at launch** (EKS about $200–250, ECS on Fargate about $150–200 across three zones but outside the chart). Over
+  the budget. Rejected for launch; it is the growth path.
 - **Free database tiers** (Neon, Aiven). No HA, scale-to-zero or power-off, and no region choice. Rejected.
 - **Akamai Dallas (`us-central`).** It lacks VPCs, Premium plans, Premium NodeBalancers and LKE Enterprise. Rejected.
-- **Akamai Chicago (`us-ord`).** The same prices and capabilities, but about 15–20 ms from `us-east-1` against about
-  1–2 ms. Rejected.
+- **Akamai Chicago (`us-ord`).** The same prices and capabilities, but about 15–20 ms from `us-east-1` against about 1–2
+  ms. Rejected.
 - **Chosen:** Akamai LKE in Washington, DC for production, OCI OKE Basic in Phoenix for the lab.
 
 ## Consequences

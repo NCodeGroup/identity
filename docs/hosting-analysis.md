@@ -1,8 +1,9 @@
 # Hosting — the hosted platform's topology, capacity and growth path
 
-- **Status:** Decided. [ADR-1520](decisions/1520-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md)
-  records the topology, and each section names the record that decides it; [§13](#13-open-decisions) lists the
-  decisions still open.
+- **Status:** Decided.
+  [ADR-1520](decisions/1520-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md)
+  records the topology, and each section names the record that decides it; [§13](#13-open-decisions) lists the decisions
+  still open.
 - **Prices captured:** 2026-10-18, list **monthly USD, excluding tax**, from each vendor's live pricing page or public
   read-only API (Akamai `api.linode.com/v4/*`); Akamai's US regions, their capabilities and regional prices re-checked
   2026-11-14. Prices drift — re-verify in the vendor console before purchase. Anything not verified live is marked
@@ -201,8 +202,7 @@ third lab node adds ~$7.30. Watch Grafana Cloud's free 10k active series across 
 
 ## 2. Reference architecture
 
-Decided in
-[ADR-1504](decisions/1504-the-hosts-serve-https-only-and-verify-their-certificate-at-startup.md),
+Decided in [ADR-1504](decisions/1504-the-hosts-serve-https-only-and-verify-their-certificate-at-startup.md),
 [ADR-1506](decisions/1506-the-ingress-controller-holds-a-client-certificate-the-pods-can-require-and-never-read-as-an-end-clients.md),
 [ADR-1507](decisions/1507-the-host-chart-routes-to-its-https-only-pods-through-gateway-api-a-traefik-ingress-or-the-operators-own-ingress.md)
 and the records each point names.
@@ -518,8 +518,8 @@ Decided in
 | **PostgreSQL**    | Akamai managed, 3 nodes ([§5](#postgresql))                                                                                                                          | CloudNativePG in the cluster        |
 | **Valkey**        | In the cluster: primary, replica and 3 Sentinels                                                                                                                     | In the cluster                      |
 
-- The developer-plan cluster's **single-replica control plane** is accepted: running pods keep serving if it fails;
-  only scheduling and changes pause. **Worker HA is what keeps the service up.**
+- The developer-plan cluster's **single-replica control plane** is accepted: running pods keep serving if it fails; only
+  scheduling and changes pause. **Worker HA is what keeps the service up.**
 - Production is **single-datacenter**: a whole-datacenter outage takes the cell down. Several availability zones come
   with AWS ([§11](#11-growth-path-aws)).
 
@@ -575,8 +575,8 @@ if that window matters. Valkey also carries the replica broadcast port, so a ten
 reaches every replica at once
 ([ADR-1205](decisions/1205-replicas-announce-changes-to-each-other-through-a-best-effort-broadcast-port.md)); the
 access-control user needs `PUBLISH` and `SUBSCRIBE` as well as the key-set and counter commands, and an outage costs
-only that promptness, because the replicas converge through their polls and the 15-minute tenant cache lifetime.
-Address it with the `valkey` connection string (TLS and an access-control user in production:
+only that promptness, because the replicas converge through their polls and the 15-minute tenant cache lifetime. Address
+it with the `valkey` connection string (TLS and an access-control user in production:
 `valkey:6380,ssl=true,user=identity,password=…`); a replica that cannot reach it reports not ready on the `valkey`
 health check and fails those checks closed.
 
@@ -608,8 +608,8 @@ Verified against Traefik v3.7 documentation and source:
 ### What the server does with the forwarded certificate
 
 - **Reads the chain.** The default `Base64Der` format reads Traefik's comma-separated chain, the client's own
-  certificate first, and surfaces the rest as intermediates for chain building. A forwarded value that cannot be
-  decoded fails the request with `invalid_request` rather than reading as no certificate
+  certificate first, and surfaces the rest as intermediates for chain building. A forwarded value that cannot be decoded
+  fails the request with `invalid_request` rather than reading as no certificate
   ([ADR-1172](decisions/1172-a-forwarded-client-certificate-is-decoded-by-the-decoder-registered-for-its-format.md)).
 - **Validates the chain.** `tls_client_auth` builds the presented certificate's chain to the client's
   `tls_client_auth_trust_anchors` (tenant- or client-scoped PEM CAs, custom root trust, `clientAuth` EKU, validity,
@@ -619,8 +619,8 @@ Verified against Traefik v3.7 documentation and source:
 - **Routes the mTLS alias host.** The alias is the tenant property `MtlsEndpointAliasAuthority`; `DynamicByHost` routes
   its derived host as well as the issuer's, and validation keeps both hosts unique
   ([ADR-1165](decisions/1165-a-tenants-stored-issuer-is-its-single-origin-and-its-mtls-alias-a-routed-second-host.md)).
-  Each tenant's alias is derived from `DynamicByHost:MtlsEndpointAliasTemplate` unless one is set through the
-  management API.
+  Each tenant's alias is derived from `DynamicByHost:MtlsEndpointAliasTemplate` unless one is set through the management
+  API.
 
 **Proxy rule:** on the mTLS host, use `RequireAnyClientCert` (request, don't verify) and forward the certificate. The
 server validates `tls_client_auth` chains itself, so `tls_client_auth` and `self_signed_tls_client_auth` clients share
@@ -750,8 +750,10 @@ VM prices exclude the OS managed disk (a few dollars per month, _(verify)_).
   needs; the local harness only targets `host.docker.internal`. Certification itself runs against production's
   `conformance` tenant
   ([ADR-1495](decisions/1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md)).
-- The **production-shaped path**: L4 LB → Traefik → forwarded client certificate ([ADR-1172](decisions/1172-a-forwarded-client-certificate-is-decoded-by-the-decoder-registered-for-its-format.md), [ADR-1173](decisions/1173-a-mutual-tls-client-is-authenticated-by-its-registered-certificate-chained-to-configured-trust-anchors.md)), multiple replicas
-  sharing Valkey, Postgres over the network — including the mTLS/FAPI plans.
+- The **production-shaped path**: L4 LB → Traefik → forwarded client certificate
+  ([ADR-1172](decisions/1172-a-forwarded-client-certificate-is-decoded-by-the-decoder-registered-for-its-format.md),
+  [ADR-1173](decisions/1173-a-mutual-tls-client-is-authenticated-by-its-registered-certificate-chained-to-configured-trust-anchors.md)),
+  multiple replicas sharing Valkey, Postgres over the network — including the mTLS/FAPI plans.
 - k6 **load tests** that produce the real sizing numbers for [§3](#3-compute-sizing).
 - **Remote signing** against Key Vault
   ([ADR-1471](decisions/1471-a-tenants-signing-and-encryption-keys-can-be-held-in-a-key-management-service.md)),
@@ -781,8 +783,9 @@ the stacks and components is [#87](https://github.com/NCodeGroup/identity/issues
   [ADR-1132](decisions/1132-platform-infrastructure-code-is-public-on-github-and-its-state-and-backups-live-in-aws.md) — no secrets in Git (push protection,
   `gitleaks`), no credentials for untrusted pull requests, no plans in public logs or artifacts, operator-specific values
   in SSM.
-- **Same artifacts as self-hosters** ([ADR-1133](decisions/1133-the-hosted-platform-runs-only-the-published-artifacts-it-offers-self-hosters.md)): the host's
-  Helm chart ships from the library repository as a signed OCI chart. `NCodeGroup/identity-platform` layers small
+- **Same artifacts as self-hosters**
+  ([ADR-1133](decisions/1133-the-hosted-platform-runs-only-the-published-artifacts-it-offers-self-hosters.md)): the
+  host's Helm chart ships from the library repository as a signed OCI chart. `NCodeGroup/identity-platform` layers small
   **component modules** (`modules/`: e.g. `cloudflare-zone`, `aws-state-backend`, `akamai-lke`, `akamai-postgres`,
   `oci-oke`, `flux-bootstrap`) and **in-cluster components** (`kubernetes/components/`: `traefik`, `cert-manager`,
   `valkey`, `identity`) under opinionated **stacks** (`stacks/akamai`, `stacks/oci`) — pick a component, a whole stack,
@@ -807,20 +810,23 @@ the stacks and components is [#87](https://github.com/NCodeGroup/identity/issues
   use them. Every private value is encrypted under a per-owner master key wrapped by a root key held in a key management
   service, and a host without `LocalDevelopment:Enabled` refuses to start without a real root key and a recovery
   decision
-  ([ADR-1235](decisions/1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md); remote keys
+  ([ADR-1235](decisions/1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md);
+  remote keys
   [ADR-1471](decisions/1471-a-tenants-signing-and-encryption-keys-can-be-held-in-a-key-management-service.md)).
-- **Kubernetes deployment artifacts.** `NCode.Identity.OpenId.Host` trusts forwarded headers only from configured proxies
+- **Kubernetes deployment artifacts.** `NCode.Identity.OpenId.Host` trusts forwarded headers only from configured
+  proxies
   ([ADR-1447](decisions/1447-each-host-composes-forwarded-header-trust-and-strict-transport-security-from-one-general-package.md);
   set `ForwardedHeaders:KnownNetworks` to the pod CIDR so Traefik's `X-Forwarded-Proto` / `Host` are honored) and,
   unless `LocalDevelopment:Enabled` is set, refuses development-only settings (developer keys, wildcard `AllowedHosts`,
   developer CORS, seeders). Its image is chiseled, runs non-root, serves HTTPS only on port 8443, is built for amd64 and
   arm64, and carries the login bundle
-  ([ADR-1248](decisions/1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)). Its Helm
-  chart runs restricted pods that probe `/health/live` and `/health/ready` over HTTPS, drain before stopping, and
-  require Valkey for more than one replica
-  ([ADR-1458](decisions/1458-the-host-chart-deploys-the-server-and-an-opt-in-management-console-and-refuses-unsafe-releases.md)). Before
-  each rollout it migrates the database in a Job from the same image, and every migration keeps the previous release
-  working ([ADR-1180](decisions/1180-each-host-contexts-migrations-run-before-the-rollout-and-only-expand-the-schema.md)). Every
+  ([ADR-1248](decisions/1248-the-host-console-and-directory-images-are-chiseled-non-root-multi-arch-digest-pinned-and-log-one-line-json.md)).
+  Its Helm chart runs restricted pods that probe `/health/live` and `/health/ready` over HTTPS, drain before stopping,
+  and require Valkey for more than one replica
+  ([ADR-1458](decisions/1458-the-host-chart-deploys-the-server-and-an-opt-in-management-console-and-refuses-unsafe-releases.md)).
+  Before each rollout it migrates the database in a Job from the same image, and every migration keeps the previous
+  release working
+  ([ADR-1180](decisions/1180-each-host-contexts-migrations-run-before-the-rollout-and-only-expand-the-schema.md)). Every
   merge to `main` publishes the image, the chart and the OpenAPI document
   ([ADR-1505](decisions/1505-every-merge-to-main-publishes-the-host-console-and-directory-images-the-chart-and-the-openapi-document-at-one-prerelease-version.md)).
 - **Per-tenant rate limits and quotas**
@@ -880,7 +886,8 @@ the provider's SPF include and DKIM keys, and keep DMARC at `p=reject`.
 Which cells move to AWS, when, and in which shape is open ([§13](#13-open-decisions)); this section informs it. AWS is
 not the starting point, because it costs more at the entry size, but it is where the platform grows once revenue pays
 for it. The platform already runs in AWS: its OpenTofu state, its backups and the deployment's KMS root key live in a
-dedicated AWS account ([ADR-1132](decisions/1132-platform-infrastructure-code-is-public-on-github-and-its-state-and-backups-live-in-aws.md),
+dedicated AWS account
+([ADR-1132](decisions/1132-platform-infrastructure-code-is-public-on-github-and-its-state-and-backups-live-in-aws.md),
 [ADR-1235](decisions/1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md)).
 
 ### What AWS adds
@@ -892,8 +899,8 @@ dedicated AWS account ([ADR-1132](decisions/1132-platform-infrastructure-code-is
   cross-region replicas; ElastiCache for Valkey; Network Load Balancers in every zone.
 - **Keys in the same account and region.** The root key, remote signing keys and the KMS keys tenants hold
   ([ADR-1414](decisions/1414-a-tenant-can-wrap-its-master-keys-under-a-root-key-it-controls.md),
-  [ADR-1471](decisions/1471-a-tenants-signing-and-encryption-keys-can-be-held-in-a-key-management-service.md)) are reached
-  through EKS Pod Identity, with no public service-account issuer to publish (issue
+  [ADR-1471](decisions/1471-a-tenants-signing-and-encryption-keys-can-be-held-in-a-key-management-service.md)) are
+  reached through EKS Pod Identity, with no public service-account issuer to publish (issue
   [#177](https://github.com/NCodeGroup/identity/issues/177)), and remote signing stays in-region.
 - **Compliance inheritance.** AWS's SOC 2, ISO 27001, PCI DSS and HIPAA-eligible services, and GovCloud for FedRAMP
   buyers, shorten the platform's own SOC 2 work (issue [#844](https://github.com/NCodeGroup/identity/issues/844)).
@@ -1274,5 +1281,5 @@ Everything else on this page is decided in the record its section names.
 2. **The fleet model** — the cell inventory, the cell module, the release channels and the version-skew rule, where
    fleet telemetry lives, and operator access, recorded before the fleet is built
    ([#845](https://github.com/NCodeGroup/identity/issues/845)).
-3. **A dedicated cell's capacity rating** — it needs a load test on dedicated-CPU nodes
-   ([§3](#3-compute-sizing), [Gaps for dedicated cells](#gaps-for-dedicated-cells)).
+3. **A dedicated cell's capacity rating** — it needs a load test on dedicated-CPU nodes ([§3](#3-compute-sizing),
+   [Gaps for dedicated cells](#gaps-for-dedicated-cells)).
