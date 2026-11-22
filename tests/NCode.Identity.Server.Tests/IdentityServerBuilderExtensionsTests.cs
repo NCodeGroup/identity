@@ -45,7 +45,7 @@ public sealed class IdentityServerBuilderExtensionsTests : BaseTests
         using var serviceProvider = BuildConfiguredServiceProvider(
             new Dictionary<string, string?>
             {
-                ["OpenId:TenantResolution:StrategyCode"] = "StaticSingle",
+                ["OpenId:TenantResolution:StrategyCode"] = "DynamicByPath",
                 ["OpenId:TenantResolution:Root:TenantId"] = "control",
                 ["OpenId:TenantResolution:Root:DisplayName"] = "Control Plane",
                 ["OpenId:TenantResolution:Root:TeamId"] = "operators",
@@ -58,7 +58,7 @@ public sealed class IdentityServerBuilderExtensionsTests : BaseTests
 
         var options = serviceProvider.GetRequiredService<IOptions<TenantResolutionOptions>>().Value;
 
-        Assert.Equal("StaticSingle", options.StrategyCode);
+        Assert.Equal("DynamicByPath", options.StrategyCode);
         Assert.Equal("control", options.Root.TenantId);
         Assert.Equal("Control Plane", options.Root.DisplayName);
         Assert.Equal("operators", options.Root.TeamId);
