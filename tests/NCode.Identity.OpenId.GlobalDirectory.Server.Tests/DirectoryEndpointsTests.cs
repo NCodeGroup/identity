@@ -34,6 +34,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
     private const string Token = "directory-access-token";
     private const string CellName = "a";
     private const string ControlPlaneCell = "control";
+    private const string ControlPlaneTenantId = "root";
     private const string DirectoryScope = GlobalDirectoryProtocol.DirectoryScope;
     private const string TenantId = "tenant-1";
     private const string OtherTenantId = "tenant-2";
@@ -106,6 +107,7 @@ public class DirectoryEndpointsTests : IAsyncLifetime
             {
                 ["DirectoryServer:Issuer"] = ServerIssuer,
                 ["DirectoryServer:ControlPlaneCell"] = ControlPlaneCell,
+                ["DirectoryServer:ControlPlaneTenantId"] = ControlPlaneTenantId,
                 ["AllowedHosts"] = "localhost",
             }
         );

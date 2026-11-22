@@ -16,6 +16,7 @@ public sealed class DirectoryHostFactory : WebApplicationFactory<DirectoryHostMa
 {
     private const string TestIssuer = "https://control.example";
     private const string TestControlPlaneCell = "control";
+    private const string TestControlPlaneTenantId = "root";
 
     private const string TestConnectionString =
         "Host=localhost;Database=directory;Username=directory;Password=unused";
@@ -31,5 +32,6 @@ public sealed class DirectoryHostFactory : WebApplicationFactory<DirectoryHostMa
         builder.UseSetting("ConnectionStrings:directory", TestConnectionString);
         builder.UseSetting("DirectoryServer:Issuer", TestIssuer);
         builder.UseSetting("DirectoryServer:ControlPlaneCell", TestControlPlaneCell);
+        builder.UseSetting("DirectoryServer:ControlPlaneTenantId", TestControlPlaneTenantId);
     }
 }

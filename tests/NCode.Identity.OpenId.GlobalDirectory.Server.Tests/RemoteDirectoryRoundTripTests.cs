@@ -27,6 +27,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
     private const string AccessToken = "directory-access-token";
     private const string CellName = "a";
     private const string OtherCellName = "b";
+    private const string ControlPlaneTenantId = "root";
     private const string Region = "region-a";
     private const string TenantId = "tenant-1";
     private const string OtherTenantId = "tenant-2";
@@ -77,6 +78,7 @@ public class RemoteDirectoryRoundTripTests : IAsyncLifetime
             {
                 ["DirectoryServer:Issuer"] = ServerIssuer,
                 ["DirectoryServer:ControlPlaneCell"] = CellName,
+                ["DirectoryServer:ControlPlaneTenantId"] = ControlPlaneTenantId,
                 ["AllowedHosts"] = "localhost",
             }
         );
