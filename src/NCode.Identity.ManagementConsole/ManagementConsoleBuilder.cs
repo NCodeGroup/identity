@@ -50,18 +50,16 @@ internal sealed class ManagementConsoleBuilder
             .Configure(options => section.BindStrictly(options))
             .ValidateOnStart();
 
-        serviceCollection.TryAddEnumerable(
-            ServiceDescriptor.Singleton<
-                IValidateOptions<ManagementConsoleOptions>,
-                ManagementConsoleOptionsValidator
-            >()
-        );
-        serviceCollection.TryAddEnumerable(
-            ServiceDescriptor.Singleton<
-                IValidateOptions<BffOptions>,
-                ManagementConsoleFrontendValidator
-            >()
-        );
+        var validatorDescriptor = ServiceDescriptor.Singleton<
+            IValidateOptions<ManagementConsoleOptions>,
+            ManagementConsoleOptionsValidator
+        >();
+        serviceCollection.TryAddEnumerable(validatorDescriptor);
+        var frontendValidatorDescriptor = ServiceDescriptor.Singleton<
+            IValidateOptions<BffOptions>,
+            ManagementConsoleFrontendValidator
+        >();
+        serviceCollection.TryAddEnumerable(frontendValidatorDescriptor);
 
         serviceCollection.TryAddSingleton<SinglePageBundle<ManagementConsolePage>>(CreateBundle);
         serviceCollection.TryAddSingleton<ManagementConsoleBootstrapHandler>();

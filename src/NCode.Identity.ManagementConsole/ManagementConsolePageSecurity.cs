@@ -43,18 +43,22 @@ internal readonly record struct ManagementConsolePageSecurity(
         ContentSecurityPolicySources.AddOrigin(imageSources, logoUri);
         ContentSecurityPolicySources.AddOrigin(imageSources, faviconUri);
 
+        var scriptNonceSource = ContentSecurityPolicySources.Nonce(nonce);
+        var styleNonceSource = ContentSecurityPolicySources.Nonce(nonce);
+        var formActionOrigin = ContentSecurityPolicySources.Origin(authority);
+
         var policy = new HtmlPageSecurityPolicy
         {
             Directives =
             [
                 new ContentSecurityPolicyDirective(
                     ContentSecurityPolicyDirectives.ScriptSrc,
-                    ContentSecurityPolicySources.Nonce(nonce),
+                    scriptNonceSource,
                     ContentSecurityPolicySources.StrictDynamic
                 ),
                 new ContentSecurityPolicyDirective(
                     ContentSecurityPolicyDirectives.StyleSrc,
-                    ContentSecurityPolicySources.Nonce(nonce)
+                    styleNonceSource
                 ),
                 new ContentSecurityPolicyDirective(
                     ContentSecurityPolicyDirectives.FontSrc,
@@ -71,7 +75,7 @@ internal readonly record struct ManagementConsolePageSecurity(
                 new ContentSecurityPolicyDirective(
                     ContentSecurityPolicyDirectives.FormAction,
                     ContentSecurityPolicySources.Self,
-                    ContentSecurityPolicySources.Origin(authority)
+                    formActionOrigin
                 ),
             ],
         };

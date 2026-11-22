@@ -77,7 +77,13 @@ internal sealed class BffAuthenticationStateProvider
 
     private static ValueTask<AuthenticationState> SignedOutAsync(
         CancellationToken cancellationToken
-    ) => ValueTask.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity())));
+    )
+    {
+        var identity = new ClaimsIdentity();
+        var principal = new ClaimsPrincipal(identity);
+        var state = new AuthenticationState(principal);
+        return ValueTask.FromResult(state);
+    }
 
     private void CancelRevalidation(CancellationTokenSource? replacement)
     {

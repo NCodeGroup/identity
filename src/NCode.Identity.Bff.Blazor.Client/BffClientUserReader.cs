@@ -46,7 +46,10 @@ internal static class BffClientUserReader
         List<Claim> claims = [new Claim(SubjectClaimType, subjectValue)];
 
         if (userDocument.TryGetPropertyValue<string>(BffUserDocumentNames.Name, out var nameValue))
-            claims.Add(new Claim(NameClaimType, nameValue));
+        {
+            var nameClaim = new Claim(NameClaimType, nameValue);
+            claims.Add(nameClaim);
+        }
 
         if (
             userDocument.TryGetPropertyValue<JsonElement>(
@@ -62,12 +65,16 @@ internal static class BffClientUserReader
                 {
                     foreach (var element in property.Value.EnumerateArray())
                     {
-                        claims.Add(new Claim(property.Name, ValueOf(element)));
+                        var elementValue = ValueOf(element);
+                        var elementClaim = new Claim(property.Name, elementValue);
+                        claims.Add(elementClaim);
                     }
                 }
                 else
                 {
-                    claims.Add(new Claim(property.Name, ValueOf(property.Value)));
+                    var propertyValue = ValueOf(property.Value);
+                    var propertyClaim = new Claim(property.Name, propertyValue);
+                    claims.Add(propertyClaim);
                 }
             }
         }
@@ -82,7 +89,9 @@ internal static class BffClientUserReader
             RoleClaimType
         );
 
-        user = new BffClientUser(new ClaimsPrincipal(identity), ReadIdleExpiresAt(userDocument));
+        var principal = new ClaimsPrincipal(identity);
+        var idleExpiresAt = ReadIdleExpiresAt(userDocument);
+        user = new BffClientUser(principal, idleExpiresAt);
         return true;
     }
 
@@ -97,7 +106,10 @@ internal static class BffClientUserReader
     )
     {
         if (userDocument.TryGetPropertyValue<string>(propertyName, out var value))
-            claims.Add(new Claim(claimType, value));
+        {
+            var claim = new Claim(claimType, value);
+            claims.Add(claim);
+        }
     }
 
     private static DateTimeOffset? ReadIdleExpiresAt(JsonElement userDocument)

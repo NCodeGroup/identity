@@ -45,13 +45,18 @@ internal sealed class BffAntiforgeryHeaderHandler(
         return response;
     }
 
-    private bool IsSameOrigin(Uri? requestUri) =>
-        requestUri is { IsAbsoluteUri: true }
-        && Uri.Compare(
-            requestUri,
-            new Uri(navigation.BaseUri, UriKind.Absolute),
-            UriComponents.SchemeAndServer,
-            UriFormat.UriEscaped,
-            StringComparison.OrdinalIgnoreCase
-        ) == 0;
+    private bool IsSameOrigin(Uri? requestUri)
+    {
+        if (requestUri is not { IsAbsoluteUri: true })
+            return false;
+
+        var baseUri = new Uri(navigation.BaseUri, UriKind.Absolute);
+        return Uri.Compare(
+                requestUri,
+                baseUri,
+                UriComponents.SchemeAndServer,
+                UriFormat.UriEscaped,
+                StringComparison.OrdinalIgnoreCase
+            ) == 0;
+    }
 }

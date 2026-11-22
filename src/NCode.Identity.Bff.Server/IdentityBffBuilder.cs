@@ -72,9 +72,8 @@ internal sealed class IdentityBffBuilder : ServiceBuilder<IdentityBff>, IIdentit
         OpenIdClientLibraryBuilder = JwtLibraryBuilder.AddOpenIdClientLibrary();
 
         // Key rings are the protocol client's, so they live in the host's top-level KeyRings section (ADR-1439).
-        OpenIdClientLibraryBuilder.AddOpenIdClientKeyRings(
-            configuration.GetSection(OpenIdClientDefaults.KeyRingsSectionName)
-        );
+        var keyRingsSection = configuration.GetSection(OpenIdClientDefaults.KeyRingsSectionName);
+        OpenIdClientLibraryBuilder.AddOpenIdClientKeyRings(keyRingsSection);
 
         BffLibraryBuilder = OpenIdClientLibraryBuilder
             .AddBffLibrary(EventsLibraryBuilder)
@@ -86,8 +85,10 @@ internal sealed class IdentityBffBuilder : ServiceBuilder<IdentityBff>, IIdentit
 
         // Only the composition root knows both the BFF and the protocol client, so it checks the lease against the
         // client's request timeout (ADR-1291).
-        serviceCollection.TryAddEnumerable(
-            ServiceDescriptor.Singleton<IHostedService, BffRefreshLeaseStartupCheck>()
-        );
+        var startupCheckDescriptor = ServiceDescriptor.Singleton<
+            IHostedService,
+            BffRefreshLeaseStartupCheck
+        >();
+        serviceCollection.TryAddEnumerable(startupCheckDescriptor);
     }
 }

@@ -132,18 +132,17 @@ public static class ManagementConsoleEndpointRouteBuilderExtensions
                 )
                 .WithName("ManagementConsole.Asset");
 
-            group
-                .MapFallback(
-                    "{*path:nonfile}",
-                    (Delegate)(
-                        static (HttpContext context) =>
-                            context
-                                .RequestServices.GetRequiredService<ManagementConsolePageHandler>()
-                                .HandleAsync(context, context.RequestAborted)
-                    )
+            var fallbackRoute = group.MapFallback(
+                "{*path:nonfile}",
+                (Delegate)(
+                    static (HttpContext context) =>
+                        context
+                            .RequestServices.GetRequiredService<ManagementConsolePageHandler>()
+                            .HandleAsync(context, context.RequestAborted)
                 )
-                .WithMetadata(new HttpMethodMetadata([HttpMethods.Get, HttpMethods.Head]))
-                .WithName("ManagementConsole.Page");
+            );
+            var methodMetadata = new HttpMethodMetadata([HttpMethods.Get, HttpMethods.Head]);
+            fallbackRoute.WithMetadata(methodMetadata).WithName("ManagementConsole.Page");
 
             group.ExcludeFromDescription();
 
