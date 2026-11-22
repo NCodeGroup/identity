@@ -480,6 +480,28 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
     }
 
     [Fact]
+    public async Task SeedAsync_WhenTheTenantIsTheControlPlaneTenant_SeedsItInTheRootPlaneWithoutAnotherRootTenant()
+    {
+        const string controlPlaneTenantId = "default";
+        MockTenantResolver
+            .Setup(x => x.GetControlPlaneTenantId())
+            .Returns(controlPlaneTenantId)
+            .Verifiable();
+        var tenant = CreateTenant(controlPlaneTenantId);
+        var seeded = new List<SeedTenantCommand>();
+        SetupStoreManager();
+        SetupGetTenant(controlPlaneTenantId, tenant);
+        SetupSeed(seeded);
+
+        var result = await Provisioner.SeedAsync(controlPlaneTenantId, CancellationToken.None);
+
+        Assert.Same(tenant, result);
+        var command = Assert.Single(seeded);
+        Assert.Same(tenant, command.Context.Tenant);
+        Assert.Equal(TenantPlane.Root, command.Context.Plane);
+    }
+
+    [Fact]
     public async Task SeedAsync_WhenWorkloadTenant_EnsuresAndSeedsRootFirst()
     {
         SetupTeam();
