@@ -22,8 +22,8 @@
     generates the host's OpenAPI document at artifacts/openapi/v1.json from the build output, which CI uploads
     (ADR-1505).
 
-    The build guards stage checks the guards of Directory.Build.targets (ADR-1197, ADR-1385, ADR-1501, ADR-1519) against fixture
-    projects.
+    The build guards stage checks the guards of Directory.Build.targets (ADR-1197, ADR-1385, ADR-1501, ADR-1519)
+    against fixture projects.
 
     The brand kit stage runs the fixture tests of ./build/brand-kit.ps1, which end with the repository's own kits. It
     checks brand/ and frontend/packages/brand against their locks and that both name one release, so it needs Node.js
