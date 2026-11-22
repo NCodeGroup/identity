@@ -146,6 +146,7 @@ The records are grouped by area; within an area they are in number order.
 | [1525](./1525-each-cluster-and-cell-keeps-its-metrics-within-a-series-budget-on-grafana-cloud-free-then-pro.md) | Each cluster and cell keeps its metrics within a series budget, on Grafana Cloud Free and then Pro | Accepted |
 | [1526](./1526-the-platforms-cluster-secrets-reach-each-cluster-from-aws-parameter-store-through-external-secrets-operator.md) | The platform's cluster secrets reach each cluster from AWS Parameter Store through External Secrets Operator | Accepted |
 | [1527](./1527-the-hosted-platform-keeps-audit-records-for-90-days-and-a-customer-exports-them-through-the-management-api.md) | The hosted platform keeps audit records for 90 days, and a customer exports them through the management API | Accepted |
+| [1528](./1528-the-hosted-platform-sends-its-mail-through-amazon-ses-in-each-cells-region-from-mail-ncodeid-net.md) | The hosted platform sends its mail through Amazon SES in each cell's region from mail.ncodeid.net | Accepted |
 
 ### Settings
 
