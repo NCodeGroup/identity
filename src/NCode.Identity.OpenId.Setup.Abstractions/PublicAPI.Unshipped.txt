@@ -23,6 +23,8 @@ NCode.Identity.OpenId.Setup.Contracts.CreateRootManagementConsole.Jwks.get -> Sy
 NCode.Identity.OpenId.Setup.Contracts.CreateRootManagementConsole.Jwks.init -> void
 NCode.Identity.OpenId.Setup.Contracts.CreateRootRequest
 NCode.Identity.OpenId.Setup.Contracts.CreateRootRequest.CreateRootRequest() -> void
+NCode.Identity.OpenId.Setup.Contracts.CreateRootRequest.DisplayName.get -> string?
+NCode.Identity.OpenId.Setup.Contracts.CreateRootRequest.DisplayName.init -> void
 NCode.Identity.OpenId.Setup.Contracts.CreateRootRequest.Email.get -> string?
 NCode.Identity.OpenId.Setup.Contracts.CreateRootRequest.Email.init -> void
 NCode.Identity.OpenId.Setup.Contracts.CreateRootRequest.ExtensionData.get -> System.Collections.Generic.Dictionary<string!, System.Text.Json.JsonElement>?
@@ -41,6 +43,8 @@ NCode.Identity.OpenId.Setup.Contracts.CreateRootResponse.ApiReferenceUrl.init ->
 NCode.Identity.OpenId.Setup.Contracts.CreateRootResponse.CreateRootResponse() -> void
 NCode.Identity.OpenId.Setup.Contracts.CreateRootResponse.DiscoveryUrl.get -> string!
 NCode.Identity.OpenId.Setup.Contracts.CreateRootResponse.DiscoveryUrl.init -> void
+NCode.Identity.OpenId.Setup.Contracts.CreateRootResponse.DisplayName.get -> string!
+NCode.Identity.OpenId.Setup.Contracts.CreateRootResponse.DisplayName.init -> void
 NCode.Identity.OpenId.Setup.Contracts.CreateRootResponse.ExtensionData.get -> System.Collections.Generic.Dictionary<string!, System.Text.Json.JsonElement>?
 NCode.Identity.OpenId.Setup.Contracts.CreateRootResponse.ExtensionData.set -> void
 NCode.Identity.OpenId.Setup.Contracts.CreateRootResponse.Issuer.get -> string!
@@ -135,6 +139,8 @@ NCode.Identity.OpenId.Setup.SetupOptions.Token.set -> void
 NCode.Identity.OpenId.Setup.SetupOptions.Wizard.get -> NCode.Identity.OpenId.Setup.SetupWizardOptions!
 NCode.Identity.OpenId.Setup.SetupOptions.Wizard.set -> void
 NCode.Identity.OpenId.Setup.SetupRootOptions
+NCode.Identity.OpenId.Setup.SetupRootOptions.DisplayName.get -> string?
+NCode.Identity.OpenId.Setup.SetupRootOptions.DisplayName.set -> void
 NCode.Identity.OpenId.Setup.SetupRootOptions.Email.get -> string?
 NCode.Identity.OpenId.Setup.SetupRootOptions.Email.set -> void
 NCode.Identity.OpenId.Setup.SetupRootOptions.Password.get -> string?
