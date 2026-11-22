@@ -75,7 +75,8 @@ internal sealed class RegisteredValueCoherenceRule(
                 case bool registered:
                     if (registered && effective is false)
                     {
-                        violations.Add(new ClientCoherenceViolation(name, "true", name));
+                        var registeredViolation = new ClientCoherenceViolation(name, "true", name);
+                        violations.Add(registeredViolation);
                     }
 
                     break;
@@ -89,7 +90,8 @@ internal sealed class RegisteredValueCoherenceRule(
                     break;
 
                 case var value when !Equals(value, effective):
-                    violations.Add(CreateLoweredValueViolation(name, value, effective));
+                    var loweredViolation = CreateLoweredValueViolation(name, value, effective);
+                    violations.Add(loweredViolation);
                     break;
             }
         }
@@ -113,7 +115,13 @@ internal sealed class RegisteredValueCoherenceRule(
         {
             if (!effectiveSet.Contains(value))
             {
-                violations.Add(new ClientCoherenceViolation(name, FormatValue(value), name));
+                var formattedValue = FormatValue(value);
+                var notEffectiveViolation = new ClientCoherenceViolation(
+                    name,
+                    formattedValue,
+                    name
+                );
+                violations.Add(notEffectiveViolation);
             }
         }
     }

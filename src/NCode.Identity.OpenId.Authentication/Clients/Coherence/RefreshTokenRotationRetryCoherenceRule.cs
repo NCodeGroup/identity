@@ -53,11 +53,12 @@ internal sealed class RefreshTokenRotationRetryCoherenceRule : IClientCoherenceR
             return [];
 
         var policy = settings.GetValue(OpenIdSettingKeys.RefreshTokenRotationPolicy);
+        var intervalText = interval.ToString("c", CultureInfo.InvariantCulture);
         return
         [
             new ClientCoherenceViolation(
                 OpenIdSettingNames.RefreshTokenReuseInterval,
-                interval.ToString("c", CultureInfo.InvariantCulture),
+                intervalText,
                 OpenIdSettingNames.RefreshTokenRotationRetryRequired
             )
             {

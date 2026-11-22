@@ -54,10 +54,12 @@ internal class ClientSecretPostClientAuthenticationHandler(
             return ClientAuthenticationResult.Undefined;
         }
 
+        var clientIdText = clientId.ToString();
+        var clientSecretMemory = clientSecret.ToString().AsMemory();
         return await AuthenticateClientSecretAsync(
             openIdContext,
-            clientId.ToString(),
-            clientSecret.ToString().AsMemory(),
+            clientIdText,
+            clientSecretMemory,
             cancellationToken
         );
     }

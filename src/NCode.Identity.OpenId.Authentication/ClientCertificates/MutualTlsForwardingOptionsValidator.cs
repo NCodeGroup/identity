@@ -29,7 +29,8 @@ internal class MutualTlsForwardingOptionsValidator(
         if (Formats.Contains(format))
             return ValidateOptionsResult.Success;
 
-        var known = string.Join(", ", Formats.Order(StringComparer.Ordinal));
+        var knownFormats = Formats.Order(StringComparer.Ordinal);
+        var known = string.Join(", ", knownFormats);
         return ValidateOptionsResult.Fail(
             $"{nameof(MutualTlsForwardingOptions.Format)} '{format}' is not a registered client certificate header format; the registered formats are: {known}."
         );

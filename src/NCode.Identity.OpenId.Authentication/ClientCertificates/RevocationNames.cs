@@ -20,7 +20,9 @@ internal static class RevocationNames
     {
         try
         {
-            return DistinguishedName.FromX500(left).Matches(DistinguishedName.FromX500(right));
+            var leftName = DistinguishedName.FromX500(left);
+            var rightName = DistinguishedName.FromX500(right);
+            return leftName.Matches(rightName);
         }
         catch (CryptographicException)
         {

@@ -78,7 +78,8 @@ internal static class CrlDistributionPoints
 
                 if (point.HasData && point.PeekTag() == CrlIssuerTag)
                 {
-                    if (TryReadDirectoryName(point.ReadSequence(CrlIssuerTag), out var issuer))
+                    var crlIssuerSequence = point.ReadSequence(CrlIssuerTag);
+                    if (TryReadDirectoryName(crlIssuerSequence, out var issuer))
                         crlIssuer = issuer;
                     else
                         usable = false;
@@ -87,7 +88,10 @@ internal static class CrlDistributionPoints
                 point.ThrowIfNotEmpty();
 
                 if (usable && uris.Count > 0)
-                    result.Add(new CrlDistributionPoint(uris, reasons, crlIssuer));
+                {
+                    var distributionPoint = new CrlDistributionPoint(uris, reasons, crlIssuer);
+                    result.Add(distributionPoint);
+                }
             }
         }
         catch (AsnContentException)
@@ -120,7 +124,8 @@ internal static class CrlDistributionPoints
             }
 
             var wrapper = generalNames.ReadSequence(DirectoryNameTag);
-            name = new X500DistinguishedName(wrapper.ReadEncodedValue().Span);
+            var encodedName = wrapper.ReadEncodedValue();
+            name = new X500DistinguishedName(encodedName.Span);
             wrapper.ThrowIfNotEmpty();
             return true;
         }

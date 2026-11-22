@@ -78,10 +78,14 @@ internal abstract class ClientAssertionClientAuthenticationHandler(
 
         var form = await httpRequest.ReadFormAsync(cancellationToken);
 
-        if (
-            !form.TryGetValue(OpenIdProtocol.Parameters.ClientAssertion, out var assertionValues)
-            || string.IsNullOrEmpty(assertionValues.ToString())
-        )
+        if (!form.TryGetValue(OpenIdProtocol.Parameters.ClientAssertion, out var assertionValues))
+        {
+            // No client_assertion present; this handler does not apply.
+            return ClientAuthenticationResult.Undefined;
+        }
+
+        var assertion = assertionValues.ToString();
+        if (string.IsNullOrEmpty(assertion))
         {
             // No client_assertion present; this handler does not apply.
             return ClientAuthenticationResult.Undefined;
@@ -105,8 +109,6 @@ internal abstract class ClientAssertionClientAuthenticationHandler(
             // The assertion is not a JWT-bearer assertion; this handler does not apply.
             return ClientAuthenticationResult.Undefined;
         }
-
-        var assertion = assertionValues.ToString();
 
         if (!TryDecodeHeaderAndPayload(assertion, out var header, out var payload))
             return ClientAuthenticationResult.Undefined;
@@ -257,13 +259,14 @@ internal abstract class ClientAssertionClientAuthenticationHandler(
 
             // Apply any security-profile client-authentication requirements (e.g. FAPI's issuer-only assertion
             // audience). A requirement throws to reject, which the catch below surfaces as an invalid-client failure.
+            var profileContext = new ClientAuthenticationProfileContext(
+                openIdContext,
+                publicClient,
+                result.DecodedJwt.Payload
+            );
             await SecurityProfileCatalog.EvaluateRequirementsAsync(
                 publicClient.Settings,
-                new ClientAuthenticationProfileContext(
-                    openIdContext,
-                    publicClient,
-                    result.DecodedJwt.Payload
-                ),
+                profileContext,
                 cancellationToken
             );
         }

@@ -78,9 +78,10 @@ internal class DefaultClientAuthenticationService(
                 cancellationToken
             );
             if (decision.RetryAfter is { } retryAfter)
-                authenticationResult = new ClientAuthenticationResult(
-                    RateLimitErrors.Refuse(openIdContext, retryAfter)
-                );
+            {
+                var refusal = RateLimitErrors.Refuse(openIdContext, retryAfter);
+                authenticationResult = new ClientAuthenticationResult(refusal);
+            }
         }
 
         items[CacheKey] = authenticationResult;
@@ -124,11 +125,10 @@ internal class DefaultClientAuthenticationService(
                 )
             )
             {
-                return new ClientAuthenticationResult(
-                    errorFactory
-                        .InvalidRequest("Multiple client authentication methods were provided.")
-                        .WithStatusCode(StatusCodes.Status400BadRequest)
-                );
+                var ambiguousError = errorFactory
+                    .InvalidRequest("Multiple client authentication methods were provided.")
+                    .WithStatusCode(StatusCodes.Status400BadRequest);
+                return new ClientAuthenticationResult(ambiguousError);
             }
 
             results.Add(result);
@@ -140,11 +140,12 @@ internal class DefaultClientAuthenticationService(
         var confidentialResults = results.Where(result => result.IsConfidential).ToList();
 
         if (confidentialResults.Count > 1)
-            return new ClientAuthenticationResult(
-                errorFactory
-                    .InvalidRequest("Multiple client authentication methods were provided.")
-                    .WithStatusCode(StatusCodes.Status400BadRequest)
-            );
+        {
+            var multipleConfidentialError = errorFactory
+                .InvalidRequest("Multiple client authentication methods were provided.")
+                .WithStatusCode(StatusCodes.Status400BadRequest);
+            return new ClientAuthenticationResult(multipleConfidentialError);
+        }
 
         var selected = confidentialResults.Count == 1 ? confidentialResults[0] : results[0];
 
@@ -199,14 +200,11 @@ internal class DefaultClientAuthenticationService(
             cancellationToken
         );
 
-        return new ClientAuthenticationResult(
-            openIdContext
-                .ErrorFactory.InvalidClient()
-                .WithDescription(
-                    "The client authentication method is not permitted for this client."
-                )
-                .WithStatusCode(StatusCodes.Status400BadRequest)
-        );
+        var notPermittedError = openIdContext
+            .ErrorFactory.InvalidClient()
+            .WithDescription("The client authentication method is not permitted for this client.")
+            .WithStatusCode(StatusCodes.Status400BadRequest);
+        return new ClientAuthenticationResult(notPermittedError);
     }
 
     /// <summary>
@@ -233,9 +231,12 @@ internal class DefaultClientAuthenticationService(
             var method = handler.AuthenticationMethod;
 
             if (!catalog.TryGet(method, out _))
+            {
+                var handlerTypeName = handler.GetType().Name;
                 throw new InvalidOperationException(
-                    $"The client-authentication handler '{handler.GetType().Name}' authenticates '{method}', which no client-authentication method descriptor names."
+                    $"The client-authentication handler '{handlerTypeName}' authenticates '{method}', which no client-authentication method descriptor names."
                 );
+            }
 
             if (!handledMethods.Add(method))
                 throw new InvalidOperationException(

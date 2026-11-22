@@ -119,13 +119,12 @@ internal sealed class ResponseAlgorithmCoherenceRule : IClientCoherenceRule
             && !permitted.Contains(registeredValue, StringComparer.Ordinal)
         )
         {
-            violations.Add(
-                new ClientCoherenceViolation(
-                    registeredKey.SettingName,
-                    registeredValue,
-                    permittedKey.SettingName
-                )
+            var algorithmViolation = new ClientCoherenceViolation(
+                registeredKey.SettingName,
+                registeredValue,
+                permittedKey.SettingName
             );
+            violations.Add(algorithmViolation);
         }
     }
 }

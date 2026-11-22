@@ -154,7 +154,8 @@ internal sealed class TlsClientAuthClientAuthenticationHandler(
 
         try
         {
-            return expected.Matches(DistinguishedName.FromX500(certificate.SubjectName));
+            var subjectName = DistinguishedName.FromX500(certificate.SubjectName);
+            return expected.Matches(subjectName);
         }
         catch (CryptographicException)
         {

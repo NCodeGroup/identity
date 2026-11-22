@@ -61,13 +61,12 @@ internal sealed class RedirectUriKindCoherenceRule(IRedirectUriKindCatalog redir
             if (RedirectUriKindCatalog.IsPermitted(clientSettings, redirectUri))
                 continue;
 
-            violations.Add(
-                new ClientCoherenceViolation(
-                    key.SettingName,
-                    redirectUri,
-                    OpenIdSettingNames.RedirectUriKindsSupported
-                )
+            var redirectViolation = new ClientCoherenceViolation(
+                key.SettingName,
+                redirectUri,
+                OpenIdSettingNames.RedirectUriKindsSupported
             );
+            violations.Add(redirectViolation);
         }
     }
 }

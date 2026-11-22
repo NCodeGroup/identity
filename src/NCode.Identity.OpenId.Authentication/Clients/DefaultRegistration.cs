@@ -61,75 +61,69 @@ internal static class DefaultRegistration
                 IClientAuthenticationAttemptLimiter,
                 DefaultClientAuthenticationAttemptLimiter
             >();
-            serviceCollection.TryAddEnumerable(
+            var defaultClientAuthenticationAttemptSettingDescriptorDataSource =
                 ServiceDescriptor.Singleton<
                     ICollectionDataSource<SettingDescriptor>,
                     DefaultClientAuthenticationAttemptSettingDescriptorDataSource
-                >()
+                >();
+            serviceCollection.TryAddEnumerable(
+                defaultClientAuthenticationAttemptSettingDescriptorDataSource
             );
 
             // Each client-authentication handler below has a descriptor of the same name, so the methods are named
             // without constructing a handler (ADR-1145).
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICollectionDataSource<ClientAuthenticationMethodDescriptor>,
-                    DefaultClientAuthenticationMethodDataSource
-                >()
-            );
+            var defaultClientAuthenticationMethodDataSource = ServiceDescriptor.Singleton<
+                ICollectionDataSource<ClientAuthenticationMethodDescriptor>,
+                DefaultClientAuthenticationMethodDataSource
+            >();
+            serviceCollection.TryAddEnumerable(defaultClientAuthenticationMethodDataSource);
 
             serviceCollection.TryAddSingleton<
                 IClientAuthenticationMethodCatalog,
                 DefaultClientAuthenticationMethodCatalog
             >();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IClientAuthenticationHandler,
-                    ClientSecretBasicClientAuthenticationHandler
-                >()
-            );
+            var clientSecretBasicClientAuthenticationHandler = ServiceDescriptor.Singleton<
+                IClientAuthenticationHandler,
+                ClientSecretBasicClientAuthenticationHandler
+            >();
+            serviceCollection.TryAddEnumerable(clientSecretBasicClientAuthenticationHandler);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IClientAuthenticationHandler,
-                    ClientSecretPostClientAuthenticationHandler
-                >()
-            );
+            var clientSecretPostClientAuthenticationHandler = ServiceDescriptor.Singleton<
+                IClientAuthenticationHandler,
+                ClientSecretPostClientAuthenticationHandler
+            >();
+            serviceCollection.TryAddEnumerable(clientSecretPostClientAuthenticationHandler);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IClientAuthenticationHandler,
-                    PrivateKeyJwtClientAuthenticationHandler
-                >()
-            );
+            var privateKeyJwtClientAuthenticationHandler = ServiceDescriptor.Singleton<
+                IClientAuthenticationHandler,
+                PrivateKeyJwtClientAuthenticationHandler
+            >();
+            serviceCollection.TryAddEnumerable(privateKeyJwtClientAuthenticationHandler);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IClientAuthenticationHandler,
-                    ClientSecretJwtClientAuthenticationHandler
-                >()
-            );
+            var clientSecretJwtClientAuthenticationHandler = ServiceDescriptor.Singleton<
+                IClientAuthenticationHandler,
+                ClientSecretJwtClientAuthenticationHandler
+            >();
+            serviceCollection.TryAddEnumerable(clientSecretJwtClientAuthenticationHandler);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IClientAuthenticationHandler,
-                    TlsClientAuthClientAuthenticationHandler
-                >()
-            );
+            var tlsClientAuthClientAuthenticationHandler = ServiceDescriptor.Singleton<
+                IClientAuthenticationHandler,
+                TlsClientAuthClientAuthenticationHandler
+            >();
+            serviceCollection.TryAddEnumerable(tlsClientAuthClientAuthenticationHandler);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IClientAuthenticationHandler,
-                    SelfSignedTlsClientAuthClientAuthenticationHandler
-                >()
-            );
+            var selfSignedTlsClientAuthClientAuthenticationHandler = ServiceDescriptor.Singleton<
+                IClientAuthenticationHandler,
+                SelfSignedTlsClientAuthClientAuthenticationHandler
+            >();
+            serviceCollection.TryAddEnumerable(selfSignedTlsClientAuthClientAuthenticationHandler);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IClientAuthenticationHandler,
-                    NoneClientAuthenticationHandler
-                >()
-            );
+            var noneClientAuthenticationHandler = ServiceDescriptor.Singleton<
+                IClientAuthenticationHandler,
+                NoneClientAuthenticationHandler
+            >();
+            serviceCollection.TryAddEnumerable(noneClientAuthenticationHandler);
 
             serviceCollection.TryAddSingleton<
                 IClientCoherenceValidator,
@@ -143,72 +137,78 @@ internal static class DefaultRegistration
 
             // The validator runs every registered rule, so a package adds a coherence rule the same way: one
             // TryAddEnumerable registration of its IClientCoherenceRule (ADR-1206).
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IClientCoherenceRule, ResponseAlgorithmCoherenceRule>()
-            );
+            var responseAlgorithmCoherenceRule = ServiceDescriptor.Singleton<
+                IClientCoherenceRule,
+                ResponseAlgorithmCoherenceRule
+            >();
+            serviceCollection.TryAddEnumerable(responseAlgorithmCoherenceRule);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IClientCoherenceRule, RedirectUriKindCoherenceRule>()
-            );
+            var redirectUriKindCoherenceRule = ServiceDescriptor.Singleton<
+                IClientCoherenceRule,
+                RedirectUriKindCoherenceRule
+            >();
+            serviceCollection.TryAddEnumerable(redirectUriKindCoherenceRule);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IClientCoherenceRule,
-                    TokenEndpointAuthMethodCoherenceRule
-                >()
-            );
+            var tokenEndpointAuthMethodCoherenceRule = ServiceDescriptor.Singleton<
+                IClientCoherenceRule,
+                TokenEndpointAuthMethodCoherenceRule
+            >();
+            serviceCollection.TryAddEnumerable(tokenEndpointAuthMethodCoherenceRule);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IClientCoherenceRule,
-                    CertificateBoundAccessTokenCoherenceRule
-                >()
-            );
+            var certificateBoundAccessTokenCoherenceRule = ServiceDescriptor.Singleton<
+                IClientCoherenceRule,
+                CertificateBoundAccessTokenCoherenceRule
+            >();
+            serviceCollection.TryAddEnumerable(certificateBoundAccessTokenCoherenceRule);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IClientCoherenceRule,
-                    DPoPBoundAccessTokenCoherenceRule
-                >()
-            );
+            var dPoPBoundAccessTokenCoherenceRule = ServiceDescriptor.Singleton<
+                IClientCoherenceRule,
+                DPoPBoundAccessTokenCoherenceRule
+            >();
+            serviceCollection.TryAddEnumerable(dPoPBoundAccessTokenCoherenceRule);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IClientCoherenceRule, RegisteredValueCoherenceRule>()
-            );
+            var registeredValueCoherenceRule = ServiceDescriptor.Singleton<
+                IClientCoherenceRule,
+                RegisteredValueCoherenceRule
+            >();
+            serviceCollection.TryAddEnumerable(registeredValueCoherenceRule);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IClientCoherenceRule, ClientSecretKeyCoherenceRule>()
-            );
+            var clientSecretKeyCoherenceRule = ServiceDescriptor.Singleton<
+                IClientCoherenceRule,
+                ClientSecretKeyCoherenceRule
+            >();
+            serviceCollection.TryAddEnumerable(clientSecretKeyCoherenceRule);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IClientCoherenceRule, IdTokenEncryptionCoherenceRule>()
-            );
+            var idTokenEncryptionCoherenceRule = ServiceDescriptor.Singleton<
+                IClientCoherenceRule,
+                IdTokenEncryptionCoherenceRule
+            >();
+            serviceCollection.TryAddEnumerable(idTokenEncryptionCoherenceRule);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IClientCoherenceRule, LogoutChannelCoherenceRule>()
-            );
+            var logoutChannelCoherenceRule = ServiceDescriptor.Singleton<
+                IClientCoherenceRule,
+                LogoutChannelCoherenceRule
+            >();
+            serviceCollection.TryAddEnumerable(logoutChannelCoherenceRule);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IClientCoherenceRule,
-                    BackchannelTokenDeliveryCoherenceRule
-                >()
-            );
+            var backchannelTokenDeliveryCoherenceRule = ServiceDescriptor.Singleton<
+                IClientCoherenceRule,
+                BackchannelTokenDeliveryCoherenceRule
+            >();
+            serviceCollection.TryAddEnumerable(backchannelTokenDeliveryCoherenceRule);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IClientCoherenceRule,
-                    RefreshTokenRotationRetryCoherenceRule
-                >()
-            );
+            var refreshTokenRotationRetryCoherenceRule = ServiceDescriptor.Singleton<
+                IClientCoherenceRule,
+                RefreshTokenRotationRetryCoherenceRule
+            >();
+            serviceCollection.TryAddEnumerable(refreshTokenRotationRetryCoherenceRule);
 
             // A change of a team's effective settings that is not a write is reported client by client (ADR-1412).
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<ReconcileTeamSettingsCommand>,
-                    ClientCoherenceReportHandler
-                >()
-            );
+            var clientCoherenceReportHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<ReconcileTeamSettingsCommand>,
+                ClientCoherenceReportHandler
+            >();
+            serviceCollection.TryAddEnumerable(clientCoherenceReportHandler);
 
             return builder;
         }

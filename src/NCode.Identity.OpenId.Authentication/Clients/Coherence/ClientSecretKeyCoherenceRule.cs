@@ -76,20 +76,19 @@ internal sealed class ClientSecretKeyCoherenceRule(
                 )
             )
             {
-                violations.Add(
-                    new ClientCoherenceViolation(
-                        OpenIdSettingNames.RequestObjectSigningAlgValuesSupported,
-                        algorithm,
-                        OpenIdSettingNames.TokenEndpointAuthMethod
-                    )
-                    {
-                        Description =
-                            $"The '{OpenIdSettingNames.RequestObjectSigningAlgValuesSupported}' value '{algorithm}' "
-                            + "is keyed from the client secret, which the effective "
-                            + $"'{OpenIdSettingNames.TokenEndpointAuthMethod}' value '{method}' stores as a one-way "
-                            + "verifier.",
-                    }
-                );
+                var violation = new ClientCoherenceViolation(
+                    OpenIdSettingNames.RequestObjectSigningAlgValuesSupported,
+                    algorithm,
+                    OpenIdSettingNames.TokenEndpointAuthMethod
+                )
+                {
+                    Description =
+                        $"The '{OpenIdSettingNames.RequestObjectSigningAlgValuesSupported}' value '{algorithm}' "
+                        + "is keyed from the client secret, which the effective "
+                        + $"'{OpenIdSettingNames.TokenEndpointAuthMethod}' value '{method}' stores as a one-way "
+                        + "verifier.",
+                };
+                violations.Add(violation);
             }
         }
 

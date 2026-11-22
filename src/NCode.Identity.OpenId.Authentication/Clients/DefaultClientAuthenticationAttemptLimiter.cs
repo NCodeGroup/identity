@@ -132,19 +132,20 @@ internal sealed class DefaultClientAuthenticationAttemptLimiter(
             },
         ];
         if (clientId is not null)
-            increments.Add(
-                new ExpiringCounterIncrement
-                {
-                    Key = CreateAddressClientKey(
-                        scope.TenantId,
-                        scope.AddressValue,
-                        clientId,
-                        scope.WindowStart
-                    ),
-                    ExpiresWhen = windowEnd,
-                    Limit = scope.ClientLimit,
-                }
-            );
+        {
+            var clientIncrement = new ExpiringCounterIncrement
+            {
+                Key = CreateAddressClientKey(
+                    scope.TenantId,
+                    scope.AddressValue,
+                    clientId,
+                    scope.WindowStart
+                ),
+                ExpiresWhen = windowEnd,
+                Limit = scope.ClientLimit,
+            };
+            increments.Add(clientIncrement);
+        }
 
         var counts = await CounterSet.IncrementUntilExceededAsync(increments, cancellationToken);
 
@@ -172,13 +173,22 @@ internal sealed class DefaultClientAuthenticationAttemptLimiter(
         var window = settings.GetValue(OpenIdSettingKeys.ClientAuthenticationFailedAttemptsWindow);
         var now = TimeProvider.GetUtcNow();
 
+        var addressValue = RemoteAddressPartition.GetValue(address);
+        var addressLimit = settings.GetValue(
+            OpenIdSettingKeys.ClientAuthenticationFailedAttemptsAddressLimit
+        );
+        var clientLimit = settings.GetValue(
+            OpenIdSettingKeys.ClientAuthenticationFailedAttemptsLimit
+        );
+        var windowStart = GetWindowStart(now, window);
+
         scope = new AttemptScope(
             tenant.TenantId,
-            RemoteAddressPartition.GetValue(address),
-            settings.GetValue(OpenIdSettingKeys.ClientAuthenticationFailedAttemptsAddressLimit),
-            settings.GetValue(OpenIdSettingKeys.ClientAuthenticationFailedAttemptsLimit),
+            addressValue,
+            addressLimit,
+            clientLimit,
             window,
-            GetWindowStart(now, window),
+            windowStart,
             now
         );
         return true;
@@ -239,29 +249,29 @@ internal sealed class DefaultClientAuthenticationAttemptLimiter(
         string tenantId,
         string addressValue,
         DateTimeOffset windowStart
-    ) =>
-        ExpiringKeys.Create(
-            Purpose,
-            tenantId,
-            AddressPartition,
-            addressValue,
-            windowStart.UtcTicks.ToString(CultureInfo.InvariantCulture)
-        );
+    )
+    {
+        var windowTicks = windowStart.UtcTicks.ToString(CultureInfo.InvariantCulture);
+        return ExpiringKeys.Create(Purpose, tenantId, AddressPartition, addressValue, windowTicks);
+    }
 
     internal static string CreateAddressClientKey(
         string tenantId,
         string addressValue,
         string clientId,
         DateTimeOffset windowStart
-    ) =>
-        ExpiringKeys.Create(
+    )
+    {
+        var windowTicks = windowStart.UtcTicks.ToString(CultureInfo.InvariantCulture);
+        return ExpiringKeys.Create(
             Purpose,
             tenantId,
             AddressClientPartition,
             addressValue,
             clientId,
-            windowStart.UtcTicks.ToString(CultureInfo.InvariantCulture)
+            windowTicks
         );
+    }
 
     /// <summary>
     /// What a check and a count of one request share: the tenant, the partitioned remote address, the tenant's limits,

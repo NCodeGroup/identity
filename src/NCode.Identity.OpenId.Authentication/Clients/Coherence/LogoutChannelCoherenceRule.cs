@@ -94,9 +94,12 @@ internal sealed class LogoutChannelCoherenceRule : IClientCoherenceRule
         if (!effective.TryGetValue(supportedKey, out var supported) || supported)
             return;
 
-        violations.Add(
-            new ClientCoherenceViolation(uriKey.SettingName, uri, supportedKey.SettingName)
+        var uriViolation = new ClientCoherenceViolation(
+            uriKey.SettingName,
+            uri,
+            supportedKey.SettingName
         );
+        violations.Add(uriViolation);
     }
 
     private static void AddSessionViolation(
@@ -113,8 +116,11 @@ internal sealed class LogoutChannelCoherenceRule : IClientCoherenceRule
         if (!effective.TryGetValue(supportedKey, out var supported) || supported)
             return;
 
-        violations.Add(
-            new ClientCoherenceViolation(requiredKey.SettingName, "true", supportedKey.SettingName)
+        var sessionViolation = new ClientCoherenceViolation(
+            requiredKey.SettingName,
+            "true",
+            supportedKey.SettingName
         );
+        violations.Add(sessionViolation);
     }
 }

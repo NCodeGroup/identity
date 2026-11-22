@@ -87,18 +87,17 @@ internal class ClientSecretBasicClientAuthenticationHandler(
     /// <inheritdoc />
     protected override ClientAuthenticationResult CreateInvalidClientResult(
         OpenIdContext openIdContext
-    ) =>
+    )
+    {
         // The client authenticated via the HTTP Authorization header, so RFC 6749 §5.2 requires a 401 response
         // with a WWW-Authenticate challenge matching the scheme the client used.
-        new(
-            openIdContext
-                .ErrorFactory.InvalidClient()
-                .WithStatusCode(StatusCodes.Status401Unauthorized)
-                .WithResponseHeader(
-                    HeaderNames.WWWAuthenticate,
-                    WwwAuthenticateChallenge.Basic(openIdContext.Tenant.Issuer)
-                )
-        );
+        var invalidClient = openIdContext
+            .ErrorFactory.InvalidClient()
+            .WithStatusCode(StatusCodes.Status401Unauthorized);
+        var challenge = WwwAuthenticateChallenge.Basic(openIdContext.Tenant.Issuer);
+        var error = invalidClient.WithResponseHeader(HeaderNames.WWWAuthenticate, challenge);
+        return new(error);
+    }
 
     /// <inheritdoc />
     public override async ValueTask<ClientAuthenticationResult> AuthenticateClientAsync(

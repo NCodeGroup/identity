@@ -94,12 +94,13 @@ internal abstract class CommonClientAuthenticationHandler(
     /// <returns>The <see cref="ClientAuthenticationResult"/> representing the <c>invalid_client</c> failure.</returns>
     protected virtual ClientAuthenticationResult CreateInvalidClientResult(
         OpenIdContext openIdContext
-    ) =>
-        new(
-            openIdContext
-                .ErrorFactory.InvalidClient()
-                .WithStatusCode(StatusCodes.Status400BadRequest)
-        );
+    )
+    {
+        var error = openIdContext
+            .ErrorFactory.InvalidClient()
+            .WithStatusCode(StatusCodes.Status400BadRequest);
+        return new(error);
+    }
 
     /// <summary>
     /// Refuses the request when its remote address, or its remote address and <paramref name="clientId"/>, reached the
@@ -136,9 +137,8 @@ internal abstract class CommonClientAuthenticationHandler(
             cancellationToken
         );
 
-        return new ClientAuthenticationResult(
-            RateLimitErrors.RefuseFailedClientAuthentications(openIdContext, retryAfter)
-        );
+        var refusal = RateLimitErrors.RefuseFailedClientAuthentications(openIdContext, retryAfter);
+        return new ClientAuthenticationResult(refusal);
     }
 
     /// <summary>
@@ -384,9 +384,10 @@ internal abstract class CommonClientAuthenticationHandler(
                     "secret_verification_unavailable",
                     cancellationToken
                 );
-                return new ClientAuthenticationResult(
-                    CreateVerificationUnavailableError(openIdContext)
+                var verificationUnavailableError = CreateVerificationUnavailableError(
+                    openIdContext
                 );
+                return new ClientAuthenticationResult(verificationUnavailableError);
 
             default:
                 // client secret was specified but failed to verify

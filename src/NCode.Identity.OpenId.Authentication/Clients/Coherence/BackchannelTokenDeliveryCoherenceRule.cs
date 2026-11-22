@@ -62,13 +62,12 @@ internal sealed class BackchannelTokenDeliveryCoherenceRule : IClientCoherenceRu
             )
         )
         {
-            violations.Add(
-                ClientCoherenceViolation.Missing(
-                    OpenIdSettingNames.ClientNotificationEndpoint,
-                    OpenIdSettingNames.BackchannelTokenDeliveryMode,
-                    mode
-                )
+            var missingViolation = ClientCoherenceViolation.Missing(
+                OpenIdSettingNames.ClientNotificationEndpoint,
+                OpenIdSettingNames.BackchannelTokenDeliveryMode,
+                mode
             );
+            violations.Add(missingViolation);
         }
 
         var permitsCiba =
@@ -84,13 +83,12 @@ internal sealed class BackchannelTokenDeliveryCoherenceRule : IClientCoherenceRu
             && !supportedModes.Contains(mode, StringComparer.Ordinal)
         )
         {
-            violations.Add(
-                new ClientCoherenceViolation(
-                    OpenIdSettingNames.BackchannelTokenDeliveryMode,
-                    mode,
-                    OpenIdSettingNames.BackchannelTokenDeliveryModesSupported
-                )
+            var unsupportedViolation = new ClientCoherenceViolation(
+                OpenIdSettingNames.BackchannelTokenDeliveryMode,
+                mode,
+                OpenIdSettingNames.BackchannelTokenDeliveryModesSupported
             );
+            violations.Add(unsupportedViolation);
         }
 
         return violations;

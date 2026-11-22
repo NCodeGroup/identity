@@ -81,7 +81,8 @@ internal sealed class DefaultClientCertificateChainValidator(
             policy.RevocationMode = X509RevocationMode.NoCheck;
             policy.VerificationTime = TimeProvider.GetUtcNow().UtcDateTime;
             policy.VerificationTimeIgnored = false;
-            policy.ApplicationPolicy.Add(new Oid(ClientAuthenticationOid));
+            var clientAuthenticationPolicy = new Oid(ClientAuthenticationOid);
+            policy.ApplicationPolicy.Add(clientAuthenticationPolicy);
 
             foreach (var pem in trustAnchors)
                 loaded.ImportFromPem(pem);
@@ -102,10 +103,10 @@ internal sealed class DefaultClientCertificateChainValidator(
 
             if (!chain.Build(presentedCertificate.Certificate))
             {
-                var chainStatus = string.Join(
-                    ", ",
-                    chain.ChainStatus.Select(status => status.Status.ToString()).Distinct()
-                );
+                var chainStatuses = chain
+                    .ChainStatus.Select(status => status.Status.ToString())
+                    .Distinct();
+                var chainStatus = string.Join(", ", chainStatuses);
                 Logger.ClientCertificateUntrusted(openIdClient.ClientId, chainStatus);
                 return false;
             }
