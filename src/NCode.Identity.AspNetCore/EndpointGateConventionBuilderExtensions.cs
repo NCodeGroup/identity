@@ -15,11 +15,18 @@ namespace NCode.Identity.AspNetCore;
 [PublicAPI]
 public static class EndpointGateConventionBuilderExtensions
 {
+    /// <summary>
+    /// Gets the endpoint metadata marker that records that an endpoint's request delegate is already wrapped, so a
+    /// group's and a route's <c>Finally</c> conventions wrap it once.
+    /// </summary>
     private static object GatesApplied { get; } = new();
 
-    // Minimal APIs bind an endpoint's parameters inside its request delegate, so wrapping the final request delegate
-    // once, with every gate in metadata order, runs each gate before the binding. A group's gates precede a route's
-    // because a group's conventions add their metadata first.
+    /// <summary>
+    /// Wraps the final request delegate of an endpoint once, with every gate in metadata order. Minimal APIs bind an
+    /// endpoint's parameters inside its request delegate, so each gate runs before the binding. A group's gates precede
+    /// a route's because a group's conventions add their metadata first.
+    /// </summary>
+    /// <param name="endpointBuilder">The <see cref="EndpointBuilder"/> of the endpoint to wrap.</param>
     private static void ApplyGates(EndpointBuilder endpointBuilder)
     {
         if (endpointBuilder.Metadata.Contains(GatesApplied))
@@ -42,6 +49,15 @@ public static class EndpointGateConventionBuilderExtensions
             InvokeAsync(gates, next, httpContext, httpContext.RequestAborted).AsTask();
     }
 
+    /// <summary>
+    /// Runs each gate in order, each created from the request's services, and answers with the first result a gate
+    /// returns. Runs the endpoint when no gate returns a result.
+    /// </summary>
+    /// <param name="gates">The gates to run, in order.</param>
+    /// <param name="next">The request delegate of the endpoint.</param>
+    /// <param name="httpContext">The <see cref="HttpContext"/> of the request.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to observe.</param>
+    /// <returns>A <see cref="ValueTask"/> that completes when the request has been handled.</returns>
     private static async ValueTask InvokeAsync(
         IReadOnlyList<EndpointGateMetadata> gates,
         RequestDelegate next,
