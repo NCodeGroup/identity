@@ -4637,40 +4637,40 @@ Until the first stable release, the [Unreleased] section describes the product a
   ID it requests tokens for — and the server reaches the key through that identity with no stored secret; every master
   key records the identity that reaches it (`rootKeyAccessIdentity`, and the `root_key_access_identity` detail of
   `master_key.*` audit events) and the binding of its key's owner, and changing only the identity rewraps the master
-  keys without a rotation.
-  `KeyAccessClientCache<TClient>` keeps a client for an access identity once a call through it succeeds and drops one
-  that never worked. `PUT`, `DELETE` and `POST .../validate` on `/api/tenants/{tenantId}/encryption-keys/root-key` set or
-  change, remove and validate it (scope `update:encryption_keys`), and `GET .../encryption-keys` reports the root key and
-  the providers a tenant may choose (scope `read:encryption_keys`). A `PUT` answers `400` for a field that is blank, not
-  allowed, not registered or malformed, `409` with `Retry-After` and `retryAfterSeconds` within twice
-  `SecretProtection:MasterKeys:RefreshInterval` of the tenant's last rotation, `412` when it loses a race and `422` when
-  the probe fails; a `DELETE` answers `204` once none of the tenant's master keys remains under the key and `202` while
-  some do, and a master key of another owner whose own root key names the same key never holds the removal. The
-  server validates a key by wrapping 32 random bytes through it under a
-  context label of its own, unwrapping them and comparing the two in constant time, which proves that the key exists, is
-  enabled and grants both the encrypt and the decrypt permission through any provider. Setting or changing the key
-  rotates the tenant's master key so that the successor is created under it and rewraps every retired master key under
-  it, because earlier material exists in backups under the deployment's root key; removing it moves the master keys
-  under the nearest other root key, the team's when the team brings one and otherwise the deployment's, without a
-  rotation; the removal completes once no master key under the key remains that does not conform to its owner's nearest
-  root key, which it reads through one indexed query on the master keys' root key provider and reference
-  (`IMasterKeyStore.GetWrappedByKeyPageAsync`). An Azure Key Vault key reference names a host under the deployment's Key
-  Vault or Managed HSM host suffixes (`SecretProtection:RootKeyProviders:AzureKeyVault:ReferencedKeyHostSuffixes`, by
-  default the public, China and US government cloud domains). Which owners can bring a key is a registered
-  `IOwnerRootKeyPolicy`: the `platform` owner and the control-plane tenant, which the management API authenticates
-  against, are refused, a consumer registers its own, and a `PUT` for a refused owner answers `400`. A root key is
-  `active`, `unavailable` or `removing`, and an unknown state reads as `unavailable`.
-  `SecretProtection:OwnerRootKeys:Providers` (empty by default, so no tenant can bring a key), `ValidationInterval` (one
-  hour, between one minute and one day) and `RetryInterval` (one minute, between one second and the validation interval)
-  tune it, and a listed provider that is not a registered referenced key wrapper stops the host as it starts. The Helm
-  chart's `secretProtection.ownerRootKeys.providers` lists the providers and mounts a listed provider's workload
-  credentials. The management console's tenant encryption keys tab sets, validates and removes the key, shows its state
-  and the master keys' root keys, and warns when it is `unavailable`. `root_key.set`, `root_key.removed`,
-  `root_key.unavailable` and `root_key.restored` are `key` audit events without material, a rotation onto the key
-  records `master_key.rotated` with the reason `root_key_changed`, and a master key's `root_key_reference` detail names
-  the key that wraps it. `IReferencedKeyWrapper` is a key wrapper that wraps under a key the caller names, implemented
-  by the AWS KMS, Google Cloud KMS and Azure Key Vault wrappers, and `IOwnerRootKeyManager` sets, removes and validates
-  a root key
+  keys without a rotation. `KeyAccessClientCache<TClient>` keeps a client for an access identity once a call through it
+  succeeds and drops one that never worked. `PUT`, `DELETE` and `POST .../validate` on
+  `/api/tenants/{tenantId}/encryption-keys/root-key` set or change, remove and validate it (scope
+  `update:encryption_keys`), and `GET .../encryption-keys` reports the root key and the providers a tenant may choose
+  (scope `read:encryption_keys`). A `PUT` answers `400` for a field that is blank, not allowed, not registered or
+  malformed, `409` with `Retry-After` and `retryAfterSeconds` within twice `SecretProtection:MasterKeys:RefreshInterval`
+  of the tenant's last rotation, `412` when it loses a race and `422` when the probe fails; a `DELETE` answers `204`
+  once none of the tenant's master keys remains under the key and `202` while some do, and a master key of another owner
+  whose own root key names the same key never holds the removal. The server validates a key by wrapping 32 random bytes
+  through it under a context label of its own, unwrapping them and comparing the two in constant time, which proves that
+  the key exists, is enabled and grants both the encrypt and the decrypt permission through any provider. Setting or
+  changing the key rotates the tenant's master key so that the successor is created under it and rewraps every retired
+  master key under it, because earlier material exists in backups under the deployment's root key; removing it moves the
+  master keys under the nearest other root key, the team's when the team brings one and otherwise the deployment's,
+  without a rotation; the removal completes once no master key under the key remains that does not conform to its
+  owner's nearest root key, which it reads through one indexed query on the master keys' root key provider and reference
+  (`IMasterKeyStore.GetWrappedByKeyPageAsync`); a change of a team's root key reads only the master keys under the
+  team's key and those of the owners under the team (`IMasterKeyStore.GetOwnerPageAsync`). An Azure Key Vault key
+  reference names a host under the deployment's Key Vault or Managed HSM host suffixes
+  (`SecretProtection:RootKeyProviders:AzureKeyVault:ReferencedKeyHostSuffixes`, by default the public, China and US
+  government cloud domains). Which owners can bring a key is a registered `IOwnerRootKeyPolicy`: the `platform` owner
+  and the control-plane tenant, which the management API authenticates against, are refused, a consumer registers its
+  own, and a `PUT` for a refused owner answers `400`. A root key is `active`, `unavailable` or `removing`, and an
+  unknown state reads as `unavailable`. `SecretProtection:OwnerRootKeys:Providers` (empty by default, so no tenant can
+  bring a key), `ValidationInterval` (one hour, between one minute and one day) and `RetryInterval` (one minute, between
+  one second and the validation interval) tune it, and a listed provider that is not a registered referenced key wrapper
+  stops the host as it starts. The Helm chart's `secretProtection.ownerRootKeys.providers` lists the providers and
+  mounts a listed provider's workload credentials. The management console's tenant encryption keys tab sets, validates
+  and removes the key, shows its state and the master keys' root keys, and warns when it is `unavailable`.
+  `root_key.set`, `root_key.removed`, `root_key.unavailable` and `root_key.restored` are `key` audit events without
+  material, a rotation onto the key records `master_key.rotated` with the reason `root_key_changed`, and a master key's
+  `root_key_reference` detail names the key that wraps it. `IReferencedKeyWrapper` is a key wrapper that wraps under a
+  key the caller names, implemented by the AWS KMS, Google Cloud KMS and Azure Key Vault wrappers, and
+  `IOwnerRootKeyManager` sets, removes and validates a root key
   ([#174](https://github.com/NCodeGroup/identity/issues/174), [#574](https://github.com/NCodeGroup/identity/issues/574),
   [#865](https://github.com/NCodeGroup/identity/issues/865),
   [ADR-1414](docs/decisions/1414-a-tenant-can-wrap-its-master-keys-under-a-root-key-it-controls.md)).
@@ -4807,14 +4807,14 @@ Until the first stable release, the [Unreleased] section describes the product a
   whatever another authentication scheme set, such as a session cookie the host's default scheme reads, and
   `IManagementCallerFeature` carries the authenticated caller. A request without a valid management access token is
   answered `401` before the route binds its parameters, so an anonymous request costs no more than its headers, and
-  `POST /api/tenant-imports` checks the caller's update authority at the platform node before it reads its body.
-  `GET /api/capabilities`, `GET /api/me`, `GET /api/me/teams` and `GET /api/me/tenants` answer only that caller and
-  answer anyone else `401` with a problem, so the deployment's secret types, algorithms and key management services and
-  a caller's role assignments stay undisclosed to anonymous callers
-  ([#707](https://github.com/NCodeGroup/identity/issues/707),
-  [#715](https://github.com/NCodeGroup/identity/issues/715),
-  [#716](https://github.com/NCodeGroup/identity/issues/716),
-  [#863](https://github.com/NCodeGroup/identity/issues/863),
+  `POST /api/tenant-imports` checks the caller's update authority at the platform node before it reads its body. Every
+  `/api` route reads a request body of at most 1 MiB unless the route sets a larger limit, as the tenant import does,
+  and a `401` carries a `WWW-Authenticate` challenge for each scheme the API accepts, `Bearer` and `DPoP`, the one the
+  request used with `error="invalid_token"`. `GET /api/capabilities`, `GET /api/me`, `GET /api/me/teams` and
+  `GET /api/me/tenants` answer only that caller and answer anyone else `401` with a problem, so the deployment's secret
+  types, algorithms and key management services and a caller's role assignments stay undisclosed to anonymous callers
+  ([#707](https://github.com/NCodeGroup/identity/issues/707), [#715](https://github.com/NCodeGroup/identity/issues/715),
+  [#716](https://github.com/NCodeGroup/identity/issues/716), [#863](https://github.com/NCodeGroup/identity/issues/863),
   [ADR-1067](docs/decisions/1067-secret-key-types-form-one-catalog-and-authenticated-management-callers-discover-the-deployments-capabilities.md),
   [ADR-1044](docs/decisions/1044-the-management-api-authenticates-its-own-access-tokens-and-a-configured-client-bootstraps-the-first-globaladmin.md),
   [ADR-1520](docs/decisions/1520-a-caller-is-authenticated-before-its-request-body-is-read.md)).
