@@ -182,6 +182,53 @@ public sealed class InteractiveLocaleSelectorTests : IDisposable
         Assert.Same(TestLocales.Xx, locale);
     }
 
+    [Fact]
+    public void Select_WhenAFormCarriesALanguageTag_PrefersItToAcceptLanguage()
+    {
+        var selector = CreateSelector(TestLocales.Xx, TestLocales.Yy);
+        var settings = MockRepository.Create<IReadOnlySettingCollection>().Object;
+        var httpContext = CreateHttpContext(acceptLanguage: "en;q=0.9, de;q=0.8");
+        MockCatalog
+            .Setup(x =>
+                x.Select(
+                    settings,
+                    It.Is<IEnumerable<string>>(preferences =>
+                        IsSequence(preferences, "yy", "en", "de")
+                    )
+                )
+            )
+            .Returns(TestLocales.Yy)
+            .Verifiable();
+
+        var locale = selector.Select(httpContext, settings, "yy");
+
+        Assert.Same(TestLocales.Yy, locale);
+    }
+
+    [Fact]
+    public void Select_WhenTheCarriedTagIsNotSupportedByTheTenant_FallsBackToTheRequest()
+    {
+        var selector = CreateSelector(TestLocales.Xx, TestLocales.Yy);
+        var settings = MockRepository.Create<IReadOnlySettingCollection>().Object;
+        var httpContext = CreateHttpContext(acceptLanguage: "xx;q=0.9");
+
+        // The catalog bounds the choice by the tenant's supported locales and skips a preference the tenant does not
+        // support, so the request's preferences must follow the carried tag.
+        MockCatalog
+            .Setup(x =>
+                x.Select(
+                    settings,
+                    It.Is<IEnumerable<string>>(preferences => IsSequence(preferences, "yy", "xx"))
+                )
+            )
+            .Returns(TestLocales.Xx)
+            .Verifiable();
+
+        var locale = selector.Select(httpContext, settings, "yy");
+
+        Assert.Same(TestLocales.Xx, locale);
+    }
+
     #endregion
 
     #region GetCarriedLanguageTag Tests

@@ -1416,7 +1416,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         }
 
         var openIdContext = httpContext.GetOpenIdContext();
-        var locale = SelectLocale(httpContext);
+        var locale = SelectLocale(httpContext, languageTag);
         var flowId = await PasswordResetter.SendResetCodeAsync(
             openIdContext,
             username,
@@ -1790,7 +1790,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         var openIdContext = httpContext.GetOpenIdContext();
         if (string.Equals(action, ResendAction, StringComparison.Ordinal))
         {
-            var locale = SelectLocale(httpContext);
+            var locale = SelectLocale(httpContext, languageTag);
             var sent = await SignInCodeChallenge.SendSignInCodeAsync(
                 openIdContext,
                 principal,
@@ -1902,7 +1902,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         CancellationToken cancellationToken
     )
     {
-        var locale = SelectLocale(httpContext);
+        var locale = SelectLocale(httpContext, languageTag);
         var sent = await SignInCodeChallenge.SendSignInCodeAsync(
             openIdContext,
             principal,
@@ -2150,10 +2150,14 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     }
 
     // The page renders in the locale the request prefers among those the tenant supports (ADR-1402).
-    private InteractiveLocale SelectLocale(HttpContext httpContext)
+    private InteractiveLocale SelectLocale(HttpContext httpContext) =>
+        SelectLocale(httpContext, languageTag: null);
+
+    // A mail is worded in the locale the page the end user saw rendered in, which the form carried as its language tag.
+    private InteractiveLocale SelectLocale(HttpContext httpContext, string? languageTag)
     {
         var settings = httpContext.GetOpenIdContext().Tenant.SettingsProvider.Collection;
-        return LocaleSelector.Select(httpContext, settings);
+        return LocaleSelector.Select(httpContext, settings, languageTag);
     }
 
     // Mirrors the apps/auth describeLoginError mapping so the no-JS login form shows the same messages.

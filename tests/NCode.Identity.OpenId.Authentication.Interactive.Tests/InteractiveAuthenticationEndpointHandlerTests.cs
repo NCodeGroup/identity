@@ -2,7 +2,25 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Security.Claims;
+using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Routing.Patterns;
+using Microsoft.AspNetCore.Routing.Template;
+using Microsoft.Extensions.DependencyInjection;
+using Moq;
+using NCode.Identity.AspNetCore;
 using NCode.Identity.Jose;
+using NCode.Identity.OpenId.Authentication.Consent;
+using NCode.Identity.OpenId.Authentication.Endpoints.Continue;
+using NCode.Identity.OpenId.Authentication.Sessions;
+using NCode.Identity.OpenId.Authentication.Subject;
+using NCode.Identity.OpenId.Contexts;
+using NCode.Identity.OpenId.Locales;
+using NCode.Identity.OpenId.PrincipalResolution;
+using NCode.Identity.OpenId.Settings;
+using NCode.Identity.OpenId.Tenants;
+using NCode.Identity.Settings;
 using Xunit;
 
 namespace NCode.Identity.OpenId.Authentication.Interactive.Tests;
@@ -189,6 +207,106 @@ public class InteractiveAuthenticationEndpointHandlerTests
         );
 
         Assert.Equal(1700000000L, result.AuthTime);
+    }
+
+    #endregion
+
+    #region PostForgotPasswordAsync Tests
+
+    [Fact]
+    public async Task PostForgotPasswordAsync_WhenTheFormCarriesALanguageTag_MailsInThatLocale()
+    {
+        var mockRepository = new MockRepository(MockBehavior.Strict);
+        var mockCatalog = mockRepository.Create<IUiLocaleCatalog>();
+        mockCatalog.SetupGet(x => x.Locales).Returns([TestLocales.Xx, TestLocales.Yy]).Verifiable();
+        IUiLocale? carried = TestLocales.Yy;
+        mockCatalog.Setup(x => x.TryGet("yy", out carried)).Returns(true).Verifiable();
+
+        var mockSettings = mockRepository.Create<IReadOnlySettingCollection>();
+        mockSettings
+            .Setup(x => x.GetValue(OpenIdSettingKeys.PasswordResetEnabled))
+            .Returns(true)
+            .Verifiable();
+        // The page the end user saw was yy, so the mail is worded in yy, although the browser prefers xx.
+        mockCatalog
+            .Setup(x =>
+                x.Select(
+                    mockSettings.Object,
+                    It.Is<IEnumerable<string>>(preferences =>
+                        preferences.SequenceEqual(new[] { "yy", "xx" }, StringComparer.Ordinal)
+                    )
+                )
+            )
+            .Returns(TestLocales.Yy)
+            .Verifiable();
+
+        var mockProvider = mockRepository.Create<IReadOnlySettingCollectionProvider>();
+        mockProvider.SetupGet(x => x.Collection).Returns(mockSettings.Object).Verifiable();
+        var mockTenant = mockRepository.Create<OpenIdTenant>();
+        mockTenant.SetupGet(x => x.SettingsProvider).Returns(mockProvider.Object).Verifiable();
+        var mockContext = mockRepository.Create<OpenIdContext>();
+        mockContext.SetupGet(x => x.Tenant).Returns(mockTenant.Object).Verifiable();
+        var mockFeature = mockRepository.Create<IOpenIdContextFeature>();
+        mockFeature.SetupGet(x => x.OpenIdContext).Returns(mockContext.Object).Verifiable();
+
+        var mockResetter = mockRepository.Create<IInteractivePasswordResetter>();
+        mockResetter
+            .Setup(x =>
+                x.SendResetCodeAsync(
+                    mockContext.Object,
+                    "alice",
+                    TestLocales.Yy,
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync("flow-1")
+            .Verifiable();
+
+        var mockTenantResolver = mockRepository.Create<ITenantResolver>();
+        mockTenantResolver
+            .Setup(x => x.GetTenantRoute())
+            .Returns(RoutePatternFactory.Parse("/{tenantId}"))
+            .Verifiable();
+
+        using var serviceProvider = new ServiceCollection().AddRouting().BuildServiceProvider();
+        using var bundle = new SinglePageBundle<InteractiveBundleShell>(null, _ => null);
+        var handler = new InteractiveAuthenticationEndpointHandler(
+            mockRepository.Create<IInteractiveCredentialVerifier>().Object,
+            mockRepository.Create<IPrincipalResolver>().Object,
+            mockRepository.Create<IConsentService>().Object,
+            mockRepository.Create<IContinueRefusalService>().Object,
+            mockRepository.Create<IInteractivePasswordChanger>().Object,
+            mockResetter.Object,
+            mockRepository.Create<IInteractiveEmailVerifier>().Object,
+            mockRepository.Create<IInteractiveSignInCodeChallenge>().Object,
+            mockRepository.Create<ISessionService>().Object,
+            mockRepository.Create<IPostCommitSecurityEffects>().Object,
+            TimeProvider.System,
+            mockRepository.Create<IAntiforgery>().Object,
+            bundle,
+            new InteractiveSurfacePaths(
+                mockTenantResolver.Object,
+                serviceProvider.GetRequiredService<TemplateBinderFactory>()
+            ),
+            mockRepository.Create<ITenantEnvironmentCatalog>().Object,
+            new InteractiveLocaleSelector(mockCatalog.Object)
+        );
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.Features.Set(mockFeature.Object);
+        httpContext.Request.RouteValues["tenantId"] = "acme";
+        httpContext.Request.Headers.AcceptLanguage = "xx";
+
+        var result = await handler.PostForgotPasswordAsync(
+            httpContext,
+            "alice",
+            returnUrl: null,
+            uiLocales: "yy"
+        );
+
+        var redirect = Assert.IsType<RedirectHttpResult>(result);
+        Assert.Equal("/acme/account/password/reset?flow=flow-1&ui_locales=yy", redirect.Url);
+        mockRepository.Verify();
     }
 
     #endregion
