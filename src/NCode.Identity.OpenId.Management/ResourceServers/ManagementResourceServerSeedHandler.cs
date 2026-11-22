@@ -13,9 +13,9 @@ namespace NCode.Identity.OpenId.Management.ResourceServers;
 /// <summary>
 /// Seeds the reserved management resource server (<c>urn:ncode:management</c>) into a tenant. Its tenant-plane scope
 /// families (a tenant's own settings and secrets, plus its clients, client secrets, resource servers, client grants,
-/// and grants) are seeded into every tenant; its control-plane families (platform settings, team management and
-/// tenant provisioning) are added only when seeding the root tenant. The handler is idempotent: it creates the
-/// resource server only when it is absent.
+/// and grants) are seeded into every tenant; its control-plane families (platform settings, team management and tenant
+/// provisioning) are added only in the root plane, which only the control-plane cell's root tenant is seeded in. The
+/// handler is idempotent: it creates the resource server only when it is absent.
 /// </summary>
 internal sealed class ManagementResourceServerSeedHandler(ICryptoService cryptoService)
     : ICommandHandler<SeedTenantCommand>,
@@ -104,7 +104,7 @@ internal sealed class ManagementResourceServerSeedHandler(ICryptoService cryptoS
 
         if (plane == TenantPlane.Root)
         {
-            // Control-plane families, seeded only into the root tenant.
+            // Control-plane families, seeded only into the control-plane cell's root tenant.
             IEnumerable<PersistedScope> rootScopes =
             [
                 .. SettingsScopes(ManagementScopes.Families.PlatformSettings, "platform settings"),

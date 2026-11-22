@@ -45,9 +45,9 @@ public sealed class RootTenantOptions
     public string TeamDisplayName { get; set; } = DefaultTeamDisplayName;
 
     /// <summary>
-    /// Gets or sets the identifier of the root tenant, into which the control-plane management resource server is
-    /// seeded. The host and path strategies apply <see cref="DefaultTenantId"/> when it is not set. The static
-    /// single-tenant strategy, whose own tenant is the root tenant, refuses it.
+    /// Gets or sets the identifier of the root tenant under the host and path strategies, which apply
+    /// <see cref="DefaultTenantId"/> when it is not set. The static single-tenant strategy, whose own tenant is the
+    /// root tenant, refuses it.
     /// </summary>
     public string? TenantId { get; set; }
 

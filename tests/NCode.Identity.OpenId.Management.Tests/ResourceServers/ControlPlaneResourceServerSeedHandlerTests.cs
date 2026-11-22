@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Text.Json;
-using Microsoft.Extensions.Options;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Json;
 using NCode.Identity.OpenId.GlobalDirectory;
@@ -55,16 +54,15 @@ public sealed class ControlPlaneResourceServerSeedHandlerTests : IDisposable
         }.Build();
 
     private static ControlPlaneResourceServerSeedHandler CreateHandler(
-        ICryptoService cryptoService,
-        bool isControlPlane
-    ) => new(cryptoService, Options.Create(new CellOptions { IsControlPlane = isControlPlane }));
+        ICryptoService cryptoService
+    ) => new(cryptoService);
 
     #endregion
 
     #region HandleAsync
 
     [Fact]
-    public async Task HandleAsync_WhenControlPlaneRootAndAbsent_SeedsBothResourceServers()
+    public async Task HandleAsync_WhenRootPlaneAndAbsent_SeedsBothResourceServers()
     {
         var manager = MockRepository.Create<IStoreManager>();
         var store = MockRepository.Create<IResourceServerStore>();
@@ -94,7 +92,7 @@ public sealed class ControlPlaneResourceServerSeedHandlerTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var handler = CreateHandler(crypto.Object, isControlPlane: true);
+        var handler = CreateHandler(crypto.Object);
         await handler.HandleAsync(
             CreateCommand(manager.Object, TenantPlane.Root),
             CancellationToken.None
@@ -117,7 +115,7 @@ public sealed class ControlPlaneResourceServerSeedHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task HandleAsync_WhenControlPlaneRootAndAbsent_SeedsBothWithEmptyObjectSettings()
+    public async Task HandleAsync_WhenRootPlaneAndAbsent_SeedsBothWithEmptyObjectSettings()
     {
         var manager = MockRepository.Create<IStoreManager>();
         var store = MockRepository.Create<IResourceServerStore>();
@@ -147,7 +145,7 @@ public sealed class ControlPlaneResourceServerSeedHandlerTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var handler = CreateHandler(crypto.Object, isControlPlane: true);
+        var handler = CreateHandler(crypto.Object);
         await handler.HandleAsync(
             CreateCommand(manager.Object, TenantPlane.Root),
             CancellationToken.None
@@ -166,24 +164,10 @@ public sealed class ControlPlaneResourceServerSeedHandlerTests : IDisposable
         var manager = MockRepository.Create<IStoreManager>();
         var crypto = MockRepository.Create<ICryptoService>();
 
-        var handler = CreateHandler(crypto.Object, isControlPlane: true);
+        var handler = CreateHandler(crypto.Object);
 
         await handler.HandleAsync(
             CreateCommand(manager.Object, TenantPlane.Workload),
-            CancellationToken.None
-        );
-    }
-
-    [Fact]
-    public async Task HandleAsync_WhenNotControlPlaneCell_DoesNothing()
-    {
-        var manager = MockRepository.Create<IStoreManager>();
-        var crypto = MockRepository.Create<ICryptoService>();
-
-        var handler = CreateHandler(crypto.Object, isControlPlane: false);
-
-        await handler.HandleAsync(
-            CreateCommand(manager.Object, TenantPlane.Root),
             CancellationToken.None
         );
     }
@@ -206,7 +190,7 @@ public sealed class ControlPlaneResourceServerSeedHandlerTests : IDisposable
                 .Verifiable();
         }
 
-        var handler = CreateHandler(crypto.Object, isControlPlane: true);
+        var handler = CreateHandler(crypto.Object);
 
         await handler.HandleAsync(
             CreateCommand(manager.Object, TenantPlane.Root),
@@ -251,7 +235,7 @@ public sealed class ControlPlaneResourceServerSeedHandlerTests : IDisposable
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-        var handler = CreateHandler(crypto.Object, isControlPlane: true);
+        var handler = CreateHandler(crypto.Object);
         await handler.HandleAsync(
             CreateCommand(manager.Object, TenantPlane.Root),
             CancellationToken.None
@@ -269,7 +253,7 @@ public sealed class ControlPlaneResourceServerSeedHandlerTests : IDisposable
     public void MediatorPriority_Always_IsLow()
     {
         var crypto = MockRepository.Create<ICryptoService>();
-        var handler = CreateHandler(crypto.Object, isControlPlane: true);
+        var handler = CreateHandler(crypto.Object);
 
         Assert.Equal(DefaultMediatorPriorities.Low, handler.MediatorPriority);
     }
