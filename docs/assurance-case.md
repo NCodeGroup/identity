@@ -13,7 +13,8 @@ user-facing summary.
   [ADR-1010](decisions/1010-settings-merge-as-ceilings-and-floors-unset-lists-restrict-nothing-and-a-secure-baseline-supplies-defaults.md)),
   redirect URIs match exactly
   ([ADR-1203](decisions/1203-redirect-uris-are-matched-exactly-as-written-and-their-kinds-are-narrowed-by-settings.md)),
-  and a request object is signed, short-lived and addressed to the issuer.
+  and a request object is signed, short-lived and addressed to the issuer
+  ([ADR-1187](decisions/1187-a-client-signed-jwt-is-short-lived-its-lifetime-capped-from-its-earliest-asserted-start.md)).
 - **R2.** A token is accepted only as a signed token under an explicit algorithm, key, type and lifetime policy, and the
   server validates the tokens it issued under one policy
   ([ADR-1154](decisions/1154-jwts-are-validated-only-as-signed-tokens-by-requirements-and-handlers-under-the-callers-stated-policy.md),
@@ -24,13 +25,14 @@ user-facing summary.
   certificate chain and revocation are checked, failing closed
   ([ADR-1391](decisions/1391-a-client-secret-is-a-one-way-verifier-unless-its-method-keys-from-its-utf-8-octets.md),
   [ADR-1102](decisions/1102-a-client-authenticates-with-a-single-use-jwt-assertion-signed-by-its-key-or-its-secret.md),
+  [ADR-1097](decisions/1097-access-tokens-are-sender-constrained-by-dpop-or-mutual-tls-through-one-proof-of-possession-seam.md),
   [ADR-1173](decisions/1173-a-mutual-tls-client-is-authenticated-by-its-registered-certificate-chained-to-configured-trust-anchors.md),
   [ADR-1400](decisions/1400-client-certificate-revocation-is-checked-by-configured-sources-under-the-clients-revocation-mode.md)).
 - **R4.** A single-use grant is spent once: a replayed authorization code ends its session, a refresh token rotates
   unless it is sender-constrained, a reused one revokes its family, and access tokens can be bound by DPoP or mutual TLS
   ([ADR-1216](decisions/1216-a-refresh-token-rotates-unless-it-is-bound-and-rotation-spends-it-with-its-successor-atomically.md),
   [ADR-1217](decisions/1217-a-reused-refresh-token-revokes-its-family-unless-it-is-a-retry-within-an-opt-in-interval.md),
-  [ADR-1222](decisions/1222-a-grant-is-changed-by-a-read-modify-write-and-a-revocation-that-retry-a-lost-race.md),
+  [ADR-1112](decisions/1112-every-end-of-a-session-runs-one-termination-seam-once-revoking-the-grants-issued-under-it.md),
   [ADR-1097](decisions/1097-access-tokens-are-sender-constrained-by-dpop-or-mutual-tls-through-one-proof-of-possession-seam.md)).
 - **R5.** One tenant's data never reaches another: tenant-bound rows are scoped at the persistence layer, the scope
   fails closed, PostgreSQL row-level security enforces it under a role that can't bypass it, and an issuer comes from
@@ -64,10 +66,13 @@ user-facing summary.
   ([ADR-1290](decisions/1290-the-bff-keeps-each-session-as-an-encrypted-server-side-record-under-a-cookie-handle.md),
   [ADR-1292](decisions/1292-the-bffs-cookie-authenticates-only-guarded-endpoints-which-refuse-cross-site-requests-and-reload-cookieless-navigations.md),
   [ADR-1438](decisions/1438-the-management-console-holds-no-token-and-reads-its-session-from-its-bff.md)).
-- **R11.** Input from a remote party is parsed strictly and with bounded work: JSON into detached elements, base64url
-  through one strict decoder, `NumericDate` values through strict readers
+- **R11.** Input from a remote party is parsed strictly: base64url through one strict decoder and `NumericDate` values
+  through strict readers
   ([ADR-1266](decisions/1266-binary-data-uses-bufferfactory-rentals-with-explicit-sensitivity-and-text-only-strict-encodings.md),
-  [ADR-1123](decisions/1123-a-numericdate-and-a-whole-number-a-remote-party-sends-are-read-strictly-through-shared-readers.md)).
+  [ADR-1123](decisions/1123-a-numericdate-and-a-whole-number-a-remote-party-sends-are-read-strictly-through-shared-readers.md)),
+  and an opt-in SD-JWT presentation or COSE message under bounded size, nesting and work
+  ([ADR-1405](decisions/1405-selective-disclosure-jwts-are-an-opt-in-package-that-issues-presents-and-verifies-over-the-jwt-validator.md),
+  [ADR-1409](decisions/1409-cose-messages-are-an-opt-in-package-family-over-system-formats-cbor-and-the-familys-keys-and-algorithms.md)).
 - **R12.** Credential guessing is bounded: failed password attempts are limited per account and failed client
   authentications per remote address, a wrong password takes as long whether or not the account exists, and a password
   is judged by one policy and hashed in its NFC form
@@ -106,7 +111,7 @@ holds.
 | A cross-site request against a BFF or its logout | Yes | R10 ([ADR-1292](decisions/1292-the-bffs-cookie-authenticates-only-guarded-endpoints-which-refuse-cross-site-requests-and-reload-cookieless-navigations.md), [ADR-1293](decisions/1293-the-bff-ends-sessions-by-a-guarded-logout-form-post-and-by-back-channel-logout-through-indexes.md)) |
 | A forged `Host` header changes a published URL | Yes | R5: the issuer comes from the tenant's stored record ([ADR-1165](decisions/1165-a-tenants-stored-issuer-is-its-single-origin-and-its-mtls-alias-a-routed-second-host.md)) |
 | A deployment runs with development settings or an unprotected secret | Yes | R9: the host refuses to start ([ADR-1370](decisions/1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)) |
-| Malformed or oversized input exhausts the server | Yes | R11 ([ADR-1266](decisions/1266-binary-data-uses-bufferfactory-rentals-with-explicit-sensitivity-and-text-only-strict-encodings.md), [ADR-1123](decisions/1123-a-numericdate-and-a-whole-number-a-remote-party-sends-are-read-strictly-through-shared-readers.md)) |
+| Malformed input that a parser reads loosely, or an oversized SD-JWT presentation or COSE message, exhausts the server | Yes | R11 ([ADR-1266](decisions/1266-binary-data-uses-bufferfactory-rentals-with-explicit-sensitivity-and-text-only-strict-encodings.md), [ADR-1123](decisions/1123-a-numericdate-and-a-whole-number-a-remote-party-sends-are-read-strictly-through-shared-readers.md), [ADR-1405](decisions/1405-selective-disclosure-jwts-are-an-opt-in-package-that-issues-presents-and-verifies-over-the-jwt-validator.md), [ADR-1409](decisions/1409-cose-messages-are-an-opt-in-package-family-over-system-formats-cbor-and-the-familys-keys-and-algorithms.md)) |
 | A compromised KMS root key or cloud account | No | Outside the trust boundary above |
 
 ## Secure Design Principles Applied
