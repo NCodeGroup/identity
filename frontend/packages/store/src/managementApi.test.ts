@@ -3570,3 +3570,292 @@ describe('managementApi role assignment requests', () => {
     expect(fetches.count('GET', '/api/teams/t%2F1/admins')).toBe(2);
   });
 });
+
+describe('managementApi local accounts', () => {
+  const account = {
+    tenantId: 'acme',
+    localAccountId: 'la/1',
+    principalId: null,
+    userName: 'ada',
+    displayName: 'Ada',
+    email: null,
+    emailVerified: false,
+    isEnabled: true,
+    concurrencyToken: 'c1',
+  };
+  const itemPath = '/api/tenants/acme/local-accounts/la%2F1';
+  const newAccount = { userName: 'ada', password: 'pw' };
+  const fields = { displayName: 'Ada', userName: 'ada', email: null, emailVerified: false };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('listLocalAccounts GETs the platform collection', async () => {
+    const captured = mockFetch(jsonResponse({ items: [] }));
+    const store = createStore();
+
+    await store.dispatch(managementApi.endpoints.listLocalAccounts.initiate({ kind: 'platform' }));
+
+    expect(captured[0]?.url).toBe('https://api.test/api/platform/local-accounts');
+    expect(captured[0]?.method).toBe('GET');
+  });
+
+  it('listLocalAccounts caches an error under its list tag alone', async () => {
+    mockFetch(jsonResponse({ title: 'Server Error' }, 500));
+    const store = createStore();
+
+    const result = await store.dispatch(
+      managementApi.endpoints.listLocalAccounts.initiate({ kind: 'platform' }),
+    );
+
+    expect(result.isError).toBe(true);
+  });
+
+  it("listLocalAccounts GETs a tenant's collection by encoded id", async () => {
+    const captured = mockFetch(jsonResponse({ items: [] }));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.listLocalAccounts.initiate({ kind: 'tenant', tenantId: 'a/b' }),
+    );
+
+    expect(captured[0]?.url).toBe('https://api.test/api/tenants/a%2Fb/local-accounts');
+  });
+
+  it("listLocalAccounts GETs a tenant's collection in its cell", async () => {
+    const captured = mockFetch(jsonResponse({ items: [] }));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.listLocalAccounts.initiate({
+        kind: 'tenant',
+        tenantId: 'acme',
+        cell: 'eu-1',
+      }),
+    );
+
+    expect(captured[0]?.url).toBe('https://api.test/cells/eu-1/api/tenants/acme/local-accounts');
+  });
+
+  it('createLocalAccount POSTs the body to the platform, tenant and cell collections', async () => {
+    const captured = mockFetch(jsonResponse(account, 201));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.createLocalAccount.initiate({
+        owner: { kind: 'platform' },
+        body: newAccount,
+      }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.createLocalAccount.initiate({
+        owner: { kind: 'tenant', tenantId: 'acme' },
+        body: newAccount,
+      }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.createLocalAccount.initiate({
+        owner: { kind: 'tenant', tenantId: 'acme', cell: 'eu-1' },
+        body: newAccount,
+      }),
+    );
+
+    expect(captured.map((c) => c.method)).toEqual(['POST', 'POST', 'POST']);
+    expect(captured.map((c) => c.url)).toEqual([
+      'https://api.test/api/platform/local-accounts',
+      'https://api.test/api/tenants/acme/local-accounts',
+      'https://api.test/cells/eu-1/api/tenants/acme/local-accounts',
+    ]);
+    expect(JSON.parse(captured[0]?.body ?? '{}')).toEqual(newAccount);
+    expect(captured[0]?.antiforgery).toBe('1');
+  });
+
+  it("createLocalAccount refetches its owner's list and no other", async () => {
+    const fetches = routeFetch((method) =>
+      method === 'GET' ? jsonResponse({ items: [] }) : jsonResponse(account, 201),
+    );
+    const store = createStore();
+    await store.dispatch(managementApi.endpoints.listLocalAccounts.initiate({ kind: 'platform' }));
+    await store.dispatch(
+      managementApi.endpoints.listLocalAccounts.initiate({ kind: 'tenant', tenantId: 'acme' }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.listLocalAccounts.initiate({ kind: 'tenant', tenantId: 'other' }),
+    );
+
+    await store.dispatch(
+      managementApi.endpoints.createLocalAccount.initiate({
+        owner: { kind: 'tenant', tenantId: 'acme' },
+        body: newAccount,
+      }),
+    );
+    await settle(store);
+    await store.dispatch(
+      managementApi.endpoints.createLocalAccount.initiate({
+        owner: { kind: 'platform' },
+        body: newAccount,
+      }),
+    );
+    await settle(store);
+
+    expect(fetches.count('GET', '/api/tenants/acme/local-accounts')).toBe(2);
+    expect(fetches.count('GET', '/api/tenants/other/local-accounts')).toBe(1);
+    expect(fetches.count('GET', '/api/platform/local-accounts')).toBe(2);
+  });
+
+  it('updateLocalAccount PATCHes a replace document with If-Match, in the cell when given', async () => {
+    const captured = mockFetch(new Response(null, { status: 204 }));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.updateLocalAccount.initiate({
+        tenantId: 'acme',
+        localAccountId: 'la/1',
+        concurrencyToken: 'c1',
+        fields,
+      }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.updateLocalAccount.initiate({
+        tenantId: 'acme',
+        localAccountId: 'la/1',
+        concurrencyToken: 'c2',
+        fields,
+        cell: 'eu-1',
+      }),
+    );
+
+    expect(captured[0]?.method).toBe('PATCH');
+    expect(captured[0]?.url).toBe(`https://api.test${itemPath}`);
+    expect(captured[0]?.ifMatch).toBe('c1');
+    expect(JSON.parse(captured[0]?.body ?? '[]')).toEqual([
+      { op: 'replace', path: '/displayName', value: 'Ada' },
+      { op: 'replace', path: '/userName', value: 'ada' },
+      { op: 'replace', path: '/email', value: null },
+      { op: 'replace', path: '/emailVerified', value: false },
+    ]);
+    expect(captured[1]?.url).toBe(`https://api.test/cells/eu-1${itemPath}`);
+    expect(captured[1]?.ifMatch).toBe('c2');
+  });
+
+  it('deleteLocalAccount DELETEs the account, in the cell when given', async () => {
+    const captured = mockFetch(new Response(null, { status: 204 }));
+    const store = createStore();
+
+    await store.dispatch(
+      managementApi.endpoints.deleteLocalAccount.initiate({
+        tenantId: 'acme',
+        localAccountId: 'la/1',
+      }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.deleteLocalAccount.initiate({
+        tenantId: 'acme',
+        localAccountId: 'la/1',
+        cell: 'eu-1',
+      }),
+    );
+
+    expect(captured.map((c) => c.method)).toEqual(['DELETE', 'DELETE']);
+    expect(captured.map((c) => c.url)).toEqual([
+      `https://api.test${itemPath}`,
+      `https://api.test/cells/eu-1${itemPath}`,
+    ]);
+  });
+
+  it('enableLocalAccount and disableLocalAccount POST to their routes', async () => {
+    const captured = mockFetch(new Response(null, { status: 204 }));
+    const store = createStore();
+    const args = { tenantId: 'acme', localAccountId: 'la/1', cell: 'eu-1' };
+
+    await store.dispatch(managementApi.endpoints.enableLocalAccount.initiate(args));
+    await store.dispatch(managementApi.endpoints.disableLocalAccount.initiate(args));
+
+    expect(captured.map((c) => c.method)).toEqual(['POST', 'POST']);
+    expect(captured.map((c) => c.url)).toEqual([
+      `https://api.test/cells/eu-1${itemPath}/enable`,
+      `https://api.test/cells/eu-1${itemPath}/disable`,
+    ]);
+  });
+
+  it('resetLocalAccountPassword POSTs the password body, in the cell when given', async () => {
+    const captured = mockFetch(new Response(null, { status: 204 }));
+    const store = createStore();
+    const body = { password: 'new-pw' };
+
+    await store.dispatch(
+      managementApi.endpoints.resetLocalAccountPassword.initiate({
+        tenantId: 'acme',
+        localAccountId: 'la/1',
+        body,
+      }),
+    );
+    await store.dispatch(
+      managementApi.endpoints.resetLocalAccountPassword.initiate({
+        tenantId: 'acme',
+        localAccountId: 'la/1',
+        body,
+        cell: 'eu-1',
+      }),
+    );
+
+    expect(captured.map((c) => c.method)).toEqual(['POST', 'POST']);
+    expect(captured[0]?.url).toBe(`https://api.test${itemPath}/password`);
+    expect(captured[1]?.url).toBe(`https://api.test/cells/eu-1${itemPath}/password`);
+    expect(JSON.parse(captured[0]?.body ?? '{}')).toEqual(body);
+  });
+
+  const accountArgs = { tenantId: 'acme', localAccountId: 'la/1' };
+  const mutationActions: readonly (readonly [string, () => unknown])[] = [
+    [
+      'updateLocalAccount',
+      () =>
+        managementApi.endpoints.updateLocalAccount.initiate({
+          ...accountArgs,
+          concurrencyToken: 'c1',
+          fields,
+        }),
+    ],
+    ['deleteLocalAccount', () => managementApi.endpoints.deleteLocalAccount.initiate(accountArgs)],
+    ['enableLocalAccount', () => managementApi.endpoints.enableLocalAccount.initiate(accountArgs)],
+    [
+      'disableLocalAccount',
+      () => managementApi.endpoints.disableLocalAccount.initiate(accountArgs),
+    ],
+    [
+      'resetLocalAccountPassword',
+      () =>
+        managementApi.endpoints.resetLocalAccountPassword.initiate({
+          ...accountArgs,
+          body: { password: 'pw' },
+        }),
+    ],
+  ];
+
+  it.each(mutationActions)(
+    '%s refetches the list that holds the account',
+    async (_name, action) => {
+      const fetches = routeFetch((method, path) => {
+        if (method !== 'GET') {
+          return new Response(null, { status: 204 });
+        }
+        return jsonResponse({ items: path.startsWith('/api/tenants/') ? [account] : [] });
+      });
+      const store = createStore();
+      await store.dispatch(
+        managementApi.endpoints.listLocalAccounts.initiate({ kind: 'tenant', tenantId: 'acme' }),
+      );
+      await store.dispatch(
+        managementApi.endpoints.listLocalAccounts.initiate({ kind: 'platform' }),
+      );
+
+      await (store.dispatch as (a: unknown) => Promise<unknown>)(action());
+      await settle(store);
+
+      expect(fetches.count('GET', '/api/tenants/acme/local-accounts')).toBe(2);
+      expect(fetches.count('GET', '/api/platform/local-accounts')).toBe(1);
+    },
+  );
+});
