@@ -106,5 +106,5 @@ small components composed into opinionated stacks, and the supported set is limi
 
 - [ADR-1132](1132-platform-infrastructure-code-is-public-on-github-and-its-state-and-backups-live-in-aws.md): the public
   `NCodeGroup/identity-platform` repository and its guardrails.
-- [Hosting analysis §11](../hosting-analysis.md#11-iac-and-delivery): delivery layout.
+- [Hosting analysis §9](../hosting-analysis.md#9-iac-and-delivery): delivery layout.
 - Issue [#87](https://github.com/NCodeGroup/identity/issues/87).
