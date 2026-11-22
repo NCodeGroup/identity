@@ -3715,6 +3715,7 @@ describe('managementApi local accounts', () => {
         localAccountId: 'la/1',
         concurrencyToken: 'c1',
         fields,
+        cell: undefined,
       }),
     );
     await store.dispatch(
@@ -3748,6 +3749,7 @@ describe('managementApi local accounts', () => {
       managementApi.endpoints.deleteLocalAccount.initiate({
         tenantId: 'acme',
         localAccountId: 'la/1',
+        cell: undefined,
       }),
     );
     await store.dispatch(
@@ -3790,6 +3792,7 @@ describe('managementApi local accounts', () => {
         tenantId: 'acme',
         localAccountId: 'la/1',
         body,
+        cell: undefined,
       }),
     );
     await store.dispatch(
@@ -3807,7 +3810,7 @@ describe('managementApi local accounts', () => {
     expect(JSON.parse(captured[0]?.body ?? '{}')).toEqual(body);
   });
 
-  const accountArgs = { tenantId: 'acme', localAccountId: 'la/1' };
+  const accountArgs = { tenantId: 'acme', localAccountId: 'la/1', cell: undefined };
   const mutationActions: readonly (readonly [string, () => unknown])[] = [
     [
       'updateLocalAccount',

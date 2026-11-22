@@ -95,7 +95,11 @@ export function LocalAccountPasswordDialog({
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onCancel} disabled={isSubmitting} data-testid="local-account-password-cancel">
+        <Button
+          onClick={onCancel}
+          disabled={isSubmitting}
+          data-testid="local-account-password-cancel"
+        >
           Cancel
         </Button>
         <Button

@@ -9,12 +9,7 @@ describe('LocalAccountPasswordDialog', () => {
   it('names the account and requires a matching password', () => {
     const onSubmit = vi.fn();
     render(
-      <LocalAccountPasswordDialog
-        open
-        accountLabel="Ada"
-        onSubmit={onSubmit}
-        onCancel={vi.fn()}
-      />,
+      <LocalAccountPasswordDialog open accountLabel="Ada" onSubmit={onSubmit} onCancel={vi.fn()} />,
     );
     expect(
       screen.getByText('Resetting the password of Ada ends their sessions.'),
@@ -77,12 +72,7 @@ describe('LocalAccountPasswordDialog', () => {
   it('invokes onCancel from the cancel button', () => {
     const onCancel = vi.fn();
     render(
-      <LocalAccountPasswordDialog
-        open
-        accountLabel="Ada"
-        onSubmit={vi.fn()}
-        onCancel={onCancel}
-      />,
+      <LocalAccountPasswordDialog open accountLabel="Ada" onSubmit={vi.fn()} onCancel={onCancel} />,
     );
     fireEvent.click(screen.getByTestId('local-account-password-cancel'));
     expect(onCancel).toHaveBeenCalledOnce();

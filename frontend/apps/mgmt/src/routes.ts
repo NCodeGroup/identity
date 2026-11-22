@@ -22,7 +22,13 @@ import {
  */
 
 /** The surfaces of the platform scope, in tab order. */
-export const PLATFORM_SURFACES = ['teams', 'clients', 'users', 'settings', 'encryption-keys'] as const;
+export const PLATFORM_SURFACES = [
+  'teams',
+  'clients',
+  'users',
+  'settings',
+  'encryption-keys',
+] as const;
 
 /** The surfaces of a team scope, in tab order. */
 export const TEAM_SURFACES = [
