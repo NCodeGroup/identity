@@ -32,17 +32,18 @@ internal static class DefaultRegistration
 
             // See ADR-1303.
             serviceCollection.AddOptions<AuditRecordOptions>().ValidateOnStart();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<AuditRecordOptions>,
-                    AuditRecordOptionsValidator
-                >()
-            );
+            var optionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<AuditRecordOptions>,
+                AuditRecordOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(optionsValidator);
             serviceCollection.TryAddSingleton(TimeProvider.System);
             serviceCollection.TryAddSingleton<AuditRecordQueue>();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IEventHandler<IAuditEvent>, AuditRecordHandler>()
-            );
+            var recordHandler = ServiceDescriptor.Singleton<
+                IEventHandler<IAuditEvent>,
+                AuditRecordHandler
+            >();
+            serviceCollection.TryAddEnumerable(recordHandler);
             serviceCollection.AddHostedService<AuditRecordFlushService>();
             serviceCollection.AddHostedService<AuditRecordPruneService>();
 

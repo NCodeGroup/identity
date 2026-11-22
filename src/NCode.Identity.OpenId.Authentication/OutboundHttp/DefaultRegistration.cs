@@ -43,12 +43,11 @@ internal static class DefaultRegistration
             >();
 
             serviceCollection.AddOptions<OutboundHttpOptions>().ValidateOnStart();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<OutboundHttpOptions>,
-                    OutboundHttpOptionsValidator
-                >()
-            );
+            var optionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<OutboundHttpOptions>,
+                OutboundHttpOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(optionsValidator);
             // The pipelines count their retries and timeouts on the package's meter (ADR-1197).
             serviceCollection.AddMetrics();
             serviceCollection.TryAddSingleton<AuthenticationMetrics>();

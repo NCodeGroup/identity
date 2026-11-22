@@ -33,15 +33,18 @@ internal class DefaultPersistedGrantService(
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IGrantPayloadProtector PayloadProtector { get; } = payloadProtector;
 
-    private static string GetHashInput(PersistedGrantId grantId) =>
-        string.Concat(grantId.TenantId.AsSpan(), TenantDelimiter, grantId.GrantKey.AsSpan());
+    private static string GetHashInput(PersistedGrantId grantId)
+    {
+        var tenantId = grantId.TenantId.AsSpan();
+        var grantKey = grantId.GrantKey.AsSpan();
+        return string.Concat(tenantId, TenantDelimiter, grantKey);
+    }
 
-    private string GetHashedKey(PersistedGrantId grantId) =>
-        CryptoService.HashValue(
-            GetHashInput(grantId),
-            HashAlgorithmName.SHA256,
-            BinaryEncodings.Base64
-        );
+    private string GetHashedKey(PersistedGrantId grantId)
+    {
+        var hashInput = GetHashInput(grantId);
+        return CryptoService.HashValue(hashInput, HashAlgorithmName.SHA256, BinaryEncodings.Base64);
+    }
 
     /// <inheritdoc />
     public PersistedGrantId CreateGrantId(string tenantId, string grantType, string grantKey) =>
@@ -337,11 +340,8 @@ internal class DefaultPersistedGrantService(
                 {
                     // The grants issued under the session are revoked in the unit of work that revokes the session,
                     // so a failure after the claim leaves none of them active. See ADR-1223.
-                    await store.RevokeWhereAsync(
-                        new GrantFilter { SessionId = sessionId },
-                        revokedWhen,
-                        cancellationToken
-                    );
+                    var grantFilter = new GrantFilter { SessionId = sessionId };
+                    await store.RevokeWhereAsync(grantFilter, revokedWhen, cancellationToken);
                 }
 
                 await storeManager.SaveChangesAsync(cancellationToken);

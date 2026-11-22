@@ -67,9 +67,8 @@ internal sealed class TenantUsagePruneService(
     {
         try
         {
-            var firstKeptDay = DateOnly.FromDateTime(
-                (TimeProvider.GetUtcNow() - Options.Retention).UtcDateTime
-            );
+            var firstKeptUtcDateTime = (TimeProvider.GetUtcNow() - Options.Retention).UtcDateTime;
+            var firstKeptDay = DateOnly.FromDateTime(firstKeptUtcDateTime);
             while (await RemoveBatchBeforeAsync(firstKeptDay, cancellationToken) == BatchSize) { }
         }
         // A timeout throws OperationCanceledException with the token untouched; only a cancelled token is shutdown.

@@ -37,18 +37,16 @@ internal static class DefaultRegistration
                 IRateLimitDescriptorCatalog,
                 DefaultRateLimitDescriptorCatalog
             >();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICollectionDataSource<SettingDescriptor>,
-                    DefaultRateLimitSettingDescriptorDataSource
-                >()
-            );
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICollectionDataSource<RateLimitDescriptor>,
-                    DefaultRateLimitDescriptorDataSource
-                >()
-            );
+            var settingDataSource = ServiceDescriptor.Singleton<
+                ICollectionDataSource<SettingDescriptor>,
+                DefaultRateLimitSettingDescriptorDataSource
+            >();
+            serviceCollection.TryAddEnumerable(settingDataSource);
+            var descriptorDataSource = ServiceDescriptor.Singleton<
+                ICollectionDataSource<RateLimitDescriptor>,
+                DefaultRateLimitDescriptorDataSource
+            >();
+            serviceCollection.TryAddEnumerable(descriptorDataSource);
 
             return builder;
         }

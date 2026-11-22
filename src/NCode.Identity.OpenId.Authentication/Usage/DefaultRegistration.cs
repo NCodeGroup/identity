@@ -17,12 +17,11 @@ internal static class DefaultRegistration
             var serviceCollection = builder.ServiceCollection;
 
             serviceCollection.AddOptions<TenantUsageOptions>().ValidateOnStart();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<TenantUsageOptions>,
-                    TenantUsageOptionsValidator
-                >()
-            );
+            var optionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<TenantUsageOptions>,
+                TenantUsageOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(optionsValidator);
             serviceCollection.TryAddSingleton(TimeProvider.System);
             serviceCollection.TryAddSingleton<DefaultTenantUsageRecorder>();
             serviceCollection.TryAddSingleton<ITenantUsageRecorder>(serviceProvider =>

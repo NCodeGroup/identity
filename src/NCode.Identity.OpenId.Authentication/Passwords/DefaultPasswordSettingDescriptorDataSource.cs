@@ -71,11 +71,13 @@ internal class DefaultPasswordSettingDescriptorDataSource(INullChangeToken nullC
 
             // password_failed_attempts_window: how long the failed attempts, counted from the first one, are kept.
             // Between one minute and one day; default 15 minutes. Floor (Max): a narrower scope may only lengthen it.
+            var windowMinimum = TimeSpan.FromMinutes(1);
+            var windowMaximum = TimeSpan.FromDays(1);
             yield return new SettingDescriptor<TimeSpan>
             {
                 Name = OpenIdSettingNames.PasswordFailedAttemptsWindow,
                 AppliesTo = Tenants,
-                Rule = SettingRules.Between(TimeSpan.FromMinutes(1), TimeSpan.FromDays(1)),
+                Rule = SettingRules.Between(windowMinimum, windowMaximum),
                 Default = TimeSpan.FromMinutes(15),
                 IsDiscoverable = false,
                 OnMerge = SettingMerge.Max,

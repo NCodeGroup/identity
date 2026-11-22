@@ -36,7 +36,8 @@ internal sealed class DefaultTenantUsageRecorder(TimeProvider timeProvider) : IT
             nameof(meter)
         );
 
-        var day = DateOnly.FromDateTime(TimeProvider.GetUtcNow().UtcDateTime);
+        var utcNow = TimeProvider.GetUtcNow();
+        var day = DateOnly.FromDateTime(utcNow.UtcDateTime);
         var key = new TenantUsageKey(teamPath, tenantId, day, meter);
         lock (Sync)
         {

@@ -51,16 +51,15 @@ internal sealed class DefaultGrantPayloadProtector(
             element.WriteTo(writer);
         }
 
+        var owner = SecretOwner.ForTenant(tenantId);
         var protector = await SecretProtectorProvider.GetProtectorAsync(
-            SecretOwner.ForTenant(tenantId),
+            owner,
             [],
             cancellationToken
         );
 
-        return protector.ProtectToString(
-            buffer.WrittenSpan,
-            SecretProtectionContext.ForGrantPayload(hashedKey)
-        );
+        var protectionContext = SecretProtectionContext.ForGrantPayload(hashedKey);
+        return protector.ProtectToString(buffer.WrittenSpan, protectionContext);
     }
 
     /// <inheritdoc />
@@ -75,8 +74,9 @@ internal sealed class DefaultGrantPayloadProtector(
     {
         try
         {
+            var owner = SecretOwner.ForTenant(tenantId);
             var protector = await SecretProtectorProvider.GetProtectorAsync(
-                SecretOwner.ForTenant(tenantId),
+                owner,
                 protectedValues: [protectedPayload],
                 cancellationToken
             );
@@ -84,18 +84,14 @@ internal sealed class DefaultGrantPayloadProtector(
             using var plaintext = BufferFactory.CreateContiguousBufferWriter(isSensitive: true);
             IBufferWriter<byte> writer = plaintext;
 
-            protector.Unprotect(
-                protectedPayload,
-                SecretProtectionContext.ForGrantPayload(hashedKey),
-                ref writer
-            );
+            var protectionContext = SecretProtectionContext.ForGrantPayload(hashedKey);
+            protector.Unprotect(protectedPayload, protectionContext, ref writer);
 
             var reader = new Utf8JsonReader(plaintext.WrittenSpan);
             var element = JsonElement.ParseValue(ref reader);
 
-            return new GrantPayload<TPayload>(
-                PayloadSerializer.Deserialize<TPayload>(element, jsonOptions)
-            );
+            var deserialized = PayloadSerializer.Deserialize<TPayload>(element, jsonOptions);
+            return new GrantPayload<TPayload>(deserialized);
         }
         catch (CryptographicException exception)
         {

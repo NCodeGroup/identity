@@ -48,16 +48,15 @@ internal static class RateLimitErrors
     )
     {
         // Retry-After counts whole seconds, so round up and never tell the caller to retry at once.
-        var seconds = Math.Max(1L, (long)Math.Ceiling(retryAfter.TotalSeconds));
+        var ceiling = Math.Ceiling(retryAfter.TotalSeconds);
+        var seconds = Math.Max(1L, (long)ceiling);
+        var retryAfterSeconds = seconds.ToString(CultureInfo.InvariantCulture);
 
         return openIdContext
             .ErrorFactory.Create(OpenIdProtocol.ErrorCodes.TemporarilyUnavailable)
             .WithDescription(description)
             .WithStatusCode(StatusCodes.Status429TooManyRequests)
-            .WithResponseHeader(
-                HeaderNames.RetryAfter,
-                seconds.ToString(CultureInfo.InvariantCulture)
-            )
+            .WithResponseHeader(HeaderNames.RetryAfter, retryAfterSeconds)
             .WithResponseHeader(HeaderNames.CacheControl, "no-store");
     }
 }

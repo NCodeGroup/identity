@@ -32,6 +32,7 @@ internal static class SubjectIdentifierServiceExtensions
             openIdClient,
             subjectAuthentication.PrincipalId
         );
-        targetClaims.Add(new Claim(JoseClaimNames.Payload.Sub, subjectId));
+        var subjectClaim = new Claim(JoseClaimNames.Payload.Sub, subjectId);
+        targetClaims.Add(subjectClaim);
     }
 }

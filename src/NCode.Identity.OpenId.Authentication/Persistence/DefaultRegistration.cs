@@ -37,12 +37,11 @@ internal static class DefaultRegistration
             >();
 
             serviceCollection.AddOptions<GrantRetentionOptions>().ValidateOnStart();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<GrantRetentionOptions>,
-                    GrantRetentionOptionsValidator
-                >()
-            );
+            var optionsValidator = ServiceDescriptor.Singleton<
+                IValidateOptions<GrantRetentionOptions>,
+                GrantRetentionOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(optionsValidator);
             serviceCollection.TryAddSingleton(TimeProvider.System);
             serviceCollection.AddHostedService<GrantPruneService>();
 
