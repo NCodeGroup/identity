@@ -133,6 +133,9 @@ public static class DefaultRegistration
             // Binds a key a key management service already holds to a tenant, after proving the key signs (ADR-1476).
             serviceCollection.TryAddSingleton<IRemoteSecretImporter, DefaultRemoteSecretImporter>();
 
+            // The transfer keys are protected under the host's Data Protection key ring (ADR-1514).
+            serviceCollection.AddDataProtection();
+
             // Issues the one-time keys that seal a tenant's export to this cell (ADR-1514).
             serviceCollection.TryAddSingleton<
                 ITenantTransferKeyService,
