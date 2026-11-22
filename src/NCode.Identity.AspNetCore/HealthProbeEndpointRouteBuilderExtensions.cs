@@ -34,21 +34,17 @@ public static class HealthProbeEndpointRouteBuilderExtensions
 
             var group = endpoints.MapGroup(string.Empty);
 
+            var livenessOptions = new HealthCheckOptions { Predicate = static _ => false };
             group
-                .MapHealthChecks(
-                    HealthProbeDefaults.LivenessPath,
-                    new HealthCheckOptions { Predicate = static _ => false }
-                )
+                .MapHealthChecks(HealthProbeDefaults.LivenessPath, livenessOptions)
                 .WithName(HealthProbeDefaults.LivenessEndpointName);
 
+            var readinessOptions = new HealthCheckOptions
+            {
+                Predicate = static check => check.Tags.Contains(HealthCheckTags.Readiness),
+            };
             group
-                .MapHealthChecks(
-                    HealthProbeDefaults.ReadinessPath,
-                    new HealthCheckOptions
-                    {
-                        Predicate = static check => check.Tags.Contains(HealthCheckTags.Readiness),
-                    }
-                )
+                .MapHealthChecks(HealthProbeDefaults.ReadinessPath, readinessOptions)
                 .WithName(HealthProbeDefaults.ReadinessEndpointName);
 
             return group;

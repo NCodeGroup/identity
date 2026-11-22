@@ -90,12 +90,11 @@ public static class TrustedForwardedHeadersRegistration
                 .AddOptions<TrustedForwardedHeadersOptions>()
                 .Configure(options => section.BindStrictly(options))
                 .ValidateOnStart();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<TrustedForwardedHeadersOptions>,
-                    TrustedForwardedHeadersOptionsValidator
-                >()
-            );
+            var validatorDescriptor = ServiceDescriptor.Singleton<
+                IValidateOptions<TrustedForwardedHeadersOptions>,
+                TrustedForwardedHeadersOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(validatorDescriptor);
 
             serviceCollection
                 .AddOptions<ForwardedHeadersOptions>()

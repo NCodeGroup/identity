@@ -24,7 +24,9 @@ internal class DefaultEventLoggingHandler(ILogger<DefaultEventLoggingHandler> lo
     /// <inheritdoc />
     public ValueTask HandleAsync(IEvent @event, CancellationToken cancellationToken)
     {
-        Logger.EventPublished(@event.GetType().FullName ?? @event.GetType().Name);
+        var typeName = @event.GetType().FullName;
+        typeName ??= @event.GetType().Name;
+        Logger.EventPublished(typeName);
         return ValueTask.CompletedTask;
     }
 }

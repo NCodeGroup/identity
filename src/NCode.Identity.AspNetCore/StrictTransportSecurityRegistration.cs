@@ -84,12 +84,11 @@ public static class StrictTransportSecurityRegistration
                 .AddOptions<StrictTransportSecurityOptions>()
                 .Configure(options => section.BindStrictly(options))
                 .ValidateOnStart();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<StrictTransportSecurityOptions>,
-                    StrictTransportSecurityOptionsValidator
-                >()
-            );
+            var validatorDescriptor = ServiceDescriptor.Singleton<
+                IValidateOptions<StrictTransportSecurityOptions>,
+                StrictTransportSecurityOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(validatorDescriptor);
 
             serviceCollection
                 .AddOptions<HstsOptions>()

@@ -50,9 +50,8 @@ internal sealed class ProxyClientCertificateMiddleware(
             return Task.CompletedTask;
         }
 
-        context.Features.Set<IProxyClientCertificateFeature>(
-            new ProxyClientCertificateFeature(certificate)
-        );
+        var feature = new ProxyClientCertificateFeature(certificate);
+        context.Features.Set<IProxyClientCertificateFeature>(feature);
         return Next(context);
     }
 }

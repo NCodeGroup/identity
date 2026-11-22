@@ -43,7 +43,8 @@ internal sealed class TransportSecurityStartupCheck(
         {
             $"Refusing to start a deployment: {failures.Count} transport security problem(s). The host serves HTTPS only, with a certificate that is valid, has a private key and is not the development certificate.",
         };
-        lines.AddRange(failures.Select(failure => $"  - {failure}"));
+        var failureLines = failures.Select(failure => $"  - {failure}");
+        lines.AddRange(failureLines);
         lines.Add(
             "Bind HTTPS endpoints only (for example ASPNETCORE_URLS=https://+:8443) and configure the certificate through Kestrel:Certificates:Default or Kestrel:Endpoints:<name>:Certificate, or set LocalDevelopment:Enabled to true for a local inner-loop host."
         );
@@ -90,7 +91,8 @@ internal sealed class TransportSecurityStartupCheck(
 
         if (failures.Count > 0)
         {
-            throw new InvalidOperationException(CreateFailureMessage(failures));
+            var failureMessage = CreateFailureMessage(failures);
+            throw new InvalidOperationException(failureMessage);
         }
     }
 

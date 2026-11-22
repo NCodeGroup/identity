@@ -53,12 +53,11 @@ public static class ProxyClientCertificateRegistration
                 .AddOptions<ProxyClientCertificateOptions>()
                 .Configure(options => section.BindStrictly(options))
                 .ValidateOnStart();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<ProxyClientCertificateOptions>,
-                    ProxyClientCertificateOptionsValidator
-                >()
-            );
+            var validatorDescriptor = ServiceDescriptor.Singleton<
+                IValidateOptions<ProxyClientCertificateOptions>,
+                ProxyClientCertificateOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(validatorDescriptor);
 
             serviceCollection.TryAddSingleton<ProxyClientCertificateVerifier>();
             serviceCollection.TryAddSingleton(TimeProvider.System);

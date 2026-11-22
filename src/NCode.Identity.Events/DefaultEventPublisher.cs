@@ -49,7 +49,8 @@ internal class DefaultEventPublisher(
     {
         ArgumentNullException.ThrowIfNull(@event);
 
-        var plan = GetPlan(@event.GetType());
+        var eventType = @event.GetType();
+        var plan = GetPlan(eventType);
         if (plan.Length == 0)
             return ValueTask.CompletedTask;
 
@@ -92,7 +93,8 @@ internal class DefaultEventPublisher(
         CancellationToken cancellationToken
     )
     {
-        var plan = GetPlan(@event.GetType());
+        var eventType = @event.GetType();
+        var plan = GetPlan(eventType);
         if (plan.Length == 0)
             return;
 
@@ -146,11 +148,11 @@ internal class DefaultEventPublisher(
         }
         catch (Exception exception)
         {
-            Logger.EventHandlerFailed(
-                handler.GetType().FullName ?? handler.GetType().Name,
-                @event.GetType().FullName ?? @event.GetType().Name,
-                exception
-            );
+            var handlerName = handler.GetType().FullName;
+            handlerName ??= handler.GetType().Name;
+            var eventName = @event.GetType().FullName;
+            eventName ??= @event.GetType().Name;
+            Logger.EventHandlerFailed(handlerName, eventName, exception);
         }
     }
 
@@ -178,12 +180,19 @@ internal class DefaultEventPublisher(
         PlanCache.GetOrAdd(
             eventType,
             static type =>
-                EventTypeHierarchy(type)
-                    .Select(static eventContract => new EventHandlerBinding(
-                        typeof(IEventHandler<>).MakeGenericType(eventContract),
-                        GetInvoker(eventContract)
-                    ))
-                    .ToArray()
+            {
+                var hierarchy = EventTypeHierarchy(type);
+                return hierarchy
+                    .Select(static eventContract =>
+                    {
+                        var handlerServiceType = typeof(IEventHandler<>).MakeGenericType(
+                            eventContract
+                        );
+                        var invoker = GetInvoker(eventContract);
+                        return new EventHandlerBinding(handlerServiceType, invoker);
+                    })
+                    .ToArray();
+            }
         );
 
     // Every type in the event's hierarchy that is itself an event contract: the runtime type, its base

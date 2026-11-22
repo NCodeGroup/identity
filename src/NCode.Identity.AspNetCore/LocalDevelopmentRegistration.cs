@@ -59,19 +59,19 @@ public static class LocalDevelopmentRegistration
                     LocalDevelopmentConfiguration.BindSection(configuration, options)
                 )
                 .ValidateOnStart();
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<LocalDevelopmentOptions>,
-                    LocalDevelopmentOptionsValidator
-                >()
-            );
-            serviceCollection.Replace(
-                ServiceDescriptor.Singleton(serviceProvider => new LocalDevelopmentMode(
-                    serviceProvider
-                        .GetRequiredService<IOptions<LocalDevelopmentOptions>>()
-                        .Value.Enabled
-                ))
-            );
+            var validatorDescriptor = ServiceDescriptor.Singleton<
+                IValidateOptions<LocalDevelopmentOptions>,
+                LocalDevelopmentOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(validatorDescriptor);
+            var modeDescriptor = ServiceDescriptor.Singleton(serviceProvider =>
+            {
+                var options = serviceProvider.GetRequiredService<
+                    IOptions<LocalDevelopmentOptions>
+                >();
+                return new LocalDevelopmentMode(options.Value.Enabled);
+            });
+            serviceCollection.Replace(modeDescriptor);
 
             return serviceCollection;
         }

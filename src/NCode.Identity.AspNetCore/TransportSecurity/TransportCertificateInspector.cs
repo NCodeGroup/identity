@@ -72,12 +72,14 @@ internal static class TransportCertificateInspector
 
         if (now < certificate.NotBefore)
         {
-            failures.Add($"is not valid before {certificate.NotBefore.ToUniversalTime():O}.");
+            var notBefore = certificate.NotBefore.ToUniversalTime();
+            failures.Add($"is not valid before {notBefore:O}.");
         }
 
         if (now > certificate.NotAfter)
         {
-            failures.Add($"expired at {certificate.NotAfter.ToUniversalTime():O}.");
+            var notAfter = certificate.NotAfter.ToUniversalTime();
+            failures.Add($"expired at {notAfter:O}.");
         }
 
         AddKeyFailure(certificate, failures);
@@ -85,7 +87,8 @@ internal static class TransportCertificateInspector
         var signatureOid = certificate.SignatureAlgorithm.Value ?? string.Empty;
         if (string.Equals(signatureOid, RsaSsaPssOid, StringComparison.Ordinal))
         {
-            if (!IsStrongPssHash(GetSignatureParameters(certificate)))
+            var signatureParameters = GetSignatureParameters(certificate);
+            if (!IsStrongPssHash(signatureParameters))
             {
                 failures.Add(
                     "is signed with RSASSA-PSS using a hash weaker than SHA-256; only SHA-256 or stronger with RSA or ECDSA is accepted."

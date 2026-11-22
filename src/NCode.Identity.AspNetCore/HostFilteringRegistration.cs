@@ -41,12 +41,11 @@ public static class HostFilteringRegistration
 
             // ValidateOnStart materializes the options as the host starts, so a wildcard list stops the host before
             // it accepts traffic (ADR-1137).
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IValidateOptions<HostFilteringOptions>,
-                    HostFilteringOptionsValidator
-                >()
-            );
+            var validatorDescriptor = ServiceDescriptor.Singleton<
+                IValidateOptions<HostFilteringOptions>,
+                HostFilteringOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(validatorDescriptor);
             serviceCollection.AddOptions<HostFilteringOptions>().ValidateOnStart();
 
             return serviceCollection;

@@ -30,8 +30,11 @@ public static class RetryAfterProblem
     /// </summary>
     /// <param name="wait">The time the caller waits before it retries.</param>
     /// <returns>The whole seconds of the wait.</returns>
-    public static long GetWaitSeconds(TimeSpan wait) =>
-        Math.Max(1L, (long)Math.Ceiling(wait.TotalSeconds));
+    public static long GetWaitSeconds(TimeSpan wait)
+    {
+        var ceiling = Math.Ceiling(wait.TotalSeconds);
+        return Math.Max(1L, (long)ceiling);
+    }
 
     /// <summary>
     /// Sets the <c>Retry-After</c> header and the problem's <see cref="MemberName"/> member to the whole seconds of the

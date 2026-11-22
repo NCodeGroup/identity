@@ -52,7 +52,8 @@ public static class ContentSecurityPolicySources
     public static string Sha256(string script)
     {
         ArgumentNullException.ThrowIfNull(script);
-        var hash = SHA256.HashData(SecureEncoding.UTF8.GetBytes(script));
+        var bytes = SecureEncoding.UTF8.GetBytes(script);
+        var hash = SHA256.HashData(bytes);
         return $"'sha256-{Convert.ToBase64String(hash)}'";
     }
 

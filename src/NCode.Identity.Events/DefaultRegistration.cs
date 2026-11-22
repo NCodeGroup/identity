@@ -41,24 +41,29 @@ public static class DefaultRegistration
                 serviceProvider.GetRequiredService<DefaultEventPublisher>()
             );
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IEventHandler<IEvent>, DefaultEventLoggingHandler>()
-            );
+            var loggingDescriptor = ServiceDescriptor.Singleton<
+                IEventHandler<IEvent>,
+                DefaultEventLoggingHandler
+            >();
+            serviceCollection.TryAddEnumerable(loggingDescriptor);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IEventHandler<IEvent>, DefaultEventMetricsHandler>()
-            );
+            var metricsDescriptor = ServiceDescriptor.Singleton<
+                IEventHandler<IEvent>,
+                DefaultEventMetricsHandler
+            >();
+            serviceCollection.TryAddEnumerable(metricsDescriptor);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IEventHandler<IEvent>, DefaultEventTracingHandler>()
-            );
+            var tracingDescriptor = ServiceDescriptor.Singleton<
+                IEventHandler<IEvent>,
+                DefaultEventTracingHandler
+            >();
+            serviceCollection.TryAddEnumerable(tracingDescriptor);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    IEventHandler<IAuditEvent>,
-                    DefaultAuditLoggingHandler
-                >()
-            );
+            var auditLoggingDescriptor = ServiceDescriptor.Singleton<
+                IEventHandler<IAuditEvent>,
+                DefaultAuditLoggingHandler
+            >();
+            serviceCollection.TryAddEnumerable(auditLoggingDescriptor);
 
             return newBuilder;
         }

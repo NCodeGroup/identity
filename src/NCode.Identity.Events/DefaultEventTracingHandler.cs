@@ -41,7 +41,8 @@ internal class DefaultEventTracingHandler : IEventHandler<IEvent>, ISupportHandl
             }
         }
 
-        activity.AddEvent(new ActivityEvent(name, tags: tags));
+        var activityEvent = new ActivityEvent(name, tags: tags);
+        activity.AddEvent(activityEvent);
         return ValueTask.CompletedTask;
     }
 }

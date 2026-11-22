@@ -45,7 +45,8 @@ public static class FrontChannelEndpointConventionBuilderExtensions
             return;
         }
 
-        var allow = string.Join(", ", allowedMethods.Distinct(StringComparer.OrdinalIgnoreCase));
+        var distinctMethods = allowedMethods.Distinct(StringComparer.OrdinalIgnoreCase);
+        var allow = string.Join(", ", distinctMethods);
         endpointBuilder.RequestDelegate = httpContext =>
         {
             var request = httpContext.Request;
@@ -79,7 +80,8 @@ public static class FrontChannelEndpointConventionBuilderExtensions
         {
             ArgumentNullException.ThrowIfNull(builder);
 
-            builder.WithMetadata(new FrontChannelEndpointMetadata());
+            var metadata = new FrontChannelEndpointMetadata();
+            builder.WithMetadata(metadata);
             builder.Finally(RefuseCorsPreflight);
             return builder;
         }

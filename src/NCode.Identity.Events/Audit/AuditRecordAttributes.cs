@@ -72,7 +72,8 @@ internal static class AuditRecordAttributes
 
             if (member.Value.ValueKind == JsonValueKind.Object)
             {
-                Add(attributes, key, member.Value.GetRawText());
+                var rawText = member.Value.GetRawText();
+                Add(attributes, key, rawText);
             }
             else
             {
@@ -98,11 +99,13 @@ internal static class AuditRecordAttributes
                 break;
 
             case JsonValueKind.Array:
-                Add(attributes, key, value.GetRawText());
+                var arrayText = value.GetRawText();
+                Add(attributes, key, arrayText);
                 break;
 
             case JsonValueKind.String:
-                Add(attributes, key, value.GetString());
+                var stringValue = value.GetString();
+                Add(attributes, key, stringValue);
                 break;
 
             case JsonValueKind.Number:
@@ -112,14 +115,16 @@ internal static class AuditRecordAttributes
                 }
                 else
                 {
-                    Add(attributes, key, value.GetDouble());
+                    var doubleValue = value.GetDouble();
+                    Add(attributes, key, doubleValue);
                 }
 
                 break;
 
             case JsonValueKind.True:
             case JsonValueKind.False:
-                Add(attributes, key, value.GetBoolean());
+                var booleanValue = value.GetBoolean();
+                Add(attributes, key, booleanValue);
                 break;
         }
     }
@@ -128,5 +133,9 @@ internal static class AuditRecordAttributes
         List<KeyValuePair<string, object?>> attributes,
         string key,
         object? value
-    ) => attributes.Add(new KeyValuePair<string, object?>(key, value));
+    )
+    {
+        var attribute = new KeyValuePair<string, object?>(key, value);
+        attributes.Add(attribute);
+    }
 }

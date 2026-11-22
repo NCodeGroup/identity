@@ -29,7 +29,11 @@ internal sealed class HostFilteringOptionsValidator(LocalDevelopmentMode localDe
         var hosts = options.AllowedHosts;
         if (
             hosts is { Count: > 0 }
-            && !hosts.Any(host => string.Equals(host?.Trim(), Wildcard, StringComparison.Ordinal))
+            && !hosts.Any(host =>
+            {
+                var trimmed = host?.Trim();
+                return string.Equals(trimmed, Wildcard, StringComparison.Ordinal);
+            })
         )
         {
             return ValidateOptionsResult.Success;
