@@ -89,4 +89,6 @@ internal static class EventIds
     public const int SectorIdentifierUriFetchFailed = Base + 76;
     public const int BackChannelLogoutDeliveryFailed = Base + 77;
     public const int CibaDeliveryFailed = Base + 78;
+    public const int AuditStreamDeliveryFailed = Base + 79;
+    public const int AuditStreamStateConflict = Base + 80;
 }

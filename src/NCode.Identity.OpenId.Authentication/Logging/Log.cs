@@ -737,4 +737,29 @@ internal static partial class Log
         string reason,
         Exception exception
     );
+
+    // See ADR-1534.
+    [LoggerMessage(
+        EventId = EventIds.AuditStreamDeliveryFailed,
+        Level = LogLevel.Warning,
+        Message = "Audit stream {StreamId} of tenant {TenantId} failed to deliver its records: {Error}."
+    )]
+    internal static partial void AuditStreamDeliveryFailed(
+        this ILogger logger,
+        string streamId,
+        string tenantId,
+        string error
+    );
+
+    // See ADR-1534.
+    [LoggerMessage(
+        EventId = EventIds.AuditStreamStateConflict,
+        Level = LogLevel.Information,
+        Message = "Audit stream {StreamId} of tenant {TenantId} changed while it was delivered; its last batch will be sent again."
+    )]
+    internal static partial void AuditStreamStateConflict(
+        this ILogger logger,
+        string streamId,
+        string tenantId
+    );
 }
