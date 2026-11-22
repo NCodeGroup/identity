@@ -81,7 +81,7 @@ public sealed class CallerApiEndpointHandlerTests : IDisposable
         httpContext.Features.Set<IManagementCallerFeature>(
             new DefaultManagementCallerFeature(user)
         );
-        // The shared environment filter publishes the context in the pipeline; emulate it for direct handler calls.
+        // The management caller gate publishes the context in the pipeline; emulate it for direct handler calls.
         httpContext.Features.Set<IOpenIdContextFeature>(
             Mock.Of<IOpenIdContextFeature>(feature =>
                 feature.OpenIdContext

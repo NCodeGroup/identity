@@ -606,7 +606,7 @@ public sealed class ClientApiEndpointHandlerTests : IAsyncLifetime
             ? new ClaimsIdentity(authenticationType: "test")
             : new ClaimsIdentity();
         var httpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) };
-        // The shared environment filter publishes the context in the pipeline; emulate it for direct handler calls.
+        // The management caller gate publishes the context in the pipeline; emulate it for direct handler calls.
         httpContext.Features.Set<IOpenIdContextFeature>(
             Mock.Of<IOpenIdContextFeature>(feature =>
                 feature.OpenIdContext

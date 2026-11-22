@@ -512,7 +512,7 @@ internal class DefaultManagementAuditRecorder(
     {
         var subject = GetActorId(httpContext);
 
-        // A client acting for itself is the actor of the changes it makes. The authentication filter resolves that
+        // A client acting for itself is the actor of the changes it makes. The management caller gate resolves that
         // before the change commits, because a client that deletes itself is gone afterwards, and keeps the answer on
         // the request. See ADR-1466.
         if (httpContext.Features.Get<ManagementActorFeature>() is { IsActingClient: true })

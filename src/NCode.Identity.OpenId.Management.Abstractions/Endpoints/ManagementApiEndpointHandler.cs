@@ -56,11 +56,11 @@ public abstract class ManagementApiEndpointHandler
         JsonSerializer.SerializeToElement(resource, JsonSerializerOptions.Web);
 
     /// <summary>
-    /// Returns the problem-details <see cref="IResult"/> for a failed authorization: <c>403 Forbidden</c> when the
-    /// user is authenticated (but lacks permission) and <c>401 Unauthorized</c> when the user is anonymous. The
-    /// management API publishes the bearer principal itself through <c>ManagementAuthenticationEndpointFilter</c>
-    /// and never through an authentication scheme, so the refusal never runs a scheme's forbid or challenge, which
-    /// could redirect to an interactive page.
+    /// Returns the problem-details <see cref="IResult"/> for a failed authorization: <c>403 Forbidden</c> when the user
+    /// is authenticated (but lacks permission) and <c>401 Unauthorized</c> when the user is anonymous. The management
+    /// API publishes the bearer principal itself through <c>ManagementCallerGate</c> and never through an
+    /// authentication scheme, so the refusal never runs a scheme's forbid or challenge, which could redirect to an
+    /// interactive page.
     /// </summary>
     /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
     /// <returns>The <see cref="IResult"/> representing the authorization failure.</returns>

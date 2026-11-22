@@ -23,7 +23,7 @@ GET api/cells (control-plane cell only)
 /// <summary>
 /// Provides the API endpoint that lists the cells of the platform, so a management client learns each cell's name,
 /// region and kind. The directory owns the list, so the route is mapped only on the control-plane cell. It answers any
-/// caller that the management authentication filter authenticated from a management access token, which it reads from
+/// caller that the management caller gate authenticated from a management access token, which it reads from
 /// <see cref="IManagementCallerFeature"/>, and it never returns a cell's management URL.
 /// </summary>
 internal class CellApiEndpointHandler(
