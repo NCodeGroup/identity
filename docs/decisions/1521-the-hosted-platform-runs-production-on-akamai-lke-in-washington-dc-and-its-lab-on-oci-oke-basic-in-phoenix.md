@@ -84,6 +84,10 @@ cluster; the lab runs on OCI OKE Basic in Phoenix inside the free allowance; AWS
 - **AWS at launch** (EKS about $200–250, ECS on Fargate about $150–200 across three zones but outside the chart). Over
   the budget. Rejected for launch; it is the growth path.
 - **Free database tiers** (Neon, Aiven). No HA, scale-to-zero or power-off, and no region choice. Rejected.
+- **Akamai LKE at other sizes** (3 × Linode 4 GB: $98 with a single-node managed database, $119 with the 3-node one; 3 ×
+  2 GB with a single-node database: about $62). The 3-node database is bought from the start, because it is the system
+  of record and a 1-node cluster may not grow to 3 nodes in place; with it, 4 GB nodes exceed the budget, and three 2 GB
+  nodes leave too little room for the pods when one is lost. Rejected.
 - **Akamai Dallas (`us-central`).** It lacks VPCs, Premium plans, Premium NodeBalancers and LKE Enterprise. Rejected.
 - **Akamai Chicago (`us-ord`).** The same prices and capabilities, but about 15–20 ms from `us-east-1` against about 1–2
   ms. Rejected.
