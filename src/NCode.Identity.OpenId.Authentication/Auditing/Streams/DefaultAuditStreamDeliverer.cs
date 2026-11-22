@@ -62,10 +62,6 @@ internal sealed class DefaultAuditStreamDeliverer(
 
     private const string JsonContentType = "application/json";
 
-    // The outcome of the batches a replica delivered while it held the lease: the error that stopped them, or null when
-    // they ended with the records, the batch size or the lease. HoldsLease is false when a save found the lease gone.
-    private readonly record struct DeliveryOutcome(string? Error, bool HoldsLease);
-
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
 
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
@@ -137,7 +133,7 @@ internal sealed class DefaultAuditStreamDeliverer(
         }
     }
 
-    private async ValueTask<DeliveryOutcome> DeliverBatchesAsync(
+    private async ValueTask<AuditStreamDeliveryOutcome> DeliverBatchesAsync(
         PersistedAuditStreamState handed,
         PersistedAuditStream stream,
         PersistedAuditStreamState current,
@@ -164,7 +160,7 @@ internal sealed class DefaultAuditStreamDeliverer(
                 || page.LastEventId is not { } lastEventId
             )
             {
-                return new DeliveryOutcome(Error: null, HoldsLease: true);
+                return new AuditStreamDeliveryOutcome(Error: null, HoldsLease: true);
             }
 
             var error = await PostAsync(handed.TenantId, stream, page, secrets, cancellationToken);
@@ -172,7 +168,7 @@ internal sealed class DefaultAuditStreamDeliverer(
             {
                 Metrics.AuditStreamFailed();
                 Logger.AuditStreamDeliveryFailed(handed.StreamId, handed.TenantId, error);
-                return new DeliveryOutcome(error, HoldsLease: true);
+                return new AuditStreamDeliveryOutcome(error, HoldsLease: true);
             }
 
             var deliveredTime = TimeProvider.GetUtcNow();
@@ -189,7 +185,7 @@ internal sealed class DefaultAuditStreamDeliverer(
             );
 
             if (!saved)
-                return new DeliveryOutcome(Error: null, HoldsLease: false);
+                return new AuditStreamDeliveryOutcome(Error: null, HoldsLease: false);
 
             Metrics.AuditStreamDelivered(page.Items.Count);
             positionStoredTime = lastStoredTime;
@@ -199,7 +195,7 @@ internal sealed class DefaultAuditStreamDeliverer(
                 break;
         }
 
-        return new DeliveryOutcome(Error: null, HoldsLease: true);
+        return new AuditStreamDeliveryOutcome(Error: null, HoldsLease: true);
     }
 
     private async ValueTask<PersistedAuditStream?> ReadStreamAsync(
