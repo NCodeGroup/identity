@@ -428,7 +428,7 @@ A platform is a global directory over independent cells.
   and `cell.region` as resource attributes on every pod, so a signal names its cell. The
   [chart README](../charts/ncode-identity-host/README.md#the-cell) lists every value.
 
-## 4. Compute sizing
+## 3. Compute sizing
 
 No production load data exists yet, so these are **planning estimates**; confirm with a load test (see below).
 
@@ -438,13 +438,13 @@ No production load data exists yet, so these are **planning estimates**; confirm
 | Traefik                                      | 3 (DaemonSet)                | 50m         | 64 Mi / 128 Mi         |
 | Valkey (in-cluster, primary + replica)       | 2 (+3 Sentinel if HA)        | 50m         | 128 Mi / 256 Mi        |
 | cert-manager                                 | 1                            | 10m         | 64 Mi                  |
-| CloudNativePG (only if Postgres in-cluster)  | 2                            | 250m        | 1 Gi / 1 Gi            |
-| k3s server overhead (apiserver, etcd, …)     | per node                     | 250–500m    | ~0.6–0.9 GiB per node  |
+| CloudNativePG (the lab)                      | 2                            | 250m        | 1 Gi / 1 Gi            |
 
 - **Size for N-1:** after one node fails, the remaining two must still fit every pod.
-- **Recommended baseline: 3 × (2 vCPU, 4 GB)** shared CPU. N-1 leaves ~8 GB for workloads — comfortable, and room for
-  in-cluster Postgres if chosen.
-- **Floor: 3 × (1–2 vCPU, 2 GB)** — workable for staging without in-cluster Postgres, but no N-1 headroom.
+- **Production: 4 × Linode 2 GB** (1 shared vCPU and 2 GB each,
+  [ADR-1520](decisions/1520-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md)).
+  With one node lost, about 4–4.5 GB is left for workloads, which need about 4 GB
+  ([Capacity of the launch cluster](#capacity-of-the-launch-cluster)).
 - **CPU is not the constraint.** A token issuance is a few DB round-trips plus one or two signatures (ES256 ≪ 1 ms,
   PS256 ~1 ms), so 2 shared vCPUs serve far more than entry-level traffic. DB latency dominates request time (§6).
 - **Postgres:** 1 vCPU / 1–2 GB / 10–25 GB disk is ample initially. Cap the Npgsql pool (`Maximum Pool Size`) per
@@ -467,7 +467,7 @@ cell commits to ([§16](#16-shared-and-dedicated-cells)).
 
 ### Capacity of the launch cluster
 
-Estimates from the hardware and the code, unconfirmed by a load test, for rank 1: 4 × Linode 2 GB nodes (1 shared
+Estimates from the hardware and the code, unconfirmed by a load test, for production: 4 × Linode 2 GB nodes (1 shared
 vCPU and 2 GB each), a 3-node 1 GB managed PostgreSQL, and Valkey in the cluster.
 
 | Dimension                                                                     | Comfortable (no noticeable latency) | Rough ceiling                                    |
@@ -505,19 +505,23 @@ others ([ADR-1246](decisions/1246-rate-limits-are-registered-descriptors-counted
 cache has no size limit, so a crawler touching thousands of tenant hostnames grows replica memory; each cached tenant
 probably takes tens to a few hundred KB, which is unmeasured.
 
-## 5. What "HA" means and what it costs
+## 4. What HA means and what it costs
 
-| Layer                | Managed Kubernetes                                                                                               | Self-managed k3s                                                                                               |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| **Control plane**    | Free single control plane on DO / Vultr / Akamai / Civo. HA upgrade: **DO +$40**, **Akamai +$60**, Vultr optional HA (price shown in console, _(verify)_), Civo none published. | **3 server nodes with embedded etcd** = HA, tolerates 1 node loss. $0 extra when servers also run workloads. |
-| **Workers**          | ≥ 3 nodes, ≥ 2 replicas per service, PodDisruptionBudget + topology spread.                                       | Same — the 3 servers are also the workers.                                                                    |
-| **Load balancer**    | Vendor LB is itself HA (one LB is enough).                                                                        | Same; or $0 via k3s ServiceLB + multi-A DNS (slower failover).                                                 |
-| **Postgres**         | Managed primary + standby (see §6).                                                                               | CloudNativePG with 2 instances + object-storage backups.                                                       |
-| **Valkey**           | Managed primary + replica, or in-cluster.                                                                         | Primary + replica + 3 Sentinels.                                                                               |
+Decided in
+[ADR-1520](decisions/1520-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md).
 
-- A **non-HA managed control plane is acceptable at entry level**: running pods keep serving if it fails; only
-  scheduling/changes pause. **Worker HA is what keeps the service up.**
-- All options are **single-datacenter**; a whole-DC outage takes everything down. Accepted for entry level.
+| Layer             | Production (LKE)                                                                                                                                                     | Lab (OKE Basic)                     |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| **Control plane** | Managed by Akamai; the developer-plan cluster runs the default single replica, and the cluster that hosts paid plans is created with the HA control plane (**+$60**) | Managed by Oracle, free             |
+| **Workers**       | 4 nodes, ≥ 2 replicas per service, PodDisruptionBudget and topology spread                                                                                           | 2 nodes in two availability domains |
+| **Load balancer** | NodeBalancer, itself HA                                                                                                                                              | OCI network load balancer, free     |
+| **PostgreSQL**    | Akamai managed, 3 nodes ([§5](#postgresql))                                                                                                                          | CloudNativePG in the cluster        |
+| **Valkey**        | In the cluster: primary, replica and 3 Sentinels                                                                                                                     | In the cluster                      |
+
+- The developer-plan cluster's **single-replica control plane** is accepted: running pods keep serving if it fails;
+  only scheduling and changes pause. **Worker HA is what keeps the service up.**
+- Production is **single-datacenter**: a whole-datacenter outage takes the cell down. Several availability zones come
+  with AWS ([§11](#11-growth-path-aws)).
 
 ## 6. Vendor price sheets (verified 2026-10-18)
 
