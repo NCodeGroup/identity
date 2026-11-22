@@ -90,8 +90,8 @@ stands alone takes a bare `IServiceCollection`:
   `IServiceBuilder<JoseLibrary>`.
 - **One-service helpers** such as `AddAuthorizationHandler<T>`, `AddDefaultPasswordHasher` and
   `AddEndpointGroupRouting` are not capability entry points.
-- **Marker-less cross-cutting infrastructure** such as `AddPropertyBag` and `AddDataProtection` is registered inline on
-  the bare collection before the gated chain, because it has no presence another package must prove.
+- **Marker-less cross-cutting infrastructure** such as `AddDataProtection` is registered inline on the bare collection
+  before the gated chain, because it has no presence another package must prove.
 
 Cross-library helpers that run from more than one library's builder take the non-generic `IServiceBuilder`:
 `AddMessageFactory<TMessage>`, `AddEndpointProvider<T>` and `AddEndpointGroup<T>`. That is stronger than a bare
