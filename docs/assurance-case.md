@@ -84,9 +84,30 @@ the operator's; or a development-only convenience, inert unless `LocalDevelopmen
 
 ## Threat Model
 
-[//]: # "Maintainers: add a table (Threat, In scope, Countered by) and state the trust boundary."
+The trust boundary is the host's HTTP surface. Clients, end users' browsers, resource servers and every document fetched
+from a caller-supplied URL are untrusted, and so is each tenant toward every other tenant; the host process, its
+configuration, its database role and the KMS root key it names are trusted. Out of scope are a compromised cloud or KMS
+account, an operator acting against the tenants, an attacker running code in the host process, a vulnerability in a
+dependency itself ([SECURITY.md](../SECURITY.md)), and the platform's infrastructure, which NCodeGroup/identity-platform
+holds.
 
-Not written yet.
+| Threat | In scope | Countered by |
+| --- | --- | --- |
+| An authorization code intercepted or injected | Yes | R1: PKCE ([ADR-1144](decisions/1144-authorization-codes-are-bound-to-an-s256-pkce-challenge-unless-an-attested-client-uses-the-nonce.md)), exact redirect URIs ([ADR-1203](decisions/1203-redirect-uris-are-matched-exactly-as-written-and-their-kinds-are-narrowed-by-settings.md)) |
+| A forged token, `alg: none`, or an algorithm or curve its key isn't for | Yes | R2 ([ADR-1154](decisions/1154-jwts-are-validated-only-as-signed-tokens-by-requirements-and-handlers-under-the-callers-stated-policy.md), [ADR-1392](decisions/1392-ecdsa-and-eddsa-algorithms-are-fully-specified-and-bound-to-their-curve-and-es256k-is-opt-in.md)) |
+| A stolen access or refresh token replayed | Yes | R4: DPoP or mutual-TLS binding ([ADR-1097](decisions/1097-access-tokens-are-sender-constrained-by-dpop-or-mutual-tls-through-one-proof-of-possession-seam.md)), rotation and family revocation ([ADR-1216](decisions/1216-a-refresh-token-rotates-unless-it-is-bound-and-rotation-spends-it-with-its-successor-atomically.md), [ADR-1217](decisions/1217-a-reused-refresh-token-revokes-its-family-unless-it-is-a-retry-within-an-opt-in-interval.md)) |
+| A client impersonated, or its assertion or DPoP proof replayed | Yes | R3 ([ADR-1102](decisions/1102-a-client-authenticates-with-a-single-use-jwt-assertion-signed-by-its-key-or-its-secret.md), [ADR-1391](decisions/1391-a-client-secret-is-a-one-way-verifier-unless-its-method-keys-from-its-utf-8-octets.md)) |
+| One tenant reads or changes another's data | Yes | R5: persistence-layer scoping and row-level security ([ADR-1018](decisions/1018-tenant-selection-is-shared-and-tenant-bound-rows-are-scoped-at-the-persistence-layer.md)), and the `NCID0004` analyzer, which reports an unexplained `IgnoreQueryFilters()` |
+| A stolen database or backup exposes keys and secrets | Yes | R6 ([ADR-1235](decisions/1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md)) |
+| A request to an internal address through a client's `jwks_uri`, `request_uri` or a revocation source | Yes | R8 ([ADR-1315](decisions/1315-calls-to-caller-supplied-urls-share-one-guarded-bounded-client-and-one-single-flight-helper.md)) |
+| An administrator acts outside their scope | Yes | R7 ([ADR-1417](decisions/1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md), [ADR-1424](decisions/1424-a-management-route-authorizes-at-the-node-it-names-before-it-reads-through-replaceable-validators.md)) |
+| Guessing passwords or client secrets | Yes | R12 ([ADR-1237](decisions/1237-failed-password-attempts-are-limited-per-account-and-a-refusal-costs-what-a-wrong-password-costs.md), [ADR-1246](decisions/1246-rate-limits-are-registered-descriptors-counted-in-a-shared-expiring-counter-set.md), [ADR-1239](decisions/1239-a-password-is-verified-in-the-same-time-whether-or-not-its-account-exists.md)) |
+| Script injection into, or framing of, the sign-in pages | Yes | R9: a strict CSP and framing only by design ([ADR-1256](decisions/1256-every-page-the-server-writes-has-a-strict-content-security-policy-and-is-framed-only-by-design.md)) |
+| A cross-site request against a BFF or its logout | Yes | R10 ([ADR-1292](decisions/1292-the-bffs-cookie-authenticates-only-guarded-endpoints-which-refuse-cross-site-requests-and-reload-cookieless-navigations.md), [ADR-1293](decisions/1293-the-bff-ends-sessions-by-a-guarded-logout-form-post-and-by-back-channel-logout-through-indexes.md)) |
+| A forged `Host` header changes a published URL | Yes | R5: the issuer comes from the tenant's stored record ([ADR-1165](decisions/1165-a-tenants-stored-issuer-is-its-single-origin-and-its-mtls-alias-a-routed-second-host.md)) |
+| A deployment runs with development settings or an unprotected secret | Yes | R9: the host refuses to start ([ADR-1370](decisions/1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)) |
+| Malformed or oversized input exhausts the server | Yes | R11 ([ADR-1266](decisions/1266-binary-data-uses-bufferfactory-rentals-with-explicit-sensitivity-and-text-only-strict-encodings.md), [ADR-1123](decisions/1123-a-numericdate-and-a-whole-number-a-remote-party-sends-are-read-strictly-through-shared-readers.md)) |
+| A compromised KMS root key or cloud account | No | Outside the trust boundary above |
 
 ## Secure Design Principles Applied
 
