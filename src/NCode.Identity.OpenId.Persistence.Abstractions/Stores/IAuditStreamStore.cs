@@ -80,16 +80,19 @@ public interface IAuditStreamStore : IStore
 
     /// <summary>
     /// Gets the delivery states that are due, of every tenant, for a caller that opened an unscoped scope: the states
-    /// of enabled streams whose next attempt time has come and whose lease is free or expired, ordered by their next
-    /// attempt time.
+    /// of enabled streams whose next attempt time has come, whose lease is free or expired and whose tenant has a
+    /// record ready to send, ordered by their next attempt time.
     /// </summary>
     /// <param name="now">The time to compare the next attempt times and the lease expiry times with.</param>
+    /// <param name="storedBefore">The time before which a record must be stored to be ready: a stream is due only when
+    /// its tenant has a record stored after the stream's position and before this time.</param>
     /// <param name="limit">The greatest number of states to return.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing the due
     /// states.</returns>
     ValueTask<IReadOnlyList<PersistedAuditStreamState>> GetDueStatesAsync(
         DateTimeOffset now,
+        DateTimeOffset storedBefore,
         int limit,
         CancellationToken cancellationToken
     );

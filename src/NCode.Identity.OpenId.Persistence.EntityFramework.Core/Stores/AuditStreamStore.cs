@@ -300,6 +300,7 @@ internal sealed class AuditStreamStore(
     /// <inheritdoc />
     public async ValueTask<IReadOnlyList<PersistedAuditStreamState>> GetDueStatesAsync(
         DateTimeOffset now,
+        DateTimeOffset storedBefore,
         int limit,
         CancellationToken cancellationToken
     )
@@ -307,8 +308,12 @@ internal sealed class AuditStreamStore(
         ArgumentOutOfRangeException.ThrowIfLessThan(limit, 1);
 
         var utcNow = now.ToUniversalTime();
+        var utcStoredBefore = storedBefore.ToUniversalTime();
+        var auditRecords = DbContext.AuditRecords;
 
         // No query filter is ignored: the caller opened an unscoped scope, which matches every tenant.
+        // A stream is due only when its tenant has a record after the stream's position, in the order the stream page
+        // reads (ADR-1534), so an idle stream is never due and costs no lease, unwrap or poll slot.
         var entities = await DbContext
             .AuditStreamStates.Include(entity => entity.Tenant)
             .Include(entity => entity.AuditStream)
@@ -316,6 +321,17 @@ internal sealed class AuditStreamStore(
                 entity.AuditStream.IsEnabled
                 && entity.NextAttemptTime <= utcNow
                 && (entity.LeaseExpiryTime == null || entity.LeaseExpiryTime <= utcNow)
+                && auditRecords.Any(record =>
+                    record.TenantId == entity.Tenant.TenantId
+                    && record.StoredTime < utcStoredBefore
+                    && (
+                        record.StoredTime > entity.PositionStoredTime
+                        || (
+                            record.StoredTime == entity.PositionStoredTime
+                            && record.EventId > entity.PositionEventId
+                        )
+                    )
+                )
             )
             .OrderBy(entity => entity.NextAttemptTime)
             .ThenBy(entity => entity.Id)

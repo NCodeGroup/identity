@@ -108,7 +108,14 @@ public sealed class AuditStreamDeliveryServiceTests : BaseTests
     )
     {
         MockAuditStreamStore
-            .Setup(x => x.GetDueStatesAsync(Now, AuditOptions.StreamsPerPoll, cancellationToken))
+            .Setup(x =>
+                x.GetDueStatesAsync(
+                    Now,
+                    Now - AuditOptions.StreamSettleDelay,
+                    AuditOptions.StreamsPerPoll,
+                    cancellationToken
+                )
+            )
             .ReturnsAsync(states)
             .Verifiable();
     }
@@ -145,6 +152,7 @@ public sealed class AuditStreamDeliveryServiceTests : BaseTests
         MockAuditStreamStore
             .Setup(x =>
                 x.GetDueStatesAsync(
+                    It.IsAny<DateTimeOffset>(),
                     It.IsAny<DateTimeOffset>(),
                     AuditOptions.StreamsPerPoll,
                     It.IsAny<CancellationToken>()

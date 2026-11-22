@@ -1,8 +1,10 @@
 // Copyright © NCode Group
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Time.Testing;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Tenants;
 using NCode.Identity.Persistence;
@@ -16,6 +18,7 @@ public sealed class AuditStreamStoreTests : IDisposable
 {
     private const string TenantA = "tenant-a";
     private const string TenantB = "tenant-b";
+    private const string TenantC = "tenant-c";
 
     private static DateTimeOffset Now { get; } = new(2026, 11, 22, 12, 0, 0, TimeSpan.Zero);
 
@@ -39,6 +42,7 @@ public sealed class AuditStreamStoreTests : IDisposable
         var keyGenerator = scope.ServiceProvider.GetRequiredService<ISurrogateKeyGenerator>();
         context.SeedTenant(keyGenerator, TenantA);
         context.SeedTenant(keyGenerator, TenantB);
+        context.SeedTenant(keyGenerator, TenantC);
     }
 
     public void Dispose()
@@ -147,6 +151,47 @@ public sealed class AuditStreamStoreTests : IDisposable
             store => store.UpdateStateAsync(state, cancellationToken),
             cancellationToken
         );
+    }
+
+    // Stores a record of the tenant at the given stored time, as the audit record store stamps it, and returns its event
+    // identifier.
+    private async ValueTask<Guid> AddRecordAsync(
+        string tenantId,
+        DateTimeOffset storedTime,
+        CancellationToken cancellationToken
+    )
+    {
+        var record = new PersistedAuditRecord
+        {
+            EventId = Guid.CreateVersion7(),
+            EventTime = storedTime,
+            EventName = "client.updated",
+            EventCategory = "management",
+            Outcome = "success",
+            Severity = "info",
+            Cell = "cell-1",
+            TenantId = tenantId,
+            ClientId = "client-1",
+            ActorType = "user",
+            ActorId = "admin-1",
+            TraceId = "0af7651916cd43dd8448eb211c80319c",
+            SourceIp = "203.0.113.7",
+            Resources = [],
+            Record = JsonElement.Parse("""{"schema_version":"1.0"}"""),
+        };
+
+        using var scope = Provider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<OpenIdDbContext>();
+        var recordStore = new AuditRecordStore(
+            Mock.Of<IStoreProvider>(),
+            Provider.GetRequiredService<ISurrogateKeyGenerator>(),
+            TestPageCursorProtector.Instance,
+            context,
+            new FakeTimeProvider(storedTime)
+        );
+        await recordStore.AddAsync([record], cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
+        return record.EventId;
     }
 
     private async ValueTask<int> CountRowsAsync<TEntity>(CancellationToken cancellationToken)
@@ -389,14 +434,59 @@ public sealed class AuditStreamStoreTests : IDisposable
             },
             CancellationToken.None
         );
+        var recordTime = created.AddMinutes(10);
+        await AddRecordAsync(TenantA, recordTime, CancellationToken.None);
+        await AddRecordAsync(TenantB, recordTime, CancellationToken.None);
 
         var states = await ReadAsync(
-            store => store.GetDueStatesAsync(Now, 10, CancellationToken.None),
+            store => store.GetDueStatesAsync(Now, Now, 10, CancellationToken.None),
             CancellationToken.None
         );
 
         Assert.Equal(
             new[] { (TenantA, "due"), (TenantB, "expired-lease") },
+            states.Select(state => (state.TenantId, state.StreamId))
+        );
+    }
+
+    [Fact]
+    public async Task GetDueStatesAsync_WhenNoRecordIsReadyAfterThePosition_SkipsTheStream()
+    {
+        var created = Now.AddHours(-1);
+        var recordTime = created.AddMinutes(10);
+        await AddAsync(CreateStream("behind", createdTime: created), CancellationToken.None);
+        await AddAsync(CreateStream("caught-up", createdTime: created), CancellationToken.None);
+        await AddAsync(CreateStream("ahead", createdTime: created), CancellationToken.None);
+        await AddAsync(
+            CreateStream("unsettled", TenantB, createdTime: created),
+            CancellationToken.None
+        );
+        await AddAsync(CreateStream("idle", TenantC, createdTime: created), CancellationToken.None);
+
+        var recordEventId = await AddRecordAsync(TenantA, recordTime, CancellationToken.None);
+        await AddRecordAsync(TenantB, Now, CancellationToken.None);
+        await UpdateStateAsync(
+            "caught-up",
+            state =>
+            {
+                state.PositionStoredTime = recordTime;
+                state.PositionEventId = recordEventId;
+            },
+            CancellationToken.None
+        );
+        await UpdateStateAsync(
+            "ahead",
+            state => state.PositionStoredTime = recordTime.AddMinutes(1),
+            CancellationToken.None
+        );
+
+        var states = await ReadAsync(
+            store => store.GetDueStatesAsync(Now, Now, 10, CancellationToken.None),
+            CancellationToken.None
+        );
+
+        Assert.Equal(
+            new[] { (TenantA, "behind") },
             states.Select(state => (state.TenantId, state.StreamId))
         );
     }
@@ -431,6 +521,25 @@ public sealed class AuditStreamStoreTests : IDisposable
         var stream = await GetAsync("stream-1", CancellationToken.None);
         var state = Assert.IsType<PersistedAuditStreamState>(stream.State);
         state.ConcurrencyToken = "stale";
+
+        await Assert.ThrowsAsync<StoreConcurrencyException>(async () =>
+            await WriteAsync(
+                store => store.UpdateStateAsync(state, CancellationToken.None),
+                CancellationToken.None
+            )
+        );
+    }
+
+    [Fact]
+    public async Task UpdateStateAsync_WhenTheStreamWasRemoved_Throws()
+    {
+        await AddAsync(CreateStream("stream-1"), CancellationToken.None);
+        var stream = await GetAsync("stream-1", CancellationToken.None);
+        var state = Assert.IsType<PersistedAuditStreamState>(stream.State);
+        await WriteAsync(
+            async store => await store.RemoveAsync("stream-1", CancellationToken.None),
+            CancellationToken.None
+        );
 
         await Assert.ThrowsAsync<StoreConcurrencyException>(async () =>
             await WriteAsync(

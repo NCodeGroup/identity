@@ -657,7 +657,8 @@ a `201` response, shown once as `signingSecret`. The previous secrets keep signi
 adds the new secret, then drops the old one once the day has passed.
 
 **Operating it.** Every replica claims the streams that are due under a lease in the audit store's database, so one
-replica sends a stream at a time and its order holds. The options are keys of `OpenId:AuditRecords`:
+replica sends a stream at a time and its order holds. A stream is due only once its tenant has a record ready for it, so
+an idle stream costs nothing. The options are keys of `OpenId:AuditRecords`:
 
 | Option                | Default    | Meaning                                                                          |
 | --------------------- | ---------- | -------------------------------------------------------------------------------- |

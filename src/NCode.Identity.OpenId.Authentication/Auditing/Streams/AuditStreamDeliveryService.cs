@@ -119,7 +119,12 @@ internal sealed class AuditStreamDeliveryService(
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<IAuditStreamStore>();
         var now = TimeProvider.GetUtcNow();
-        return await store.GetDueStatesAsync(now, Options.StreamsPerPoll, cancellationToken);
+        return await store.GetDueStatesAsync(
+            now,
+            now - Options.StreamSettleDelay,
+            Options.StreamsPerPoll,
+            cancellationToken
+        );
     }
 
     private async ValueTask<bool> TryClaimAsync(
