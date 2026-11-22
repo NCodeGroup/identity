@@ -78,6 +78,10 @@ a retired identifier or issuer is never reissued.**
    - no other tenant holds the issuer (a conflict);
    - the identifier is not retired, which the tenant directory answers for the whole platform;
    - the issuer is not retired, unless this tenant gave it up, which the tenant directory answers for the whole platform.
+
+   The control-plane cell asks the tenant directory neither question about its control-plane tenant: the directory
+   accepts only the bearer tokens that tenant issues, so it cannot answer before the tenant serves, and the tenant is
+   required, so it is never deleted and its identifier never retired.
 6. **Strategy rules.** Every built-in strategy requires the issuer to end with the tenant route bound for the tenant; a
    path base the host is mounted under may precede it. The path route carries the tenant parameter as its only
    parameter, and a plain one (no constraint, default, optional marker or catch-all), so the route, and the issuer it
