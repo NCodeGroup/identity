@@ -1177,6 +1177,36 @@ public static class OpenIdSettingNames
     public const string PasswordFailedAttemptsWindow = "password_failed_attempts_window";
 
     /// <summary>
+    /// Contains the name of the <c>password_reset_enabled</c> setting: whether a local account's password may be reset
+    /// with a one-time code mailed to its verified email address. Defaults to <see langword="false"/>.
+    /// </summary>
+    public const string PasswordResetEnabled = "password_reset_enabled";
+
+    /// <summary>
+    /// Contains the name of the <c>email_code_lifetime</c> setting: how long a one-time code mailed to an email address
+    /// is accepted.
+    /// </summary>
+    public const string EmailCodeLifetime = "email_code_lifetime";
+
+    /// <summary>
+    /// Contains the name of the <c>email_code_sends_per_hour</c> setting: the most one-time codes that may be mailed in
+    /// one hour for one account and purpose.
+    /// </summary>
+    public const string EmailCodeSendsPerHour = "email_code_sends_per_hour";
+
+    /// <summary>
+    /// Contains the name of the <c>email_mfa_required</c> setting: whether a local account's sign-in must be completed
+    /// with a one-time code mailed to the account's email address. Defaults to <see langword="false"/>.
+    /// </summary>
+    public const string EmailMfaRequired = "email_mfa_required";
+
+    /// <summary>
+    /// Contains the name of the <c>email_verification_enabled</c> setting: whether a local account may verify its email
+    /// address with a one-time code. Defaults to <see langword="false"/>.
+    /// </summary>
+    public const string EmailVerificationEnabled = "email_verification_enabled";
+
+    /// <summary>
     /// Contains the name of the <c>max_tenants</c> setting: the most tenants a team may hold; a creation that would
     /// exceed it is refused. Unset means unlimited. It applies to the team scope: the platform sets the
     /// ceiling and a team can only lower it.

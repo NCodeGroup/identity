@@ -1156,6 +1156,35 @@ public static class OpenIdSettingKeys
         new(OpenIdSettingNames.PasswordFailedAttemptsWindow);
 
     /// <summary>
+    /// Gets the <see cref="SettingKey{TValue}"/> for the 'password_reset_enabled' setting.
+    /// </summary>
+    public static SettingKey<bool> PasswordResetEnabled =>
+        new(OpenIdSettingNames.PasswordResetEnabled);
+
+    /// <summary>
+    /// Gets the <see cref="SettingKey{TValue}"/> for the 'email_code_lifetime' setting.
+    /// </summary>
+    public static SettingKey<TimeSpan> EmailCodeLifetime =>
+        new(OpenIdSettingNames.EmailCodeLifetime);
+
+    /// <summary>
+    /// Gets the <see cref="SettingKey{TValue}"/> for the 'email_code_sends_per_hour' setting.
+    /// </summary>
+    public static SettingKey<int> EmailCodeSendsPerHour =>
+        new(OpenIdSettingNames.EmailCodeSendsPerHour);
+
+    /// <summary>
+    /// Gets the <see cref="SettingKey{TValue}"/> for the 'email_mfa_required' setting.
+    /// </summary>
+    public static SettingKey<bool> EmailMfaRequired => new(OpenIdSettingNames.EmailMfaRequired);
+
+    /// <summary>
+    /// Gets the <see cref="SettingKey{TValue}"/> for the 'email_verification_enabled' setting.
+    /// </summary>
+    public static SettingKey<bool> EmailVerificationEnabled =>
+        new(OpenIdSettingNames.EmailVerificationEnabled);
+
+    /// <summary>
     /// Gets the <see cref="SettingKey{TValue}"/> for the 'client_authentication_failed_attempts_limit' setting.
     /// </summary>
     public static SettingKey<int> ClientAuthenticationFailedAttemptsLimit =>

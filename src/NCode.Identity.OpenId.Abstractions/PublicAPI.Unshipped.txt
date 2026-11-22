@@ -171,6 +171,10 @@ const NCode.Identity.OpenId.Settings.OpenIdSettingNames.DefaultAcr = "default_ac
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.DeviceCodeLifetime = "device_code_lifetime" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.DeviceCodePollingInterval = "device_code_polling_interval" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.DisplayValuesSupported = "display_values_supported" -> string!
+const NCode.Identity.OpenId.Settings.OpenIdSettingNames.EmailCodeLifetime = "email_code_lifetime" -> string!
+const NCode.Identity.OpenId.Settings.OpenIdSettingNames.EmailCodeSendsPerHour = "email_code_sends_per_hour" -> string!
+const NCode.Identity.OpenId.Settings.OpenIdSettingNames.EmailMfaRequired = "email_mfa_required" -> string!
+const NCode.Identity.OpenId.Settings.OpenIdSettingNames.EmailVerificationEnabled = "email_verification_enabled" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.GrantTypesEnabled = "grant_types_enabled" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.GrantTypesSupported = "grant_types_supported" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.IdTokenEncryptionAlgValuesSupported = "id_token_encryption_alg_values_supported" -> string!
@@ -732,6 +736,10 @@ static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.DefaultAcr.get -> NCode.
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.DeviceCodeLifetime.get -> NCode.Identity.Settings.SettingKey<System.TimeSpan>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.DeviceCodePollingInterval.get -> NCode.Identity.Settings.SettingKey<System.TimeSpan>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.DisplayValuesSupported.get -> NCode.Identity.Settings.SettingKey<System.Collections.Generic.IReadOnlyCollection<string!>!>
+static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.EmailCodeLifetime.get -> NCode.Identity.Settings.SettingKey<System.TimeSpan>
+static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.EmailCodeSendsPerHour.get -> NCode.Identity.Settings.SettingKey<int>
+static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.EmailMfaRequired.get -> NCode.Identity.Settings.SettingKey<bool>
+static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.EmailVerificationEnabled.get -> NCode.Identity.Settings.SettingKey<bool>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.DPoPNonceRequired.get -> NCode.Identity.Settings.SettingKey<bool>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.DPoPProofLifetime.get -> NCode.Identity.Settings.SettingKey<System.TimeSpan>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.DPoPSigningAlgValuesSupported.get -> NCode.Identity.Settings.SettingKey<System.Collections.Generic.IReadOnlyCollection<string!>!>
@@ -952,10 +960,12 @@ const NCode.Identity.OpenId.Settings.OpenIdSettingNames.PasswordFailedAttemptsLi
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.PasswordFailedAttemptsWindow = "password_failed_attempts_window" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.PasswordMaxLength = "password_max_length" -> string!
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.PasswordMinLength = "password_min_length" -> string!
+const NCode.Identity.OpenId.Settings.OpenIdSettingNames.PasswordResetEnabled = "password_reset_enabled" -> string!
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.PasswordFailedAttemptsLimit.get -> NCode.Identity.Settings.SettingKey<int>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.PasswordFailedAttemptsWindow.get -> NCode.Identity.Settings.SettingKey<System.TimeSpan>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.PasswordMaxLength.get -> NCode.Identity.Settings.SettingKey<int>
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.PasswordMinLength.get -> NCode.Identity.Settings.SettingKey<int>
+static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.PasswordResetEnabled.get -> NCode.Identity.Settings.SettingKey<bool>
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.AuthorizationEncryptedResponseAlg = "authorization_encrypted_response_alg" -> string!
 static NCode.Identity.OpenId.Settings.OpenIdSettingKeys.AuthorizationEncryptedResponseAlg.get -> NCode.Identity.Settings.SettingKey<string!>
 const NCode.Identity.OpenId.Settings.OpenIdSettingNames.AuthorizationEncryptedResponseEnc = "authorization_encrypted_response_enc" -> string!

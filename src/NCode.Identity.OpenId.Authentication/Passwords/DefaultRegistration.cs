@@ -47,6 +47,11 @@ internal static class DefaultRegistration
                 DefaultPasswordSettingDescriptorDataSource
             >();
             serviceCollection.TryAddEnumerable(settingDataSource);
+            var emailCodeSettingDataSource = ServiceDescriptor.Singleton<
+                ICollectionDataSource<SettingDescriptor>,
+                DefaultEmailCodeSettingDescriptorDataSource
+            >();
+            serviceCollection.TryAddEnumerable(emailCodeSettingDataSource);
 
             return builder;
         }
