@@ -93,8 +93,8 @@ directory:
     #    curve: P-256
   # Runs the directory host as its own Deployment, with a Service and a pre-install and pre-upgrade Job that applies its
   # migrations. The directory keeps its single-use state in process, so it runs one replica. The issuer, controlPlaneCell,
-  # allowedHosts, database, migrations.database, tls, serviceAccount, image and extra* values are refused while enabled
-  # is false.
+  # allowedHosts, database, migrations.database, backendTls, ingress, httpRoute, serviceAccount, image and extra* values
+  # are refused while enabled is false.
   enabled: false
   # The issuer of the control-plane cell (DirectoryServer:Issuer), whose bearer tokens the directory accepts. Required
   # when enabled. An `https` URL, or an `http` URL on a loopback host, with no user information, query or fragment.
@@ -132,13 +132,34 @@ directory:
       databaseKey: dbname
       usernameKey: user
       passwordKey: password
-  # A kubernetes.io/tls Secret the operator created, with tls.crt and tls.key, that the directory serves. Its
-  # certificate names the host of url. Required when enabled.
-  tls:
+  # The directory's serving certificate: a kubernetes.io/tls Secret with tls.crt, tls.key and ca.crt, or empty for a
+  # cert-manager Certificate from the issuer of backendTls.certManager.
+  backendTls:
     existingSecret: ""
+    # A Secret in the release namespace that the ingress controller reads to verify the directory's pods and, when
+    # backendTls.clientCertificate.required is true, to authenticate to them (see backendTls.ingressSecret).
+    # Empty uses backendTls.ingressSecret, and then <release>-ingress.
+    ingressSecret: ""
+    # A ConfigMap in the release namespace that holds only ca.crt, for a Gateway API implementation to verify the
+    # directory's pods. Empty uses the server's CA ConfigMap.
+    caConfigMap: ""
   service:
     type: ClusterIP
     port: 443
+  # Routes every path of each host in directory.allowedHosts to the directory.
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    tls: []
+    #  - secretName: directory-example-com-tls
+    #    hosts:
+    #      - directory.example.com
+  # A Gateway API HTTPRoute and a BackendTLSPolicy for the directory. Its hostnames are directory.allowedHosts.
+  httpRoute:
+    enabled: false
+    parentRefs: []
+    annotations: {}
   # The ServiceAccount the directory's pods run under, which mounts no token because the directory never calls the
   # Kubernetes API. create makes it; name is its name, or the directory's full name when create is true and empty, or
   # 'default' when create is false and empty. The migration Job runs before the chart's own account exists on a first

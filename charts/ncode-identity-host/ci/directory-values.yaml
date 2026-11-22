@@ -35,7 +35,7 @@ directory:
   migrations:
     database:
       existingSecret: directory-database-owner
-  tls:
+  backendTls:
     existingSecret: directory-tls
 secretProtection:
   rootKeyProvider: local

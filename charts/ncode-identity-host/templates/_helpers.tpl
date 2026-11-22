@@ -335,8 +335,8 @@ applied. Rendered for its side effect only.
 {{- include "identity-host.serviceUrlValidate" (dict "path" "cell.controlPlaneIssuer" "value" .Values.cell.controlPlaneIssuer "httpsOnly" false) }}
 {{- end }}
 {{- $directory := .Values.directory }}
-{{- if and (not $directory.enabled) (or $directory.issuer $directory.controlPlaneCell $directory.allowedHosts $directory.database.runtimeRole $directory.database.existingSecret $directory.database.parts.existingSecret $directory.migrations.database.existingSecret $directory.migrations.database.parts.existingSecret $directory.tls.existingSecret $directory.extraEnv $directory.extraEnvFrom $directory.extraVolumes $directory.extraVolumeMounts $directory.serviceAccount.name $directory.serviceAccount.annotations $directory.image.tag $directory.image.digest) }}
-{{- fail "directory.issuer, directory.controlPlaneCell, directory.allowedHosts, directory.database, directory.migrations.database, directory.tls, directory.serviceAccount, directory.image and directory.extra* configure the directory host, which runs only when directory.enabled is true: set directory.enabled, or clear them." }}
+{{- if and (not $directory.enabled) (or $directory.issuer $directory.controlPlaneCell $directory.allowedHosts $directory.database.runtimeRole $directory.database.existingSecret $directory.database.parts.existingSecret $directory.migrations.database.existingSecret $directory.migrations.database.parts.existingSecret $directory.backendTls.existingSecret $directory.backendTls.ingressSecret $directory.backendTls.caConfigMap $directory.ingress.enabled $directory.httpRoute.enabled $directory.extraEnv $directory.extraEnvFrom $directory.extraVolumes $directory.extraVolumeMounts $directory.serviceAccount.name $directory.serviceAccount.annotations $directory.image.tag $directory.image.digest) }}
+{{- fail "directory.issuer, directory.controlPlaneCell, directory.allowedHosts, directory.database, directory.migrations.database, directory.backendTls, directory.ingress, directory.httpRoute, directory.serviceAccount, directory.image and directory.extra* configure the directory host, which runs only when directory.enabled is true: set directory.enabled, or clear them." }}
 {{- end }}
 {{- if and .Values.directory.url .Values.directory.keyRing }}
 {{- $directoryKeys := .Values.directory.keys }}
@@ -1271,6 +1271,7 @@ OP's pods read theirs (ADR-1509). The migration Job sets its own environment and
   value: {{ $directory.issuer | quote }}
 - name: DirectoryServer__ControlPlaneCell
   value: {{ $directory.controlPlaneCell | quote }}
+{{ include "identity-host.backendTls.env" . | trim }}
 {{ include "identity-host.databaseEnv" (dict "scope" $directory.database "defaults" $directory.database "connectionStringName" "directory" "sectionName" "DirectoryDatabase") | trim }}
 {{ include "identity-host.telemetryEnv" . | trim }}
 {{- with $directory.extraEnv }}
@@ -1306,7 +1307,7 @@ Refuses a directory the host would refuse, before anything is applied. Rendered 
 {{- fail "directory.database.runtimeRole must be a lower-case Postgres role name of letters, digits and underscores that does not start with a digit." }}
 {{- end }}
 {{- include "identity-host.databaseValidate" (dict "path" "directory.migrations.database" "scope" $directory.migrations.database "defaults" $directory.database "required" true "connectionStringName" "directory") }}
-{{- if not $directory.tls.existingSecret }}
-{{- fail "directory.tls.existingSecret must name the Secret holding the directory's serving certificate when directory.enabled is true: the directory serves HTTPS only." }}
+{{- if not $directory.backendTls.existingSecret }}
+{{- fail "directory.backendTls.existingSecret must name the Secret holding the directory's serving certificate when directory.enabled is true: the directory serves HTTPS only." }}
 {{- end }}
 {{- end }}

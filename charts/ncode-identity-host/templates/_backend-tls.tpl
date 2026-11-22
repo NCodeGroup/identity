@@ -14,6 +14,13 @@ The name of the Secret that holds the management console pods' serving certifica
 {{- end }}
 
 {{/*
+The name of the Secret that holds the directory pods' serving certificate.
+*/}}
+{{- define "identity-host.directory.backendTls.secretName" -}}
+{{- .Values.directory.backendTls.existingSecret | default (printf "%s-tls" (include "identity-host.directory.fullname" .)) }}
+{{- end }}
+
+{{/*
 The name of the Secret that the chart's ingress Certificate writes: the ingress controller's own client certificate and
 the CA that signed the pods' certificates.
 */}}

@@ -423,11 +423,17 @@
             }
           }
         },
-        "tls": {
+        "backendTls": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
             "existingSecret": {
+              "type": "string"
+            },
+            "ingressSecret": {
+              "type": "string"
+            },
+            "caConfigMap": {
               "type": "string"
             }
           }
@@ -448,6 +454,71 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 65535
+            }
+          }
+        },
+        "ingress": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "className": {
+              "type": "string"
+            },
+            "annotations": {
+              "type": "object"
+            },
+            "tls": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "httpRoute": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "parentRefs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "group": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "namespace": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "sectionName": {
+                    "type": "string"
+                  },
+                  "port": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 65535
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            },
+            "annotations": {
+              "type": "object"
             }
           }
         },
