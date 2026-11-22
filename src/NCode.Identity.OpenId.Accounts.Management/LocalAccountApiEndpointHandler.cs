@@ -481,10 +481,8 @@ internal class LocalAccountApiEndpointHandler(
         var ifMatch = httpContext.Request.Headers.IfMatch.ToString();
         var expectedConcurrencyToken = string.IsNullOrEmpty(ifMatch) ? null : ifMatch;
         var error = await LocalAccountValidator.ValidateUpdateAsync(
-            localAccountId,
-            model.UserName,
-            model.DisplayName,
-            account.ConcurrencyToken,
+            account,
+            model,
             expectedConcurrencyToken,
             storeManager,
             cancellationToken
@@ -553,7 +551,7 @@ internal class LocalAccountApiEndpointHandler(
         }
 
         var error = await LocalAccountValidator.ValidateDeleteAsync(
-            localAccountId,
+            account,
             storeManager,
             cancellationToken
         );

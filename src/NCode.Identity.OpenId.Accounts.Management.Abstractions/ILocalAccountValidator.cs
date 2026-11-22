@@ -3,6 +3,8 @@
 
 using System.Security.Claims;
 using JetBrains.Annotations;
+using NCode.Identity.OpenId.Accounts.DataContracts;
+using NCode.Identity.OpenId.Accounts.Management.Contracts;
 using NCode.Identity.OpenId.Management;
 using NCode.Identity.Persistence.Stores;
 
@@ -56,38 +58,34 @@ public interface ILocalAccountValidator
     );
 
     /// <summary>
-    /// Validates that a local account with the specified username may be created.
+    /// Validates that the staged local account may be created. The default implementation reports 400 when the display
+    /// name is empty or longer than <see cref="AccountMaxLengths.DisplayName"/>, and 409 when another account holds the
+    /// username.
     /// </summary>
-    /// <param name="userName">The proposed username (login handle) of the account.</param>
-    /// <param name="displayName">The proposed display name of the account, already trimmed. The default implementation
-    /// reports 400 when it is empty or longer than <see cref="AccountMaxLengths.DisplayName"/>.</param>
+    /// <param name="account">The staged <see cref="PersistedLocalAccount"/> to be created, its display name defaulted and trimmed.</param>
     /// <param name="storeManager">The <see cref="IStoreManager"/> for the current unit of work.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>A <see cref="ManagementError"/> describing the first failed precondition, or <c>null</c> when valid.</returns>
     ValueTask<ManagementError?> ValidateCreateAsync(
-        string userName,
-        string displayName,
+        PersistedLocalAccount account,
         IStoreManager storeManager,
         CancellationToken cancellationToken
     );
 
     /// <summary>
-    /// Validates that the specified local account may be updated.
+    /// Validates that the specified local account may be updated. The default implementation reports 400 when the
+    /// display name is empty or longer than <see cref="AccountMaxLengths.DisplayName"/>, and 409 when another account
+    /// holds the username.
     /// </summary>
-    /// <param name="localAccountId">The opaque identifier of the account being updated.</param>
-    /// <param name="userName">The proposed (patched) username of the account.</param>
-    /// <param name="displayName">The proposed (patched) display name of the account, already trimmed. The default
-    /// implementation reports 400 when it is empty or longer than <see cref="AccountMaxLengths.DisplayName"/>.</param>
-    /// <param name="concurrencyToken">The current concurrency token of the account.</param>
+    /// <param name="account">The current <see cref="PersistedLocalAccount"/> being updated.</param>
+    /// <param name="model">The proposed (patched) profile, its display name trimmed.</param>
     /// <param name="ifMatch">The optional <c>If-Match</c> precondition: <c>*</c>, a quoted strong entity tag or a comma-separated list of them, or the bare concurrency token.</param>
     /// <param name="storeManager">The <see cref="IStoreManager"/> for the current unit of work.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>A <see cref="ManagementError"/> describing the first failed precondition, or <c>null</c> when valid.</returns>
     ValueTask<ManagementError?> ValidateUpdateAsync(
-        string localAccountId,
-        string userName,
-        string displayName,
-        string concurrencyToken,
+        PersistedLocalAccount account,
+        UpdateLocalAccountRequest model,
         string? ifMatch,
         IStoreManager storeManager,
         CancellationToken cancellationToken
@@ -96,12 +94,12 @@ public interface ILocalAccountValidator
     /// <summary>
     /// Validates that the specified local account may be deleted.
     /// </summary>
-    /// <param name="localAccountId">The opaque identifier of the account being deleted.</param>
+    /// <param name="account">The current <see cref="PersistedLocalAccount"/> being deleted.</param>
     /// <param name="storeManager">The <see cref="IStoreManager"/> for the current unit of work.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <returns>A <see cref="ManagementError"/> describing the first failed precondition, or <c>null</c> when valid.</returns>
     ValueTask<ManagementError?> ValidateDeleteAsync(
-        string localAccountId,
+        PersistedLocalAccount account,
         IStoreManager storeManager,
         CancellationToken cancellationToken
     );
