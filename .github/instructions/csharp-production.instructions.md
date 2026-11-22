@@ -681,7 +681,7 @@ than inlining the rationale.
   the principal a valid token authenticates whatever an authentication scheme set, and sets `IManagementCallerFeature`
   only for that authenticated caller. A route that authorizes reads `HttpContext.User`; a route that only authenticates
   its caller, such as `GET /api/capabilities` and `GET /api/me`, reads `IManagementCallerFeature`, answers
-  `ManagementProblems.AuthenticationRequired()` without it and declares `401` and no `403`. See
+  `ManagementProblems.AuthenticationRequired(HttpContext)` without it and declares `401` and no `403`. See
   [ADR-1044](../../docs/decisions/1044-the-management-api-authenticates-its-own-access-tokens-and-a-configured-client-bootstraps-the-first-globaladmin.md).
 - 👁 **An API authenticates its caller before it reads the body.** Add the check as an `IEndpointGate` with
   `AddEndpointGate<TGate>()`, never as an endpoint filter, which runs after minimal APIs bind the request's parameters
