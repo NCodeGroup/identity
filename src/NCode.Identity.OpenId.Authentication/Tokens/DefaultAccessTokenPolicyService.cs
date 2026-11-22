@@ -135,10 +135,12 @@ internal class DefaultAccessTokenPolicyService(
             return;
         }
 
+        var permittedDescription = Describe(permittedMethods);
+        var boundDescription = Describe(boundMethods);
         throw openIdContext
             .ErrorFactory.InvalidRequest(
                 $"The access token must be bound by a confirmation method every resource server it targets verifies "
-                    + $"({Describe(permittedMethods)}), but it is bound by {Describe(boundMethods)}."
+                    + $"({permittedDescription}), but it is bound by {boundDescription}."
             )
             .AsException();
     }
@@ -163,10 +165,11 @@ internal class DefaultAccessTokenPolicyService(
             )
         )
         {
+            var permittedDescription = Describe(permitted);
             throw CreateServerError(
                 openIdContext,
                 "The tenant has no key to sign the access token with an algorithm its "
-                    + $"'{OpenIdSettingNames.AccessTokenSigningAlgValuesSupported}' permits ({Describe(permitted)})."
+                    + $"'{OpenIdSettingNames.AccessTokenSigningAlgValuesSupported}' permits ({permittedDescription})."
             );
         }
 
@@ -228,14 +231,18 @@ internal class DefaultAccessTokenPolicyService(
 
         var ownSettings = resourceServer.EffectiveSettings;
 
+        var algorithmCollection = AlgorithmCollectionProvider.Collection;
+        var permittedAlgs = ownSettings.GetPermittedAlgorithms(
+            OpenIdSettingKeys.AccessTokenEncryptionAlgValuesSupported
+        );
+        var permittedEncs = ownSettings.GetPermittedAlgorithms(
+            OpenIdSettingKeys.AccessTokenEncryptionEncValuesSupported
+        );
+
         return CredentialSelector.TryGetEncryptionCredentials(
-            AlgorithmCollectionProvider.Collection,
-            ownSettings.GetPermittedAlgorithms(
-                OpenIdSettingKeys.AccessTokenEncryptionAlgValuesSupported
-            ),
-            ownSettings.GetPermittedAlgorithms(
-                OpenIdSettingKeys.AccessTokenEncryptionEncValuesSupported
-            ),
+            algorithmCollection,
+            permittedAlgs,
+            permittedEncs,
             [],
             resourceServer.SecretsProvider.Collection,
             out _
@@ -249,15 +256,18 @@ internal class DefaultAccessTokenPolicyService(
         string failureDescription
     )
     {
+        var algorithmCollection = AlgorithmCollectionProvider.Collection;
+        var permittedAlgs = settings.GetPermittedAlgorithms(
+            OpenIdSettingKeys.AccessTokenEncryptionAlgValuesSupported
+        );
+        var permittedEncs = settings.GetPermittedAlgorithms(
+            OpenIdSettingKeys.AccessTokenEncryptionEncValuesSupported
+        );
         if (
             !CredentialSelector.TryGetEncryptionCredentials(
-                AlgorithmCollectionProvider.Collection,
-                settings.GetPermittedAlgorithms(
-                    OpenIdSettingKeys.AccessTokenEncryptionAlgValuesSupported
-                ),
-                settings.GetPermittedAlgorithms(
-                    OpenIdSettingKeys.AccessTokenEncryptionEncValuesSupported
-                ),
+                algorithmCollection,
+                permittedAlgs,
+                permittedEncs,
                 [],
                 candidateKeys,
                 out var encryptionCredentials

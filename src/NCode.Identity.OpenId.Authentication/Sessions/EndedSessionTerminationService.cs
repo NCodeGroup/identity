@@ -168,10 +168,11 @@ internal sealed class EndedSessionTerminationService(
         using var _ = AmbientTenantAccessor.BeginUnscoped("ended session termination");
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
         var store = storeManager.GetStore<IGrantStore>();
+        var pageRequest = new PageRequest { Cursor = cursor, Limit = PageSize };
         return await store.GetUnrevokedExpiredPageAsync(
             OpenIdConstants.PersistedGrantTypes.Session,
             now,
-            new PageRequest { Cursor = cursor, Limit = PageSize },
+            pageRequest,
             cancellationToken
         );
     }

@@ -57,47 +57,41 @@ internal static class DefaultRegistration
                 DefaultAuthenticateAccessTokenHandler
             >();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<GetIdTokenSubjectClaimsCommand>,
-                    DefaultGetIdTokenSubjectClaimsHandler
-                >()
-            );
+            var idTokenSubjectClaimsHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<GetIdTokenSubjectClaimsCommand>,
+                DefaultGetIdTokenSubjectClaimsHandler
+            >();
+            serviceCollection.TryAddEnumerable(idTokenSubjectClaimsHandler);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<GetIdTokenPayloadClaimsCommand>,
-                    DefaultGetIdTokenPayloadClaimsHandler
-                >()
-            );
+            var idTokenPayloadClaimsHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<GetIdTokenPayloadClaimsCommand>,
+                DefaultGetIdTokenPayloadClaimsHandler
+            >();
+            serviceCollection.TryAddEnumerable(idTokenPayloadClaimsHandler);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<GetAccessTokenSubjectClaimsCommand>,
-                    DefaultGetAccessTokenSubjectClaimsHandler
-                >()
-            );
+            var accessTokenSubjectClaimsHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<GetAccessTokenSubjectClaimsCommand>,
+                DefaultGetAccessTokenSubjectClaimsHandler
+            >();
+            serviceCollection.TryAddEnumerable(accessTokenSubjectClaimsHandler);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<GetAccessTokenPayloadClaimsCommand>,
-                    DefaultGetAccessTokenPayloadClaimsHandler
-                >()
-            );
+            var accessTokenPayloadClaimsHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<GetAccessTokenPayloadClaimsCommand>,
+                DefaultGetAccessTokenPayloadClaimsHandler
+            >();
+            serviceCollection.TryAddEnumerable(accessTokenPayloadClaimsHandler);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<GetIdTokenSubjectClaimsCommand>,
-                    DefaultGetIdTokenMetadataClaimsHandler
-                >()
-            );
+            var idTokenMetadataClaimsHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<GetIdTokenSubjectClaimsCommand>,
+                DefaultGetIdTokenMetadataClaimsHandler
+            >();
+            serviceCollection.TryAddEnumerable(idTokenMetadataClaimsHandler);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ICommandHandler<GetAccessTokenSubjectClaimsCommand>,
-                    DefaultGetAccessTokenMetadataClaimsHandler
-                >()
-            );
+            var accessTokenMetadataClaimsHandler = ServiceDescriptor.Singleton<
+                ICommandHandler<GetAccessTokenSubjectClaimsCommand>,
+                DefaultGetAccessTokenMetadataClaimsHandler
+            >();
+            serviceCollection.TryAddEnumerable(accessTokenMetadataClaimsHandler);
 
             return builder;
         }

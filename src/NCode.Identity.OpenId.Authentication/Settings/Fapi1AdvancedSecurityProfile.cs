@@ -80,17 +80,25 @@ internal sealed class Fapi1AdvancedSecurityProfile : ISecurityProfile
         ceiling.Set(OpenIdSettingKeys.RequireRequestObject, true);
 
         // Short-lived authorization code and PAR request_uri (Min ceilings can only be shortened by a child).
-        ceiling.Set(OpenIdSettingKeys.AuthorizationCodeLifetime, TimeSpan.FromSeconds(60));
-        ceiling.Set(OpenIdSettingKeys.PushedAuthorizationRequestLifetime, TimeSpan.FromSeconds(90));
+        var authorizationCodeLifetime = TimeSpan.FromSeconds(60);
+        ceiling.Set(OpenIdSettingKeys.AuthorizationCodeLifetime, authorizationCodeLifetime);
+        var pushedAuthorizationRequestLifetime = TimeSpan.FromSeconds(90);
+        ceiling.Set(
+            OpenIdSettingKeys.PushedAuthorizationRequestLifetime,
+            pushedAuthorizationRequestLifetime
+        );
 
         // Tight clock skew for signed request objects / client assertions (Min ceiling).
-        ceiling.Set(OpenIdSettingKeys.ClockSkew, TimeSpan.FromSeconds(60));
+        var clockSkew = TimeSpan.FromSeconds(60);
+        ceiling.Set(OpenIdSettingKeys.ClockSkew, clockSkew);
 
         // Pin the client-assertion lifetime at the secure default (Min ceiling) (ADR-1187).
-        ceiling.Set(OpenIdSettingKeys.ClientAssertionMaxLifetime, TimeSpan.FromMinutes(5));
+        var clientAssertionMaxLifetime = TimeSpan.FromMinutes(5);
+        ceiling.Set(OpenIdSettingKeys.ClientAssertionMaxLifetime, clientAssertionMaxLifetime);
 
         // A request object carries 'nbf' and 'exp', at most 60 minutes apart (§5.2.2-13, -17) (ADR-1187).
-        ceiling.Set(OpenIdSettingKeys.RequestObjectMaxLifetime, TimeSpan.FromMinutes(60));
+        var requestObjectMaxLifetime = TimeSpan.FromMinutes(60);
+        ceiling.Set(OpenIdSettingKeys.RequestObjectMaxLifetime, requestObjectMaxLifetime);
         ceiling.Set(OpenIdSettingKeys.RequestObjectNotBeforeRequired, true);
 
         // FAPI 1.0 Part 1 §5.2.2-20 and §7.5 permit only https redirect URIs: no http, loopback, or private-use

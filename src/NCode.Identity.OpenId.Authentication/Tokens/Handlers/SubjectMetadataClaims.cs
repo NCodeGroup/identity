@@ -39,6 +39,8 @@ internal static class SubjectMetadataClaims
             }
         }
 
-        claims.Add(new Claim(claimType, bag.GetRawText(), JsonClaimValueTypes.Json));
+        var rawText = bag.GetRawText();
+        var metadataClaim = new Claim(claimType, rawText, JsonClaimValueTypes.Json);
+        claims.Add(metadataClaim);
     }
 }

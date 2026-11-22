@@ -55,9 +55,8 @@ internal class DefaultAuthenticateAccessTokenHandler(
         if (!validateResult.IsValid)
         {
             Logger.AccessTokenInvalid(validateResult.Exception);
-            return new AuthenticateAccessTokenDisposition(
-                openIdContext.ErrorFactory.InvalidToken()
-            );
+            var invalidTokenError = openIdContext.ErrorFactory.InvalidToken();
+            return new AuthenticateAccessTokenDisposition(invalidTokenError);
         }
 
         var claimsIdentity = await validateResult.GetClaimsIdentityAsync(cancellationToken);
@@ -79,7 +78,8 @@ internal class DefaultAuthenticateAccessTokenHandler(
             }
         }
 
-        return new AuthenticateAccessTokenDisposition(new ClaimsPrincipal(claimsIdentity));
+        var principal = new ClaimsPrincipal(claimsIdentity);
+        return new AuthenticateAccessTokenDisposition(principal);
     }
 
     private static TokenConfirmation ReadConfirmation(ClaimsIdentity claimsIdentity)
