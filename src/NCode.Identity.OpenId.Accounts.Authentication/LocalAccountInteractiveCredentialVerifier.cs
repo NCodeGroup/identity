@@ -20,7 +20,7 @@ namespace NCode.Identity.OpenId.Accounts.Authentication;
 /// Provides the local-account implementation of the <see cref="IInteractiveCredentialVerifier"/> seam, backed by the
 /// configured <see cref="ILocalAccountStore"/> — the same credential path the resource-owner password grant uses. It
 /// verifies the submitted username/password and, on success, builds the cookie <see cref="ClaimsPrincipal"/> carrying
-/// the subject, issuer, tenant, and authentication-time claims the authorize flow reads. A host fronting a different
+/// the subject, issuer, tenant, and authentication-time claims the authorize flow reads, and the <c>name</c> claim from the account's display name. A host fronting a different
 /// backend (LDAP, an external identity provider, passwordless) registers its own implementation instead. A password for
 /// an account that reached its limit of failed attempts is verified against the store's dummy hash and refused, as a
 /// wrong one is.
@@ -126,13 +126,16 @@ internal sealed class LocalAccountInteractiveCredentialVerifier(
 
         var authTime = TimeProvider.GetUtcNow().ToUnixTimeSeconds();
         var authTimeValue = authTime.ToString(CultureInfo.InvariantCulture);
-        var claims = new List<Claim>(account.Claims.Count + 6)
+        var claims = new List<Claim>(account.Claims.Count + 7)
         {
             new(subjectClaimType, account.LocalAccountId),
             new(issuerClaimType, AccountConstants.SelfIssuer),
             new(JoseClaimNames.Payload.Tid, openIdContext.Tenant.TenantId),
             new(JoseClaimNames.Payload.AuthTime, authTimeValue, ClaimValueTypes.Integer64),
         };
+        // The display name is the account's 'name' claim.
+        var nameClaim = new Claim(JoseClaimNames.Payload.Name, account.DisplayName);
+        claims.Add(nameClaim);
         var accountClaims = account.Claims.Select(claim => new Claim(claim.Type, claim.Value));
         claims.AddRange(accountClaims);
 

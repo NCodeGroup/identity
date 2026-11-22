@@ -14,7 +14,7 @@ namespace NCode.Identity.OpenId.Accounts.Authentication;
 /// Provides a default implementation of a handler for the <see cref="CreatePasswordGrantSubjectCommand"/> message that
 /// builds the subject from a validated local account: the self-issued connection's subject and issuer claims plus the
 /// account's profile claims. The local account is a self-issued connection, so principal resolution and linking treat
-/// it uniformly with any federated identity. The principal's metadata bags are not carried here;
+/// it uniformly with any federated identity. The <c>name</c> claim comes from the account's display name. The principal's metadata bags are not carried here;
 /// they are a principal-level concept resolved fresh at issuance by the subject-claims projection handlers.
 /// </summary>
 // See ADR-1035, ADR-1051, ADR-1055.
@@ -44,7 +44,7 @@ internal class DefaultCreatePasswordGrantSubjectHandler(
         // was just verified, so the authentication time is now.
         var authTime = TimeProvider.GetUtcNow().ToUnixTimeSeconds();
         var authTimeValue = authTime.ToString(CultureInfo.InvariantCulture);
-        var claims = new List<Claim>(account.Claims.Count + 6)
+        var claims = new List<Claim>(account.Claims.Count + 7)
         {
             // The subject is stamped under the tenant's primary subject claim type so principal resolution reads it
             // back through the same tenant-aware GetSubjectId seam (ADR-1053).
@@ -53,6 +53,9 @@ internal class DefaultCreatePasswordGrantSubjectHandler(
             new(JoseClaimNames.Payload.Tid, openIdContext.Tenant.TenantId),
             new(JoseClaimNames.Payload.AuthTime, authTimeValue, ClaimValueTypes.Integer64),
         };
+        // The display name is the account's 'name' claim.
+        var nameClaim = new Claim(JoseClaimNames.Payload.Name, account.DisplayName);
+        claims.Add(nameClaim);
         var accountClaims = account.Claims.Select(claim => new Claim(claim.Type, claim.Value));
         claims.AddRange(accountClaims);
 

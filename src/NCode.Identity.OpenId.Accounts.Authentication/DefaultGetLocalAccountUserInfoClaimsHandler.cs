@@ -29,7 +29,7 @@ namespace NCode.Identity.OpenId.Accounts.Authentication;
 /// from the account store even when the owning scope was not granted. The local account is resolved from the caller's
 /// principal via its one-to-one self-issued connection (<see cref="AccountConstants.SelfIssuer"/>), and only the
 /// claims permitted by the token's granted scopes or explicitly requested are emitted. A host fronting a different
-/// user store registers its own enricher instead.
+/// user store registers its own enricher instead. The <c>name</c> claim comes from the account's display name.
 /// </summary>
 // See ADR-1401, ADR-1051.
 internal sealed class DefaultGetLocalAccountUserInfoClaimsHandler(
@@ -85,6 +85,12 @@ internal sealed class DefaultGetLocalAccountUserInfoClaimsHandler(
         {
             TryAdd(claims, JoseClaimNames.Payload.Email, account.Email);
             TryAdd(claims, JoseClaimNames.Payload.EmailVerified, account.EmailVerified);
+        }
+
+        // The display name is the account's 'name' claim, a first-class account field rather than a profile claim.
+        if (claimTypes.Contains(JoseClaimNames.Payload.Name))
+        {
+            TryAdd(claims, JoseClaimNames.Payload.Name, account.DisplayName);
         }
 
         if (claimTypes.Count == 0)
