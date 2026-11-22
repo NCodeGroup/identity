@@ -83,7 +83,8 @@ public class InteractiveAuthenticationEndpointHandlerTests
 
         var result = InteractiveAuthenticationEndpointHandler.BuildMeResponse(
             principal,
-            "subject-1"
+            "subject-1",
+            emailVerification: true
         );
 
         Assert.Equal("subject-1", result.Subject);
@@ -92,6 +93,7 @@ public class InteractiveAuthenticationEndpointHandlerTests
         Assert.Equal(["pwd", "mfa"], result.Amr);
         Assert.Equal("local", result.Idp);
         Assert.Equal("session-123", result.SessionId);
+        Assert.True(result.EmailVerification);
     }
 
     [Fact]
@@ -106,7 +108,8 @@ public class InteractiveAuthenticationEndpointHandlerTests
 
         var result = InteractiveAuthenticationEndpointHandler.BuildMeResponse(
             principal,
-            "subject-1"
+            "subject-1",
+            emailVerification: false
         );
 
         Assert.Equal("ada", result.Name);
@@ -119,7 +122,8 @@ public class InteractiveAuthenticationEndpointHandlerTests
 
         var result = InteractiveAuthenticationEndpointHandler.BuildMeResponse(
             principal,
-            "subject-1"
+            "subject-1",
+            emailVerification: false
         );
 
         Assert.Equal("subject-1", result.Name);
@@ -127,6 +131,7 @@ public class InteractiveAuthenticationEndpointHandlerTests
         Assert.Empty(result.Amr);
         Assert.Null(result.Idp);
         Assert.Null(result.SessionId);
+        Assert.False(result.EmailVerification);
     }
 
     [Fact]
@@ -141,7 +146,8 @@ public class InteractiveAuthenticationEndpointHandlerTests
 
         var result = InteractiveAuthenticationEndpointHandler.BuildMeResponse(
             principal,
-            "subject-1"
+            "subject-1",
+            emailVerification: false
         );
 
         Assert.Null(result.AuthTime);
@@ -159,7 +165,8 @@ public class InteractiveAuthenticationEndpointHandlerTests
 
         var result = InteractiveAuthenticationEndpointHandler.BuildMeResponse(
             principal,
-            "subject-1"
+            "subject-1",
+            emailVerification: false
         );
 
         Assert.Null(result.AuthTime);
@@ -177,7 +184,8 @@ public class InteractiveAuthenticationEndpointHandlerTests
 
         var result = InteractiveAuthenticationEndpointHandler.BuildMeResponse(
             principal,
-            "subject-1"
+            "subject-1",
+            emailVerification: false
         );
 
         Assert.Equal(1700000000L, result.AuthTime);

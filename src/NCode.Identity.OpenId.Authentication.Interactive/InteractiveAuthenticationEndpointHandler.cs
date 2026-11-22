@@ -45,6 +45,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     IContinueRefusalService continueRefusalService,
     IInteractivePasswordChanger passwordChanger,
     IInteractivePasswordResetter passwordResetter,
+    IInteractiveEmailVerifier emailVerifier,
     IInteractiveSignInCodeChallenge signInCodeChallenge,
     ISessionService sessionService,
     IPostCommitSecurityEffects postCommitSecurityEffects,
@@ -79,6 +80,9 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     private const string CodeSentStatusValue = "sent";
     private const string ResendAction = "resend";
 
+    // The `status` query value the email page reads back to tell the end user that the address is verified.
+    private const string EmailVerifiedStatus = "verified";
+
     // The items the pending sign-in cookie carries beside the principal: the handle of the code's flow, the local URL
     // the sign-in returns to and the language tag of the page the end user signed in on.
     private const string EmailCodeFlowItem = "email_code_flow";
@@ -91,6 +95,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     private IContinueRefusalService ContinueRefusalService { get; } = continueRefusalService;
     private IInteractivePasswordChanger PasswordChanger { get; } = passwordChanger;
     private IInteractivePasswordResetter PasswordResetter { get; } = passwordResetter;
+    private IInteractiveEmailVerifier EmailVerifier { get; } = emailVerifier;
     private IInteractiveSignInCodeChallenge SignInCodeChallenge { get; } = signInCodeChallenge;
     private ISessionService SessionService { get; } = sessionService;
     private IPostCommitSecurityEffects PostCommitSecurityEffects { get; } =
@@ -170,6 +175,10 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
         );
         surface.MapGet(InteractiveAuthenticationDefaults.LoginCodePath, GetSignInCodePageAsync);
         surface.MapPost(InteractiveAuthenticationDefaults.LoginCodePath, PostSignInCodeAsync);
+        surface.MapGet(InteractiveAuthenticationDefaults.EmailPath, GetEmailPageAsync);
+        surface.MapGet(InteractiveAuthenticationDefaults.EmailStatusPath, GetEmailStatusAsync);
+        surface.MapPost(InteractiveAuthenticationDefaults.EmailSendPath, PostSendEmailCodeAsync);
+        surface.MapPost(InteractiveAuthenticationDefaults.EmailVerifyPath, PostVerifyEmailAsync);
     }
 
     /// <summary>
@@ -334,12 +343,17 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             return TypedResults.Unauthorized();
         }
 
-        var meResponse = BuildMeResponse(principal, subjectId);
+        var emailVerification = IsEmailVerificationEnabled(httpContext);
+        var meResponse = BuildMeResponse(principal, subjectId, emailVerification);
         return TypedResults.Json(meResponse);
     }
 
     // Projects the authenticated cookie principal into the account page's view model.
-    internal static AccountMeResponse BuildMeResponse(ClaimsPrincipal principal, string subjectId)
+    internal static AccountMeResponse BuildMeResponse(
+        ClaimsPrincipal principal,
+        string subjectId,
+        bool emailVerification
+    )
     {
         var name =
             principal.FindFirst(JoseClaimNames.Payload.Name)?.Value
@@ -358,7 +372,7 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
 
         var idp = principal.FindFirst(JoseClaimNames.Payload.Idp)?.Value;
         var sid = principal.FindFirst(JoseClaimNames.Payload.Sid)?.Value;
-        return new AccountMeResponse(subjectId, name, authTime, amr, idp, sid);
+        return new AccountMeResponse(subjectId, name, authTime, amr, idp, sid, emailVerification);
     }
 
     /// <summary>
@@ -1495,6 +1509,180 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
     }
 
     /// <summary>
+    /// Serves the email page (the single-page bundle), establishing the antiforgery token its forms echo back. A
+    /// request without an active session is redirected to the login page with the email page as its return URL. The
+    /// page is not found while the tenant does not let its end users verify their address.
+    /// </summary>
+    // See ADR-1533.
+    public async ValueTask<IResult> GetEmailPageAsync(HttpContext httpContext)
+    {
+        if (!IsEmailVerificationEnabled(httpContext))
+        {
+            return TypedResults.NotFound();
+        }
+
+        var authenticateResult = await AuthenticateSessionAsync(
+            httpContext,
+            httpContext.RequestAborted
+        );
+        if (!authenticateResult.Succeeded)
+        {
+            return RedirectToLogin(httpContext, InteractiveAuthenticationDefaults.EmailPath);
+        }
+
+        return await ServeBundleAsync(httpContext, httpContext.RequestAborted);
+    }
+
+    /// <summary>
+    /// Returns the address of the current end user and whether it is verified as JSON for the email page, <c>401</c>
+    /// when the request is not authenticated, or <c>404</c> when the end user has no address to verify or the tenant
+    /// does not let its end users verify their address.
+    /// </summary>
+    // See ADR-1533.
+    public async ValueTask<IResult> GetEmailStatusAsync(HttpContext httpContext)
+    {
+        if (!IsEmailVerificationEnabled(httpContext))
+        {
+            return TypedResults.NotFound();
+        }
+
+        var authenticateResult = await AuthenticateSessionAsync(
+            httpContext,
+            httpContext.RequestAborted
+        );
+        if (!authenticateResult.Succeeded)
+        {
+            return TypedResults.Unauthorized();
+        }
+
+        var openIdContext = httpContext.GetOpenIdContext();
+        var status = await EmailVerifier.GetStatusAsync(
+            openIdContext,
+            authenticateResult.Principal,
+            httpContext.RequestAborted
+        );
+        if (status is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        var response = new AccountEmailResponse(status.Email, status.IsVerified);
+        return TypedResults.Json(response);
+    }
+
+    /// <summary>
+    /// Mails the current end user's address a code that verifies it, then redirects to the email page with
+    /// <c>?flow=</c> and the handle of the verification flow, or with <c>?error=</c> and the reason the code is
+    /// refused, such as <c>already_verified</c>, <c>no_email</c> or <c>too_many_codes</c>. A request without an active
+    /// session is redirected to the login page. The page is not found while the tenant does not let its end users
+    /// verify their address.
+    /// </summary>
+    // See ADR-1533.
+    public async ValueTask<IResult> PostSendEmailCodeAsync(HttpContext httpContext)
+    {
+        if (!IsEmailVerificationEnabled(httpContext))
+        {
+            return TypedResults.NotFound();
+        }
+
+        var authenticateResult = await AuthenticateSessionAsync(
+            httpContext,
+            httpContext.RequestAborted
+        );
+        if (!authenticateResult.Succeeded)
+        {
+            return RedirectToLogin(httpContext, InteractiveAuthenticationDefaults.EmailPath);
+        }
+
+        var openIdContext = httpContext.GetOpenIdContext();
+        var locale = SelectLocale(httpContext);
+        var sent = await EmailVerifier.SendVerificationCodeAsync(
+            openIdContext,
+            authenticateResult.Principal,
+            locale,
+            httpContext.RequestAborted
+        );
+        return sent.IsAccepted
+            ? RedirectToSurfacePage(
+                httpContext,
+                InteractiveAuthenticationDefaults.EmailPath,
+                languageTag: null,
+                (FlowQueryName, sent.FlowId)
+            )
+            : RedirectToSurfacePage(
+                httpContext,
+                InteractiveAuthenticationDefaults.EmailPath,
+                languageTag: null,
+                (ErrorQueryName, sent.Error)
+            );
+    }
+
+    /// <summary>
+    /// Verifies the current end user's address from the code the email page posts, then redirects to the email page
+    /// with <c>?status=verified</c>, or back to it, keeping the flow, with <c>?error=</c> and <c>invalid_request</c>
+    /// for a missing field or the error code the backend reports, such as <c>invalid_code</c>. A request without an
+    /// active session is redirected to the login page. The page is not found while the tenant does not let its end
+    /// users verify their address.
+    /// </summary>
+    // See ADR-1533.
+    public async ValueTask<IResult> PostVerifyEmailAsync(
+        HttpContext httpContext,
+        [FromForm(Name = FlowQueryName)] string? flow,
+        [FromForm(Name = "code")] string? code
+    )
+    {
+        if (!IsEmailVerificationEnabled(httpContext))
+        {
+            return TypedResults.NotFound();
+        }
+
+        var authenticateResult = await AuthenticateSessionAsync(
+            httpContext,
+            httpContext.RequestAborted
+        );
+        if (!authenticateResult.Succeeded)
+        {
+            return RedirectToLogin(httpContext, InteractiveAuthenticationDefaults.EmailPath);
+        }
+
+        string? error;
+        if (string.IsNullOrEmpty(flow) || string.IsNullOrEmpty(code))
+        {
+            error = InteractivePasswordChangeErrors.InvalidRequest;
+        }
+        else
+        {
+            var openIdContext = httpContext.GetOpenIdContext();
+            var verified = await EmailVerifier.VerifyEmailAsync(
+                openIdContext,
+                authenticateResult.Principal,
+                flow,
+                code,
+                httpContext.RequestAborted
+            );
+            if (verified.IsAccepted)
+            {
+                return RedirectToSurfacePage(
+                    httpContext,
+                    InteractiveAuthenticationDefaults.EmailPath,
+                    languageTag: null,
+                    (StatusQueryName, EmailVerifiedStatus)
+                );
+            }
+
+            error = verified.Error;
+        }
+
+        return RedirectToSurfacePage(
+            httpContext,
+            InteractiveAuthenticationDefaults.EmailPath,
+            languageTag: null,
+            (FlowQueryName, flow),
+            (ErrorQueryName, error)
+        );
+    }
+
+    /// <summary>
     /// Serves the sign-in code page, where an end user whose password is verified presents the code mailed to the
     /// account's address. The server renders a working no-JavaScript form carrying the antiforgery token. A request
     /// without a pending sign-in is redirected to the login page.
@@ -1792,6 +1980,15 @@ internal sealed class InteractiveAuthenticationEndpointHandler(
             identity.AddClaim(claim);
         }
     }
+
+    // The email page and its endpoints exist only while the tenant lets its end users verify their address.
+    // See ADR-1533.
+    private static bool IsEmailVerificationEnabled(HttpContext httpContext) =>
+        httpContext
+            .GetOpenIdContext()
+            .Tenant.SettingsProvider.Collection.GetValue(
+                OpenIdSettingKeys.EmailVerificationEnabled
+            );
 
     // The forgot-password and reset-password pages exist only while the tenant lets its end users reset a password.
     // See ADR-1533.
