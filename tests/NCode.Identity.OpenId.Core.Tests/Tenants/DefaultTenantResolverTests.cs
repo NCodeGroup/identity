@@ -47,6 +47,7 @@ public sealed class DefaultTenantResolverTests
 
         var resolver = new DefaultTenantResolver(
             options,
+            Options.Create(new CellOptions()),
             mocks.Create<IAmbientTenantAccessor>().Object,
             mocks.Create<ITenantDirectory>().Object,
             [strategy.Object]
@@ -66,7 +67,8 @@ public sealed class DefaultTenantResolverTests
     private static DefaultTenantResolver CreateResolver(
         ITenantStrategy strategy,
         IAmbientTenantAccessor? ambientTenantAccessor = null,
-        ITenantDirectory? tenantDirectory = null
+        ITenantDirectory? tenantDirectory = null,
+        CellOptions? cellOptions = null
     ) =>
         new(
             Options.Create(
@@ -75,6 +77,7 @@ public sealed class DefaultTenantResolverTests
                     StrategyCode = OpenIdConstants.TenantStrategyCodes.DynamicByPath,
                 }
             ),
+            Options.Create(cellOptions ?? new CellOptions()),
             ambientTenantAccessor ?? CreateAmbientTenantAccessor(),
             tenantDirectory ?? new Mock<ITenantDirectory>(MockBehavior.Strict).Object,
             [strategy]
@@ -270,6 +273,10 @@ public sealed class DefaultTenantResolverTests
             .Setup(x => x.GetOrDefaultByIssuerAsync(Issuer, CancellationToken.None))
             .ReturnsAsync(CreatePersistedTenant(TenantId))
             .Verifiable();
+        strategy
+            .Setup(x => x.GetControlPlaneTenantId())
+            .Returns(RootTenantOptions.DefaultTenantId)
+            .Verifiable();
         directory
             .Setup(x => x.GetRetiredIssuerHolderOrDefaultAsync(Issuer, CancellationToken.None))
             .ReturnsAsync((string?)null)
@@ -318,6 +325,10 @@ public sealed class DefaultTenantResolverTests
         var storeManager = mocks.Create<IStoreManager>();
         var store = CreateStore(mocks, storeManager);
         var directory = CreateDirectory(mocks, TenantId);
+        strategy
+            .Setup(x => x.GetControlPlaneTenantId())
+            .Returns(RootTenantOptions.DefaultTenantId)
+            .Verifiable();
         store
             .Setup(x => x.GetOrDefaultByIssuerAsync(issuer, CancellationToken.None))
             .ReturnsAsync((PersistedTenant?)null)
@@ -370,6 +381,10 @@ public sealed class DefaultTenantResolverTests
         var storeManager = mocks.Create<IStoreManager>();
         var store = CreateStore(mocks, storeManager);
         var directory = CreateDirectory(mocks, RootTenantOptions.DefaultTenantId);
+        strategy
+            .Setup(x => x.GetControlPlaneTenantId())
+            .Returns(RootTenantOptions.DefaultTenantId)
+            .Verifiable();
         store
             .Setup(x => x.GetOrDefaultByIssuerAsync(rootIssuer, CancellationToken.None))
             .ReturnsAsync((PersistedTenant?)null)
@@ -437,6 +452,79 @@ public sealed class DefaultTenantResolverTests
     }
 
     [Fact]
+    public async Task ValidateTenantAsync_WhenTheControlPlaneCellJudgesItsControlPlaneTenant_AsksTheDirectoryNothing()
+    {
+        var mocks = new MockRepository(MockBehavior.Strict);
+        var strategy = CreateStrategy(mocks);
+        var storeManager = mocks.Create<IStoreManager>();
+        CreateStore(mocks, storeManager);
+        var directory = mocks.Create<ITenantDirectory>();
+
+        strategy.Setup(x => x.GetControlPlaneTenantId()).Returns(TenantId).Verifiable();
+        strategy
+            .Setup(x =>
+                x.ValidateTenantAsync(
+                    TenantId,
+                    null,
+                    null,
+                    storeManager.Object,
+                    CancellationToken.None
+                )
+            )
+            .ReturnsAsync([])
+            .Verifiable();
+
+        var failures = await CreateResolver(
+                strategy.Object,
+                tenantDirectory: directory.Object,
+                cellOptions: new CellOptions { IsControlPlane = true }
+            )
+            .ValidateTenantAsync(TenantId, null, null, storeManager.Object, CancellationToken.None);
+
+        Assert.Empty(failures);
+        mocks.Verify();
+    }
+
+    [Fact]
+    public async Task ValidateTenantAsync_WhenTheControlPlaneCellJudgesAnotherTenant_AsksTheDirectory()
+    {
+        var mocks = new MockRepository(MockBehavior.Strict);
+        var strategy = CreateStrategy(mocks);
+        var storeManager = mocks.Create<IStoreManager>();
+        CreateStore(mocks, storeManager);
+        var directory = CreateDirectory(mocks, TenantId, isTenantIdRetired: true);
+
+        strategy
+            .Setup(x => x.GetControlPlaneTenantId())
+            .Returns(RootTenantOptions.DefaultTenantId)
+            .Verifiable();
+        strategy
+            .Setup(x =>
+                x.ValidateTenantAsync(
+                    TenantId,
+                    null,
+                    null,
+                    storeManager.Object,
+                    CancellationToken.None
+                )
+            )
+            .ReturnsAsync([])
+            .Verifiable();
+
+        var failures = await CreateResolver(
+                strategy.Object,
+                tenantDirectory: directory.Object,
+                cellOptions: new CellOptions { IsControlPlane = true }
+            )
+            .ValidateTenantAsync(TenantId, null, null, storeManager.Object, CancellationToken.None);
+
+        var failure = Assert.Single(failures);
+        Assert.True(failure.IsConflict);
+        Assert.Contains("never reissued", failure.Detail, StringComparison.Ordinal);
+        mocks.Verify();
+    }
+
+    [Fact]
     public async Task ValidateTenantAsync_WhenAnotherTenantGaveUpTheIssuer_ReportsAConflict()
     {
         var mocks = new MockRepository(MockBehavior.Strict);
@@ -498,6 +586,10 @@ public sealed class DefaultTenantResolverTests
         directory
             .Setup(x => x.GetRetiredIssuerHolderOrDefaultAsync(Issuer, CancellationToken.None))
             .ReturnsAsync(TenantId.ToUpperInvariant())
+            .Verifiable();
+        strategy
+            .Setup(x => x.GetControlPlaneTenantId())
+            .Returns(RootTenantOptions.DefaultTenantId)
             .Verifiable();
         strategy
             .Setup(x =>

@@ -20,16 +20,20 @@ namespace NCode.Identity.OpenId.Tenants;
 /// validates the addressing rules every strategy shares itself — the root tenant's address among them — and the
 /// selected strategy validates its own and derives a tenant's default issuer. The lookups that find a tenant by its
 /// host or issuer, and the validation lookups, read across tenants, so each runs in an unscoped scope. The identifiers
-/// and issuers of deleted tenants are answered by the <see cref="ITenantDirectory"/>.
+/// and issuers of deleted tenants are answered by the <see cref="ITenantDirectory"/>, except that the control-plane
+/// cell judges its own control-plane tenant without the tenant directory.
 /// </summary>
 internal class DefaultTenantResolver(
     IOptions<TenantResolutionOptions> optionsAccessor,
+    IOptions<CellOptions> cellOptionsAccessor,
     IAmbientTenantAccessor ambientTenantAccessor,
     ITenantDirectory tenantDirectory,
     IEnumerable<ITenantStrategy> strategies
 ) : ITenantResolver
 {
     private TenantResolutionOptions Options { get; } = optionsAccessor.Value;
+
+    private CellOptions CellOptions { get; } = cellOptionsAccessor.Value;
 
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
 
@@ -177,9 +181,20 @@ internal class DefaultTenantResolver(
         // The identifier, issuer and host rules hold across every tenant, so the lookups read across tenants.
         using var unscoped = AmbientTenantAccessor.BeginUnscoped("tenant address validation");
 
+        // The control-plane cell judges its control-plane tenant without the directory, which accepts only that
+        // tenant's tokens, so the directory cannot answer for it before the cell serves (ADR-1411).
+        var judgedByDirectory = !RootTenantRules.IsDirectoryTokenIssuer(
+            CellOptions,
+            this,
+            tenantId
+        );
+
         // A tenant identifier names its tenant in every route and management call, so one that belonged to a deleted
         // tenant is never reissued (ADR-1160).
-        if (await TenantDirectory.IsTenantIdRetiredAsync(tenantId, cancellationToken))
+        if (
+            judgedByDirectory
+            && await TenantDirectory.IsTenantIdRetiredAsync(tenantId, cancellationToken)
+        )
         {
             var retiredTenantIdFailure = new TenantValidationFailure
             {
@@ -211,7 +226,8 @@ internal class DefaultTenantResolver(
                 failures.Add(duplicateIssuerFailure);
             }
             else if (
-                await TenantDirectory.GetRetiredIssuerHolderOrDefaultAsync(
+                judgedByDirectory
+                && await TenantDirectory.GetRetiredIssuerHolderOrDefaultAsync(
                     issuerUri.OriginalString,
                     cancellationToken
                 )
@@ -260,7 +276,7 @@ internal class DefaultTenantResolver(
         CancellationToken cancellationToken
     )
     {
-        var rootTenantId = Options.Root.TenantId;
+        var rootTenantId = GetControlPlaneTenantId();
         if (string.Equals(tenantId, rootTenantId, StringComparison.OrdinalIgnoreCase))
             return false;
 
