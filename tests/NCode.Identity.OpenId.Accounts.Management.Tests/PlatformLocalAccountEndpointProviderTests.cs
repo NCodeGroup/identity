@@ -33,9 +33,11 @@ public sealed class PlatformLocalAccountEndpointProviderTests : IDisposable
     {
         var validator = MockRepository.Create<ILocalAccountValidator>().Object;
         var cryptoService = MockRepository.Create<ICryptoService>().Object;
+        var effectiveSettingsResolver = MockRepository.Create<IEffectiveSettingsResolver>().Object;
+        var passwordPolicy = MockRepository.Create<IPasswordPolicy>().Object;
         var localAccountPasswords = new LocalAccountPasswords(
-            MockRepository.Create<IEffectiveSettingsResolver>().Object,
-            MockRepository.Create<IPasswordPolicy>().Object
+            effectiveSettingsResolver,
+            passwordPolicy
         );
         var creator = new DefaultLocalAccountCreator(
             validator,
@@ -43,21 +45,29 @@ public sealed class PlatformLocalAccountEndpointProviderTests : IDisposable
             localAccountPasswords
         );
 
+        var storeManagerFactory = MockRepository.Create<IStoreManagerFactory>().Object;
+        var authorizationService = MockRepository.Create<IAuthorizationService>().Object;
+        var auditRecorder = MockRepository.Create<IManagementAuditRecorder>().Object;
+        var sessionService = MockRepository.Create<ISessionService>().Object;
+        var openIdContextFactory = MockRepository.Create<IOpenIdContextFactory>().Object;
+        var postCommitSecurityEffects = MockRepository.Create<IPostCommitSecurityEffects>().Object;
+        var ambientTenantAccessor = MockRepository.Create<IAmbientTenantAccessor>().Object;
         var handler = new LocalAccountApiEndpointHandler(
-            MockRepository.Create<IStoreManagerFactory>().Object,
-            MockRepository.Create<IAuthorizationService>().Object,
+            storeManagerFactory,
+            authorizationService,
             cryptoService,
             validator,
             creator,
-            MockRepository.Create<IManagementAuditRecorder>().Object,
-            MockRepository.Create<ISessionService>().Object,
-            MockRepository.Create<IOpenIdContextFactory>().Object,
+            auditRecorder,
+            sessionService,
+            openIdContextFactory,
             localAccountPasswords,
-            MockRepository.Create<IPostCommitSecurityEffects>().Object,
-            MockRepository.Create<IAmbientTenantAccessor>().Object
+            postCommitSecurityEffects,
+            ambientTenantAccessor
         );
 
-        var options = Options.Create(new CellOptions { IsControlPlane = isControlPlane });
+        var cellOptions = new CellOptions { IsControlPlane = isControlPlane };
+        var options = Options.Create(cellOptions);
         return new PlatformLocalAccountEndpointProvider(handler, options);
     }
 

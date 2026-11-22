@@ -44,10 +44,11 @@ public class LocalAccountSubjectFactoryTests : BaseTests
 
     private OpenIdContext CreateContext()
     {
+        var subjectClaimTypes = new[] { "sub" };
         var mockSettings = CreateStrictMock<IReadOnlySettingCollection>();
         mockSettings
             .Setup(x => x.GetValue(OpenIdSettingKeys.SubjectClaimTypes))
-            .Returns(new[] { "sub" })
+            .Returns(subjectClaimTypes)
             .Verifiable();
         mockSettings
             .Setup(x => x.GetValue(OpenIdSettingKeys.PrincipalIssuerClaim))
@@ -89,10 +90,11 @@ public class LocalAccountSubjectFactoryTests : BaseTests
     public async Task CreateAsync_StampsSubjectIssuerTenantAndAccountClaims()
     {
         var context = CreateContext();
+        var account = CreateAccount();
 
         var principal = await Factory.CreateAsync(
             context,
-            CreateAccount(),
+            account,
             AuthenticationType,
             CancellationToken.None
         );
@@ -111,10 +113,11 @@ public class LocalAccountSubjectFactoryTests : BaseTests
     public async Task CreateAsync_StampsTheDisplayNameAsName()
     {
         var context = CreateContext();
+        var account = CreateAccount();
 
         var principal = await Factory.CreateAsync(
             context,
-            CreateAccount(),
+            account,
             AuthenticationType,
             CancellationToken.None
         );
@@ -127,10 +130,11 @@ public class LocalAccountSubjectFactoryTests : BaseTests
     public async Task CreateAsync_RecordsPasswordAuthenticationMethod()
     {
         var context = CreateContext();
+        var account = CreateAccount();
 
         var principal = await Factory.CreateAsync(
             context,
-            CreateAccount(),
+            account,
             AuthenticationType,
             CancellationToken.None
         );
@@ -143,10 +147,11 @@ public class LocalAccountSubjectFactoryTests : BaseTests
     public async Task CreateAsync_UsesTheGivenAuthenticationType()
     {
         var context = CreateContext();
+        var account = CreateAccount();
 
         var principal = await Factory.CreateAsync(
             context,
-            CreateAccount(),
+            account,
             AuthenticationType,
             CancellationToken.None
         );
