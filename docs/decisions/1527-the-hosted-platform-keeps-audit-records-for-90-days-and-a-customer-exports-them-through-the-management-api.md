@@ -15,8 +15,7 @@ own history. Forces:
   [ADR-1283](1283-audit-records-are-cloudtrail-shaped-json-with-an-indexable-envelope.md)), and each carries an
   `eventId`.
 - **Each cell's audit store keeps a record for `OpenId:AuditRecords:Retention`, 90 days by default,** and prunes it in
-  batches
-  ([ADR-1303](1303-audit-records-are-kept-in-an-indexed-store-that-each-replica-writes-in-batches.md)).
+  batches ([ADR-1303](1303-audit-records-are-kept-in-an-indexed-store-that-each-replica-writes-in-batches.md)).
 - **The records also reach the cell's logs,** whose retention is the Grafana Cloud plan's.
 - **The nightly encrypted dump is kept as 14 daily and 12 monthly copies under Object Lock in compliance mode**
   ([ADR-1132](1132-platform-infrastructure-code-is-public-on-github-and-its-state-and-backups-live-in-aws.md)).
@@ -49,8 +48,8 @@ the management API.**
 
 ## Options considered
 
-- **A retention per plan.** Rejected: the store prunes per cell, a per-tenant window would make every prune a
-  per-tenant query, and one stated retention is simpler.
+- **A retention per plan.** Rejected: the store prunes per cell, a per-tenant window would make every prune a per-tenant
+  query, and one stated retention is simpler.
 - **30 days.** Rejected: shorter than many investigations; CloudTrail's event history is 90 days.
 - **A year.** Rejected: it holds more personal data than the operator needs, and customers that want more keep their
   export.
@@ -77,8 +76,8 @@ the management API.**
   its retention and the lookup.
 - [ADR-1495](1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md):
   the platform's regions.
-- [ADR-1525](1525-each-cluster-and-cell-keeps-its-metrics-within-a-series-budget-on-grafana-cloud-free-then-pro.md):
-  the log retention of the Grafana Cloud plans.
+- [ADR-1525](1525-each-cluster-and-cell-keeps-its-metrics-within-a-series-budget-on-grafana-cloud-free-then-pro.md): the
+  log retention of the Grafana Cloud plans.
 - [Audit records](../audit-records.md): how to read and operate them.
 - Issues [#25](https://github.com/NCodeGroup/identity/issues/25) and
   [#910](https://github.com/NCodeGroup/identity/issues/910).

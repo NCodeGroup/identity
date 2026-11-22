@@ -77,8 +77,8 @@ The rating follows
 [ADR-1524](../../docs/decisions/1524-a-dedicated-cells-capacity-rating-is-measured-by-the-repositorys-k6-test-on-dedicated-cpu-nodes.md),
 points 2 to 5.
 
-1. Create the cell under test in `us-iad` with the dedicated cell's shape: a tainted node pool of 3 × Akamai Dedicated
-   4 GB (2 dedicated vCPUs, 4 GB), three identity replicas whose requests equal their limits, the cell's own Valkey and
+1. Create the cell under test in `us-iad` with the dedicated cell's shape: a tainted node pool of 3 × Akamai Dedicated 4
+   GB (2 dedicated vCPUs, 4 GB), three identity replicas whose requests equal their limits, the cell's own Valkey and
    its 3-node managed PostgreSQL. Create the load generator as a separate Dedicated 4 GB Linode in the same region.
 2. Deploy the release under test, leave `OpenId:Admission:ConcurrencyLimit` unset, and prepare the tenant as above.
 3. Run the test from the load generator with `DURATION=10m` and `RATE=25`, then raise `RATE` in steps of 25 (50, 75, …)

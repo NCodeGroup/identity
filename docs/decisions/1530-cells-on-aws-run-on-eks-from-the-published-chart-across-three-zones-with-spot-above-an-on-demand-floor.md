@@ -8,8 +8,7 @@
 
 AWS is the hosted platform's growth path, cell by cell
 ([ADR-1521](1521-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md)
-decision 6), and the shape of a cell there is open
-([#914](https://github.com/NCodeGroup/identity/issues/914)). Forces:
+decision 6), and the shape of a cell there is open ([#914](https://github.com/NCodeGroup/identity/issues/914)). Forces:
 
 - **The platform runs only the artifacts it publishes for self-hosters**
   ([ADR-1133](1133-the-hosted-platform-runs-only-the-published-artifacts-it-offers-self-hosters.md)), so a cell's

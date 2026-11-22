@@ -7,8 +7,7 @@
 ## Context
 
 The hosted platform's clusters and cells need secrets: a cell's database and Valkey credentials, a cluster's
-cert-manager DNS-01 token and its collector's token. Each reaches the pods that read it as a Kubernetes Secret.
-Forces:
+cert-manager DNS-01 token and its collector's token. Each reaches the pods that read it as a Kubernetes Secret. Forces:
 
 - **The infrastructure repository is public**
   ([ADR-1132](1132-platform-infrastructure-code-is-public-on-github-and-its-state-and-backups-live-in-aws.md)), so

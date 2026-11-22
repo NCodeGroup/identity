@@ -19,14 +19,13 @@ We collect no advertising identifiers.
 
 ## Why we use it
 
-We use personal data to provide and secure the service, bill for it, answer support requests and meet legal
-obligations. Under the GDPR the legal bases are the contract with the account holder, our legitimate interests in
-security, and the legal obligation.
+We use personal data to provide and secure the service, bill for it, answer support requests and meet legal obligations.
+Under the GDPR the legal bases are the contract with the account holder, our legitimate interests in security, and the
+legal obligation.
 
 ## Cookies
 
-The management console sets one strictly necessary `__Host-` session cookie. We set no analytics or advertising
-cookies.
+The management console sets one strictly necessary `__Host-` session cookie. We set no analytics or advertising cookies.
 
 ## Who receives it
 

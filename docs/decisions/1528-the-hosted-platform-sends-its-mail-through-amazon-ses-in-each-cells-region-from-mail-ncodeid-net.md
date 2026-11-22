@@ -35,7 +35,8 @@ a sending provider. Forces:
    ([#750](https://github.com/NCodeGroup/identity/issues/750)).
 3. **Sending.** SMTP with STARTTLS on port 587 to `email-smtp.<region>.amazonaws.com`, with the SMTP credentials of an
    IAM user allowed only `ses:SendRawEmail` from addresses at `mail.ncodeid.net`. The credentials are a cell secret in
-   Parameter Store ([ADR-1526](1526-the-platforms-cluster-secrets-reach-each-cluster-from-aws-parameter-store-through-external-secrets-operator.md))
+   Parameter Store
+   ([ADR-1526](1526-the-platforms-cluster-secrets-reach-each-cluster-from-aws-parameter-store-through-external-secrets-operator.md))
    and are rotated yearly. SMTP keeps the host's mail sending neutral, so a self-hoster uses any provider.
 4. **Reputation.** The account-level suppression list is on, and a configuration set publishes bounces and complaints to
    the platform's monitoring.
@@ -48,7 +49,7 @@ a sending provider. Forces:
 - **Cloudflare Email Sending.** It runs on Cloudflare's global network rather than in the cell's region, against
   ADR-1495, and costs more. Rejected.
 - **A sending API through workload identity instead of SMTP credentials.** It ties the host to one provider's API, where
-  SMTP serves self-hosters too. Rejected for now.
+  SMTP serves self-hosters too. Rejected.
 - **Chosen:** Amazon SES in the cell's region, over SMTP.
 
 ## Consequences

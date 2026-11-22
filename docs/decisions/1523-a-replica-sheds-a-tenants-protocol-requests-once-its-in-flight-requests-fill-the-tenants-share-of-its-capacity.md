@@ -74,16 +74,16 @@ count reaches the tenant's share of the replica's concurrency limit, so a tier w
 ## Consequences
 
 - Under a free burst, paid tenants keep 40% of every replica's places.
-- A limit set too low refuses requests a replica could serve, which the shed counter shows; a host without a limit
-  sheds nothing.
+- A limit set too low refuses requests a replica could serve, which the shed counter shows; a host without a limit sheds
+  nothing.
 - The platform's alerting watches the counter.
 
 ## References
 
 - [ADR-1001](1001-behavior-is-a-service-a-strategy-collection-or-a-mediator-seam-chosen-by-one-ladder.md) — behavior is
   a service
-- [ADR-1137](1137-configuration-binds-strictly-and-every-option-timer-period-and-retention-is-validated-at-startup.md)
-  — options are validated at start
+- [ADR-1137](1137-configuration-binds-strictly-and-every-option-timer-period-and-retention-is-validated-at-startup.md) —
+  options are validated at start
 - [ADR-1197](1197-telemetry-has-one-owner-per-signal-bounded-attributes-and-spans-that-mirror-their-histograms.md) —
   telemetry attributes
 - [ADR-1198](1198-a-daily-quota-counts-a-utc-day-and-a-tier-may-admit-a-bounded-billed-overage.md) — quotas and a plan

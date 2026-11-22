@@ -37,13 +37,13 @@ Cloud Free while only the developer plan runs and moves to Pro before the first 
    chart) sends only an allow-list of metric names per budget unit, aggregates histograms across a cell's pods so `pod`
    and `instance` leave them, and drops any label outside the allow-list. A metric enters the allow-list once Grafana
    Cloud's cardinality management shows it fits its unit's budget.
-3. **Alerts.** The account's active series at 80% of the plan's included 10,000, and each cell's series (by
-   `cell.name`) at its budget.
+3. **Alerts.** The account's active series at 80% of the plan's included 10,000, and each cell's series (by `cell.name`)
+   at its budget.
 4. **Free, then Pro.** Free carries the lab cluster and cell and the production cluster and shared cell: 7,000 series.
    Pro starts before the first paid plan, because monthly SLA reports need 13 months of metrics. On Pro each further
    cell costs at most $13 a month and each dedicated cluster at most $9.75, which their plans' prices cover.
-5. **Logs and traces** stay within the included 50 GB each: info-level logs, and traces sampled at 10% in the
-   collector, keeping every trace that holds an error.
+5. **Logs and traces** stay within the included 50 GB each: info-level logs, and traces sampled at 10% in the collector,
+   keeping every trace that holds an error.
 6. **Regions.** A cell's telemetry goes to a Grafana Cloud stack in its region
    ([ADR-1495](1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md));
    a region's stack has its own allowance.
@@ -53,8 +53,7 @@ Cloud Free while only the developer plan runs and moves to Pro before the first 
 - **Staying on Free with smaller budgets.** Rejected: 14 days of metrics can't support a monthly SLA report, and the
   allowance caps the fleet at a few cells.
 - **Self-hosting Mimir, Loki and Tempo.** Rejected: they are stateful systems to run and back up beside the cells they
-  watch, against
-  [ADR-1134](1134-the-platform-and-the-host-follow-written-cloud-native-operating-principles.md).
+  watch, against [ADR-1134](1134-the-platform-and-the-host-follow-written-cloud-native-operating-principles.md).
 - **Adaptive Metrics alone.** Rejected as the only control: it aggregates after ingestion, so the budget must hold at
   the collector.
 - **Another vendor priced per host.** Rejected: it costs more than Pro at this size and is a further subprocessor.

@@ -2,8 +2,8 @@
 
 - **Status:** Living runbook — update it in the same change as anything it describes.
 - **Audience:** the hosted platform's operator on call.
-- **Scope:** how an incident is paged, triaged, contained, communicated and reviewed; the organizational security
-  policy belongs to the SOC 2 work ([#844](https://github.com/NCodeGroup/identity/issues/844)).
+- **Scope:** how an incident is paged, triaged, contained, communicated and reviewed; the organizational security policy
+  belongs to the SOC 2 work ([#844](https://github.com/NCodeGroup/identity/issues/844)).
 
 This runbook names roles, never people or phone numbers.
 

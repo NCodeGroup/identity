@@ -33,8 +33,8 @@ Forces:
 ## Decision
 
 **The terms of service are Common Paper's Cloud Service Agreement 3.0 Standard Terms and the DPA is Common Paper's DPA
-1.1 Standard Terms, each incorporated by a cover page published in this repository under `docs/legal/`, beside a
-privacy policy of the platform's own; counsel reviews all three before they take effect.**
+1.1 Standard Terms, each incorporated by a cover page published in this repository under `docs/legal/`, beside a privacy
+policy of the platform's own; counsel reviews all three before they take effect.**
 
 1. **The documents.** `docs/legal/terms-of-service.md` holds the Key Terms and the self-serve Order Form,
    `docs/legal/data-processing-agreement.md` the DPA cover page and its annexes, and `docs/legal/privacy-policy.md` the
