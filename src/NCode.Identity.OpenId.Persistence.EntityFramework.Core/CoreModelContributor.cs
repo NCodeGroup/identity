@@ -68,6 +68,14 @@ internal sealed class CoreModelContributor : IOpenIdModelContributor
             .HasFilter("\"RetiredWhen\" IS NULL")
             .HasDatabaseName("IX_MasterKeys_OwnerType_NormalizedOwnerId_Active");
 
+        // Removing an owner root key reads the master keys under it by provider and reference, so index them on that
+        // pair, over the rows that name a reference (a deployment-rooted key has none).
+        modelBuilder
+            .Entity<MasterKeyEntity>()
+            .HasIndex(entity => new { entity.RootKeyProvider, entity.RootKeyReference })
+            .HasFilter("\"RootKeyReference\" IS NOT NULL")
+            .HasDatabaseName("IX_MasterKeys_RootKeyProvider_RootKeyReference");
+
         // The background re-validation scan pages the owner root keys that are due by state and by the time of the last
         // successful or failed probe, so index each of those two reads on the state first.
         modelBuilder

@@ -1024,6 +1024,12 @@ namespace NCode.Identity.OpenId.Host.Database.Migrations.OpenId
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_MasterKeys_RootKeyProvider_RootKeyReference",
+                table: "MasterKeys",
+                columns: new[] { "RootKeyProvider", "RootKeyReference" },
+                filter: "\"RootKeyReference\" IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_OwnerRootKeys_OwnerType_NormalizedOwnerId",
                 table: "OwnerRootKeys",
                 columns: new[] { "OwnerType", "NormalizedOwnerId" },
