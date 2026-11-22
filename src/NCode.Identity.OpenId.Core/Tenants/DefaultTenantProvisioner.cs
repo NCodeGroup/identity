@@ -17,11 +17,11 @@ namespace NCode.Identity.OpenId.Tenants;
 
 /// <summary>
 /// Provides the default implementation of <see cref="ITenantProvisioner"/>. It creates a tenant at the address its
-/// strategy derives for it, judged by the same rules as every other tenant written, and it seeds a tenant — after the root
-/// tenant — by fanning out <see cref="SeedTenantCommand"/> to every registered handler within a single unit of work,
-/// then runs the steps the handlers queued for after the commit, each on its own bounded token; a step that fails is
-/// logged, the remaining steps run, and the seed stands, because its unit of work has committed. It then reads the tenant
-/// again in a fresh unit of work and returns the row its seed committed.
+/// strategy derives for it, judged by the same rules as every other tenant written, and it seeds a tenant — after the
+/// root tenant its strategy names — by fanning out <see cref="SeedTenantCommand"/> to every registered handler within a
+/// single unit of work, then runs the steps the handlers queued for after the commit, each on its own bounded token; a
+/// step that fails is logged, the remaining steps run, and the seed stands, because its unit of work has committed. It
+/// then reads the tenant again in a fresh unit of work and returns the row its seed committed.
 /// </summary>
 // See ADR-1166 (one seeding pipeline) and ADR-1351 (an effect that follows a committed change runs on its own bounded
 // token).
@@ -132,18 +132,20 @@ internal sealed class DefaultTenantProvisioner(
         CancellationToken cancellationToken
     )
     {
-        var rootTenantId = RootOptions.TenantId;
+        var rootTenantId = TenantResolver.GetControlPlaneTenantId();
         var isRootTenant = string.Equals(tenantId, rootTenantId, StringComparison.Ordinal);
 
-        // The root (control-plane) tenant must exist and be seeded whatever tenant is seeded, so its control-plane data is
-        // in place under every strategy (ADR-1411, ADR-1166). It is seeded on this same path, so root and workload tenants
-        // are seeded identically.
+        // The root tenant is the control-plane tenant that the strategy names; under the static single-tenant strategy it
+        // is the tenant's own tenant, which is then seeded once, in the root plane. It must exist and be seeded whatever
+        // tenant is seeded, so its control-plane data is in place under every strategy (ADR-1411, ADR-1166). It is seeded
+        // on this same path, so root and workload tenants are seeded identically.
         if (!isRootTenant)
         {
+            var rootDisplayName = TenantResolver.GetControlPlaneTenantDisplayName();
             await EnsureCreatedAsync(
                 RootOptions.TeamId,
                 rootTenantId,
-                RootOptions.DisplayName,
+                rootDisplayName,
                 cancellationToken
             );
             await SeedInUnitOfWorkAsync(rootTenantId, TenantPlane.Root, cancellationToken);

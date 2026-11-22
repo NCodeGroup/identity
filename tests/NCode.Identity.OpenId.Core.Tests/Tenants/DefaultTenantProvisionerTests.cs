@@ -61,13 +61,7 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
             Options.Create(
                 new TenantResolutionOptions
                 {
-                    Root =
-                    {
-                        TeamId = TeamId,
-                        TeamDisplayName = TeamDisplayName,
-                        TenantId = RootTenantId,
-                        DisplayName = RootDisplayName,
-                    },
+                    Root = { TeamId = TeamId, TeamDisplayName = TeamDisplayName },
                 }
             ),
             MockMediator.Object,
@@ -99,6 +93,18 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
                 x.EnsureCreatedAsync(TeamId, TeamDisplayName, It.IsAny<CancellationToken>())
             )
             .ReturnsAsync(CreateTeam())
+            .Verifiable();
+
+    private void SetupControlPlaneTenantId() =>
+        MockTenantResolver
+            .Setup(x => x.GetControlPlaneTenantId())
+            .Returns(RootTenantId)
+            .Verifiable();
+
+    private void SetupControlPlaneTenantDisplayName() =>
+        MockTenantResolver
+            .Setup(x => x.GetControlPlaneTenantDisplayName())
+            .Returns(RootDisplayName)
             .Verifiable();
 
     private void SetupStoreManager()
@@ -462,6 +468,7 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
     [Fact]
     public async Task SeedAsync_WhenRootTenant_SeedsItInTheRootPlaneOnly()
     {
+        SetupControlPlaneTenantId();
         var root = CreateTenant(RootTenantId);
         var seeded = new List<SeedTenantCommand>();
         SetupStoreManager();
@@ -504,6 +511,8 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
     [Fact]
     public async Task SeedAsync_WhenWorkloadTenant_EnsuresAndSeedsRootFirst()
     {
+        SetupControlPlaneTenantId();
+        SetupControlPlaneTenantDisplayName();
         SetupTeam();
         var root = CreateTenant(RootTenantId);
         var workload = CreateTenant(WorkloadTenantId, WorkloadIssuer);
@@ -534,6 +543,8 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
     [Fact]
     public async Task SeedAsync_WhenWorkloadTenant_ReadsTheRootTenantToEnsureItAndTheWorkloadTenantOnceItsSeedCommits()
     {
+        SetupControlPlaneTenantId();
+        SetupControlPlaneTenantDisplayName();
         SetupTeam();
         var root = CreateTenant(RootTenantId);
         var workload = CreateTenant(WorkloadTenantId, WorkloadIssuer);
@@ -553,8 +564,10 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
     }
 
     [Fact]
-    public async Task SeedAsync_WhenWorkloadTenantAndRootIsMissing_CreatesRootWithItsConfiguredName()
+    public async Task SeedAsync_WhenWorkloadTenantAndRootIsMissing_CreatesRootWithTheNameItsStrategyGives()
     {
+        SetupControlPlaneTenantId();
+        SetupControlPlaneTenantDisplayName();
         SetupTeam();
         const string rootIssuer = "https://op.example/root";
         var workload = CreateTenant(WorkloadTenantId, WorkloadIssuer);
@@ -610,6 +623,7 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
     [Fact]
     public async Task SeedAsync_WhenTenantIsMissing_ThrowsNotFound()
     {
+        SetupControlPlaneTenantId();
         SetupStoreManager();
         SetupGetTenant(RootTenantId, (PersistedTenant?)null);
         SetupScope();
@@ -622,6 +636,7 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
     [Fact]
     public async Task SeedAsync_WhenTheSeedWritesTheTenantRow_ReturnsTheRowItsSeedCommitted()
     {
+        SetupControlPlaneTenantId();
         var read = CreateTenant(RootTenantId);
         var committed = CreateTenant(RootTenantId);
         committed.ConcurrencyToken = "committed-token";
@@ -640,6 +655,7 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
     [Fact]
     public async Task SeedAsync_WhenTheTenantIsRemovedOnceItsSeedCommits_ThrowsNotFound()
     {
+        SetupControlPlaneTenantId();
         var root = CreateTenant(RootTenantId);
         var seeded = new List<SeedTenantCommand>();
         SetupStoreManager();
@@ -656,6 +672,7 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
     [Fact]
     public async Task SeedAsync_WhenCommitLosesToAConcurrentSeed_SeedsAgainInAFreshUnitOfWork()
     {
+        SetupControlPlaneTenantId();
         var first = CreateTenant(RootTenantId);
         var second = CreateTenant(RootTenantId);
         var seeded = new List<SeedTenantCommand>();
@@ -676,6 +693,7 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
     [Fact]
     public async Task SeedAsync_WhenAHandlerQueuesAStepForAfterTheCommit_RunsItOnceTheSeedHasCommitted()
     {
+        SetupControlPlaneTenantId();
         var root = CreateTenant(RootTenantId);
         var seeded = new List<SeedTenantCommand>();
         var committed = false;
@@ -718,6 +736,7 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
     {
         // The seed has committed, so a failed effect is logged, the later effects still run, and the tenant
         // materializes with the keys the seed wrote.
+        SetupControlPlaneTenantId();
         var root = CreateTenant(RootTenantId);
         var ran = new List<string>();
         SetupStoreManager();
@@ -754,6 +773,7 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
     [Fact]
     public async Task SeedAsync_WhenCommitLosesToAConcurrentSeed_RunsOnlyTheStepsOfTheSeedThatCommitted()
     {
+        SetupControlPlaneTenantId();
         var first = CreateTenant(RootTenantId);
         var second = CreateTenant(RootTenantId);
         var ran = new List<PersistedTenant>();
@@ -791,6 +811,7 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
     [Fact]
     public async Task SeedAsync_WhenCommitKeepsFailing_SurfacesTheLastFailure()
     {
+        SetupControlPlaneTenantId();
         var root = CreateTenant(RootTenantId);
         var seeded = new List<SeedTenantCommand>();
         var firstFailure = new InvalidOperationException("concurrency conflict");
@@ -810,6 +831,7 @@ public sealed class DefaultTenantProvisionerTests : IDisposable
     [Fact]
     public async Task SeedAsync_WhenCommitIsCanceled_DoesNotSeedAgain()
     {
+        SetupControlPlaneTenantId();
         var root = CreateTenant(RootTenantId);
         var seeded = new List<SeedTenantCommand>();
         SetupStoreManager();
