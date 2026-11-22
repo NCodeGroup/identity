@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { afterEach, describe, expect, it, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { createAppStore } from '@ncodegroup/identity-store';
@@ -78,6 +78,10 @@ describe('UsersPage (list states)', () => {
     vi.restoreAllMocks();
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('shows a loading indicator, then the empty state', async () => {
     installFetch(() => jsonResponse({ items: [] }));
 
@@ -119,6 +123,10 @@ describe('UsersPage (list states)', () => {
 describe('UsersPage (administration wiring)', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   function fillCreateForm() {
@@ -208,9 +216,12 @@ describe('UsersPage (administration wiring)', () => {
     const patch = calls.find((c) => c.method === 'PATCH');
     expect(patch?.url).toBe(`https://api.test${itemUrl}`);
     expect(patch?.ifMatch).toBe('c1');
-    expect(JSON.parse(patch?.body ?? '[]')).toEqual(
-      expect.arrayContaining([{ op: 'replace', path: '/displayName', value: 'Ada King' }]),
-    );
+    expect(JSON.parse(patch?.body ?? '[]')).toEqual([
+      { op: 'replace', path: '/displayName', value: 'Ada King' },
+      { op: 'replace', path: '/userName', value: 'ada' },
+      { op: 'replace', path: '/email', value: 'ada@example.test' },
+      { op: 'replace', path: '/emailVerified', value: true },
+    ]);
   });
 
   it('disables an enabled user', async () => {

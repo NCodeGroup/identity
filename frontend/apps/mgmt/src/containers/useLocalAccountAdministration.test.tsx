@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { afterEach, describe, expect, it, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { createAppStore, type LocalAccountOwner } from '@ncodegroup/identity-store';
@@ -126,6 +126,10 @@ const dialogIs = (kind: string) => expect(screen.getByTestId('dialog')).toHaveTe
 describe('useLocalAccountAdministration', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('creates a platform account, omitting a blank email, and closes the dialog', async () => {
