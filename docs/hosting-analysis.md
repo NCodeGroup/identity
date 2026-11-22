@@ -580,7 +580,15 @@ Address it with the `valkey` connection string (TLS and an access-control user i
 `valkey:6380,ssl=true,user=identity,password=…`); a replica that cannot reach it reports not ready on the `valkey`
 health check and fails those checks closed.
 
-## 8. Traefik, mTLS, and tenant PKI
+## 6. Traefik, mTLS, and tenant PKI
+
+Decided in
+[ADR-1172](decisions/1172-a-forwarded-client-certificate-is-decoded-by-the-decoder-registered-for-its-format.md),
+[ADR-1173](decisions/1173-a-mutual-tls-client-is-authenticated-by-its-registered-certificate-chained-to-configured-trust-anchors.md),
+[ADR-1165](decisions/1165-a-tenants-stored-issuer-is-its-single-origin-and-its-mtls-alias-a-routed-second-host.md),
+[ADR-1506](decisions/1506-the-ingress-controller-holds-a-client-certificate-the-pods-can-require-and-never-read-as-an-end-clients.md)
+and
+[ADR-1507](decisions/1507-the-host-chart-routes-to-its-https-only-pods-through-gateway-api-a-traefik-ingress-or-the-operators-own-ingress.md).
 
 Verified against Traefik v3.7 documentation and source:
 
@@ -597,46 +605,52 @@ Verified against Traefik v3.7 documentation and source:
   — or, in Kubernetes, through Secrets and the `TLSOption` CRD. The HTTP provider (default 5 s poll) covers routers,
   services, and middlewares, not TLS options.
 
-### Server gaps found (tracked as issues)
+### What the server does with the forwarded certificate
 
-- **[#83](https://github.com/NCodeGroup/identity/issues/83) — chain in the forwarded header (resolved).** The default `Base64Der` format reads Traefik's comma-separated
-  chain, the client's own certificate first, and surfaces the rest as intermediates for chain building. A forwarded
-  value that cannot be decoded fails the request with `invalid_request` rather than reading as no certificate
+- **Reads the chain.** The default `Base64Der` format reads Traefik's comma-separated chain, the client's own
+  certificate first, and surfaces the rest as intermediates for chain building. A forwarded value that cannot be
+  decoded fails the request with `invalid_request` rather than reading as no certificate
   ([ADR-1172](decisions/1172-a-forwarded-client-certificate-is-decoded-by-the-decoder-registered-for-its-format.md)).
-- **[#82](https://github.com/NCodeGroup/identity/issues/82) — chain validation in the server (resolved).** `tls_client_auth` builds the presented certificate's chain to
-  the client's `tls_client_auth_trust_anchors` (tenant- or client-scoped PEM CAs, custom root trust, `clientAuth` EKU,
-  validity, `tls_client_auth_revocation_mode`) before matching the subject, and trusts no certificate when no anchor is
+- **Validates the chain.** `tls_client_auth` builds the presented certificate's chain to the client's
+  `tls_client_auth_trust_anchors` (tenant- or client-scoped PEM CAs, custom root trust, `clientAuth` EKU, validity,
+  `tls_client_auth_revocation_mode`) before matching the subject, and trusts no certificate when no anchor is
   configured. The proxy only requests and forwards the certificate
   ([ADR-1173](decisions/1173-a-mutual-tls-client-is-authenticated-by-its-registered-certificate-chained-to-configured-trust-anchors.md)).
-- **[#86](https://github.com/NCodeGroup/identity/issues/86) — the mTLS alias host routes to its tenant (resolved).** The alias is the tenant property
-  `MtlsEndpointAliasAuthority`; `DynamicByHost` routes its derived host as well as the issuer's, and validation keeps
-  both hosts unique ([ADR-1165](decisions/1165-a-tenants-stored-issuer-is-its-single-origin-and-its-mtls-alias-a-routed-second-host.md)). Each tenant's
-  alias is derived from `DynamicByHost:MtlsEndpointAliasTemplate` unless one is set through the management API ([#117](https://github.com/NCodeGroup/identity/issues/117)).
+- **Routes the mTLS alias host.** The alias is the tenant property `MtlsEndpointAliasAuthority`; `DynamicByHost` routes
+  its derived host as well as the issuer's, and validation keeps both hosts unique
+  ([ADR-1165](decisions/1165-a-tenants-stored-issuer-is-its-single-origin-and-its-mtls-alias-a-routed-second-host.md)).
+  Each tenant's alias is derived from `DynamicByHost:MtlsEndpointAliasTemplate` unless one is set through the
+  management API.
 
 **Proxy rule:** on the mTLS host, use `RequireAnyClientCert` (request, don't verify) and forward the certificate. The
 server validates `tls_client_auth` chains itself, so `tls_client_auth` and `self_signed_tls_client_auth` clients share
 the host.
 
-### Can Traefik read tenant PKI from our datastores?
+### Tenant trust stays in the server
 
-Yes, indirectly — but it is not the recommended long-term design:
+Traefik could read tenant PKI from the identity store, indirectly; the platform keeps trust in the server instead:
 
 - **How:** a small sync controller reads tenant CA bundles / server certificates from the identity store and writes
   Kubernetes Secrets + `TLSOption` + `IngressRoute` objects; Traefik's CRD provider applies them live. (The file
   provider with a generated file works the same way outside Kubernetes.)
 - **Limits:** client-CA selection happens at the TLS handshake by SNI, before any tenant routing — per-tenant CAs at the
   proxy require **per-tenant hostnames** (`DynamicByHost`). Self-signed and PKI clients still cannot share a host.
-- **Recommended (implemented by [#82](https://github.com/NCodeGroup/identity/issues/82)):** keep the proxy simple — **request** the certificate on the mTLS host and
-  forward it — and enforce per-tenant / per-client trust anchors **in the server**. Tenant changes then apply
-  immediately, without proxy reloads, and both RFC 8705 methods share one mTLS alias host. Use proxy-side dynamic config only for what must live at
-  the edge: per-tenant custom-domain routers and their server certificates (cert-manager).
+- **Chosen
+  ([ADR-1173](decisions/1173-a-mutual-tls-client-is-authenticated-by-its-registered-certificate-chained-to-configured-trust-anchors.md)):**
+  the proxy **requests** the certificate on the mTLS host and forwards it, and the server enforces per-tenant /
+  per-client trust anchors. Tenant changes then apply immediately, without proxy reloads, and both RFC 8705 methods
+  share one mTLS alias host. Proxy-side dynamic config is only for what must live at the edge: per-tenant custom-domain
+  routers and their server certificates (cert-manager).
 
 ### TLS pass-through alternative
 
 An `IngressRouteTCP` with `tls.passthrough: true` can route the mTLS hostname by SNI straight to Kestrel
 (`ClientCertificateMode.AllowCertificate`). The server then reads the certificate from the connection — no forwarded
 header to trust — at the cost of Traefik's L7 features for that host. Per-tenant trust comes from the server's trust
-anchors ([#82](https://github.com/NCodeGroup/identity/issues/82)).
+anchors
+([ADR-1173](decisions/1173-a-mutual-tls-client-is-authenticated-by-its-registered-certificate-chained-to-configured-trust-anchors.md)).
+Such a direct-TLS host does not enable `ProxyClientCertificate`
+([ADR-1506](decisions/1506-the-ingress-controller-holds-a-client-certificate-the-pods-can-require-and-never-read-as-an-end-clients.md)).
 
 ## 9. Root key and remote keys / KMS (ADR-1235)
 
