@@ -354,6 +354,7 @@ The records are grouped by area; within an area they are in number order.
 | [1303](./1303-audit-records-are-kept-in-an-indexed-store-that-each-replica-writes-in-batches.md) | Audit records are kept in an indexed store that each replica writes in batches | Accepted |
 | [1402](./1402-the-interactive-surface-renders-in-the-locale-the-request-prefers-among-the-registered-ui-locales.md) | The interactive surface renders in the locale the request prefers among the registered UI locales | Accepted |
 | [1533](./1533-an-end-user-verifies-an-email-address-resets-a-password-and-signs-in-with-a-second-factor-through-one-time-email-codes.md) | An end user verifies an email address, resets a password and signs in with a second factor through one-time email codes | Accepted |
+| [1534](./1534-a-tenants-audit-records-stream-to-its-endpoints-read-forward-from-the-audit-store-and-signed-as-standard-webhooks.md) | A tenant's audit records stream to its endpoints, read forward from the audit store and signed as Standard Webhooks | Accepted |
 
 ### Frontend, BFF and browser security
 
