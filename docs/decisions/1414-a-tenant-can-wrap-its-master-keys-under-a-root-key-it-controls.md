@@ -118,8 +118,10 @@ and the docs say "tenant root key" or "team root key". A team's key is held per 
     other root key (an ancestor's or the deployment's) and rewraps the rows under the key onto it, with a recovery copy
     when it is the deployment's and one is configured. The record is deleted once no master key under the key remains
     that does not conform to its owner's nearest root key, so a master key of another owner whose own root key names the
-    same key stays under it and never holds the removal. Rows that cannot be unwrapped keep it in `removing` and the
-    validation service retries.
+    same key stays under it and never holds the removal. The check reads only the master keys under the key, through
+    `IMasterKeyStore.GetWrappedByKeyPageAsync` and the index `IX_MasterKeys_RootKeyProvider_RootKeyReference` on the
+    master keys' root key provider and reference. Rows that cannot be unwrapped keep it in `removing` and the validation
+    service retries.
 15. **A probe validates the key.** The server wraps and unwraps a random 32-byte value under the owner context through the
     key and access identity, compares in constant time and zeroes both. Any failure fails closed.
 16. **The rewrap engine wraps each row under its owner's root.** The manager moves only nonconforming rows whose root
