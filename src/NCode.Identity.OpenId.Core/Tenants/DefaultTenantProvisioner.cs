@@ -134,7 +134,9 @@ internal sealed class DefaultTenantProvisioner(
             return concurrentRoot ?? persistedTenant;
         }
 
-        // A tenant no strategy serves has no address on the platform, so it holds nothing in the directory.
+        // A tenant no strategy serves has no address on the platform, so it holds nothing in the directory: its
+        // identifier, such as a workload cell's root tenant `root`, can be the one the directory holds for the
+        // control-plane cell's root tenant.
         if (persistedTenant.Issuer is null)
         {
             var concurrentUnserved = await InsertOrFindConcurrentAsync(
@@ -192,21 +194,13 @@ internal sealed class DefaultTenantProvisioner(
         CancellationToken cancellationToken
     )
     {
-        // Unreachable: a tenant without an issuer is created without the directory.
-        if (tenant.Issuer is not { } issuer)
-        {
-            throw new InvalidOperationException(
-                $"The tenant '{tenant.TenantId}' has no issuer to reserve."
-            );
-        }
-
         // A tenant of the platform's own team is reserved in no team, because the directory holds no record of that
         // team (ADR-1411).
         var reservedTeamId = TenantReservationRules.GetTeamId(tenant.TeamId, RootOptions.TeamId);
         var reservation = new TenantReservation
         {
             TenantId = tenant.TenantId,
-            Issuer = issuer,
+            Issuer = tenant.Issuer,
             TeamId = reservedTeamId,
             Cell = CellOptions.Name,
         };
@@ -245,7 +239,7 @@ internal sealed class DefaultTenantProvisioner(
             var placementRequest = new TenantPlacementRequest
             {
                 TenantId = tenant.TenantId,
-                Issuer = issuer,
+                Issuer = tenant.Issuer,
                 Cell = CellOptions.Name,
             };
             var placementResult = await TenantDirectory.PlaceAsync(

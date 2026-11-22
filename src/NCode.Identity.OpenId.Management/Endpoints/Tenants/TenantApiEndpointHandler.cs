@@ -947,17 +947,15 @@ internal class TenantApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
-        // A tenant without an issuer reserves its identifier alone.
-        var issuer = tenant.Issuer ?? string.Empty;
-
         // A tenant of the platform's own team is reserved in no team, because the directory holds no record of that
         // team (ADR-1411).
         var reservedTeamId = TenantReservationRules.GetTeamId(tenant.TeamId, RootOptions.TeamId);
 
+        // A tenant without an issuer reserves and places its identifier alone (ADR-1160).
         var reservation = new TenantReservation
         {
             TenantId = tenant.TenantId,
-            Issuer = issuer,
+            Issuer = tenant.Issuer,
             TeamId = reservedTeamId,
             Cell = CellOptions.Name,
         };
@@ -988,7 +986,7 @@ internal class TenantApiEndpointHandler(
             var placementRequest = new TenantPlacementRequest
             {
                 TenantId = tenant.TenantId,
-                Issuer = issuer,
+                Issuer = tenant.Issuer,
                 Cell = CellOptions.Name,
             };
             var placementResult = await TenantDirectory.PlaceAsync(

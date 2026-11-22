@@ -312,7 +312,7 @@ internal sealed class LocalTenantDirectory(
         return new TenantPlacement
         {
             TenantId = tenant.TenantId,
-            Issuer = tenant.Issuer ?? string.Empty,
+            Issuer = tenant.Issuer,
             Cell = CellOptions.Name,
             Region = CellOptions.Region,
         };

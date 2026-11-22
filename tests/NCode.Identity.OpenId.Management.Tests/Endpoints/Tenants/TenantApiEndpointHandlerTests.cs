@@ -58,6 +58,8 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
     private Mock<ITeamStore> MockTeamStore { get; }
     private Mock<IReadOnlySettingCollection>? MockTeamSettings { get; set; }
     private List<string> Events { get; } = [];
+    private List<TenantReservation> Reservations { get; } = [];
+    private List<TenantPlacementRequest> Placements { get; } = [];
     private Mock<IAuthorizationService> MockAuthorizationService { get; }
     private Mock<ISecretGenerator> MockSecretGenerator { get; }
     private Mock<IClientKeyImporter> MockKeyImporter { get; }
@@ -3986,7 +3988,13 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
                     It.IsAny<CancellationToken>()
                 )
             )
-            .Callback(() => Events.Add("reserve"))
+            .Callback(
+                (TenantReservation reservation, CancellationToken _) =>
+                {
+                    Events.Add("reserve");
+                    Reservations.Add(reservation);
+                }
+            )
             .ReturnsAsync(ReservationResult.Reserved())
             .Verifiable();
 
@@ -4000,7 +4008,13 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
                     It.IsAny<CancellationToken>()
                 )
             )
-            .Callback(() => Events.Add("place"))
+            .Callback(
+                (TenantPlacementRequest placement, CancellationToken _) =>
+                {
+                    Events.Add("place");
+                    Placements.Add(placement);
+                }
+            )
             .ReturnsAsync(ReservationResult.Reserved())
             .Verifiable();
 
@@ -4038,7 +4052,7 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
             .Verifiable();
     }
 
-    private static PersistedTenant CreateSeededTenant(string issuer) =>
+    private static PersistedTenant CreateSeededTenant(string? issuer) =>
         new PersistedTenantBuilder
         {
             TenantId = "acme",
@@ -4503,6 +4517,34 @@ public sealed class TenantApiEndpointHandlerTests : IDisposable
 
         Assert.IsType<Created<TenantResource>>(result);
         assertValidated(validated => Assert.Equal(issuer, validated?.Issuer));
+    }
+
+    [Fact]
+    public async Task CreateTenantAsync_WhenTheTenantHasNoIssuer_ReservesAndPlacesItsIdentifierAlone()
+    {
+        SetupTeamForCreate();
+        SetupCreatorAssignment();
+        SetupTenantChangedAudit();
+        SetupDefaultAlias("acme", alias: null);
+        SetupValidSettings();
+        SetupStore();
+        SetupDefaultIssuer("acme", null);
+        SetupCreateValidation();
+        SetupCreatePersistence(CreateSeededTenant(issuer: null));
+        SetupTenantEnvironment(tenantId: "acme");
+
+        var httpContext = CreateHttpContext(authenticated: true);
+
+        var result = await Handler.CreateTenantAsync(
+            httpContext,
+            TeamId,
+            CreateTenantRequest(),
+            CancellationToken.None
+        );
+
+        Assert.IsType<Created<TenantResource>>(result);
+        Assert.Null(Assert.Single(Reservations).Issuer);
+        Assert.Null(Assert.Single(Placements).Issuer);
     }
 
     [Fact]
