@@ -143,6 +143,7 @@ The records are grouped by area; within an area they are in number order.
 | [1512](./1512-an-instance-is-set-up-once-through-a-one-time-setup-token-that-creates-a-root-global-administrator.md) | An instance is set up once through a one-time setup token that creates a root global administrator | Accepted |
 | [1521](./1521-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md) | The hosted platform runs production on Akamai LKE in Washington, DC, and its lab on OCI OKE Basic in Phoenix | Accepted |
 | [1524](./1524-a-dedicated-cells-capacity-rating-is-measured-by-the-repositorys-k6-test-on-dedicated-cpu-nodes.md) | A dedicated cell's capacity rating is measured by the repository's k6 test on dedicated-CPU nodes | Accepted |
+| [1525](./1525-each-cluster-and-cell-keeps-its-metrics-within-a-series-budget-on-grafana-cloud-free-then-pro.md) | Each cluster and cell keeps its metrics within a series budget, on Grafana Cloud Free and then Pro | Accepted |
 
 ### Settings
 
