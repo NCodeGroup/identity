@@ -70,7 +70,9 @@ public sealed class AuditRecordOptions
 
     /// <summary>
     /// Gets or sets how long a replica holds the lease of a stream it delivers, so that no other replica delivers the
-    /// stream meanwhile. The default is two minutes. It is at least 30 seconds and at most one hour.
+    /// stream meanwhile. The default is two minutes. It is at least 30 seconds and at most one hour, and more than
+    /// twice the outbound attempt timeout (<c>OutboundHttpOptions.AttemptTimeout</c>), so a batch sent before half the
+    /// lease is spent ends while the lease is held.
     /// </summary>
     // See ADR-1534.
     public TimeSpan StreamLeaseDuration { get; set; } = TimeSpan.FromMinutes(2);

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Microsoft.Extensions.Options;
+using NCode.Identity.OpenId.Authentication.OutboundHttp;
 using NCode.Identity.Time;
 
 namespace NCode.Identity.OpenId.Authentication.Auditing;
@@ -10,8 +11,15 @@ namespace NCode.Identity.OpenId.Authentication.Auditing;
 /// Validates <see cref="AuditRecordOptions"/> when the host starts.
 /// </summary>
 // See ADR-1303 and ADR-1137.
-internal sealed class AuditRecordOptionsValidator : IValidateOptions<AuditRecordOptions>
+internal sealed class AuditRecordOptionsValidator(IOptions<OutboundHttpOptions> outboundHttpOptions)
+    : IValidateOptions<AuditRecordOptions>
 {
+    private const int MaxStreamBatchSize = 1000;
+
+    private const int MaxStreamsPerPoll = 1000;
+
+    private IOptions<OutboundHttpOptions> OutboundHttp { get; } = outboundHttpOptions;
+
     private static TimeSpan OneSecond { get; } = TimeSpan.FromSeconds(1);
 
     private static TimeSpan ThirtySeconds { get; } = TimeSpan.FromSeconds(30);
@@ -78,7 +86,7 @@ internal sealed class AuditRecordOptionsValidator : IValidateOptions<AuditRecord
             nameof(AuditRecordOptions.StreamBatchSize),
             options.StreamBatchSize,
             1,
-            1000
+            MaxStreamBatchSize
         );
 
         AddRangeFailure(
@@ -88,6 +96,14 @@ internal sealed class AuditRecordOptionsValidator : IValidateOptions<AuditRecord
             ThirtySeconds,
             OneHour
         );
+
+        var attemptTimeout = OutboundHttp.Value.AttemptTimeout;
+        if (options.StreamLeaseDuration <= attemptTimeout * 2)
+        {
+            failures.Add(
+                $"{nameof(AuditRecordOptions)}.{nameof(AuditRecordOptions.StreamLeaseDuration)} ('{AuditRecordOptions.SectionName}:{nameof(AuditRecordOptions.StreamLeaseDuration)}') must be more than twice {nameof(OutboundHttpOptions)}.{nameof(OutboundHttpOptions.AttemptTimeout)} ('{OutboundHttpOptions.SectionName}:{nameof(OutboundHttpOptions.AttemptTimeout)}', {attemptTimeout}), so a batch sent before half the lease is spent ends while the lease is held; it is {options.StreamLeaseDuration}."
+            );
+        }
 
         AddRangeFailure(
             failures,
@@ -110,7 +126,7 @@ internal sealed class AuditRecordOptionsValidator : IValidateOptions<AuditRecord
             nameof(AuditRecordOptions.StreamsPerPoll),
             options.StreamsPerPoll,
             1,
-            1000
+            MaxStreamsPerPoll
         );
 
         return failures.Count == 0

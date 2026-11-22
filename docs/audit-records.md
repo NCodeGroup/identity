@@ -660,15 +660,15 @@ adds the new secret, then drops the old one once the day has passed.
 replica sends a stream at a time and its order holds. A stream is due only once its tenant has a record ready for it, so
 an idle stream costs nothing. The options are keys of `OpenId:AuditRecords`:
 
-| Option                | Default    | Meaning                                                                          |
-| --------------------- | ---------- | -------------------------------------------------------------------------------- |
-| `StreamPollInterval`  | 5 seconds  | How often each replica looks for streams that are due                            |
-| `StreamSettleDelay`   | 1 minute   | How long a stored record waits before a stream reads it, as replicas commit late |
-| `StreamBatchSize`     | 100        | The most records one delivery carries, at most 1,000                             |
-| `StreamLeaseDuration` | 2 minutes  | How long a replica holds a stream it delivers                                    |
-| `StreamRetryDelay`    | 10 seconds | The delay after a stream's first failed delivery                                 |
-| `StreamMaxRetryDelay` | 1 hour     | The longest delay between attempts after failures                                |
-| `StreamsPerPoll`      | 16         | The most due streams a replica delivers in one poll                              |
+| Option                | Default    | Meaning                                                                                     |
+| --------------------- | ---------- | ------------------------------------------------------------------------------------------- |
+| `StreamPollInterval`  | 5 seconds  | How often each replica looks for streams that are due                                       |
+| `StreamSettleDelay`   | 1 minute   | How long a stored record waits before a stream reads it, as replicas commit late            |
+| `StreamBatchSize`     | 100        | The most records one delivery carries, at most 1,000                                        |
+| `StreamLeaseDuration` | 2 minutes  | How long a replica holds a stream it delivers, more than twice the outbound attempt timeout |
+| `StreamRetryDelay`    | 10 seconds | The delay after a stream's first failed delivery                                            |
+| `StreamMaxRetryDelay` | 1 hour     | The longest delay between attempts after failures                                           |
+| `StreamsPerPoll`      | 16         | The most due streams a replica delivers in one poll                                         |
 
 `ncode.identity.audit_stream.deliveries` and `ncode.identity.audit_stream.records` count the batches and the records
 sent ([metrics](metrics.md)).
