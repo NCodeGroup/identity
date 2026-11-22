@@ -26,6 +26,7 @@ using NCode.Identity.OpenId.Settings;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Registration.AspNetCore;
 using NCode.Identity.Secrets.Persistence.Protection;
+using NCode.Identity.SharedState;
 using NCode.Mediator;
 using SystemTextJsonPatch;
 using SystemTextJsonPatch.Exceptions;
@@ -57,19 +58,23 @@ internal class AuditStreamApiEndpointHandler(
     ISecretProtectorProvider secretProtectorProvider,
     IOpenIdContextFactory openIdContextFactory,
     IManagementAuditRecorder managementAuditRecorder,
+    IExpiringValueSet expiringValueSet,
     TimeProvider timeProvider,
     ILogger<AuditStreamApiEndpointHandler> logger
 ) : BaseApiEndpointHandler, IEndpointProvider
 {
     private const string SigningSecretPrefix = "whsec_";
     private const int SigningSecretByteLength = 32;
+    private const string CreateGuardKeyPurpose = "audit-stream-create";
 
     private static TimeSpan SigningSecretOverlap { get; } = TimeSpan.FromHours(24);
+    private static TimeSpan CreateGuardLifetime { get; } = TimeSpan.FromSeconds(30);
 
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private ISecretProtectorProvider SecretProtectorProvider { get; } = secretProtectorProvider;
     private IOpenIdContextFactory OpenIdContextFactory { get; } = openIdContextFactory;
     private IManagementAuditRecorder ManagementAuditRecorder { get; } = managementAuditRecorder;
+    private IExpiringValueSet ExpiringValueSet { get; } = expiringValueSet;
     private TimeProvider TimeProvider { get; } = timeProvider;
     private ILogger Logger { get; } = logger;
 
@@ -238,7 +243,8 @@ internal class AuditStreamApiEndpointHandler(
     /// <response code="400">The display name is empty, longer than 300 characters or holds a control character, or the
     /// endpoint is not an absolute <c>https</c> URL of at most 1,000 characters without user information or a
     /// fragment.</response>
-    /// <response code="409">The tenant holds its maximum number of audit streams.</response>
+    /// <response code="409">The tenant holds its maximum number of audit streams, or another of its creates is
+    /// running.</response>
     [EndpointName("api/audit-streams/create")]
     internal virtual async ValueTask<IResult> CreateAsync(
         HttpContext httpContext,
@@ -274,64 +280,91 @@ internal class AuditStreamApiEndpointHandler(
             cancellationToken
         );
 
-        await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
-        var store = storeManager.GetStore<IAuditStreamStore>();
-
-        var count = await store.CountAsync(cancellationToken);
-        if (count >= maxAuditStreams)
+        var guardKey = ExpiringKeys.Create(CreateGuardKeyPurpose, tenantId);
+        var guardExpiry = TimeProvider.GetUtcNow() + CreateGuardLifetime;
+        var guardTaken = await ExpiringValueSet.TryAddAsync(
+            guardKey,
+            ReadOnlyMemory<byte>.Empty,
+            guardExpiry,
+            cancellationToken
+        );
+        if (!guardTaken)
         {
             return TypedResults.Problem(
-                detail: $"The tenant holds its maximum of {maxAuditStreams} audit streams.",
+                detail: "Another audit stream of the tenant is being created; try again.",
                 statusCode: StatusCodes.Status409Conflict
             );
         }
 
-        var createdTime = TimeProvider.GetUtcNow();
-        var streamId = CryptoService.GenerateResourceId();
-        var (signingSecret, signingSecretValue) = await CreateSigningSecretAsync(
-            tenantId,
-            createdTime,
-            cancellationToken
-        );
-
-        var stream = new PersistedAuditStream
+        try
         {
-            TenantId = tenantId,
-            StreamId = streamId,
-            DisplayName = request.DisplayName,
-            Endpoint = request.Endpoint,
-            IsEnabled = request.IsEnabled,
-            CreatedTime = createdTime,
-            ConcurrencyToken = string.Empty,
-            SigningSecrets = [signingSecret],
-        };
+            await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
+            var store = storeManager.GetStore<IAuditStreamStore>();
 
-        await store.AddAsync(stream, cancellationToken);
-        await storeManager.SaveChangesAsync(cancellationToken);
-
-        var streamResource = ToAuditStreamResource(stream);
-        var streamValues = ToResourceValues(streamResource);
-        await ManagementAuditRecorder.RecordAuditStreamChangedAsync(
-            httpContext,
-            tenantId,
-            streamId,
-            ResourceChangeTypes.Created,
-            streamValues
-        );
-
-        httpContext.Response.Headers.ETag = ManagementEntityTags.Format(stream.ConcurrencyToken);
-        var createdResource = new CreatedAuditStreamResource
-        {
-            AuditStream = streamResource,
-            SigningSecret = new CreatedAuditStreamSigningSecretResource
+            var count = await store.CountAsync(cancellationToken);
+            if (count >= maxAuditStreams)
             {
-                SecretId = signingSecret.SecretId,
-                SigningSecret = signingSecretValue,
-                CreatedTime = signingSecret.CreatedTime,
-            },
-        };
-        var location = GetStreamLocation(tenantId, streamId);
-        return TypedResults.Created(location, createdResource);
+                return TypedResults.Problem(
+                    detail: $"The tenant holds its maximum of {maxAuditStreams} audit streams.",
+                    statusCode: StatusCodes.Status409Conflict
+                );
+            }
+
+            var createdTime = TimeProvider.GetUtcNow();
+            var streamId = CryptoService.GenerateResourceId();
+            var (signingSecret, signingSecretValue) = await CreateSigningSecretAsync(
+                tenantId,
+                createdTime,
+                cancellationToken
+            );
+
+            var stream = new PersistedAuditStream
+            {
+                TenantId = tenantId,
+                StreamId = streamId,
+                DisplayName = request.DisplayName,
+                Endpoint = request.Endpoint,
+                IsEnabled = request.IsEnabled,
+                CreatedTime = createdTime,
+                ConcurrencyToken = string.Empty,
+                SigningSecrets = [signingSecret],
+            };
+
+            await store.AddAsync(stream, cancellationToken);
+            await storeManager.SaveChangesAsync(cancellationToken);
+
+            var streamResource = ToAuditStreamResource(stream);
+            var streamValues = ToResourceValues(streamResource);
+            await ManagementAuditRecorder.RecordAuditStreamChangedAsync(
+                httpContext,
+                tenantId,
+                streamId,
+                ResourceChangeTypes.Created,
+                streamValues
+            );
+
+            httpContext.Response.Headers.ETag = ManagementEntityTags.Format(
+                stream.ConcurrencyToken
+            );
+            var createdResource = new CreatedAuditStreamResource
+            {
+                AuditStream = streamResource,
+                SigningSecret = new CreatedAuditStreamSigningSecretResource
+                {
+                    SecretId = signingSecret.SecretId,
+                    SigningSecret = signingSecretValue,
+                    CreatedTime = signingSecret.CreatedTime,
+                },
+            };
+            var location = GetStreamLocation(tenantId, streamId);
+            return TypedResults.Created(location, createdResource);
+        }
+        finally
+        {
+            // The guard is released even when the caller went away, and it expires on its own if the replica stops.
+            // See ADR-1534.
+            await ExpiringValueSet.RemoveAsync(guardKey, CancellationToken.None);
+        }
     }
 
     /// <summary>

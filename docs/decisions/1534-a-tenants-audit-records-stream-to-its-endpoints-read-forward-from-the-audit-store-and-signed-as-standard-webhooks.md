@@ -40,7 +40,9 @@ once the endpoint accepts them.**
    authorizes at the tenant's scope with the read, list, create, update or delete operation, and each change is audited
    as an `audit_stream` change. A tenant has at most `max_audit_streams` streams: a tenant limit, 0 to 10, 2 by default,
    merged with `Min`, which a tier writes
-   ([ADR-1418](1418-limits-are-set-by-the-authority-above-their-scope-and-readers-learn-which-they-may-change.md)).
+   ([ADR-1418](1418-limits-are-set-by-the-authority-above-their-scope-and-readers-learn-which-they-may-change.md)). A
+   tenant's creates are serialized through an atomic add-if-absent in shared state, held for at most 30 seconds, so the
+   limit holds when creates race and a create that meets another running answers `409`.
 2. **The endpoint.** It is an absolute `https` URL of at most 1,000 characters without user information or a fragment,
    called only through the guarded client: no private address, no redirect, bounded time.
 3. **The position.** The store stamps each record with the time it stores it (`StoredTime`). A stream reads its tenant's

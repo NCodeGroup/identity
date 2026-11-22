@@ -21,6 +21,7 @@ using NCode.Identity.OpenId.Persistence.Stores;
 using NCode.Identity.OpenId.Settings;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.Persistence.Protection;
+using NCode.Identity.SharedState;
 using NCode.Mediator;
 using SystemTextJsonPatch;
 using SystemTextJsonPatch.Operations;
@@ -47,6 +48,7 @@ public sealed class AuditStreamApiEndpointHandlerTests : IDisposable
     private Mock<ISecretProtectorProvider> MockSecretProtectorProvider { get; }
     private Mock<IOpenIdContextFactory> MockOpenIdContextFactory { get; }
     private Mock<IManagementAuditRecorder> MockManagementAuditRecorder { get; }
+    private Mock<IExpiringValueSet> MockExpiringValueSet { get; }
     private FakeCryptoService CryptoService { get; }
     private FakeSecretProtector Protector { get; }
     private FakeTimeProvider Time { get; }
@@ -62,6 +64,7 @@ public sealed class AuditStreamApiEndpointHandlerTests : IDisposable
         MockSecretProtectorProvider = MockRepository.Create<ISecretProtectorProvider>();
         MockOpenIdContextFactory = MockRepository.Create<IOpenIdContextFactory>();
         MockManagementAuditRecorder = MockRepository.Create<IManagementAuditRecorder>();
+        MockExpiringValueSet = MockRepository.Create<IExpiringValueSet>();
         CryptoService = new FakeCryptoService();
         Protector = new FakeSecretProtector();
         Time = new FakeTimeProvider(Start);
@@ -73,6 +76,7 @@ public sealed class AuditStreamApiEndpointHandlerTests : IDisposable
             MockSecretProtectorProvider.Object,
             MockOpenIdContextFactory.Object,
             MockManagementAuditRecorder.Object,
+            MockExpiringValueSet.Object,
             Time,
             NullLogger<AuditStreamApiEndpointHandler>.Instance
         );
@@ -164,6 +168,32 @@ public sealed class AuditStreamApiEndpointHandlerTests : IDisposable
             .Verifiable();
 
         MockStoreManager.Setup(x => x.DisposeAsync()).Returns(ValueTask.CompletedTask).Verifiable();
+    }
+
+    private static string CreateGuardKey { get; } =
+        ExpiringKeys.Create("audit-stream-create", TenantId);
+
+    private void SetupCreateGuard(bool taken)
+    {
+        MockExpiringValueSet
+            .Setup(x =>
+                x.TryAddAsync(
+                    CreateGuardKey,
+                    It.Is<ReadOnlyMemory<byte>>(value => value.IsEmpty),
+                    Start.AddSeconds(30),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .ReturnsAsync(taken)
+            .Verifiable();
+    }
+
+    private void SetupCreateGuardRelease()
+    {
+        MockExpiringValueSet
+            .Setup(x => x.RemoveAsync(CreateGuardKey, CancellationToken.None))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
     }
 
     private void SetupSave()
@@ -488,6 +518,8 @@ public sealed class AuditStreamApiEndpointHandlerTests : IDisposable
     {
         SetupAuthorization(AuthorizationResult.Success());
         SetupTenantContext(maxAuditStreams: 2);
+        SetupCreateGuard(taken: true);
+        SetupCreateGuardRelease();
         SetupStore();
         MockAuditStreamStore
             .Setup(x => x.CountAsync(It.IsAny<CancellationToken>()))
@@ -511,12 +543,92 @@ public sealed class AuditStreamApiEndpointHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task CreateAsync_WhenAnotherCreateOfTheTenantRuns_ReturnsConflictWithoutCounting()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupTenantContext(maxAuditStreams: 2);
+        SetupCreateGuard(taken: false);
+        var request = new CreateAuditStreamRequest
+        {
+            DisplayName = "Warehouse",
+            Endpoint = "https://example.com/audit",
+        };
+
+        // Strict mocks: no store setup and no guard removal, so counting or releasing a guard that
+        // another create holds would fail the test.
+        var result = await Handler.CreateAsync(
+            CreateHttpContext(),
+            TenantId,
+            request,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+        Assert.Equal(
+            "Another audit stream of the tenant is being created; try again.",
+            problem.ProblemDetails.Detail
+        );
+    }
+
+    [Fact]
+    public async Task CreateAsync_Always_ReleasesTheCreateGuard()
+    {
+        CryptoService.ResourceIds.Enqueue(NewStreamId);
+        CryptoService.ResourceIds.Enqueue(NewSecretId);
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupTenantContext(maxAuditStreams: 2);
+        SetupCreateGuard(taken: true);
+        SetupCreateGuardRelease();
+        SetupStore();
+        SetupProtector();
+        SetupSave();
+        MockAuditStreamStore
+            .SetupSequence(x => x.CountAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(2)
+            .ReturnsAsync(1);
+        MockAuditStreamStore
+            .Setup(x => x.AddAsync(It.IsAny<PersistedAuditStream>(), It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask)
+            .Verifiable();
+        SetupRecorder(NewStreamId, ResourceChangeTypes.Created);
+        var request = new CreateAuditStreamRequest
+        {
+            DisplayName = "Warehouse",
+            Endpoint = "https://example.com/audit",
+        };
+
+        var atTheLimit = await Handler.CreateAsync(
+            CreateHttpContext(),
+            TenantId,
+            request,
+            CancellationToken.None
+        );
+        var afterTheLimit = await Handler.CreateAsync(
+            CreateHttpContext(),
+            TenantId,
+            request,
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(atTheLimit);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+        Assert.IsType<Created<CreatedAuditStreamResource>>(afterTheLimit);
+        MockExpiringValueSet.Verify(
+            x => x.RemoveAsync(CreateGuardKey, CancellationToken.None),
+            Times.Exactly(2)
+        );
+    }
+
+    [Fact]
     public async Task CreateAsync_WhenValid_StoresAProtectedSecretAndReturnsItOnce()
     {
         CryptoService.ResourceIds.Enqueue(NewStreamId);
         CryptoService.ResourceIds.Enqueue(NewSecretId);
         SetupAuthorization(AuthorizationResult.Success());
         SetupTenantContext(maxAuditStreams: 2);
+        SetupCreateGuard(taken: true);
+        SetupCreateGuardRelease();
         SetupStore();
         SetupProtector();
         SetupSave();
