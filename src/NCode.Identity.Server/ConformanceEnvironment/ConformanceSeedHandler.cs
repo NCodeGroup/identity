@@ -271,8 +271,15 @@ internal sealed class ConformanceSeedHandler(
         Logger.ConformanceTestUserSeeded(userName, tenantId);
     }
 
-    // Compose the account's display name, which the 'name' claim carries, from whichever name parts are configured so
-    // the suite's EnsureUserInfoContainsName check (a 'profile' scope request) always finds one.
+    /// <summary>
+    /// Composes the test user's display name, which the <c>name</c> claim carries, from the configured given and
+    /// family names.
+    /// </summary>
+    /// <param name="userName">The test user's username, the display name when no name part is configured.</param>
+    /// <returns>
+    /// The configured name parts joined by a space, or <paramref name="userName"/> when none is configured.
+    /// </returns>
+    // The conformance suite's EnsureUserInfoContainsName check (a 'profile' scope request) always finds a name.
     private string BuildTestUserDisplayName(string userName)
     {
         var nameParts = new[] { Options.TestUserGivenName, Options.TestUserFamilyName }.Where(

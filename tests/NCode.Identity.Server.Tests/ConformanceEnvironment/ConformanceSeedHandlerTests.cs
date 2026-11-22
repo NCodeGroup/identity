@@ -321,7 +321,7 @@ public class ConformanceSeedHandlerTests : SecretProtectionTestBase
         Assert.Equal("Conformance", claims[JoseClaimNames.Payload.GivenName]);
         Assert.Equal("User", claims[JoseClaimNames.Payload.FamilyName]);
         Assert.Equal("Conformance User", captured.DisplayName);
-        Assert.False(claims.ContainsKey(JoseClaimNames.Payload.Name));
+        Assert.DoesNotContain(JoseClaimNames.Payload.Name, claims.Keys);
     }
 
     [Fact]
