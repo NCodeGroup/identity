@@ -36,6 +36,12 @@ internal class StaticSingleTenantStrategy(
             : tenantId;
     }
 
+    /// <summary>
+    /// Gets the display name the configured tenant is created with:
+    /// <see cref="StaticSingleTenantOptions.DisplayName"/>, or
+    /// <see cref="StaticSingleTenantOptions.DefaultDisplayName"/> when it is empty.
+    /// </summary>
+    /// <returns>The configured tenant's display name.</returns>
     private string ResolveConfiguredDisplayName()
     {
         var displayName = Options.DisplayName;

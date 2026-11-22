@@ -33,6 +33,9 @@ internal class DefaultTenantResolver(
 {
     private TenantResolutionOptions Options { get; } = optionsAccessor.Value;
 
+    /// <summary>
+    /// Gets the options of the cell that the host runs.
+    /// </summary>
     private CellOptions CellOptions { get; } = cellOptionsAccessor.Value;
 
     private IAmbientTenantAccessor AmbientTenantAccessor { get; } = ambientTenantAccessor;
