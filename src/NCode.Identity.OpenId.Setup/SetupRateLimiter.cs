@@ -22,10 +22,15 @@ internal sealed class SetupRateLimiter : IDisposable
 
     private PartitionedRateLimiter<HttpContext> Limiter { get; } =
         PartitionedRateLimiter.Create<HttpContext, string>(static httpContext =>
-            RateLimitPartition.GetFixedWindowLimiter(
-                httpContext.Connection.RemoteIpAddress is { } address
-                    ? RemoteAddressPartition.GetValue(address)
-                    : UnknownAddressPartition,
+        {
+            var partition = UnknownAddressPartition;
+            if (httpContext.Connection.RemoteIpAddress is { } address)
+            {
+                partition = RemoteAddressPartition.GetValue(address);
+            }
+
+            return RateLimitPartition.GetFixedWindowLimiter(
+                partition,
                 static _ => new FixedWindowRateLimiterOptions
                 {
                     PermitLimit = SetupDefaults.SetupAttemptsPerMinute,
@@ -33,8 +38,8 @@ internal sealed class SetupRateLimiter : IDisposable
                     QueueLimit = 0,
                     AutoReplenishment = true,
                 }
-            )
-        );
+            );
+        });
 
     /// <inheritdoc />
     public void Dispose() => Limiter.Dispose();

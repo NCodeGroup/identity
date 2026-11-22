@@ -87,9 +87,11 @@ internal sealed class SetupOptionsValidator : IValidateOptions<SetupOptions>
         if (!console.IsConfigured)
             return;
 
-        failures.AddRange(
-            SetupManagementConsoleRules.Validate(console, namesConfigurationKeys: true)
+        var consoleFailures = SetupManagementConsoleRules.Validate(
+            console,
+            namesConfigurationKeys: true
         );
+        failures.AddRange(consoleFailures);
     }
 
     private static void ValidateWizard(SetupWizardOptions wizard, List<string> failures)

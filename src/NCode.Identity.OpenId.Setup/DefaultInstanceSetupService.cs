@@ -96,44 +96,44 @@ internal sealed class DefaultInstanceSetupService(
     {
         var origin = baseUrl.TrimEnd('/');
 
-        return JsonSerializer.SerializeToElement(
-            new Dictionary<string, object>
+        var settings = new Dictionary<string, object>
+        {
+            [OpenIdSettingNames.TokenEndpointAuthMethod] = OpenIdProtocol
+                .ClientAuthenticationMethods
+                .PrivateKeyJwt,
+            [OpenIdSettingNames.RequirePushedAuthorizationRequests] = true,
+            [OpenIdSettingNames.RequireDPoPBoundAccessTokens] = true,
+            [OpenIdSettingNames.GrantTypesSupported] = new[]
             {
-                [OpenIdSettingNames.TokenEndpointAuthMethod] = OpenIdProtocol
-                    .ClientAuthenticationMethods
-                    .PrivateKeyJwt,
-                [OpenIdSettingNames.RequirePushedAuthorizationRequests] = true,
-                [OpenIdSettingNames.RequireDPoPBoundAccessTokens] = true,
-                [OpenIdSettingNames.GrantTypesSupported] = new[]
-                {
-                    OpenIdProtocol.GrantTypes.AuthorizationCode,
-                    OpenIdProtocol.GrantTypes.RefreshToken,
-                },
-                [OpenIdSettingNames.ResponseTypesSupported] = new[]
-                {
-                    OpenIdProtocol.ResponseTypes.Code,
-                },
-                [OpenIdSettingNames.RedirectUris] = new[] { $"{origin}{BffCallbackPath}" },
-                [OpenIdSettingNames.PostLogoutRedirectUris] = new[] { $"{origin}/" },
-                [OpenIdSettingNames.BackChannelLogoutUri] = $"{origin}{BffBackChannelLogoutPath}",
-                [OpenIdSettingNames.BackChannelLogoutSessionRequired] = true,
-            }
-        );
+                OpenIdProtocol.GrantTypes.AuthorizationCode,
+                OpenIdProtocol.GrantTypes.RefreshToken,
+            },
+            [OpenIdSettingNames.ResponseTypesSupported] = new[]
+            {
+                OpenIdProtocol.ResponseTypes.Code,
+            },
+            [OpenIdSettingNames.RedirectUris] = new[] { $"{origin}{BffCallbackPath}" },
+            [OpenIdSettingNames.PostLogoutRedirectUris] = new[] { $"{origin}/" },
+            [OpenIdSettingNames.BackChannelLogoutUri] = $"{origin}{BffBackChannelLogoutPath}",
+            [OpenIdSettingNames.BackChannelLogoutSessionRequired] = true,
+        };
+        return JsonSerializer.SerializeToElement(settings);
     }
 
-    private static JsonElement CreateAutomationSettings() =>
-        JsonSerializer.SerializeToElement(
-            new Dictionary<string, object>
+    private static JsonElement CreateAutomationSettings()
+    {
+        var settings = new Dictionary<string, object>
+        {
+            [OpenIdSettingNames.GrantTypesSupported] = new[]
             {
-                [OpenIdSettingNames.GrantTypesSupported] = new[]
-                {
-                    OpenIdProtocol.GrantTypes.ClientCredentials,
-                },
-                [OpenIdSettingNames.TokenEndpointAuthMethod] = OpenIdProtocol
-                    .ClientAuthenticationMethods
-                    .PrivateKeyJwt,
-            }
-        );
+                OpenIdProtocol.GrantTypes.ClientCredentials,
+            },
+            [OpenIdSettingNames.TokenEndpointAuthMethod] = OpenIdProtocol
+                .ClientAuthenticationMethods
+                .PrivateKeyJwt,
+        };
+        return JsonSerializer.SerializeToElement(settings);
+    }
 
     // The addresses come from the control-plane tenant's issuer, never from the request, so a request's Host header
     // cannot choose where the done page sends the operator. The management API and the API reference sit at the host
@@ -158,13 +158,12 @@ internal sealed class DefaultInstanceSetupService(
         if (creation.Error is { } error)
             return new InstanceSetupResult { Error = error };
 
-        var detail = string.Join(
-            " ",
+        var detailMessages =
             creation.SettingErrors?.SelectMany(pair =>
                 pair.Value.Select(message => $"{pair.Key}: {message}")
             )
-                ?? []
-        );
+            ?? [];
+        var detail = string.Join(" ", detailMessages);
 
         return new InstanceSetupResult
         {
@@ -181,22 +180,21 @@ internal sealed class DefaultInstanceSetupService(
         string tenantId,
         string principalId,
         CancellationToken cancellationToken
-    ) =>
-        await storeManager
-            .GetStore<IRoleAssignmentStore>()
-            .AddAsync(
-                new PersistedRoleAssignment
-                {
-                    TenantId = tenantId,
-                    AssignmentId = CryptoService.GenerateResourceId(),
-                    PrincipalId = principalId,
-                    RoleName = BuiltInRoles.GlobalAdmin,
-                    ResourceType = OpenIdResourceTypes.Platform,
-                    ResourceId = OpenIdConstants.PlatformResourceId,
-                    ConcurrencyToken = string.Empty,
-                },
-                cancellationToken
-            );
+    )
+    {
+        var store = storeManager.GetStore<IRoleAssignmentStore>();
+        var assignment = new PersistedRoleAssignment
+        {
+            TenantId = tenantId,
+            AssignmentId = CryptoService.GenerateResourceId(),
+            PrincipalId = principalId,
+            RoleName = BuiltInRoles.GlobalAdmin,
+            ResourceType = OpenIdResourceTypes.Platform,
+            ResourceId = OpenIdConstants.PlatformResourceId,
+            ConcurrencyToken = string.Empty,
+        };
+        await store.AddAsync(assignment, cancellationToken);
+    }
 
     /// <inheritdoc />
     public async ValueTask<InstanceSetupResult> SetUpAsync(
@@ -311,17 +309,18 @@ internal sealed class DefaultInstanceSetupService(
         // tenant-bound store finds and names them in that tenant alone.
         using (AmbientTenantAccessor.BeginScope(tenantId))
         {
+            var createRequest = new CreateLocalAccountRequest
+            {
+                UserName = root.UserName,
+                Password = password,
+                Email = root.Email,
+                EmailVerified = false,
+                IsEnabled = true,
+            };
             var creation = await LocalAccountCreator.StageAsync(
                 storeManager,
                 tenantId,
-                new CreateLocalAccountRequest
-                {
-                    UserName = root.UserName,
-                    Password = password,
-                    Email = root.Email,
-                    EmailVerified = false,
-                    IsEnabled = true,
-                },
+                createRequest,
                 cancellationToken
             );
             if (!creation.Succeeded)
@@ -333,16 +332,17 @@ internal sealed class DefaultInstanceSetupService(
 
             if (consoleRegistration is { } registration)
             {
+                var consoleRequest = new ClientCreationRequest
+                {
+                    TenantId = tenantId,
+                    ClientId = registration.ClientId,
+                    IsDisabled = false,
+                    Settings = CreateManagementConsoleSettings(registration.BaseUrl),
+                    Jwks = JsonSerializer.Deserialize<JsonElement>(registration.Jwks),
+                };
                 var clientCreation = await ClientCreator.StageAsync(
                     storeManager,
-                    new ClientCreationRequest
-                    {
-                        TenantId = tenantId,
-                        ClientId = registration.ClientId,
-                        IsDisabled = false,
-                        Settings = CreateManagementConsoleSettings(registration.BaseUrl),
-                        Jwks = JsonSerializer.Deserialize<JsonElement>(registration.Jwks),
-                    },
+                    consoleRequest,
                     cancellationToken
                 );
                 if (!clientCreation.Succeeded)
@@ -355,18 +355,19 @@ internal sealed class DefaultInstanceSetupService(
             {
                 // A machine client lives in the control-plane tenant and is owned by the platform node, as the
                 // management API creates it, so the creator requires it to be limited to the client_credentials grant.
+                var machineRequest = new ClientCreationRequest
+                {
+                    TenantId = tenantId,
+                    ClientId = automationClient.ClientId,
+                    IsDisabled = false,
+                    OwningNodeType = OpenIdResourceTypes.Platform,
+                    OwningNodeId = OpenIdConstants.PlatformResourceId,
+                    Settings = CreateAutomationSettings(),
+                    Jwks = JsonSerializer.Deserialize<JsonElement>(automationClient.Jwks),
+                };
                 var machineCreation = await ClientCreator.StageAsync(
                     storeManager,
-                    new ClientCreationRequest
-                    {
-                        TenantId = tenantId,
-                        ClientId = automationClient.ClientId,
-                        IsDisabled = false,
-                        OwningNodeType = OpenIdResourceTypes.Platform,
-                        OwningNodeId = OpenIdConstants.PlatformResourceId,
-                        Settings = CreateAutomationSettings(),
-                        Jwks = JsonSerializer.Deserialize<JsonElement>(automationClient.Jwks),
-                    },
+                    machineRequest,
                     cancellationToken
                 );
                 if (!machineCreation.Succeeded)

@@ -262,12 +262,13 @@ internal class LocalAccountApiEndpointHandler(
 
         var resource = ToLocalAccountResource(account, creation.PrincipalId);
 
+        var resourceValues = ToResourceValues(resource);
         await ManagementAuditRecorder.RecordLocalAccountChangedAsync(
             httpContext,
             tenantId,
             localAccountId,
             ResourceChangeTypes.Created,
-            ToResourceValues(resource)
+            resourceValues
         );
 
         httpContext.Response.Headers.ETag = ManagementEntityTags.Format(account.ConcurrencyToken);
@@ -291,19 +292,18 @@ internal class LocalAccountApiEndpointHandler(
     {
         var effectiveLimit = NormalizeLimit(limit);
 
+        var tenantResource = TenantScopeResource.For(tenantId);
         return await ProcessListAsync(
             httpContext,
-            TenantScopeResource.For(tenantId),
+            tenantResource,
             async () =>
             {
                 await using var storeManager = await StoreManagerFactory.CreateAsync(
                     cancellationToken
                 );
                 var store = storeManager.GetStore<ILocalAccountStore>();
-                var page = await store.GetPageAsync(
-                    new PageRequest { Cursor = cursor, Limit = effectiveLimit },
-                    cancellationToken
-                );
+                var pageRequest = new PageRequest { Cursor = cursor, Limit = effectiveLimit };
+                var page = await store.GetPageAsync(pageRequest, cancellationToken);
 
                 var localAccountIds = new List<string>(page.Items.Count);
                 foreach (var account in page.Items)
@@ -322,7 +322,8 @@ internal class LocalAccountApiEndpointHandler(
                 );
                 foreach (var account in page.Items)
                 {
-                    items.Add((account, principalIds.GetValueOrDefault(account.LocalAccountId)));
+                    var principalId = principalIds.GetValueOrDefault(account.LocalAccountId);
+                    items.Add((account, principalId));
                 }
 
                 return new PagedResult<(PersistedLocalAccount Account, string? PrincipalId)>
@@ -348,9 +349,10 @@ internal class LocalAccountApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var tenantResource = TenantScopeResource.For(tenantId);
         return await ProcessGetAsync(
             httpContext,
-            TenantScopeResource.For(tenantId),
+            tenantResource,
             Operations.Read,
             async token =>
             {
@@ -409,11 +411,12 @@ internal class LocalAccountApiEndpointHandler(
         }
 
         var ifMatch = httpContext.Request.Headers.IfMatch.ToString();
+        var expectedConcurrencyToken = string.IsNullOrEmpty(ifMatch) ? null : ifMatch;
         var error = await LocalAccountValidator.ValidateUpdateAsync(
             localAccountId,
             request.UserName,
             account.ConcurrencyToken,
-            string.IsNullOrEmpty(ifMatch) ? null : ifMatch,
+            expectedConcurrencyToken,
             storeManager,
             cancellationToken
         );
@@ -435,12 +438,13 @@ internal class LocalAccountApiEndpointHandler(
         await storeManager.SaveChangesAsync(cancellationToken);
 
         var resource = ToLocalAccountResource(account, principalId);
+        var resourceValues = ToResourceValues(resource);
         await ManagementAuditRecorder.RecordLocalAccountChangedAsync(
             httpContext,
             tenantId,
             localAccountId,
             ResourceChangeTypes.Updated,
-            ToResourceValues(resource)
+            resourceValues
         );
 
         httpContext.Response.Headers.ETag = ManagementEntityTags.Format(account.ConcurrencyToken);
@@ -650,12 +654,13 @@ internal class LocalAccountApiEndpointHandler(
         }
 
         var resource = ToLocalAccountResource(account, principalId);
+        var resourceValues = ToResourceValues(resource);
         await ManagementAuditRecorder.RecordLocalAccountChangedAsync(
             httpContext,
             tenantId,
             localAccountId,
             ResourceChangeTypes.Updated,
-            ToResourceValues(resource)
+            resourceValues
         );
 
         httpContext.Response.Headers.ETag = ManagementEntityTags.Format(account.ConcurrencyToken);
@@ -767,9 +772,10 @@ internal class LocalAccountApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var tenantResource = TenantScopeResource.For(tenantId);
         return await ProcessGetAsync(
             httpContext,
-            TenantScopeResource.For(tenantId),
+            tenantResource,
             Operations.Read,
             async token =>
             {
@@ -848,9 +854,10 @@ internal class LocalAccountApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var tenantResource = TenantScopeResource.For(tenantId);
         return await ProcessGetAsync(
             httpContext,
-            TenantScopeResource.For(tenantId),
+            tenantResource,
             Operations.Read,
             async token =>
             {

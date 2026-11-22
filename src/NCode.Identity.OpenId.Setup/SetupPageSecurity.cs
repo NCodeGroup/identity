@@ -32,18 +32,21 @@ internal readonly record struct SetupPageSecurity(string Nonce, HtmlPageSecurity
         var connectSources = new List<string> { ContentSecurityPolicySources.Self };
         ContentSecurityPolicySources.AddOrigin(connectSources, managementConsoleOrigin);
 
+        var scriptNonceSource = ContentSecurityPolicySources.Nonce(nonce);
+        var styleNonceSource = ContentSecurityPolicySources.Nonce(nonce);
+
         var policy = new HtmlPageSecurityPolicy
         {
             Directives =
             [
                 new ContentSecurityPolicyDirective(
                     ContentSecurityPolicyDirectives.ScriptSrc,
-                    ContentSecurityPolicySources.Nonce(nonce),
+                    scriptNonceSource,
                     ContentSecurityPolicySources.StrictDynamic
                 ),
                 new ContentSecurityPolicyDirective(
                     ContentSecurityPolicyDirectives.StyleSrc,
-                    ContentSecurityPolicySources.Nonce(nonce)
+                    styleNonceSource
                 ),
                 new ContentSecurityPolicyDirective(
                     ContentSecurityPolicyDirectives.FontSrc,

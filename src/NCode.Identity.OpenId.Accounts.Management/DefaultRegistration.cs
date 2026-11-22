@@ -44,11 +44,11 @@ public static class DefaultRegistration
 
             // Attach the endpoint to the existing tenant-plane group by registering it keyed under the group's name
             // (ADR-1086); the management route tree resolves keyed providers per group when it maps routes.
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.KeyedSingleton<IEndpointProvider, LocalAccountApiEndpointHandler>(
-                    ManagementEndpointGroups.Tenant
-                )
-            );
+            var endpointDescriptor = ServiceDescriptor.KeyedSingleton<
+                IEndpointProvider,
+                LocalAccountApiEndpointHandler
+            >(ManagementEndpointGroups.Tenant);
+            serviceCollection.TryAddEnumerable(endpointDescriptor);
 
             serviceCollection.TryAddSingleton<
                 ILocalAccountValidator,
@@ -58,12 +58,11 @@ public static class DefaultRegistration
             serviceCollection.TryAddSingleton<ILocalAccountCreator, DefaultLocalAccountCreator>();
 
             // Carries a tenant's local accounts between cells (ADR-1514).
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<
-                    ITenantTransferContributor,
-                    LocalAccountTenantTransferContributor
-                >()
-            );
+            var transferDescriptor = ServiceDescriptor.Singleton<
+                ITenantTransferContributor,
+                LocalAccountTenantTransferContributor
+            >();
+            serviceCollection.TryAddEnumerable(transferDescriptor);
 
             return builder;
         }

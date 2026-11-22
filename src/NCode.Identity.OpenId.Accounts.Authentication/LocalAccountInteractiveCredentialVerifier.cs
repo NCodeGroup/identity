@@ -125,37 +125,39 @@ internal sealed class LocalAccountInteractiveCredentialVerifier(
         var issuerClaimType = settings.GetValue(OpenIdSettingKeys.PrincipalIssuerClaim);
 
         var authTime = TimeProvider.GetUtcNow().ToUnixTimeSeconds();
+        var authTimeValue = authTime.ToString(CultureInfo.InvariantCulture);
         var claims = new List<Claim>(account.Claims.Count + 6)
         {
             new(subjectClaimType, account.LocalAccountId),
             new(issuerClaimType, AccountConstants.SelfIssuer),
             new(JoseClaimNames.Payload.Tid, openIdContext.Tenant.TenantId),
-            new(
-                JoseClaimNames.Payload.AuthTime,
-                authTime.ToString(CultureInfo.InvariantCulture),
-                ClaimValueTypes.Integer64
-            ),
+            new(JoseClaimNames.Payload.AuthTime, authTimeValue, ClaimValueTypes.Integer64),
         };
-        claims.AddRange(account.Claims.Select(claim => new Claim(claim.Type, claim.Value)));
+        var accountClaims = account.Claims.Select(claim => new Claim(claim.Type, claim.Value));
+        claims.AddRange(accountClaims);
 
         // The local account verified a password, so record 'pwd' (RFC 8176) and resolve the authentication context
         // class reference (acr) from it, letting the deployment's policy assert a stronger value when applicable.
-        claims.Add(
-            new Claim(JoseClaimNames.Payload.Amr, OpenIdProtocol.AuthenticationMethods.Password)
+        var amrClaim = new Claim(
+            JoseClaimNames.Payload.Amr,
+            OpenIdProtocol.AuthenticationMethods.Password
         );
+        claims.Add(amrClaim);
 
+        var acrRequest = new AuthenticationContextReferenceRequest
+        {
+            AuthenticationMethods = [OpenIdProtocol.AuthenticationMethods.Password],
+            IdentityProvider = null,
+            Settings = settings,
+        };
         var acr = await AuthenticationContextReferenceResolver.ResolveAsync(
-            new AuthenticationContextReferenceRequest
-            {
-                AuthenticationMethods = [OpenIdProtocol.AuthenticationMethods.Password],
-                IdentityProvider = null,
-                Settings = settings,
-            },
+            acrRequest,
             cancellationToken
         );
         if (!string.IsNullOrEmpty(acr))
         {
-            claims.Add(new Claim(JoseClaimNames.Payload.Acr, acr));
+            var acrClaim = new Claim(JoseClaimNames.Payload.Acr, acr);
+            claims.Add(acrClaim);
         }
 
         var identity = new ClaimsIdentity(

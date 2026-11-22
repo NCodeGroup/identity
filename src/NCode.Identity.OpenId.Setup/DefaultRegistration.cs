@@ -76,17 +76,21 @@ public static class DefaultRegistration
 
             serviceCollection.TryAddSingleton(TimeProvider.System);
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IValidateOptions<SetupOptions>, SetupOptionsValidator>()
-            );
+            var validatorDescriptor = ServiceDescriptor.Singleton<
+                IValidateOptions<SetupOptions>,
+                SetupOptionsValidator
+            >();
+            serviceCollection.TryAddEnumerable(validatorDescriptor);
 
             serviceCollection.TryAddSingleton<SetupProcessClock>();
             serviceCollection.TryAddSingleton<ISetupTokenService, DefaultSetupTokenService>();
             serviceCollection.TryAddSingleton<IInstanceSetupService, DefaultInstanceSetupService>();
 
-            serviceCollection.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IHostedService, InstanceSetupHostedService>()
-            );
+            var hostedServiceDescriptor = ServiceDescriptor.Singleton<
+                IHostedService,
+                InstanceSetupHostedService
+            >();
+            serviceCollection.TryAddEnumerable(hostedServiceDescriptor);
 
             serviceCollection.TryAddSingleton<SetupRateLimiter>();
             serviceCollection.TryAddSingleton<ISetupSurfaceGate, DefaultSetupSurfaceGate>();
