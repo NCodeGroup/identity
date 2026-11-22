@@ -336,11 +336,11 @@ other cell once the directory runs.
    (the runtime role's connection in `directory.database`, whose role `directory.database.runtimeRole` names, and the
    schema owner's connection in `directory.migrations.database`, each from a Secret that holds the finished connection
    string, `existingSecret`, or the connection's parts, `directory.database.parts.existingSecret` and
-   `directory.migrations.database.parts.existingSecret`) and its serving certificate
-   (`directory.tls.existingSecret`), as the chart's
+   `directory.migrations.database.parts.existingSecret`), its serving certificate (`directory.backendTls`, which the
+   chart issues by default) and its route (`directory.ingress` or `directory.httpRoute`), as the chart's
    [The cell](../charts/ncode-identity-host/README.md#the-cell) section lists. The directory accepts bearer tokens of
-   the control-plane cell's issuer for audience `urn:ncode:directory` and scope `directory`. It runs as one replica,
-   and its database is its own, never a cell's.
+   the control-plane cell's issuer for audience `urn:ncode:directory` and scope `directory`. It runs as one replica, and
+   its database is its own, never a cell's.
 3. **Create the cell's key ring.** Generate a signing key for the cell, either a PEM file or a key in a key management
    service, and keep its private half with the cell. The key ring has the name you choose for `directory.keyRing`, and
    at least one key.
