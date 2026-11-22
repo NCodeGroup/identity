@@ -177,7 +177,9 @@ jobs:
           # The directory server's values need directory.enabled: without it the chart runs no directory host.
           refuse --set directory.issuer=https://control-plane.example
           refuse --set directory.controlPlaneCell=control
-          refuse --set directory.tls.existingSecret=directory-tls
+          refuse --set directory.backendTls.existingSecret=directory-tls
+          refuse --set directory.ingress.enabled=true
+          refuse --set directory.httpRoute.enabled=true
           refuse --set 'directory.allowedHosts={directory.example.com}'
           refuse --set directory.database.runtimeRole=ncode_directory_app
           refuse --set directory.database.existingSecret=directory-database
@@ -842,7 +844,14 @@ jobs:
           refuse --set directory.migrations.database.existingSecret=
           # A connection is one form for the owner too.
           refuse --set directory.migrations.database.parts.existingSecret=directory-owner
-          refuse --set directory.tls.existingSecret=
+          # The directory's routes follow the host's rules (ADR-1507): an Ingress needs the controller named, an HTTPRoute
+          # needs a parent Gateway, and an operator's certificate has no known CA to verify against.
+          refuse --set directory.ingress.enabled=true
+          refuse --set directory.httpRoute.enabled=true
+          refuse --set directory.httpRoute.enabled=true --set-json 'directory.httpRoute.parentRefs=[{"name":"gw"}]'
+          refuse --set ingress.controller=traefik --set directory.ingress.enabled=true
+          helm template release "$CHART" --values "$base" --set ingress.controller=traefik \
+            --set directory.ingress.enabled=true --set directory.backendTls.ingressSecret=directory-ingress > /dev/null
 
       - name: Run the directory's migration Job under the operator's ServiceAccount
         run: |
@@ -914,6 +923,27 @@ jobs:
           done
           service="$(render templates/directory-service.yaml)"
           expect "$service" 'kind: Service' 'appProtocol: https' 'targetPort: https'
+          # Without the operator's Secret the chart issues the directory's certificate for the Service's DNS names.
+          issued=(--set directory.backendTls.existingSecret=)
+          certificate="$(render templates/directory-backend-tls.yaml "${issued[@]}")"
+          expect "$certificate" 'kind: Certificate' 'secretName: release-ncode-identity-host-directory-tls' \
+            'release-ncode-identity-host-directory.default.svc'
+          # Behind Traefik the directory's Ingress, its ServersTransport and its Service's annotations verify the pods.
+          traefik=(--set ingress.controller=traefik --set directory.ingress.enabled=true \
+            --set directory.ingress.className=traefik "${issued[@]}")
+          expect "$(render templates/directory-ingress.yaml "${traefik[@]}")" 'kind: Ingress' 'host: "directory.example.com"' \
+            'name: https'
+          expect "$(render templates/directory-servers-transport.yaml "${traefik[@]}")" 'kind: ServersTransport' \
+            'serverName: "release-ncode-identity-host-directory.default.svc"' 'secret: release-ncode-identity-host-ingress'
+          expect "$(render templates/directory-service.yaml "${traefik[@]}")" 'service.serversscheme: https' \
+            'default-release-ncode-identity-host-directory@kubernetescrd'
+          # Behind a Gateway the directory's HTTPRoute and its BackendTLSPolicy verify the pods.
+          gateway=(--set directory.httpRoute.enabled=true --set-json 'directory.httpRoute.parentRefs=[{"name":"gw"}]' \
+            --set backendTls.caConfigMap=identity-ca "${issued[@]}")
+          expect "$(render templates/directory-http-route.yaml "${gateway[@]}")" 'kind: HTTPRoute' '- directory.example.com' \
+            'kind: BackendTLSPolicy' 'name: identity-ca'
+          # Without a controller the Service carries no ServersTransport.
+          reject "$service" 'serverstransport'
 
       - name: Hold the management console's keys in a key management service
         run: |
