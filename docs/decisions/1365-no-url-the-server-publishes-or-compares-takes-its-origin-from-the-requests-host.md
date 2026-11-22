@@ -35,8 +35,10 @@ No URL the server publishes or compares takes its origin from the request's `Hos
    start.
 3. **`BffNavigation` builds the BFF's URLs from it.** The `redirect_uri` is `PublicOrigin + PathPrefix + "/callback"`
    and the `post_logout_redirect_uri` is `PublicOrigin + returnUrl`. The BFF's local redirects stay relative under the
-   request's path base. Startup validation is the only `https` check of the callback, so the login handler has no
-   runtime check and no `IHostEnvironment` dependency.
+   request's path base. Every one goes through `BffNavigation.RedirectLocal`, which refuses a URL that
+   `LocalUrl.IsLocal` rejects, so a path base or a return URL that would leave the origin fails instead of redirecting.
+   Startup validation is the only `https` check of the callback, so the login handler has no runtime check and no
+   `IHostEnvironment` dependency.
 4. **The URL of the endpoint receiving a client's message is one the tenant publishes** (`TenantRequestUri`). Its
    authority is the tenant's base address (its issuer) or, when the tenant has one, its mutual-TLS endpoint alias
    authority (RFC 8705 §5). Only the path comes from the request, which routing matched to the endpoint.

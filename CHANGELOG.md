@@ -6081,6 +6081,11 @@ Until the first stable release, the [Unreleased] section describes the product a
   (`NCode.Identity.OpenId.Protocol.Abstractions`) is the one local-path rule; the interactive surface and the BFF use
   it, so a return URL such as `/\t/evil.example` cannot redirect off-site after sign-in.
 
+- **A BFF redirects a browser only to a local URL.** Every local redirect of the BFF (after logout, after the callback,
+  to the login endpoint and to the error page) goes through `BffNavigation.RedirectLocal`, which refuses a URL that
+  `LocalUrl.IsLocal` rejects, so a path base or a return URL that would leave the origin fails closed instead of
+  redirecting.
+
 - **The frontend bootstrap document never takes its issuer or API base from the request.** With `Frontend:Issuer` unset,
   `/config/bootstrap.json` publishes the stored issuer of the tenant that serves the surface: the `StaticSingle` tenant,
   or the root tenant under the dynamic strategies, so a forged or proxied `Host` cannot send the bundle to an authority
