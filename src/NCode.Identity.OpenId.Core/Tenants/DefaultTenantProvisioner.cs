@@ -24,7 +24,9 @@ namespace NCode.Identity.OpenId.Tenants;
 /// step that fails is logged, the remaining steps run, and the seed stands, because its unit of work has committed. It
 /// then reads the tenant again in a fresh unit of work and returns the row its seed committed. Only the control-plane
 /// cell seeds its root tenant in the root plane; every other tenant, and the root tenant of every other cell, is seeded
-/// in the workload plane.
+/// in the workload plane. A tenant it creates that a strategy serves (one with an issuer), other than the control-plane
+/// cell's root tenant, is reserved and placed in this cell through the global directory, as the management API creates
+/// a tenant; a tenant without an issuer is created in this cell alone.
 /// </summary>
 // See ADR-1166 (one seeding pipeline) and ADR-1351 (an effect that follows a committed change runs on its own bounded
 // token).
@@ -36,6 +38,7 @@ internal sealed class DefaultTenantProvisioner(
     IOptions<CellOptions> cellOptionsAccessor,
     IMediator mediator,
     ITeamProvisioner teamProvisioner,
+    ITenantDirectory tenantDirectory,
     TimeProvider timeProvider,
     ILogger<DefaultTenantProvisioner> logger
 ) : ITenantProvisioner
@@ -49,6 +52,7 @@ internal sealed class DefaultTenantProvisioner(
     private CellOptions CellOptions { get; } = cellOptionsAccessor.Value;
     private IMediator Mediator { get; } = mediator;
     private ITeamProvisioner TeamProvisioner { get; } = teamProvisioner;
+    private ITenantDirectory TenantDirectory { get; } = tenantDirectory;
     private TimeProvider TimeProvider { get; } = timeProvider;
     private ILogger<DefaultTenantProvisioner> Logger { get; } = logger;
 
@@ -110,7 +114,52 @@ internal sealed class DefaultTenantProvisioner(
             issuer,
             mtlsEndpointAliasAuthority
         );
-        await store.AddAsync(persistedTenant, cancellationToken);
+
+        // The control-plane cell creates its root tenant without the directory, which accepts only the tokens that
+        // tenant issues; every other tenant a strategy serves is reserved, inserted and placed through the directory,
+        // as the management API creates a tenant (ADR-1160, ADR-1411).
+        var isDirectoryTokenIssuer = RootTenantRules.IsDirectoryTokenIssuer(
+            CellOptions,
+            TenantResolver,
+            tenantId
+        );
+        if (isDirectoryTokenIssuer)
+        {
+            var concurrentRoot = await InsertOrFindConcurrentAsync(
+                persistedTenant,
+                storeManager,
+                cancellationToken
+            );
+            return concurrentRoot ?? persistedTenant;
+        }
+
+        // A tenant no strategy serves has no address on the platform, so it holds nothing in the directory.
+        if (persistedTenant.Issuer is null)
+        {
+            var concurrentUnserved = await InsertOrFindConcurrentAsync(
+                persistedTenant,
+                storeManager,
+                cancellationToken
+            );
+            return concurrentUnserved ?? persistedTenant;
+        }
+
+        return await ReserveInsertAndPlaceAsync(persistedTenant, storeManager, cancellationToken);
+    }
+
+    /// <summary>
+    /// Inserts the tenant and commits it.
+    /// </summary>
+    /// <returns>The <see cref="ValueTask"/> that represents the asynchronous operation, containing <c>null</c> when the
+    /// tenant is inserted, or the row a concurrent creator wrote when the insert lost to it.</returns>
+    private async ValueTask<PersistedTenant?> InsertOrFindConcurrentAsync(
+        PersistedTenant tenant,
+        IStoreManager storeManager,
+        CancellationToken cancellationToken
+    )
+    {
+        var store = storeManager.GetStore<ITenantStore>();
+        await store.AddAsync(tenant, cancellationToken);
 
         try
         {
@@ -121,14 +170,130 @@ internal sealed class DefaultTenantProvisioner(
             // Another node or request may have created the tenant between the read above and this write — two replicas
             // reaching the root tenant on a fresh deployment, say. The row it wrote is the tenant; anything else is a
             // genuine failure.
-            var concurrent = await FindTenantAsync(tenantId, cancellationToken);
+            var concurrent = await FindTenantAsync(tenant.TenantId, cancellationToken);
             if (concurrent is null)
                 throw;
 
             return concurrent;
         }
 
-        return persistedTenant;
+        return null;
+    }
+
+    /// <summary>
+    /// Creates a tenant through the directory as a saga: reserves the tenant's identifier and issuer, inserts the
+    /// tenant, then places it in this cell. A creation that fails before the tenant is placed removes the inserted
+    /// tenant, then releases the reservation, so the directory never frees an identifier whose row still exists.
+    /// </summary>
+    private async ValueTask<PersistedTenant> ReserveInsertAndPlaceAsync(
+        PersistedTenant tenant,
+        IStoreManager storeManager,
+        CancellationToken cancellationToken
+    )
+    {
+        // Unreachable: a tenant without an issuer is created without the directory.
+        if (tenant.Issuer is not { } issuer)
+        {
+            throw new InvalidOperationException(
+                $"The tenant '{tenant.TenantId}' has no issuer to reserve."
+            );
+        }
+
+        var reservation = new TenantReservation
+        {
+            TenantId = tenant.TenantId,
+            Issuer = issuer,
+            TeamId = tenant.TeamId,
+            Cell = CellOptions.Name,
+        };
+        var reservationResult = await TenantDirectory.ReserveAsync(reservation, cancellationToken);
+        if (!reservationResult.IsReserved)
+        {
+            // Replicas race to create the same tenant, and the directory's reservation is idempotent for the same
+            // cell, issuer and team; a refusal that follows a concurrent creator's row is that creator's tenant.
+            var creator = await FindTenantAsync(tenant.TenantId, cancellationToken);
+            if (creator is not null)
+                return creator;
+
+            throw new InvalidOperationException(
+                $"The tenant '{tenant.TenantId}' cannot be created: {reservationResult.ConflictDetail}"
+            );
+        }
+
+        var isInserted = false;
+        var isSettled = false;
+        try
+        {
+            var concurrent = await InsertOrFindConcurrentAsync(
+                tenant,
+                storeManager,
+                cancellationToken
+            );
+            if (concurrent is not null)
+            {
+                // The concurrent creator holds the same reservation and places the tenant, so nothing is released.
+                isSettled = true;
+                return concurrent;
+            }
+
+            isInserted = true;
+
+            var placementRequest = new TenantPlacementRequest
+            {
+                TenantId = tenant.TenantId,
+                Issuer = issuer,
+                Cell = CellOptions.Name,
+            };
+            var placementResult = await TenantDirectory.PlaceAsync(
+                placementRequest,
+                cancellationToken
+            );
+            if (!placementResult.IsReserved)
+            {
+                throw new InvalidOperationException(
+                    $"The tenant '{tenant.TenantId}' cannot be placed in this cell: {placementResult.ConflictDetail}"
+                );
+            }
+
+            isSettled = true;
+            return tenant;
+        }
+        finally
+        {
+            if (!isSettled)
+            {
+                // The compensation runs even when the request was canceled, and the release comes after the removal,
+                // so the directory never frees an identifier whose row still exists.
+                if (isInserted)
+                {
+                    try
+                    {
+                        await RemoveCreatedTenantAsync(tenant.TenantId, CancellationToken.None);
+                    }
+                    finally
+                    {
+                        await TenantDirectory.ReleaseAsync(tenant.TenantId, CancellationToken.None);
+                    }
+                }
+                else
+                {
+                    await TenantDirectory.ReleaseAsync(tenant.TenantId, CancellationToken.None);
+                }
+            }
+        }
+    }
+
+    // The removal compensates a creation that failed after its row committed, so it runs on a store manager of its own
+    // even when the request was canceled: the caller passes a token that is never canceled.
+    private async ValueTask RemoveCreatedTenantAsync(
+        string tenantId,
+        CancellationToken cancellationToken
+    )
+    {
+        await using var cleanup = await StoreManagerFactory.CreateAsync(cancellationToken);
+        var cleanupStore = cleanup.GetStore<ITenantStore>();
+        await cleanupStore.RemoveFromCellAsync(tenantId, cancellationToken);
+        await cleanup.SaveChangesAsync(cancellationToken);
     }
 
     /// <inheritdoc />
