@@ -12,7 +12,8 @@ using Xunit;
 namespace NCode.Identity.OpenId.Integration.Tests.Endpoints;
 
 // A management request that fails to bind, or that no route answers, is answered as a problem document, so a caller
-// reads one error shape across the management API. See ADR-1483.
+// reads one error shape across the management API. See ADR-1483. A request without a valid management access token
+// is answered 401 before it binds (ADR-1520).
 public class ManagementRequestBindingTests
 {
     private const string TenantApiPath = $"/api/tenants/{HostApplicationFactory.TenantId}";
@@ -108,20 +109,20 @@ public class ManagementRequestBindingTests
     }
 
     [Fact]
-    public async Task ListGrants_WithALimitThatIsNotANumberAndNoToken_IsABadRequestProblem()
+    public async Task ListGrants_WithALimitThatIsNotANumberAndNoToken_IsAnUnauthorizedProblem()
     {
         using var factory = new HostApplicationFactory();
         using var client = factory.CreateClient();
 
         using var response = await client.GetAsync($"{TenantApiPath}/grants?limit=abc");
 
-        await AssertProblemAsync(response, HttpStatusCode.BadRequest, CancellationToken.None);
+        await AssertProblemAsync(response, HttpStatusCode.Unauthorized, CancellationToken.None);
     }
 
     [Fact]
     public async Task ListGrants_WithALimitThatIsNotANumberWhenBindingDoesNotThrow_IsABadRequestProblem()
     {
-        using var factory = new HostApplicationFactory();
+        using var factory = new BootstrapAdminApplicationFactory();
         using var host = factory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(serviceCollection =>
                 serviceCollection.PostConfigure<RouteHandlerOptions>(options =>
@@ -129,11 +130,26 @@ public class ManagementRequestBindingTests
                 )
             )
         );
-        using var client = host.CreateClient();
+        using var client = await BootstrapAdminApplicationFactory.TokenRequest.CreateClientAsync(
+            host,
+            CancellationToken.None
+        );
 
         using var response = await client.GetAsync($"{TenantApiPath}/grants?limit=abc");
 
         await AssertProblemAsync(response, HttpStatusCode.BadRequest, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task ImportTenant_WithoutATokenAndABodyThatIsNotJson_IsAnUnauthorizedProblem()
+    {
+        using var factory = new HostApplicationFactory();
+        using var client = factory.CreateClient();
+        using var content = new StringContent("{", SecureEncoding.UTF8, "application/json");
+
+        using var response = await client.PostAsync("/api/tenant-imports", content);
+
+        await AssertProblemAsync(response, HttpStatusCode.Unauthorized, CancellationToken.None);
     }
 
     #endregion
