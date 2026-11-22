@@ -29,9 +29,9 @@ same scope and surface.
 | Path                              | Scope    | Surfaces                                                                                          |
 | --------------------------------- | -------- | ------------------------------------------------------------------------------------------------- |
 | `/home`                           | caller   | the places the caller holds authority                                                             |
-| `/teams`, `/clients`, `/settings`, `/encryption-keys` | platform | `PLATFORM_SURFACES`                                                          |
+| `/teams`, `/clients`, `/settings`, `/encryption-keys`, `/users` | platform | `PLATFORM_SURFACES`                                                          |
 | `/teams/{teamId}/{surface}`       | team     | `tenants`, `teams`, `clients`, `settings`, `access`, `encryption-keys`, `usage` (`TEAM_SURFACES`) |
-| `/tenants/{tenantId}/{surface}`   | tenant   | `clients`, `resource-servers`, `grants`, `secrets`, `encryption-keys`, `settings`, `access`, `usage` (`TENANT_SURFACES`) |
+| `/tenants/{tenantId}/{surface}`   | tenant   | `clients`, `resource-servers`, `grants`, `secrets`, `encryption-keys`, `settings`, `users`, `access`, `usage` (`TENANT_SURFACES`) |
 | `/cells/{cell}/tenants/{tenantId}/{surface}` | tenant in a named cell | the tenant surfaces (`TENANT_SURFACES`)                       |
 
 - **`/home` is the caller's home.** It shows the places the caller holds authority
