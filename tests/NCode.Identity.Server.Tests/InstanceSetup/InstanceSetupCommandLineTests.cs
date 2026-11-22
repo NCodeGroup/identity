@@ -583,6 +583,7 @@ public class InstanceSetupCommandLineTests : BaseTests
                 TenantId = "control-plane",
                 PrincipalId = "principal-1",
                 UserName = UserName,
+                DisplayName = UserName,
                 Issuer = "https://id.example.test/",
                 DiscoveryUrl = "https://id.example.test/.well-known/openid-configuration",
                 ManagementApiUrl = "https://id.example.test/api",
