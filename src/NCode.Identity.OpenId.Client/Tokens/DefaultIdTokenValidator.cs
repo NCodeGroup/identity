@@ -83,8 +83,7 @@ internal class DefaultIdTokenValidator(
 
         if (request.Subject is { } expectedSubject)
         {
-            var actualSubject = sub.GetString();
-            if (!string.Equals(actualSubject, expectedSubject, StringComparison.Ordinal))
+            if (!string.Equals(subValue, expectedSubject, StringComparison.Ordinal))
                 return Fail(
                     TokenValidationFailureCodes.SubjectMismatch,
                     "The 'sub' claim of the ID token does not match the expected subject."
