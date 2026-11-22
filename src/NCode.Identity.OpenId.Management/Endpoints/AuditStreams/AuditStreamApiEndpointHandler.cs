@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using NCode.Identity.AspNetCore;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Events.Audit;
@@ -17,6 +18,7 @@ using NCode.Identity.OpenId.Management.Auditing;
 using NCode.Identity.OpenId.Management.Authorization;
 using NCode.Identity.OpenId.Management.Contracts;
 using NCode.Identity.OpenId.Management.Contracts.AuditStreams;
+using NCode.Identity.OpenId.Management.Logging;
 using NCode.Identity.OpenId.Persistence;
 using NCode.Identity.OpenId.Persistence.DataContracts;
 using NCode.Identity.OpenId.Persistence.Stores;
@@ -25,6 +27,8 @@ using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Registration.AspNetCore;
 using NCode.Identity.Secrets.Persistence.Protection;
 using NCode.Mediator;
+using SystemTextJsonPatch;
+using SystemTextJsonPatch.Exceptions;
 
 namespace NCode.Identity.OpenId.Management.Endpoints.AuditStreams;
 
@@ -53,7 +57,8 @@ internal class AuditStreamApiEndpointHandler(
     ISecretProtectorProvider secretProtectorProvider,
     IOpenIdContextFactory openIdContextFactory,
     IManagementAuditRecorder managementAuditRecorder,
-    TimeProvider timeProvider
+    TimeProvider timeProvider,
+    ILogger<AuditStreamApiEndpointHandler> logger
 ) : BaseApiEndpointHandler, IEndpointProvider
 {
     private const string SigningSecretPrefix = "whsec_";
@@ -66,6 +71,7 @@ internal class AuditStreamApiEndpointHandler(
     private IOpenIdContextFactory OpenIdContextFactory { get; } = openIdContextFactory;
     private IManagementAuditRecorder ManagementAuditRecorder { get; } = managementAuditRecorder;
     private TimeProvider TimeProvider { get; } = timeProvider;
+    private ILogger Logger { get; } = logger;
 
     /// <inheritdoc />
     protected override IAuthorizationService AuthorizationService { get; } = authorizationService;
@@ -374,13 +380,12 @@ internal class AuditStreamApiEndpointHandler(
     /// <param name="httpContext">The <see cref="HttpContext"/> for the current request.</param>
     /// <param name="tenantId">The identifier of the OpenID Tenant.</param>
     /// <param name="streamId">The identifier of the audit stream.</param>
-    /// <param name="request">The request that describes the audit stream.</param>
+    /// <param name="request">The JSON Patch document that modifies the audit stream.</param>
     /// <param name="ifMatch">The <c>If-Match</c> header that names the entity tag the update applies to.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> that may be used to cancel the asynchronous operation.</param>
     /// <response code="200">The updated audit stream.</response>
-    /// <response code="400">The display name is empty, longer than 300 characters or holds a control character, or the
-    /// endpoint is not an absolute <c>https</c> URL of at most 1,000 characters without user information or a
-    /// fragment.</response>
+    /// <response code="400">The JSON Patch document cannot be applied, or the patched stream is invalid as for a
+    /// create.</response>
     /// <response code="404">The audit stream does not exist.</response>
     /// <response code="412">The supplied <c>If-Match</c> header does not match the current audit stream's entity tag,
     /// or is malformed.</response>
@@ -389,7 +394,7 @@ internal class AuditStreamApiEndpointHandler(
         HttpContext httpContext,
         [FromRoute] string tenantId,
         [FromRoute] string streamId,
-        [FromBody] UpdateAuditStreamRequest request,
+        [FromBody] JsonPatchDocument<UpdateAuditStreamRequest> request,
         [FromHeader(Name = "If-Match")] string? ifMatch,
         CancellationToken cancellationToken
     )
@@ -404,15 +409,6 @@ internal class AuditStreamApiEndpointHandler(
         if (authorizationFailure is not null)
         {
             return authorizationFailure;
-        }
-
-        var validationProblem = GetValidationProblemOrDefault(
-            request.DisplayName,
-            request.Endpoint
-        );
-        if (validationProblem is not null)
-        {
-            return validationProblem;
         }
 
         await using var storeManager = await StoreManagerFactory.CreateAsync(cancellationToken);
@@ -434,9 +430,35 @@ internal class AuditStreamApiEndpointHandler(
             return ToErrorResult(preconditionError);
         }
 
-        stream.DisplayName = request.DisplayName;
-        stream.Endpoint = request.Endpoint;
-        stream.IsEnabled = request.IsEnabled;
+        var model = new UpdateAuditStreamRequest
+        {
+            DisplayName = stream.DisplayName,
+            Endpoint = stream.Endpoint,
+            IsEnabled = stream.IsEnabled,
+        };
+
+        try
+        {
+            request.ApplyTo(model);
+        }
+        catch (JsonPatchException exception)
+        {
+            Logger.JsonPatchFailed(exception);
+            return TypedResults.Problem(
+                detail: "The JSON Patch document could not be applied.",
+                statusCode: StatusCodes.Status400BadRequest
+            );
+        }
+
+        var validationProblem = GetValidationProblemOrDefault(model.DisplayName, model.Endpoint);
+        if (validationProblem is not null)
+        {
+            return validationProblem;
+        }
+
+        stream.DisplayName = model.DisplayName;
+        stream.Endpoint = model.Endpoint;
+        stream.IsEnabled = model.IsEnabled;
 
         // A lost race throws StoreConcurrencyException, which the route group answers with 412 (ADR-1012).
         await store.UpdateAsync(stream, cancellationToken);

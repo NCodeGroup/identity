@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using NCode.Identity.Cryptography;
 using NCode.Identity.Events.Audit;
@@ -21,6 +22,8 @@ using NCode.Identity.OpenId.Settings;
 using NCode.Identity.Persistence.Stores;
 using NCode.Identity.Secrets.Persistence.Protection;
 using NCode.Mediator;
+using SystemTextJsonPatch;
+using SystemTextJsonPatch.Operations;
 
 namespace NCode.Identity.OpenId.Management.Endpoints.AuditStreams;
 
@@ -70,7 +73,8 @@ public sealed class AuditStreamApiEndpointHandlerTests : IDisposable
             MockSecretProtectorProvider.Object,
             MockOpenIdContextFactory.Object,
             MockManagementAuditRecorder.Object,
-            Time
+            Time,
+            NullLogger<AuditStreamApiEndpointHandler>.Instance
         );
     }
 
@@ -285,6 +289,32 @@ public sealed class AuditStreamApiEndpointHandlerTests : IDisposable
             SigningSecrets = signingSecrets ?? [CreateSecret("secret-1")],
         };
 
+    private async ValueTask<ValidationProblem> CreateWithRefusalAsync(
+        string displayName,
+        string endpoint,
+        CancellationToken cancellationToken
+    )
+    {
+        // Strict mocks: no store setup, so continuing past the refusal would fail the test.
+        SetupAuthorization(AuthorizationResult.Success());
+        var request = new CreateAuditStreamRequest
+        {
+            DisplayName = displayName,
+            Endpoint = endpoint,
+        };
+
+        var result = await Handler.CreateAsync(
+            CreateHttpContext(),
+            TenantId,
+            request,
+            cancellationToken
+        );
+
+        var problem = Assert.IsType<ValidationProblem>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+        return problem;
+    }
+
     #endregion
 
     #region ListAsync Tests
@@ -344,23 +374,113 @@ public sealed class AuditStreamApiEndpointHandlerTests : IDisposable
     [Fact]
     public async Task CreateAsync_WithAnHttpEndpoint_ReturnsBadRequest()
     {
-        SetupAuthorization(AuthorizationResult.Success());
-        var request = new CreateAuditStreamRequest
-        {
-            DisplayName = "Warehouse",
-            Endpoint = "http://example.com/audit",
-        };
-
-        var result = await Handler.CreateAsync(
-            CreateHttpContext(),
-            TenantId,
-            request,
-            CancellationToken.None
+        var problem = await CreateWithRefusalAsync(
+            displayName: "Warehouse",
+            endpoint: "http://example.com/audit",
+            cancellationToken: CancellationToken.None
         );
 
-        var problem = Assert.IsType<ValidationProblem>(result);
-        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
         Assert.Equal(["endpoint"], problem.ProblemDetails.Errors.Keys);
+        Assert.Equal(
+            ["'endpoint' must be an absolute https URL."],
+            problem.ProblemDetails.Errors["endpoint"]
+        );
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithAnEmptyDisplayName_ReturnsBadRequest()
+    {
+        var problem = await CreateWithRefusalAsync(
+            displayName: "",
+            endpoint: "https://example.com/audit",
+            cancellationToken: CancellationToken.None
+        );
+
+        Assert.Equal(["displayName"], problem.ProblemDetails.Errors.Keys);
+        Assert.Equal(
+            ["'displayName' must not be empty."],
+            problem.ProblemDetails.Errors["displayName"]
+        );
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithADisplayNameOver300Characters_ReturnsBadRequest()
+    {
+        var problem = await CreateWithRefusalAsync(
+            displayName: new string('a', 301),
+            endpoint: "https://example.com/audit",
+            cancellationToken: CancellationToken.None
+        );
+
+        Assert.Equal(["displayName"], problem.ProblemDetails.Errors.Keys);
+        Assert.Equal(
+            ["'displayName' must be at most 300 characters."],
+            problem.ProblemDetails.Errors["displayName"]
+        );
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithAControlCharacterInTheDisplayName_ReturnsBadRequest()
+    {
+        var problem = await CreateWithRefusalAsync(
+            displayName: "Ware\nhouse",
+            endpoint: "https://example.com/audit",
+            cancellationToken: CancellationToken.None
+        );
+
+        Assert.Equal(["displayName"], problem.ProblemDetails.Errors.Keys);
+        Assert.Equal(
+            ["'displayName' must not contain control characters."],
+            problem.ProblemDetails.Errors["displayName"]
+        );
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithUserInformationInTheEndpoint_ReturnsBadRequest()
+    {
+        var problem = await CreateWithRefusalAsync(
+            displayName: "Warehouse",
+            endpoint: "https://user:password@example.com/audit",
+            cancellationToken: CancellationToken.None
+        );
+
+        Assert.Equal(["endpoint"], problem.ProblemDetails.Errors.Keys);
+        Assert.Equal(
+            ["'endpoint' must not carry user information."],
+            problem.ProblemDetails.Errors["endpoint"]
+        );
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithAFragmentInTheEndpoint_ReturnsBadRequest()
+    {
+        var problem = await CreateWithRefusalAsync(
+            displayName: "Warehouse",
+            endpoint: "https://example.com/audit#section",
+            cancellationToken: CancellationToken.None
+        );
+
+        Assert.Equal(["endpoint"], problem.ProblemDetails.Errors.Keys);
+        Assert.Equal(
+            ["'endpoint' must not carry a fragment."],
+            problem.ProblemDetails.Errors["endpoint"]
+        );
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithAnEndpointOver1000Characters_ReturnsBadRequest()
+    {
+        var problem = await CreateWithRefusalAsync(
+            displayName: "Warehouse",
+            endpoint: "https://example.com/" + new string('a', 1000),
+            cancellationToken: CancellationToken.None
+        );
+
+        Assert.Equal(["endpoint"], problem.ProblemDetails.Errors.Keys);
+        Assert.Equal(
+            ["'endpoint' must be at most 1000 characters."],
+            problem.ProblemDetails.Errors["endpoint"]
+        );
     }
 
     [Fact]
@@ -529,24 +649,79 @@ public sealed class AuditStreamApiEndpointHandlerTests : IDisposable
             .Setup(x => x.GetOrDefaultAsync(StreamId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateStream())
             .Verifiable();
-        var request = new UpdateAuditStreamRequest
-        {
-            DisplayName = "Renamed",
-            Endpoint = "https://example.com/audit",
-            IsEnabled = false,
-        };
+        var patch = new JsonPatchDocument<UpdateAuditStreamRequest>();
+        patch.Replace(x => x.DisplayName, "Renamed");
 
         var result = await Handler.UpdateAsync(
             CreateHttpContext(),
             TenantId,
             StreamId,
-            request,
+            patch,
             ManagementEntityTags.Format("another-ct"),
             CancellationToken.None
         );
 
         var problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status412PreconditionFailed, problem.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenThePatchedEndpointIsHttp_ReturnsBadRequest()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupStore();
+        MockAuditStreamStore
+            .Setup(x => x.GetOrDefaultAsync(StreamId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateStream())
+            .Verifiable();
+        // Strict mocks: no update or save setup, so writing the refused stream would fail the test.
+        var patch = new JsonPatchDocument<UpdateAuditStreamRequest>();
+        patch.Replace(x => x.Endpoint, "http://example.com/changed");
+
+        var result = await Handler.UpdateAsync(
+            CreateHttpContext(),
+            TenantId,
+            StreamId,
+            patch,
+            ManagementEntityTags.Format(StreamConcurrencyToken),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ValidationProblem>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+        Assert.Equal(["endpoint"], problem.ProblemDetails.Errors.Keys);
+        Assert.Equal(
+            ["'endpoint' must be an absolute https URL."],
+            problem.ProblemDetails.Errors["endpoint"]
+        );
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenThePatchCannotBeApplied_ReturnsBadRequest()
+    {
+        SetupAuthorization(AuthorizationResult.Success());
+        SetupStore();
+        MockAuditStreamStore
+            .Setup(x => x.GetOrDefaultAsync(StreamId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateStream())
+            .Verifiable();
+        // Replace on a path that does not exist throws a JsonPatchException.
+        var patch = new JsonPatchDocument<UpdateAuditStreamRequest>();
+        patch.Operations.Add(
+            new Operation<UpdateAuditStreamRequest>("replace", "/missing", from: null, value: "x")
+        );
+
+        var result = await Handler.UpdateAsync(
+            CreateHttpContext(),
+            TenantId,
+            StreamId,
+            patch,
+            ManagementEntityTags.Format(StreamConcurrencyToken),
+            CancellationToken.None
+        );
+
+        var problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
     }
 
     [Fact]
@@ -576,12 +751,10 @@ public sealed class AuditStreamApiEndpointHandlerTests : IDisposable
             .Verifiable();
         SetupRecorder(StreamId, ResourceChangeTypes.Updated);
         var httpContext = CreateHttpContext();
-        var request = new UpdateAuditStreamRequest
-        {
-            DisplayName = "Renamed",
-            Endpoint = "https://example.com/changed",
-            IsEnabled = false,
-        };
+        var request = new JsonPatchDocument<UpdateAuditStreamRequest>();
+        request.Replace(x => x.DisplayName, "Renamed");
+        request.Replace(x => x.Endpoint, "https://example.com/changed");
+        request.Replace(x => x.IsEnabled, false);
 
         var result = await Handler.UpdateAsync(
             httpContext,

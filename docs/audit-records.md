@@ -591,8 +591,8 @@ of 32 random bytes. The secret is shown once, in that response: the server keeps
 key and reports only its `secretId` afterwards. A stream starts at its creation and carries no record stored before it.
 A tenant has at most `max_audit_streams` streams, a limit between 0 and 10 that is 2 by default and merges with `Min`,
 and creating a stream past it is a `409`. `GET api/tenants/{tenantId}/audit-streams` lists the streams, and `GET`,
-`PATCH` (with `If-Match`) and `DELETE` on `api/tenants/{tenantId}/audit-streams/{streamId}` read, change and remove one.
-Each change is recorded as an `audit_stream` change.
+`PATCH` (a JSON Patch document, with `If-Match`) and `DELETE` on `api/tenants/{tenantId}/audit-streams/{streamId}` read,
+change and remove one. Each change is recorded as an `audit_stream` change.
 
 **A delivery.** The server calls the endpoint through the guarded outbound client, which refuses a private or loopback
 address and follows no redirect. A delivery is a `POST` with `Content-Type: application/json` that carries up to
