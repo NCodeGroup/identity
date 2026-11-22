@@ -54,7 +54,8 @@ count reaches the tenant's share of the replica's concurrency limit, so a tier w
 8. **The metric.** `ncode.identity.admission.shed` counts shed requests by `ncode.identity.tenant.environment_type`
    ([ADR-1197](1197-telemetry-has-one-owner-per-signal-bounded-attributes-and-spans-that-mirror-their-histograms.md)).
 9. **The hosted platform's tiers.** The free tier carries `admission_capacity_percent: 60`; paid tiers set none. Each
-   cell's concurrency limit comes from the cell's load test.
+   cell's concurrency limit comes from the cell's load test
+   ([ADR-1524](1524-a-dedicated-cells-capacity-rating-is-measured-by-the-repositorys-k6-test-on-dedicated-cpu-nodes.md)).
 
 ## Options considered
 
