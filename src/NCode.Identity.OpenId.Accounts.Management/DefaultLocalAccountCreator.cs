@@ -32,6 +32,13 @@ internal sealed class DefaultLocalAccountCreator(
         CancellationToken cancellationToken
     )
     {
+        var claimTypes = (request.Claims ?? []).Select(claim => claim.Type);
+        var reservedClaimError = LocalAccountClaimRules.GetReservedClaimErrorOrDefault(claimTypes);
+        if (reservedClaimError is not null)
+        {
+            return new LocalAccountCreation { Error = reservedClaimError };
+        }
+
         var displayName = string.IsNullOrWhiteSpace(request.DisplayName)
             ? request.UserName
             : request.DisplayName.Trim();
@@ -68,13 +75,6 @@ internal sealed class DefaultLocalAccountCreator(
         if (error is not null)
         {
             return new LocalAccountCreation { Error = error };
-        }
-
-        var claimTypes = (request.Claims ?? []).Select(claim => claim.Type);
-        var reservedClaimError = LocalAccountClaimRules.GetReservedClaimErrorOrDefault(claimTypes);
-        if (reservedClaimError is not null)
-        {
-            return new LocalAccountCreation { Error = reservedClaimError };
         }
 
         var passwordError = await LocalAccountPasswords.ValidateAsync(

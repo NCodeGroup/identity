@@ -277,11 +277,8 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
     }
 
     [Fact]
-    public async Task StageAsync_WithANameClaim_Returns400AndStagesNothing()
+    public async Task StageAsync_WithANameClaim_Returns400WithoutValidating()
     {
-        SetupResourceIds("account-1", "principal-1");
-        SetupAccountValidated(error: null);
-
         var creation = await Creator.StageAsync(
             MockStoreManager.Object,
             TenantId,
@@ -296,6 +293,10 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
 
         Assert.False(creation.Succeeded);
         Assert.Equal(StatusCodes.Status400BadRequest, creation.Error.StatusCode);
+        Assert.Equal(
+            "The 'name' claim is the account's display name; set displayName instead.",
+            creation.Error.Detail
+        );
         Assert.Null(creation.PrincipalId);
         Assert.Null(creation.Account);
     }

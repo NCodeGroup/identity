@@ -16,13 +16,14 @@ namespace NCode.Identity.OpenId.Accounts.Management;
 public interface ILocalAccountCreator
 {
     /// <summary>
-    /// Validates that the username is not taken in the tenant and that the password satisfies the tenant's password
-    /// policy, then stages the owning federated principal (with the request's profile and system metadata, when
-    /// present), the account's self-issued federated identity and the local account (with its claims and password hash)
-    /// on the store manager. The method does not save: the caller saves the store manager to persist the staged rows,
-    /// alone or together with other changes in the same unit of work. The display name defaults to the username when
-    /// the request carries none, and a <c>name</c> profile claim is refused with 400 because the display name is the
-    /// source of that claim. Nothing is staged when <see cref="LocalAccountCreation.Error"/> is set.
+    /// Refuses a <c>name</c> profile claim with 400, because the display name is the source of that claim, defaults the
+    /// display name to the username when the request carries none, stages the local account and validates it with
+    /// <see cref="ILocalAccountValidator.ValidateCreateAsync"/>, and checks the password against the tenant's password
+    /// policy. Only then does it stage the owning federated principal (with the request's profile and system metadata,
+    /// when present), the account's self-issued federated identity and the local account (with its claims and password
+    /// hash) on the store manager. The method does not save: the caller saves the store manager to persist the staged
+    /// rows, alone or together with other changes in the same unit of work. Nothing is staged when
+    /// <see cref="LocalAccountCreation.Error"/> is set.
     /// </summary>
     /// <param name="storeManager">The <see cref="IStoreManager"/> that reads the existing accounts and the tenant and receives the staged rows.</param>
     /// <param name="tenantId">The identifier of the tenant the account is created in.</param>
