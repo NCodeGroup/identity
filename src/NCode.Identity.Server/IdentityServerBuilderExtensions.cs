@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using NCode.Identity.Dispatch.Options;
 using NCode.Identity.OpenId;
+using NCode.Identity.OpenId.Authentication.Admission;
 using NCode.Identity.OpenId.Authentication.Auditing;
 using NCode.Identity.OpenId.Authentication.ClientCertificates;
 using NCode.Identity.OpenId.Authentication.OutboundHttp;
@@ -55,7 +56,8 @@ public static class IdentityServerBuilderExtensions
             TenantUsageOptions.SectionName,
             AuditRecordOptions.SectionName,
             EndedSessionTerminationOptions.SectionName,
-            InProcessJobDispatcherOptions.SectionName
+            InProcessJobDispatcherOptions.SectionName,
+            AdmissionOptions.SectionName
         );
 
     private static void ThrowOnUnknownSubsection(IConfigurationSection openIdSection)
@@ -85,7 +87,7 @@ public static class IdentityServerBuilderExtensions
         /// <summary>
         /// Binds the server's options from configuration, so a host does not have to repeat the binding boilerplate.
         /// The OpenID configuration section (<see cref="OpenIdOptions.DefaultSectionName"/> unless
-        /// <paramref name="sectionName"/> names another) holds twelve subsections, each bound to one options type:
+        /// <paramref name="sectionName"/> names another) holds thirteen subsections, each bound to one options type:
         /// <list type="bullet">
         /// <item><description><c>Platform</c> — <see cref="OpenIdPlatformOptions"/>, including the platform's
         /// <c>Settings</c>.</description></item>
@@ -107,6 +109,8 @@ public static class IdentityServerBuilderExtensions
         /// kept and how often they are removed.</description></item>
         /// <item><description><c>TenantUsage</c> — <see cref="TenantUsageOptions"/>: how often each replica adds its
         /// usage to the ledger and how long the ledger keeps it.</description></item>
+        /// <item><description><c>Admission</c> — <see cref="AdmissionOptions"/>: the most metered protocol requests one
+        /// replica serves at once, and how long a shed request's caller waits.</description></item>
         /// <item><description><c>AuditRecords</c> — <see cref="AuditRecordOptions"/>: whether audit records are kept in
         /// the audit store, how often each replica writes them, how long the store keeps them and how often each
         /// replica removes the older ones.</description></item>
@@ -172,6 +176,7 @@ public static class IdentityServerBuilderExtensions
             var outboundHttpSection = openIdSection.GetSection(OutboundHttpOptions.SectionName);
             var grantRetentionSection = openIdSection.GetSection(GrantRetentionOptions.SectionName);
             var tenantUsageSection = openIdSection.GetSection(TenantUsageOptions.SectionName);
+            var admissionSection = openIdSection.GetSection(AdmissionOptions.SectionName);
             var auditRecordsSection = openIdSection.GetSection(AuditRecordOptions.SectionName);
             var endedSessionTerminationSection = openIdSection.GetSection(
                 EndedSessionTerminationOptions.SectionName
@@ -231,6 +236,12 @@ public static class IdentityServerBuilderExtensions
             serviceCollection
                 .AddOptions<TenantUsageOptions>()
                 .Configure(options => tenantUsageSection.BindStrictly(options))
+                .ValidateOnStart();
+
+            // See ADR-1523.
+            serviceCollection
+                .AddOptions<AdmissionOptions>()
+                .Configure(options => admissionSection.BindStrictly(options))
                 .ValidateOnStart();
 
             serviceCollection

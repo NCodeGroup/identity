@@ -14,6 +14,7 @@ using NCode.Identity.Dispatch.Options;
 using NCode.Identity.Jose;
 using NCode.Identity.Jwt;
 using NCode.Identity.OpenId;
+using NCode.Identity.OpenId.Authentication.Admission;
 using NCode.Identity.OpenId.Authentication.ClientCertificates;
 using NCode.Identity.OpenId.Authentication.OutboundHttp;
 using NCode.Identity.OpenId.Authentication.Persistence;
@@ -282,6 +283,38 @@ public sealed class IdentityServerBuilderExtensionsTests : BaseTests
             .Value;
 
         Assert.Equal("X-Client-Cert", options.CertificateHeaderName);
+    }
+
+    [Fact]
+    public void AddConfiguration_WhenAdmissionConfigured_BindsIt()
+    {
+        using var serviceProvider = BuildConfiguredServiceProvider(
+            new Dictionary<string, string?>
+            {
+                ["OpenId:Admission:ConcurrencyLimit"] = "64",
+                ["OpenId:Admission:RetryAfter"] = "00:00:02",
+            }
+        );
+
+        var options = serviceProvider.GetRequiredService<IOptions<AdmissionOptions>>().Value;
+
+        Assert.Equal(64, options.ConcurrencyLimit);
+        Assert.Equal(TimeSpan.FromSeconds(2), options.RetryAfter);
+    }
+
+    [Fact]
+    public void AddConfiguration_WhenAdmissionHasUnknownKey_Throws()
+    {
+        using var serviceProvider = BuildConfiguredServiceProvider(
+            new Dictionary<string, string?> { ["OpenId:Admission:Limit"] = "64" }
+        );
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            serviceProvider.GetRequiredService<IOptions<AdmissionOptions>>().Value
+        );
+
+        Assert.Contains("'OpenId:Admission'", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("'Limit'", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
