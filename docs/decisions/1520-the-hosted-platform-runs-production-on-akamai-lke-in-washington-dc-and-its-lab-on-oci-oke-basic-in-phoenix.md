@@ -50,3 +50,38 @@ cluster; the lab runs on OCI OKE Basic in Phoenix inside the free allowance; AWS
    × Ampere A1 (1 OCPU / 6 GB) in two availability domains, inside the free allowance ($0); the free network load
    balancer; CloudNativePG and Valkey in the cluster; arm64. It takes release candidates, runs the deployment posture
    and never hosts a customer tenant (ADR-1495).
+4. **Development and ephemeral runs.** Daily development runs on the developer's machine (the Aspire stack,
+   [ADR-1071](1071-the-aspire-apphost-runs-the-local-stack-in-health-gated-order-after-checking-the-frontend-toolchain.md))
+   or a LAN-only homelab cluster, never under `ncodeid.net`, and may set `LocalDevelopment:Enabled` with the `local`
+   root-key provider
+   ([ADR-1370](1370-a-host-runs-the-deployment-posture-unless-configured-for-local-development-and-always-names-its-root-key-provider.md)).
+   Runs that need a public OP or three or more nodes (the OpenID Foundation's hosted suite, load tests, topology
+   rehearsals, Key Vault experiments) run on Azure through the Visual Studio credit, created and destroyed per run
+   ([#132](https://github.com/NCodeGroup/identity/issues/132)).
+5. **Shared foundations.** AWS `us-west-2` holds state, backups and vendor tokens (ADR-1132); Cloudflare hosts DNS
+   (ADR-1495); GitHub holds source, CI and images (ADR-1133).
+6. **Growth path.** A cell moves to AWS when a customer needs several availability zones, PrivateLink, Marketplace
+   billing or a higher SLA, and the paid shared cell moves when the paid plans need it. Its shape, EKS or ECS on
+   Fargate, is decided when the first cell is placed there; ECS runs outside the chart, so it needs its own record.
+
+## Options considered
+
+- **OCI Phoenix as production** (k3s HA on 3 × A1 at 2 OCPU / 12 GB, CloudNativePG, about $57–60). It has three
+  availability domains and about 3× the capacity, but the platform operates the control plane and the database, A1
+  capacity can be scarce and it is arm64 only. Rejected for production; the lab uses its free allowance.
+- **Vultr VKE** (3 × 1 vCPU / 2 GB, 2-node managed database, $90). One fewer node and one fewer database replica, and
+  the price of an HA control plane is unpublished. Rejected.
+- **Civo NYC1 managed k3s** (3 × 4 GB, CloudNativePG, about $76, free egress). The platform operates PostgreSQL
+  (managed starts at $43.45, about $119 in all), it has one US region and no HA control-plane tier. Rejected.
+- **DigitalOcean DOKS** (3 × 2 GiB, 1 GiB managed database, about $63). No database HA within the budget; a standby
+  brings it to about $111. Rejected.
+- **Hetzner US** (k3s, about $123, all self-managed, plans shown unavailable) and **Hostinger** (Boston only, 24-month
+  prepay, no load balancer or private network). Rejected.
+- **Always-on Azure** (about $130). The Visual Studio credit forbids always-on use. Rejected.
+- **AWS at launch** (EKS about $200–250, ECS on Fargate about $150–200 across three zones but outside the chart).
+  Over the budget. Rejected for launch; it is the growth path.
+- **Free database tiers** (Neon, Aiven). No HA, scale-to-zero or power-off, and no region choice. Rejected.
+- **Akamai Dallas (`us-central`).** It lacks VPCs, Premium plans, Premium NodeBalancers and LKE Enterprise. Rejected.
+- **Akamai Chicago (`us-ord`).** The same prices and capabilities, but about 15–20 ms from `us-east-1` against about
+  1–2 ms. Rejected.
+- **Chosen:** Akamai LKE in Washington, DC for production, OCI OKE Basic in Phoenix for the lab.
