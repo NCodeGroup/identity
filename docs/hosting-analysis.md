@@ -652,19 +652,28 @@ anchors
 Such a direct-TLS host does not enable `ProxyClientCertificate`
 ([ADR-1506](decisions/1506-the-ingress-controller-holds-a-client-certificate-the-pods-can-require-and-never-read-as-an-end-clients.md)).
 
-## 9. Root key and remote keys / KMS (ADR-1235)
+## 7. Root key and remote keys (KMS)
 
-Tracked as issue [#165](https://github.com/NCodeGroup/identity/issues/165).
+Decided in
+[ADR-1235](decisions/1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md),
+[ADR-1260](decisions/1260-a-key-wrapper-is-one-open-contract-and-each-key-management-service-has-one-adapter-package.md),
+[ADR-1471](decisions/1471-a-tenants-signing-and-encryption-keys-can-be-held-in-a-key-management-service.md) and
+[ADR-1479](decisions/1479-a-protocol-clients-and-a-bffs-keys-can-be-held-in-a-key-management-service.md); provisioning
+the platform's root key and the cluster's access to it is [#177](https://github.com/NCodeGroup/identity/issues/177). The
+services compared below inform which one holds a cell's keys in its region
+([#845](https://github.com/NCodeGroup/identity/issues/845)).
 
-Every deployment needs one root key in a key management service (ADR-1235); it wraps the master keys that protect
-stored secrets and is called only when a replica first meets an owner. Remote signing ([#165](https://github.com/NCodeGroup/identity/issues/165)) is the separate,
-per-request use priced below. The root key lives in AWS KMS, in the account that already holds the platform's OpenTofu
-state key. A cluster reaches it through web identity federation, which needs the cluster's service-account issuer to be
-publicly discoverable, because AWS IAM fetches the issuer's discovery document and JWKS; a cluster whose issuer is
-private needs IAM Roles Anywhere (issue [#177](https://github.com/NCodeGroup/identity/issues/177)) or the `local` provider. Google Cloud KMS, by contrast, accepts an
-uploaded JWKS, so a private issuer is no obstacle there. The `azure-key-vault` and `google-cloud-kms` providers
-([ADR-1260](decisions/1260-a-key-wrapper-is-one-open-contract-and-each-key-management-service-has-one-adapter-package.md)) let a deployment keep its root key
-in either service instead.
+Every deployment needs one root key in a key management service (ADR-1235); it wraps the master keys that protect stored
+secrets and is called only when a replica first meets an owner. Remote signing, where a tenant's signing keys stay in a
+key management service (ADR-1471), is the separate, per-request use priced below. The root key lives in AWS KMS, in the
+account that already holds the platform's OpenTofu state key. A cluster reaches it through web identity federation,
+which needs the cluster's service-account issuer to be publicly discoverable, because AWS IAM fetches the issuer's
+discovery document and JWKS; a cluster whose issuer is private needs IAM Roles Anywhere (issue
+[#177](https://github.com/NCodeGroup/identity/issues/177)) or the `local` provider. Google Cloud KMS, by contrast,
+accepts an uploaded JWKS, so a private issuer is no obstacle there. The `azure-key-vault` and `google-cloud-kms`
+providers
+([ADR-1260](decisions/1260-a-key-wrapper-is-one-open-contract-and-each-key-management-service-has-one-adapter-package.md))
+let a deployment keep its root key in either service instead.
 
 | Service                    | Key cost                                         | Sign-operation cost                                            | Throughput notes                                                         |
 | -------------------------- | ------------------------------------------------ | -------------------------------------------------------------- | ------------------------------------------------------------------------ |
@@ -678,7 +687,7 @@ in either service instead.
 Example: 1M token signatures/month with an ES256 key ≈ **$15/mo** (Key Vault Standard or AWS KMS), +$5/mo for an HSM EC
 key on Key Vault Premium.
 
-Design considerations for [#165](https://github.com/NCodeGroup/identity/issues/165):
+Design considerations for remote keys:
 
 - **Latency:** every remote signature is a network round-trip plus service time on the token path. Put the vault in the
   Azure region nearest the cluster — East US or East US 2 (Virginia) for Washington, DC, North Central US (Illinois) for
@@ -689,10 +698,12 @@ Design considerations for [#165](https://github.com/NCodeGroup/identity/issues/1
 - **Credentials:** workload identity federation, never a client secret: AWS and Azure need a publicly discoverable
   issuer; Google Cloud accepts an uploaded JWKS. GitHub Actions likewise uses OIDC federation for OpenTofu.
 - **Cross-vendor is fine here:** unlike Postgres, KMS calls are few per request and public keys are cacheable.
-- **Experiment on the Visual Studio credit** ([§10](#10-devtest-and-conformance-on-azure-visual-studio-credit)): a
-  Standard vault costs only per operation, so [#165](https://github.com/NCodeGroup/identity/issues/165) prototyping is effectively free.
+- **Experiment on the Visual Studio credit** ([§8](#8-devtest-and-conformance-on-azure-visual-studio-credit)): a
+  Standard vault costs only per operation, so remote-key experiments are effectively free.
 
-## 10. Dev/test and conformance on Azure (Visual Studio credit)
+## 8. Dev/test and conformance on Azure (Visual Studio credit)
+
+Building it is [#132](https://github.com/NCodeGroup/identity/issues/132).
 
 The Visual Studio Professional subscription includes a **$50/month Azure credit**. Its offer terms (verified
 2026-10-18) match the intended use — **dev, test, and conformance only**:
@@ -730,18 +741,21 @@ VM prices exclude the OS managed disk (a few dollars per month, _(verify)_).
 | -------------------------------------------------------------------------------------------- | --------------------------------------- |
 | **Conformance run** — 1 × B2als v2 + public IP; Postgres + Valkey as containers; Traefik with a real ACME certificate | ~$0.05/h → a 2-hour nightly run ≈ **$3/mo** |
 | **Topology rehearsal** — 3 × B2als v2 (k3s, or AKS Free tier) + Standard LB + public IP       | ~$0.165/h → ~**300 h/mo** within the credit |
-| **Key Vault [#165](https://github.com/NCodeGroup/identity/issues/165) experiments** — Standard vault, EC P-256 software key                        | 100k test signatures ≈ **$1.50**        |
+| **Key Vault remote-key experiments** — Standard vault, EC P-256 software key                        | 100k test signatures ≈ **$1.50**        |
 | Always-on 3-node staging                                                                     | ~$120/mo + 120-hour rule → **doesn't fit** |
 
 **What Azure adds over the local Docker conformance harness ([#124](https://github.com/NCodeGroup/identity/issues/124)):**
 
 - A **publicly reachable HTTPS OP**, which the OpenID Foundation's hosted conformance suite (official certification)
-  needs; the local harness only targets `host.docker.internal`. Once production exists, certification runs can target
-  its `conformance` tenant instead.
+  needs; the local harness only targets `host.docker.internal`. Certification itself runs against production's
+  `conformance` tenant
+  ([ADR-1495](decisions/1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md)).
 - The **production-shaped path**: L4 LB → Traefik → forwarded client certificate ([#82](https://github.com/NCodeGroup/identity/issues/82) / [#83](https://github.com/NCodeGroup/identity/issues/83)), multiple replicas
   sharing Valkey, Postgres over the network — including the mTLS/FAPI plans.
 - k6 **load tests** that produce the real sizing numbers for [§4](#4-compute-sizing).
-- **Remote signing** against Key Vault ([#165](https://github.com/NCodeGroup/identity/issues/165)), including latency measurement.
+- **Remote signing** against Key Vault
+  ([ADR-1471](decisions/1471-a-tenants-signing-and-encryption-keys-can-be-held-in-a-key-management-service.md)),
+  including latency measurement.
 
 The plain nightly [#124](https://github.com/NCodeGroup/identity/issues/124) run needs no Azure at all — it runs in Docker on a GitHub-hosted runner.
 
