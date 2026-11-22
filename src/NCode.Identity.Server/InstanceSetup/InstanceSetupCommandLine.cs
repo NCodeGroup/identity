@@ -13,7 +13,8 @@ namespace NCode.Identity.Server.InstanceSetup;
 
 /// <summary>
 /// The headless <c>setup</c> command of the host: it creates the root administrator of an uninitialized instance from
-/// the <c>Setup:Root:UserName</c>, <c>Setup:Root:Email</c> and <c>Setup:Root:Password</c> configuration through the same
+/// the <c>Setup:Root:UserName</c>, <c>Setup:Root:DisplayName</c>, <c>Setup:Root:Email</c> and <c>Setup:Root:Password</c>
+/// configuration through the same
 /// <see cref="IInstanceSetupService"/> that the setup wizard uses, and exits without starting the server. The host runs
 /// it once, for example as a Kubernetes Job from its own image, so it needs no setup token: running the image with the
 /// database connection is already full authority over the instance.
@@ -43,7 +44,8 @@ public sealed class InstanceSetupCommandLine
     /// </summary>
     public static string Usage { get; } =
         $"Usage: {CommandName} (the root administrator comes from the {UserNameKey}, "
-        + $"{SetupOptions.SectionName}:Root:Email and {PasswordKey} configuration; the optional "
+        + $"{SetupOptions.SectionName}:Root:DisplayName, {SetupOptions.SectionName}:Root:Email and "
+        + $"{PasswordKey} configuration; the optional "
         + $"{SetupOptions.SectionName}:ManagementConsole and {SetupOptions.SectionName}:Automation "
         + "sections register the management console's client and an automation client)";
 
