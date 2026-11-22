@@ -66,13 +66,14 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
 
     #region Helpers
 
-    private void SetupUserNameValidated(ManagementError? error, string displayName = UserName)
+    private void SetupAccountValidated(ManagementError? error, string displayName = UserName)
     {
         MockLocalAccountValidator
             .Setup(x =>
                 x.ValidateCreateAsync(
-                    UserName,
-                    displayName,
+                    It.Is<PersistedLocalAccount>(account =>
+                        account.UserName == UserName && account.DisplayName == displayName
+                    ),
                     MockStoreManager.Object,
                     It.IsAny<CancellationToken>()
                 )
@@ -151,7 +152,7 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
     [Fact]
     public async Task StageAsync_WhenValid_StagesThePrincipalTheIdentityAndTheAccount()
     {
-        SetupUserNameValidated(error: null);
+        SetupAccountValidated(error: null);
         SetupResourceIds("account-1", "principal-1", "identity-1");
         SetupPasswordJudged(PasswordPolicyResult.Accepted);
 
@@ -226,12 +227,13 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
     [Fact]
     public async Task StageAsync_WithoutDisplayName_UsesTheUserName()
     {
+        SetupResourceIds("account-1", "principal-1");
         var conflict = new ManagementError
         {
             StatusCode = StatusCodes.Status409Conflict,
             Detail = "stop",
         };
-        SetupUserNameValidated(conflict, displayName: UserName);
+        SetupAccountValidated(conflict, displayName: UserName);
 
         var creation = await Creator.StageAsync(
             MockStoreManager.Object,
@@ -251,12 +253,13 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
     [Fact]
     public async Task StageAsync_TrimsTheDisplayName()
     {
+        SetupResourceIds("account-1", "principal-1");
         var conflict = new ManagementError
         {
             StatusCode = StatusCodes.Status409Conflict,
             Detail = "stop",
         };
-        SetupUserNameValidated(conflict, displayName: "Alice Liddell");
+        SetupAccountValidated(conflict, displayName: "Alice Liddell");
 
         var creation = await Creator.StageAsync(
             MockStoreManager.Object,
@@ -276,7 +279,8 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
     [Fact]
     public async Task StageAsync_WithANameClaim_Returns400AndStagesNothing()
     {
-        SetupUserNameValidated(error: null);
+        SetupResourceIds("account-1", "principal-1");
+        SetupAccountValidated(error: null);
 
         var creation = await Creator.StageAsync(
             MockStoreManager.Object,
@@ -299,7 +303,7 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
     [Fact]
     public async Task StageAsync_WhenThePasswordIsRejected_ReturnsABadRequestAndStagesNothing()
     {
-        SetupUserNameValidated(error: null);
+        SetupAccountValidated(error: null);
         SetupResourceIds("account-1", "principal-1");
         SetupPasswordJudged(PasswordPolicyResult.Rejected("too_weak", "The password is too weak."));
 
@@ -320,12 +324,13 @@ public sealed class DefaultLocalAccountCreatorTests : IDisposable
     [Fact]
     public async Task StageAsync_WhenTheUserNameIsTaken_ReturnsTheConflictAndStagesNothing()
     {
+        SetupResourceIds("account-1", "principal-1");
         var conflict = new ManagementError
         {
             StatusCode = StatusCodes.Status409Conflict,
             Detail = "A local account with the username already exists in the tenant.",
         };
-        SetupUserNameValidated(conflict);
+        SetupAccountValidated(conflict);
 
         var creation = await Creator.StageAsync(
             MockStoreManager.Object,

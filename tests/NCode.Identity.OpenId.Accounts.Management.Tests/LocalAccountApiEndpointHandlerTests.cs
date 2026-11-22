@@ -189,7 +189,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         MockLocalAccountValidator
             .Setup(x =>
                 x.ValidateDeleteAsync(
-                    LocalAccountId,
+                    It.Is<PersistedLocalAccount>(account => account.LocalAccountId == LocalAccountId),
                     MockStoreManager.Object,
                     It.IsAny<CancellationToken>()
                 )
@@ -421,15 +421,17 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         return patch;
     }
 
-    private void SetupUpdateValidated(string displayName)
+    private void SetupUpdateValidated(string? userName, string displayName)
     {
         MockLocalAccountValidator
             .Setup(x =>
                 x.ValidateUpdateAsync(
-                    LocalAccountId,
-                    UserName,
-                    displayName,
-                    "account-ct",
+                    It.Is<PersistedLocalAccount>(account =>
+                        account.LocalAccountId == LocalAccountId
+                    ),
+                    It.Is<UpdateLocalAccountRequest>(model =>
+                        model.UserName == userName && model.DisplayName == displayName
+                    ),
                     null,
                     MockStoreManager.Object,
                     It.IsAny<CancellationToken>()
@@ -872,8 +874,9 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         MockLocalAccountValidator
             .Setup(x =>
                 x.ValidateCreateAsync(
-                    UserName,
-                    UserName,
+                    It.Is<PersistedLocalAccount>(account =>
+                        account.UserName == UserName && account.DisplayName == UserName
+                    ),
                     MockStoreManager.Object,
                     It.IsAny<CancellationToken>()
                 )
@@ -1109,10 +1112,12 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         MockLocalAccountValidator
             .Setup(x =>
                 x.ValidateUpdateAsync(
-                    LocalAccountId,
-                    UserName,
-                    DisplayName,
-                    "account-ct",
+                    It.Is<PersistedLocalAccount>(account =>
+                        account.LocalAccountId == LocalAccountId
+                    ),
+                    It.Is<UpdateLocalAccountRequest>(model =>
+                        model.UserName == UserName && model.DisplayName == DisplayName
+                    ),
                     null,
                     MockStoreManager.Object,
                     It.IsAny<CancellationToken>()
@@ -1149,10 +1154,12 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
         MockLocalAccountValidator
             .Setup(x =>
                 x.ValidateUpdateAsync(
-                    LocalAccountId,
-                    UserName,
-                    DisplayName,
-                    "account-ct",
+                    It.Is<PersistedLocalAccount>(account =>
+                        account.LocalAccountId == LocalAccountId
+                    ),
+                    It.Is<UpdateLocalAccountRequest>(model =>
+                        model.UserName == UserName && model.DisplayName == DisplayName
+                    ),
                     null,
                     MockStoreManager.Object,
                     It.IsAny<CancellationToken>()
@@ -1197,7 +1204,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
     {
         SetupAuthorizeUpdate(error: null);
         SetupAccount(CreateAccount());
-        SetupUpdateValidated("Alice Liddell");
+        SetupUpdateValidated(UserName, "Alice Liddell");
         var patch = new JsonPatchDocument<UpdateLocalAccountRequest>();
         patch.Replace(x => x.DisplayName, "  Alice Liddell ");
 
@@ -1218,7 +1225,7 @@ public sealed class LocalAccountApiEndpointHandlerTests : IDisposable
     {
         SetupAuthorizeUpdate(error: null);
         SetupAccount(CreateAccount());
-        SetupUpdateValidated(string.Empty);
+        SetupUpdateValidated(UserName, string.Empty);
         var patch = new JsonPatchDocument<UpdateLocalAccountRequest>();
         patch.Replace(x => x.DisplayName, null!);
 
