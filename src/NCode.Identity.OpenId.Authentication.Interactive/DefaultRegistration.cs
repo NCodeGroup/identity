@@ -299,6 +299,24 @@ public static class DefaultRegistration
                 DefaultInteractivePasswordChanger
             >();
 
+            // A credential backend that holds email addresses replaces this default, which supports nothing.
+            serviceCollection.TryAddSingleton<
+                IInteractivePasswordResetter,
+                DefaultInteractivePasswordResetter
+            >();
+
+            // A credential backend that holds email addresses replaces this default, which supports nothing.
+            serviceCollection.TryAddSingleton<
+                IInteractiveEmailVerifier,
+                DefaultInteractiveEmailVerifier
+            >();
+
+            // A credential backend that holds email addresses replaces this default, which supports nothing.
+            serviceCollection.TryAddSingleton<
+                IInteractiveSignInCodeChallenge,
+                DefaultInteractiveSignInCodeChallenge
+            >();
+
             // The branding settings join the descriptor catalog only where the surface that shows them is registered.
             var settingDescriptorDataSource = ServiceDescriptor.Singleton<
                 ICollectionDataSource<SettingDescriptor>,
@@ -366,6 +384,22 @@ public static class DefaultRegistration
                         cookie.Cookie.SameSite = SameSiteMode.Lax;
                         cookie.SlidingExpiration = true;
                     }
+                )
+                // Holds an end user whose password is verified while the sign-in waits for the email code (ADR-1533);
+                // it is never a session.
+                .AddCookie(
+                    InteractiveAuthenticationDefaults.PendingSignInSchemeName,
+                    cookie =>
+                    {
+                        cookie.Cookie.Name =
+                            InteractiveAuthenticationDefaults.PendingSignInCookieName;
+                        cookie.Cookie.Path = "/";
+                        cookie.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                        cookie.Cookie.HttpOnly = true;
+                        cookie.Cookie.SameSite = SameSiteMode.Strict;
+                        cookie.ExpireTimeSpan = TimeSpan.FromMinutes(15);
+                        cookie.SlidingExpiration = false;
+                    }
                 );
 
             // The surface is served under the tenant route (ADR-1193): the session cookie is host-only and named for
@@ -384,6 +418,17 @@ public static class DefaultRegistration
                             context.RedirectUri = BuildLoginRedirectUri(context, surfacePaths);
                             return redirectToLogin(context);
                         };
+                    }
+                );
+
+            serviceCollection
+                .AddOptions<CookieAuthenticationOptions>(
+                    InteractiveAuthenticationDefaults.PendingSignInSchemeName
+                )
+                .Configure<InteractiveSurfacePaths>(
+                    (cookie, surfacePaths) =>
+                    {
+                        cookie.CookieManager = new InteractiveSessionCookieManager(surfacePaths);
                     }
                 );
 
