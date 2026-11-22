@@ -266,7 +266,7 @@ public class DirectoryServerOptionsValidatorTests
 
     [Theory]
     [MemberData(nameof(NonLabelControlPlaneCells))]
-    public void Validate_WhenControlPlaneCellIsNotACellLabel_FailsNamingTheKeyAndRule(
+    public void Validate_WhenControlPlaneCellIsNotACellLabel_FailsNamingTheKeyRuleAndValue(
         string controlPlaneCell
     )
     {
@@ -282,7 +282,7 @@ public class DirectoryServerOptionsValidatorTests
         Assert.True(result.Failed);
         var failure = Assert.Single(result.Failures);
         Assert.Equal(
-            $"DirectoryServer:ControlPlaneCell must be a cell name: {CellLabelRules.Description}.",
+            $"DirectoryServer:ControlPlaneCell must be a cell name: {CellLabelRules.Description}; it is '{controlPlaneCell}'.",
             failure
         );
     }
@@ -325,7 +325,9 @@ public class DirectoryServerOptionsValidatorTests
 
     [Theory]
     [MemberData(nameof(NonTenantIdentifierControlPlaneTenantIds))]
-    public void Validate_NonTenantIdentifierControlPlaneTenantId_Fails(string controlPlaneTenantId)
+    public void Validate_NonTenantIdentifierControlPlaneTenantId_FailsNamingTheKeyRuleAndValue(
+        string controlPlaneTenantId
+    )
     {
         var options = new DirectoryServerOptions
         {
@@ -338,10 +340,9 @@ public class DirectoryServerOptionsValidatorTests
 
         Assert.True(result.Failed);
         var failure = Assert.Single(result.Failures);
-        Assert.StartsWith(
-            "DirectoryServer:ControlPlaneTenantId must be a tenant identifier",
-            failure,
-            StringComparison.Ordinal
+        Assert.Equal(
+            $"DirectoryServer:ControlPlaneTenantId must be a tenant identifier: 1 to {TenantIdentifierRules.MaxTenantIdLength} lowercase letters, digits or hyphens that start and end with a letter or digit; it is '{controlPlaneTenantId}'.",
+            failure
         );
     }
 
