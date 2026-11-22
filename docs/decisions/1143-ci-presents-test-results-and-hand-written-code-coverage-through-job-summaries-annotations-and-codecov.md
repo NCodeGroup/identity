@@ -64,10 +64,11 @@ summary and in Codecov alike.**
 5. **Uploads run in a workflow of their own, over OIDC.**
    [`codecov-upload.yml`](../../.github/workflows/codecov-upload.yml) runs on `workflow_run` after each run of `ci.yml`
    and `frontend.yml`, downloads the artifacts that run's gate job left, and uploads coverage and test results with a
-   commit-SHA-pinned action under `id-token: write`, naming the run's commit, branch and pull request. It runs the
-   default branch's copy in the base repository's context, executes nothing from the artifacts or the checkout, and
-   stores no secret. No job of `ci.yml` asks for more than `contents: read`, because the template's `tag-release.yml`
-   calls `ci.yml` with that alone and GitHub fails the whole run when a called job asks for more
+   commit-SHA-pinned action under `id-token: write`, naming the run's commit, branch and pull request; a fork's branch
+   carries its owner's name. It runs the default branch's copy in the base repository's context, checks out nothing,
+   reads the commit's tracked files into an index without writing them to disk, executes nothing from the artifacts,
+   and stores no secret. No job of `ci.yml` asks for more than `contents: read`, because the template's
+   `tag-release.yml` calls `ci.yml` with that alone and GitHub fails the whole run when a called job asks for more
    ([project-template ADR-0026](project-template/0026-tests-gate-coverage-at-the-gold-thresholds-and-a-release-waits-for-them.md)).
 6. **Gate jobs cannot leak the job token.** Gate jobs are `contents: read`, and every checkout sets
    `persist-credentials: false`, so the job token never lands in `.git/config` where build, test and third-party code

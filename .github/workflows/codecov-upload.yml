@@ -34,16 +34,22 @@ jobs:
       FLAG: ${{ github.event.workflow_run.name == 'Frontend CI' && 'frontend' || 'dotnet' }}
       COVERAGE_ARTIFACT: ${{ github.event.workflow_run.name == 'Frontend CI' && 'frontend-coverage' || 'coverage' }}
       TEST_RESULTS_ARTIFACT: ${{ github.event.workflow_run.name == 'Frontend CI' && 'frontend-test-results' || 'test-results' }}
+      # A fork's branch carries its owner, as Codecov names fork branches, so a fork's `main` never reads as this one's.
+      BRANCH: ${{ github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.head_branch || format('{0}:{1}', github.event.workflow_run.head_repository.owner.login, github.event.workflow_run.head_branch) }}
 
     steps:
-      # The uploader reads the commit and the tracked-file list from the checkout to map report paths onto the
-      # repository.
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
-          # Nothing in this job pushes, so the token stays out of .git/config, where later steps could read it.
-          persist-credentials: false
+      # The uploader maps report paths onto the commit's tracked files. Reading them into an index, without a checkout,
+      # writes none of the commit's files to disk, which for a fork's pull request are untrusted code.
+      - name: Read the commit's file list
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          git init -q "$RUNNER_TEMP/tree"
+          cd "$RUNNER_TEMP/tree"
+          git remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          git fetch -q --depth=1 --filter=blob:none origin "$HEAD_SHA"
+          git read-tree FETCH_HEAD
 
       # A failed gate can leave either artifact missing (coverage is only merged once every test passes), so a missing
       # artifact skips its upload instead of failing the job.
@@ -75,7 +81,9 @@ jobs:
         run: echo "files=$(find "$RUNNER_TEMP/codecov/test-results" -type f -name '*.xml' | sort | paste -sd, -)" >> "$GITHUB_OUTPUT"
 
       # OIDC needs no stored secret. The override inputs name the triggering run's commit, branch and pull request,
-      # because a workflow_run's own context names the default branch.
+      # because a workflow_run's own context names the default branch; GitHub lists no pull request for a fork's run,
+      # so Codecov matches that pull request by its commit. The uploader runs in the file-list folder, so its network
+      # is the commit's tracked files, and `disable_file_fixes` stops it reading sources the folder doesn't hold.
       #
       # `plugins: noop` turns off the uploader's default preparation plugins (xcode, gcov, pycoverage), which probe for
       # Swift, C/C++, and Python coverage data, run those toolchains over whatever they find, and log a warning each
@@ -87,13 +95,16 @@ jobs:
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           use_oidc: true
+          working-directory: ${{ runner.temp }}/tree
+          root_dir: ${{ runner.temp }}/tree
+          disable_file_fixes: true
           files: ${{ runner.temp }}/codecov/coverage/Cobertura.xml
           disable_search: true
           plugins: noop
           flags: ${{ env.FLAG }}
           name: ${{ env.FLAG }}
           override_commit: ${{ github.event.workflow_run.head_sha }}
-          override_branch: ${{ github.event.workflow_run.head_branch }}
+          override_branch: ${{ env.BRANCH }}
           override_pr: ${{ github.event.workflow_run.pull_requests[0].number }}
           fail_ci_if_error: false
 
@@ -103,11 +114,12 @@ jobs:
         with:
           report_type: test_results
           use_oidc: true
+          working-directory: ${{ runner.temp }}/tree
           files: ${{ steps.junit.outputs.files }}
           disable_search: true
           flags: ${{ env.FLAG }}
           name: ${{ env.FLAG }}
           override_commit: ${{ github.event.workflow_run.head_sha }}
-          override_branch: ${{ github.event.workflow_run.head_branch }}
+          override_branch: ${{ env.BRANCH }}
           override_pr: ${{ github.event.workflow_run.pull_requests[0].number }}
           fail_ci_if_error: false
