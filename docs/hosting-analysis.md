@@ -852,9 +852,12 @@ the stacks and components is [#87](https://github.com/NCodeGroup/identity/issues
   ([#845](https://github.com/NCodeGroup/identity/issues/845)).
 - **Cluster secrets** never sit in Git as plaintext: SOPS + age (free) or External Secrets Operator syncing from the key
   vault ([#909](https://github.com/NCodeGroup/identity/issues/909)).
-- **Alerting:** Grafana Cloud alerts on token-endpoint error rate and p95 latency, certificate expiry, database
-  connections and replication lag, and node/disk pressure; on-call via Grafana IRM's free tier; a public status page
-  (`status.ncodeid.com`, UptimeRobot free).
+- **Alerting:** Grafana Cloud alerts on token-endpoint error rate and p95 latency, shed requests
+  (`ncode.identity.admission.shed`), certificate expiry, database connections and replication lag, and node/disk
+  pressure; on-call via Grafana IRM's free tier; a public status page (`status.ncodeid.com`, UptimeRobot free). Each
+  cluster keeps its metrics within 1,500 active series and each cell within 2,000, on Grafana Cloud Free while only
+  the developer plan runs and on Pro from the first paid plan
+  ([ADR-1525](decisions/1525-each-cluster-and-cell-keeps-its-metrics-within-a-series-budget-on-grafana-cloud-free-then-pro.md)).
 - **Audit events**
   ([ADR-1047](decisions/1047-observation-is-a-fault-isolated-event-seam-that-audit-specializes-and-protocol-errors-reach-once.md)):
   their retention and customer export are open ([#910](https://github.com/NCodeGroup/identity/issues/910)), and they
