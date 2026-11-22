@@ -7,12 +7,12 @@
 ## Context
 
 The platform spans several vendors (AWS, Cloudflare, OCI, Akamai, GitHub and Kubernetes,
-[hosting analysis](../hosting-analysis.md)), each with
-its own tagging model: AWS and OCI use key/value maps, Akamai and Cloudflare DNS records use plain `key:value` strings,
-Kubernetes uses labels (no `@` allowed in values) and annotations, and GitHub only has repository topics. Without one
-strategy, every component invents its own keys and nobody can answer, from a resource alone, who owns it, which
-environment it serves, which code manages it, or whether it may be deleted. Because the infrastructure code is public,
-tag values are public too.
+[ADR-1520](1520-the-hosted-platform-runs-production-on-akamai-lke-in-washington-dc-and-its-lab-on-oci-oke-basic-in-phoenix.md)),
+each with its own tagging model: AWS and OCI use key/value maps, Akamai and Cloudflare DNS records use plain
+`key:value` strings, Kubernetes uses labels (no `@` allowed in values) and annotations, and GitHub only has repository
+topics. Without one strategy, every component invents its own keys and nobody can answer, from a resource alone, who
+owns it, which environment it serves, which code manages it, or whether it may be deleted. Because the infrastructure
+code is public, tag values are public too.
 
 Every deployed thing should also be traceable to the reviewed code and the pipeline run that produced it. The obvious
 place to record that, a `commit` or `pipeline_run` tag on every cloud resource, conflicts with stable tags: each apply

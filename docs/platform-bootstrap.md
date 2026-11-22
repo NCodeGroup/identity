@@ -27,9 +27,9 @@ values used by the NCode hosted platform are listed once here.
 
 **Region choice.** The AWS account holds only state and backups, so `us-west-2` puts them in a different geography from
 the production cluster in Washington, DC — a regional outage can't take both. Production's region is chosen for its
-customers ([hosting-analysis.md](hosting-analysis.md#choosing-the-region)); only the lab is placed near the operator.
-OCI has no Oregon region; Phoenix is the closest OCI
-region to Denver and has three availability domains to spread the lab's nodes across.
+customers ([hosting-analysis.md](hosting-analysis.md#the-production-region)); only the lab is placed near the operator.
+OCI has no Oregon region; Phoenix is the closest OCI region to Denver and has three availability domains to spread the
+lab's nodes across.
 
 ## 0. Before you start
 
@@ -42,8 +42,8 @@ region to Denver and has three availability domains to spread the lab's nodes ac
   `brew install tenv`), which picks the version in the infrastructure repository's `.opentofu-version` (`tenv tofu
   install` in the repository) and verifies its signature; AWS CLI v2;
   OCI CLI (lab); `kubectl`, Flux CLI, Helm; `gitleaks` (pre-commit). Optional: GitHub CLI `gh`.
-- **Expected cost:** see the [hosting analysis](hosting-analysis.md#2-summary-and-ranked-recommendations) — the lab is
-  within OCI's free allowance ($0/month on two 1 OCPU / 6 GB nodes); the AWS account costs cents per month.
+- **Expected cost:** see the [hosting analysis](hosting-analysis.md#stages) — the lab is within OCI's free allowance
+  ($0/month on two 1 OCPU / 6 GB nodes); the AWS account costs cents per month.
 
 ## 1. Domain registrar (Porkbun)
 
