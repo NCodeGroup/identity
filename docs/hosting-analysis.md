@@ -1288,17 +1288,21 @@ Everything else on this page is decided in the record its section names.
 1. **When to place cells on AWS, and in which shape** — EKS with spot above an on-demand floor, or ECS on Fargate, which
    runs outside the chart and so needs its own record
    ([ADR-1133](decisions/1133-the-hosted-platform-runs-only-the-published-artifacts-it-offers-self-hosters.md)); see
-   [§11](#11-growth-path-aws).
+   [§11](#11-growth-path-aws) and [#914](https://github.com/NCodeGroup/identity/issues/914).
 2. **The fleet model** — the cell inventory, the cell module, the release channels and the version-skew rule, where
    fleet telemetry lives, and operator access, recorded before the fleet is built
    ([#845](https://github.com/NCodeGroup/identity/issues/845)).
 3. **A shared cell's priority by plan, each cell's telemetry budget and a dedicated cell's capacity rating** — under
    load nothing sheds free traffic before paid traffic, each cell adds series toward Grafana Cloud's free 10k active
-   series, and a capacity rating needs a load test on dedicated-CPU nodes ([§3](#3-compute-sizing),
-   [Gaps for dedicated cells](#gaps-for-dedicated-cells)).
+   series, and a capacity rating needs a load test on dedicated-CPU nodes
+   ([#906](https://github.com/NCodeGroup/identity/issues/906),
+   [#908](https://github.com/NCodeGroup/identity/issues/908), [#907](https://github.com/NCodeGroup/identity/issues/907);
+   [§3](#3-compute-sizing), [Gaps for dedicated cells](#gaps-for-dedicated-cells)).
 4. **The launch work** — what [§10](#10-pre-launch-considerations) lists under Operations, Security hardening, Business
-   and legal, and Outbound email, among them the restore drill's RPO and RTO targets, audit-event retention and customer
-   export, and the outbound email provider.
+   and legal, and Outbound email, among them the restore drill's RPO and RTO targets
+   ([#845](https://github.com/NCodeGroup/identity/issues/845)), audit-event retention and customer export
+   ([#910](https://github.com/NCodeGroup/identity/issues/910)), and the outbound email provider
+   ([#911](https://github.com/NCodeGroup/identity/issues/911)).
 5. **How the clusters that host paid cells scale** — the cap on cells per cluster, and whether those clusters run LKE
-   Enterprise once Akamai offers it in their region
-   ([The cluster that hosts paid cells](#the-cluster-that-hosts-paid-cells)).
+   Enterprise once Akamai offers it in their region ([#915](https://github.com/NCodeGroup/identity/issues/915);
+   [The cluster that hosts paid cells](#the-cluster-that-hosts-paid-cells)).
