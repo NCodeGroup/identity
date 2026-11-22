@@ -19,9 +19,9 @@ public sealed record TenantPlacement
     public required string TenantId { get; init; }
 
     /// <summary>
-    /// Gets the issuer of the tenant.
+    /// Gets the issuer of the tenant, or <c>null</c> when the tenant has none.
     /// </summary>
-    public required string Issuer { get; init; }
+    public string? Issuer { get; init; }
 
     /// <summary>
     /// Gets the name of the cell that holds the tenant.

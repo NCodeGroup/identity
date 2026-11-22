@@ -237,7 +237,9 @@ internal sealed class DefaultDirectoryStore(
 
                 var tenantId = reservation.TenantId;
                 var normalizedTenantId = Normalize(tenantId);
-                var normalizedIssuer = Normalize(reservation.Issuer);
+                var normalizedIssuer = reservation.Issuer is { } requestedIssuer
+                    ? Normalize(requestedIssuer)
+                    : null;
                 var normalizedTeamId = reservation.TeamId is { } requestedTeamId
                     ? Normalize(requestedTeamId)
                     : null;
@@ -288,27 +290,32 @@ internal sealed class DefaultDirectoryStore(
                     );
                 }
 
-                if (
-                    await dbContext.Tenants.AnyAsync(
-                        entity => entity.NormalizedIssuer == normalizedIssuer,
-                        cancellationToken
+                // A tenant without an issuer is reserved by its identifier alone: no issuer is judged, because a null
+                // would match every tenant without one and every retired record.
+                if (reservation.Issuer is { } issuer)
+                {
+                    if (
+                        await dbContext.Tenants.AnyAsync(
+                            entity => entity.NormalizedIssuer == normalizedIssuer,
+                            cancellationToken
+                        )
                     )
-                )
-                {
-                    return ReservationResult.Conflict(
-                        $"Another tenant already has the issuer '{reservation.Issuer}'."
-                    );
-                }
+                    {
+                        return ReservationResult.Conflict(
+                            $"Another tenant already has the issuer '{issuer}'."
+                        );
+                    }
 
-                var retiredIssuerDetail = await FindRetiredIssuerConflictAsync(
-                    dbContext,
-                    tenantId,
-                    reservation.Issuer,
-                    cancellationToken
-                );
-                if (retiredIssuerDetail is not null)
-                {
-                    return ReservationResult.Conflict(retiredIssuerDetail);
+                    var retiredIssuerDetail = await FindRetiredIssuerConflictAsync(
+                        dbContext,
+                        tenantId,
+                        issuer,
+                        cancellationToken
+                    );
+                    if (retiredIssuerDetail is not null)
+                    {
+                        return ReservationResult.Conflict(retiredIssuerDetail);
+                    }
                 }
 
                 if (reservation.TeamId is { } teamId)
@@ -392,7 +399,9 @@ internal sealed class DefaultDirectoryStore(
                 );
                 if (!isReservedElsewhere)
                 {
-                    var normalizedPlacementIssuer = Normalize(placement.Issuer);
+                    var normalizedPlacementIssuer = placement.Issuer is { } placementIssuer
+                        ? Normalize(placementIssuer)
+                        : null;
                     isReservedElsewhere = !string.Equals(
                         tenant.NormalizedIssuer,
                         normalizedPlacementIssuer,
@@ -1008,7 +1017,7 @@ internal sealed class DefaultDirectoryStore(
         return new TenantPlacement
         {
             TenantId = tenant.TenantId,
-            Issuer = tenant.Issuer ?? string.Empty,
+            Issuer = tenant.Issuer,
             Cell = cell,
             Region = region ?? string.Empty,
         };

@@ -11,7 +11,8 @@ namespace NCode.Identity.OpenId.Integration.Tests.Infrastructure;
 /// global directory: identifiers and issuers compare without regard to case, a retired identifier is never reissued,
 /// only the tenant that gave up an issuer takes it back, a reservation or a move that runs again after it took effect
 /// succeeds, <see cref="OfferMoveAsync"/> records the offer of a placed tenant to another registered cell of its
-/// region, and <see cref="MoveAsync"/> moves the tenant only on that unexpired offer.
+/// region, and <see cref="MoveAsync"/> moves the tenant only on that unexpired offer. A tenant without an issuer is
+/// reserved and placed by its identifier alone.
 /// </summary>
 public sealed class InMemoryTenantDirectory : ITenantDirectory
 {
@@ -78,29 +79,34 @@ public sealed class InMemoryTenantDirectory : ITenantDirectory
                 );
             }
 
-            if (HoldsIssuer(reservation.Issuer))
+            // A tenant without an issuer is reserved by its identifier alone: no issuer is judged, because a null would
+            // match every tenant without one and every retired record.
+            if (reservation.Issuer is { } issuer)
             {
-                return ValueTask.FromResult(
-                    ReservationResult.Conflict(
-                        $"Another tenant already has the issuer '{reservation.Issuer}'."
-                    )
-                );
-            }
+                if (HoldsIssuer(issuer))
+                {
+                    return ValueTask.FromResult(
+                        ReservationResult.Conflict(
+                            $"Another tenant already has the issuer '{issuer}'."
+                        )
+                    );
+                }
 
-            if (
-                RetiredIssuers.TryGetValue(reservation.Issuer, out var formerHolder)
-                && !string.Equals(
-                    formerHolder,
-                    reservation.TenantId,
-                    StringComparison.OrdinalIgnoreCase
-                )
-            )
-            {
-                return ValueTask.FromResult(
-                    ReservationResult.Conflict(
-                        $"The issuer '{reservation.Issuer}' belonged to another tenant and is never reissued."
+                if (
+                    RetiredIssuers.TryGetValue(issuer, out var formerHolder)
+                    && !string.Equals(
+                        formerHolder,
+                        reservation.TenantId,
+                        StringComparison.OrdinalIgnoreCase
                     )
-                );
+                )
+                {
+                    return ValueTask.FromResult(
+                        ReservationResult.Conflict(
+                            $"The issuer '{issuer}' belonged to another tenant and is never reissued."
+                        )
+                    );
+                }
             }
 
             Tenants[reservation.TenantId] = new Entry
@@ -428,7 +434,7 @@ public sealed class InMemoryTenantDirectory : ITenantDirectory
                 new TenantPlacement
                 {
                     TenantId = entry.TenantId,
-                    Issuer = entry.Issuer ?? string.Empty,
+                    Issuer = entry.Issuer,
                     Cell = cell,
                     Region = CellRegions.GetValueOrDefault(cell) ?? string.Empty,
                 }

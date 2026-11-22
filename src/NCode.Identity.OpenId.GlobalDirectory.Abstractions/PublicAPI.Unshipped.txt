@@ -144,7 +144,7 @@ NCode.Identity.OpenId.GlobalDirectory.TenantMoveOfferRequest.ToCell.init -> void
 NCode.Identity.OpenId.GlobalDirectory.TenantPlacement
 NCode.Identity.OpenId.GlobalDirectory.TenantPlacement.Cell.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.TenantPlacement.Cell.init -> void
-NCode.Identity.OpenId.GlobalDirectory.TenantPlacement.Issuer.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.TenantPlacement.Issuer.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.TenantPlacement.Issuer.init -> void
 NCode.Identity.OpenId.GlobalDirectory.TenantPlacement.Region.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.TenantPlacement.Region.init -> void
@@ -153,14 +153,14 @@ NCode.Identity.OpenId.GlobalDirectory.TenantPlacement.TenantId.init -> void
 NCode.Identity.OpenId.GlobalDirectory.TenantPlacementRequest
 NCode.Identity.OpenId.GlobalDirectory.TenantPlacementRequest.Cell.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.TenantPlacementRequest.Cell.init -> void
-NCode.Identity.OpenId.GlobalDirectory.TenantPlacementRequest.Issuer.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.TenantPlacementRequest.Issuer.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.TenantPlacementRequest.Issuer.init -> void
 NCode.Identity.OpenId.GlobalDirectory.TenantPlacementRequest.TenantId.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.TenantPlacementRequest.TenantId.init -> void
 NCode.Identity.OpenId.GlobalDirectory.TenantReservation
 NCode.Identity.OpenId.GlobalDirectory.TenantReservation.Cell.get -> string!
 NCode.Identity.OpenId.GlobalDirectory.TenantReservation.Cell.init -> void
-NCode.Identity.OpenId.GlobalDirectory.TenantReservation.Issuer.get -> string!
+NCode.Identity.OpenId.GlobalDirectory.TenantReservation.Issuer.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.TenantReservation.Issuer.init -> void
 NCode.Identity.OpenId.GlobalDirectory.TenantReservation.TeamId.get -> string?
 NCode.Identity.OpenId.GlobalDirectory.TenantReservation.TeamId.init -> void
