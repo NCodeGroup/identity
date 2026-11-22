@@ -200,25 +200,39 @@ third lab node adds ~$7.30. Watch Grafana Cloud's free 10k active series across 
 | Inbound email (`security@`, vendor accounts)   | Cloudflare Email Routing                      | Free; receive-and-forward only (sending needs Workers Paid)                                                              |
 | Outbound email, when needed                    | OCI Email Delivery                            | 3,000 emails/month                                                                                                       |
 
-## 3. Reference architecture
+## 2. Reference architecture
+
+Decided in
+[ADR-1504](decisions/1504-the-hosts-serve-https-only-and-verify-their-certificate-at-startup.md),
+[ADR-1506](decisions/1506-the-ingress-controller-holds-a-client-certificate-the-pods-can-require-and-never-read-as-an-end-clients.md),
+[ADR-1507](decisions/1507-the-host-chart-routes-to-its-https-only-pods-through-gateway-api-a-traefik-ingress-or-the-operators-own-ingress.md)
+and the records each point names.
 
 ```mermaid
 flowchart LR
-    C[Clients / browsers] -->|TCP 443, TLS untouched| LB[Cloud L4 LB<br/>PROXY protocol v2]
+    C[Clients / browsers] -->|TCP 443, TLS untouched| LB[NodeBalancer, L4<br/>PROXY protocol v2]
     LB --> T1[Traefik node 1]
     LB --> T2[Traefik node 2]
     LB --> T3[Traefik node 3]
-    T1 & T2 & T3 -->|HTTP + X-Forwarded-Tls-Client-Cert| API[Identity server<br/>2-3 replicas]
+    T1 & T2 & T3 -->|HTTPS + proxy client certificate<br/>X-Forwarded-Tls-Client-Cert| API[Identity server<br/>2-3 replicas]
     API --> PG[(PostgreSQL)]
     API --> VK[(Valkey)]
     API -.->|unwrap at start; sign with remote keys| KMS[KMS<br/>root key ADR-1235]
 ```
 
-- The cloud LB must be **L4 TCP pass-through** (never TLS-terminating, never an L7/CDN proxy) so Traefik sees the client
-  certificate; PROXY protocol v2 preserves the client IP.
+- The load balancer is **L4 TCP pass-through** (never TLS-terminating, never an L7 or CDN proxy), so Traefik sees the
+  client certificate; PROXY protocol v2 preserves the client IP.
 - Traefik terminates TLS, **requests** the client certificate on the mTLS host, and forwards it with the
   `passTLSClientCert` middleware; the server reads it via `OpenId:MutualTls:CertificateHeaderName`
   ([ADR-1097](decisions/1097-access-tokens-are-sender-constrained-by-dpop-or-mutual-tls-through-one-proof-of-possession-seam.md)).
+- Traefik reaches the pods over HTTPS on port 8443
+  ([ADR-1504](decisions/1504-the-hosts-serve-https-only-and-verify-their-certificate-at-startup.md)): its
+  `ServersTransport` verifies the pods' certificate against the ingress controller's Secret and presents that Secret's
+  client certificate, which the pods can require
+  ([ADR-1506](decisions/1506-the-ingress-controller-holds-a-client-certificate-the-pods-can-require-and-never-read-as-an-end-clients.md),
+  [ADR-1507](decisions/1507-the-host-chart-routes-to-its-https-only-pods-through-gateway-api-a-traefik-ingress-or-the-operators-own-ingress.md)).
+  A certificate the host verified as the proxy's is never read as an end client's, so the forwarded header stays the
+  only source of the end client's certificate.
 - RFC 8705 §5 mTLS endpoint aliases map naturally to a dedicated mTLS hostname (the tenant's
   `mtlsEndpointAliasAuthority`), so only that host asks for client certificates; per-tenant alias hosts route to their
   tenant ([ADR-1165](decisions/1165-a-tenants-stored-issuer-is-its-single-origin-and-its-mtls-alias-a-routed-second-host.md)).
