@@ -78,6 +78,7 @@ user-facing summary.
   is judged by one policy and hashed in its NFC form
   ([ADR-1237](decisions/1237-failed-password-attempts-are-limited-per-account-and-a-refusal-costs-what-a-wrong-password-costs.md),
   [ADR-1246](decisions/1246-rate-limits-are-registered-descriptors-counted-in-a-shared-expiring-counter-set.md),
+  [ADR-1399](decisions/1399-failed-client-authentications-are-limited-per-remote-address-by-default.md),
   [ADR-1239](decisions/1239-a-password-is-verified-in-the-same-time-whether-or-not-its-account-exists.md),
   [ADR-1236](decisions/1236-a-password-is-judged-by-one-policy-wherever-it-is-set.md),
   [ADR-1238](decisions/1238-a-password-is-hashed-and-verified-in-its-nfc-form-on-every-path.md)).
@@ -106,7 +107,7 @@ holds.
 | A stolen database or backup exposes keys and secrets | Yes | R6 ([ADR-1235](decisions/1235-stored-secrets-and-grant-payloads-are-protected-by-a-key-hierarchy-under-an-external-root-key.md)) |
 | A request to an internal address through a client's `jwks_uri`, `request_uri` or a revocation source | Yes | R8 ([ADR-1315](decisions/1315-calls-to-caller-supplied-urls-share-one-guarded-bounded-client-and-one-single-flight-helper.md)) |
 | An administrator acts outside their scope | Yes | R7 ([ADR-1417](decisions/1417-management-authority-is-a-role-assignment-at-a-node-of-the-platform-team-and-tenant-hierarchy.md), [ADR-1424](decisions/1424-a-management-route-authorizes-at-the-node-it-names-before-it-reads-through-replaceable-validators.md)) |
-| Guessing passwords or client secrets | Yes | R12 ([ADR-1237](decisions/1237-failed-password-attempts-are-limited-per-account-and-a-refusal-costs-what-a-wrong-password-costs.md), [ADR-1246](decisions/1246-rate-limits-are-registered-descriptors-counted-in-a-shared-expiring-counter-set.md), [ADR-1239](decisions/1239-a-password-is-verified-in-the-same-time-whether-or-not-its-account-exists.md)) |
+| Guessing passwords or client secrets | Yes | R12 ([ADR-1237](decisions/1237-failed-password-attempts-are-limited-per-account-and-a-refusal-costs-what-a-wrong-password-costs.md), [ADR-1246](decisions/1246-rate-limits-are-registered-descriptors-counted-in-a-shared-expiring-counter-set.md), [ADR-1399](decisions/1399-failed-client-authentications-are-limited-per-remote-address-by-default.md), [ADR-1239](decisions/1239-a-password-is-verified-in-the-same-time-whether-or-not-its-account-exists.md)) |
 | Script injection into, or framing of, the sign-in pages | Yes | R9: a strict CSP and framing only by design ([ADR-1256](decisions/1256-every-page-the-server-writes-has-a-strict-content-security-policy-and-is-framed-only-by-design.md)) |
 | A cross-site request against a BFF or its logout | Yes | R10 ([ADR-1292](decisions/1292-the-bffs-cookie-authenticates-only-guarded-endpoints-which-refuse-cross-site-requests-and-reload-cookieless-navigations.md), [ADR-1293](decisions/1293-the-bff-ends-sessions-by-a-guarded-logout-form-post-and-by-back-channel-logout-through-indexes.md)) |
 | A forged `Host` header changes a published URL | Yes | R5: the issuer comes from the tenant's stored record ([ADR-1165](decisions/1165-a-tenants-stored-issuer-is-its-single-origin-and-its-mtls-alias-a-routed-second-host.md)) |
