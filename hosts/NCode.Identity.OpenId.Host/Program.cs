@@ -156,7 +156,7 @@ serviceCollection.AddDefaultPasswordHasher();
 identityServer
     .OpenIdAuthenticationLibraryBuilder.AddLocalAccountAuthentication(localAccountStore)
     .AddInteractiveAuthentication(configuration, hostEnvironment)
-    .AddLocalAccountInteractiveAuthentication(localAccountStore);
+    .AddLocalAccountInteractiveAuthentication(localAccountStore, identityServer.MailLibraryBuilder);
 
 // Enable the local-account management endpoints on the management-library builder (nested under the tenant-plane
 // group). The account stack provides this capability; the Management slice itself does not depend on accounts.

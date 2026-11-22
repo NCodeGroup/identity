@@ -5,6 +5,8 @@ using System.Security.Claims;
 using JetBrains.Annotations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using NCode.Identity.Mail;
+using NCode.Identity.OpenId.Accounts.Authentication.EmailCodes;
 using NCode.Identity.OpenId.Authentication;
 using NCode.Identity.OpenId.Authentication.Endpoints.Token.Commands;
 using NCode.Identity.OpenId.Authentication.Endpoints.UserInfo.Commands;
@@ -92,26 +94,38 @@ public static class DefaultRegistration
         /// Registers the local-account implementation of the <see cref="IInteractiveCredentialVerifier"/> seam, so the
         /// opt-in interactive login/consent surface (<c>AddInteractiveAuthentication</c>) verifies credentials against
         /// the configured <c>ILocalAccountStore</c> — the same credential path the resource-owner password grant uses.
-        /// The host registers the interactive surface separately. A host fronting a different backend (LDAP, an external
-        /// identity provider, passwordless) registers its own <see cref="IInteractiveCredentialVerifier"/> instead. It
-        /// also registers the subject-validation handler that refuses a subject whose local account is disabled or no
-        /// longer exists, and the <see cref="IInteractivePasswordChanger"/> that lets an end user change the password
-        /// of their local account on the self-service surface.
+        /// The host registers the interactive surface separately. A host fronting a different backend (LDAP, an
+        /// external identity provider, passwordless) registers its own <see cref="IInteractiveCredentialVerifier"/>
+        /// instead. It also registers the subject-validation handler that refuses a subject whose local account is
+        /// disabled or no longer exists, the <see cref="IInteractivePasswordChanger"/> that lets an end user change the
+        /// password of their local account on the self-service surface, and the
+        /// <see cref="IInteractivePasswordResetter"/>, <see cref="IInteractiveEmailVerifier"/> and
+        /// <see cref="IInteractiveSignInCodeChallenge"/> that let an end user reset a forgotten password, verify an
+        /// email address and complete a sign-in with a code mailed to the account's address.
         /// </summary>
         /// <param name="localAccountStore">The local-account store builder — the compile-time proof that a
         /// <c>ILocalAccountStore</c> is registered, so this capability cannot be added without one.</param>
+        /// <param name="mailLibrary">The mail library builder — the compile-time proof that the codes this capability
+        /// sends have a sender.</param>
         /// <returns>The same <see cref="IServiceBuilder{T}"/> for method chaining.</returns>
         public IServiceBuilder<OpenIdAuthenticationLibrary> AddLocalAccountInteractiveAuthentication(
-            IServiceBuilder<LocalAccountLibrary> localAccountStore
+            IServiceBuilder<LocalAccountLibrary> localAccountStore,
+            IServiceBuilder<MailLibrary> mailLibrary
         )
         {
             ArgumentNullException.ThrowIfNull(localAccountStore);
+            ArgumentNullException.ThrowIfNull(mailLibrary);
 
             var serviceCollection = builder.ServiceCollection;
 
             serviceCollection.TryAddSingleton<
                 IInteractiveCredentialVerifier,
                 LocalAccountInteractiveCredentialVerifier
+            >();
+
+            serviceCollection.TryAddSingleton<
+                ILocalAccountEmailCodes,
+                DefaultLocalAccountEmailCodes
             >();
 
             // Replace (not TryAdd) so this capability wins over the surface's default changer, which reports that no
@@ -122,6 +136,25 @@ public static class DefaultRegistration
                 LocalAccountInteractivePasswordChanger
             >();
             serviceCollection.Replace(passwordChangerDescriptor);
+
+            // The same holds for the three seams of the one-time email codes. See ADR-1533.
+            var passwordResetterDescriptor = ServiceDescriptor.Singleton<
+                IInteractivePasswordResetter,
+                LocalAccountInteractivePasswordResetter
+            >();
+            serviceCollection.Replace(passwordResetterDescriptor);
+
+            var emailVerifierDescriptor = ServiceDescriptor.Singleton<
+                IInteractiveEmailVerifier,
+                LocalAccountInteractiveEmailVerifier
+            >();
+            serviceCollection.Replace(emailVerifierDescriptor);
+
+            var signInCodeChallengeDescriptor = ServiceDescriptor.Singleton<
+                IInteractiveSignInCodeChallenge,
+                LocalAccountInteractiveSignInCodeChallenge
+            >();
+            serviceCollection.Replace(signInCodeChallengeDescriptor);
 
             AddLocalAccountUserInfoClaims(serviceCollection);
             AddLocalAccountSubjectValidation(serviceCollection);

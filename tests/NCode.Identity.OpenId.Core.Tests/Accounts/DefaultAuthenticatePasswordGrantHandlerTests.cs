@@ -13,8 +13,10 @@ using NCode.Identity.OpenId.Authentication.Endpoints.Token.Messages;
 using NCode.Identity.OpenId.Authentication.Passwords;
 using NCode.Identity.OpenId.Contexts;
 using NCode.Identity.OpenId.PrincipalResolution;
+using NCode.Identity.OpenId.Settings;
 using NCode.Identity.OpenId.Tenants;
 using NCode.Identity.Persistence.Stores;
+using NCode.Identity.Settings;
 using Xunit;
 
 namespace NCode.Identity.OpenId.Core.Tests.Accounts;
@@ -33,6 +35,7 @@ public class DefaultAuthenticatePasswordGrantHandlerTests : BaseTests
     private Mock<IAuditEventRecorder> MockAuditEventRecorder { get; }
     private Mock<IPasswordAttemptLimiter> MockPasswordAttemptLimiter { get; }
     private Mock<OpenIdContext> MockContext { get; }
+    private Mock<OpenIdTenant> MockTenant { get; }
     private DefaultAuthenticatePasswordGrantHandler Handler { get; }
 
     public DefaultAuthenticatePasswordGrantHandlerTests()
@@ -44,6 +47,7 @@ public class DefaultAuthenticatePasswordGrantHandlerTests : BaseTests
         MockAuditEventRecorder = CreateStrictMock<IAuditEventRecorder>();
         MockPasswordAttemptLimiter = CreateStrictMock<IPasswordAttemptLimiter>();
         MockContext = CreateStrictMock<OpenIdContext>();
+        MockTenant = CreateStrictMock<OpenIdTenant>();
         Handler = new DefaultAuthenticatePasswordGrantHandler(
             MockStoreManagerFactory.Object,
             MockPrincipalResolver.Object,
@@ -95,12 +99,20 @@ public class DefaultAuthenticatePasswordGrantHandlerTests : BaseTests
             .Returns(ValueTask.CompletedTask)
             .Verifiable();
 
-    private void SetupTenant()
+    private void SetupSettings(bool isEmailMfaRequired)
     {
-        var mockTenant = CreateStrictMock<OpenIdTenant>();
-        mockTenant.Setup(x => x.TenantId).Returns(TenantId).Verifiable();
-        MockContext.Setup(x => x.Tenant).Returns(mockTenant.Object).Verifiable();
+        var mockSettings = CreateStrictMock<IReadOnlySettingCollection>();
+        mockSettings
+            .Setup(x => x.GetValue(OpenIdSettingKeys.EmailMfaRequired))
+            .Returns(isEmailMfaRequired)
+            .Verifiable();
+        var mockProvider = CreateStrictMock<IReadOnlySettingCollectionProvider>();
+        mockProvider.Setup(x => x.Collection).Returns(mockSettings.Object).Verifiable();
+        MockTenant.Setup(x => x.SettingsProvider).Returns(mockProvider.Object).Verifiable();
+        MockContext.Setup(x => x.Tenant).Returns(MockTenant.Object).Verifiable();
     }
+
+    private void SetupTenant() => MockTenant.Setup(x => x.TenantId).Returns(TenantId).Verifiable();
 
     private void SetupAudit(string errorCode, string errorMessage, string userName = UserName) =>
         MockAuditEventRecorder
@@ -134,9 +146,25 @@ public class DefaultAuthenticatePasswordGrantHandlerTests : BaseTests
     #region HandleAsync Tests
 
     [Fact]
+    public async Task HandleAsync_WhenTheTenantRequiresTheEmailSecondFactor_FailsWithoutVerifying()
+    {
+        var command = CreateCommand();
+        SetupSettings(isEmailMfaRequired: true);
+        SetupAudit(
+            DefaultAuthenticatePasswordGrantHandler.SecondFactorRequiredErrorCode,
+            DefaultAuthenticatePasswordGrantHandler.SecondFactorRequiredReason
+        );
+
+        var disposition = await Handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.False(disposition.IsAuthenticated);
+    }
+
+    [Fact]
     public async Task HandleAsync_WhenTheAttemptLimitIsReached_RecordsAFailureAndAuditsTheLimit()
     {
         var command = CreateCommand();
+        SetupSettings(isEmailMfaRequired: false);
         SetupStoreManager();
         SetupLimit(isReached: true);
         LocalAccountStoreSetup.SetupVerification(
@@ -163,6 +191,7 @@ public class DefaultAuthenticatePasswordGrantHandlerTests : BaseTests
     public async Task HandleAsync_WhenTheStoreVerifiesARefusedPassword_RecordsAFailureAndAuditsTheLimit()
     {
         var command = CreateCommand();
+        SetupSettings(isEmailMfaRequired: false);
         SetupStoreManager();
         SetupLimit(isReached: true);
         LocalAccountStoreSetup.SetupVerificationIgnoringARefusal(
@@ -189,6 +218,7 @@ public class DefaultAuthenticatePasswordGrantHandlerTests : BaseTests
     public async Task HandleAsync_WhenTheStoreMatchesAnotherSpelling_CountsTheStoredUserName()
     {
         var command = CreateCommand(UserName + " ");
+        SetupSettings(isEmailMfaRequired: false);
         SetupStoreManager();
         SetupLimit(isReached: true);
         LocalAccountStoreSetup.SetupVerification(
@@ -217,6 +247,7 @@ public class DefaultAuthenticatePasswordGrantHandlerTests : BaseTests
     {
         using var cancellationSource = new CancellationTokenSource();
         var command = CreateCommand();
+        SetupSettings(isEmailMfaRequired: false);
         SetupStoreManager();
         SetupLimit(isReached: false);
         LocalAccountStoreSetup.SetupVerification(
@@ -243,6 +274,7 @@ public class DefaultAuthenticatePasswordGrantHandlerTests : BaseTests
     public async Task HandleAsync_WhenThePasswordIsRightButTheAccountIsDisabled_ClearsTheFailedAttemptsAndFails()
     {
         var command = CreateCommand();
+        SetupSettings(isEmailMfaRequired: false);
         SetupStoreManager();
         SetupLimit(isReached: false);
         LocalAccountStoreSetup.SetupVerification(
