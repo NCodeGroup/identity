@@ -222,11 +222,11 @@ public sealed class AuditStreamStoreTests : IDisposable
 
     // The page follows the surrogate keys, which the sequential generator mints in the order the streams are added.
     [Fact]
-    public async Task GetPageAsync_Always_OrdersByStreamId()
+    public async Task GetPageAsync_Always_PagesInInsertionOrder()
     {
+        await AddAsync(CreateStream("stream-c"), CancellationToken.None);
         await AddAsync(CreateStream("stream-a"), CancellationToken.None);
         await AddAsync(CreateStream("stream-b"), CancellationToken.None);
-        await AddAsync(CreateStream("stream-c"), CancellationToken.None);
 
         var first = await ReadAsync(
             store => store.GetPageAsync(new PageRequest { Limit = 2 }, CancellationToken.None),
@@ -242,7 +242,7 @@ public sealed class AuditStreamStoreTests : IDisposable
         );
 
         Assert.Equal(
-            new[] { "stream-a", "stream-b", "stream-c" },
+            new[] { "stream-c", "stream-a", "stream-b" },
             first.Items.Concat(second.Items).Select(stream => stream.StreamId)
         );
     }
