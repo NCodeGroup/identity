@@ -4,6 +4,7 @@
 using System.Security.Claims;
 using NCode.Buffers;
 using NCode.Identity.OpenId.Accounts.Stores;
+using NCode.Identity.OpenId.Authentication.Auditing;
 using NCode.Identity.OpenId.Authentication.Interactive;
 using NCode.Identity.OpenId.Authentication.Passwords;
 using NCode.Identity.OpenId.Contexts;
@@ -23,12 +24,14 @@ namespace NCode.Identity.OpenId.Accounts.Authentication;
 internal sealed class LocalAccountInteractivePasswordChanger(
     IStoreManagerFactory storeManagerFactory,
     IPasswordPolicy passwordPolicy,
-    IPasswordAttemptLimiter passwordAttemptLimiter
+    IPasswordAttemptLimiter passwordAttemptLimiter,
+    IAuditEventRecorder auditEventRecorder
 ) : IInteractivePasswordChanger
 {
     private IStoreManagerFactory StoreManagerFactory { get; } = storeManagerFactory;
     private IPasswordPolicy PasswordPolicy { get; } = passwordPolicy;
     private IPasswordAttemptLimiter PasswordAttemptLimiter { get; } = passwordAttemptLimiter;
+    private IAuditEventRecorder AuditEventRecorder { get; } = auditEventRecorder;
 
     /// <inheritdoc />
     public async ValueTask<InteractivePasswordChangeResult> ChangePasswordAsync(
@@ -53,6 +56,10 @@ internal sealed class LocalAccountInteractivePasswordChanger(
             return InteractivePasswordChangeResult.NotSupported;
         }
 
+        // The end user's credential change is audited as the password grant's authentication is (ADR-1533).
+        var principalId = openIdContext.GetSubjectId(principal);
+        ArgumentException.ThrowIfNullOrEmpty(principalId);
+
         // The new password is judged before the current one is verified, so a password the policy refuses costs no
         // verification. See ADR-1236.
         var newPasswordMemory = newPassword.AsMemory();
@@ -69,6 +76,13 @@ internal sealed class LocalAccountInteractivePasswordChanger(
         );
         if (policyResult.IsRejected)
         {
+            await AuditEventRecorder.RecordPasswordChangeFailedAsync(
+                openIdContext,
+                principalId,
+                account.LocalAccountId,
+                policyResult.Error,
+                cancellationToken
+            );
             return InteractivePasswordChangeResult.Refused(policyResult.Error);
         }
 
@@ -108,6 +122,13 @@ internal sealed class LocalAccountInteractivePasswordChanger(
                 result.UserName,
                 CancellationToken.None
             );
+            await AuditEventRecorder.RecordPasswordChangeFailedAsync(
+                openIdContext,
+                principalId,
+                account.LocalAccountId,
+                InteractivePasswordChangeErrors.InvalidCurrentPassword,
+                CancellationToken.None
+            );
             return InteractivePasswordChangeResult.CurrentPasswordInvalid;
         }
 
@@ -126,6 +147,13 @@ internal sealed class LocalAccountInteractivePasswordChanger(
         // The verification's transparent rehash, when one occurred, commits with the new password.
         await accountStore.SetPasswordAsync(account.LocalAccountId, newBuffer, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
+
+        await AuditEventRecorder.RecordPasswordChangedAsync(
+            openIdContext,
+            principalId,
+            account.LocalAccountId,
+            cancellationToken
+        );
 
         return InteractivePasswordChangeResult.Changed;
     }
