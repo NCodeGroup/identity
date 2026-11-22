@@ -146,9 +146,10 @@ internal class TenantTransferApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var platformNode = GetPlatformNode(httpContext);
         var authorizationFailure = await GetAuthorizationFailureAsync(
             httpContext,
-            GetPlatformNode(httpContext),
+            platformNode,
             Operations.Update,
             cancellationToken
         );
@@ -177,15 +178,15 @@ internal class TenantTransferApiEndpointHandler(
         }
         catch (DirectoryUnavailableException)
         {
-            return RetryAfterProblem.Create(
-                httpContext,
-                TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds),
-                new ProblemDetails
-                {
-                    Status = StatusCodes.Status503ServiceUnavailable,
-                    Detail = "The global directory is unavailable. Retry the request.",
-                }
+            var retryAfter = TimeSpan.FromSeconds(
+                GlobalDirectoryProtocol.UnavailableRetryAfterSeconds
             );
+            var problem = new ProblemDetails
+            {
+                Status = StatusCodes.Status503ServiceUnavailable,
+                Detail = "The global directory is unavailable. Retry the request.",
+            };
+            return RetryAfterProblem.Create(httpContext, retryAfter, problem);
         }
 
         if (placement is null || placement.Cell == CellOptions.Name)
@@ -204,14 +205,14 @@ internal class TenantTransferApiEndpointHandler(
         await tenantStore.RemoveFromCellAsync(tenantId, cancellationToken);
         await storeManager.SaveChangesAsync(cancellationToken);
 
+        var targetCell = new Dictionary<string, string> { ["targetCell"] = placement.Cell };
+        var resourceValues = JsonSerializer.SerializeToElement(targetCell);
         await ManagementAuditRecorder.RecordTenantChangedAsync(
             httpContext,
             tenant.TeamId,
             tenantId,
             ResourceChangeTypes.Released,
-            JsonSerializer.SerializeToElement(
-                new Dictionary<string, string> { ["targetCell"] = placement.Cell }
-            )
+            resourceValues
         );
 
         return TypedResults.NoContent();
@@ -239,9 +240,10 @@ internal class TenantTransferApiEndpointHandler(
         CancellationToken cancellationToken
     )
     {
+        var platformNode = GetPlatformNode(httpContext);
         var authorizationFailure = await GetAuthorizationFailureAsync(
             httpContext,
-            GetPlatformNode(httpContext),
+            platformNode,
             Operations.Update,
             cancellationToken
         );
@@ -301,15 +303,15 @@ internal class TenantTransferApiEndpointHandler(
         }
         catch (DirectoryUnavailableException)
         {
-            return RetryAfterProblem.Create(
-                httpContext,
-                TimeSpan.FromSeconds(GlobalDirectoryProtocol.UnavailableRetryAfterSeconds),
-                new ProblemDetails
-                {
-                    Status = StatusCodes.Status503ServiceUnavailable,
-                    Detail = "The global directory is unavailable. Retry the request.",
-                }
+            var retryAfter = TimeSpan.FromSeconds(
+                GlobalDirectoryProtocol.UnavailableRetryAfterSeconds
             );
+            var problem = new ProblemDetails
+            {
+                Status = StatusCodes.Status503ServiceUnavailable,
+                Detail = "The global directory is unavailable. Retry the request.",
+            };
+            return RetryAfterProblem.Create(httpContext, retryAfter, problem);
         }
 
         if (!offer.IsOffered)
@@ -320,14 +322,12 @@ internal class TenantTransferApiEndpointHandler(
         var sections = new List<TenantTransferSection>(TenantTransferContributors.Count);
         foreach (var contributor in TenantTransferContributors)
         {
-            sections.Add(await contributor.ExportAsync(tenantId, cancellationToken));
+            var section = await contributor.ExportAsync(tenantId, cancellationToken);
+            sections.Add(section);
         }
 
-        var masterKeys = await MasterKeyTransfer.ExportAsync(
-            SecretOwner.ForTenant(tenantId),
-            recipient,
-            cancellationToken
-        );
+        var owner = SecretOwner.ForTenant(tenantId);
+        var masterKeys = await MasterKeyTransfer.ExportAsync(owner, recipient, cancellationToken);
 
         var package = await EncodePackageAsync(
             tenantId,
@@ -355,7 +355,8 @@ internal class TenantTransferApiEndpointHandler(
             resourceValues: null
         );
 
-        return TypedResults.Ok(new TenantExportResource { Package = package });
+        var resource = new TenantExportResource { Package = package };
+        return TypedResults.Ok(resource);
     }
 
     // Answers an offer that the directory refuses. A directory that places the tenant in another cell has a move behind
@@ -481,7 +482,8 @@ internal class TenantTransferApiEndpointHandler(
         }
 
         ReadOnlyMemory<byte> content = payload.WrittenMemory;
-        var encoder = JoseSerializer.CreateEncoder(CreateEncryptionOptions(recipient));
+        var encryptionOptions = CreateEncryptionOptions(recipient);
+        var encoder = JoseSerializer.CreateEncoder(encryptionOptions);
         return await encoder.EncodeAsync(content, cancellationToken);
     }
 
@@ -513,14 +515,10 @@ internal class TenantTransferApiEndpointHandler(
             );
         }
 
+        var credentials = new JoseKeyManagementCredentials(recipient, keyManagement);
         return new JoseEncryptionOptions(encryption)
         {
-            Recipients =
-            [
-                new JoseRecipientOptions(
-                    new JoseKeyManagementCredentials(recipient, keyManagement)
-                ),
-            ],
+            Recipients = [new JoseRecipientOptions(credentials)],
         };
     }
 }
