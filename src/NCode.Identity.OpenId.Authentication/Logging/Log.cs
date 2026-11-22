@@ -762,4 +762,12 @@ internal static partial class Log
         string streamId,
         string tenantId
     );
+
+    // See ADR-1534.
+    [LoggerMessage(
+        EventId = EventIds.AuditStreamPollFailed,
+        Level = LogLevel.Error,
+        Message = "Audit streams could not be delivered; delivery runs again at the next interval."
+    )]
+    internal static partial void AuditStreamPollFailed(this ILogger logger, Exception exception);
 }

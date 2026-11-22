@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using NCode.Collections.Providers;
 using NCode.Identity.Events;
 using NCode.Identity.Events.Audit;
+using NCode.Identity.OpenId.Authentication.Auditing.Streams;
 using NCode.Identity.Registration;
 using NCode.Identity.Settings;
 
@@ -23,7 +24,8 @@ internal static class DefaultRegistration
         /// <summary>
         /// Configures the audit event recorder and the audit store's writer: the handler that queues every audit
         /// event's record and the service that writes the queued records to the store, and the service that removes the
-        /// ones past their retention, and the setting descriptor for the most audit streams a tenant may have.
+        /// ones past their retention, the service that delivers audit streams, and the setting descriptor for the most
+        /// audit streams a tenant may have.
         /// </summary>
         /// <returns>The <see cref="IServiceBuilder{T}"/> instance for method chaining.</returns>
         public IServiceBuilder<OpenIdAuthenticationLibrary> AddAuditingServices()
@@ -55,6 +57,9 @@ internal static class DefaultRegistration
                 DefaultAuditStreamSettingDescriptorDataSource
             >();
             serviceCollection.TryAddEnumerable(streamSettingDataSource);
+            serviceCollection.AddHttpClient();
+            serviceCollection.TryAddSingleton<IAuditStreamDeliverer, DefaultAuditStreamDeliverer>();
+            serviceCollection.AddHostedService<AuditStreamDeliveryService>();
 
             return builder;
         }

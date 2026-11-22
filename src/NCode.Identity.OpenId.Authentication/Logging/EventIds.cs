@@ -91,4 +91,5 @@ internal static class EventIds
     public const int CibaDeliveryFailed = Base + 78;
     public const int AuditStreamDeliveryFailed = Base + 79;
     public const int AuditStreamStateConflict = Base + 80;
+    public const int AuditStreamPollFailed = Base + 81;
 }
