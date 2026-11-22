@@ -48,11 +48,14 @@ public sealed class TenantResolutionOptionsValidatorTests
     }
 
     [Fact]
-    public void Validate_WhenRootTenantIdIsEmpty_Fails()
+    public void Validate_WhenRootTenantIdIsUnset_Succeeds()
     {
-        var failures = Failures(new TenantResolutionOptions { Root = { TenantId = string.Empty } });
+        var result = Validator.Validate(
+            name: null,
+            new TenantResolutionOptions { Root = { TenantId = null } }
+        );
 
-        Assert.Contains("Root:TenantId is required", failures, StringComparison.Ordinal);
+        Assert.True(result.Succeeded);
     }
 
     [Theory]
@@ -87,13 +90,14 @@ public sealed class TenantResolutionOptionsValidatorTests
     }
 
     [Fact]
-    public void Validate_WhenRootDisplayNameIsEmpty_Fails()
+    public void Validate_WhenRootDisplayNameIsUnset_Succeeds()
     {
-        var failures = Failures(
-            new TenantResolutionOptions { Root = { DisplayName = string.Empty } }
+        var result = Validator.Validate(
+            name: null,
+            new TenantResolutionOptions { Root = { DisplayName = null } }
         );
 
-        Assert.Contains("Root:DisplayName is required", failures, StringComparison.Ordinal);
+        Assert.True(result.Succeeded);
     }
 
     [Theory]

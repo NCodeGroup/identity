@@ -907,14 +907,14 @@ NCode.Identity.OpenId.Tenants.ITenantResolver.GetDefaultMtlsEndpointAliasAuthori
 NCode.Identity.OpenId.Tenants.ITenantStrategy.GetDefaultIssuerAsync(string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string?>
 NCode.Identity.OpenId.Tenants.ITenantStrategy.GetDefaultMtlsEndpointAliasAuthorityAsync(string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string?>
 NCode.Identity.OpenId.Tenants.RootTenantOptions
-NCode.Identity.OpenId.Tenants.RootTenantOptions.DisplayName.get -> string!
+NCode.Identity.OpenId.Tenants.RootTenantOptions.DisplayName.get -> string?
 NCode.Identity.OpenId.Tenants.RootTenantOptions.DisplayName.set -> void
 NCode.Identity.OpenId.Tenants.RootTenantOptions.Issuer.get -> string?
 NCode.Identity.OpenId.Tenants.RootTenantOptions.Issuer.set -> void
 NCode.Identity.OpenId.Tenants.RootTenantOptions.MtlsEndpointAliasAuthority.get -> string?
 NCode.Identity.OpenId.Tenants.RootTenantOptions.MtlsEndpointAliasAuthority.set -> void
 NCode.Identity.OpenId.Tenants.RootTenantOptions.RootTenantOptions() -> void
-NCode.Identity.OpenId.Tenants.RootTenantOptions.TenantId.get -> string!
+NCode.Identity.OpenId.Tenants.RootTenantOptions.TenantId.get -> string?
 NCode.Identity.OpenId.Tenants.RootTenantOptions.TenantId.set -> void
 NCode.Identity.OpenId.Tenants.TenantResolutionOptions.Root.get -> NCode.Identity.OpenId.Tenants.RootTenantOptions!
 NCode.Identity.OpenId.Tenants.TenantResolutionOptions.Root.set -> void

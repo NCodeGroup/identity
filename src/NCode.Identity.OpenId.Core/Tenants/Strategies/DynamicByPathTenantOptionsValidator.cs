@@ -117,7 +117,11 @@ internal class DynamicByPathTenantOptionsValidator : IValidateOptions<TenantReso
     )
     {
         // An absent or malformed root section is reported by the shared validator.
-        if (root is null || !TenantAddressRules.IsValidTenantId(root.TenantId))
+        if (root is null)
+            return;
+
+        var rootTenantId = RootTenantRules.GetTenantId(root);
+        if (!TenantAddressRules.IsValidTenantId(rootTenantId))
             return;
 
         var rootIssuerKey = $"{nameof(TenantResolutionOptions.Root)}:{nameof(root.Issuer)}";
@@ -135,7 +139,7 @@ internal class DynamicByPathTenantOptionsValidator : IValidateOptions<TenantReso
                 return;
             }
 
-            rootIssuer = TenantAddressRules.ExpandIssuerTemplate(issuerTemplate, root.TenantId);
+            rootIssuer = TenantAddressRules.ExpandIssuerTemplate(issuerTemplate, rootTenantId);
         }
 
         // A malformed configured root issuer is reported by the shared validator, and a malformed template by the template
@@ -143,7 +147,7 @@ internal class DynamicByPathTenantOptionsValidator : IValidateOptions<TenantReso
         if (TenantAddressRules.TryParseIssuer(rootIssuer, out var rootIssuerUri))
             ValidateServedIssuer(
                 rootIssuerUri,
-                root.TenantId,
+                rootTenantId,
                 rootIssuerKey,
                 rootIssuer,
                 options,

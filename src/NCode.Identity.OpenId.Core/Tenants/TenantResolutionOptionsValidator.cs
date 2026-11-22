@@ -58,20 +58,15 @@ internal class TenantResolutionOptionsValidator : IValidateOptions<TenantResolut
             failures.Add($"{prefix}:{nameof(root.TeamDisplayName)} is required.");
 
         var rootTenantId = root.TenantId;
-        if (string.IsNullOrEmpty(rootTenantId))
-        {
-            failures.Add($"{prefix}:{nameof(root.TenantId)} is required.");
-        }
-        else if (!TenantAddressRules.IsValidTenantId(rootTenantId))
+        if (
+            !string.IsNullOrEmpty(rootTenantId) && !TenantAddressRules.IsValidTenantId(rootTenantId)
+        )
         {
             failures.Add(
                 $"{prefix}:{nameof(root.TenantId)} '{rootTenantId}' must be "
                     + $"{TenantAddressRules.TenantIdRequirement}."
             );
         }
-
-        if (string.IsNullOrEmpty(root.DisplayName))
-            failures.Add($"{prefix}:{nameof(root.DisplayName)} is required.");
 
         var rootIssuer = root.Issuer;
         if (
