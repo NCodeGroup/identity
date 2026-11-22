@@ -275,7 +275,7 @@ be owned by external-dns in-cluster.
 
 **Certificates:** cert-manager with the Cloudflare DNS-01 solver issues Let's Encrypt certificates (wildcards included)
 into Kubernetes Secrets that Traefik serves. Traefik's built-in ACME client keeps state per instance and doesn't share
-it across 3 replicas, so it isn't used.
+it between instances, so it isn't used.
 
 **Hostnames** — the issuer URL is baked into every client's configuration, so choose these once (decided in
 [ADR-1495](decisions/1495-the-hosted-platform-runs-customer-environments-as-tenants-on-production-under-the-ncodeid-net-platform-domain.md)). The scheme uses
